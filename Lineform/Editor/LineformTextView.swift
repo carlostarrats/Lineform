@@ -2,6 +2,7 @@ import AppKit
 
 final class LineformTextView: NSTextView {
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
+    private var activeReadingProfile = ReadingProfile.original
 
     convenience init() {
         self.init(frame: .zero, textContainer: nil)
@@ -22,16 +23,26 @@ final class LineformTextView: NSTextView {
     }
 
     func applyDefaultTypography() {
-        font = NSFont.systemFont(ofSize: CGFloat(ReadingProfile.original.fontSize))
-        textColor = .labelColor
-        backgroundColor = .textBackgroundColor
-        insertionPointColor = .labelColor
-        textContainerInset = NSSize(width: 40, height: 32)
-        typingAttributes = MarkdownSyntaxHighlighter.baseAttributes
+        applyTypography(.original)
+    }
+
+    func applyTypography(_ profile: ReadingProfile) {
+        activeReadingProfile = profile
+
+        let theme = Theme.theme(for: profile.themeID)
+        let resolvedFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
+        font = resolvedFont
+        textColor = theme.textColor
+        backgroundColor = theme.backgroundColor
+        drawsBackground = true
+        insertionPointColor = theme.caretColor
+        textContainerInset = NSSize(width: CGFloat(profile.marginWidth), height: 32)
+        typingAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        refreshMarkdownHighlighting()
     }
 
     func refreshMarkdownHighlighting() {
-        markdownHighlighter.highlight(textView: self)
+        markdownHighlighter.highlight(textView: self, profile: activeReadingProfile)
     }
 
     @objc func toggleBoldMarkdown(_ sender: Any?) {
@@ -58,6 +69,12 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: "Code", action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
         menu.addItem(NSMenuItem(title: "Bulleted List", action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
         return menu
+    }
+
+    override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+        var caretRect = rect
+        caretRect.size.width = max(rect.width, CGFloat(activeReadingProfile.insertionPointWidth))
+        super.drawInsertionPoint(in: caretRect, color: color, turnedOn: flag)
     }
 
     private func configureForMarkdownEditing() {
@@ -90,7 +107,7 @@ final class LineformTextView: NSTextView {
             return
         }
 
-        textStorage?.setAttributedString(NSAttributedString(string: edit.text, attributes: MarkdownSyntaxHighlighter.baseAttributes))
+        textStorage?.setAttributedString(NSAttributedString(string: edit.text, attributes: MarkdownSyntaxHighlighter.baseAttributes(for: activeReadingProfile)))
         didChangeText()
         setSelectedRange(edit.selectedRange)
         refreshMarkdownHighlighting()

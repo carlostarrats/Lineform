@@ -13,6 +13,10 @@
 		1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000024 /* SelectionContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000024 /* SelectionContextTests.swift */; };
+		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
+		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
+		1F0000010000000000000043 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000043 /* ThemeTests.swift */; };
+		1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000044 /* ReadingProfileStoreTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
@@ -25,6 +29,11 @@
 		1F0000010000000000000034 /* DocumentStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000034 /* DocumentStatistics.swift */; };
 		1F0000010000000000000035 /* SelectionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000035 /* SelectionContext.swift */; };
 		1F0000010000000000000036 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000036 /* AppCommands.swift */; };
+		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
+		1F0000010000000000000052 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000052 /* Theme.swift */; };
+		1F0000010000000000000053 /* ReadingPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000053 /* ReadingPreset.swift */; };
+		1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000054 /* ReadingProfileStore.swift */; };
+		1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000055 /* ReadingExperiencePopover.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +53,10 @@
 		1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommandTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000024 /* SelectionContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionContextTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000043 /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000044 /* ReadingProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStoreTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,6 +72,11 @@
 		1F0000020000000000000034 /* DocumentStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatistics.swift; sourceTree = "<group>"; };
 		1F0000020000000000000035 /* SelectionContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionContext.swift; sourceTree = "<group>"; };
 		1F0000020000000000000036 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
+		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
+		1F0000020000000000000052 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		1F0000020000000000000053 /* ReadingPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPreset.swift; sourceTree = "<group>"; };
+		1F0000020000000000000054 /* ReadingProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStore.swift; sourceTree = "<group>"; };
+		1F0000020000000000000055 /* ReadingExperiencePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingExperiencePopover.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +154,11 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000017 /* ReadingProfile.swift */,
+				1F0000020000000000000051 /* FontOption.swift */,
+				1F0000020000000000000052 /* Theme.swift */,
+				1F0000020000000000000053 /* ReadingPreset.swift */,
+				1F0000020000000000000054 /* ReadingProfileStore.swift */,
+				1F0000020000000000000055 /* ReadingExperiencePopover.swift */,
 			);
 			path = ReadingExperience;
 			sourceTree = "<group>";
@@ -149,6 +172,10 @@
 				1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */,
 				1F0000020000000000000023 /* DocumentStatisticsTests.swift */,
 				1F0000020000000000000024 /* SelectionContextTests.swift */,
+				1F0000020000000000000041 /* ReadingPresetTests.swift */,
+				1F0000020000000000000042 /* FontOptionTests.swift */,
+				1F0000020000000000000043 /* ThemeTests.swift */,
+				1F0000020000000000000044 /* ReadingProfileStoreTests.swift */,
 			);
 			path = LineformTests;
 			sourceTree = "<group>";
@@ -272,6 +299,11 @@
 				1F0000010000000000000034 /* DocumentStatistics.swift in Sources */,
 				1F0000010000000000000035 /* SelectionContext.swift in Sources */,
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
+				1F0000010000000000000051 /* FontOption.swift in Sources */,
+				1F0000010000000000000052 /* Theme.swift in Sources */,
+				1F0000010000000000000053 /* ReadingPreset.swift in Sources */,
+				1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */,
+				1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,6 +317,10 @@
 				1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */,
 				1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */,
 				1F0000010000000000000024 /* SelectionContextTests.swift in Sources */,
+				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
+				1F0000010000000000000042 /* FontOptionTests.swift in Sources */,
+				1F0000010000000000000043 /* ThemeTests.swift in Sources */,
+				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -2,16 +2,28 @@ import AppKit
 
 final class MarkdownSyntaxHighlighter {
     static var baseAttributes: [NSAttributedString.Key: Any] {
-        [
-            .font: NSFont.systemFont(ofSize: CGFloat(ReadingProfile.original.fontSize)),
-            .foregroundColor: NSColor.labelColor
+        baseAttributes(for: .original)
+    }
+
+    static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
+        let theme = Theme.theme(for: profile.themeID)
+        let font = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineHeightMultiple = CGFloat(profile.lineHeightMultiple)
+        paragraphStyle.paragraphSpacing = CGFloat(profile.paragraphSpacing)
+
+        return [
+            NSAttributedString.Key.font: font,
+            NSAttributedString.Key.foregroundColor: theme.textColor,
+            NSAttributedString.Key.paragraphStyle: paragraphStyle,
+            NSAttributedString.Key.kern: profile.letterSpacing
         ]
     }
 
     private let analyzer = MarkdownRangeAnalyzer()
 
     @MainActor
-    func highlight(textView: NSTextView) {
+    func highlight(textView: NSTextView, profile: ReadingProfile = .original) {
         guard let storage = textView.textStorage else {
             return
         }
@@ -20,25 +32,28 @@ final class MarkdownSyntaxHighlighter {
         let fullRange = NSRange(location: 0, length: storage.length)
 
         storage.beginEditing()
-        storage.setAttributes(Self.baseAttributes, range: fullRange)
+        storage.setAttributes(Self.baseAttributes(for: profile), range: fullRange)
 
         for token in analyzer.ranges(in: textView.string) where NSMaxRange(token.range) <= storage.length {
-            storage.addAttributes(attributes(for: token.kind), range: token.range)
+            storage.addAttributes(attributes(for: token.kind, profile: profile), range: token.range)
         }
 
         storage.endEditing()
         textView.setSelectedRange(selectedRange)
     }
 
-    private func attributes(for kind: MarkdownTokenKind) -> [NSAttributedString.Key: Any] {
+    private func attributes(for kind: MarkdownTokenKind, profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
+        let markerColor = profile.reduceMarkdownNoise ? NSColor.tertiaryLabelColor.withAlphaComponent(0.45) : NSColor.secondaryLabelColor
+        let mutedColor = profile.reduceMarkdownNoise ? NSColor.tertiaryLabelColor.withAlphaComponent(0.55) : NSColor.tertiaryLabelColor
+
         switch kind {
         case .headingMarker:
-            return [.foregroundColor: NSColor.secondaryLabelColor]
+            return [.foregroundColor: markerColor]
         case .listMarker, .checkbox, .blockquoteMarker:
-            return [.foregroundColor: NSColor.tertiaryLabelColor]
+            return [.foregroundColor: mutedColor]
         case .codeSpan, .codeFence:
             return [
-                .font: NSFont.monospacedSystemFont(ofSize: CGFloat(ReadingProfile.original.fontSize), weight: .regular),
+                .font: NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular),
                 .foregroundColor: NSColor.systemBrown
             ]
         case .linkText:

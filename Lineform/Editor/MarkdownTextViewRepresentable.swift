@@ -4,6 +4,7 @@ import SwiftUI
 struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectionContext: SelectionContext
+    var profile: ReadingProfile
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, selectionContext: $selectionContext)
@@ -20,6 +21,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         let textView = LineformTextView()
         textView.string = text
         textView.delegate = context.coordinator
+        textView.applyTypography(profile)
         textView.refreshMarkdownHighlighting()
         context.coordinator.updateSelection(from: textView)
 
@@ -37,7 +39,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             textView.refreshMarkdownHighlighting()
         }
 
-        textView.applyDefaultTypography()
+        textView.applyTypography(profile)
     }
 }
 

@@ -21,6 +21,7 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
     var id: UUID
     var name: String
     var fontID: FontID
+    var themeID: ThemeID
     var fontSize: Double
     var lineHeightMultiple: Double
     var paragraphSpacing: Double
@@ -40,6 +41,7 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
         id: UUID(uuidString: "1C7B19CC-A1ED-4828-8F77-94B6769F7260")!,
         name: "Original",
         fontID: .sfPro,
+        themeID: .system,
         fontSize: 17,
         lineHeightMultiple: 1.35,
         paragraphSpacing: 8,
