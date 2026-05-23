@@ -3,9 +3,10 @@ import SwiftUI
 
 struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String
+    @Binding var selectionContext: SelectionContext
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator(text: $text, selectionContext: $selectionContext)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -19,6 +20,8 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         let textView = LineformTextView()
         textView.string = text
         textView.delegate = context.coordinator
+        textView.refreshMarkdownHighlighting()
+        context.coordinator.updateSelection(from: textView)
 
         scrollView.documentView = textView
         return scrollView
@@ -31,6 +34,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
         if textView.string != text {
             textView.string = text
+            textView.refreshMarkdownHighlighting()
         }
 
         textView.applyDefaultTypography()
@@ -39,9 +43,11 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
 final class Coordinator: NSObject, NSTextViewDelegate {
     private var text: Binding<String>
+    private var selectionContext: Binding<SelectionContext>
 
-    init(text: Binding<String>) {
+    init(text: Binding<String>, selectionContext: Binding<SelectionContext>) {
         self.text = text
+        self.selectionContext = selectionContext
     }
 
     func textDidChange(_ notification: Notification) {
@@ -50,5 +56,22 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         }
 
         text.wrappedValue = textView.string
+        if let lineformTextView = textView as? LineformTextView {
+            lineformTextView.refreshMarkdownHighlighting()
+        }
+        updateSelection(from: textView)
+    }
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView else {
+            return
+        }
+
+        updateSelection(from: textView)
+    }
+
+    @MainActor
+    func updateSelection(from textView: NSTextView) {
+        selectionContext.wrappedValue = SelectionContext(text: textView.string, selectedRange: textView.selectedRange())
     }
 }

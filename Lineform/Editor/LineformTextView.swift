@@ -1,6 +1,8 @@
 import AppKit
 
 final class LineformTextView: NSTextView {
+    private let markdownHighlighter = MarkdownSyntaxHighlighter()
+
     convenience init() {
         self.init(frame: .zero, textContainer: nil)
     }
@@ -25,6 +27,37 @@ final class LineformTextView: NSTextView {
         backgroundColor = .textBackgroundColor
         insertionPointColor = .labelColor
         textContainerInset = NSSize(width: 40, height: 32)
+        typingAttributes = MarkdownSyntaxHighlighter.baseAttributes
+    }
+
+    func refreshMarkdownHighlighting() {
+        markdownHighlighter.highlight(textView: self)
+    }
+
+    @objc func toggleBoldMarkdown(_ sender: Any?) {
+        applyFormattingCommand(.bold)
+    }
+
+    @objc func toggleItalicMarkdown(_ sender: Any?) {
+        applyFormattingCommand(.italic)
+    }
+
+    @objc func toggleInlineCodeMarkdown(_ sender: Any?) {
+        applyFormattingCommand(.inlineCode)
+    }
+
+    @objc func toggleUnorderedListMarkdown(_ sender: Any?) {
+        applyFormattingCommand(.unorderedList)
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event) ?? NSMenu()
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Bold", action: #selector(toggleBoldMarkdown(_:)), keyEquivalent: "b"))
+        menu.addItem(NSMenuItem(title: "Italic", action: #selector(toggleItalicMarkdown(_:)), keyEquivalent: "i"))
+        menu.addItem(NSMenuItem(title: "Code", action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
+        menu.addItem(NSMenuItem(title: "Bulleted List", action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
+        return menu
     }
 
     private func configureForMarkdownEditing() {
@@ -47,5 +80,19 @@ final class LineformTextView: NSTextView {
         setAccessibilityLabel("Markdown editor")
         setAccessibilityRole(.textArea)
         applyDefaultTypography()
+    }
+
+    private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {
+        let edit = command.apply(to: string, selectedRange: selectedRange())
+        let fullRange = NSRange(location: 0, length: (string as NSString).length)
+
+        guard shouldChangeText(in: fullRange, replacementString: edit.text) else {
+            return
+        }
+
+        textStorage?.setAttributedString(NSAttributedString(string: edit.text, attributes: MarkdownSyntaxHighlighter.baseAttributes))
+        didChangeText()
+        setSelectedRange(edit.selectedRange)
+        refreshMarkdownHighlighting()
     }
 }

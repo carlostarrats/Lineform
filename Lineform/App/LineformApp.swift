@@ -6,5 +6,8 @@ struct LineformApp: App {
         DocumentGroup(newDocument: LineformDocument()) { file in
             EditorContainerView(document: file.$document)
         }
+        .commands {
+            AppCommands()
+        }
     }
 }
