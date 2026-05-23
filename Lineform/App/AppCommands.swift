@@ -43,6 +43,12 @@ struct AppCommands: Commands {
             }
         }
 
+        CommandGroup(replacing: .help) {
+            Button("Lineform Markdown Guide") {
+                LineformHelp.openMarkdownGuide()
+            }
+        }
+
         CommandGroup(after: .textEditing) {
             if #available(macOS 15.2, *) {
                 Divider()

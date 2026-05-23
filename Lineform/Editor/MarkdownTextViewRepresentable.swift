@@ -60,6 +60,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var selectionContext: Binding<SelectionContext>
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
+    private var pendingHighlightWorkItem: DispatchWorkItem?
 
     init(text: Binding<String>, selectionContext: Binding<SelectionContext>) {
         self.text = text
@@ -78,7 +79,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         }
 
         if let lineformTextView = textView as? LineformTextView {
-            lineformTextView.refreshMarkdownHighlighting()
+            scheduleMarkdownHighlighting(for: lineformTextView)
             lineformTextView.refreshReadingAssists()
         }
         updateSelection(from: textView)
@@ -115,5 +116,14 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     @MainActor
     func updateSelection(from textView: NSTextView) {
         selectionContext.wrappedValue = SelectionContext(text: textView.string, selectedRange: textView.selectedRange())
+    }
+
+    private func scheduleMarkdownHighlighting(for textView: LineformTextView) {
+        pendingHighlightWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak textView] in
+            textView?.refreshMarkdownHighlighting()
+        }
+        pendingHighlightWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)
     }
 }

@@ -98,14 +98,12 @@ struct EditorContainerView: View {
         case .write:
             markdownEditor
         case .preview:
-            MarkdownPreviewViewRepresentable(text: document.text, profile: readingProfileStore.activeProfile)
-                .accessibilityLabel("Markdown preview")
+            DebouncedMarkdownPreviewView(text: document.text, profile: readingProfileStore.activeProfile)
         case .split:
             HStack(spacing: 0) {
                 markdownEditor
                 Divider()
-                MarkdownPreviewViewRepresentable(text: document.text, profile: readingProfileStore.activeProfile)
-                    .accessibilityLabel("Markdown preview")
+                DebouncedMarkdownPreviewView(text: document.text, profile: readingProfileStore.activeProfile)
             }
         }
     }

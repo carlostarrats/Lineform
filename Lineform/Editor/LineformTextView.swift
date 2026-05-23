@@ -1,13 +1,19 @@
 import AppKit
 
 final class LineformTextView: NSTextView {
+    let emptyStatePlaceholder = "Start writing..."
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private(set) var isLineformWritingToolsSessionActive = false
     private var activeIntelligentSuggestionRange: NSRange?
 
     convenience init() {
-        self.init(frame: .zero, textContainer: nil)
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(textContainer)
+        self.init(frame: .zero, textContainer: textContainer)
     }
 
     override init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
@@ -97,6 +103,7 @@ final class LineformTextView: NSTextView {
 
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
+        drawEmptyStatePlaceholderIfNeeded()
         drawIntelligentSuggestionHighlightIfNeeded()
         drawFocusHighlightIfNeeded()
         drawReadingRulerIfNeeded()
@@ -126,6 +133,7 @@ final class LineformTextView: NSTextView {
         textContainer?.containerSize = NSSize(width: bounds.width, height: CGFloat.greatestFiniteMagnitude)
         setAccessibilityLabel("Markdown editor")
         setAccessibilityRole(.textArea)
+        setAccessibilityHelp(emptyStatePlaceholder)
         configureWritingTools()
         applyDefaultTypography()
     }
@@ -188,6 +196,19 @@ final class LineformTextView: NSTextView {
 
         NSColor.controlAccentColor.withAlphaComponent(0.10).setFill()
         rect.insetBy(dx: -8, dy: -4).fill()
+    }
+
+    private func drawEmptyStatePlaceholderIfNeeded() {
+        guard string.isEmpty, window?.firstResponder !== self else {
+            return
+        }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font ?? .systemFont(ofSize: CGFloat(activeReadingProfile.fontSize)),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+        let origin = NSPoint(x: textContainerInset.width, y: textContainerInset.height)
+        emptyStatePlaceholder.draw(at: origin, withAttributes: attributes)
     }
 
     private func drawReadingRulerIfNeeded() {

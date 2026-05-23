@@ -62,6 +62,19 @@
 		1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000100 /* IntelligentEditingService.swift */; };
 		1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000101 /* IntelligentEditingRunner.swift */; };
 		1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */; };
+		1F0000010000000000000103 /* LineformHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000103 /* LineformHelp.swift */; };
+		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
+		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
+		1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */; };
+		1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */; };
+		1F0000010000000000000108 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000108 /* Assets.xcassets */; };
+		1F0000010000000000000109 /* MarkdownGuide.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000109 /* MarkdownGuide.md */; };
+		1F0000010000000000000110 /* Help.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000110 /* Help.md */; };
+		1F0000010000000000000111 /* Privacy.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000111 /* Privacy.md */; };
+		1F0000010000000000000112 /* FontLicenseReview.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000112 /* FontLicenseReview.md */; };
+		1F0000010000000000000113 /* AppStoreMetadata.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000113 /* AppStoreMetadata.md */; };
+		1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000114 /* AccessibilityNutritionLabel.md */; };
+		1F0000010000000000000115 /* ReleaseReadiness.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000115 /* ReleaseReadiness.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -133,6 +146,19 @@
 		1F0000020000000000000100 /* IntelligentEditingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000101 /* IntelligentEditingRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunner.swift; sourceTree = "<group>"; };
 		1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingSuggestionBar.swift; sourceTree = "<group>"; };
+		1F0000020000000000000103 /* LineformHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformHelp.swift; sourceTree = "<group>"; };
+		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
+		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewEmptyStateTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentPerformanceTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1F0000020000000000000109 /* MarkdownGuide.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MarkdownGuide.md; sourceTree = "<group>"; };
+		1F0000020000000000000110 /* Help.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Help.md; sourceTree = "<group>"; };
+		1F0000020000000000000111 /* Privacy.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Privacy.md; sourceTree = "<group>"; };
+		1F0000020000000000000112 /* FontLicenseReview.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = FontLicenseReview.md; sourceTree = "<group>"; };
+		1F0000020000000000000113 /* AppStoreMetadata.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AppStoreMetadata.md; sourceTree = "<group>"; };
+		1F0000020000000000000114 /* AccessibilityNutritionLabel.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AccessibilityNutritionLabel.md; sourceTree = "<group>"; };
+		1F0000020000000000000115 /* ReleaseReadiness.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ReleaseReadiness.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +198,7 @@
 				1F0000070000000000000015 /* Preview */,
 				1F0000070000000000000016 /* Outline */,
 				1F0000070000000000000017 /* Intelligence */,
+				1F0000070000000000000018 /* Resources */,
 				1F0000020000000000000003 /* Info.plist */,
 			);
 			path = Lineform;
@@ -183,6 +210,7 @@
 				1F0000020000000000000011 /* LineformApp.swift */,
 				1F0000020000000000000036 /* AppCommands.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
+				1F0000020000000000000103 /* LineformHelp.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -231,6 +259,7 @@
 			children = (
 				1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */,
 				1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */,
+				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
 			);
 			path = Preview;
 			sourceTree = "<group>";
@@ -259,6 +288,21 @@
 			path = Intelligence;
 			sourceTree = "<group>";
 		};
+		1F0000070000000000000018 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000020000000000000108 /* Assets.xcassets */,
+				1F0000020000000000000109 /* MarkdownGuide.md */,
+				1F0000020000000000000110 /* Help.md */,
+				1F0000020000000000000111 /* Privacy.md */,
+				1F0000020000000000000112 /* FontLicenseReview.md */,
+				1F0000020000000000000113 /* AppStoreMetadata.md */,
+				1F0000020000000000000114 /* AccessibilityNutritionLabel.md */,
+				1F0000020000000000000115 /* ReleaseReadiness.md */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		1F0000070000000000000003 /* LineformTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -284,6 +328,9 @@
 				1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */,
 				1F0000020000000000000093 /* MarkdownDiffTests.swift */,
 				1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */,
+				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
+				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
+				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
 			);
 			path = LineformTests;
 			sourceTree = "<group>";
@@ -378,6 +425,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1F0000010000000000000108 /* Assets.xcassets in Resources */,
+				1F0000010000000000000109 /* MarkdownGuide.md in Resources */,
+				1F0000010000000000000110 /* Help.md in Resources */,
+				1F0000010000000000000111 /* Privacy.md in Resources */,
+				1F0000010000000000000112 /* FontLicenseReview.md in Resources */,
+				1F0000010000000000000113 /* AppStoreMetadata.md in Resources */,
+				1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */,
+				1F0000010000000000000115 /* ReleaseReadiness.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -396,6 +451,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1F0000010000000000000011 /* LineformApp.swift in Sources */,
+				1F0000010000000000000103 /* LineformHelp.swift in Sources */,
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
@@ -418,6 +474,7 @@
 				1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */,
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
+				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
 				1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */,
 				1F0000010000000000000095 /* IntelligentEditingAction.swift in Sources */,
@@ -457,6 +514,9 @@
 				1F0000010000000000000092 /* IntelligentEditingPromptBuilderTests.swift in Sources */,
 				1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */,
 				1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */,
+				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
+				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
+				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
