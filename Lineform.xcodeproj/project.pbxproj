@@ -25,6 +25,10 @@
 		1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000073 /* EditorDisplayModeTests.swift */; };
 		1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */; };
 		1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */; };
+		1F0000010000000000000091 /* IntelligentEditingActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000091 /* IntelligentEditingActionTests.swift */; };
+		1F0000010000000000000092 /* IntelligentEditingPromptBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */; };
+		1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000093 /* MarkdownDiffTests.swift */; };
+		1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
@@ -50,6 +54,14 @@
 		1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */; };
 		1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000078 /* OutlineSidebarView.swift */; };
 		1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */; };
+		1F0000010000000000000095 /* IntelligentEditingAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000095 /* IntelligentEditingAction.swift */; };
+		1F0000010000000000000096 /* IntelligentEditingPromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000096 /* IntelligentEditingPromptBuilder.swift */; };
+		1F0000010000000000000097 /* MarkdownDiff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000097 /* MarkdownDiff.swift */; };
+		1F0000010000000000000098 /* IntelligentEditingSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000098 /* IntelligentEditingSuggestion.swift */; };
+		1F0000010000000000000099 /* IntelligenceAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000099 /* IntelligenceAvailability.swift */; };
+		1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000100 /* IntelligentEditingService.swift */; };
+		1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000101 /* IntelligentEditingRunner.swift */; };
+		1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +93,10 @@
 		1F0000020000000000000073 /* EditorDisplayModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDisplayModeTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtectionTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewWritingToolsTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000091 /* IntelligentEditingActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingActionTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingPromptBuilderTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000093 /* MarkdownDiffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDiffTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunnerTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,6 +125,14 @@
 		1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000078 /* OutlineSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtection.swift; sourceTree = "<group>"; };
+		1F0000020000000000000095 /* IntelligentEditingAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingAction.swift; sourceTree = "<group>"; };
+		1F0000020000000000000096 /* IntelligentEditingPromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingPromptBuilder.swift; sourceTree = "<group>"; };
+		1F0000020000000000000097 /* MarkdownDiff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDiff.swift; sourceTree = "<group>"; };
+		1F0000020000000000000098 /* IntelligentEditingSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingSuggestion.swift; sourceTree = "<group>"; };
+		1F0000020000000000000099 /* IntelligenceAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceAvailability.swift; sourceTree = "<group>"; };
+		1F0000020000000000000100 /* IntelligentEditingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingService.swift; sourceTree = "<group>"; };
+		1F0000020000000000000101 /* IntelligentEditingRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunner.swift; sourceTree = "<group>"; };
+		1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingSuggestionBar.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -147,6 +171,7 @@
 				1F0000070000000000000014 /* ReadingExperience */,
 				1F0000070000000000000015 /* Preview */,
 				1F0000070000000000000016 /* Outline */,
+				1F0000070000000000000017 /* Intelligence */,
 				1F0000020000000000000003 /* Info.plist */,
 			);
 			path = Lineform;
@@ -219,6 +244,21 @@
 			path = Outline;
 			sourceTree = "<group>";
 		};
+		1F0000070000000000000017 /* Intelligence */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000020000000000000095 /* IntelligentEditingAction.swift */,
+				1F0000020000000000000096 /* IntelligentEditingPromptBuilder.swift */,
+				1F0000020000000000000097 /* MarkdownDiff.swift */,
+				1F0000020000000000000098 /* IntelligentEditingSuggestion.swift */,
+				1F0000020000000000000099 /* IntelligenceAvailability.swift */,
+				1F0000020000000000000100 /* IntelligentEditingService.swift */,
+				1F0000020000000000000101 /* IntelligentEditingRunner.swift */,
+				1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */,
+			);
+			path = Intelligence;
+			sourceTree = "<group>";
+		};
 		1F0000070000000000000003 /* LineformTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -240,6 +280,10 @@
 				1F0000020000000000000073 /* EditorDisplayModeTests.swift */,
 				1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */,
 				1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */,
+				1F0000020000000000000091 /* IntelligentEditingActionTests.swift */,
+				1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */,
+				1F0000020000000000000093 /* MarkdownDiffTests.swift */,
+				1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */,
 			);
 			path = LineformTests;
 			sourceTree = "<group>";
@@ -376,6 +420,14 @@
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
 				1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */,
+				1F0000010000000000000095 /* IntelligentEditingAction.swift in Sources */,
+				1F0000010000000000000096 /* IntelligentEditingPromptBuilder.swift in Sources */,
+				1F0000010000000000000097 /* MarkdownDiff.swift in Sources */,
+				1F0000010000000000000098 /* IntelligentEditingSuggestion.swift in Sources */,
+				1F0000010000000000000099 /* IntelligenceAvailability.swift in Sources */,
+				1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */,
+				1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */,
+				1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -401,6 +453,10 @@
 				1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */,
 				1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */,
 				1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */,
+				1F0000010000000000000091 /* IntelligentEditingActionTests.swift in Sources */,
+				1F0000010000000000000092 /* IntelligentEditingPromptBuilderTests.swift in Sources */,
+				1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */,
+				1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

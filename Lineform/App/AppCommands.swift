@@ -34,6 +34,15 @@ struct AppCommands: Commands {
             .keyboardShortcut("r", modifiers: [.command, .option])
         }
 
+        CommandMenu("Intelligence") {
+            ForEach(IntelligentEditingAction.allCases) { action in
+                Button(action.title) {
+                    LineformAppNotification.runIntelligentEditingAction.post(object: action.rawValue)
+                }
+                .keyboardShortcut(KeyEquivalent(Character(action.keyEquivalent)), modifiers: [.command, .option])
+            }
+        }
+
         CommandGroup(after: .textEditing) {
             if #available(macOS 15.2, *) {
                 Divider()

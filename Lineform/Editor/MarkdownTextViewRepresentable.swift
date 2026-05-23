@@ -6,6 +6,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var selectionContext: SelectionContext
     @Binding var requestedSelection: NSRange?
     var profile: ReadingProfile
+    var intelligentSuggestionRange: NSRange?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, selectionContext: $selectionContext)
@@ -41,6 +42,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
 
         textView.applyTypography(profile)
+        textView.setIntelligentSuggestionRange(intelligentSuggestionRange)
 
         if let range = requestedSelection {
             let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))

@@ -4,6 +4,7 @@ final class LineformTextView: NSTextView {
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private(set) var isLineformWritingToolsSessionActive = false
+    private var activeIntelligentSuggestionRange: NSRange?
 
     convenience init() {
         self.init(frame: .zero, textContainer: nil)
@@ -75,6 +76,8 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: "Italic", action: #selector(toggleItalicMarkdown(_:)), keyEquivalent: "i"))
         menu.addItem(NSMenuItem(title: "Code", action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
         menu.addItem(NSMenuItem(title: "Bulleted List", action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(intelligenceMenuItem())
         if #available(macOS 15.2, *) {
             menu.addItem(.separator())
             for item in NSMenuItem.writingToolsItems {
@@ -94,8 +97,14 @@ final class LineformTextView: NSTextView {
 
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
+        drawIntelligentSuggestionHighlightIfNeeded()
         drawFocusHighlightIfNeeded()
         drawReadingRulerIfNeeded()
+    }
+
+    func setIntelligentSuggestionRange(_ range: NSRange?) {
+        activeIntelligentSuggestionRange = range
+        needsDisplay = true
     }
 
     private func configureForMarkdownEditing() {
@@ -140,6 +149,45 @@ final class LineformTextView: NSTextView {
         MarkdownWritingToolsProtection
             .ignoredRanges(in: string, enclosingRange: enclosingRange)
             .map { NSValue(range: $0) }
+    }
+
+    @objc func runIntelligentEditingAction(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String else {
+            return
+        }
+
+        LineformAppNotification.runIntelligentEditingAction.post(object: rawValue)
+    }
+
+    private func intelligenceMenuItem() -> NSMenuItem {
+        let submenu = NSMenu(title: "Intelligence")
+        for action in IntelligentEditingAction.allCases {
+            let item = NSMenuItem(
+                title: action.title,
+                action: #selector(runIntelligentEditingAction(_:)),
+                keyEquivalent: action.keyEquivalent
+            )
+            item.keyEquivalentModifierMask = [.command, .option]
+            item.representedObject = action.rawValue
+            submenu.addItem(item)
+        }
+
+        let item = NSMenuItem(title: "Intelligence", action: nil, keyEquivalent: "")
+        item.submenu = submenu
+        return item
+    }
+
+    private func drawIntelligentSuggestionHighlightIfNeeded() {
+        guard let activeIntelligentSuggestionRange else {
+            return
+        }
+
+        guard let rect = rectForAssistRange(activeIntelligentSuggestionRange) else {
+            return
+        }
+
+        NSColor.controlAccentColor.withAlphaComponent(0.10).setFill()
+        rect.insetBy(dx: -8, dy: -4).fill()
     }
 
     private func drawReadingRulerIfNeeded() {
