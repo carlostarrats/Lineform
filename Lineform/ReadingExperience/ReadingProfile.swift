@@ -15,6 +15,19 @@ enum FocusMode: String, Codable, Equatable, CaseIterable {
     case currentLine
     case currentSentence
     case currentParagraph
+
+    var displayName: String {
+        switch self {
+        case .off:
+            return "Off"
+        case .currentLine:
+            return "Current Line"
+        case .currentSentence:
+            return "Current Sentence"
+        case .currentParagraph:
+            return "Current Paragraph"
+        }
+    }
 }
 
 struct ReadingProfile: Codable, Equatable, Identifiable {

@@ -60,6 +60,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         text.wrappedValue = textView.string
         if let lineformTextView = textView as? LineformTextView {
             lineformTextView.refreshMarkdownHighlighting()
+            lineformTextView.refreshReadingAssists()
         }
         updateSelection(from: textView)
     }
@@ -70,6 +71,9 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         }
 
         updateSelection(from: textView)
+        if let lineformTextView = textView as? LineformTextView {
+            lineformTextView.refreshReadingAssists()
+        }
     }
 
     @MainActor

@@ -39,10 +39,16 @@ final class LineformTextView: NSTextView {
         textContainerInset = NSSize(width: CGFloat(profile.marginWidth), height: 32)
         typingAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         refreshMarkdownHighlighting()
+        refreshReadingAssists()
     }
 
     func refreshMarkdownHighlighting() {
         markdownHighlighter.highlight(textView: self, profile: activeReadingProfile)
+    }
+
+    func refreshReadingAssists() {
+        needsDisplay = true
+        centerSelectionForTypewriterModeIfNeeded()
     }
 
     @objc func toggleBoldMarkdown(_ sender: Any?) {
@@ -77,6 +83,12 @@ final class LineformTextView: NSTextView {
         super.drawInsertionPoint(in: caretRect, color: color, turnedOn: flag)
     }
 
+    override func drawBackground(in rect: NSRect) {
+        super.drawBackground(in: rect)
+        drawFocusHighlightIfNeeded()
+        drawReadingRulerIfNeeded()
+    }
+
     private func configureForMarkdownEditing() {
         allowsUndo = true
         isRichText = false
@@ -97,6 +109,86 @@ final class LineformTextView: NSTextView {
         setAccessibilityLabel("Markdown editor")
         setAccessibilityRole(.textArea)
         applyDefaultTypography()
+    }
+
+    private func drawReadingRulerIfNeeded() {
+        guard activeReadingProfile.readingRulerEnabled else {
+            return
+        }
+
+        guard let rect = rectForAssistRange(ReadingAssistRangeResolver.focusRange(
+            in: string,
+            selectedRange: selectedRange(),
+            mode: .currentLine
+        )) else {
+            return
+        }
+
+        NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+        rect.insetBy(dx: -6, dy: -2).fill()
+    }
+
+    private func drawFocusHighlightIfNeeded() {
+        guard activeReadingProfile.focusMode != .off else {
+            return
+        }
+
+        guard let rect = rectForAssistRange(ReadingAssistRangeResolver.focusRange(
+            in: string,
+            selectedRange: selectedRange(),
+            mode: activeReadingProfile.focusMode
+        )) else {
+            return
+        }
+
+        NSColor.selectedTextBackgroundColor.withAlphaComponent(0.10).setFill()
+        rect.insetBy(dx: -8, dy: -4).fill()
+    }
+
+    private func rectForAssistRange(_ characterRange: NSRange?) -> NSRect? {
+        guard
+            let characterRange,
+            characterRange.length > 0,
+            let layoutManager,
+            let textContainer
+        else {
+            return nil
+        }
+
+        let safeRange = NSIntersectionRange(characterRange, NSRange(location: 0, length: (string as NSString).length))
+        guard safeRange.length > 0 else {
+            return nil
+        }
+
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: safeRange, actualCharacterRange: nil)
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+        rect.size.width = max(rect.width, bounds.width - textContainerInset.width * 2)
+        return rect
+    }
+
+    private func centerSelectionForTypewriterModeIfNeeded() {
+        guard activeReadingProfile.typewriterModeEnabled else {
+            return
+        }
+
+        guard let scrollView = enclosingScrollView else {
+            return
+        }
+
+        guard let rect = rectForAssistRange(ReadingAssistRangeResolver.focusRange(
+            in: string,
+            selectedRange: selectedRange(),
+            mode: .currentLine
+        )) else {
+            return
+        }
+
+        let visibleBounds = scrollView.contentView.bounds
+        let targetY = max(0, rect.midY - visibleBounds.height / 2)
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: visibleBounds.origin.x, y: targetY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {

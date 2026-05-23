@@ -26,5 +26,12 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("8", modifiers: [.command, .shift])
         }
+
+        CommandMenu("Reading") {
+            Button("Reading Experience") {
+                LineformAppNotification.showReadingExperience.post()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
+        }
     }
 }

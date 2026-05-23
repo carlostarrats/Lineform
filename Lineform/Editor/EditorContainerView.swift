@@ -40,6 +40,9 @@ struct EditorContainerView: View {
                 ReadingExperiencePopover(store: readingProfileStore)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showReadingExperience.name)) { _ in
+            isShowingReadingExperience = true
+        }
     }
 
     private var statusText: String {

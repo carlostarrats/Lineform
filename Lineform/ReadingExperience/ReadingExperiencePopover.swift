@@ -46,6 +46,22 @@ struct ReadingExperiencePopover: View {
             }
 
             Toggle("Reduce Markdown Noise", isOn: boolBinding(\.reduceMarkdownNoise))
+
+            Picker("Focus", selection: focusSelection) {
+                ForEach(FocusMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+
+            Toggle("Reading Ruler", isOn: boolBinding(\.readingRulerEnabled))
+
+            Toggle("Typewriter Mode", isOn: boolBinding(\.typewriterModeEnabled))
+
+            Toggle("Reduce Motion", isOn: boolBinding(\.reduceMotionEnabled))
+
+            Slider(value: numericBinding(\.insertionPointWidth, range: 1...4), in: 1...4) {
+                Text("Caret Width")
+            }
         }
         .formStyle(.grouped)
         .padding(14)
@@ -71,6 +87,15 @@ struct ReadingExperiencePopover: View {
             get: { store.activeProfile.fontID },
             set: { fontID in
                 store.update { $0.fontID = fontID }
+            }
+        )
+    }
+
+    private var focusSelection: Binding<FocusMode> {
+        Binding(
+            get: { store.activeProfile.focusMode },
+            set: { mode in
+                store.update { $0.focusMode = mode }
             }
         )
     }
