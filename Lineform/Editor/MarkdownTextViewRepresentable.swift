@@ -56,6 +56,8 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 final class Coordinator: NSObject, NSTextViewDelegate {
     private var text: Binding<String>
     private var selectionContext: Binding<SelectionContext>
+    private var writingToolsSessionActive = false
+    private var pendingWritingToolsText: String?
 
     init(text: Binding<String>, selectionContext: Binding<SelectionContext>) {
         self.text = text
@@ -67,7 +69,12 @@ final class Coordinator: NSObject, NSTextViewDelegate {
             return
         }
 
-        text.wrappedValue = textView.string
+        if writingToolsSessionActive {
+            pendingWritingToolsText = textView.string
+        } else {
+            text.wrappedValue = textView.string
+        }
+
         if let lineformTextView = textView as? LineformTextView {
             lineformTextView.refreshMarkdownHighlighting()
             lineformTextView.refreshReadingAssists()
@@ -84,6 +91,23 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         if let lineformTextView = textView as? LineformTextView {
             lineformTextView.refreshReadingAssists()
         }
+    }
+
+    func textViewWritingToolsWillBegin(_ textView: NSTextView) {
+        writingToolsSessionActive = true
+        pendingWritingToolsText = nil
+        (textView as? LineformTextView)?.writingToolsWillBegin()
+    }
+
+    func textViewWritingToolsDidEnd(_ textView: NSTextView) {
+        writingToolsSessionActive = false
+        text.wrappedValue = pendingWritingToolsText ?? textView.string
+        pendingWritingToolsText = nil
+        (textView as? LineformTextView)?.writingToolsDidEnd()
+    }
+
+    func textView(_ textView: NSTextView, writingToolsIgnoredRangesInEnclosingRange enclosingRange: NSRange) -> [NSValue] {
+        (textView as? LineformTextView)?.writingToolsIgnoredRanges(in: enclosingRange) ?? []
     }
 
     @MainActor

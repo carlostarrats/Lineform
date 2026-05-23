@@ -33,5 +33,15 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
         }
+
+        CommandGroup(after: .textEditing) {
+            if #available(macOS 15.2, *) {
+                Divider()
+
+                Button("Show Writing Tools") {
+                    NSApp.sendAction(#selector(NSResponder.showWritingTools(_:)), to: nil, from: nil)
+                }
+            }
+        }
     }
 }

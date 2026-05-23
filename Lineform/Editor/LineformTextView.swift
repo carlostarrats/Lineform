@@ -3,6 +3,7 @@ import AppKit
 final class LineformTextView: NSTextView {
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
+    private(set) var isLineformWritingToolsSessionActive = false
 
     convenience init() {
         self.init(frame: .zero, textContainer: nil)
@@ -74,6 +75,14 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: "Italic", action: #selector(toggleItalicMarkdown(_:)), keyEquivalent: "i"))
         menu.addItem(NSMenuItem(title: "Code", action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
         menu.addItem(NSMenuItem(title: "Bulleted List", action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
+        if #available(macOS 15.2, *) {
+            menu.addItem(.separator())
+            for item in NSMenuItem.writingToolsItems {
+                if let menuItem = item.copy() as? NSMenuItem {
+                    menu.addItem(menuItem)
+                }
+            }
+        }
         return menu
     }
 
@@ -108,7 +117,29 @@ final class LineformTextView: NSTextView {
         textContainer?.containerSize = NSSize(width: bounds.width, height: CGFloat.greatestFiniteMagnitude)
         setAccessibilityLabel("Markdown editor")
         setAccessibilityRole(.textArea)
+        configureWritingTools()
         applyDefaultTypography()
+    }
+
+    private func configureWritingTools() {
+        if #available(macOS 15.0, *) {
+            writingToolsBehavior = .complete
+            allowedWritingToolsResultOptions = [.plainText, .list]
+        }
+    }
+
+    func writingToolsWillBegin() {
+        isLineformWritingToolsSessionActive = true
+    }
+
+    func writingToolsDidEnd() {
+        isLineformWritingToolsSessionActive = false
+    }
+
+    func writingToolsIgnoredRanges(in enclosingRange: NSRange) -> [NSValue] {
+        MarkdownWritingToolsProtection
+            .ignoredRanges(in: string, enclosingRange: enclosingRange)
+            .map { NSValue(range: $0) }
     }
 
     private func drawReadingRulerIfNeeded() {
