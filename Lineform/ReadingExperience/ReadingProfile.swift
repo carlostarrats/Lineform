@@ -1,0 +1,58 @@
+import Foundation
+
+enum FontID: String, Codable, Equatable, CaseIterable {
+    case sfPro
+    case newYork
+    case jetBrainsMono
+    case lexend
+    case atkinsonHyperlegible
+    case openDyslexic
+    case comicSans
+}
+
+enum FocusMode: String, Codable, Equatable, CaseIterable {
+    case off
+    case currentLine
+    case currentSentence
+    case currentParagraph
+}
+
+struct ReadingProfile: Codable, Equatable, Identifiable {
+    var id: UUID
+    var name: String
+    var fontID: FontID
+    var fontSize: Double
+    var lineHeightMultiple: Double
+    var paragraphSpacing: Double
+    var letterSpacing: Double
+    var columnWidth: Double
+    var marginWidth: Double
+    var insertionPointWidth: Double
+    var focusMode: FocusMode
+    var typewriterModeEnabled: Bool
+    var readingRulerEnabled: Bool
+    var reduceMarkdownNoise: Bool
+    var highContrastEnabled: Bool
+    var reduceMotionEnabled: Bool
+    var adaptiveReadabilityEnabled: Bool
+
+    static let original = ReadingProfile(
+        id: UUID(uuidString: "1C7B19CC-A1ED-4828-8F77-94B6769F7260")!,
+        name: "Original",
+        fontID: .sfPro,
+        fontSize: 17,
+        lineHeightMultiple: 1.35,
+        paragraphSpacing: 8,
+        letterSpacing: 0,
+        columnWidth: 680,
+        marginWidth: 40,
+        insertionPointWidth: 1.5,
+        focusMode: .off,
+        typewriterModeEnabled: false,
+        readingRulerEnabled: false,
+        reduceMarkdownNoise: false,
+        highContrastEnabled: false,
+        reduceMotionEnabled: false,
+        adaptiveReadabilityEnabled: false
+    )
+}
