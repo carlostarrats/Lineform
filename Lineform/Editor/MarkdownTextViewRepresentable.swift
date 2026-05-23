@@ -4,6 +4,7 @@ import SwiftUI
 struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectionContext: SelectionContext
+    @Binding var requestedSelection: NSRange?
     var profile: ReadingProfile
 
     func makeCoordinator() -> Coordinator {
@@ -40,6 +41,15 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
 
         textView.applyTypography(profile)
+
+        if let range = requestedSelection {
+            let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))
+            textView.setSelectedRange(safeRange)
+            textView.scrollRangeToVisible(safeRange)
+            DispatchQueue.main.async {
+                requestedSelection = nil
+            }
+        }
     }
 }
 

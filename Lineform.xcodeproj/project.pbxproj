@@ -20,6 +20,9 @@
 		1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */; };
 		1F0000010000000000000062 /* ReadingAssistPreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */; };
 		1F0000010000000000000063 /* AppCommandNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000063 /* AppCommandNotificationTests.swift */; };
+		1F0000010000000000000071 /* MarkdownOutlineParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000071 /* MarkdownOutlineParserTests.swift */; };
+		1F0000010000000000000072 /* MarkdownPreviewRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */; };
+		1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000073 /* EditorDisplayModeTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
@@ -39,6 +42,11 @@
 		1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000055 /* ReadingExperiencePopover.swift */; };
 		1F0000010000000000000064 /* ReadingAssistRangeResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000064 /* ReadingAssistRangeResolver.swift */; };
 		1F0000010000000000000065 /* LineformAppNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000065 /* LineformAppNotification.swift */; };
+		1F0000010000000000000074 /* EditorDisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000074 /* EditorDisplayMode.swift */; };
+		1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000075 /* MarkdownOutlineParser.swift */; };
+		1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */; };
+		1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */; };
+		1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000078 /* OutlineSidebarView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +73,9 @@
 		1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistRangeResolverTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistPreferenceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000063 /* AppCommandNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommandNotificationTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000071 /* MarkdownOutlineParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownOutlineParserTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRendererTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000073 /* EditorDisplayModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDisplayModeTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -87,6 +98,11 @@
 		1F0000020000000000000055 /* ReadingExperiencePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingExperiencePopover.swift; sourceTree = "<group>"; };
 		1F0000020000000000000064 /* ReadingAssistRangeResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistRangeResolver.swift; sourceTree = "<group>"; };
 		1F0000020000000000000065 /* LineformAppNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformAppNotification.swift; sourceTree = "<group>"; };
+		1F0000020000000000000074 /* EditorDisplayMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDisplayMode.swift; sourceTree = "<group>"; };
+		1F0000020000000000000075 /* MarkdownOutlineParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownOutlineParser.swift; sourceTree = "<group>"; };
+		1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRenderer.swift; sourceTree = "<group>"; };
+		1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewViewRepresentable.swift; sourceTree = "<group>"; };
+		1F0000020000000000000078 /* OutlineSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +139,8 @@
 				1F0000070000000000000012 /* Documents */,
 				1F0000070000000000000013 /* Editor */,
 				1F0000070000000000000014 /* ReadingExperience */,
+				1F0000070000000000000015 /* Preview */,
+				1F0000070000000000000016 /* Outline */,
 				1F0000020000000000000003 /* Info.plist */,
 			);
 			path = Lineform;
@@ -150,6 +168,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000014 /* EditorContainerView.swift */,
+				1F0000020000000000000074 /* EditorDisplayMode.swift */,
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
 				1F0000020000000000000016 /* LineformTextView.swift */,
 				1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */,
@@ -175,6 +194,24 @@
 			path = ReadingExperience;
 			sourceTree = "<group>";
 		};
+		1F0000070000000000000015 /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */,
+				1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */,
+			);
+			path = Preview;
+			sourceTree = "<group>";
+		};
+		1F0000070000000000000016 /* Outline */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000020000000000000075 /* MarkdownOutlineParser.swift */,
+				1F0000020000000000000078 /* OutlineSidebarView.swift */,
+			);
+			path = Outline;
+			sourceTree = "<group>";
+		};
 		1F0000070000000000000003 /* LineformTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -191,6 +228,9 @@
 				1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */,
 				1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */,
 				1F0000020000000000000063 /* AppCommandNotificationTests.swift */,
+				1F0000020000000000000071 /* MarkdownOutlineParserTests.swift */,
+				1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */,
+				1F0000020000000000000073 /* EditorDisplayModeTests.swift */,
 			);
 			path = LineformTests;
 			sourceTree = "<group>";
@@ -321,6 +361,11 @@
 				1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */,
 				1F0000010000000000000064 /* ReadingAssistRangeResolver.swift in Sources */,
 				1F0000010000000000000065 /* LineformAppNotification.swift in Sources */,
+				1F0000010000000000000074 /* EditorDisplayMode.swift in Sources */,
+				1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */,
+				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
+				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
+				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -341,6 +386,9 @@
 				1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */,
 				1F0000010000000000000062 /* ReadingAssistPreferenceTests.swift in Sources */,
 				1F0000010000000000000063 /* AppCommandNotificationTests.swift in Sources */,
+				1F0000010000000000000071 /* MarkdownOutlineParserTests.swift in Sources */,
+				1F0000010000000000000072 /* MarkdownPreviewRendererTests.swift in Sources */,
+				1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
