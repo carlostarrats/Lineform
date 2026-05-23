@@ -5,7 +5,13 @@ struct ReadingExperiencePopover: View {
 
     var body: some View {
         Form {
-            Picker("Preset", selection: presetSelection) {
+            Picker("Theme", selection: themeSelection) {
+                ForEach(Theme.readerThemes) { theme in
+                    Text(theme.name).tag(theme.id)
+                }
+            }
+
+            Picker("Reading Preset", selection: presetSelection) {
                 ForEach(ReadingPreset.builtIn) { preset in
                     Text(preset.profile.name).tag(preset.profile.id)
                 }
@@ -62,6 +68,10 @@ struct ReadingExperiencePopover: View {
             Slider(value: numericBinding(\.insertionPointWidth, range: 1...4), in: 1...4) {
                 Text("Caret Width")
             }
+
+            Button("Reset to Default") {
+                store.resetToDefault()
+            }
         }
         .formStyle(.grouped)
         .padding(14)
@@ -78,6 +88,15 @@ struct ReadingExperiencePopover: View {
                     return
                 }
                 store.apply(preset.profile)
+            }
+        )
+    }
+
+    private var themeSelection: Binding<ThemeID> {
+        Binding(
+            get: { store.activeProfile.themeID },
+            set: { themeID in
+                store.update { $0.applyTheme(themeID) }
             }
         )
     }

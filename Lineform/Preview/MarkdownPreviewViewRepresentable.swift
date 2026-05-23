@@ -20,7 +20,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.drawsBackground = true
         textView.textContainerInset = NSSize(width: CGFloat(profile.marginWidth), height: 32)
         textView.textContainer?.widthTracksTextView = true
-        textView.setAccessibilityLabel("Markdown preview")
+        textView.setAccessibilityLabel("Markdown read view")
         textView.setAccessibilityRole(.textArea)
 
         scrollView.documentView = textView

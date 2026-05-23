@@ -3,7 +3,7 @@ import XCTest
 
 final class EditorDisplayModeTests: XCTestCase {
     func testDisplayModesStaySmallAndOrdered() {
-        XCTAssertEqual(EditorDisplayMode.allCases, [.write, .preview, .split])
-        XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Preview", "Split"])
+        XCTAssertEqual(EditorDisplayMode.allCases, [.write, .read, .split])
+        XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Split"])
     }
 }

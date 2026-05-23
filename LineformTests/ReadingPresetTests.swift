@@ -29,4 +29,16 @@ final class ReadingPresetTests: XCTestCase {
         XCTAssertTrue(highContrast.highContrastEnabled)
         XCTAssertGreaterThan(highContrast.insertionPointWidth, ReadingProfile.original.insertionPointWidth)
     }
+
+    func testThemeChangesPreserveReadingSettings() {
+        var profile = ReadingPreset.dyslexia.profile
+
+        profile.applyTheme(.night)
+
+        XCTAssertEqual(profile.themeID, .night)
+        XCTAssertEqual(profile.fontID, .openDyslexic)
+        XCTAssertEqual(profile.fontSize, ReadingPreset.dyslexia.profile.fontSize)
+        XCTAssertTrue(profile.readingRulerEnabled)
+        XCTAssertTrue(profile.reduceMotionEnabled)
+    }
 }

@@ -4,10 +4,10 @@ enum ThemeID: String, Codable, Equatable, CaseIterable {
     case system
     case paper
     case quiet
+    case night
     case focus
     case accessible
     case dyslexia
-    case lowLight
     case highContrast
 }
 
@@ -20,7 +20,7 @@ struct Theme: Equatable, Identifiable {
 
     static let system = Theme(
         id: .system,
-        name: "System",
+        name: "Original",
         textColor: .labelColor,
         backgroundColor: .textBackgroundColor,
         caretColor: .labelColor
@@ -40,6 +40,14 @@ struct Theme: Equatable, Identifiable {
         textColor: .labelColor,
         backgroundColor: .windowBackgroundColor,
         caretColor: .labelColor
+    )
+
+    static let night = Theme(
+        id: .night,
+        name: "Night",
+        textColor: NSColor(calibratedWhite: 0.88, alpha: 1),
+        backgroundColor: NSColor(calibratedWhite: 0.09, alpha: 1),
+        caretColor: NSColor(calibratedWhite: 0.88, alpha: 1)
     )
 
     static let focus = Theme(
@@ -66,14 +74,6 @@ struct Theme: Equatable, Identifiable {
         caretColor: NSColor(calibratedWhite: 0.09, alpha: 1)
     )
 
-    static let lowLight = Theme(
-        id: .lowLight,
-        name: "Low Light",
-        textColor: NSColor(calibratedWhite: 0.88, alpha: 1),
-        backgroundColor: NSColor(calibratedWhite: 0.09, alpha: 1),
-        caretColor: NSColor(calibratedWhite: 0.88, alpha: 1)
-    )
-
     static let highContrast = Theme(
         id: .highContrast,
         name: "High Contrast",
@@ -86,11 +86,18 @@ struct Theme: Equatable, Identifiable {
         .system,
         .paper,
         .quiet,
+        .night,
         .focus,
         .accessible,
         .dyslexia,
-        .lowLight,
         .highContrast
+    ]
+
+    static let readerThemes: [Theme] = [
+        .system,
+        .paper,
+        .quiet,
+        .night
     ]
 
     static func theme(for id: ThemeID) -> Theme {

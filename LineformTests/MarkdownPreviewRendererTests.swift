@@ -23,6 +23,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         let rendered = MarkdownPreviewRenderer().render("Body", profile: profile)
         let color = try XCTUnwrap(rendered.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
 
-        XCTAssertEqual(color, Theme.lowLight.textColor)
+        XCTAssertEqual(color, Theme.night.textColor)
     }
 }

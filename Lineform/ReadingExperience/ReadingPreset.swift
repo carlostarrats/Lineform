@@ -115,7 +115,7 @@ struct ReadingPreset: Equatable, Identifiable {
         id: UUID(uuidString: "5B5BAEB3-7D4E-4E2A-B1E8-0E90A8DBA292")!,
         name: "Low Light",
         fontID: .sfPro,
-        themeID: .lowLight,
+        themeID: .night,
         fontSize: 18,
         lineHeightMultiple: 1.45,
         paragraphSpacing: 10,

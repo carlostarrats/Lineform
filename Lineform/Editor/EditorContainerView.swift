@@ -97,7 +97,7 @@ struct EditorContainerView: View {
         switch displayMode {
         case .write:
             markdownEditor
-        case .preview:
+        case .read:
             DebouncedMarkdownPreviewView(text: document.text, profile: readingProfileStore.activeProfile)
         case .split:
             HStack(spacing: 0) {
@@ -125,7 +125,7 @@ struct EditorContainerView: View {
 
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
         requestedSelection = item.characterRange
-        if displayMode == .preview {
+        if displayMode == .read {
             displayMode = .write
         }
     }

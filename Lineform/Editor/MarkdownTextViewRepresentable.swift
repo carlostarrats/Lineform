@@ -121,7 +121,9 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private func scheduleMarkdownHighlighting(for textView: LineformTextView) {
         pendingHighlightWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak textView] in
-            textView?.refreshMarkdownHighlighting()
+            Task { @MainActor in
+                textView?.refreshMarkdownHighlighting()
+            }
         }
         pendingHighlightWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)

@@ -21,6 +21,10 @@ final class ReadingProfileStore: ObservableObject {
         activeProfile = profile
     }
 
+    func resetToDefault() {
+        apply(.original)
+    }
+
     func update(_ mutate: (inout ReadingProfile) -> Void) {
         var profile = activeProfile
         mutate(&profile)

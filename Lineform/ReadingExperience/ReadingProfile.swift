@@ -50,6 +50,10 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
     var reduceMotionEnabled: Bool
     var adaptiveReadabilityEnabled: Bool
 
+    mutating func applyTheme(_ themeID: ThemeID) {
+        self.themeID = themeID
+    }
+
     static let original = ReadingProfile(
         id: UUID(uuidString: "1C7B19CC-A1ED-4828-8F77-94B6769F7260")!,
         name: "Original",

@@ -22,4 +22,15 @@ final class ReadingProfileStoreTests: XCTestCase {
 
         XCTAssertEqual(store.activeProfile, .original)
     }
+
+    func testResetRestoresDefaultNormalReadingProfile() {
+        let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreResetTests")!
+        defaults.removePersistentDomain(forName: "LineformReadingProfileStoreResetTests")
+        let store = ReadingProfileStore(defaults: defaults)
+        store.apply(ReadingPreset.dyslexia.profile)
+
+        store.resetToDefault()
+
+        XCTAssertEqual(store.activeProfile, .original)
+    }
 }

@@ -8,7 +8,7 @@ struct DebouncedMarkdownPreviewView: View {
 
     var body: some View {
         MarkdownPreviewViewRepresentable(text: resolvedPreviewText, profile: profile)
-            .accessibilityLabel("Markdown preview")
+            .accessibilityLabel("Markdown read view")
             .onAppear {
                 previewText = text
             }
