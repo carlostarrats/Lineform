@@ -25,4 +25,19 @@ final class MarkdownPreviewRendererTests: XCTestCase {
 
         XCTAssertEqual(color, Theme.night.textColor)
     }
+
+    func testDoesNotTreatHeadingsInsideFencedCodeAsHeadings() {
+        let rendered = MarkdownPreviewRenderer().render("# Real\n```\n# Not a heading\n```", profile: .original)
+
+        XCTAssertEqual(rendered.string, "Real\n```\n# Not a heading\n```")
+    }
+
+    func testReadModeHidesCommonInlineMarkdownMarkers() {
+        let rendered = MarkdownPreviewRenderer().render(
+            "This is **bold**, _clear_, `code`, and [a link](https://example.com).",
+            profile: .original
+        )
+
+        XCTAssertEqual(rendered.string, "This is bold, clear, code, and a link.")
+    }
 }

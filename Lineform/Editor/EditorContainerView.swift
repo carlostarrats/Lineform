@@ -7,11 +7,14 @@ struct EditorContainerView: View {
     @State private var isShowingReadingExperience = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline = false
+    @State private var outlineItems: [MarkdownOutlineItem] = []
     @State private var requestedSelection: NSRange?
     @State private var intelligentSuggestion: IntelligentEditingSuggestion?
     @State private var currentIntelligentChangeIndex = 0
     @State private var isRunningIntelligentEdit = false
     @State private var intelligentEditingStatus: String?
+    @State private var documentStatistics = DocumentStatistics(text: "")
+    @State private var windowNumber: Int?
     private let intelligentEditingService = FoundationModelsIntelligentEditingService()
 
     var body: some View {
@@ -50,7 +53,8 @@ struct EditorContainerView: View {
                 .padding(.vertical, 6)
             }
         }
-        .background(Color(nsColor: Theme.theme(for: readingProfileStore.activeProfile.themeID).backgroundColor))
+        .background(Color(nsColor: Theme.theme(for: readingProfileStore.activeProfile).backgroundColor))
+        .background(WindowNumberReader(windowNumber: $windowNumber))
         .toolbar {
             Picker("Mode", selection: $displayMode) {
                 ForEach(EditorDisplayMode.allCases) { mode in
@@ -78,17 +82,49 @@ struct EditorContainerView: View {
                 ReadingExperiencePopover(store: readingProfileStore)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showReadingExperience.name)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showReadingExperience.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else {
+                return
+            }
             isShowingReadingExperience = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.runIntelligentEditingAction.name)) { notification in
             guard
-                let rawValue = notification.object as? String,
+                notificationMatchesActiveWindow(notification),
+                let rawValue = notificationPayloadValue(notification),
                 let action = IntelligentEditingAction(rawValue: rawValue)
             else {
                 return
             }
             runIntelligentEditingAction(action)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.setDisplayMode.name)) { notification in
+            guard
+                notificationMatchesActiveWindow(notification),
+                let rawValue = notificationPayloadValue(notification),
+                let mode = EditorDisplayMode(rawValue: rawValue)
+            else {
+                return
+            }
+            displayMode = mode
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleOutline.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else {
+                return
+            }
+            isShowingOutline.toggle()
+        }
+        .onAppear {
+            documentStatistics = DocumentStatistics(text: document.text)
+            outlineItems = MarkdownOutlineParser().items(in: document.text)
+        }
+        .onChange(of: document.text) { _, newValue in
+            documentStatistics = DocumentStatistics(text: newValue)
+            outlineItems = MarkdownOutlineParser().items(in: newValue)
+            if let intelligentSuggestion, !intelligentSuggestion.canApply(to: newValue) {
+                self.intelligentSuggestion = nil
+                intelligentEditingStatus = "Suggestion expired after edits."
+            }
         }
     }
 
@@ -119,10 +155,6 @@ struct EditorContainerView: View {
         .accessibilityLabel("Markdown editor")
     }
 
-    private var outlineItems: [MarkdownOutlineItem] {
-        MarkdownOutlineParser().items(in: document.text)
-    }
-
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
         requestedSelection = item.characterRange
         if displayMode == .read {
@@ -131,19 +163,17 @@ struct EditorContainerView: View {
     }
 
     private var statusText: String {
-        let stats = DocumentStatistics(text: document.text)
         if isRunningIntelligentEdit {
-            return "Preparing suggestion - \(stats.wordCount) words, \(stats.characterCount) characters"
+            return "Preparing suggestion - \(documentStatistics.wordCount) words, \(documentStatistics.characterCount) characters"
         }
         if let intelligentEditingStatus {
-            return "\(intelligentEditingStatus) - \(stats.wordCount) words, \(stats.characterCount) characters"
+            return "\(intelligentEditingStatus) - \(documentStatistics.wordCount) words, \(documentStatistics.characterCount) characters"
         }
-        return "\(stats.wordCount) words, \(stats.characterCount) characters"
+        return "\(documentStatistics.wordCount) words, \(documentStatistics.characterCount) characters"
     }
 
     private var statusAccessibilityLabel: String {
-        let stats = DocumentStatistics(text: document.text)
-        return "Document contains \(stats.wordCount) words and \(stats.characterCount) characters"
+        return "Document contains \(documentStatistics.wordCount) words and \(documentStatistics.characterCount) characters"
     }
 
     private func runIntelligentEditingAction(_ action: IntelligentEditingAction) {
@@ -164,9 +194,14 @@ struct EditorContainerView: View {
                 )
 
                 await MainActor.run {
+                    isRunningIntelligentEdit = false
+                    guard suggestion.canApply(to: document.text) else {
+                        intelligentSuggestion = nil
+                        intelligentEditingStatus = "Suggestion expired after edits."
+                        return
+                    }
                     intelligentSuggestion = suggestion
                     currentIntelligentChangeIndex = 0
-                    isRunningIntelligentEdit = false
                     intelligentEditingStatus = suggestion.diff.summary
                     requestedSelection = suggestion.selectedRange
                 }
@@ -196,7 +231,13 @@ struct EditorContainerView: View {
             return
         }
 
-        document.text = intelligentSuggestion.accept(in: document.text)
+        guard let updatedText = intelligentSuggestion.accept(in: document.text) else {
+            self.intelligentSuggestion = nil
+            intelligentEditingStatus = "Suggestion expired after edits."
+            return
+        }
+
+        document.text = updatedText
         requestedSelection = NSRange(location: intelligentSuggestion.selectedRange.location, length: (intelligentSuggestion.replacementText as NSString).length)
         self.intelligentSuggestion = nil
         intelligentEditingStatus = "Suggestion accepted."
@@ -205,5 +246,34 @@ struct EditorContainerView: View {
     private func rejectIntelligentSuggestion() {
         intelligentSuggestion = nil
         intelligentEditingStatus = "Suggestion rejected."
+    }
+
+    private func notificationMatchesActiveWindow(_ notification: Notification) -> Bool {
+        guard let payload = notification.object as? LineformAppNotification.Payload else {
+            return false
+        }
+        return payload.matches(windowNumber: windowNumber)
+    }
+
+    private func notificationPayloadValue(_ notification: Notification) -> String? {
+        (notification.object as? LineformAppNotification.Payload)?.value
+    }
+}
+
+private struct WindowNumberReader: NSViewRepresentable {
+    @Binding var windowNumber: Int?
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            windowNumber = view.window?.windowNumber
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            windowNumber = nsView.window?.windowNumber
+        }
     }
 }

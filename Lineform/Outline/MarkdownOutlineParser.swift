@@ -12,10 +12,13 @@ struct MarkdownOutlineParser {
     func items(in text: String) -> [MarkdownOutlineItem] {
         var items: [MarkdownOutlineItem] = []
         var inFence = false
-        var offset = 0
-        let lines = text.components(separatedBy: "\n")
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        var lineNumber = 0
 
-        for (index, line) in lines.enumerated() {
+        nsText.enumerateSubstrings(in: fullRange, options: [.byLines]) { substring, substringRange, _, _ in
+            lineNumber += 1
+            let line = substring ?? ""
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
@@ -24,14 +27,9 @@ struct MarkdownOutlineParser {
                 items.append(MarkdownOutlineItem(
                     level: heading.level,
                     title: heading.title,
-                    lineNumber: index + 1,
-                    characterRange: NSRange(location: offset, length: (line as NSString).length)
+                    lineNumber: lineNumber,
+                    characterRange: substringRange
                 ))
-            }
-
-            offset += (line as NSString).length
-            if index < lines.count - 1 {
-                offset += 1
             }
         }
 

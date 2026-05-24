@@ -429,10 +429,7 @@
 				1F0000010000000000000109 /* MarkdownGuide.md in Resources */,
 				1F0000010000000000000110 /* Help.md in Resources */,
 				1F0000010000000000000111 /* Privacy.md in Resources */,
-				1F0000010000000000000112 /* FontLicenseReview.md in Resources */,
-				1F0000010000000000000113 /* AppStoreMetadata.md in Resources */,
 				1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */,
-				1F0000010000000000000115 /* ReleaseReadiness.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -652,6 +649,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Lineform/Lineform.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -673,6 +671,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Lineform/Lineform.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;

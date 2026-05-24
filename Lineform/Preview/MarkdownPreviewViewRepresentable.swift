@@ -37,10 +37,11 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     }
 
     private func update(_ textView: NSTextView) {
-        let theme = Theme.theme(for: profile.themeID)
+        let theme = Theme.theme(for: profile)
         textView.backgroundColor = theme.backgroundColor
         textView.textColor = theme.textColor
-        textView.textContainerInset = NSSize(width: CGFloat(profile.marginWidth), height: 32)
+        let horizontalInset = max(CGFloat(profile.marginWidth), (textView.bounds.width - CGFloat(profile.columnWidth)) / 2)
+        textView.textContainerInset = NSSize(width: horizontalInset, height: 32)
         textView.textStorage?.setAttributedString(MarkdownPreviewRenderer().render(text, profile: profile))
     }
 }

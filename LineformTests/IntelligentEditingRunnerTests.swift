@@ -33,6 +33,19 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(suggestion.accept(in: "Start. Confusing sentence. End."), "Start. Clear sentence. End.")
         XCTAssertEqual(service.requests.first?.action, .makeClearer)
     }
+
+    func testSuggestionDoesNotApplyWhenOriginalSelectionChanged() async throws {
+        let service = StubIntelligentEditingService(result: "Clear sentence.")
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestion = try await runner.run(
+            action: .makeClearer,
+            documentText: "Start. Confusing sentence. End.",
+            selectedRange: NSRange(location: 7, length: 19)
+        )
+
+        XCTAssertNil(suggestion.accept(in: "Start. Different sentence. End."))
+    }
 }
 
 private final class StubIntelligentEditingService: IntelligentEditingServicing {

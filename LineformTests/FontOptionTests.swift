@@ -16,4 +16,8 @@ final class FontOptionTests: XCTestCase {
         XCTAssertEqual(sfPro.source, .system)
         XCTAssertEqual(newYork.source, .system)
     }
+
+    func testFontsAreNotClaimedAsBundledWithoutBundledFiles() {
+        XCTAssertFalse(FontOption.groupedOptions.flatMap(\.options).contains { $0.source == .bundled })
+    }
 }

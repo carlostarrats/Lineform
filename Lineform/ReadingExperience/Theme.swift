@@ -86,4 +86,18 @@ struct Theme: Equatable, Identifiable {
     static func theme(for id: ThemeID) -> Theme {
         builtIn.first { $0.id == id } ?? .system
     }
+
+    static func theme(for profile: ReadingProfile) -> Theme {
+        guard profile.highContrastEnabled else {
+            return theme(for: profile.themeID)
+        }
+
+        return Theme(
+            id: profile.themeID,
+            name: "High Contrast",
+            textColor: .textColor,
+            backgroundColor: .textBackgroundColor,
+            caretColor: .textColor
+        )
+    }
 }

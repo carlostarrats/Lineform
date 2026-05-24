@@ -22,4 +22,16 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
             XCTAssertFalse(textView.allowedWritingToolsResultOptions.contains(.table))
         }
     }
+
+    func testColumnWidthCentersTextContainerInWideEditor() {
+        let textView = LineformTextView()
+        textView.setFrameSize(NSSize(width: 1_000, height: 500))
+        var profile = ReadingProfile.original
+        profile.columnWidth = 500
+        profile.marginWidth = 40
+
+        textView.applyTypography(profile)
+
+        XCTAssertEqual(textView.textContainerInset.width, 250)
+    }
 }

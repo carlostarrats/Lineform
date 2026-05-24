@@ -17,4 +17,12 @@ final class ThemeTests: XCTestCase {
     func testThemeIDsOnlyRepresentNormalReaderThemes() {
         XCTAssertEqual(ThemeID.allCases, [.system, .paper, .quiet, .night])
     }
+
+    func testHighContrastProfileResolvesToHighContrastThemeColors() {
+        let theme = Theme.theme(for: ReadingPreset.highContrast.profile)
+
+        XCTAssertEqual(theme.textColor, .textColor)
+        XCTAssertEqual(theme.backgroundColor, .textBackgroundColor)
+        XCTAssertEqual(theme.caretColor, .textColor)
+    }
 }

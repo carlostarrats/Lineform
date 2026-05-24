@@ -72,7 +72,7 @@ struct ReadingPreset: Equatable, Identifiable {
     static let accessible = ReadingPreset(profile: ReadingProfile(
         id: UUID(uuidString: "0DF7B3A2-A29E-4EA4-AE36-CC0B26FE6B72")!,
         name: "Accessible",
-        fontID: .atkinsonHyperlegible,
+        fontID: .sfPro,
         themeID: .system,
         fontSize: 19,
         lineHeightMultiple: 1.55,
@@ -93,7 +93,7 @@ struct ReadingPreset: Equatable, Identifiable {
     static let dyslexia = ReadingPreset(profile: ReadingProfile(
         id: UUID(uuidString: "3BE5704B-B4DC-468B-A1B1-28031C046946")!,
         name: "Dyslexia",
-        fontID: .openDyslexic,
+        fontID: .sfPro,
         themeID: .system,
         fontSize: 19,
         lineHeightMultiple: 1.6,
@@ -163,4 +163,12 @@ struct ReadingPreset: Equatable, Identifiable {
         .lowLight,
         .highContrast
     ]
+
+    static func matchingPresetID(for profile: ReadingProfile) -> UUID? {
+        builtIn.first { preset in
+            var presetProfile = preset.profile
+            presetProfile.applyTheme(profile.themeID)
+            return presetProfile == profile
+        }?.profile.id
+    }
 }

@@ -3,17 +3,16 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension UTType {
-    static let lineformMarkdown = UTType(exportedAs: "com.lineform.markdown")
     static let markdownText = UTType(importedAs: "net.daringfireball.markdown")
 }
 
 struct LineformDocument: FileDocument, Equatable {
     static var readableContentTypes: [UTType] {
-        [.lineformMarkdown, .markdownText, .plainText]
+        [.markdownText, .plainText]
     }
 
     static var writableContentTypes: [UTType] {
-        [.lineformMarkdown, .markdownText, .plainText]
+        [.markdownText, .plainText]
     }
 
     var text: String
@@ -23,7 +22,11 @@ struct LineformDocument: FileDocument, Equatable {
     }
 
     init(markdownData: Data) throws {
-        text = String(decoding: markdownData, as: UTF8.self)
+        guard let decodedText = String(data: markdownData, encoding: .utf8) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+
+        text = decodedText
     }
 
     init(configuration: ReadConfiguration) throws {

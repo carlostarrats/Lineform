@@ -6,7 +6,7 @@ final class MarkdownSyntaxHighlighter {
     }
 
     static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
-        let theme = Theme.theme(for: profile.themeID)
+        let theme = Theme.theme(for: profile)
         let font = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineHeightMultiple = CGFloat(profile.lineHeightMultiple)

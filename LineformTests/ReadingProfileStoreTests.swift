@@ -43,7 +43,16 @@ final class ReadingProfileStoreTests: XCTestCase {
         store.applyPreset(ReadingPreset.dyslexia)
 
         XCTAssertEqual(store.activeProfile.themeID, .night)
-        XCTAssertEqual(store.activeProfile.fontID, .openDyslexic)
+        XCTAssertEqual(store.activeProfile.fontID, .sfPro)
         XCTAssertTrue(store.activeProfile.readingRulerEnabled)
+    }
+
+    func testCustomizedPresetDoesNotContinueToMatchBuiltInPresetSelection() {
+        var profile = ReadingPreset.paper.profile
+        XCTAssertEqual(ReadingPreset.matchingPresetID(for: profile), ReadingPreset.paper.profile.id)
+
+        profile.fontSize += 1
+
+        XCTAssertNil(ReadingPreset.matchingPresetID(for: profile))
     }
 }

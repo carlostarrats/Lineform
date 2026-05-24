@@ -8,9 +8,17 @@ struct IntelligentEditingSuggestion: Identifiable, Equatable {
     let replacementText: String
     let diff: MarkdownDiff
 
-    func accept(in documentText: String) -> String {
+    func canApply(to documentText: String) -> Bool {
         guard let range = Range(selectedRange, in: documentText) else {
-            return documentText
+            return false
+        }
+
+        return String(documentText[range]) == originalText
+    }
+
+    func accept(in documentText: String) -> String? {
+        guard canApply(to: documentText), let range = Range(selectedRange, in: documentText) else {
+            return nil
         }
 
         var updatedText = documentText

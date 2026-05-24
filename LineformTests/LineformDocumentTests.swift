@@ -25,7 +25,11 @@ final class LineformDocumentTests: XCTestCase {
     }
 
     func testDocumentAdvertisesMarkdownAndPlainTextTypes() {
-        XCTAssertTrue(LineformDocument.readableContentTypes.contains(.lineformMarkdown))
+        XCTAssertTrue(LineformDocument.readableContentTypes.contains(.markdownText))
         XCTAssertTrue(LineformDocument.readableContentTypes.contains(.plainText))
+    }
+
+    func testDocumentRejectsInvalidUTF8InsteadOfRepairingBytes() {
+        XCTAssertThrowsError(try LineformDocument(markdownData: Data([0xFF, 0xFE, 0x00])))
     }
 }

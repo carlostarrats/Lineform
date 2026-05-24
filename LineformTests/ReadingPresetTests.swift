@@ -23,10 +23,10 @@ final class ReadingPresetTests: XCTestCase {
         let highContrast = ReadingPreset.highContrast.profile
 
         XCTAssertEqual(accessible.themeID, .system)
-        XCTAssertEqual(accessible.fontID, .atkinsonHyperlegible)
+        XCTAssertEqual(accessible.fontID, .sfPro)
         XCTAssertGreaterThanOrEqual(accessible.lineHeightMultiple, 1.5)
         XCTAssertEqual(dyslexia.themeID, .system)
-        XCTAssertEqual(dyslexia.fontID, .openDyslexic)
+        XCTAssertEqual(dyslexia.fontID, .sfPro)
         XCTAssertTrue(dyslexia.readingRulerEnabled)
         XCTAssertEqual(highContrast.themeID, .system)
         XCTAssertTrue(highContrast.highContrastEnabled)
@@ -39,7 +39,7 @@ final class ReadingPresetTests: XCTestCase {
         profile.applyTheme(.night)
 
         XCTAssertEqual(profile.themeID, .night)
-        XCTAssertEqual(profile.fontID, .openDyslexic)
+        XCTAssertEqual(profile.fontID, .sfPro)
         XCTAssertEqual(profile.fontSize, ReadingPreset.dyslexia.profile.fontSize)
         XCTAssertTrue(profile.readingRulerEnabled)
         XCTAssertTrue(profile.reduceMotionEnabled)

@@ -23,15 +23,15 @@ struct FontOption: Equatable, Identifiable {
         FontOptionGroup(
             name: "Writing",
             options: [
-                FontOption(id: .jetBrainsMono, name: "JetBrains Mono", familyName: "JetBrains Mono", source: .bundled),
-                FontOption(id: .lexend, name: "Lexend", familyName: "Lexend", source: .bundled)
+                FontOption(id: .jetBrainsMono, name: "Monospaced", familyName: ".AppleSystemUIFontMonospaced", source: .system),
+                FontOption(id: .lexend, name: "Lexend", familyName: "Lexend", source: .userInstalled)
             ]
         ),
         FontOptionGroup(
             name: "Reading & Accessibility",
             options: [
-                FontOption(id: .atkinsonHyperlegible, name: "Atkinson Hyperlegible", familyName: "Atkinson Hyperlegible", source: .bundled),
-                FontOption(id: .openDyslexic, name: "OpenDyslexic", familyName: "OpenDyslexic", source: .bundled),
+                FontOption(id: .atkinsonHyperlegible, name: "Atkinson Hyperlegible", familyName: "Atkinson Hyperlegible", source: .userInstalled),
+                FontOption(id: .openDyslexic, name: "OpenDyslexic", familyName: "OpenDyslexic", source: .userInstalled),
                 FontOption(id: .comicSans, name: "Comic Sans MS", familyName: "Comic Sans MS", source: .system)
             ]
         )

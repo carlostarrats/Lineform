@@ -28,4 +28,14 @@ final class MarkdownOutlineParserTests: XCTestCase {
         XCTAssertEqual(item?.characterRange.location, 7)
         XCTAssertEqual(item?.characterRange.length, 9)
     }
+
+    func testHeadingRangesStayAccurateForCRLFDocuments() {
+        let text = "# First\r\nBody\r\n## Target\r\n"
+
+        let item = MarkdownOutlineParser().items(in: text).last
+
+        XCTAssertEqual(item?.title, "Target")
+        XCTAssertEqual(item?.characterRange.location, ("# First\r\nBody\r\n" as NSString).length)
+        XCTAssertEqual(item?.characterRange.length, ("## Target" as NSString).length)
+    }
 }

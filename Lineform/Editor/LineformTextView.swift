@@ -4,6 +4,7 @@ final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
+    private var hasAppliedTypography = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var activeIntelligentSuggestionRange: NSRange?
 
@@ -35,16 +36,22 @@ final class LineformTextView: NSTextView {
     }
 
     func applyTypography(_ profile: ReadingProfile) {
-        activeReadingProfile = profile
+        guard profile != activeReadingProfile || !hasAppliedTypography else {
+            updateTextContainerLayout(for: profile)
+            return
+        }
 
-        let theme = Theme.theme(for: profile.themeID)
+        activeReadingProfile = profile
+        hasAppliedTypography = true
+
+        let theme = Theme.theme(for: profile)
         let resolvedFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
         font = resolvedFont
         textColor = theme.textColor
         backgroundColor = theme.backgroundColor
         drawsBackground = true
         insertionPointColor = theme.caretColor
-        textContainerInset = NSSize(width: CGFloat(profile.marginWidth), height: 32)
+        updateTextContainerLayout(for: profile)
         typingAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         refreshMarkdownHighlighting()
         refreshReadingAssists()
@@ -145,6 +152,11 @@ final class LineformTextView: NSTextView {
         }
     }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateTextContainerLayout(for: activeReadingProfile)
+    }
+
     func writingToolsWillBegin() {
         isLineformWritingToolsSessionActive = true
     }
@@ -164,11 +176,22 @@ final class LineformTextView: NSTextView {
             return
         }
 
-        LineformAppNotification.runIntelligentEditingAction.post(object: rawValue)
+        LineformAppNotification.runIntelligentEditingAction.post(
+            object: LineformAppNotification.Payload(windowNumber: window?.windowNumber, value: rawValue)
+        )
     }
 
     private func intelligenceMenuItem() -> NSMenuItem {
         let submenu = NSMenu(title: "Intelligence")
+        let availability = IntelligenceAvailabilityService().currentStatus()
+
+        if !availability.isAvailable {
+            let unavailableItem = NSMenuItem(title: availability.message, action: nil, keyEquivalent: "")
+            unavailableItem.isEnabled = false
+            submenu.addItem(unavailableItem)
+            submenu.addItem(.separator())
+        }
+
         for action in IntelligentEditingAction.allCases {
             let item = NSMenuItem(
                 title: action.title,
@@ -177,6 +200,7 @@ final class LineformTextView: NSTextView {
             )
             item.keyEquivalentModifierMask = [.command, .option]
             item.representedObject = action.rawValue
+            item.isEnabled = availability.isAvailable
             submenu.addItem(item)
         }
 
@@ -289,6 +313,14 @@ final class LineformTextView: NSTextView {
         let targetY = max(0, rect.midY - visibleBounds.height / 2)
         scrollView.contentView.setBoundsOrigin(NSPoint(x: visibleBounds.origin.x, y: targetY))
         scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    private func updateTextContainerLayout(for profile: ReadingProfile) {
+        let columnWidth = CGFloat(profile.columnWidth)
+        let marginWidth = CGFloat(profile.marginWidth)
+        let horizontalInset = max(marginWidth, (bounds.width - columnWidth) / 2)
+        textContainerInset = NSSize(width: horizontalInset, height: 32)
+        textContainer?.widthTracksTextView = true
     }
 
     private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {

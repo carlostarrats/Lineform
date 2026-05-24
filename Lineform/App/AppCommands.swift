@@ -28,8 +28,21 @@ struct AppCommands: Commands {
         }
 
         CommandMenu("Reading") {
+            Picker("Mode", selection: displayModeSelection) {
+                ForEach(EditorDisplayMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+
+            Button("Toggle Outline") {
+                LineformAppNotification.toggleOutline.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut("0", modifiers: [.command, .option])
+
+            Divider()
+
             Button("Reading Experience") {
-                LineformAppNotification.showReadingExperience.post()
+                LineformAppNotification.showReadingExperience.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
         }
@@ -37,9 +50,12 @@ struct AppCommands: Commands {
         CommandMenu("Intelligence") {
             ForEach(IntelligentEditingAction.allCases) { action in
                 Button(action.title) {
-                    LineformAppNotification.runIntelligentEditingAction.post(object: action.rawValue)
+                    LineformAppNotification.runIntelligentEditingAction.post(
+                        object: LineformAppNotification.activeWindowPayload(value: action.rawValue)
+                    )
                 }
                 .keyboardShortcut(KeyEquivalent(Character(action.keyEquivalent)), modifiers: [.command, .option])
+                .disabled(!intelligenceAvailable)
             }
         }
 
@@ -58,5 +74,20 @@ struct AppCommands: Commands {
                 }
             }
         }
+    }
+
+    private var displayModeSelection: Binding<EditorDisplayMode> {
+        Binding(
+            get: { .write },
+            set: { mode in
+                LineformAppNotification.setDisplayMode.post(
+                    object: LineformAppNotification.activeWindowPayload(value: mode.rawValue)
+                )
+            }
+        )
+    }
+
+    private var intelligenceAvailable: Bool {
+        IntelligenceAvailabilityService().currentStatus().isAvailable
     }
 }

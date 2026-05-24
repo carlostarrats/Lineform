@@ -12,8 +12,9 @@ struct ReadingExperiencePopover: View {
             }
 
             Picker("Reading Preset", selection: presetSelection) {
+                Text("Custom").tag(Optional<UUID>.none)
                 ForEach(ReadingPreset.builtIn) { preset in
-                    Text(preset.profile.name).tag(preset.profile.id)
+                    Text(preset.profile.name).tag(Optional(preset.profile.id))
                 }
             }
 
@@ -80,11 +81,11 @@ struct ReadingExperiencePopover: View {
         .accessibilityLabel("Reading Experience")
     }
 
-    private var presetSelection: Binding<UUID> {
+    private var presetSelection: Binding<UUID?> {
         Binding(
-            get: { store.activeProfile.id },
+            get: { ReadingPreset.matchingPresetID(for: store.activeProfile) },
             set: { id in
-                guard let preset = ReadingPreset.builtIn.first(where: { $0.profile.id == id }) else {
+                guard let id, let preset = ReadingPreset.builtIn.first(where: { $0.profile.id == id }) else {
                     return
                 }
                 store.applyPreset(preset)
