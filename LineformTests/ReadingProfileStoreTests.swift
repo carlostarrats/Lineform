@@ -33,4 +33,17 @@ final class ReadingProfileStoreTests: XCTestCase {
 
         XCTAssertEqual(store.activeProfile, .original)
     }
+
+    func testApplyingReadingPresetPreservesCurrentTheme() {
+        let defaults = UserDefaults(suiteName: "LineformReadingProfileStorePresetThemeTests")!
+        defaults.removePersistentDomain(forName: "LineformReadingProfileStorePresetThemeTests")
+        let store = ReadingProfileStore(defaults: defaults)
+        store.update { $0.applyTheme(.night) }
+
+        store.applyPreset(ReadingPreset.dyslexia)
+
+        XCTAssertEqual(store.activeProfile.themeID, .night)
+        XCTAssertEqual(store.activeProfile.fontID, .openDyslexic)
+        XCTAssertTrue(store.activeProfile.readingRulerEnabled)
+    }
 }

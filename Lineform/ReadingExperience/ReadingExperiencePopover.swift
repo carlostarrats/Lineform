@@ -87,7 +87,7 @@ struct ReadingExperiencePopover: View {
                 guard let preset = ReadingPreset.builtIn.first(where: { $0.profile.id == id }) else {
                     return
                 }
-                store.apply(preset.profile)
+                store.applyPreset(preset)
             }
         )
     }

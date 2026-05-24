@@ -22,10 +22,13 @@ final class ReadingPresetTests: XCTestCase {
         let dyslexia = ReadingPreset.dyslexia.profile
         let highContrast = ReadingPreset.highContrast.profile
 
+        XCTAssertEqual(accessible.themeID, .system)
         XCTAssertEqual(accessible.fontID, .atkinsonHyperlegible)
         XCTAssertGreaterThanOrEqual(accessible.lineHeightMultiple, 1.5)
+        XCTAssertEqual(dyslexia.themeID, .system)
         XCTAssertEqual(dyslexia.fontID, .openDyslexic)
         XCTAssertTrue(dyslexia.readingRulerEnabled)
+        XCTAssertEqual(highContrast.themeID, .system)
         XCTAssertTrue(highContrast.highContrastEnabled)
         XCTAssertGreaterThan(highContrast.insertionPointWidth, ReadingProfile.original.insertionPointWidth)
     }

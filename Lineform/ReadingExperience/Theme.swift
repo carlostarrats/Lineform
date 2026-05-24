@@ -5,10 +5,29 @@ enum ThemeID: String, Codable, Equatable, CaseIterable {
     case paper
     case quiet
     case night
-    case focus
-    case accessible
-    case dyslexia
-    case highContrast
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+
+        switch rawValue {
+        case ThemeID.system.rawValue:
+            self = .system
+        case ThemeID.paper.rawValue:
+            self = .paper
+        case ThemeID.quiet.rawValue:
+            self = .quiet
+        case ThemeID.night.rawValue, "lowLight":
+            self = .night
+        default:
+            self = .system
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 struct Theme: Equatable, Identifiable {
@@ -50,47 +69,11 @@ struct Theme: Equatable, Identifiable {
         caretColor: NSColor(calibratedWhite: 0.88, alpha: 1)
     )
 
-    static let focus = Theme(
-        id: .focus,
-        name: "Focus",
-        textColor: NSColor(calibratedWhite: 0.13, alpha: 1),
-        backgroundColor: NSColor(calibratedWhite: 0.985, alpha: 1),
-        caretColor: NSColor(calibratedWhite: 0.13, alpha: 1)
-    )
-
-    static let accessible = Theme(
-        id: .accessible,
-        name: "Accessible",
-        textColor: NSColor(calibratedWhite: 0.05, alpha: 1),
-        backgroundColor: .white,
-        caretColor: NSColor(calibratedWhite: 0.05, alpha: 1)
-    )
-
-    static let dyslexia = Theme(
-        id: .dyslexia,
-        name: "Dyslexia",
-        textColor: NSColor(calibratedWhite: 0.09, alpha: 1),
-        backgroundColor: NSColor(calibratedRed: 0.99, green: 0.98, blue: 0.93, alpha: 1),
-        caretColor: NSColor(calibratedWhite: 0.09, alpha: 1)
-    )
-
-    static let highContrast = Theme(
-        id: .highContrast,
-        name: "High Contrast",
-        textColor: .textColor,
-        backgroundColor: .textBackgroundColor,
-        caretColor: .textColor
-    )
-
     static let builtIn: [Theme] = [
         .system,
         .paper,
         .quiet,
-        .night,
-        .focus,
-        .accessible,
-        .dyslexia,
-        .highContrast
+        .night
     ]
 
     static let readerThemes: [Theme] = [
