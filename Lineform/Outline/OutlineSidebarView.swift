@@ -11,8 +11,20 @@ struct OutlineSidebarView: View {
     static let emptyStateTitle = "No headings yet"
     static let emptyStateMessage = "Add # Title or ## Section to build an outline."
     static let titleShowsIcon = false
+    static let usesSubtleGradientBackground = false
+    static let usesThemeIndependentLightChrome = true
+    static let backgroundOpacity: Double = 0.94
+    static let primaryTextWhiteComponent: CGFloat = 0.16
+    static let secondaryTextWhiteComponent: CGFloat = 0.43
+    static let minimumColumnWidth: CGFloat = 220
+    static let idealColumnWidth: CGFloat = 260
+    static let maximumColumnWidth: CGFloat = 300
 
     @State private var collapsedNodeIDs: Set<String> = []
+
+    static func showsTitle(for items: [MarkdownOutlineItem]) -> Bool {
+        items.isEmpty
+    }
 
     static func iconName(forHeadingLevel level: Int) -> String {
         switch level {
@@ -65,43 +77,50 @@ struct OutlineSidebarView: View {
     var jumpToHeading: (MarkdownOutlineItem) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sidebarTitle
+        ZStack {
+            sidebarBackground
+                .ignoresSafeArea()
 
-            if items.isEmpty {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(Self.emptyStateTitle)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    Text(Self.emptyStateMessage)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 0) {
+                if Self.showsTitle(for: items) {
+                    sidebarTitle
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 1) {
-                        ForEach(Self.outlineTree(from: items)) { node in
-                            OutlineSidebarNodeView(
-                                node: node,
-                                depth: 0,
-                                collapsedNodeIDs: $collapsedNodeIDs,
-                                jumpToHeading: jumpToHeading
-                            )
-                        }
+
+                if items.isEmpty {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(Self.emptyStateTitle)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Self.primaryTextColor)
+
+                        Text(Self.emptyStateMessage)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Self.secondaryTextColor)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.top, 4)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 1) {
+                            ForEach(Self.outlineTree(from: items)) { node in
+                                OutlineSidebarNodeView(
+                                    node: node,
+                                    depth: 0,
+                                    collapsedNodeIDs: $collapsedNodeIDs,
+                                    jumpToHeading: jumpToHeading
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 4)
+                    }
+                    .scrollContentBackground(.hidden)
                 }
             }
         }
-        .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
-        .background(sidebarBackground)
+        .frame(minWidth: Self.minimumColumnWidth, idealWidth: Self.idealColumnWidth, maxWidth: Self.maximumColumnWidth)
         .accessibilityLabel("Document outline")
     }
 
@@ -109,7 +128,7 @@ struct OutlineSidebarView: View {
         HStack {
             Text("Outline")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Self.secondaryTextColor)
 
             Spacer()
         }
@@ -119,7 +138,16 @@ struct OutlineSidebarView: View {
     }
 
     private var sidebarBackground: Color {
-        Color(nsColor: NSColor(calibratedRed: 0.945, green: 0.957, blue: 0.985, alpha: 1))
+        Color(nsColor: NSColor(calibratedWhite: 0.988, alpha: 1))
+            .opacity(Self.backgroundOpacity)
+    }
+
+    fileprivate static var primaryTextColor: Color {
+        Color(nsColor: NSColor(calibratedWhite: primaryTextWhiteComponent, alpha: 1))
+    }
+
+    fileprivate static var secondaryTextColor: Color {
+        Color(nsColor: NSColor(calibratedWhite: secondaryTextWhiteComponent, alpha: 1))
     }
 }
 
@@ -183,7 +211,7 @@ private struct OutlineSidebarRow: View {
                 Button(action: toggleCollapsed) {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(OutlineSidebarView.secondaryTextColor)
                         .frame(width: 10)
                 }
                 .buttonStyle(.plain)
@@ -196,12 +224,12 @@ private struct OutlineSidebarRow: View {
                 HStack(spacing: 8) {
                     Image(systemName: OutlineSidebarView.iconName(forHeadingLevel: node.item.level))
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(OutlineSidebarView.primaryTextColor)
                         .frame(width: 18)
 
                     Text(node.item.title)
                         .font(.system(size: 13, weight: node.item.level == 1 ? .medium : .regular))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(OutlineSidebarView.primaryTextColor)
                         .lineLimit(1)
 
                     Spacer(minLength: 0)

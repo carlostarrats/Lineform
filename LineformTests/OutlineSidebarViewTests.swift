@@ -14,6 +14,29 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testOutlineTitleOnlyShowsForEmptyDrawer() {
+        let items = MarkdownOutlineParser().items(in: "# Title")
+
+        XCTAssertTrue(OutlineSidebarView.showsTitle(for: []))
+        XCTAssertFalse(OutlineSidebarView.showsTitle(for: items))
+    }
+
+    @MainActor
+    func testOutlineDrawerUsesFlatSidebarBackground() {
+        XCTAssertFalse(OutlineSidebarView.usesSubtleGradientBackground)
+        XCTAssertLessThan(OutlineSidebarView.backgroundOpacity, 1)
+        XCTAssertGreaterThan(OutlineSidebarView.backgroundOpacity, 0.9)
+    }
+
+    @MainActor
+    func testOutlineDrawerKeepsLightChromeIndependentOfEditorTheme() {
+        XCTAssertTrue(OutlineSidebarView.usesThemeIndependentLightChrome)
+        XCTAssertLessThan(OutlineSidebarView.primaryTextWhiteComponent, 0.25)
+        XCTAssertGreaterThan(OutlineSidebarView.secondaryTextWhiteComponent, OutlineSidebarView.primaryTextWhiteComponent)
+        XCTAssertLessThan(OutlineSidebarView.secondaryTextWhiteComponent, 0.55)
+    }
+
+    @MainActor
     func testHeadingLevelsUseDistinctSidebarIcons() {
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 1), "textformat.size")
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 2), "list.bullet.indent")

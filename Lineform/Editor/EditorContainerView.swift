@@ -20,17 +20,26 @@ struct EditorContainerView: View {
     private let intelligentEditingService = FoundationModelsIntelligentEditingService()
 
     var body: some View {
+        let theme = currentTheme
+
         NavigationSplitView(columnVisibility: outlineVisibility) {
             OutlineSidebarView(items: outlineItems, jumpToHeading: jumpToHeading)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 300)
+                .environment(\.colorScheme, .light)
+                .navigationSplitViewColumnWidth(
+                    min: OutlineSidebarView.minimumColumnWidth,
+                    ideal: OutlineSidebarView.idealColumnWidth,
+                    max: OutlineSidebarView.maximumColumnWidth
+                )
         } detail: {
             editorShell
         }
         .navigationSplitViewStyle(.balanced)
-        .background(WindowNumberReader(windowNumber: $windowNumber))
+        .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
+        .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
+        .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
         .toolbar {
             ToolbarItem(placement: .principal) {
-                EditorModeSegmentedControl(selection: $displayMode)
+                EditorModeSegmentedControl(selection: $displayMode, usesDarkChrome: theme.usesDarkChrome)
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -105,14 +114,20 @@ struct EditorContainerView: View {
     }
 
     private var editorShell: some View {
-        ZStack {
-            HSplitView {
-                editorPrimaryShell
+        let theme = currentTheme
 
-                if isShowingReadingInspector {
-                    readingInspectorColumn
+        return ZStack {
+            editorPrimaryShell
+                .inspector(isPresented: $isShowingReadingInspector) {
+                    ReadingExperienceInspector(store: readingProfileStore, usesDarkChrome: theme.usesDarkChrome)
+                        .inspectorColumnWidth(
+                            min: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
+                            ideal: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
+                            max: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380
+                        )
+                        .id(theme.usesDarkChrome)
+                        .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
                 }
-            }
 
             if isShowingMarkdownBasics {
                 MarkdownBasicsOverlay {
@@ -136,13 +151,12 @@ struct EditorContainerView: View {
             }
         }
         .animation(.easeOut(duration: MarkdownBasicsModal.animationDuration), value: isShowingMarkdownBasics)
-        .animation(.snappy(duration: EditorAuxiliaryPresentation.readingExperience.animationDuration), value: isShowingReadingInspector)
     }
 
     private var editorPrimaryShell: some View {
         VStack(spacing: 0) {
             editorContent
-                .frame(minWidth: 640, minHeight: 480)
+                .frame(minWidth: EditorLayout.minimumContentWidth, minHeight: EditorLayout.minimumContentHeight)
 
             if let intelligentSuggestion {
                 IntelligentEditingSuggestionBar(
@@ -162,24 +176,11 @@ struct EditorContainerView: View {
                 )
             }
         }
-        .background(Color(nsColor: Theme.theme(for: readingProfileStore.activeProfile).backgroundColor))
+        .background(Color(nsColor: currentTheme.backgroundColor))
     }
 
-    private var readingInspectorColumn: some View {
-        ReadingExperienceInspector(store: readingProfileStore)
-            .frame(
-                minWidth: EditorAuxiliaryPresentation.readingExperience.minimumWidth,
-                idealWidth: EditorAuxiliaryPresentation.readingExperience.idealWidth,
-                maxWidth: EditorAuxiliaryPresentation.readingExperience.maximumWidth,
-                maxHeight: .infinity,
-                alignment: .top
-            )
-            .background(Color(nsColor: .windowBackgroundColor))
-            .overlay(alignment: .leading) {
-                Divider()
-            }
-            .transition(.move(edge: .trailing).combined(with: .opacity))
-            .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
+    private var currentTheme: Theme {
+        Theme.theme(for: readingProfileStore.activeProfile)
     }
 
     @ViewBuilder
@@ -340,6 +341,11 @@ enum EditorReadingLayout {
     }
 }
 
+enum EditorLayout {
+    static let minimumContentWidth: CGFloat = 300
+    static let minimumContentHeight: CGFloat = 480
+}
+
 enum EditorToolbarVisibility {
     static func showsMarkdownBasics(in mode: EditorDisplayMode) -> Bool {
         mode != .read
@@ -386,25 +392,28 @@ struct EditorAuxiliaryPresentation: Equatable {
     }
 
     var kind: Kind
+    var presenter: EditorAuxiliaryPresenter
     var accessibilityLabel: String
     var minimumWidth: CGFloat?
     var idealWidth: CGFloat?
     var maximumWidth: CGFloat?
     var transitionStyle: EditorAuxiliaryTransitionStyle
-    var animationDuration: Double
+    var animationDuration: Double?
 
     static let readingExperience = EditorAuxiliaryPresentation(
         kind: .nativeInspector,
+        presenter: .systemInspector,
         accessibilityLabel: "Reading Experience Inspector",
         minimumWidth: 280,
         idealWidth: 320,
         maximumWidth: 380,
         transitionStyle: .slideAndFade,
-        animationDuration: 0.24
+        animationDuration: nil
     )
 
     static let markdownBasics = EditorAuxiliaryPresentation(
         kind: .centeredModal,
+        presenter: .customOverlay,
         accessibilityLabel: "Markdown Basics",
         minimumWidth: nil,
         idealWidth: nil,
@@ -412,6 +421,11 @@ struct EditorAuxiliaryPresentation: Equatable {
         transitionStyle: .fadeAndMoveUp,
         animationDuration: 0.24
     )
+}
+
+enum EditorAuxiliaryPresenter: Equatable {
+    case systemInspector
+    case customOverlay
 }
 
 enum EditorAuxiliaryTransitionStyle: Equatable {
@@ -435,6 +449,9 @@ struct MarkdownBasicsModal: View {
     static let closeHoverFillOpacity = 0.08
     static let animationDuration = 0.24
     static let entranceYOffset: CGFloat = 10
+    static let usesThemeIndependentLightChrome = true
+    static let backgroundWhiteComponent: CGFloat = 0.98
+    static let textRedComponent: CGFloat = 0.12
     static let transitionStyle = EditorAuxiliaryTransitionStyle.fadeAndMoveUp
     static let examples = [
         Example(label: "Title", syntax: "# Title"),
@@ -454,6 +471,7 @@ struct MarkdownBasicsModal: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(Self.title)
                     .font(.title2.weight(.semibold))
+                    .foregroundStyle(Self.primaryTextColor)
 
                 Spacer()
 
@@ -462,11 +480,11 @@ struct MarkdownBasicsModal: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Self.secondaryTextColor)
                         .frame(width: 28, height: 28)
                         .background(
                             Circle()
-                                .fill(Color.black.opacity(isCloseHovered ? Self.closeHoverFillOpacity : Self.closeRestingFillOpacity))
+                                .fill(Self.primaryTextColor.opacity(isCloseHovered ? Self.closeHoverFillOpacity : Self.closeRestingFillOpacity))
                         )
                 }
                 .buttonStyle(.plain)
@@ -483,26 +501,39 @@ struct MarkdownBasicsModal: View {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(example.syntax)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Self.primaryTextColor)
                             .frame(width: 178, alignment: .leading)
 
                         Text(example.label)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Self.secondaryTextColor)
                     }
                 }
             }
         }
         .padding(24)
         .frame(width: 420, alignment: .leading)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Self.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.black.opacity(0.08), lineWidth: 1)
         }
         .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
+        .environment(\.colorScheme, .light)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel)
+    }
+
+    private static var backgroundColor: Color {
+        Color(nsColor: NSColor(calibratedWhite: backgroundWhiteComponent, alpha: 1))
+    }
+
+    private static var primaryTextColor: Color {
+        Color(nsColor: NSColor(calibratedRed: textRedComponent, green: textRedComponent, blue: textRedComponent, alpha: 1))
+    }
+
+    private static var secondaryTextColor: Color {
+        primaryTextColor.opacity(0.58)
     }
 }
 
@@ -638,6 +669,10 @@ struct EditorModeSegmentedControl: View {
     static let segmentHeight: CGFloat = 30
     static let selectedFillRedComponent: CGFloat = 0.86
     static let backgroundFillRedComponent: CGFloat = 1.0
+    static let textFillRedComponent: CGFloat = 0.18
+    static let darkSelectedFillRedComponent: CGFloat = 0.20
+    static let darkBackgroundFillRedComponent: CGFloat = 0.08
+    static let darkTextFillRedComponent: CGFloat = 0.92
     static let shadowRadius: CGFloat = 5
     static let hitAreaWidth: CGFloat = segmentWidth
     static let hitAreaHeight: CGFloat = segmentHeight
@@ -645,6 +680,7 @@ struct EditorModeSegmentedControl: View {
     static let liquidSettleDelay: TimeInterval = 0.16
 
     @Binding var selection: EditorDisplayMode
+    var usesDarkChrome = false
 
     @State private var hoveredMode: EditorDisplayMode?
     @State private var liquidBridge: LiquidBridge?
@@ -665,7 +701,7 @@ struct EditorModeSegmentedControl: View {
                     } label: {
                         Text(mode.title)
                             .font(.system(size: 14, weight: .regular))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Self.textFillColor(usesDarkChrome: usesDarkChrome))
                             .lineLimit(1)
                             .frame(width: Self.hitAreaWidth, height: Self.hitAreaHeight)
                             .contentShape(Capsule())
@@ -682,7 +718,7 @@ struct EditorModeSegmentedControl: View {
 
                     if index < modes.index(before: modes.endIndex) {
                         Rectangle()
-                            .fill(Color(nsColor: .separatorColor).opacity(shouldShowDivider(after: index) ? 0.45 : 0))
+                            .fill(Self.dividerColor(usesDarkChrome: usesDarkChrome).opacity(shouldShowDivider(after: index) ? 0.45 : 0))
                             .frame(width: 1, height: 18)
                             .padding(.horizontal, 1)
                     }
@@ -695,11 +731,11 @@ struct EditorModeSegmentedControl: View {
                 .fill(.ultraThinMaterial)
                 .overlay {
                     Capsule()
-                        .fill(Self.backgroundFillColor.opacity(0.82))
+                        .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome).opacity(usesDarkChrome ? 0.86 : 0.82))
                 }
                 .overlay {
                     Capsule()
-                        .stroke(.white.opacity(0.72), lineWidth: 0.5)
+                        .stroke((usesDarkChrome ? Color.white.opacity(0.10) : Color.white.opacity(0.72)), lineWidth: 0.5)
                 }
                 .shadow(color: .black.opacity(0.035), radius: Self.shadowRadius, y: 1)
         }
@@ -710,10 +746,10 @@ struct EditorModeSegmentedControl: View {
 
     private var selectedPill: some View {
         Capsule()
-            .fill(Self.selectedFillColor)
+            .fill(Self.selectedFillColor(usesDarkChrome: usesDarkChrome))
             .overlay {
                 Capsule()
-                    .stroke(.white.opacity(0.36), lineWidth: 0.5)
+                    .stroke((usesDarkChrome ? Color.white.opacity(0.16) : Color.white.opacity(0.36)), lineWidth: 0.5)
             }
             .frame(width: selectedPillWidth, height: Self.segmentHeight)
             .offset(x: selectedPillOffset)
@@ -725,7 +761,7 @@ struct EditorModeSegmentedControl: View {
     private var hoverPill: some View {
         if let hoveredMode, hoveredMode != selection {
             Capsule()
-                .fill(Self.selectedFillColor.opacity(0.48))
+                .fill(Self.selectedFillColor(usesDarkChrome: usesDarkChrome).opacity(0.48))
                 .frame(width: Self.segmentWidth, height: Self.segmentHeight)
                 .offset(x: Self.segmentOffset(for: hoveredMode))
                 .transition(.opacity)
@@ -748,26 +784,44 @@ struct EditorModeSegmentedControl: View {
         return Self.segmentOffset(for: selection)
     }
 
-    private static var selectedFillColor: Color {
-        Color(
+    private static func selectedFillColor(usesDarkChrome: Bool) -> Color {
+        let component = usesDarkChrome ? darkSelectedFillRedComponent : selectedFillRedComponent
+        return Color(
             nsColor: NSColor(
-                calibratedRed: selectedFillRedComponent,
-                green: selectedFillRedComponent,
-                blue: selectedFillRedComponent,
-                alpha: 0.74
+                calibratedRed: component,
+                green: component,
+                blue: component,
+                alpha: usesDarkChrome ? 0.92 : 0.74
             )
         )
     }
 
-    private static var backgroundFillColor: Color {
-        Color(
+    private static func backgroundFillColor(usesDarkChrome: Bool) -> Color {
+        let component = usesDarkChrome ? darkBackgroundFillRedComponent : backgroundFillRedComponent
+        return Color(
             nsColor: NSColor(
-                calibratedRed: backgroundFillRedComponent,
-                green: backgroundFillRedComponent,
-                blue: backgroundFillRedComponent,
+                calibratedRed: component,
+                green: component,
+                blue: component,
                 alpha: 1
             )
         )
+    }
+
+    private static func textFillColor(usesDarkChrome: Bool) -> Color {
+        let component = usesDarkChrome ? darkTextFillRedComponent : textFillRedComponent
+        return Color(
+            nsColor: NSColor(
+                calibratedRed: component,
+                green: component,
+                blue: component,
+                alpha: 1
+            )
+        )
+    }
+
+    private static func dividerColor(usesDarkChrome: Bool) -> Color {
+        usesDarkChrome ? .white : Color(nsColor: .separatorColor)
     }
 
     static func segmentOffset(for mode: EditorDisplayMode) -> CGFloat {
@@ -821,20 +875,40 @@ struct EditorModeSegmentedControl: View {
     }
 }
 
-private struct WindowNumberReader: NSViewRepresentable {
+private struct WindowChromeReader: NSViewRepresentable {
     @Binding var windowNumber: Int?
+    var usesDarkChrome: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
         DispatchQueue.main.async {
-            windowNumber = view.window?.windowNumber
+            applyChrome(to: view.window)
         }
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
         DispatchQueue.main.async {
-            windowNumber = nsView.window?.windowNumber
+            applyChrome(to: nsView.window)
         }
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
+        nsView.window?.appearance = nil
+    }
+
+    private func applyChrome(to window: NSWindow?) {
+        windowNumber = window?.windowNumber
+        window?.appearance = EditorWindowChrome.appearance(usesDarkChrome: usesDarkChrome)
+    }
+}
+
+struct EditorWindowChrome {
+    static func appearanceName(usesDarkChrome: Bool) -> NSAppearance.Name {
+        usesDarkChrome ? .darkAqua : .aqua
+    }
+
+    static func appearance(usesDarkChrome: Bool) -> NSAppearance? {
+        NSAppearance(named: appearanceName(usesDarkChrome: usesDarkChrome))
     }
 }

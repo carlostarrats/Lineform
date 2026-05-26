@@ -2,37 +2,41 @@ import SwiftUI
 
 struct ReadingExperienceInspector: View {
     @ObservedObject var store: ReadingProfileStore
+    var usesDarkChrome = false
 
     static let visibleControlLabels = [
-        "Theme",
+        "Themes",
         "Font",
         "Font Size",
         "Line Height",
         "Paragraph Spacing",
         "Letter Spacing",
         "Column Width",
+        "Reading Aids",
         "Reduce Markdown Noise",
-        "Focus",
         "Reading Ruler",
         "Typewriter Mode",
         "Caret Width",
         "Reset to Default",
     ]
+    static let resetTopSpacing: CGFloat = 20
+    static let usesResetSeparator = false
+    static let presetGridColumnCount = 3
+    static let themeTitle = "Themes"
+    static let themeTitleFontSize: CGFloat = 13
+    static let unselectedPresetOpacity = 1.0
+    static let unselectedPresetContentOpacity: Double = 1
+    static let themeToFontSpacing: CGFloat = 10
+    static let usesReadingAidsSectionLabel = true
+    static let sectionLabelFontSize: CGFloat = 13
+    static let controlHoverFillOpacity = 0.08
+    static let presetCardHoverFillOpacity = 0.07
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                InspectorSectionLabel("Appearance")
-
-                PickerRow(title: "Theme") {
-                    Picker("Theme", selection: themeSelection) {
-                        ForEach(Theme.readerThemes) { theme in
-                            Text(theme.name).tag(theme.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                }
+                presetGrid
+                    .padding(.bottom, Self.themeToFontSpacing)
 
                 PickerRow(title: "Font") {
                     Picker("Font", selection: fontSelection) {
@@ -83,23 +87,15 @@ struct ReadingExperienceInspector: View {
                     range: 460...900
                 )
 
-                InspectorSectionLabel("Reading Aids")
-
-                Toggle("Reduce Markdown Noise", isOn: boolBinding(\.reduceMarkdownNoise))
-
-                PickerRow(title: "Focus") {
-                    Picker("Focus", selection: focusSelection) {
-                        ForEach(FocusMode.allCases, id: \.self) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+                if Self.usesReadingAidsSectionLabel {
+                    InspectorSectionLabel("Reading Aids")
                 }
 
-                Toggle("Reading Ruler", isOn: boolBinding(\.readingRulerEnabled))
+                InspectorToggleRow(title: "Reduce Markdown Noise", isOn: boolBinding(\.reduceMarkdownNoise))
 
-                Toggle("Typewriter Mode", isOn: boolBinding(\.typewriterModeEnabled))
+                InspectorToggleRow(title: "Reading Ruler", isOn: boolBinding(\.readingRulerEnabled))
+
+                InspectorToggleRow(title: "Typewriter Mode", isOn: boolBinding(\.typewriterModeEnabled))
 
                 InspectorSliderRow(
                     title: "Caret Width",
@@ -108,26 +104,59 @@ struct ReadingExperienceInspector: View {
                     range: 1...4
                 )
 
-                Button("Reset to Default") {
-                    store.resetToDefault()
+                VStack(alignment: .leading, spacing: 12) {
+                    InspectorHoverContainer {
+                        Button("Reset to Default") {
+                            store.resetToDefault()
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .buttonStyle(.bordered)
-                .padding(.top, 2)
+                .padding(.top, Self.resetTopSpacing)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .background(Color(nsColor: Self.backgroundColor(usesDarkChrome: usesDarkChrome)))
+        .environment(\.colorScheme, Self.colorScheme(usesDarkChrome: usesDarkChrome))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Reading Experience Inspector")
     }
 
-    private var themeSelection: Binding<ThemeID> {
-        Binding(
-            get: { store.activeProfile.themeID },
-            set: { themeID in
-                store.update { $0.applyTheme(themeID) }
-            }
+    static func colorScheme(usesDarkChrome: Bool) -> ColorScheme {
+        usesDarkChrome ? .dark : .light
+    }
+
+    static func backgroundColor(usesDarkChrome: Bool) -> NSColor {
+        usesDarkChrome
+            ? NSColor(calibratedWhite: 0.20, alpha: 1)
+            : NSColor(calibratedWhite: 0.98, alpha: 1)
+    }
+
+    private var presetGrid: some View {
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: 10),
+            count: Self.presetGridColumnCount
         )
+        let selectedPresetID = ReadingPreset.matchingPresetID(for: store.activeProfile)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(Self.themeTitle)
+                .font(.system(size: Self.themeTitleFontSize, weight: .medium))
+                .foregroundStyle(.primary)
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                ForEach(ReadingPreset.builtIn) { preset in
+                    ReadingPresetCard(
+                        preset: preset,
+                        isSelected: selectedPresetID == preset.id
+                    ) {
+                        store.applyPreset(preset)
+                    }
+                }
+            }
+        }
     }
 
     private var fontSelection: Binding<FontID> {
@@ -161,15 +190,6 @@ struct ReadingExperienceInspector: View {
         default:
             return decimalText(value, maximumFractionDigits: 2)
         }
-    }
-
-    private var focusSelection: Binding<FocusMode> {
-        Binding(
-            get: { store.activeProfile.focusMode },
-            set: { mode in
-                store.update { $0.focusMode = mode }
-            }
-        )
     }
 
     private func numericBinding(_ keyPath: WritableKeyPath<ReadingProfile, Double>, range: ClosedRange<Double>) -> Binding<Double> {
@@ -211,9 +231,8 @@ private struct InspectorSectionLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
+            .font(.system(size: ReadingExperienceInspector.sectionLabelFontSize, weight: .medium))
+            .foregroundStyle(.primary)
     }
 }
 
@@ -222,15 +241,89 @@ private struct PickerRow<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary)
+        InspectorHoverContainer {
+            HStack(alignment: .center, spacing: 12) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
 
-            Spacer(minLength: 12)
+                Spacer(minLength: 12)
 
-            content
-                .frame(maxWidth: 170, alignment: .trailing)
+                content
+                    .frame(maxWidth: 170, alignment: .trailing)
+            }
+        }
+    }
+}
+
+private struct ReadingPresetCard: View {
+    var preset: ReadingPreset
+    var isSelected: Bool
+    var apply: () -> Void
+    @State private var isHovered = false
+
+    private var theme: Theme {
+        Theme.theme(for: preset.profile)
+    }
+
+    var body: some View {
+        Button(action: apply) {
+            VStack(spacing: 2) {
+                Text("Aa")
+                    .font(previewFont(size: 30))
+                    .foregroundStyle(Color(nsColor: theme.textColor))
+                    .lineLimit(1)
+
+                Text(preset.profile.name)
+                    .font(previewFont(size: 12))
+                    .foregroundStyle(Color(nsColor: theme.textColor))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .opacity(ReadingExperienceInspector.unselectedPresetContentOpacity)
+            .frame(maxWidth: .infinity, minHeight: 82)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(nsColor: theme.backgroundColor).opacity(isSelected ? 1 : ReadingExperienceInspector.unselectedPresetOpacity))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.primary.opacity(isHovered ? ReadingExperienceInspector.presetCardHoverFillOpacity : 0))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? selectedStrokeColor : Color.black.opacity(0.08), lineWidth: isSelected ? 2 : 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovered = hovering
+            }
+        }
+        .accessibilityLabel("\(preset.profile.name) reading theme")
+    }
+
+    private var selectedStrokeColor: Color {
+        let background = theme.backgroundColor.usingColorSpace(.deviceRGB)
+        let brightness = ((background?.redComponent ?? 1) + (background?.greenComponent ?? 1) + (background?.blueComponent ?? 1)) / 3
+        return brightness < 0.45 ? .white : .primary
+    }
+
+    private func previewFont(size: CGFloat) -> Font {
+        switch preset.profile.fontID {
+        case .sfPro:
+            return .system(size: size, weight: .regular)
+        case .newYork:
+            return .system(size: size, weight: .regular, design: .serif)
+        case .jetBrainsMono:
+            return .system(size: size, weight: .regular, design: .monospaced)
+        case .atkinsonHyperlegible:
+            return .custom("AtkinsonHyperlegible-Regular", size: size)
+        case .openDyslexic:
+            return .custom("OpenDyslexic-Regular", size: size)
+        case .lexend, .comicSans:
+            return .system(size: size, weight: .regular)
         }
     }
 }
@@ -242,22 +335,61 @@ private struct InspectorSliderRow: View {
     var range: ClosedRange<Double>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.primary)
+        InspectorHoverContainer {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary)
 
-                Spacer(minLength: 12)
+                    Spacer(minLength: 12)
 
-                Text(valueText)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 54, alignment: .trailing)
-                    .accessibilityLabel("\(title) value \(valueText)")
+                    Text(valueText)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 54, alignment: .trailing)
+                        .accessibilityLabel("\(title) value \(valueText)")
+                }
+
+                Slider(value: $value, in: range)
             }
-
-            Slider(value: $value, in: range)
         }
+    }
+}
+
+private struct InspectorToggleRow: View {
+    var title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        InspectorHoverContainer {
+            Toggle(title, isOn: $isOn)
+        }
+    }
+}
+
+private struct InspectorHoverContainer<Content: View>: View {
+    let content: () -> Content
+    @State private var isHovered = false
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        content()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(isHovered ? ReadingExperienceInspector.controlHoverFillOpacity : 0))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isHovered = hovering
+                }
+            }
     }
 }

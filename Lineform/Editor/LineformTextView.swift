@@ -2,11 +2,13 @@ import AppKit
 
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
+    static let readingRulerFillOpacity: CGFloat = 0.12
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private var hasAppliedTypography = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var activeIntelligentSuggestionRange: NSRange?
+    private var scrollOriginBeforeTypewriterMode: NSPoint?
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -45,6 +47,8 @@ final class LineformTextView: NSTextView {
             return
         }
 
+        let previousProfile = activeReadingProfile
+        updateTypewriterScrollState(from: previousProfile, to: profile)
         activeReadingProfile = profile
         hasAppliedTypography = true
 
@@ -107,16 +111,19 @@ final class LineformTextView: NSTextView {
     }
 
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+        super.drawInsertionPoint(in: Self.insertionPointRect(for: rect, profile: activeReadingProfile), color: color, turnedOn: flag)
+    }
+
+    static func insertionPointRect(for rect: NSRect, profile: ReadingProfile) -> NSRect {
         var caretRect = rect
-        caretRect.size.width = max(rect.width, CGFloat(activeReadingProfile.insertionPointWidth))
-        super.drawInsertionPoint(in: caretRect, color: color, turnedOn: flag)
+        caretRect.size.width = max(rect.width, CGFloat(profile.insertionPointWidth))
+        return caretRect
     }
 
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
         drawEmptyStatePlaceholderIfNeeded()
         drawIntelligentSuggestionHighlightIfNeeded()
-        drawFocusHighlightIfNeeded()
         drawReadingRulerIfNeeded()
     }
 
@@ -252,25 +259,8 @@ final class LineformTextView: NSTextView {
             return
         }
 
-        NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+        NSColor.controlAccentColor.withAlphaComponent(Self.readingRulerFillOpacity).setFill()
         rect.insetBy(dx: -6, dy: -2).fill()
-    }
-
-    private func drawFocusHighlightIfNeeded() {
-        guard activeReadingProfile.focusMode != .off else {
-            return
-        }
-
-        guard let rect = rectForAssistRange(ReadingAssistRangeResolver.focusRange(
-            in: string,
-            selectedRange: selectedRange(),
-            mode: activeReadingProfile.focusMode
-        )) else {
-            return
-        }
-
-        NSColor.selectedTextBackgroundColor.withAlphaComponent(0.10).setFill()
-        rect.insetBy(dx: -8, dy: -4).fill()
     }
 
     private func rectForAssistRange(_ characterRange: NSRange?) -> NSRect? {
@@ -288,6 +278,7 @@ final class LineformTextView: NSTextView {
             return nil
         }
 
+        layoutManager.ensureLayout(for: textContainer)
         let glyphRange = layoutManager.glyphRange(forCharacterRange: safeRange, actualCharacterRange: nil)
         var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
         rect.origin.x += textContainerOrigin.x
@@ -314,9 +305,35 @@ final class LineformTextView: NSTextView {
         }
 
         let visibleBounds = scrollView.contentView.bounds
-        let targetY = max(0, rect.midY - visibleBounds.height / 2)
-        scrollView.contentView.setBoundsOrigin(NSPoint(x: visibleBounds.origin.x, y: targetY))
+        scrollView.contentView.setBoundsOrigin(Self.typewriterScrollOrigin(for: rect, visibleBounds: visibleBounds))
         scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    static func typewriterScrollOrigin(for lineRect: NSRect, visibleBounds: NSRect) -> NSPoint {
+        NSPoint(
+            x: visibleBounds.origin.x,
+            y: max(0, lineRect.midY - visibleBounds.height / 2)
+        )
+    }
+
+    private func updateTypewriterScrollState(from previousProfile: ReadingProfile, to profile: ReadingProfile) {
+        guard previousProfile.typewriterModeEnabled != profile.typewriterModeEnabled else {
+            return
+        }
+
+        if profile.typewriterModeEnabled {
+            scrollOriginBeforeTypewriterMode = enclosingScrollView?.contentView.bounds.origin
+            return
+        }
+
+        guard let scrollOriginBeforeTypewriterMode, let scrollView = enclosingScrollView else {
+            self.scrollOriginBeforeTypewriterMode = nil
+            return
+        }
+
+        scrollView.contentView.setBoundsOrigin(scrollOriginBeforeTypewriterMode)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        self.scrollOriginBeforeTypewriterMode = nil
     }
 
     private func updateTextContainerLayout(for profile: ReadingProfile) {

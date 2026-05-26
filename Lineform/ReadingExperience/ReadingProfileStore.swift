@@ -23,9 +23,7 @@ final class ReadingProfileStore: ObservableObject {
     }
 
     func applyPreset(_ preset: ReadingPreset) {
-        var profile = preset.profile
-        profile.applyTheme(activeProfile.themeID)
-        activeProfile = profile
+        activeProfile = preset.profile
     }
 
     func resetToDefault() {

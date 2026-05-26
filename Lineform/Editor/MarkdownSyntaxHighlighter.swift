@@ -1,6 +1,17 @@
 import AppKit
 
 final class MarkdownSyntaxHighlighter {
+    static let lightThemeInlineCodeColor = NSColor(srgbRed: 0.0, green: 0.32, blue: 0.68, alpha: 1)
+    static let darkThemeInlineCodeColor = NSColor(srgbRed: 0.60, green: 0.76, blue: 1.0, alpha: 1)
+
+    static func inlineCodeColor(for profile: ReadingProfile) -> NSColor {
+        inlineCodeColor(for: Theme.theme(for: profile))
+    }
+
+    static func inlineCodeColor(for theme: Theme) -> NSColor {
+        theme.usesDarkChrome ? darkThemeInlineCodeColor : lightThemeInlineCodeColor
+    }
+
     static var baseAttributes: [NSAttributedString.Key: Any] {
         baseAttributes(for: .original)
     }
@@ -43,8 +54,9 @@ final class MarkdownSyntaxHighlighter {
     }
 
     private func attributes(for kind: MarkdownTokenKind, profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
-        let markerColor = profile.reduceMarkdownNoise ? NSColor.tertiaryLabelColor.withAlphaComponent(0.45) : NSColor.secondaryLabelColor
-        let mutedColor = profile.reduceMarkdownNoise ? NSColor.tertiaryLabelColor.withAlphaComponent(0.55) : NSColor.tertiaryLabelColor
+        let textColor = Theme.theme(for: profile).textColor
+        let markerColor = textColor.withAlphaComponent(profile.reduceMarkdownNoise ? 0.45 : 0.72)
+        let mutedColor = textColor.withAlphaComponent(profile.reduceMarkdownNoise ? 0.55 : 0.62)
 
         switch kind {
         case .headingMarker:
@@ -54,12 +66,12 @@ final class MarkdownSyntaxHighlighter {
         case .codeSpan, .codeFence:
             return [
                 .font: NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular),
-                .foregroundColor: NSColor.systemBrown
+                .foregroundColor: Self.inlineCodeColor(for: profile)
             ]
         case .linkText:
             return [.foregroundColor: NSColor.linkColor]
         case .linkDestination:
-            return [.foregroundColor: NSColor.secondaryLabelColor]
+            return [.foregroundColor: markerColor]
         }
     }
 }

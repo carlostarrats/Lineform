@@ -19,7 +19,7 @@ enum FocusMode: String, Codable, Equatable, CaseIterable {
     var displayName: String {
         switch self {
         case .off:
-            return "Off"
+            return "No Focus"
         case .currentLine:
             return "Current Line"
         case .currentSentence:

@@ -12,10 +12,10 @@ struct ReadingPreset: Equatable, Identifiable {
         fontID: .newYork,
         themeID: .paper,
         fontSize: 18,
-        lineHeightMultiple: 1.42,
+        lineHeightMultiple: 1.48,
         paragraphSpacing: 10,
         letterSpacing: 0,
-        columnWidth: 640,
+        columnWidth: 720,
         marginWidth: 48,
         insertionPointWidth: 1.5,
         focusMode: .off,
@@ -30,11 +30,11 @@ struct ReadingPreset: Equatable, Identifiable {
     static let quiet = ReadingPreset(profile: ReadingProfile(
         id: UUID(uuidString: "06D3C3F5-3165-47BB-83D4-581030358012")!,
         name: "Quiet",
-        fontID: .sfPro,
+        fontID: .newYork,
         themeID: .quiet,
-        fontSize: 17,
-        lineHeightMultiple: 1.45,
-        paragraphSpacing: 9,
+        fontSize: 18,
+        lineHeightMultiple: 1.4,
+        paragraphSpacing: 8,
         letterSpacing: 0,
         columnWidth: 700,
         marginWidth: 56,
@@ -48,21 +48,63 @@ struct ReadingPreset: Equatable, Identifiable {
         adaptiveReadabilityEnabled: false
     ))
 
+    static let code = ReadingPreset(profile: ReadingProfile(
+        id: UUID(uuidString: "7634B98A-89F3-4E24-86F9-DC985A6C0873")!,
+        name: "Code",
+        fontID: .jetBrainsMono,
+        themeID: .system,
+        fontSize: 16,
+        lineHeightMultiple: 1.32,
+        paragraphSpacing: 6,
+        letterSpacing: 0,
+        columnWidth: 780,
+        marginWidth: 44,
+        insertionPointWidth: 1.5,
+        focusMode: .off,
+        typewriterModeEnabled: false,
+        readingRulerEnabled: false,
+        reduceMarkdownNoise: false,
+        highContrastEnabled: false,
+        reduceMotionEnabled: false,
+        adaptiveReadabilityEnabled: false
+    ))
+
+    static let calm = ReadingPreset(profile: ReadingProfile(
+        id: UUID(uuidString: "547D4201-F235-4902-AC84-60FAD895E275")!,
+        name: "Calm",
+        fontID: .atkinsonHyperlegible,
+        themeID: .calm,
+        fontSize: 18,
+        lineHeightMultiple: 1.55,
+        paragraphSpacing: 12,
+        letterSpacing: 0.12,
+        columnWidth: 740,
+        marginWidth: 56,
+        insertionPointWidth: 1.75,
+        focusMode: .off,
+        typewriterModeEnabled: false,
+        readingRulerEnabled: false,
+        reduceMarkdownNoise: true,
+        highContrastEnabled: false,
+        reduceMotionEnabled: false,
+        adaptiveReadabilityEnabled: false
+    ))
+
     static let focus = ReadingPreset(profile: ReadingProfile(
         id: UUID(uuidString: "F3130E1E-9805-4105-9787-3C7E5E1190F7")!,
         name: "Focus",
-        fontID: .sfPro,
+        fontID: .atkinsonHyperlegible,
         themeID: .system,
         fontSize: 18,
-        lineHeightMultiple: 1.5,
-        paragraphSpacing: 10,
-        letterSpacing: 0,
-        columnWidth: 620,
+        lineHeightMultiple: 1.58,
+        paragraphSpacing: 12,
+        letterSpacing: 0.1,
+        columnWidth: 700,
         marginWidth: 64,
         insertionPointWidth: 2,
-        focusMode: .currentParagraph,
+        focusMode: .off,
         typewriterModeEnabled: true,
-        readingRulerEnabled: false,
+        readingRulerEnabled: true,
         reduceMarkdownNoise: true,
         highContrastEnabled: false,
         reduceMotionEnabled: false,
@@ -102,7 +144,7 @@ struct ReadingPreset: Equatable, Identifiable {
         columnWidth: 740,
         marginWidth: 64,
         insertionPointWidth: 2,
-        focusMode: .currentLine,
+        focusMode: .off,
         typewriterModeEnabled: false,
         readingRulerEnabled: true,
         reduceMarkdownNoise: true,
@@ -155,13 +197,11 @@ struct ReadingPreset: Equatable, Identifiable {
 
     static let builtIn: [ReadingPreset] = [
         .original,
-        .paper,
         .quiet,
-        .focus,
-        .accessible,
-        .dyslexia,
-        .lowLight,
-        .highContrast
+        .paper,
+        .code,
+        .calm,
+        .focus
     ]
 
     static func matchingPresetID(for profile: ReadingProfile) -> UUID? {

@@ -2,18 +2,24 @@ import XCTest
 @testable import Lineform
 
 final class ReadingAssistPreferenceTests: XCTestCase {
-    func testFocusPresetEnablesNativeFocusAndTypewriterAids() {
+    func testFocusPresetEnablesReadingRulerAndTypewriterAids() {
         let profile = ReadingPreset.focus.profile
 
-        XCTAssertEqual(profile.focusMode, .currentParagraph)
+        XCTAssertEqual(profile.fontID, .atkinsonHyperlegible)
+        XCTAssertEqual(profile.focusMode, .off)
+        XCTAssertTrue(profile.readingRulerEnabled)
+        XCTAssertTrue(profile.reduceMarkdownNoise)
         XCTAssertTrue(profile.typewriterModeEnabled)
+        XCTAssertGreaterThan(profile.insertionPointWidth, ReadingProfile.original.insertionPointWidth)
         XCTAssertFalse(profile.reduceMotionEnabled)
     }
 
-    func testDyslexiaPresetEnablesReadingRulerWithoutMotion() {
-        let profile = ReadingPreset.dyslexia.profile
+    func testCalmPresetUsesAccessibleTypefaceWithoutFocusAids() {
+        let profile = ReadingPreset.calm.profile
 
-        XCTAssertTrue(profile.readingRulerEnabled)
-        XCTAssertTrue(profile.reduceMotionEnabled)
+        XCTAssertEqual(profile.fontID, .atkinsonHyperlegible)
+        XCTAssertEqual(profile.focusMode, .off)
+        XCTAssertFalse(profile.readingRulerEnabled)
+        XCTAssertFalse(profile.typewriterModeEnabled)
     }
 }

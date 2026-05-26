@@ -1,6 +1,7 @@
 import XCTest
 @testable import Lineform
 
+@MainActor
 final class ReadingProfileStoreTests: XCTestCase {
     func testPersistsActiveProfileAcrossStoreInstances() {
         let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreTests")!
@@ -46,17 +47,17 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(store.activeProfile, .original)
     }
 
-    func testApplyingReadingPresetPreservesCurrentTheme() {
+    func testApplyingReadingPresetUsesPresetTheme() {
         let defaults = UserDefaults(suiteName: "LineformReadingProfileStorePresetThemeTests")!
         defaults.removePersistentDomain(forName: "LineformReadingProfileStorePresetThemeTests")
         let store = ReadingProfileStore(defaults: defaults)
         store.update { $0.applyTheme(.night) }
 
-        store.applyPreset(ReadingPreset.dyslexia)
+        store.applyPreset(ReadingPreset.calm)
 
-        XCTAssertEqual(store.activeProfile.themeID, .night)
-        XCTAssertEqual(store.activeProfile.fontID, .sfPro)
-        XCTAssertTrue(store.activeProfile.readingRulerEnabled)
+        XCTAssertEqual(store.activeProfile.themeID, .calm)
+        XCTAssertEqual(store.activeProfile.fontID, .atkinsonHyperlegible)
+        XCTAssertFalse(store.activeProfile.readingRulerEnabled)
     }
 
     func testCustomizedPresetDoesNotContinueToMatchBuiltInPresetSelection() {
@@ -71,7 +72,7 @@ final class ReadingProfileStoreTests: XCTestCase {
     func testReadingExperienceInspectorKeepsOnlyDirectVisibleControls() {
         let labels = ReadingExperienceInspector.visibleControlLabels
 
-        XCTAssertTrue(labels.contains("Theme"))
+        XCTAssertTrue(labels.contains("Themes"))
         XCTAssertTrue(labels.contains("Font"))
         XCTAssertTrue(labels.contains("Column Width"))
         XCTAssertTrue(labels.contains("Reduce Markdown Noise"))
@@ -79,9 +80,43 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertTrue(labels.contains("Typewriter Mode"))
         XCTAssertTrue(labels.contains("Caret Width"))
 
+        XCTAssertFalse(labels.contains("Appearance"))
+        XCTAssertFalse(labels.contains("Theme"))
+        XCTAssertFalse(labels.contains("Focus"))
+        XCTAssertFalse(labels.contains("Focus Highlight"))
         XCTAssertFalse(labels.contains("Reading Preset"))
         XCTAssertFalse(labels.contains("Margins"))
         XCTAssertFalse(labels.contains("Reduce Motion"))
+    }
+
+    func testReadingExperiencePresetGridUsesThreeColumns() {
+        XCTAssertEqual(ReadingExperienceInspector.presetGridColumnCount, 3)
+    }
+
+    func testThemeGridUsesCompactLabelAndDimmedUnselectedCards() {
+        XCTAssertEqual(ReadingExperienceInspector.themeTitle, "Themes")
+        XCTAssertEqual(ReadingExperienceInspector.themeTitleFontSize, 13)
+        XCTAssertEqual(ReadingExperienceInspector.unselectedPresetOpacity, 1)
+        XCTAssertEqual(ReadingExperienceInspector.unselectedPresetContentOpacity, 1)
+        XCTAssertGreaterThanOrEqual(ReadingExperienceInspector.themeToFontSpacing, 8)
+    }
+
+    func testResetButtonIsVisuallySeparatedWithoutDivider() {
+        XCTAssertGreaterThanOrEqual(ReadingExperienceInspector.resetTopSpacing, 18)
+        XCTAssertFalse(ReadingExperienceInspector.usesResetSeparator)
+    }
+
+    func testReadingAidsSectionLabelUsesControlLabelStyling() {
+        XCTAssertTrue(ReadingExperienceInspector.usesReadingAidsSectionLabel)
+        XCTAssertTrue(ReadingExperienceInspector.visibleControlLabels.contains("Reading Aids"))
+        XCTAssertEqual(ReadingExperienceInspector.sectionLabelFontSize, 13)
+    }
+
+    func testReadingExperienceInspectorControlsExposeHoverStates() {
+        XCTAssertGreaterThan(ReadingExperienceInspector.controlHoverFillOpacity, 0)
+        XCTAssertGreaterThan(ReadingExperienceInspector.presetCardHoverFillOpacity, 0)
+        XCTAssertLessThan(ReadingExperienceInspector.controlHoverFillOpacity, 0.2)
+        XCTAssertLessThan(ReadingExperienceInspector.presetCardHoverFillOpacity, 0.2)
     }
 
     func testReadingExperienceInspectorShowsValuesForEverySliderControl() {
@@ -99,5 +134,16 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.letterSpacing, in: profile), "0.4")
         XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.columnWidth, in: profile), "760 px")
         XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.insertionPointWidth, in: profile), "2 px")
+    }
+
+    func testReadingExperienceInspectorUsesExplicitThemeSchemeAndBackground() throws {
+        XCTAssertEqual(ReadingExperienceInspector.colorScheme(usesDarkChrome: false), .light)
+        XCTAssertEqual(ReadingExperienceInspector.colorScheme(usesDarkChrome: true), .dark)
+
+        let lightBackground = try XCTUnwrap(ReadingExperienceInspector.backgroundColor(usesDarkChrome: false).usingColorSpace(.sRGB))
+        let darkBackground = try XCTUnwrap(ReadingExperienceInspector.backgroundColor(usesDarkChrome: true).usingColorSpace(.sRGB))
+
+        XCTAssertGreaterThan(lightBackground.redComponent, 0.9)
+        XCTAssertLessThan(darkBackground.redComponent, 0.3)
     }
 }

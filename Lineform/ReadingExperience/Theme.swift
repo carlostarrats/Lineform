@@ -3,6 +3,7 @@ import AppKit
 enum ThemeID: String, Codable, Equatable, CaseIterable {
     case system
     case paper
+    case calm
     case quiet
     case night
 
@@ -15,6 +16,8 @@ enum ThemeID: String, Codable, Equatable, CaseIterable {
             self = .system
         case ThemeID.paper.rawValue:
             self = .paper
+        case ThemeID.calm.rawValue:
+            self = .calm
         case ThemeID.quiet.rawValue:
             self = .quiet
         case ThemeID.night.rawValue, "lowLight":
@@ -37,28 +40,42 @@ struct Theme: Equatable, Identifiable {
     var backgroundColor: NSColor
     var caretColor: NSColor
 
+    var usesDarkChrome: Bool {
+        let rgb = backgroundColor.usingColorSpace(.sRGB) ?? backgroundColor
+        let luminance = (0.2126 * rgb.redComponent) + (0.7152 * rgb.greenComponent) + (0.0722 * rgb.blueComponent)
+        return luminance < 0.45
+    }
+
     static let system = Theme(
         id: .system,
         name: "Original",
-        textColor: .labelColor,
-        backgroundColor: .textBackgroundColor,
-        caretColor: .labelColor
+        textColor: .lineformHex(0x1F1F1F),
+        backgroundColor: .lineformHex(0xFFFFFF),
+        caretColor: .lineformHex(0x1F1F1F)
     )
 
     static let paper = Theme(
         id: .paper,
         name: "Paper",
-        textColor: NSColor(calibratedWhite: 0.12, alpha: 1),
-        backgroundColor: NSColor(calibratedRed: 0.97, green: 0.96, blue: 0.92, alpha: 1),
-        caretColor: NSColor(calibratedWhite: 0.12, alpha: 1)
+        textColor: .lineformHex(0x1F1F1F),
+        backgroundColor: .lineformHex(0xF6F3ED),
+        caretColor: .lineformHex(0x1F1F1F)
+    )
+
+    static let calm = Theme(
+        id: .calm,
+        name: "Calm",
+        textColor: .lineformHex(0x1F1F1F),
+        backgroundColor: .lineformHex(0xF2F4F5),
+        caretColor: .lineformHex(0x1F1F1F)
     )
 
     static let quiet = Theme(
         id: .quiet,
         name: "Quiet",
-        textColor: .labelColor,
-        backgroundColor: .windowBackgroundColor,
-        caretColor: .labelColor
+        textColor: NSColor(calibratedWhite: 0.86, alpha: 1),
+        backgroundColor: NSColor(calibratedWhite: 0.19, alpha: 1),
+        caretColor: NSColor(calibratedWhite: 0.90, alpha: 1)
     )
 
     static let night = Theme(
@@ -72,6 +89,7 @@ struct Theme: Equatable, Identifiable {
     static let builtIn: [Theme] = [
         .system,
         .paper,
+        .calm,
         .quiet,
         .night
     ]
@@ -79,6 +97,7 @@ struct Theme: Equatable, Identifiable {
     static let readerThemes: [Theme] = [
         .system,
         .paper,
+        .calm,
         .quiet,
         .night
     ]
@@ -98,6 +117,17 @@ struct Theme: Equatable, Identifiable {
             textColor: .textColor,
             backgroundColor: .textBackgroundColor,
             caretColor: .textColor
+        )
+    }
+}
+
+private extension NSColor {
+    static func lineformHex(_ hex: Int) -> NSColor {
+        NSColor(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255.0,
+            green: CGFloat((hex >> 8) & 0xFF) / 255.0,
+            blue: CGFloat(hex & 0xFF) / 255.0,
+            alpha: 1
         )
     }
 }

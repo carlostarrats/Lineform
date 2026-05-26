@@ -48,6 +48,18 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(textView.appliedReadingProfile.insertionPointWidth, 4)
     }
 
+    func testCaretWidthSettingChangesDrawnInsertionPointWidth() {
+        let baseRect = NSRect(x: 20, y: 10, width: 1, height: 24)
+        var profile = ReadingProfile.original
+        profile.insertionPointWidth = 4
+
+        let caretRect = LineformTextView.insertionPointRect(for: baseRect, profile: profile)
+
+        XCTAssertEqual(caretRect.width, 4)
+        XCTAssertEqual(caretRect.origin.x, baseRect.origin.x)
+        XCTAssertEqual(caretRect.height, baseRect.height)
+    }
+
     func testReduceMarkdownNoiseChangesMarkdownMarkerStyling() throws {
         let textView = LineformTextView()
         textView.string = "# Title"
@@ -63,6 +75,42 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         let quieterColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
 
         XCTAssertNotEqual(normalColor, quieterColor)
+        XCTAssertLessThan(quieterColor.alphaComponent, normalColor.alphaComponent)
+    }
+
+    func testQuietMarkdownNoiseUsesThemeTextColorInsteadOfSystemBlack() throws {
+        let textView = LineformTextView()
+        textView.string = "# Title"
+
+        var profile = ReadingPreset.quiet.profile
+        profile.reduceMarkdownNoise = true
+        textView.applyTypography(profile)
+
+        let markerColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
+        assertSameRGB(markerColor, Theme.quiet.textColor)
+        XCTAssertLessThan(markerColor.alphaComponent, Theme.quiet.textColor.alphaComponent)
+    }
+
+    func testInlineCodeUsesBlueAccentInsteadOfBrown() throws {
+        let textView = LineformTextView()
+        textView.string = "Open `.md` files"
+
+        textView.refreshMarkdownHighlighting()
+
+        let codeColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 6, effectiveRange: nil) as? NSColor)
+        assertSameRGB(codeColor, MarkdownSyntaxHighlighter.inlineCodeColor(for: .original))
+        XCTAssertNotEqual(codeColor, NSColor.systemBrown)
+    }
+
+    func testInlineCodeUsesLightBlueAccentOnQuietTheme() throws {
+        let textView = LineformTextView()
+        textView.string = "Open `.md` files"
+
+        textView.applyTypography(ReadingPreset.quiet.profile)
+
+        let codeColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 6, effectiveRange: nil) as? NSColor)
+        assertSameRGB(codeColor, MarkdownSyntaxHighlighter.inlineCodeColor(for: ReadingPreset.quiet.profile))
+        XCTAssertNotEqual(codeColor, MarkdownSyntaxHighlighter.inlineCodeColor(for: .original))
     }
 
     func testReadingAssistSettingsAreAppliedToEditorProfile() {
@@ -77,5 +125,48 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertTrue(textView.appliedReadingProfile.readingRulerEnabled)
         XCTAssertTrue(textView.appliedReadingProfile.typewriterModeEnabled)
         XCTAssertEqual(textView.appliedReadingProfile.insertionPointWidth, 3)
+    }
+
+    func testReadingRulerUsesVisibleCurrentLineGuide() {
+        XCTAssertGreaterThanOrEqual(LineformTextView.readingRulerFillOpacity, 0.12)
+    }
+
+    func testTypewriterModeScrollTargetCentersSelectedLine() {
+        let lineRect = NSRect(x: 0, y: 420, width: 400, height: 24)
+        let visibleBounds = NSRect(x: 12, y: 80, width: 420, height: 180)
+
+        let targetOrigin = LineformTextView.typewriterScrollOrigin(for: lineRect, visibleBounds: visibleBounds)
+
+        XCTAssertEqual(targetOrigin.x, visibleBounds.origin.x)
+        XCTAssertEqual(targetOrigin.y, 342)
+    }
+
+    func testTurningTypewriterModeOffRestoresPreviousScrollPosition() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 180))
+        let textView = LineformTextView()
+        textView.setFrameSize(NSSize(width: 420, height: 1_600))
+        textView.string = (0..<80).map { "Line \($0)" }.joined(separator: "\n")
+        scrollView.documentView = textView
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 120))
+        let originalScrollY = scrollView.contentView.bounds.origin.y
+        textView.setSelectedRange(NSRange(location: 280, length: 0))
+
+        var typewriterProfile = ReadingProfile.original
+        typewriterProfile.typewriterModeEnabled = true
+        textView.applyTypography(typewriterProfile)
+
+        var normalProfile = typewriterProfile
+        normalProfile.typewriterModeEnabled = false
+        textView.applyTypography(normalProfile)
+
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, originalScrollY, accuracy: 0.5)
+    }
+
+    private func assertSameRGB(_ first: NSColor, _ second: NSColor, file: StaticString = #filePath, line: UInt = #line) {
+        let firstRGB = first.usingColorSpace(.deviceRGB)
+        let secondRGB = second.usingColorSpace(.deviceRGB)
+        XCTAssertEqual(firstRGB?.redComponent ?? -1, secondRGB?.redComponent ?? -2, accuracy: 0.005, file: file, line: line)
+        XCTAssertEqual(firstRGB?.greenComponent ?? -1, secondRGB?.greenComponent ?? -2, accuracy: 0.005, file: file, line: line)
+        XCTAssertEqual(firstRGB?.blueComponent ?? -1, secondRGB?.blueComponent ?? -2, accuracy: 0.005, file: file, line: line)
     }
 }

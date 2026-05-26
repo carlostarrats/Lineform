@@ -53,13 +53,35 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(MarkdownBasicsOverlay.scrimTransitionStyle, .instant)
         XCTAssertEqual(MarkdownBasicsModal.transitionStyle, .fadeAndMoveUp)
         XCTAssertEqual(MarkdownBasicsModal.entranceYOffset, 10)
+        XCTAssertTrue(MarkdownBasicsModal.usesThemeIndependentLightChrome)
+        XCTAssertGreaterThan(MarkdownBasicsModal.backgroundWhiteComponent, 0.9)
+        XCTAssertLessThan(MarkdownBasicsModal.textRedComponent, 0.2)
         XCTAssertGreaterThan(MarkdownBasicsModal.closeHoverFillOpacity, MarkdownBasicsModal.closeRestingFillOpacity)
         XCTAssertEqual(MarkdownBasicsModal.animationDuration, 0.24, accuracy: 0.01)
     }
 
     func testReadingInspectorUsesSlideAndFadeAnimation() {
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.presenter, .systemInspector)
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.transitionStyle, .slideAndFade)
-        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.animationDuration, 0.24, accuracy: 0.01)
+        XCTAssertNil(EditorAuxiliaryPresentation.readingExperience.animationDuration)
+    }
+
+    func testLightReaderThemesForceLightWindowChromeAfterDarkThemes() {
+        XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: false), .aqua)
+        XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: true), .darkAqua)
+        XCTAssertNotNil(EditorWindowChrome.appearance(usesDarkChrome: false))
+        XCTAssertNotNil(EditorWindowChrome.appearance(usesDarkChrome: true))
+    }
+
+    @MainActor
+    func testEditorMinimumWidthAllowsOutlineAndInspectorWithoutForcingWideWindow() {
+        XCTAssertLessThanOrEqual(EditorLayout.minimumContentWidth, 360)
+
+        let combinedMinimumWidth = EditorLayout.minimumContentWidth
+            + OutlineSidebarView.minimumColumnWidth
+            + (EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 0)
+
+        XCTAssertLessThanOrEqual(combinedMinimumWidth, 860)
     }
 
     func testReadModeUsesSameTextColumnWidthAsWriteMode() {
@@ -154,6 +176,10 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorModeSegmentedControl.segmentHeight, 30)
         XCTAssertEqual(EditorModeSegmentedControl.selectedFillRedComponent, 0.86, accuracy: 0.01)
         XCTAssertEqual(EditorModeSegmentedControl.backgroundFillRedComponent, 1.0, accuracy: 0.01)
+        XCTAssertEqual(EditorModeSegmentedControl.textFillRedComponent, 0.18, accuracy: 0.01)
+        XCTAssertLessThan(EditorModeSegmentedControl.darkBackgroundFillRedComponent, 0.12)
+        XCTAssertLessThan(EditorModeSegmentedControl.darkSelectedFillRedComponent, 0.25)
+        XCTAssertGreaterThan(EditorModeSegmentedControl.darkTextFillRedComponent, 0.85)
         XCTAssertEqual(EditorModeSegmentedControl.shadowRadius, 5)
         XCTAssertEqual(EditorModeSegmentedControl.hitAreaWidth, EditorModeSegmentedControl.segmentWidth)
         XCTAssertEqual(EditorModeSegmentedControl.hitAreaHeight, EditorModeSegmentedControl.segmentHeight)
