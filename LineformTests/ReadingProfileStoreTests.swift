@@ -23,6 +23,18 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(store.activeProfile, .original)
     }
 
+    func testMigratesLegacyOriginalProfileToCurrentDefaultWidth() throws {
+        let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreLegacyOriginalTests")!
+        defaults.removePersistentDomain(forName: "LineformReadingProfileStoreLegacyOriginalTests")
+        var legacyOriginal = ReadingProfile.original
+        legacyOriginal.columnWidth = 680
+        defaults.set(try JSONEncoder().encode(legacyOriginal), forKey: "Lineform.activeReadingProfile")
+
+        let store = ReadingProfileStore(defaults: defaults)
+
+        XCTAssertEqual(store.activeProfile.columnWidth, 820)
+    }
+
     func testResetRestoresDefaultNormalReadingProfile() {
         let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreResetTests")!
         defaults.removePersistentDomain(forName: "LineformReadingProfileStoreResetTests")

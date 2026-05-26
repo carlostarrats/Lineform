@@ -63,7 +63,7 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
         lineHeightMultiple: 1.35,
         paragraphSpacing: 8,
         letterSpacing: 0,
-        columnWidth: 680,
+        columnWidth: 820,
         marginWidth: 40,
         insertionPointWidth: 1.5,
         focusMode: .off,

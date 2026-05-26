@@ -316,10 +316,10 @@ final class LineformTextView: NSTextView {
     }
 
     private func updateTextContainerLayout(for profile: ReadingProfile) {
-        let columnWidth = CGFloat(profile.columnWidth)
-        let marginWidth = CGFloat(profile.marginWidth)
-        let horizontalInset = max(marginWidth, (bounds.width - columnWidth) / 2)
-        textContainerInset = NSSize(width: horizontalInset, height: 32)
+        textContainerInset = NSSize(
+            width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile),
+            height: 32
+        )
         textContainer?.widthTracksTextView = true
     }
 

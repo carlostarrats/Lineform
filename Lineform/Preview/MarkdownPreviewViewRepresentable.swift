@@ -13,35 +13,80 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
 
-        let textView = NSTextView()
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.isRichText = false
-        textView.drawsBackground = true
-        textView.textContainerInset = NSSize(width: CGFloat(profile.marginWidth), height: 32)
-        textView.textContainer?.widthTracksTextView = true
+        let textView = MarkdownPreviewTextView()
         textView.setAccessibilityLabel("Markdown read view")
         textView.setAccessibilityRole(.textArea)
 
         scrollView.documentView = textView
-        update(textView)
+        textView.apply(text: text, profile: profile)
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else {
+        guard let textView = scrollView.documentView as? MarkdownPreviewTextView else {
             return
         }
 
-        update(textView)
+        textView.apply(text: text, profile: profile)
+    }
+}
+
+final class MarkdownPreviewTextView: NSTextView {
+    private var activeProfile = ReadingProfile.original
+
+    convenience init() {
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(textContainer)
+        self.init(frame: .zero, textContainer: textContainer)
     }
 
-    private func update(_ textView: NSTextView) {
+    override init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
+        super.init(frame: frameRect, textContainer: container)
+        configure()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configure()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateTextContainerLayout()
+    }
+
+    func apply(text: String, profile: ReadingProfile) {
+        activeProfile = profile
         let theme = Theme.theme(for: profile)
-        textView.backgroundColor = theme.backgroundColor
-        textView.textColor = theme.textColor
-        let horizontalInset = max(CGFloat(profile.marginWidth), (textView.bounds.width - CGFloat(profile.columnWidth)) / 2)
-        textView.textContainerInset = NSSize(width: horizontalInset, height: 32)
-        textView.textStorage?.setAttributedString(MarkdownPreviewRenderer().render(text, profile: profile))
+        backgroundColor = theme.backgroundColor
+        textColor = theme.textColor
+        updateTextContainerLayout()
+        textStorage?.setAttributedString(MarkdownPreviewRenderer().render(text, profile: profile))
+    }
+
+    private func configure() {
+        isEditable = false
+        isSelectable = true
+        isRichText = false
+        drawsBackground = true
+        isVerticallyResizable = true
+        isHorizontallyResizable = false
+        autoresizingMask = [.width]
+        minSize = NSSize(width: 0, height: 0)
+        maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textContainer?.widthTracksTextView = true
+        textContainer?.containerSize = NSSize(width: bounds.width, height: CGFloat.greatestFiniteMagnitude)
+        updateTextContainerLayout()
+    }
+
+    private func updateTextContainerLayout() {
+        textContainerInset = NSSize(
+            width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: activeProfile),
+            height: 32
+        )
+        textContainer?.widthTracksTextView = true
     }
 }

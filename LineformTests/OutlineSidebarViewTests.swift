@@ -9,6 +9,11 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testOutlineTitleDoesNotUseIcon() {
+        XCTAssertFalse(OutlineSidebarView.titleShowsIcon)
+    }
+
+    @MainActor
     func testHeadingLevelsUseDistinctSidebarIcons() {
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 1), "textformat.size")
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 2), "list.bullet.indent")

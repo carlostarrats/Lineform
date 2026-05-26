@@ -12,7 +12,7 @@ enum EditorDisplayMode: String, CaseIterable, Equatable, Identifiable {
         case .read:
             return "Read"
         case .split:
-            return "Split"
+            return "Preview"
         }
     }
 }

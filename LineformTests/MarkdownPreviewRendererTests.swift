@@ -40,4 +40,21 @@ final class MarkdownPreviewRendererTests: XCTestCase {
 
         XCTAssertEqual(rendered.string, "This is bold, clear, code, and a link.")
     }
+
+    @MainActor
+    func testPreviewTextViewRecalculatesColumnInsetWhenResized() {
+        let textView = MarkdownPreviewTextView()
+        var profile = ReadingProfile.original
+        profile.columnWidth = 820
+        profile.marginWidth = 40
+
+        textView.apply(text: "Body copy", profile: profile)
+        textView.setFrameSize(NSSize(width: 1_200, height: 500))
+
+        XCTAssertEqual(textView.textContainerInset.width, 190)
+
+        textView.setFrameSize(NSSize(width: 700, height: 500))
+
+        XCTAssertEqual(textView.textContainerInset.width, 40)
+    }
 }

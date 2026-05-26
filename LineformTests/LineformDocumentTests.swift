@@ -18,6 +18,25 @@ final class LineformDocumentTests: XCTestCase {
         XCTAssertEqual(document.text, "# Title\n\nPortable Markdown.\n")
     }
 
+    func testExtractsFileWrapperModificationDateForOpenedDocuments() throws {
+        let savedDate = try XCTUnwrap(DateComponents(
+            calendar: Calendar(identifier: .gregorian),
+            year: 2026,
+            month: 5,
+            day: 26,
+            hour: 10,
+            minute: 32
+        ).date)
+        let fileWrapper = FileWrapper(regularFileWithContents: Data("Saved markdown".utf8))
+        fileWrapper.fileAttributes = [
+            FileAttributeKey.type.rawValue: FileAttributeType.typeRegular.rawValue,
+            FileAttributeKey.posixPermissions.rawValue: 0o644,
+            FileAttributeKey.modificationDate.rawValue: savedDate
+        ]
+
+        XCTAssertEqual(LineformDocument.modificationDate(from: fileWrapper), savedDate)
+    }
+
     func testDocumentWritesPlainUTF8MarkdownData() throws {
         let document = LineformDocument(text: "Lineform keeps files plain.\n")
 

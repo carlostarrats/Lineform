@@ -8,7 +8,7 @@ final class ReadingProfileTests: XCTestCase {
         XCTAssertEqual(profile.name, "Original")
         XCTAssertGreaterThanOrEqual(profile.fontSize, 16)
         XCTAssertGreaterThan(profile.lineHeightMultiple, 1)
-        XCTAssertGreaterThan(profile.columnWidth, 500)
+        XCTAssertEqual(profile.columnWidth, 820)
     }
 
     func testReadingProfileCodableRoundTripPreservesValues() throws {

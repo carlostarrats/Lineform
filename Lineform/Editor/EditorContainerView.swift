@@ -3,6 +3,7 @@ import SwiftUI
 struct EditorContainerView: View {
     @Binding var document: LineformDocument
     @StateObject private var readingProfileStore = ReadingProfileStore()
+    @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
     @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
     @State private var isShowingReadingExperience = false
     @State private var displayMode = EditorDisplayMode.write
@@ -103,8 +104,6 @@ struct EditorContainerView: View {
             editorContent
                 .frame(minWidth: 640, minHeight: 480)
 
-            Divider()
-
             if let intelligentSuggestion {
                 IntelligentEditingSuggestionBar(
                     suggestion: intelligentSuggestion,
@@ -113,19 +112,15 @@ struct EditorContainerView: View {
                     accept: acceptIntelligentSuggestion,
                     reject: rejectIntelligentSuggestion
                 )
-
-                Divider()
             }
 
-            HStack {
-                Spacer()
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel(statusAccessibilityLabel)
+            if EditorStatusBar.isVisible(in: displayMode) {
+                EditorStatusBar(
+                    lastSavedDisplay: lastSavedDisplay,
+                    statusText: statusText,
+                    statusAccessibilityLabel: statusAccessibilityLabel
+                )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
         }
         .background(Color(nsColor: Theme.theme(for: readingProfileStore.activeProfile).backgroundColor))
     }
@@ -136,7 +131,11 @@ struct EditorContainerView: View {
         case .write:
             markdownEditor
         case .read:
-            DebouncedMarkdownPreviewView(text: document.text, profile: readingProfileStore.activeProfile)
+            HStack {
+                DebouncedMarkdownPreviewView(text: document.text, profile: readingProfileStore.activeProfile)
+                    .frame(maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .split:
             HStack(spacing: 0) {
                 markdownEditor
@@ -165,13 +164,16 @@ struct EditorContainerView: View {
     }
 
     private var statusText: String {
-        if isRunningIntelligentEdit {
-            return "Preparing suggestion - \(documentStatistics.wordCount) words, \(documentStatistics.characterCount) characters"
-        }
-        if let intelligentEditingStatus {
-            return "\(intelligentEditingStatus) - \(documentStatistics.wordCount) words, \(documentStatistics.characterCount) characters"
-        }
-        return "\(documentStatistics.wordCount) words, \(documentStatistics.characterCount) characters"
+        EditorStatusFormatter.statusText(
+            wordCount: documentStatistics.wordCount,
+            characterCount: documentStatistics.characterCount,
+            isPreparingSuggestion: isRunningIntelligentEdit,
+            intelligentEditingStatus: intelligentEditingStatus
+        )
+    }
+
+    private var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay {
+        EditorStatusFormatter.lastSavedDisplay(for: documentSaveStatus.savedAt(for: document.id))
     }
 
     private var statusAccessibilityLabel: String {
@@ -262,18 +264,141 @@ struct EditorContainerView: View {
     }
 }
 
+enum EditorReadingLayout {
+    static func textColumnMaxWidth(for profile: ReadingProfile) -> CGFloat {
+        CGFloat(profile.columnWidth)
+    }
+
+    static func horizontalInset(forContainerWidth containerWidth: CGFloat, profile: ReadingProfile) -> CGFloat {
+        max(CGFloat(profile.marginWidth), (containerWidth - textColumnMaxWidth(for: profile)) / 2)
+    }
+}
+
+enum EditorStatusFormatter {
+    struct LastSavedDisplay: Equatable {
+        var label: String
+        var detail: String?
+
+        var accessibilityText: String {
+            if let detail {
+                return "\(label) \(detail)"
+            }
+
+            return label
+        }
+    }
+
+    static func statisticsText(wordCount: Int, characterCount: Int) -> String {
+        "\(wordCount) words — \(characterCount) characters"
+    }
+
+    static func statusText(
+        wordCount: Int,
+        characterCount: Int,
+        isPreparingSuggestion: Bool,
+        intelligentEditingStatus: String?
+    ) -> String {
+        let statistics = statisticsText(wordCount: wordCount, characterCount: characterCount)
+
+        if isPreparingSuggestion {
+            return "Preparing suggestion — \(statistics)"
+        }
+
+        if let intelligentEditingStatus {
+            return "\(intelligentEditingStatus) — \(statistics)"
+        }
+
+        return statistics
+    }
+
+    static func lastSavedText(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String {
+        lastSavedDisplay(for: date, now: now, calendar: calendar).accessibilityText
+    }
+
+    static func lastSavedDisplay(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> LastSavedDisplay {
+        guard let date else {
+            return LastSavedDisplay(label: "Not saved yet", detail: nil)
+        }
+
+        let timeZone = calendar.timeZone
+        if calendar.isDate(date, inSameDayAs: now) {
+            return LastSavedDisplay(label: "Last save", detail: formatted(date, format: "h:mm a", timeZone: timeZone))
+        }
+
+        return LastSavedDisplay(label: "Last save", detail: formatted(date, format: "MMM d, yyyy 'at' h:mm a", timeZone: timeZone))
+    }
+
+    private static func formatted(_ date: Date, format: String, timeZone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = format
+        return formatter.string(from: date)
+    }
+}
+
+struct EditorStatusBar: View {
+    static let showsTopSeparator = false
+    static let lastSavedDetailUsesPrimaryForeground = true
+
+    static func isVisible(in mode: EditorDisplayMode) -> Bool {
+        mode != .read
+    }
+
+    var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay
+    var statusText: String
+    var statusAccessibilityLabel: String
+
+    var body: some View {
+        HStack(spacing: 16) {
+            HStack(spacing: 4) {
+                Text(lastSavedDisplay.label)
+                    .foregroundStyle(.secondary)
+
+                if let detail = lastSavedDisplay.detail {
+                    Text(detail)
+                        .foregroundStyle(.primary)
+                }
+            }
+            .font(.caption)
+            .lineLimit(1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(lastSavedDisplay.accessibilityText)
+
+            Spacer(minLength: 16)
+
+            Text(statusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .accessibilityLabel(statusAccessibilityLabel)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+    }
+}
+
 struct EditorModeSegmentedControl: View {
+    struct LiquidBridge: Equatable {
+        var from: EditorDisplayMode
+        var to: EditorDisplayMode
+    }
+
     static let segmentWidth: CGFloat = 78
     static let segmentHeight: CGFloat = 30
     static let selectedFillRedComponent: CGFloat = 0.86
     static let backgroundFillRedComponent: CGFloat = 1.0
-    static let shadowRadius: CGFloat = 3
+    static let shadowRadius: CGFloat = 5
     static let hitAreaWidth: CGFloat = segmentWidth
     static let hitAreaHeight: CGFloat = segmentHeight
+    static let dividerSlotWidth: CGFloat = 3
+    static let liquidSettleDelay: TimeInterval = 0.16
 
     @Binding var selection: EditorDisplayMode
 
     @State private var hoveredMode: EditorDisplayMode?
+    @State private var liquidBridge: LiquidBridge?
+    @State private var liquidTransitionID = 0
 
     private let modes = EditorDisplayMode.allCases
     private let controlPadding: CGFloat = 3
@@ -286,9 +411,7 @@ struct EditorModeSegmentedControl: View {
             HStack(spacing: 0) {
                 ForEach(Array(modes.enumerated()), id: \.element.id) { index, mode in
                     Button {
-                        withAnimation(.spring(response: 0.30, dampingFraction: 0.86)) {
-                            selection = mode
-                        }
+                        select(mode)
                     } label: {
                         Text(mode.title)
                             .font(.system(size: 14, weight: .regular))
@@ -342,9 +465,10 @@ struct EditorModeSegmentedControl: View {
                 Capsule()
                     .stroke(.white.opacity(0.36), lineWidth: 0.5)
             }
-            .frame(width: Self.segmentWidth, height: Self.segmentHeight)
-            .offset(x: offset(for: selection))
-            .animation(.spring(response: 0.30, dampingFraction: 0.86), value: selection)
+            .frame(width: selectedPillWidth, height: Self.segmentHeight)
+            .offset(x: selectedPillOffset)
+            .animation(.spring(response: 0.30, dampingFraction: 0.82), value: selection)
+            .animation(.spring(response: 0.24, dampingFraction: 0.78), value: liquidBridge)
     }
 
     @ViewBuilder
@@ -353,9 +477,25 @@ struct EditorModeSegmentedControl: View {
             Capsule()
                 .fill(Self.selectedFillColor.opacity(0.48))
                 .frame(width: Self.segmentWidth, height: Self.segmentHeight)
-                .offset(x: offset(for: hoveredMode))
+                .offset(x: Self.segmentOffset(for: hoveredMode))
                 .transition(.opacity)
         }
+    }
+
+    private var selectedPillWidth: CGFloat {
+        if let liquidBridge {
+            return Self.liquidPillWidth(from: liquidBridge.from, to: liquidBridge.to)
+        }
+
+        return Self.segmentWidth
+    }
+
+    private var selectedPillOffset: CGFloat {
+        if let liquidBridge {
+            return Self.liquidPillOffset(from: liquidBridge.from, to: liquidBridge.to)
+        }
+
+        return Self.segmentOffset(for: selection)
     }
 
     private static var selectedFillColor: Color {
@@ -380,13 +520,45 @@ struct EditorModeSegmentedControl: View {
         )
     }
 
-    private func offset(for mode: EditorDisplayMode) -> CGFloat {
-        guard let index = modes.firstIndex(of: mode) else {
+    static func segmentOffset(for mode: EditorDisplayMode) -> CGFloat {
+        guard let index = EditorDisplayMode.allCases.firstIndex(of: mode) else {
             return 0
         }
 
-        let dividerWidth: CGFloat = 3
-        return CGFloat(index) * (Self.segmentWidth + dividerWidth)
+        return CGFloat(index) * (Self.segmentWidth + Self.dividerSlotWidth)
+    }
+
+    static func liquidPillOffset(from source: EditorDisplayMode, to destination: EditorDisplayMode) -> CGFloat {
+        min(segmentOffset(for: source), segmentOffset(for: destination))
+    }
+
+    static func liquidPillWidth(from source: EditorDisplayMode, to destination: EditorDisplayMode) -> CGFloat {
+        abs(segmentOffset(for: destination) - segmentOffset(for: source)) + Self.segmentWidth
+    }
+
+    private func select(_ mode: EditorDisplayMode) {
+        guard mode != selection else {
+            return
+        }
+
+        let previousSelection = selection
+        liquidTransitionID += 1
+        let transitionID = liquidTransitionID
+
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
+            liquidBridge = LiquidBridge(from: previousSelection, to: mode)
+            selection = mode
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.liquidSettleDelay) {
+            guard transitionID == liquidTransitionID else {
+                return
+            }
+
+            withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
+                liquidBridge = nil
+            }
+        }
     }
 
     private func shouldShowDivider(after index: Int) -> Bool {

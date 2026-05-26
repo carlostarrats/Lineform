@@ -10,6 +10,7 @@ struct OutlineSidebarView: View {
 
     static let emptyStateTitle = "No headings yet"
     static let emptyStateMessage = "Add # Title or ## Section to build an outline."
+    static let titleShowsIcon = false
 
     @State private var collapsedNodeIDs: Set<String> = []
 
@@ -105,11 +106,7 @@ struct OutlineSidebarView: View {
     }
 
     private var sidebarTitle: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "list.bullet.rectangle")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-
+        HStack {
             Text("Outline")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)

@@ -2,6 +2,7 @@ import Combine
 import Foundation
 
 final class ReadingProfileStore: ObservableObject {
+    private static let legacyOriginalColumnWidth = 680.0
     private let defaults: UserDefaults
     private let storageKey: String
 
@@ -51,6 +52,12 @@ final class ReadingProfileStore: ObservableObject {
             let profile = try? JSONDecoder().decode(ReadingProfile.self, from: data)
         else {
             return .original
+        }
+
+        if profile.id == ReadingProfile.original.id, profile.columnWidth == legacyOriginalColumnWidth {
+            var migratedProfile = profile
+            migratedProfile.columnWidth = ReadingProfile.original.columnWidth
+            return migratedProfile
         }
 
         return profile
