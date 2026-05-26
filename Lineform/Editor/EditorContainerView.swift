@@ -28,14 +28,7 @@ struct EditorContainerView: View {
         .background(WindowNumberReader(windowNumber: $windowNumber))
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Picker("Mode", selection: $displayMode) {
-                    ForEach(EditorDisplayMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 240)
-                .accessibilityLabel("Editor mode")
+                EditorModeSegmentedControl(selection: $displayMode)
             }
 
             ToolbarItem(placement: .primaryAction) {
@@ -266,6 +259,143 @@ struct EditorContainerView: View {
 
     private func notificationPayloadValue(_ notification: Notification) -> String? {
         (notification.object as? LineformAppNotification.Payload)?.value
+    }
+}
+
+struct EditorModeSegmentedControl: View {
+    static let segmentWidth: CGFloat = 78
+    static let segmentHeight: CGFloat = 30
+    static let selectedFillRedComponent: CGFloat = 0.86
+    static let backgroundFillRedComponent: CGFloat = 1.0
+    static let shadowRadius: CGFloat = 3
+    static let hitAreaWidth: CGFloat = segmentWidth
+    static let hitAreaHeight: CGFloat = segmentHeight
+
+    @Binding var selection: EditorDisplayMode
+
+    @State private var hoveredMode: EditorDisplayMode?
+
+    private let modes = EditorDisplayMode.allCases
+    private let controlPadding: CGFloat = 3
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            hoverPill
+            selectedPill
+
+            HStack(spacing: 0) {
+                ForEach(Array(modes.enumerated()), id: \.element.id) { index, mode in
+                    Button {
+                        withAnimation(.spring(response: 0.30, dampingFraction: 0.86)) {
+                            selection = mode
+                        }
+                    } label: {
+                        Text(mode.title)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .frame(width: Self.hitAreaWidth, height: Self.hitAreaHeight)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Capsule())
+                    .accessibilityLabel(mode.title)
+                    .accessibilityAddTraits(selection == mode ? [.isSelected] : [])
+                    .onHover { isHovering in
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            hoveredMode = isHovering ? mode : nil
+                        }
+                    }
+
+                    if index < modes.index(before: modes.endIndex) {
+                        Rectangle()
+                            .fill(Color(nsColor: .separatorColor).opacity(shouldShowDivider(after: index) ? 0.45 : 0))
+                            .frame(width: 1, height: 18)
+                            .padding(.horizontal, 1)
+                    }
+                }
+            }
+        }
+        .padding(controlPadding)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule()
+                        .fill(Self.backgroundFillColor.opacity(0.82))
+                }
+                .overlay {
+                    Capsule()
+                        .stroke(.white.opacity(0.72), lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.035), radius: Self.shadowRadius, y: 1)
+        }
+        .fixedSize(horizontal: true, vertical: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Editor mode")
+    }
+
+    private var selectedPill: some View {
+        Capsule()
+            .fill(Self.selectedFillColor)
+            .overlay {
+                Capsule()
+                    .stroke(.white.opacity(0.36), lineWidth: 0.5)
+            }
+            .frame(width: Self.segmentWidth, height: Self.segmentHeight)
+            .offset(x: offset(for: selection))
+            .animation(.spring(response: 0.30, dampingFraction: 0.86), value: selection)
+    }
+
+    @ViewBuilder
+    private var hoverPill: some View {
+        if let hoveredMode, hoveredMode != selection {
+            Capsule()
+                .fill(Self.selectedFillColor.opacity(0.48))
+                .frame(width: Self.segmentWidth, height: Self.segmentHeight)
+                .offset(x: offset(for: hoveredMode))
+                .transition(.opacity)
+        }
+    }
+
+    private static var selectedFillColor: Color {
+        Color(
+            nsColor: NSColor(
+                calibratedRed: selectedFillRedComponent,
+                green: selectedFillRedComponent,
+                blue: selectedFillRedComponent,
+                alpha: 0.74
+            )
+        )
+    }
+
+    private static var backgroundFillColor: Color {
+        Color(
+            nsColor: NSColor(
+                calibratedRed: backgroundFillRedComponent,
+                green: backgroundFillRedComponent,
+                blue: backgroundFillRedComponent,
+                alpha: 1
+            )
+        )
+    }
+
+    private func offset(for mode: EditorDisplayMode) -> CGFloat {
+        guard let index = modes.firstIndex(of: mode) else {
+            return 0
+        }
+
+        let dividerWidth: CGFloat = 3
+        return CGFloat(index) * (Self.segmentWidth + dividerWidth)
+    }
+
+    private func shouldShowDivider(after index: Int) -> Bool {
+        guard index < modes.index(before: modes.endIndex) else {
+            return false
+        }
+
+        let nextIndex = modes.index(after: index)
+        return modes[index] != selection && modes[nextIndex] != selection
     }
 }
 
