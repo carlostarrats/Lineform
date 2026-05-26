@@ -14,6 +14,20 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertTrue(EditorStatusBar.isVisible(in: .split))
     }
 
+    func testMarkdownBasicsHelpShowsOnlyInWritingModes() {
+        XCTAssertTrue(EditorToolbarVisibility.showsMarkdownBasics(in: .write))
+        XCTAssertFalse(EditorToolbarVisibility.showsMarkdownBasics(in: .read))
+        XCTAssertTrue(EditorToolbarVisibility.showsMarkdownBasics(in: .split))
+    }
+
+    func testMarkdownBasicsExamplesCoverCommonFormatting() {
+        XCTAssertEqual(MarkdownBasicsPopover.title, "Markdown Basics")
+        XCTAssertEqual(
+            MarkdownBasicsPopover.examples.map(\.syntax),
+            ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "`code`", "[link](https://example.com)"]
+        )
+    }
+
     func testReadModeUsesSameTextColumnWidthAsWriteMode() {
         var profile = ReadingProfile.original
         profile.columnWidth = 680

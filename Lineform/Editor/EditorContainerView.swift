@@ -6,6 +6,7 @@ struct EditorContainerView: View {
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
     @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
     @State private var isShowingReadingExperience = false
+    @State private var isShowingMarkdownBasics = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline = false
     @State private var outlineItems: [MarkdownOutlineItem] = []
@@ -32,7 +33,19 @@ struct EditorContainerView: View {
                 EditorModeSegmentedControl(selection: $displayMode)
             }
 
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if EditorToolbarVisibility.showsMarkdownBasics(in: displayMode) {
+                    Button {
+                        isShowingMarkdownBasics.toggle()
+                    } label: {
+                        Label("Markdown Basics", systemImage: "info.circle")
+                    }
+                    .help("Markdown Basics")
+                    .popover(isPresented: $isShowingMarkdownBasics, arrowEdge: .bottom) {
+                        MarkdownBasicsPopover()
+                    }
+                }
+
                 Button {
                     isShowingReadingExperience.toggle()
                 } label: {
@@ -69,6 +82,11 @@ struct EditorContainerView: View {
                 return
             }
             displayMode = mode
+        }
+        .onChange(of: displayMode) { _, mode in
+            if !EditorToolbarVisibility.showsMarkdownBasics(in: mode) {
+                isShowingMarkdownBasics = false
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleOutline.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else {
@@ -271,6 +289,57 @@ enum EditorReadingLayout {
 
     static func horizontalInset(forContainerWidth containerWidth: CGFloat, profile: ReadingProfile) -> CGFloat {
         max(CGFloat(profile.marginWidth), (containerWidth - textColumnMaxWidth(for: profile)) / 2)
+    }
+}
+
+enum EditorToolbarVisibility {
+    static func showsMarkdownBasics(in mode: EditorDisplayMode) -> Bool {
+        mode != .read
+    }
+}
+
+struct MarkdownBasicsPopover: View {
+    struct Example: Identifiable, Equatable {
+        var label: String
+        var syntax: String
+
+        var id: String { syntax }
+    }
+
+    static let title = "Markdown Basics"
+    static let examples = [
+        Example(label: "Title", syntax: "# Title"),
+        Example(label: "Section", syntax: "## Section"),
+        Example(label: "Bold", syntax: "**bold**"),
+        Example(label: "Italic", syntax: "_italic_"),
+        Example(label: "Bullet", syntax: "- bullet"),
+        Example(label: "Code", syntax: "`code`"),
+        Example(label: "Link", syntax: "[link](https://example.com)")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(Self.title)
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Self.examples) { example in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(example.syntax)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.primary)
+                            .frame(width: 178, alignment: .leading)
+
+                        Text(example.label)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 320, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Self.title)
     }
 }
 
