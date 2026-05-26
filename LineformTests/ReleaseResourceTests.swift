@@ -19,4 +19,15 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertTrue(guide.contains("real Markdown files"))
         XCTAssertTrue(guide.contains("# Heading"))
     }
+
+    func testBundledFontLicensesShipWithBundledFonts() {
+        for resource in ["OFL-AtkinsonHyperlegible", "OFL-OpenDyslexic"] {
+            XCTAssertNotNil(
+                Bundle.main.url(forResource: resource, withExtension: "txt", subdirectory: "Fonts"),
+                "\(resource).txt should ship with bundled fonts."
+            )
+        }
+
+        XCTAssertNil(Bundle.main.url(forResource: "OFL-Lexend", withExtension: "txt", subdirectory: "Fonts"))
+    }
 }

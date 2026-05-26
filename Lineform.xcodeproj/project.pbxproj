@@ -76,6 +76,8 @@
 		1F0000010000000000000113 /* AppStoreMetadata.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000113 /* AppStoreMetadata.md */; };
 		1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000114 /* AccessibilityNutritionLabel.md */; };
 		1F0000010000000000000115 /* ReleaseReadiness.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000115 /* ReleaseReadiness.md */; };
+		1F0000010000000000000120 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000120 /* Fonts */; };
+		1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000121 /* BundledFontRegistrar.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -131,6 +133,8 @@
 		1F0000020000000000000053 /* ReadingPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPreset.swift; sourceTree = "<group>"; };
 		1F0000020000000000000054 /* ReadingProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStore.swift; sourceTree = "<group>"; };
 		1F0000020000000000000055 /* ReadingExperiencePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingExperiencePopover.swift; sourceTree = "<group>"; };
+		1F0000020000000000000120 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
+		1F0000020000000000000121 /* BundledFontRegistrar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontRegistrar.swift; sourceTree = "<group>"; };
 		1F0000020000000000000064 /* ReadingAssistRangeResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistRangeResolver.swift; sourceTree = "<group>"; };
 		1F0000020000000000000065 /* LineformAppNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformAppNotification.swift; sourceTree = "<group>"; };
 		1F0000020000000000000074 /* EditorDisplayMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDisplayMode.swift; sourceTree = "<group>"; };
@@ -247,6 +251,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000017 /* ReadingProfile.swift */,
+				1F0000020000000000000121 /* BundledFontRegistrar.swift */,
 				1F0000020000000000000051 /* FontOption.swift */,
 				1F0000020000000000000052 /* Theme.swift */,
 				1F0000020000000000000053 /* ReadingPreset.swift */,
@@ -301,6 +306,7 @@
 				1F0000020000000000000113 /* AppStoreMetadata.md */,
 				1F0000020000000000000114 /* AccessibilityNutritionLabel.md */,
 				1F0000020000000000000115 /* ReleaseReadiness.md */,
+				1F0000020000000000000120 /* Fonts */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -433,6 +439,7 @@
 				1F0000010000000000000110 /* Help.md in Resources */,
 				1F0000010000000000000111 /* Privacy.md in Resources */,
 				1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */,
+				1F0000010000000000000120 /* Fonts in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -463,6 +470,7 @@
 				1F0000010000000000000034 /* DocumentStatistics.swift in Sources */,
 				1F0000010000000000000035 /* SelectionContext.swift in Sources */,
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
+				1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */,
 				1F0000010000000000000051 /* FontOption.swift in Sources */,
 				1F0000010000000000000052 /* Theme.swift in Sources */,
 				1F0000010000000000000053 /* ReadingPreset.swift in Sources */,

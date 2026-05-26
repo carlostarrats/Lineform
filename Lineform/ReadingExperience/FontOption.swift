@@ -23,15 +23,14 @@ struct FontOption: Equatable, Identifiable {
         FontOptionGroup(
             name: "Writing",
             options: [
-                FontOption(id: .jetBrainsMono, name: "Monospaced", familyName: ".AppleSystemUIFontMonospaced", source: .system),
-                FontOption(id: .lexend, name: "Lexend", familyName: "Lexend", source: .userInstalled)
+                FontOption(id: .jetBrainsMono, name: "Monospaced", familyName: ".AppleSystemUIFontMonospaced", source: .system)
             ]
         ),
         FontOptionGroup(
             name: "Reading & Accessibility",
             options: [
-                FontOption(id: .atkinsonHyperlegible, name: "Atkinson Hyperlegible", familyName: "Atkinson Hyperlegible", source: .userInstalled),
-                FontOption(id: .openDyslexic, name: "OpenDyslexic", familyName: "OpenDyslexic", source: .userInstalled),
+                FontOption(id: .atkinsonHyperlegible, name: "Atkinson Hyperlegible", familyName: "Atkinson Hyperlegible", source: .bundled),
+                FontOption(id: .openDyslexic, name: "OpenDyslexic", familyName: "OpenDyslexic", source: .bundled),
                 FontOption(id: .comicSans, name: "Comic Sans MS", familyName: "Comic Sans MS", source: .system)
             ]
         )
@@ -41,15 +40,46 @@ struct FontOption: Equatable, Identifiable {
         groupedOptions.flatMap(\.options).first { $0.id == id }
     }
 
-    func resolvedFont(size: CGFloat) -> NSFont {
+    static var availableGroupedOptions: [FontOptionGroup] {
+        groupedOptions.compactMap { group in
+            let options = group.options.filter(\.isAvailable)
+            guard !options.isEmpty else {
+                return nil
+            }
+            return FontOptionGroup(name: group.name, options: options)
+        }
+    }
+
+    var isAvailable: Bool {
+        availableFont(size: 17) != nil
+    }
+
+    func availableFont(size: CGFloat) -> NSFont? {
         switch id {
         case .sfPro:
             return .systemFont(ofSize: size)
+        case .newYork:
+            return NSFont(name: familyName, size: size) ?? systemSerifFont(size: size)
         case .jetBrainsMono:
             return .monospacedSystemFont(ofSize: size, weight: .regular)
         default:
-            return NSFont(name: familyName, size: size) ?? .systemFont(ofSize: size)
+            return NSFont(name: familyName, size: size)
         }
+    }
+
+    func resolvedFont(size: CGFloat) -> NSFont {
+        availableFont(size: size) ?? .systemFont(ofSize: size)
+    }
+
+    private func systemSerifFont(size: CGFloat) -> NSFont? {
+        if #available(macOS 11.0, *) {
+            return NSFont
+                .systemFont(ofSize: size)
+                .fontDescriptor
+                .withDesign(.serif)
+                .flatMap { NSFont(descriptor: $0, size: size) }
+        }
+        return nil
     }
 }
 

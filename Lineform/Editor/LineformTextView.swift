@@ -35,6 +35,10 @@ final class LineformTextView: NSTextView {
         applyTypography(.original)
     }
 
+    var appliedReadingProfile: ReadingProfile {
+        activeReadingProfile
+    }
+
     func applyTypography(_ profile: ReadingProfile) {
         guard profile != activeReadingProfile || !hasAppliedTypography else {
             updateTextContainerLayout(for: profile)

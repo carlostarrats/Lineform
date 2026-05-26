@@ -67,4 +67,37 @@ final class ReadingProfileStoreTests: XCTestCase {
 
         XCTAssertNil(ReadingPreset.matchingPresetID(for: profile))
     }
+
+    func testReadingExperienceInspectorKeepsOnlyDirectVisibleControls() {
+        let labels = ReadingExperienceInspector.visibleControlLabels
+
+        XCTAssertTrue(labels.contains("Theme"))
+        XCTAssertTrue(labels.contains("Font"))
+        XCTAssertTrue(labels.contains("Column Width"))
+        XCTAssertTrue(labels.contains("Reduce Markdown Noise"))
+        XCTAssertTrue(labels.contains("Reading Ruler"))
+        XCTAssertTrue(labels.contains("Typewriter Mode"))
+        XCTAssertTrue(labels.contains("Caret Width"))
+
+        XCTAssertFalse(labels.contains("Reading Preset"))
+        XCTAssertFalse(labels.contains("Margins"))
+        XCTAssertFalse(labels.contains("Reduce Motion"))
+    }
+
+    func testReadingExperienceInspectorShowsValuesForEverySliderControl() {
+        var profile = ReadingProfile.original
+        profile.fontSize = 18
+        profile.lineHeightMultiple = 1.45
+        profile.paragraphSpacing = 12
+        profile.letterSpacing = 0.4
+        profile.columnWidth = 760
+        profile.insertionPointWidth = 2
+
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.fontSize, in: profile), "18 pt")
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.lineHeightMultiple, in: profile), "1.45")
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.paragraphSpacing, in: profile), "12 px")
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.letterSpacing, in: profile), "0.4")
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.columnWidth, in: profile), "760 px")
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.insertionPointWidth, in: profile), "2 px")
+    }
 }

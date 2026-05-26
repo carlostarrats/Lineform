@@ -5,7 +5,7 @@ struct EditorContainerView: View {
     @StateObject private var readingProfileStore = ReadingProfileStore()
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
     @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
-    @State private var isShowingReadingExperience = false
+    @State private var isShowingReadingInspector = false
     @State private var isShowingMarkdownBasics = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline = false
@@ -34,26 +34,13 @@ struct EditorContainerView: View {
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
-                if EditorToolbarVisibility.showsMarkdownBasics(in: displayMode) {
+                ForEach(EditorToolbarAction.primaryActions(in: displayMode)) { action in
                     Button {
-                        isShowingMarkdownBasics.toggle()
+                        handleToolbarAction(action)
                     } label: {
-                        Label("Markdown Basics", systemImage: "info.circle")
+                        Label(action.title, systemImage: action.systemImage)
                     }
-                    .help("Markdown Basics")
-                    .popover(isPresented: $isShowingMarkdownBasics, arrowEdge: .bottom) {
-                        MarkdownBasicsPopover()
-                    }
-                }
-
-                Button {
-                    isShowingReadingExperience.toggle()
-                } label: {
-                    Label("Reading Experience", systemImage: "textformat.size")
-                }
-                .help("Reading Experience")
-                .popover(isPresented: $isShowingReadingExperience, arrowEdge: .bottom) {
-                    ReadingExperiencePopover(store: readingProfileStore)
+                    .help(action.title)
                 }
             }
         }
@@ -61,7 +48,7 @@ struct EditorContainerView: View {
             guard notificationMatchesActiveWindow(notification) else {
                 return
             }
-            isShowingReadingExperience = true
+            isShowingReadingInspector = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.runIntelligentEditingAction.name)) { notification in
             guard
@@ -118,6 +105,41 @@ struct EditorContainerView: View {
     }
 
     private var editorShell: some View {
+        ZStack {
+            HSplitView {
+                editorPrimaryShell
+
+                if isShowingReadingInspector {
+                    readingInspectorColumn
+                }
+            }
+
+            if isShowingMarkdownBasics {
+                MarkdownBasicsOverlay {
+                    isShowingMarkdownBasics = false
+                }
+                .zIndex(1)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
+
+                MarkdownBasicsModal {
+                    isShowingMarkdownBasics = false
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .offset(y: MarkdownBasicsModal.entranceYOffset).combined(with: .opacity),
+                        removal: .offset(y: MarkdownBasicsModal.entranceYOffset / 2).combined(with: .opacity)
+                    )
+                )
+                .zIndex(2)
+            }
+        }
+        .animation(.easeOut(duration: MarkdownBasicsModal.animationDuration), value: isShowingMarkdownBasics)
+        .animation(.snappy(duration: EditorAuxiliaryPresentation.readingExperience.animationDuration), value: isShowingReadingInspector)
+    }
+
+    private var editorPrimaryShell: some View {
         VStack(spacing: 0) {
             editorContent
                 .frame(minWidth: 640, minHeight: 480)
@@ -141,6 +163,23 @@ struct EditorContainerView: View {
             }
         }
         .background(Color(nsColor: Theme.theme(for: readingProfileStore.activeProfile).backgroundColor))
+    }
+
+    private var readingInspectorColumn: some View {
+        ReadingExperienceInspector(store: readingProfileStore)
+            .frame(
+                minWidth: EditorAuxiliaryPresentation.readingExperience.minimumWidth,
+                idealWidth: EditorAuxiliaryPresentation.readingExperience.idealWidth,
+                maxWidth: EditorAuxiliaryPresentation.readingExperience.maximumWidth,
+                maxHeight: .infinity,
+                alignment: .top
+            )
+            .background(Color(nsColor: .windowBackgroundColor))
+            .overlay(alignment: .leading) {
+                Divider()
+            }
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+            .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
     }
 
     @ViewBuilder
@@ -280,6 +319,15 @@ struct EditorContainerView: View {
     private func notificationPayloadValue(_ notification: Notification) -> String? {
         (notification.object as? LineformAppNotification.Payload)?.value
     }
+
+    private func handleToolbarAction(_ action: EditorToolbarAction) {
+        switch action {
+        case .markdownBasics:
+            isShowingMarkdownBasics.toggle()
+        case .readingExperience:
+            isShowingReadingInspector.toggle()
+        }
+    }
 }
 
 enum EditorReadingLayout {
@@ -298,7 +346,81 @@ enum EditorToolbarVisibility {
     }
 }
 
-struct MarkdownBasicsPopover: View {
+enum EditorToolbarAction: CaseIterable, Equatable, Identifiable {
+    case markdownBasics
+    case readingExperience
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .markdownBasics:
+            return "Markdown Basics"
+        case .readingExperience:
+            return "Reading Experience"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .markdownBasics:
+            return "info.circle"
+        case .readingExperience:
+            return "textformat.size"
+        }
+    }
+
+    static func primaryActions(in mode: EditorDisplayMode) -> [EditorToolbarAction] {
+        if EditorToolbarVisibility.showsMarkdownBasics(in: mode) {
+            return [.markdownBasics, .readingExperience]
+        }
+
+        return [.readingExperience]
+    }
+}
+
+struct EditorAuxiliaryPresentation: Equatable {
+    enum Kind: Equatable {
+        case nativeInspector
+        case centeredModal
+    }
+
+    var kind: Kind
+    var accessibilityLabel: String
+    var minimumWidth: CGFloat?
+    var idealWidth: CGFloat?
+    var maximumWidth: CGFloat?
+    var transitionStyle: EditorAuxiliaryTransitionStyle
+    var animationDuration: Double
+
+    static let readingExperience = EditorAuxiliaryPresentation(
+        kind: .nativeInspector,
+        accessibilityLabel: "Reading Experience Inspector",
+        minimumWidth: 280,
+        idealWidth: 320,
+        maximumWidth: 380,
+        transitionStyle: .slideAndFade,
+        animationDuration: 0.24
+    )
+
+    static let markdownBasics = EditorAuxiliaryPresentation(
+        kind: .centeredModal,
+        accessibilityLabel: "Markdown Basics",
+        minimumWidth: nil,
+        idealWidth: nil,
+        maximumWidth: nil,
+        transitionStyle: .fadeAndMoveUp,
+        animationDuration: 0.24
+    )
+}
+
+enum EditorAuxiliaryTransitionStyle: Equatable {
+    case instant
+    case fadeAndMoveUp
+    case slideAndFade
+}
+
+struct MarkdownBasicsModal: View {
     struct Example: Identifiable, Equatable {
         var label: String
         var syntax: String
@@ -307,6 +429,13 @@ struct MarkdownBasicsPopover: View {
     }
 
     static let title = "Markdown Basics"
+    static let showsCloseButton = true
+    static let dismissesWhenClickingOutside = true
+    static let closeRestingFillOpacity = 0.0
+    static let closeHoverFillOpacity = 0.08
+    static let animationDuration = 0.24
+    static let entranceYOffset: CGFloat = 10
+    static let transitionStyle = EditorAuxiliaryTransitionStyle.fadeAndMoveUp
     static let examples = [
         Example(label: "Title", syntax: "# Title"),
         Example(label: "Section", syntax: "## Section"),
@@ -317,10 +446,37 @@ struct MarkdownBasicsPopover: View {
         Example(label: "Link", syntax: "[link](https://example.com)")
     ]
 
+    var dismiss: () -> Void = {}
+    @State private var isCloseHovered = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(Self.title)
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline) {
+                Text(Self.title)
+                    .font(.title2.weight(.semibold))
+
+                Spacer()
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            Circle()
+                                .fill(Color.black.opacity(isCloseHovered ? Self.closeHoverFillOpacity : Self.closeRestingFillOpacity))
+                        )
+                }
+                .buttonStyle(.plain)
+                .contentShape(Circle())
+                .help("Close")
+                .onHover { hovering in
+                    isCloseHovered = hovering
+                }
+                .animation(.easeOut(duration: 0.12), value: isCloseHovered)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Self.examples) { example in
@@ -336,10 +492,35 @@ struct MarkdownBasicsPopover: View {
                 }
             }
         }
-        .padding(14)
-        .frame(width: 320, alignment: .leading)
+        .padding(24)
+        .frame(width: 420, alignment: .leading)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.black.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Self.title)
+        .accessibilityLabel(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel)
+    }
+}
+
+struct MarkdownBasicsOverlay: View {
+    static let scrimOpacity = 0.32
+    static let scrimTransitionStyle = EditorAuxiliaryTransitionStyle.instant
+
+    var dismiss: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(Self.scrimOpacity)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    dismiss()
+                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

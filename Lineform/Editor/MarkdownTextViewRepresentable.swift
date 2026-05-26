@@ -36,12 +36,13 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             return
         }
 
+        textView.applyTypography(profile)
+
         if textView.string != text {
             textView.string = text
             textView.refreshMarkdownHighlighting()
         }
 
-        textView.applyTypography(profile)
         textView.setIntelligentSuggestionRange(intelligentSuggestionRange)
 
         if let range = requestedSelection {

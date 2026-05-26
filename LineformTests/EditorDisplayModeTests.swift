@@ -20,12 +20,46 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertTrue(EditorToolbarVisibility.showsMarkdownBasics(in: .split))
     }
 
+    @MainActor
     func testMarkdownBasicsExamplesCoverCommonFormatting() {
-        XCTAssertEqual(MarkdownBasicsPopover.title, "Markdown Basics")
+        XCTAssertEqual(MarkdownBasicsModal.title, "Markdown Basics")
         XCTAssertEqual(
-            MarkdownBasicsPopover.examples.map(\.syntax),
+            MarkdownBasicsModal.examples.map(\.syntax),
             ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "`code`", "[link](https://example.com)"]
         )
+    }
+
+    func testToolbarButtonsUseSeparateNativePresentationModels() {
+        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.markdownBasics, .readingExperience])
+        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .read), [.readingExperience])
+        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .split), [.markdownBasics, .readingExperience])
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .nativeInspector)
+        XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.kind, .centeredModal)
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel, "Reading Experience Inspector")
+        XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel, "Markdown Basics")
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.idealWidth, 320)
+        XCTAssertNil(EditorAuxiliaryPresentation.markdownBasics.idealWidth)
+    }
+
+    @MainActor
+    func testMarkdownBasicsModalHasExplicitAndOutsideDismissal() {
+        XCTAssertTrue(MarkdownBasicsModal.showsCloseButton)
+        XCTAssertTrue(MarkdownBasicsModal.dismissesWhenClickingOutside)
+    }
+
+    @MainActor
+    func testMarkdownBasicsModalKeepsBackdropAnimationAndCloseHoverPolish() {
+        XCTAssertGreaterThanOrEqual(MarkdownBasicsOverlay.scrimOpacity, 0.28)
+        XCTAssertEqual(MarkdownBasicsOverlay.scrimTransitionStyle, .instant)
+        XCTAssertEqual(MarkdownBasicsModal.transitionStyle, .fadeAndMoveUp)
+        XCTAssertEqual(MarkdownBasicsModal.entranceYOffset, 10)
+        XCTAssertGreaterThan(MarkdownBasicsModal.closeHoverFillOpacity, MarkdownBasicsModal.closeRestingFillOpacity)
+        XCTAssertEqual(MarkdownBasicsModal.animationDuration, 0.24, accuracy: 0.01)
+    }
+
+    func testReadingInspectorUsesSlideAndFadeAnimation() {
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.transitionStyle, .slideAndFade)
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.animationDuration, 0.24, accuracy: 0.01)
     }
 
     func testReadModeUsesSameTextColumnWidthAsWriteMode() {
