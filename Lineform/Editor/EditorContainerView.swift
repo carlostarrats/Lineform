@@ -18,68 +18,36 @@ struct EditorContainerView: View {
     private let intelligentEditingService = FoundationModelsIntelligentEditingService()
 
     var body: some View {
-        HStack(spacing: 0) {
-            if isShowingOutline {
-                OutlineSidebarView(items: outlineItems, jumpToHeading: jumpToHeading)
-                Divider()
-            }
-
-            VStack(spacing: 0) {
-                editorContent
-                    .frame(minWidth: 640, minHeight: 480)
-
-                Divider()
-
-                if let intelligentSuggestion {
-                    IntelligentEditingSuggestionBar(
-                        suggestion: intelligentSuggestion,
-                        currentChangeIndex: $currentIntelligentChangeIndex,
-                        navigateToChange: navigateToSuggestedChange,
-                        accept: acceptIntelligentSuggestion,
-                        reject: rejectIntelligentSuggestion
-                    )
-
-                    Divider()
-                }
-
-                HStack {
-                    Spacer()
-                    Text(statusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel(statusAccessibilityLabel)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-            }
+        NavigationSplitView(columnVisibility: outlineVisibility) {
+            OutlineSidebarView(items: outlineItems, jumpToHeading: jumpToHeading)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 300)
+        } detail: {
+            editorShell
         }
-        .background(Color(nsColor: Theme.theme(for: readingProfileStore.activeProfile).backgroundColor))
+        .navigationSplitViewStyle(.balanced)
         .background(WindowNumberReader(windowNumber: $windowNumber))
         .toolbar {
-            Picker("Mode", selection: $displayMode) {
-                ForEach(EditorDisplayMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+            ToolbarItem(placement: .principal) {
+                Picker("Mode", selection: $displayMode) {
+                    ForEach(EditorDisplayMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 240)
+                .accessibilityLabel("Editor mode")
             }
-            .pickerStyle(.segmented)
-            .frame(width: 240)
-            .accessibilityLabel("Editor mode")
 
-            Button {
-                isShowingOutline.toggle()
-            } label: {
-                Label("Outline", systemImage: "sidebar.leading")
-            }
-            .help("Outline")
-
-            Button {
-                isShowingReadingExperience.toggle()
-            } label: {
-                Label("Reading Experience", systemImage: "textformat.size")
-            }
-            .help("Reading Experience")
-            .popover(isPresented: $isShowingReadingExperience, arrowEdge: .bottom) {
-                ReadingExperiencePopover(store: readingProfileStore)
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    isShowingReadingExperience.toggle()
+                } label: {
+                    Label("Reading Experience", systemImage: "textformat.size")
+                }
+                .help("Reading Experience")
+                .popover(isPresented: $isShowingReadingExperience, arrowEdge: .bottom) {
+                    ReadingExperiencePopover(store: readingProfileStore)
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showReadingExperience.name)) { notification in
@@ -126,6 +94,47 @@ struct EditorContainerView: View {
                 intelligentEditingStatus = "Suggestion expired after edits."
             }
         }
+    }
+
+    private var outlineVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { isShowingOutline ? .all : .detailOnly },
+            set: { visibility in
+                isShowingOutline = visibility != .detailOnly
+            }
+        )
+    }
+
+    private var editorShell: some View {
+        VStack(spacing: 0) {
+            editorContent
+                .frame(minWidth: 640, minHeight: 480)
+
+            Divider()
+
+            if let intelligentSuggestion {
+                IntelligentEditingSuggestionBar(
+                    suggestion: intelligentSuggestion,
+                    currentChangeIndex: $currentIntelligentChangeIndex,
+                    navigateToChange: navigateToSuggestedChange,
+                    accept: acceptIntelligentSuggestion,
+                    reject: rejectIntelligentSuggestion
+                )
+
+                Divider()
+            }
+
+            HStack {
+                Spacer()
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(statusAccessibilityLabel)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+        }
+        .background(Color(nsColor: Theme.theme(for: readingProfileStore.activeProfile).backgroundColor))
     }
 
     @ViewBuilder

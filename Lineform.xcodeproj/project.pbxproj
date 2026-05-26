@@ -67,6 +67,7 @@
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
 		1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */; };
 		1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */; };
+		1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000116 /* OutlineSidebarViewTests.swift */; };
 		1F0000010000000000000108 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000108 /* Assets.xcassets */; };
 		1F0000010000000000000109 /* MarkdownGuide.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000109 /* MarkdownGuide.md */; };
 		1F0000010000000000000110 /* Help.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000110 /* Help.md */; };
@@ -151,6 +152,7 @@
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewEmptyStateTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentPerformanceTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000116 /* OutlineSidebarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarViewTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1F0000020000000000000109 /* MarkdownGuide.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MarkdownGuide.md; sourceTree = "<group>"; };
 		1F0000020000000000000110 /* Help.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Help.md; sourceTree = "<group>"; };
@@ -331,6 +333,7 @@
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
+				1F0000020000000000000116 /* OutlineSidebarViewTests.swift */,
 			);
 			path = LineformTests;
 			sourceTree = "<group>";
@@ -514,6 +517,7 @@
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
+				1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
