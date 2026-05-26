@@ -75,10 +75,10 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         let quieterColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
 
         XCTAssertNotEqual(normalColor, quieterColor)
-        XCTAssertLessThan(quieterColor.alphaComponent, normalColor.alphaComponent)
+        XCTAssertFalse(colorsHaveSameRGB(normalColor, quieterColor))
     }
 
-    func testQuietMarkdownNoiseUsesThemeTextColorInsteadOfSystemBlack() throws {
+    func testQuietMarkdownNoiseUsesDarkMarkerContrastColorInsteadOfSystemBlack() throws {
         let textView = LineformTextView()
         textView.string = "# Title"
 
@@ -87,8 +87,26 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         textView.applyTypography(profile)
 
         let markerColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
-        assertSameRGB(markerColor, Theme.quiet.textColor)
-        XCTAssertLessThan(markerColor.alphaComponent, Theme.quiet.textColor.alphaComponent)
+        assertSameRGB(markerColor, MarkdownSyntaxHighlighter.markdownMarkerColor(for: profile))
+        XCTAssertNotEqual(markerColor, NSColor.black)
+        XCTAssertEqual(markerColor.alphaComponent, 1, accuracy: 0.001)
+    }
+
+    func testMarkdownMarkersUseContrastColorForLightAndDarkThemes() throws {
+        let textView = LineformTextView()
+        textView.string = "# Title"
+
+        textView.applyTypography(ReadingProfile.original)
+        textView.refreshMarkdownHighlighting()
+        let lightMarkerColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
+        assertSameRGB(lightMarkerColor, MarkdownSyntaxHighlighter.markdownMarkerColor(for: .original))
+
+        textView.applyTypography(ReadingPreset.quiet.profile)
+        let darkMarkerColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
+        assertSameRGB(darkMarkerColor, MarkdownSyntaxHighlighter.markdownMarkerColor(for: ReadingPreset.quiet.profile))
+
+        XCTAssertFalse(colorsHaveSameRGB(lightMarkerColor, darkMarkerColor))
+        XCTAssertFalse(colorsHaveSameRGB(MarkdownSyntaxHighlighter.markdownMarkerColor(for: .original), MarkdownSyntaxHighlighter.markdownMarkerColor(for: ReadingPreset.quiet.profile)))
     }
 
     func testInlineCodeUsesBlueAccentInsteadOfBrown() throws {
@@ -168,5 +186,13 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(firstRGB?.redComponent ?? -1, secondRGB?.redComponent ?? -2, accuracy: 0.005, file: file, line: line)
         XCTAssertEqual(firstRGB?.greenComponent ?? -1, secondRGB?.greenComponent ?? -2, accuracy: 0.005, file: file, line: line)
         XCTAssertEqual(firstRGB?.blueComponent ?? -1, secondRGB?.blueComponent ?? -2, accuracy: 0.005, file: file, line: line)
+    }
+
+    private func colorsHaveSameRGB(_ first: NSColor, _ second: NSColor) -> Bool {
+        let firstRGB = first.usingColorSpace(.deviceRGB)
+        let secondRGB = second.usingColorSpace(.deviceRGB)
+        return abs((firstRGB?.redComponent ?? -1) - (secondRGB?.redComponent ?? -2)) < 0.005
+            && abs((firstRGB?.greenComponent ?? -1) - (secondRGB?.greenComponent ?? -2)) < 0.005
+            && abs((firstRGB?.blueComponent ?? -1) - (secondRGB?.blueComponent ?? -2)) < 0.005
     }
 }

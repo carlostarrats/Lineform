@@ -37,6 +37,13 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testOutlineRowsExposeVisibleHoverFeedback() {
+        XCTAssertTrue(OutlineSidebarView.rowsShowHoverFeedback)
+        XCTAssertGreaterThan(OutlineSidebarView.rowHoverFillOpacity, 0)
+        XCTAssertLessThan(OutlineSidebarView.rowHoverFillOpacity, 0.2)
+    }
+
+    @MainActor
     func testHeadingLevelsUseDistinctSidebarIcons() {
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 1), "textformat.size")
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 2), "list.bullet.indent")

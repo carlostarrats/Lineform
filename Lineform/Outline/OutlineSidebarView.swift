@@ -16,6 +16,8 @@ struct OutlineSidebarView: View {
     static let backgroundOpacity: Double = 0.94
     static let primaryTextWhiteComponent: CGFloat = 0.16
     static let secondaryTextWhiteComponent: CGFloat = 0.43
+    static let rowsShowHoverFeedback = true
+    static let rowHoverFillOpacity = 0.08
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
     static let maximumColumnWidth: CGFloat = 300
@@ -199,6 +201,7 @@ private struct OutlineSidebarRow: View {
     var isCollapsed: Bool
     var toggleCollapsed: () -> Void
     var jumpToHeading: (MarkdownOutlineItem) -> Void
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -243,6 +246,15 @@ private struct OutlineSidebarRow: View {
         .padding(.leading, CGFloat(depth) * 14)
         .padding(.horizontal, 6)
         .frame(height: 26)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(OutlineSidebarView.primaryTextColor.opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
+        }
         .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovered = hovering
+            }
+        }
     }
 }

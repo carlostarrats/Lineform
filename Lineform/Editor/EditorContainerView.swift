@@ -671,7 +671,7 @@ struct EditorModeSegmentedControl: View {
     static let backgroundFillRedComponent: CGFloat = 1.0
     static let textFillRedComponent: CGFloat = 0.18
     static let darkSelectedFillRedComponent: CGFloat = 0.20
-    static let darkBackgroundFillRedComponent: CGFloat = 0.08
+    static let darkBackgroundFillRedComponent: CGFloat = (LineformColors.darkControlBackground.usingColorSpace(.sRGB) ?? LineformColors.darkControlBackground).redComponent
     static let darkTextFillRedComponent: CGFloat = 0.92
     static let shadowRadius: CGFloat = 5
     static let hitAreaWidth: CGFloat = segmentWidth

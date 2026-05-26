@@ -15,12 +15,12 @@ final class ThemeTests: XCTestCase {
     }
 
     func testReaderThemesUseRequestedBackgroundAndSoftTextColors() throws {
-        assertColor(Theme.system.backgroundColor, equalsHex: 0xFFFFFF)
-        assertColor(Theme.paper.backgroundColor, equalsHex: 0xF6F3ED)
-        assertColor(Theme.calm.backgroundColor, equalsHex: 0xF2F4F5)
-        assertColor(Theme.system.textColor, equalsHex: 0x1F1F1F)
-        assertColor(Theme.paper.textColor, equalsHex: 0x1F1F1F)
-        assertColor(Theme.calm.textColor, equalsHex: 0x1F1F1F)
+        assertSameRGB(Theme.system.backgroundColor, LineformColors.originalBackground)
+        assertSameRGB(Theme.paper.backgroundColor, LineformColors.paperBackground)
+        assertSameRGB(Theme.calm.backgroundColor, LineformColors.calmBackground)
+        assertSameRGB(Theme.system.textColor, LineformColors.primaryText)
+        assertSameRGB(Theme.paper.textColor, LineformColors.primaryText)
+        assertSameRGB(Theme.calm.textColor, LineformColors.primaryText)
     }
 
     func testOriginalThemeStaysLightWhenPreviewedFromDarkChrome() throws {
@@ -33,8 +33,8 @@ final class ThemeTests: XCTestCase {
             resolvedText = Theme.system.textColor.usingColorSpace(.sRGB)
         }
 
-        assertColor(try XCTUnwrap(resolvedBackground), equalsHex: 0xFFFFFF)
-        assertColor(try XCTUnwrap(resolvedText), equalsHex: 0x1F1F1F)
+        assertSameRGB(try XCTUnwrap(resolvedBackground), LineformColors.originalBackground)
+        assertSameRGB(try XCTUnwrap(resolvedText), LineformColors.primaryText)
     }
 
     func testQuietThemeUsesReadableCharcoalBackgroundNotBlack() {
@@ -64,6 +64,24 @@ final class ThemeTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testMarkdownMarkersMaintainTextContrastWhenNoiseIsReduced() throws {
+        for preset in ReadingPreset.builtIn {
+            let textView = LineformTextView()
+            textView.string = "# Title"
+            var profile = preset.profile
+            profile.reduceMarkdownNoise = true
+            textView.applyTypography(profile)
+
+            let theme = Theme.theme(for: profile)
+            let markerColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
+            let renderedMarkerColor = Self.color(markerColor, compositedOver: theme.backgroundColor)
+            let contrast = Self.contrastRatio(renderedMarkerColor, theme.backgroundColor)
+
+            XCTAssertGreaterThanOrEqual(contrast, 4.5, preset.profile.name)
+        }
+    }
+
     func testThemeIDsOnlyRepresentNormalReaderThemes() {
         XCTAssertEqual(ThemeID.allCases, [.system, .paper, .calm, .quiet, .night])
     }
@@ -76,11 +94,12 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(theme.caretColor, .textColor)
     }
 
-    private func assertColor(_ color: NSColor, equalsHex hex: Int, file: StaticString = #filePath, line: UInt = #line) {
-        let rgb = color.usingColorSpace(.sRGB)
-        XCTAssertEqual(rgb?.redComponent ?? -1, CGFloat((hex >> 16) & 0xFF) / 255, accuracy: 0.005, file: file, line: line)
-        XCTAssertEqual(rgb?.greenComponent ?? -1, CGFloat((hex >> 8) & 0xFF) / 255, accuracy: 0.005, file: file, line: line)
-        XCTAssertEqual(rgb?.blueComponent ?? -1, CGFloat(hex & 0xFF) / 255, accuracy: 0.005, file: file, line: line)
+    private func assertSameRGB(_ first: NSColor, _ second: NSColor, file: StaticString = #filePath, line: UInt = #line) {
+        let firstRGB = first.usingColorSpace(.sRGB)
+        let secondRGB = second.usingColorSpace(.sRGB)
+        XCTAssertEqual(firstRGB?.redComponent ?? -1, secondRGB?.redComponent ?? -2, accuracy: 0.005, file: file, line: line)
+        XCTAssertEqual(firstRGB?.greenComponent ?? -1, secondRGB?.greenComponent ?? -2, accuracy: 0.005, file: file, line: line)
+        XCTAssertEqual(firstRGB?.blueComponent ?? -1, secondRGB?.blueComponent ?? -2, accuracy: 0.005, file: file, line: line)
     }
 
     private static func contrastRatio(_ first: NSColor, _ second: NSColor) -> CGFloat {
@@ -98,5 +117,18 @@ final class ThemeTests: XCTestCase {
 
     private static func linearized(_ component: CGFloat) -> CGFloat {
         component <= 0.03928 ? component / 12.92 : pow((component + 0.055) / 1.055, 2.4)
+    }
+
+    private static func color(_ foreground: NSColor, compositedOver background: NSColor) -> NSColor {
+        let fg = foreground.usingColorSpace(.sRGB) ?? foreground
+        let bg = background.usingColorSpace(.sRGB) ?? background
+        let alpha = fg.alphaComponent
+
+        return NSColor(
+            srgbRed: fg.redComponent * alpha + bg.redComponent * (1 - alpha),
+            green: fg.greenComponent * alpha + bg.greenComponent * (1 - alpha),
+            blue: fg.blueComponent * alpha + bg.blueComponent * (1 - alpha),
+            alpha: 1
+        )
     }
 }

@@ -171,13 +171,14 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
-    func testModeSegmentUsesFixedNeutralSelectionMetrics() {
+    func testModeSegmentUsesFixedNeutralSelectionMetrics() throws {
         XCTAssertEqual(EditorModeSegmentedControl.segmentWidth, 78)
         XCTAssertEqual(EditorModeSegmentedControl.segmentHeight, 30)
         XCTAssertEqual(EditorModeSegmentedControl.selectedFillRedComponent, 0.86, accuracy: 0.01)
         XCTAssertEqual(EditorModeSegmentedControl.backgroundFillRedComponent, 1.0, accuracy: 0.01)
         XCTAssertEqual(EditorModeSegmentedControl.textFillRedComponent, 0.18, accuracy: 0.01)
-        XCTAssertLessThan(EditorModeSegmentedControl.darkBackgroundFillRedComponent, 0.12)
+        let expectedDarkControl = try XCTUnwrap(LineformColors.darkControlBackground.usingColorSpace(.sRGB))
+        XCTAssertEqual(EditorModeSegmentedControl.darkBackgroundFillRedComponent, expectedDarkControl.redComponent, accuracy: 0.005)
         XCTAssertLessThan(EditorModeSegmentedControl.darkSelectedFillRedComponent, 0.25)
         XCTAssertGreaterThan(EditorModeSegmentedControl.darkTextFillRedComponent, 0.85)
         XCTAssertEqual(EditorModeSegmentedControl.shadowRadius, 5)

@@ -112,11 +112,16 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(ReadingExperienceInspector.sectionLabelFontSize, 13)
     }
 
-    func testReadingExperienceInspectorControlsExposeHoverStates() {
-        XCTAssertGreaterThan(ReadingExperienceInspector.controlHoverFillOpacity, 0)
+    func testReadingExperienceInspectorKeepsNativeControlHoverOnly() {
+        XCTAssertTrue(ReadingExperienceInspector.usesNativeControlHoverOnly)
         XCTAssertGreaterThan(ReadingExperienceInspector.presetCardHoverFillOpacity, 0)
-        XCTAssertLessThan(ReadingExperienceInspector.controlHoverFillOpacity, 0.2)
         XCTAssertLessThan(ReadingExperienceInspector.presetCardHoverFillOpacity, 0.2)
+    }
+
+    func testResetButtonKeepsVisibleButtonHoverFeedback() {
+        XCTAssertTrue(ReadingExperienceInspector.resetButtonShowsHoverFeedback)
+        XCTAssertGreaterThan(ReadingExperienceInspector.resetButtonHoverFillOpacity, 0)
+        XCTAssertLessThan(ReadingExperienceInspector.resetButtonHoverFillOpacity, 0.2)
     }
 
     func testReadingExperienceInspectorShowsValuesForEverySliderControl() {
@@ -143,7 +148,10 @@ final class ReadingProfileStoreTests: XCTestCase {
         let lightBackground = try XCTUnwrap(ReadingExperienceInspector.backgroundColor(usesDarkChrome: false).usingColorSpace(.sRGB))
         let darkBackground = try XCTUnwrap(ReadingExperienceInspector.backgroundColor(usesDarkChrome: true).usingColorSpace(.sRGB))
 
-        XCTAssertGreaterThan(lightBackground.redComponent, 0.9)
+        let expectedLightBackground = try XCTUnwrap(LineformColors.inspectorLightBackground.usingColorSpace(.sRGB))
+        XCTAssertEqual(lightBackground.redComponent, expectedLightBackground.redComponent, accuracy: 0.005)
+        XCTAssertEqual(lightBackground.greenComponent, expectedLightBackground.greenComponent, accuracy: 0.005)
+        XCTAssertEqual(lightBackground.blueComponent, expectedLightBackground.blueComponent, accuracy: 0.005)
         XCTAssertLessThan(darkBackground.redComponent, 0.3)
     }
 }

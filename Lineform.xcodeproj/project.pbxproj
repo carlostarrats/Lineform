@@ -42,6 +42,7 @@
 		1F0000010000000000000035 /* SelectionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000035 /* SelectionContext.swift */; };
 		1F0000010000000000000036 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000036 /* AppCommands.swift */; };
 		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
+		1F0000010000000000000122 /* LineformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000122 /* LineformColors.swift */; };
 		1F0000010000000000000052 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000052 /* Theme.swift */; };
 		1F0000010000000000000053 /* ReadingPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000053 /* ReadingPreset.swift */; };
 		1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000054 /* ReadingProfileStore.swift */; };
@@ -129,6 +130,7 @@
 		1F0000020000000000000035 /* SelectionContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionContext.swift; sourceTree = "<group>"; };
 		1F0000020000000000000036 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
+		1F0000020000000000000122 /* LineformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformColors.swift; sourceTree = "<group>"; };
 		1F0000020000000000000052 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		1F0000020000000000000053 /* ReadingPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPreset.swift; sourceTree = "<group>"; };
 		1F0000020000000000000054 /* ReadingProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStore.swift; sourceTree = "<group>"; };
@@ -253,6 +255,7 @@
 				1F0000020000000000000017 /* ReadingProfile.swift */,
 				1F0000020000000000000121 /* BundledFontRegistrar.swift */,
 				1F0000020000000000000051 /* FontOption.swift */,
+				1F0000020000000000000122 /* LineformColors.swift */,
 				1F0000020000000000000052 /* Theme.swift */,
 				1F0000020000000000000053 /* ReadingPreset.swift */,
 				1F0000020000000000000054 /* ReadingProfileStore.swift */,
@@ -472,6 +475,7 @@
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
 				1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */,
 				1F0000010000000000000051 /* FontOption.swift in Sources */,
+				1F0000010000000000000122 /* LineformColors.swift in Sources */,
 				1F0000010000000000000052 /* Theme.swift in Sources */,
 				1F0000010000000000000053 /* ReadingPreset.swift in Sources */,
 				1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */,

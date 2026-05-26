@@ -29,7 +29,9 @@ struct ReadingExperienceInspector: View {
     static let themeToFontSpacing: CGFloat = 10
     static let usesReadingAidsSectionLabel = true
     static let sectionLabelFontSize: CGFloat = 13
-    static let controlHoverFillOpacity = 0.08
+    static let usesNativeControlHoverOnly = true
+    static let resetButtonShowsHoverFeedback = true
+    static let resetButtonHoverFillOpacity = 0.08
     static let presetCardHoverFillOpacity = 0.07
 
     var body: some View {
@@ -105,11 +107,10 @@ struct ReadingExperienceInspector: View {
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
-                    InspectorHoverContainer {
-                        Button("Reset to Default") {
+                    InspectorControlRow {
+                        HoverFeedbackButton("Reset to Default") {
                             store.resetToDefault()
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
                 .padding(.top, Self.resetTopSpacing)
@@ -131,7 +132,7 @@ struct ReadingExperienceInspector: View {
     static func backgroundColor(usesDarkChrome: Bool) -> NSColor {
         usesDarkChrome
             ? NSColor(calibratedWhite: 0.20, alpha: 1)
-            : NSColor(calibratedWhite: 0.98, alpha: 1)
+            : LineformColors.inspectorLightBackground
     }
 
     private var presetGrid: some View {
@@ -241,7 +242,7 @@ private struct PickerRow<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        InspectorHoverContainer {
+        InspectorControlRow {
             HStack(alignment: .center, spacing: 12) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
@@ -335,7 +336,7 @@ private struct InspectorSliderRow: View {
     var range: ClosedRange<Double>
 
     var body: some View {
-        InspectorHoverContainer {
+        InspectorControlRow {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(title)
@@ -362,15 +363,40 @@ private struct InspectorToggleRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        InspectorHoverContainer {
+        InspectorControlRow {
             Toggle(title, isOn: $isOn)
         }
     }
 }
 
-private struct InspectorHoverContainer<Content: View>: View {
-    let content: () -> Content
+private struct HoverFeedbackButton: View {
+    var title: String
+    var action: () -> Void
     @State private var isHovered = false
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(.bordered)
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(isHovered ? ReadingExperienceInspector.resetButtonHoverFillOpacity : 0))
+                    .allowsHitTesting(false)
+            }
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isHovered = hovering
+                }
+            }
+    }
+}
+
+private struct InspectorControlRow<Content: View>: View {
+    let content: () -> Content
 
     init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content
@@ -381,15 +407,5 @@ private struct InspectorHoverContainer<Content: View>: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary.opacity(isHovered ? ReadingExperienceInspector.controlHoverFillOpacity : 0))
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.12)) {
-                    isHovered = hovering
-                }
-            }
     }
 }

@@ -49,25 +49,25 @@ struct Theme: Equatable, Identifiable {
     static let system = Theme(
         id: .system,
         name: "Original",
-        textColor: .lineformHex(0x1F1F1F),
-        backgroundColor: .lineformHex(0xFFFFFF),
-        caretColor: .lineformHex(0x1F1F1F)
+        textColor: LineformColors.primaryText,
+        backgroundColor: LineformColors.originalBackground,
+        caretColor: LineformColors.primaryText
     )
 
     static let paper = Theme(
         id: .paper,
         name: "Paper",
-        textColor: .lineformHex(0x1F1F1F),
-        backgroundColor: .lineformHex(0xF6F3ED),
-        caretColor: .lineformHex(0x1F1F1F)
+        textColor: LineformColors.primaryText,
+        backgroundColor: LineformColors.paperBackground,
+        caretColor: LineformColors.primaryText
     )
 
     static let calm = Theme(
         id: .calm,
         name: "Calm",
-        textColor: .lineformHex(0x1F1F1F),
-        backgroundColor: .lineformHex(0xF2F4F5),
-        caretColor: .lineformHex(0x1F1F1F)
+        textColor: LineformColors.primaryText,
+        backgroundColor: LineformColors.calmBackground,
+        caretColor: LineformColors.primaryText
     )
 
     static let quiet = Theme(
@@ -117,17 +117,6 @@ struct Theme: Equatable, Identifiable {
             textColor: .textColor,
             backgroundColor: .textBackgroundColor,
             caretColor: .textColor
-        )
-    }
-}
-
-private extension NSColor {
-    static func lineformHex(_ hex: Int) -> NSColor {
-        NSColor(
-            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255.0,
-            green: CGFloat((hex >> 8) & 0xFF) / 255.0,
-            blue: CGFloat(hex & 0xFF) / 255.0,
-            alpha: 1
         )
     }
 }
