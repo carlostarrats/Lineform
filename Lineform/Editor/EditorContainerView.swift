@@ -12,6 +12,10 @@ struct EditorContainerView: View {
     @State private var outlineItems: [MarkdownOutlineItem] = []
     @State private var requestedSelection: NSRange?
     @State private var selectionAnchorRect: CGRect?
+    @State private var searchQuery = ""
+    @State private var searchMatches: [NSRange] = []
+    @State private var activeSearchIndex: Int?
+    @FocusState private var isSearchFocused: Bool
     @State private var isIntelligenceRailEnabled = false
     @State private var intelligentOptions: [IntelligentEditingSuggestion] = []
     @State private var selectedIntelligentOptionIndex = 0
@@ -43,6 +47,8 @@ struct EditorContainerView: View {
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
         .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
+        .searchable(text: $searchQuery, placement: .toolbar, prompt: "Search")
+        .searchFocused($isSearchFocused)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 EditorModeSegmentedControl(selection: $displayMode, usesDarkChrome: theme.usesDarkChrome)
@@ -69,6 +75,12 @@ struct EditorContainerView: View {
                 return
             }
             runIntelligentEditingAction(action, selectedRange: notificationPayloadSelectedRange(notification))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.focusSearch.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else {
+                return
+            }
+            isSearchFocused = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.setDisplayMode.name)) { notification in
             guard
@@ -98,10 +110,14 @@ struct EditorContainerView: View {
         .onChange(of: document.text) { _, newValue in
             documentStatistics = DocumentStatistics(text: newValue)
             outlineItems = MarkdownOutlineParser().items(in: newValue)
+            refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil)
             if let activeIntelligentSuggestion, !activeIntelligentSuggestion.canApply(to: newValue) {
                 clearIntelligentSuggestions()
                 intelligentEditingStatus = "Suggestion expired after edits."
             }
+        }
+        .onChange(of: searchQuery) { _, _ in
+            refreshSearchMatches(selectFirstWhenNeeded: true)
         }
     }
 
@@ -253,7 +269,9 @@ struct EditorContainerView: View {
             requestedSelection: $requestedSelection,
             selectionAnchorRect: $selectionAnchorRect,
             profile: readingProfileStore.activeProfile,
-            intelligentSuggestionRange: activeIntelligentSuggestion?.selectedRange
+            intelligentSuggestionRange: activeIntelligentSuggestion?.selectedRange,
+            searchRanges: searchMatches,
+            activeSearchRange: activeSearchRange
         )
         .accessibilityLabel("Markdown editor")
     }
@@ -281,11 +299,50 @@ struct EditorContainerView: View {
             && IntelligenceAvailabilityService().currentStatus().isAvailable
     }
 
+    private var activeSearchRange: NSRange? {
+        guard let activeSearchIndex, searchMatches.indices.contains(activeSearchIndex) else {
+            return nil
+        }
+        return searchMatches[activeSearchIndex]
+    }
+
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
         requestedSelection = item.characterRange
         if displayMode == .read {
             displayMode = .write
         }
+    }
+
+    private func refreshSearchMatches(selectFirstWhenNeeded: Bool) {
+        let matches = EditorSearchResolver.matches(in: document.text, query: searchQuery)
+        searchMatches = matches
+
+        guard !matches.isEmpty else {
+            activeSearchIndex = nil
+            return
+        }
+
+        if
+            let activeSearchIndex,
+            matches.indices.contains(activeSearchIndex)
+        {
+            selectSearchMatch(at: activeSearchIndex)
+        } else if selectFirstWhenNeeded {
+            activeSearchIndex = 0
+            selectSearchMatch(at: 0)
+        }
+    }
+
+    private func selectSearchMatch(at index: Int) {
+        guard searchMatches.indices.contains(index) else {
+            return
+        }
+
+        activeSearchIndex = index
+        if displayMode == .read {
+            displayMode = .write
+        }
+        requestedSelection = searchMatches[index]
     }
 
     private var statusText: String {
@@ -680,6 +737,75 @@ enum EditorToolbarAction: CaseIterable, Equatable, Identifiable {
 
         return [.readingExperience]
     }
+}
+
+enum EditorSearchResolver {
+    static func matches(in text: String, query: String) -> [NSRange] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            return []
+        }
+
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        var searchRange = fullRange
+        var matches: [NSRange] = []
+
+        while searchRange.length > 0 {
+            let match = nsText.range(
+                of: trimmedQuery,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: searchRange
+            )
+
+            guard match.location != NSNotFound, match.length > 0 else {
+                break
+            }
+
+            matches.append(match)
+            let nextLocation = match.location + match.length
+            searchRange = NSRange(
+                location: nextLocation,
+                length: max(0, NSMaxRange(fullRange) - nextLocation)
+            )
+        }
+
+        return matches
+    }
+
+    static func nextIndex(after index: Int?, matchCount: Int) -> Int? {
+        guard matchCount > 0 else {
+            return nil
+        }
+
+        guard let index else {
+            return 0
+        }
+
+        return (index + 1) % matchCount
+    }
+
+    static func previousIndex(before index: Int?, matchCount: Int) -> Int? {
+        guard matchCount > 0 else {
+            return nil
+        }
+
+        guard let index else {
+            return matchCount - 1
+        }
+
+        return (index - 1 + matchCount) % matchCount
+    }
+}
+
+enum EditorSearchToolbarPresentation {
+    static let usesNativeSearchableToolbarItem = true
+    static let preservesSystemToolbarButtonGroup = true
+    static let usesSeparateVisualCapsule = true
+    static let embedsNavigationControlsInSearchField = false
+    static let usesNativeSearchClearButton = true
+    static let showsNavigationControlsWhenQueryIsEmpty = false
+    static let usesSystemSearchFieldSizing = true
 }
 
 struct IntelligenceActionRail: View {

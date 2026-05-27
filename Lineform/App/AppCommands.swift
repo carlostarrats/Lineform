@@ -7,6 +7,8 @@ enum AppMenuCommandPlacement: Equatable {
 
 enum AppMenuConfiguration {
     static let readingCommandPlacement = AppMenuCommandPlacement.view
+    static let findCommandTitle = "Find"
+    static let findCommandKeyEquivalent = "f"
     static let keepsTopLevelIntelligenceMenu = true
     static let usesTopLevelReadingMenu = false
     static let intelligencePrimaryCommandTitle: String? = nil
@@ -85,6 +87,13 @@ struct AppCommands: Commands {
             .keyboardShortcut("r", modifiers: [.command, .option])
 
             Divider()
+        }
+
+        CommandGroup(after: .pasteboard) {
+            Button(AppMenuConfiguration.findCommandTitle) {
+                LineformAppNotification.focusSearch.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut(KeyEquivalent(Character(AppMenuConfiguration.findCommandKeyEquivalent)), modifiers: .command)
         }
 
         CommandMenu("Intelligence") {

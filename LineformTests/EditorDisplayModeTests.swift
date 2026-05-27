@@ -2,6 +2,48 @@ import XCTest
 @testable import Lineform
 
 final class EditorDisplayModeTests: XCTestCase {
+    func testEditorSearchFindsCaseInsensitiveMatchesInDocumentOrder() {
+        let matches = EditorSearchResolver.matches(
+            in: "Find this, then find this again.",
+            query: "find"
+        )
+
+        XCTAssertEqual(matches, [
+            NSRange(location: 0, length: 4),
+            NSRange(location: 16, length: 4)
+        ])
+    }
+
+    func testEditorSearchNavigationWrapsBetweenMatches() {
+        let matches = [
+            NSRange(location: 4, length: 5),
+            NSRange(location: 18, length: 5),
+            NSRange(location: 30, length: 5)
+        ]
+
+        XCTAssertEqual(EditorSearchResolver.nextIndex(after: nil, matchCount: matches.count), 0)
+        XCTAssertEqual(EditorSearchResolver.nextIndex(after: 2, matchCount: matches.count), 0)
+        XCTAssertEqual(EditorSearchResolver.previousIndex(before: nil, matchCount: matches.count), 2)
+        XCTAssertEqual(EditorSearchResolver.previousIndex(before: 0, matchCount: matches.count), 2)
+    }
+
+    func testEditorSearchIgnoresEmptyAndWhitespaceQueries() {
+        XCTAssertTrue(EditorSearchResolver.matches(in: "Anything", query: "").isEmpty)
+        XCTAssertTrue(EditorSearchResolver.matches(in: "Anything", query: "   ").isEmpty)
+        XCTAssertNil(EditorSearchResolver.nextIndex(after: nil, matchCount: 0))
+        XCTAssertNil(EditorSearchResolver.previousIndex(before: nil, matchCount: 0))
+    }
+
+    func testEditorSearchToolbarUsesSeparateNativeFieldPresentation() {
+        XCTAssertTrue(EditorSearchToolbarPresentation.usesNativeSearchableToolbarItem)
+        XCTAssertTrue(EditorSearchToolbarPresentation.preservesSystemToolbarButtonGroup)
+        XCTAssertTrue(EditorSearchToolbarPresentation.usesSeparateVisualCapsule)
+        XCTAssertFalse(EditorSearchToolbarPresentation.embedsNavigationControlsInSearchField)
+        XCTAssertTrue(EditorSearchToolbarPresentation.usesNativeSearchClearButton)
+        XCTAssertFalse(EditorSearchToolbarPresentation.showsNavigationControlsWhenQueryIsEmpty)
+        XCTAssertTrue(EditorSearchToolbarPresentation.usesSystemSearchFieldSizing)
+    }
+
     func testDisplayModesStaySmallAndOrdered() {
         XCTAssertEqual(EditorDisplayMode.allCases, [.write, .read, .split])
         XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])

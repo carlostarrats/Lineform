@@ -8,6 +8,8 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var selectionAnchorRect: CGRect?
     var profile: ReadingProfile
     var intelligentSuggestionRange: NSRange?
+    var searchRanges: [NSRange] = []
+    var activeSearchRange: NSRange?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, selectionContext: $selectionContext, selectionAnchorRect: $selectionAnchorRect)
@@ -45,6 +47,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
 
         textView.setIntelligentSuggestionRange(intelligentSuggestionRange)
+        textView.setSearchHighlights(searchRanges, activeRange: activeSearchRange)
 
         if let range = requestedSelection {
             let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))

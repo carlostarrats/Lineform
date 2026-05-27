@@ -8,6 +8,8 @@ final class LineformTextView: NSTextView {
     private var hasAppliedTypography = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var activeIntelligentSuggestionRange: NSRange?
+    private var searchHighlightRanges: [NSRange] = []
+    private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
 
     convenience init() {
@@ -188,12 +190,19 @@ final class LineformTextView: NSTextView {
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
         drawEmptyStatePlaceholderIfNeeded()
+        drawSearchHighlightsIfNeeded()
         drawIntelligentSuggestionHighlightIfNeeded()
         drawReadingRulerIfNeeded()
     }
 
     func setIntelligentSuggestionRange(_ range: NSRange?) {
         activeIntelligentSuggestionRange = range
+        needsDisplay = true
+    }
+
+    func setSearchHighlights(_ ranges: [NSRange], activeRange: NSRange?) {
+        searchHighlightRanges = ranges
+        activeSearchHighlightRange = activeRange
         needsDisplay = true
     }
 
@@ -292,6 +301,24 @@ final class LineformTextView: NSTextView {
         rect.insetBy(dx: -8, dy: -4).fill()
     }
 
+    private func drawSearchHighlightsIfNeeded() {
+        guard !searchHighlightRanges.isEmpty else {
+            return
+        }
+
+        for range in searchHighlightRanges {
+            let isActive = range == activeSearchHighlightRange
+            let color = isActive
+                ? NSColor.controlAccentColor.withAlphaComponent(0.22)
+                : NSColor.systemYellow.withAlphaComponent(0.28)
+            color.setFill()
+
+            for rect in rectsForCharacterRange(range) {
+                rect.insetBy(dx: -2, dy: -1).fill()
+            }
+        }
+    }
+
     private func isEventInsideFloatingControl(_ event: NSEvent) -> Bool {
         guard let window else {
             return false
@@ -344,26 +371,46 @@ final class LineformTextView: NSTextView {
     }
 
     private func rectForCharacterRange(_ characterRange: NSRange?) -> NSRect? {
+        rectsForCharacterRange(characterRange).first
+    }
+
+    private func rectsForCharacterRange(_ characterRange: NSRange?) -> [NSRect] {
         guard
             let characterRange,
             characterRange.length > 0,
             let layoutManager,
             let textContainer
         else {
-            return nil
+            return []
         }
 
         let safeRange = NSIntersectionRange(characterRange, NSRange(location: 0, length: (string as NSString).length))
         guard safeRange.length > 0 else {
-            return nil
+            return []
         }
 
         layoutManager.ensureLayout(for: textContainer)
         let glyphRange = layoutManager.glyphRange(forCharacterRange: safeRange, actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        rect.origin.x += textContainerOrigin.x
-        rect.origin.y += textContainerOrigin.y
-        return rect
+        var rects: [NSRect] = []
+        layoutManager.enumerateEnclosingRects(
+            forGlyphRange: glyphRange,
+            withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+            in: textContainer
+        ) { rect, _ in
+            var adjustedRect = rect
+            adjustedRect.origin.x += self.textContainerOrigin.x
+            adjustedRect.origin.y += self.textContainerOrigin.y
+            rects.append(adjustedRect)
+        }
+
+        if rects.isEmpty {
+            var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            rect.origin.x += textContainerOrigin.x
+            rect.origin.y += textContainerOrigin.y
+            rects.append(rect)
+        }
+
+        return rects
     }
 
     private func centerSelectionForTypewriterModeIfNeeded() {

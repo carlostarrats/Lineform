@@ -40,6 +40,15 @@ final class AppCommandNotificationTests: XCTestCase {
         )
     }
 
+    func testFindCommandFocusesToolbarSearch() {
+        XCTAssertEqual(AppMenuConfiguration.findCommandTitle, "Find")
+        XCTAssertEqual(AppMenuConfiguration.findCommandKeyEquivalent, "f")
+        XCTAssertEqual(
+            LineformAppNotification.focusSearch.name.rawValue,
+            "Lineform.focusSearch"
+        )
+    }
+
     func testNotificationPayloadCarriesActiveWindowIdentifier() {
         let payload = LineformAppNotification.Payload(windowNumber: 42, value: EditorDisplayMode.read.rawValue)
 

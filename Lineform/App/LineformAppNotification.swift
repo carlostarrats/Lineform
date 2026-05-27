@@ -3,6 +3,7 @@ import Foundation
 
 enum LineformAppNotification {
     case showReadingExperience
+    case focusSearch
     case runIntelligentEditingAction
     case setDisplayMode
     case toggleOutline
@@ -11,6 +12,8 @@ enum LineformAppNotification {
         switch self {
         case .showReadingExperience:
             return Notification.Name("Lineform.showReadingExperience")
+        case .focusSearch:
+            return Notification.Name("Lineform.focusSearch")
         case .runIntelligentEditingAction:
             return Notification.Name("Lineform.runIntelligentEditingAction")
         case .setDisplayMode:
