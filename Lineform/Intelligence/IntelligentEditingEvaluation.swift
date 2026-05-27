@@ -29,6 +29,28 @@ enum IntelligentEditingEvaluationFailure: String, Hashable {
     case proofreadChangedMeaningOrStyle
     case cleanMarkdownChangedContent
     case lowQualityReplacement
+
+    var scorePenalty: Int {
+        switch self {
+        case .emptyReplacement, .placeholderOrDummyText:
+            return 100
+        case .unchangedTransformOutput, .leakedNearbyContext, .markdownStructureNotPreserved, .cleanMarkdownChangedContent:
+            return 80
+        case .proofreadChangedMeaningOrStyle, .lowQualityReplacement:
+            return 60
+        case .oversizedShortSelection, .missingCompression:
+            return 50
+        }
+    }
+
+    var isCritical: Bool {
+        switch self {
+        case .emptyReplacement, .placeholderOrDummyText, .unchangedTransformOutput, .leakedNearbyContext:
+            return true
+        case .oversizedShortSelection, .markdownStructureNotPreserved, .missingCompression, .proofreadChangedMeaningOrStyle, .cleanMarkdownChangedContent, .lowQualityReplacement:
+            return false
+        }
+    }
 }
 
 struct IntelligentEditingEvaluationResult {
@@ -40,6 +62,24 @@ struct IntelligentEditingEvaluationResult {
 
     var failureSummary: String {
         failures.map(\.rawValue).joined(separator: ", ")
+    }
+
+    var score: Int {
+        max(0, 100 - failures.reduce(0) { $0 + $1.scorePenalty })
+    }
+
+    var qualityBand: String {
+        if score >= 90 {
+            return "pass"
+        }
+        if score >= 70 {
+            return "review"
+        }
+        return "fail"
+    }
+
+    var criticalFailureCount: Int {
+        failures.filter(\.isCritical).count
     }
 }
 
@@ -146,8 +186,13 @@ enum IntelligentEditingEvaluationRubric {
             "somewhat owned",
             "somewhat managed",
             "somewhat controlled",
+            "still somewhat",
+            "somewhat in someone's hands",
+            "in someone's hands",
             "owned by someone",
             "owned by somebody",
+            "managed by someone",
+            "managed by somebody",
             "controlled by someone",
             "controlled by somebody",
             "managed by an individual",
@@ -160,6 +205,10 @@ enum IntelligentEditingEvaluationRubric {
         ]
 
         if blockedFragments.contains(where: { normalizedReplacement.contains($0) }) {
+            return true
+        }
+
+        if task.action == .cleanMarkdown && containsMessyMarkdownFormatting(replacement) {
             return true
         }
 
@@ -517,6 +566,19 @@ enum IntelligentEditingEvaluationRubric {
         return trimmed.dropFirst().first?.isWhitespace == true
     }
 
+    private static func containsMessyMarkdownFormatting(_ text: String) -> Bool {
+        let patterns = [
+            #"(?m)^#{1,6}\S"#,
+            #"(?m)^[-*]\s{2,}\S"#,
+            #"(?m)^\s{2,}[-*]\s+\S"#,
+            #"\n{3,}"#
+        ]
+
+        return patterns.contains { pattern in
+            text.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
+
     private static func normalized(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -525,6 +587,64 @@ enum IntelligentEditingEvaluationRubric {
 }
 
 enum IntelligentEditingEvaluationSuite {
+    static let requiredActionLengthPairs: Set<String> = [
+        "rewrite:oneWord",
+        "rewrite:sentence",
+        "rewrite:paragraph",
+        "rewrite:multipleParagraphs",
+        "proofread:oneWord",
+        "proofread:sentence",
+        "proofread:paragraph",
+        "proofread:multipleParagraphs",
+        "shorten:sentence",
+        "shorten:paragraph",
+        "shorten:multipleParagraphs",
+        "summarize:sentence",
+        "summarize:paragraph",
+        "summarize:multipleParagraphs",
+        "cleanMarkdown:paragraph",
+        "cleanMarkdown:multipleParagraphs"
+    ]
+
+    static let requiredScenarioNames: Set<String> = [
+        "action:rewrite",
+        "action:proofread",
+        "action:shorten",
+        "action:summarize",
+        "action:cleanMarkdown",
+        "length:oneWord",
+        "length:sentence",
+        "length:paragraph",
+        "length:multipleParagraphs",
+        "short-selection:one-word",
+        "short-selection:phrase",
+        "options:multiple-rewrite",
+        "context:nearby",
+        "markdown:list",
+        "markdown:frontmatter",
+        "markdown:fenced-code",
+        "user-visible:selected-list-item",
+        "generic:sentence-rewrite"
+    ]
+
+    static var coveredActionLengthPairs: Set<String> {
+        Set(goldenTasks.map { "\($0.action.rawValue):\($0.length.rawValue)" })
+    }
+
+    static var missingRequiredActionLengthPairs: Set<String> {
+        requiredActionLengthPairs.subtracting(coveredActionLengthPairs)
+    }
+
+    static var coveredScenarioNames: Set<String> {
+        goldenTasks.reduce(into: Set<String>()) { scenarios, task in
+            scenarios.formUnion(scenarioNames(for: task))
+        }
+    }
+
+    static var missingRequiredScenarioNames: Set<String> {
+        requiredScenarioNames.subtracting(coveredScenarioNames)
+    }
+
     static let goldenTasks: [IntelligentEditingEvaluationTask] = [
         IntelligentEditingEvaluationTask(
             id: "one-word-proofread",
@@ -561,6 +681,16 @@ enum IntelligentEditingEvaluationSuite {
             action: .rewrite,
             selectedText: "The launch plan is clear but final handoff is still kind of owned by somebody.",
             documentContext: "The launch plan is clear but final handoff is still kind of owned by somebody.\n\nThe appendix contains budget assumptions.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "generic-sentence-rewrite",
+            action: .rewrite,
+            selectedText: "This sentence feels a little awkward because it tries to say too many things at once.",
+            documentContext: "This sentence feels a little awkward because it tries to say too many things at once.",
             length: .sentence,
             requiresTransformation: true,
             requiresCompression: false,
@@ -767,6 +897,47 @@ enum IntelligentEditingEvaluationSuite {
     ]
 
     static let liveTasks: [IntelligentEditingEvaluationTask] = goldenTasks
+
+    private static func scenarioNames(for task: IntelligentEditingEvaluationTask) -> Set<String> {
+        var scenarios: Set<String> = [
+            "action:\(task.action.rawValue)",
+            "length:\(task.length.rawValue)"
+        ]
+
+        if task.length == .oneWord {
+            scenarios.insert(task.selectedText.split { $0.isWhitespace || $0.isNewline }.count == 1 ? "short-selection:one-word" : "short-selection:phrase")
+        }
+
+        if IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText) > 1 {
+            scenarios.insert("options:multiple-rewrite")
+        }
+
+        if task.documentContext.contains(task.selectedText), task.documentContext.trimmingCharacters(in: .whitespacesAndNewlines) != task.selectedText.trimmingCharacters(in: .whitespacesAndNewlines) {
+            scenarios.insert("context:nearby")
+        }
+
+        if task.selectedText.contains("- ") || task.selectedText.contains("* ") {
+            scenarios.insert("markdown:list")
+        }
+
+        if task.selectedText.contains("---") {
+            scenarios.insert("markdown:frontmatter")
+        }
+
+        if task.selectedText.contains("```") {
+            scenarios.insert("markdown:fenced-code")
+        }
+
+        if task.id == "selected-list-item-rewrite" {
+            scenarios.insert("user-visible:selected-list-item")
+        }
+
+        if task.id == "generic-sentence-rewrite" {
+            scenarios.insert("generic:sentence-rewrite")
+        }
+
+        return scenarios
+    }
 }
 
 extension IntelligentEditingAction {
@@ -793,4 +964,5 @@ extension IntelligentEditingAction {
             text.range(of: pattern, options: .regularExpression) != nil
         }
     }
+
 }

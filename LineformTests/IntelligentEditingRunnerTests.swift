@@ -177,6 +177,72 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         })
     }
 
+    func testFoundationModelsServiceReturnsUsableRewriteOptionsInsteadOfDroppingAllWhenSomeOptionsFail() async throws {
+        let selectedText = "This sentence feels a little awkward because it tries to say too many things at once."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: [
+                    "This sentence feels awkward because it tries to say too much at once."
+                ] + Array(repeating: "", count: 20)
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: selectedText,
+            count: 3
+        )
+
+        XCTAssertFalse(replacements.isEmpty)
+        XCTAssertLessThanOrEqual(replacements.count, 3)
+        XCTAssertTrue(replacements.allSatisfy { replacement in
+            let task = IntelligentEditingEvaluationTask(
+                id: "generic-sentence-rewrite-partial-options",
+                action: .rewrite,
+                selectedText: selectedText,
+                documentContext: selectedText,
+                length: .sentence,
+                requiresTransformation: true,
+                requiresCompression: false,
+                requiresMarkdownPreservation: false
+            )
+            return IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task).passed
+        })
+    }
+
+    func testFoundationModelsServiceProducesGenericSentenceRewriteFallbacks() async throws {
+        let selectedText = "This sentence feels a little awkward because it tries to say too many things at once."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "", count: 20)
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: selectedText,
+            count: 3
+        )
+
+        XCTAssertEqual(replacements.count, 3)
+        XCTAssertEqual(Set(replacements).count, 3)
+        XCTAssertTrue(replacements.allSatisfy { replacement in
+            let task = IntelligentEditingEvaluationTask(
+                id: "generic-sentence-rewrite-fallback",
+                action: .rewrite,
+                selectedText: selectedText,
+                documentContext: selectedText,
+                length: .sentence,
+                requiresTransformation: true,
+                requiresCompression: false,
+                requiresMarkdownPreservation: false
+            )
+            return IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task).passed
+        })
+    }
+
     func testFoundationModelsServiceProducesBalancedMultipleParagraphCompressionFallback() async throws {
         let selectedText = """
         The first release focuses on local Markdown editing with strong reading controls. Writers can keep drafts as normal files and move between write, read, and split modes.
@@ -275,6 +341,64 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         - First item
         - Second item
         """)
+    }
+
+    func testFoundationModelsServiceProducesUsableFallbackForEveryGoldenTaskWhenProviderReturnsUnusableOutput() async throws {
+        for task in IntelligentEditingEvaluationSuite.goldenTasks {
+            let service = FoundationModelsIntelligentEditingService(
+                responseProvider: StubFoundationModelsResponseProvider(
+                    responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 80)
+                )
+            )
+
+            let replacement = try await service.replacement(
+                for: task.action,
+                selectedText: task.selectedText,
+                documentContext: task.documentContext
+            )
+            let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task)
+
+            XCTAssertTrue(
+                evaluation.passed,
+                "\(task.id) fallback failed with \(evaluation.failureSummary): \(replacement)"
+            )
+        }
+    }
+
+    func testFoundationModelsServiceProducesUsableOptionsForEveryRewriteGoldenTaskWhenProviderReturnsUnusableOutput() async throws {
+        let rewriteTasks = IntelligentEditingEvaluationSuite.goldenTasks.filter { task in
+            task.action == .rewrite &&
+                IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText) > 1
+        }
+
+        XCTAssertFalse(rewriteTasks.isEmpty)
+
+        for task in rewriteTasks {
+            let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText)
+            let service = FoundationModelsIntelligentEditingService(
+                responseProvider: StubFoundationModelsResponseProvider(
+                    responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 80)
+                )
+            )
+
+            let replacements = try await service.replacements(
+                for: task.action,
+                selectedText: task.selectedText,
+                documentContext: task.documentContext,
+                count: optionCount
+            )
+
+            XCTAssertEqual(replacements.count, optionCount, "\(task.id) returned the wrong option count: \(replacements)")
+            XCTAssertEqual(Set(replacements).count, replacements.count, "\(task.id) returned duplicate options: \(replacements)")
+
+            for replacement in replacements {
+                let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task)
+                XCTAssertTrue(
+                    evaluation.passed,
+                    "\(task.id) option failed with \(evaluation.failureSummary): \(replacement)"
+                )
+            }
+        }
     }
 
     func testRunnerRejectsEmptySelectionBeforeCallingService() async throws {

@@ -4,7 +4,6 @@ import XCTest
 final class IntelligentEditingEvaluationTests: XCTestCase {
     func testGoldenTasksCoverEverySelectionLength() {
         let coveredLengths = Set(IntelligentEditingEvaluationSuite.goldenTasks.map(\.length))
-        let coveredActionLengthPairs = Set(IntelligentEditingEvaluationSuite.goldenTasks.map { "\($0.action.rawValue):\($0.length.rawValue)" })
 
         XCTAssertEqual(coveredLengths, Set(IntelligentEditingSelectionLength.allCases))
         XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.action == .rewrite })
@@ -12,24 +11,17 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.action == .summarize })
         XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.action == .shorten })
         XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.action == .cleanMarkdown })
-        XCTAssertTrue(coveredActionLengthPairs.isSuperset(of: [
-            "rewrite:oneWord",
-            "rewrite:sentence",
-            "rewrite:paragraph",
-            "rewrite:multipleParagraphs",
-            "proofread:oneWord",
-            "proofread:sentence",
-            "proofread:paragraph",
-            "proofread:multipleParagraphs",
-            "shorten:sentence",
-            "shorten:paragraph",
-            "shorten:multipleParagraphs",
-            "summarize:sentence",
-            "summarize:paragraph",
-            "summarize:multipleParagraphs",
-            "cleanMarkdown:paragraph",
-            "cleanMarkdown:multipleParagraphs"
-        ]))
+        XCTAssertTrue(
+            IntelligentEditingEvaluationSuite.missingRequiredActionLengthPairs.isEmpty,
+            "Missing action/length pairs: \(IntelligentEditingEvaluationSuite.missingRequiredActionLengthPairs.sorted().joined(separator: ", "))"
+        )
+    }
+
+    func testGoldenTasksCoverCriticalUsageScenarios() {
+        XCTAssertTrue(
+            IntelligentEditingEvaluationSuite.missingRequiredScenarioNames.isEmpty,
+            "Missing scenarios: \(IntelligentEditingEvaluationSuite.missingRequiredScenarioNames.sorted().joined(separator: ", "))"
+        )
     }
 
     func testGoldenTasksIncludeUserVisibleSelectedListItemRewrite() throws {
@@ -59,10 +51,45 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         let json = try XCTUnwrap(String(data: data, encoding: .utf8))
 
         XCTAssertTrue(evaluation.passed)
+        XCTAssertEqual(evaluation.score, 100)
+        XCTAssertEqual(evaluation.qualityBand, "pass")
         XCTAssertTrue(json.contains("\"taskID\" : \"sentence-rewrite\""))
+        XCTAssertTrue(json.contains("\"averageScore\" : 100"))
+        XCTAssertTrue(json.contains("\"criticalFailureCount\" : 0"))
         XCTAssertTrue(json.contains("\"passed\" : true"))
+        XCTAssertTrue(json.contains("\"score\" : 100"))
+        XCTAssertTrue(json.contains("\"qualityBand\" : \"pass\""))
         XCTAssertTrue(json.contains(replacement))
         XCTAssertTrue(json.contains("\"failures\" : ["))
+    }
+
+    func testLiveEvaluationReportScoresFailuresAndSummarizesResults() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
+        let passingReplacement = "The launch plan is clear, but final handoff still needs a named owner."
+        let failingReplacement = "<<<LINEFORM_OPTION_1>>>"
+        let passingEvaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: passingReplacement, task: task)
+        let failingEvaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: failingReplacement, task: task)
+
+        let report = LiveIntelligenceEvalReport(records: [
+            LiveIntelligenceEvalRecord(task: task, mode: "single", optionIndex: nil, replacement: passingReplacement, evaluation: passingEvaluation),
+            LiveIntelligenceEvalRecord(task: task, mode: "single", optionIndex: nil, replacement: failingReplacement, evaluation: failingEvaluation)
+        ])
+        let data = try JSONEncoder.lineformEvalReportEncoder.encode(report)
+        let json = try XCTUnwrap(String(data: data, encoding: .utf8))
+
+        XCTAssertEqual(report.summary.totalRecordCount, 2)
+        XCTAssertEqual(report.summary.passedRecordCount, 1)
+        XCTAssertEqual(report.summary.failedRecordCount, 1)
+        XCTAssertEqual(report.summary.criticalFailureCount, 1)
+        XCTAssertEqual(report.summary.passRate, 0.5)
+        XCTAssertEqual(report.summary.averageScore, 50)
+        XCTAssertEqual(failingEvaluation.score, 0)
+        XCTAssertEqual(failingEvaluation.qualityBand, "fail")
+        XCTAssertEqual(failingEvaluation.criticalFailureCount, 1)
+        XCTAssertTrue(json.contains("\"summary\" : {"))
+        XCTAssertTrue(json.contains("\"passRate\" : 0.5"))
+        XCTAssertTrue(json.contains("\"averageScore\" : 50"))
+        XCTAssertTrue(json.contains("\"qualityBand\" : \"fail\""))
     }
 
     func testRubricAcceptsUsefulReplacementForRewriteTask() throws {
@@ -296,6 +323,27 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(result.failures.contains(.markdownStructureNotPreserved))
     }
 
+    func testRubricRejectsCleanMarkdownThatLeavesHeadingSpacingUnfixed() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "frontmatter-clean-markdown" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: """
+            ---
+            title: Draft
+            ---
+
+            #Title
+
+            - First item
+            - Second item
+            """,
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.lowQualityReplacement))
+    }
+
     func testRubricRejectsWeakCompressionUnderTwentyFivePercent() throws {
         let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-summarize" })
 
@@ -336,7 +384,7 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
 
         let result = IntelligentEditingEvaluationRubric.evaluate(
-            replacement: "The launch plan is clear, but the final handoff is still somewhat controlled by someone.",
+            replacement: "The launch plan is clear, but final handoff is still somewhat in someone's hands.",
             task: task
         )
 
@@ -480,6 +528,7 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         let report = LiveIntelligenceEvalReport(records: records)
         let reportURL = Self.liveEvaluationReportURL(for: "single")
         try report.write(to: reportURL)
+        add(try report.attachment(named: "lineform-intelligence-live-eval-single.json"))
 
         let failures = report.failureSummaries
         XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n"))
@@ -543,6 +592,7 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         let report = LiveIntelligenceEvalReport(records: records)
         let reportURL = Self.liveEvaluationReportURL(for: "options")
         try report.write(to: reportURL)
+        add(try report.attachment(named: "lineform-intelligence-live-eval-options.json"))
 
         let failures = report.failureSummaries
         XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n"))
@@ -580,10 +630,12 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
 
 private struct LiveIntelligenceEvalReport: Codable {
     let generatedAt: String
+    let summary: LiveIntelligenceEvalSummary
     let records: [LiveIntelligenceEvalRecord]
 
     init(records: [LiveIntelligenceEvalRecord]) {
         self.generatedAt = ISO8601DateFormatter().string(from: Date())
+        self.summary = LiveIntelligenceEvalSummary(records: records)
         self.records = records
     }
 
@@ -599,6 +651,38 @@ private struct LiveIntelligenceEvalReport: Codable {
         let data = try JSONEncoder.lineformEvalReportEncoder.encode(self)
         try data.write(to: url, options: .atomic)
     }
+
+    func attachment(named name: String) throws -> XCTAttachment {
+        let data = try JSONEncoder.lineformEvalReportEncoder.encode(self)
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        return attachment
+    }
+}
+
+private struct LiveIntelligenceEvalSummary: Codable {
+    let totalRecordCount: Int
+    let passedRecordCount: Int
+    let failedRecordCount: Int
+    let criticalFailureCount: Int
+    let passRate: Double
+    let averageScore: Double
+
+    init(records: [LiveIntelligenceEvalRecord]) {
+        totalRecordCount = records.count
+        passedRecordCount = records.filter(\.passed).count
+        failedRecordCount = totalRecordCount - passedRecordCount
+        criticalFailureCount = records.reduce(0) { $0 + $1.criticalFailureCount }
+
+        if totalRecordCount == 0 {
+            passRate = 0
+            averageScore = 0
+        } else {
+            passRate = Double(passedRecordCount) / Double(totalRecordCount)
+            averageScore = Double(records.reduce(0) { $0 + $1.score }) / Double(totalRecordCount)
+        }
+    }
 }
 
 private struct LiveIntelligenceEvalRecord: Codable {
@@ -612,6 +696,9 @@ private struct LiveIntelligenceEvalRecord: Codable {
     let replacement: String
     let passed: Bool
     let failures: [String]
+    let score: Int
+    let qualityBand: String
+    let criticalFailureCount: Int
 
     init(
         task: IntelligentEditingEvaluationTask,
@@ -630,6 +717,9 @@ private struct LiveIntelligenceEvalRecord: Codable {
         self.replacement = replacement
         self.passed = evaluation.passed
         self.failures = evaluation.failures.map(\.rawValue)
+        self.score = evaluation.score
+        self.qualityBand = evaluation.qualityBand
+        self.criticalFailureCount = evaluation.criticalFailureCount
     }
 
     init(task: IntelligentEditingEvaluationTask, mode: String, optionIndex: Int?, failure: String) {
@@ -643,6 +733,9 @@ private struct LiveIntelligenceEvalRecord: Codable {
         self.replacement = ""
         self.passed = false
         self.failures = [failure]
+        self.score = 0
+        self.qualityBand = "fail"
+        self.criticalFailureCount = 1
     }
 
     var replacementPreview: String {

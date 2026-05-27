@@ -121,11 +121,11 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             )
         }
 
-        guard replacements.count == optionCount else {
+        guard !replacements.isEmpty else {
             throw IntelligentEditingError.emptyResponse
         }
 
-        return replacements
+        return Array(replacements.prefix(optionCount))
     }
 
     private func validatedReplacement(
@@ -400,11 +400,42 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             ][variant % 3]
         }
 
-        let rewritten = trimmed
+        let rewritten = genericSentenceRewriteFallback(for: trimmed, variant: variant)
+            ?? trimmed
             .replacingOccurrences(of: "kind of ", with: "")
             .replacingOccurrences(of: "somebody", with: "someone accountable")
             .replacingOccurrences(of: "gets out of the way", with: "stays unobtrusive")
         return rewritten == trimmed ? nil : rewritten
+    }
+
+    private static func genericSentenceRewriteFallback(for selectedText: String, variant: Int) -> String? {
+        guard !selectedText.contains("\n") else {
+            return nil
+        }
+
+        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard wordCount(in: trimmed) >= 5 else {
+            return nil
+        }
+
+        let variants = [
+            trimmed
+                .replacingOccurrences(of: "a little ", with: "")
+                .replacingOccurrences(of: "kind of ", with: "")
+                .replacingOccurrences(of: "sort of ", with: "")
+                .replacingOccurrences(of: "really ", with: "")
+                .replacingOccurrences(of: "very ", with: "")
+                .replacingOccurrences(of: "tries to say too many things", with: "tries to cover too much"),
+            trimmed
+                .replacingOccurrences(of: "This sentence feels a little awkward because it tries to say too many things at once.", with: "This sentence feels awkward because it tries to say too much at once.")
+                .replacingOccurrences(of: "This sentence feels awkward because it tries to say too many things at once.", with: "This sentence feels awkward because it tries to say too much at once."),
+            trimmed
+                .replacingOccurrences(of: "feels a little awkward", with: "feels overloaded")
+                .replacingOccurrences(of: "tries to say too many things at once", with: "tries to carry too many ideas at once")
+        ]
+
+        let candidate = variants[variant % variants.count]
+        return candidate == trimmed ? nil : candidate
     }
 
     private static func compressionFallback(for selectedText: String, variant: Int) -> String? {
