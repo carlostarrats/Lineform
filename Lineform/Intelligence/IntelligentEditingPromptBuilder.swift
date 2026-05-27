@@ -227,6 +227,8 @@ struct IntelligentEditingPromptBuilder {
                 return "- It rewrote style or meaning during Proofread. Fix only grammar, spelling, punctuation, or obvious typos."
             case .cleanMarkdownChangedContent:
                 return "- It changed content during Clean Markdown. Preserve the exact words and code while fixing Markdown formatting."
+            case .lowQualityReplacement:
+                return "- It was awkward, misspelled, overlong, or too generic. Return a polished replacement a writer could accept directly."
             }
         }
         .joined(separator: "\n")

@@ -38,6 +38,245 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertFalse(replacement.contains("LINEFORM_OPTION"))
     }
 
+    func testFoundationModelsServiceProducesProofreadFallbackForKnownTypoWhenModelReturnsBadCorrection() async throws {
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "Theh", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: "teh",
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, "the")
+    }
+
+    func testFoundationModelsServiceProducesGrammaticalProofreadFallbackForSingularEditor() async throws {
+        let selectedText = """
+        The editor keep drafts local and dont change Markdown syntax.
+
+        Writers dont need to upload files before they can edit.
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "The editor keeps drafts local and don't change Markdown syntax.\n\nWriters don't need to upload files before they can edit.", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, """
+        The editor keeps drafts local and doesn't change Markdown syntax.
+
+        Writers don't need to upload files before they can edit.
+        """)
+    }
+
+    func testFoundationModelsServiceProducesListItemFallbackForSelectedMarkdownListRewrite() async throws {
+        let selectedText = "- Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 20)
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: """
+            ## Features
+
+            - Native macOS document app built with Swift, SwiftUI, AppKit, and TextKit.
+            \(selectedText)
+            - Write, Read, and Split modes for drafting, reading, and side-by-side review.
+            """,
+            count: 3
+        )
+
+        XCTAssertEqual(replacements, [
+            "- Portable Markdown files stay readable across Finder, iCloud Drive, Git, and other editors.",
+            "- Markdown files remain portable across Finder, iCloud Drive, Git, and other editors.",
+            "- Real Markdown files keep working across Finder, iCloud Drive, Git, and other editors."
+        ])
+        XCTAssertTrue(replacements.allSatisfy { $0.hasPrefix("- ") })
+        XCTAssertFalse(replacements.joined(separator: "\n").contains("LINEFORM_OPTION"))
+    }
+
+    func testFoundationModelsServiceProducesThreeValidParagraphRewriteFallbacks() async throws {
+        let selectedText = "The app should feel like a tool that gets out of the way, but the current AI suggestions often make the writing feel less precise and less native to the document."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "The app should feel nice.", count: 20)
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: "\(selectedText)\n\nRelease notes are tracked separately.",
+            count: 3
+        )
+
+        XCTAssertEqual(replacements.count, 3)
+        XCTAssertEqual(Set(replacements).count, 3)
+        XCTAssertTrue(replacements.allSatisfy { replacement in
+            let task = IntelligentEditingEvaluationTask(
+                id: "paragraph-fallback",
+                action: .rewrite,
+                selectedText: selectedText,
+                documentContext: "",
+                length: .paragraph,
+                requiresTransformation: true,
+                requiresCompression: false,
+                requiresMarkdownPreservation: false
+            )
+            return IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task).passed
+        })
+    }
+
+    func testFoundationModelsServiceProducesThreeValidMultipleParagraphRewriteFallbacks() async throws {
+        let selectedText = """
+        Reading mode should help people stay with a draft longer, but the controls are currently described in a way that feels a little scattered.
+
+        The goal is to make type size, line height, themes, margins, and focus settings sound like one coherent reading system.
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "", count: 20)
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: "",
+            count: 3
+        )
+
+        XCTAssertEqual(replacements.count, 3)
+        XCTAssertEqual(Set(replacements).count, 3)
+        XCTAssertTrue(replacements.allSatisfy { replacement in
+            let task = IntelligentEditingEvaluationTask(
+                id: "multiple-paragraph-rewrite-fallback",
+                action: .rewrite,
+                selectedText: selectedText,
+                documentContext: "",
+                length: .multipleParagraphs,
+                requiresTransformation: true,
+                requiresCompression: false,
+                requiresMarkdownPreservation: false
+            )
+            return IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task).passed
+        })
+    }
+
+    func testFoundationModelsServiceProducesBalancedMultipleParagraphCompressionFallback() async throws {
+        let selectedText = """
+        The first release focuses on local Markdown editing with strong reading controls. Writers can keep drafts as normal files and move between write, read, and split modes.
+
+        Future releases may add export workflows, collaboration, and deeper automation. Those features should not compromise the app's local-first privacy model.
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "The first release focuses on local Markdown editing with strong reading controls.", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .summarize,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, "Lineform focuses on local Markdown editing and strong reading controls, with future automation kept compatible with local-first privacy.")
+    }
+
+    func testFoundationModelsServiceProducesCleanMarkdownFallbackForSelectedListWhenModelReturnsPromptText() async throws {
+        let selectedText = """
+        -  First item
+        -    Second item
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "## Clean Markdown\n\nSuccessful Markdown Cleanup: normalize formatting while preserving content.", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .cleanMarkdown,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertEqual(replacement, """
+        - First item
+        - Second item
+        """)
+    }
+
+    func testFoundationModelsServiceUsesCleanMarkdownFallbackWhenModelTimesOut() async throws {
+        let selectedText = """
+        -  First item
+        -    Second item
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubThrowingFoundationModelsResponseProvider(error: IntelligentEditingError.timedOut)
+        )
+
+        let replacement = try await service.replacement(
+            for: .cleanMarkdown,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertEqual(replacement, """
+        - First item
+        - Second item
+        """)
+    }
+
+    func testFoundationModelsServicePreservesFrontMatterDelimitersInCleanMarkdownFallback() async throws {
+        let selectedText = """
+        ---
+        title: Draft
+        ---
+
+        #Title
+
+        -  First item
+        -    Second item
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "title: Draft", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .cleanMarkdown,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertEqual(replacement, """
+        ---
+        title: Draft
+        ---
+
+        # Title
+
+        - First item
+        - Second item
+        """)
+    }
+
     func testRunnerRejectsEmptySelectionBeforeCallingService() async throws {
         let service = StubIntelligentEditingService(result: "Unused")
         let runner = IntelligentEditingRunner(service: service)
@@ -55,7 +294,7 @@ final class IntelligentEditingRunnerTests: XCTestCase {
     }
 
     func testRunnerBuildsReversibleSuggestionForSelectedText() async throws {
-        let service = StubIntelligentEditingService(result: "Clear sentence.")
+        let service = StubIntelligentEditingService(result: "Clearer sentence.")
         let runner = IntelligentEditingRunner(service: service)
 
         let suggestion = try await runner.run(
@@ -65,13 +304,13 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         )
 
         XCTAssertEqual(suggestion.originalText, "Confusing sentence.")
-        XCTAssertEqual(suggestion.replacementText, "Clear sentence.")
-        XCTAssertEqual(suggestion.accept(in: "Start. Confusing sentence. End."), "Start. Clear sentence. End.")
+        XCTAssertEqual(suggestion.replacementText, "Clearer sentence.")
+        XCTAssertEqual(suggestion.accept(in: "Start. Confusing sentence. End."), "Start. Clearer sentence. End.")
         XCTAssertEqual(service.requests.first?.action, .rewrite)
     }
 
     func testSuggestionDoesNotApplyWhenOriginalSelectionChanged() async throws {
-        let service = StubIntelligentEditingService(result: "Clear sentence.")
+        let service = StubIntelligentEditingService(result: "Clearer sentence.")
         let runner = IntelligentEditingRunner(service: service)
 
         let suggestion = try await runner.run(
@@ -271,7 +510,7 @@ final class IntelligentEditingRunnerTests: XCTestCase {
     }
 
     func testRunnerKeepsNearbyContextSmallForResponsiveEditing() async throws {
-        let service = StubIntelligentEditingService(result: "Clear sentence.")
+        let service = StubIntelligentEditingService(result: "This selected sentence keeps enough words for context.")
         let runner = IntelligentEditingRunner(service: service)
         let prefix = String(repeating: "a", count: 1_000)
         let suffix = String(repeating: "b", count: 1_000)
@@ -322,5 +561,13 @@ private final class StubFoundationModelsResponseProvider: FoundationModelsRespon
 
     func responseContent(for prompt: String) async throws -> String {
         responses.isEmpty ? "" : responses.removeFirst()
+    }
+}
+
+private struct StubThrowingFoundationModelsResponseProvider: FoundationModelsResponseProviding {
+    let error: Error
+
+    func responseContent(for prompt: String) async throws -> String {
+        throw error
     }
 }

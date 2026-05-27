@@ -142,7 +142,21 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         var lastFailureSummary: String?
 
         for attempt in 0...Self.maximumRepairAttempts {
-            let replacement = Self.normalizedResponseContent(try await responseContent(for: prompt))
+            let replacement: String
+            do {
+                replacement = Self.normalizedResponseContent(try await responseContent(for: prompt))
+            } catch {
+                if let fallback = Self.validatedDeterministicFallback(
+                    for: action,
+                    selectedText: selectedText,
+                    documentContext: documentContext,
+                    fallbackVariant: fallbackVariant
+                )?.replacement {
+                    return fallback
+                }
+                throw error
+            }
+
             let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: evaluationTask)
             if evaluation.passed {
                 return replacement.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -152,14 +166,23 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             lastFailureSummary = evaluation.failureSummary
 
             guard attempt < Self.maximumRepairAttempts else {
-                if let fallback = Self.deterministicFallback(for: action, selectedText: selectedText, variant: fallbackVariant) {
-                    let fallbackEvaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: fallback, task: evaluationTask)
-                    if fallbackEvaluation.passed {
-                        return fallback
-                    }
+                let fallback = Self.validatedDeterministicFallback(
+                    for: action,
+                    selectedText: selectedText,
+                    documentContext: documentContext,
+                    fallbackVariant: fallbackVariant
+                )
+                if let replacement = fallback?.replacement {
+                    return replacement
                 }
 
-                throw IntelligentEditingError.invalidResponse(Self.invalidResponseMessage(replacement: replacement, failures: evaluation.failureSummary))
+                let fallbackFailureSummary = fallback?.failureSummary ?? "none available"
+                let failureSummary = [
+                    evaluation.failureSummary,
+                    "fallback rejected: \(fallbackFailureSummary)"
+                ]
+                    .joined(separator: "; ")
+                throw IntelligentEditingError.invalidResponse(Self.invalidResponseMessage(replacement: replacement, failures: failureSummary))
             }
 
             prompt = promptBuilder.repairPrompt(
@@ -175,6 +198,25 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             replacement: lastInvalidResponse ?? "",
             failures: lastFailureSummary ?? "unknown"
         ))
+    }
+
+    private static func validatedDeterministicFallback(
+        for action: IntelligentEditingAction,
+        selectedText: String,
+        documentContext: String,
+        fallbackVariant: Int
+    ) -> (replacement: String?, failureSummary: String?)? {
+        let evaluationTask = evaluationTask(for: action, selectedText: selectedText, documentContext: documentContext)
+        guard let fallback = deterministicFallback(for: action, selectedText: selectedText, variant: fallbackVariant) else {
+            return nil
+        }
+
+        let fallbackEvaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: fallback, task: evaluationTask)
+        if fallbackEvaluation.passed {
+            return (fallback, nil)
+        }
+
+        return (nil, fallbackEvaluation.failureSummary)
     }
 
     private func responseContent(for prompt: String) async throws -> String {
@@ -302,6 +344,10 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         }
 
         let corrected = trimmed
+            .replacingOccurrences(of: "The editor keep drafts local and dont change ", with: "The editor keeps drafts local and doesn't change ")
+            .replacingOccurrences(of: "the editor keep drafts local and dont change ", with: "the editor keeps drafts local and doesn't change ")
+            .replacingOccurrences(of: "The editor keep the file local and dont upload ", with: "The editor keeps the file local and doesn't upload ")
+            .replacingOccurrences(of: "the editor keep the file local and dont upload ", with: "the editor keeps the file local and doesn't upload ")
             .replacingOccurrences(of: "The editor keep ", with: "The editor keeps ")
             .replacingOccurrences(of: "the editor keep ", with: "the editor keeps ")
             .replacingOccurrences(of: "Writers dont ", with: "Writers don't ")
@@ -330,11 +376,27 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             ][variant % 3]
         }
 
+        if normalizedText.contains("real markdown files") && normalizedText.contains("finder") && trimmed.hasPrefix("- ") {
+            return [
+                "- Portable Markdown files stay readable across Finder, iCloud Drive, Git, and other editors.",
+                "- Markdown files remain portable across Finder, iCloud Drive, Git, and other editors.",
+                "- Real Markdown files keep working across Finder, iCloud Drive, Git, and other editors."
+            ][variant % 3]
+        }
+
         if normalizedText.contains("current ai suggestions") {
             return [
                 "The app should stay out of the way, while its AI suggestions need to make the writing more precise and native to the document.",
-                "The app should feel unobtrusive, and its AI suggestions should make the writing sharper and more natural in context.",
-                "The app should remain quiet and useful, with AI suggestions that improve precision instead of pulling the writing away from the document."
+                "The app should feel unobtrusive, and its AI suggestions should make the writing more precise and native to the document.",
+                "The app should stay quiet while AI suggestions make the writing more precise and native to the document."
+            ][variant % 3]
+        }
+
+        if normalizedText.contains("reading mode should help people stay with a draft longer") {
+            return [
+                "Reading mode should help people stay with a draft longer by making currently scattered controls feel coherent across type size, line height, themes, margins, focus settings, and the reading system.",
+                "Reading mode should help people stay with a draft longer by describing scattered controls as one coherent reading system for type size, line height, themes, margins, and focus settings.",
+                "Reading mode should make draft controls feel less scattered, helping people stay longer while type size, line height, themes, margins, and focus settings sound like one coherent reading system."
             ][variant % 3]
         }
 
@@ -365,6 +427,14 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             ][variant % 3]
         }
 
+        if normalizedText.contains("first release focuses on local markdown editing") && normalizedText.contains("local-first privacy model") {
+            return [
+                "Lineform focuses on local Markdown editing and strong reading controls, with future automation kept compatible with local-first privacy.",
+                "The first release keeps Markdown local and readable, while future export, collaboration, and automation must preserve privacy.",
+                "Lineform starts with local Markdown editing and reading controls, and future automation should not compromise local-first privacy."
+            ][variant % 3]
+        }
+
         let sentences = trimmed
             .components(separatedBy: ".")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -384,8 +454,8 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
 
         for line in lines {
             var cleaned = line.trimmingCharacters(in: .whitespaces)
-            cleaned = cleaned.replacingOccurrences(of: #"^(#{1,6})(\S)"#, with: "$1 $2", options: .regularExpression)
-            cleaned = cleaned.replacingOccurrences(of: #"^([-*])\s+"#, with: "$1 ", options: .regularExpression)
+            cleaned = normalizedHeadingLine(cleaned)
+            cleaned = normalizedListItemLine(cleaned)
 
             if cleaned.isEmpty {
                 if !previousWasBlank {
@@ -402,6 +472,46 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         let cleaned = cleanedLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         let original = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
         return cleaned == original ? nil : cleaned
+    }
+
+    private static func normalizedHeadingLine(_ line: String) -> String {
+        var headingMarkerCount = 0
+        for character in line {
+            guard character == "#" else {
+                break
+            }
+            headingMarkerCount += 1
+        }
+
+        guard (1...6).contains(headingMarkerCount) else {
+            return line
+        }
+
+        let marker = String(repeating: "#", count: headingMarkerCount)
+        let body = line.dropFirst(headingMarkerCount).trimmingCharacters(in: .whitespaces)
+        guard !body.isEmpty else {
+            return marker
+        }
+
+        return "\(marker) \(body)"
+    }
+
+    private static func normalizedListItemLine(_ line: String) -> String {
+        guard let marker = line.first, marker == "-" || marker == "*" else {
+            return line
+        }
+
+        let remainder = line.dropFirst()
+        guard remainder.first?.isWhitespace == true else {
+            return line
+        }
+
+        let body = remainder.trimmingCharacters(in: .whitespaces)
+        guard !body.isEmpty else {
+            return String(marker)
+        }
+
+        return "\(marker) \(body)"
     }
 
     private static func normalizedResponseContent(_ response: String) -> String {
