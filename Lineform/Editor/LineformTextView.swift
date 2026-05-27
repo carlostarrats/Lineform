@@ -3,6 +3,7 @@ import AppKit
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
     static let readingRulerFillOpacity: CGFloat = 0.12
+    static let automaticIntelligenceMenuOpenDelay: TimeInterval = 0.12
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private var hasAppliedTypography = false
@@ -10,6 +11,7 @@ final class LineformTextView: NSTextView {
     private var activeIntelligentSuggestionRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
     private var selectionChangeIsMouseDriven = false
+    private var pendingAutomaticIntelligenceMenuToken: UUID?
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -104,6 +106,7 @@ final class LineformTextView: NSTextView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
+        cancelPendingAutomaticIntelligenceMenu()
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Cut", action: #selector(cut(_:)), keyEquivalent: "x"))
         menu.addItem(NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: "c"))
@@ -124,7 +127,7 @@ final class LineformTextView: NSTextView {
     override func mouseDown(with event: NSEvent) {
         markSelectionChangeAsMouseDriven()
         super.mouseDown(with: event)
-        openAutomaticIntelligenceMenuIfNeeded()
+        scheduleAutomaticIntelligenceMenuIfNeeded()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -133,15 +136,21 @@ final class LineformTextView: NSTextView {
     }
 
     func markSelectionChangeAsMouseDriven() {
+        cancelPendingAutomaticIntelligenceMenu()
         selectionChangeIsMouseDriven = true
     }
 
     func markSelectionChangeAsKeyboardDriven() {
+        cancelPendingAutomaticIntelligenceMenu()
         selectionChangeIsMouseDriven = false
     }
 
     func shouldOpenAutomaticIntelligenceMenuAfterMouseUp() -> Bool {
         selectionChangeIsMouseDriven
+    }
+
+    var hasPendingAutomaticIntelligenceMenu: Bool {
+        pendingAutomaticIntelligenceMenuToken != nil
     }
 
     func makeAutomaticIntelligenceMenuForCurrentSelection() -> NSMenu? {
@@ -216,7 +225,7 @@ final class LineformTextView: NSTextView {
 
     private func configureWritingTools() {
         if #available(macOS 15.0, *) {
-            writingToolsBehavior = .complete
+            writingToolsBehavior = .limited
             allowedWritingToolsResultOptions = [.plainText, .list]
         }
     }
@@ -303,12 +312,40 @@ final class LineformTextView: NSTextView {
         return item
     }
 
-    private func openAutomaticIntelligenceMenuIfNeeded() {
+    func scheduleAutomaticIntelligenceMenuIfNeeded() {
         guard shouldOpenAutomaticIntelligenceMenuAfterMouseUp() else {
             return
         }
 
         selectionChangeIsMouseDriven = false
+
+        guard currentSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            return
+        }
+
+        let scheduledRange = selectedRange()
+        let token = UUID()
+        pendingAutomaticIntelligenceMenuToken = token
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.automaticIntelligenceMenuOpenDelay) { [weak self] in
+            self?.openScheduledAutomaticIntelligenceMenu(token: token, selectedRange: scheduledRange)
+        }
+    }
+
+    func cancelPendingAutomaticIntelligenceMenu() {
+        pendingAutomaticIntelligenceMenuToken = nil
+    }
+
+    private func openScheduledAutomaticIntelligenceMenu(token: UUID, selectedRange scheduledRange: NSRange) {
+        guard pendingAutomaticIntelligenceMenuToken == token else {
+            return
+        }
+
+        pendingAutomaticIntelligenceMenuToken = nil
+
+        guard selectedRange() == scheduledRange else {
+            return
+        }
 
         guard let menu = makeAutomaticIntelligenceMenuForCurrentSelection() else {
             return

@@ -13,11 +13,11 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         }
     }
 
-    func testWritingToolsAreConfiguredForPlainMarkdown() {
+    func testWritingToolsUseLimitedOverlayExperienceToAvoidIntermittentSelectionBadge() {
         let textView = LineformTextView()
 
         if #available(macOS 15.0, *) {
-            XCTAssertEqual(textView.writingToolsBehavior, .complete)
+            XCTAssertEqual(textView.writingToolsBehavior, .limited)
             XCTAssertTrue(textView.allowedWritingToolsResultOptions.contains(.plainText))
             XCTAssertFalse(textView.allowedWritingToolsResultOptions.contains(.table))
         }
@@ -113,14 +113,35 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertNil(textView.makeAutomaticIntelligenceMenuForCurrentSelection())
     }
 
-    func testMouseSelectionOpensAutomaticIntelligenceMenuButKeyboardSelectionDoesNot() {
+    func testMouseSelectionSchedulesAutomaticIntelligenceMenuButKeyboardSelectionDoesNot() {
         let textView = LineformTextView()
+        textView.string = "Selected text."
+        textView.setSelectedRange(NSRange(location: 0, length: 8))
 
         textView.markSelectionChangeAsKeyboardDriven()
         XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
+        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
 
         textView.markSelectionChangeAsMouseDriven()
         XCTAssertTrue(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
+        textView.scheduleAutomaticIntelligenceMenuIfNeeded()
+
+        XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
+        XCTAssertTrue(textView.hasPendingAutomaticIntelligenceMenu)
+    }
+
+    func testKeyboardSelectionCancelsPendingAutomaticIntelligenceMenu() {
+        let textView = LineformTextView()
+        textView.string = "Selected text."
+        textView.setSelectedRange(NSRange(location: 0, length: 8))
+        textView.markSelectionChangeAsMouseDriven()
+        textView.scheduleAutomaticIntelligenceMenuIfNeeded()
+
+        XCTAssertTrue(textView.hasPendingAutomaticIntelligenceMenu)
+
+        textView.markSelectionChangeAsKeyboardDriven()
+
+        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
     }
 
     func testColumnWidthCentersTextContainerInWideEditor() {
