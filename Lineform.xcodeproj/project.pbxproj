@@ -30,6 +30,7 @@
 		1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000093 /* MarkdownDiffTests.swift */; };
 		1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */; };
 		1F0000010000000000000124 /* IntelligentEditingEvaluationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */; };
+		1F0000010000000000000126 /* IntelligentEditingCursorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000126 /* IntelligentEditingCursorTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
@@ -118,6 +119,7 @@
 		1F0000020000000000000093 /* MarkdownDiffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDiffTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunnerTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingEvaluationTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000126 /* IntelligentEditingCursorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingCursorTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -348,6 +350,7 @@
 				1F0000020000000000000093 /* MarkdownDiffTests.swift */,
 				1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */,
 				1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */,
+				1F0000020000000000000126 /* IntelligentEditingCursorTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
@@ -538,6 +541,7 @@
 				1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */,
 				1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */,
 				1F0000010000000000000124 /* IntelligentEditingEvaluationTests.swift in Sources */,
+				1F0000010000000000000126 /* IntelligentEditingCursorTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,

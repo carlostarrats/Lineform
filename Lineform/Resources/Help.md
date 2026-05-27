@@ -8,7 +8,7 @@ Lineform is a native Mac Markdown editor focused on calm writing, readable typog
 - Switch between Write, Read, and Split modes.
 - Toggle the outline when headings are useful.
 - Use Reading Experience to adjust type, spacing, themes, focus, ruler, and caret width.
-- Use native Writing Tools or Lineform intelligence from menus, keyboard shortcuts, or the editor context menu when available.
+- Use native Writing Tools or Lineform intelligence from the Write-mode AI rail, menus, or keyboard shortcuts when available.
 
 ## Local-First Privacy
 

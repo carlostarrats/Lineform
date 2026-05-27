@@ -19,8 +19,13 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
         .cleanMarkdown
     ]
 
-    static let rightClickActions: [IntelligentEditingAction] = [
-        .cleanMarkdown
+    static let rightClickActions: [IntelligentEditingAction] = []
+
+    static let actionRailActions: [IntelligentEditingAction] = [
+        .cleanMarkdown,
+        .proofread,
+        .rewrite,
+        .shorten
     ]
 
     static func contextualActions(for selectedText: String) -> [IntelligentEditingAction] {
@@ -55,6 +60,21 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
         }
     }
 
+    var railDisplayTitle: String {
+        switch self {
+        case .proofread:
+            return "Proofread"
+        case .rewrite:
+            return "Rewrite"
+        case .summarize:
+            return "Summarize"
+        case .shorten:
+            return "Shorten"
+        case .cleanMarkdown:
+            return "Clean"
+        }
+    }
+
     var instruction: String {
         switch self {
         case .proofread:
@@ -73,6 +93,21 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
     var keyEquivalent: String {
         let keyEquivalents = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-"]
         return keyEquivalents[IntelligentEditingAction.allCases.firstIndex(of: self)!]
+    }
+
+    var railSystemImage: String {
+        switch self {
+        case .proofread:
+            return "checkmark.circle"
+        case .rewrite:
+            return "text.bubble"
+        case .summarize:
+            return "text.justify.left"
+        case .shorten:
+            return "arrow.down.right.and.arrow.up.left"
+        case .cleanMarkdown:
+            return "wand.and.stars"
+        }
     }
 
     private static func isMarkdownHeavy(_ text: String) -> Bool {

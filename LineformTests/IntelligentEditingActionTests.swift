@@ -23,7 +23,25 @@ final class IntelligentEditingActionTests: XCTestCase {
     }
 
     func testRightClickActionsStayMinimal() {
-        XCTAssertEqual(IntelligentEditingAction.rightClickActions.map(\.title), ["Clean Markdown"])
+        XCTAssertTrue(IntelligentEditingAction.rightClickActions.isEmpty)
+    }
+
+    func testActionRailActionsMatchWriteModeSelectedTextWorkflow() {
+        XCTAssertEqual(IntelligentEditingAction.actionRailActions.map(\.title), [
+            "Clean Markdown",
+            "Proofread",
+            "Rewrite",
+            "Make Shorter"
+        ])
+    }
+
+    func testActionRailLabelsStayShortEnoughForBottomDock() {
+        XCTAssertEqual(IntelligentEditingAction.actionRailActions.map(\.railDisplayTitle), [
+            "Clean",
+            "Proofread",
+            "Rewrite",
+            "Shorten"
+        ])
     }
 
     func testContextualActionsPrioritizeMarkdownCleanupForMarkdownHeavySelections() {
@@ -74,6 +92,10 @@ final class IntelligentEditingActionTests: XCTestCase {
             "Reject",
             "Accept"
         ])
+        XCTAssertTrue(IntelligentEditingReviewControls.usesPointingHandCursor)
+        XCTAssertTrue(IntelligentEditingReviewControls.usesAppKitCursorRect)
+        XCTAssertTrue(IntelligentEditingReviewControls.reassertsPointingHandCursorWhileHovered)
+        XCTAssertTrue(IntelligentEditingReviewControls.cursorRectFillsControlBounds)
     }
 
     func testShortSelectionsUseThreeLineformOwnedOptions() {
@@ -130,6 +152,10 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertTrue(IntelligentEditingOptionsPresentation.usesSingleVisibleSuggestion)
         XCTAssertTrue(IntelligentEditingOptionsPresentation.usesNestedPreviewCard)
         XCTAssertEqual(IntelligentEditingOptionsPresentation.regenerateSystemImage, "arrow.clockwise")
+        XCTAssertTrue(IntelligentEditingOptionsPresentation.controlsUsePointingHandCursor)
+        XCTAssertTrue(IntelligentEditingOptionsPresentation.controlsUseAppKitCursorRect)
+        XCTAssertTrue(IntelligentEditingOptionsPresentation.controlsReassertPointingHandCursorWhileHovered)
+        XCTAssertTrue(IntelligentEditingOptionsPresentation.controlCursorRectFillsControlBounds)
     }
 
     func testIntelligenceLoadingPanelUsesSkeletonBeforeResultsArrive() {

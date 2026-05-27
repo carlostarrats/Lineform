@@ -28,6 +28,7 @@ struct IntelligentEditingSuggestionBar: View {
             .labelStyle(.iconOnly)
             .disabled(suggestion.diff.changes.isEmpty)
             .help("Previous Change")
+            .intelligentEditingPointingHandCursor(isEnabled: !suggestion.diff.changes.isEmpty)
 
             Text(changePositionText)
                 .font(.caption)
@@ -43,6 +44,7 @@ struct IntelligentEditingSuggestionBar: View {
             .labelStyle(.iconOnly)
             .disabled(suggestion.diff.changes.isEmpty)
             .help("Next Change")
+            .intelligentEditingPointingHandCursor(isEnabled: !suggestion.diff.changes.isEmpty)
 
             Divider()
                 .frame(height: 18)
@@ -53,12 +55,15 @@ struct IntelligentEditingSuggestionBar: View {
                 Label("Try Again", systemImage: "arrow.clockwise")
             }
             .help("Try Again")
+            .intelligentEditingPointingHandCursor()
 
             Button("Reject", action: reject)
                 .keyboardShortcut(.cancelAction)
+                .intelligentEditingPointingHandCursor()
 
             Button("Accept", action: accept)
                 .keyboardShortcut(.defaultAction)
+                .intelligentEditingPointingHandCursor()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -94,6 +99,10 @@ struct IntelligentEditingSuggestionBar: View {
 
 enum IntelligentEditingReviewControls {
     static let buttonTitles = ["Try Again", "Reject", "Accept"]
+    static let usesPointingHandCursor = true
+    static let usesAppKitCursorRect = true
+    static let reassertsPointingHandCursorWhileHovered = true
+    static let cursorRectFillsControlBounds = true
 }
 
 enum IntelligentEditingOptionsPresentation {
@@ -122,6 +131,10 @@ enum IntelligentEditingOptionsPresentation {
     static let loadingSkeletonSpacing: CGFloat = 7
     static let loadingAnswerSurfaceMinimumHeight: CGFloat = 188
     static let showsLoadingSkeleton = true
+    static let controlsUsePointingHandCursor = true
+    static let controlsUseAppKitCursorRect = true
+    static let controlsReassertPointingHandCursorWhileHovered = true
+    static let controlCursorRectFillsControlBounds = true
 
     static func presentation(for replacementText: String) -> Mode {
         let wordCount = replacementText
@@ -450,7 +463,7 @@ private struct IntelligentEditingActionButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
-        .onHover { hovering in
+        .intelligentEditingPointingHandCursor(isEnabled: !isDisabled) { hovering in
             isHovered = hovering
         }
         .accessibilityLabel(title)
@@ -495,7 +508,7 @@ private struct IntelligentEditingOptionChip: View {
                 }
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
+        .intelligentEditingPointingHandCursor { hovering in
             isHovered = hovering
         }
         .accessibilityLabel("Option \(number)")
@@ -511,5 +524,83 @@ private struct IntelligentEditingOptionChip: View {
         }
 
         return AnyShapeStyle(Color.primary.opacity(0.08))
+    }
+}
+
+private extension View {
+    func intelligentEditingPointingHandCursor(
+        isEnabled: Bool = true,
+        onHoverChanged: @escaping (Bool) -> Void = { _ in }
+    ) -> some View {
+        modifier(IntelligentEditingPointingHandCursorModifier(isEnabled: isEnabled, onHoverChanged: onHoverChanged))
+    }
+}
+
+private struct IntelligentEditingPointingHandCursorModifier: ViewModifier {
+    let isEnabled: Bool
+    let onHoverChanged: (Bool) -> Void
+    @State private var hasPushedCursor = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isEnabled {
+                    CursorRectView(cursor: .pointingHand) { hovering in
+                        setHovering(hovering)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+                }
+            }
+            .onHover { hovering in
+                setHovering(hovering)
+            }
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    guard isEnabled else { return }
+                    reassertCursor()
+                case .ended:
+                    setHovering(false)
+                }
+            }
+            .onDisappear {
+                setHovering(false)
+            }
+    }
+
+    private func setHovering(_ hovering: Bool) {
+        guard isEnabled else {
+            popCursorIfNeeded()
+            onHoverChanged(false)
+            return
+        }
+
+        if hovering {
+            pushCursorIfNeeded()
+            reassertCursor()
+        } else {
+            popCursorIfNeeded()
+        }
+        onHoverChanged(hovering)
+    }
+
+    private func pushCursorIfNeeded() {
+        guard !hasPushedCursor else { return }
+        NSCursor.pointingHand.push()
+        hasPushedCursor = true
+    }
+
+    private func popCursorIfNeeded() {
+        guard hasPushedCursor else { return }
+        NSCursor.pop()
+        hasPushedCursor = false
+    }
+
+    private func reassertCursor() {
+        NSCursor.pointingHand.set()
+        DispatchQueue.main.async {
+            NSCursor.pointingHand.set()
+        }
     }
 }

@@ -30,7 +30,7 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testToolbarButtonsUseSeparateNativePresentationModels() {
-        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.markdownBasics, .readingExperience])
+        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.intelligence, .markdownBasics, .readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .read), [.readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .split), [.markdownBasics, .readingExperience])
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .nativeInspector)
@@ -39,6 +39,64 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel, "Markdown Basics")
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.idealWidth, 320)
         XCTAssertNil(EditorAuxiliaryPresentation.markdownBasics.idealWidth)
+    }
+
+    func testIntelligenceRailIsVisuallyScopedToWriteModeButPreservesToggleState() {
+        XCTAssertTrue(IntelligenceActionRailPresentation.isVisible(isEnabled: true, displayMode: .write))
+        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, displayMode: .read))
+        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, displayMode: .split))
+        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: false, displayMode: .write))
+    }
+
+    func testIntelligenceRailUsesBottomCenteredBlueLabeledDock() {
+        XCTAssertEqual(IntelligenceActionRailPresentation.placement, .bottomCenter)
+        XCTAssertEqual(IntelligenceActionRailPresentation.bottomInset, 30)
+        XCTAssertEqual(IntelligenceActionRailPresentation.transitionStyle, .fadeAndMoveUp)
+        XCTAssertEqual(IntelligenceActionRailPresentation.animationDuration, 0.24, accuracy: 0.01)
+        XCTAssertEqual(IntelligenceActionRailPresentation.entranceYOffset, 10)
+        XCTAssertTrue(IntelligenceActionRailPresentation.usesHorizontalLayout)
+        XCTAssertTrue(IntelligenceActionRailPresentation.showsActionLabels)
+        XCTAssertEqual(IntelligenceActionRailPresentation.buttonWidth, 88)
+        XCTAssertEqual(IntelligenceActionRailPresentation.buttonHeight, 52)
+        XCTAssertEqual(IntelligenceActionRailPresentation.backgroundAlpha, 1.0, accuracy: 0.01)
+        XCTAssertTrue(IntelligenceActionRailPresentation.supportsHoverState)
+        XCTAssertFalse(IntelligenceActionRailPresentation.hoverFeedbackRequiresEnabledAction)
+        XCTAssertLessThanOrEqual(IntelligenceActionRailPresentation.hoverBackgroundRedComponent, 0.80)
+        XCTAssertLessThan(
+            IntelligenceActionRailPresentation.hoverBackgroundRedComponent,
+            IntelligenceActionRailPresentation.backgroundRedComponent
+        )
+        XCTAssertEqual(IntelligenceActionRailPresentation.borderOpacity, 0.55, accuracy: 0.01)
+        XCTAssertGreaterThanOrEqual(IntelligenceActionRailPresentation.hoverBorderOpacity, 0.95)
+        XCTAssertGreaterThan(
+            IntelligenceActionRailPresentation.hoverBorderOpacity,
+            IntelligenceActionRailPresentation.borderOpacity
+        )
+        XCTAssertEqual(IntelligenceActionRailPresentation.shadowRadius, 5)
+        XCTAssertEqual(IntelligenceActionRailPresentation.shadowYOffset, 1)
+        XCTAssertTrue(IntelligenceActionRailPresentation.usesAccentTint)
+    }
+
+    func testIntelligenceRailButtonsTemporarilyOwnCursorOnHover() {
+        XCTAssertTrue(IntelligenceActionRailPresentation.usesRestoringHoverCursor)
+        XCTAssertTrue(IntelligenceActionRailPresentation.usesAppKitCursorRect)
+        XCTAssertTrue(IntelligenceActionRailPresentation.usesAppKitHoverTracking)
+        XCTAssertTrue(IntelligenceActionRailPresentation.reassertsHoverCursorOnEnter)
+        XCTAssertEqual(IntelligenceActionRailPresentation.hoverCursor, .pointingHand)
+        XCTAssertTrue(IntelligenceActionRailPresentation.restoresPreviousCursorOnExit)
+        XCTAssertTrue(IntelligenceActionRailPresentation.restoresPreviousCursorOnDisappear)
+    }
+
+    func testIntelligenceToolbarToggleUsesFilledNativePressedState() {
+        XCTAssertTrue(IntelligenceToolbarTogglePresentation.usesNativeToolbarButtonShell)
+        XCTAssertNil(IntelligenceToolbarTogglePresentation.outerButtonWidth)
+        XCTAssertEqual(IntelligenceToolbarTogglePresentation.iconFillDiameter, 20)
+        XCTAssertEqual(IntelligenceToolbarTogglePresentation.fillOpacityWhenOn, 1.0, accuracy: 0.01)
+        XCTAssertTrue(IntelligenceToolbarTogglePresentation.usesWhiteIconWhenOn)
+        XCTAssertGreaterThan(
+            IntelligenceToolbarTogglePresentation.iconOpacityWhenOn,
+            IntelligenceToolbarTogglePresentation.iconOpacityWhenOff
+        )
     }
 
     @MainActor

@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lineform Skeleton Loading Options</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f4f4f5;
+      --ink: #1f1f1f;
+      --muted: #707073;
+      --surface: rgba(253, 253, 253, 0.92);
+      --panel: rgba(246, 247, 249, 0.82);
+      --panel-solid: #f5f6f8;
+      --stroke: rgba(0, 0, 0, 0.09);
+      --stroke-soft: rgba(0, 0, 0, 0.055);
+      --blue: #007aff;
+      --shadow: 0 18px 54px rgba(0, 0, 0, 0.11), 0 4px 12px rgba(0, 0, 0, 0.06);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 14% 0%, rgba(0, 122, 255, 0.12), transparent 28rem),
+        linear-gradient(180deg, #fbfbfc 0%, var(--page) 100%);
+      color: var(--ink);
+      font-family: var(--font);
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 34px 34px 52px;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 28px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 7px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      margin: 0;
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      padding: 6px;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.045);
+    }
+
+    .control {
+      border: 0;
+      border-radius: 10px;
+      min-height: 34px;
+      padding: 0 13px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .control:hover {
+      background: rgba(255, 255, 255, 0.74);
+    }
+
+    .control.is-active {
+      color: white;
+      background: var(--blue);
+    }
+
+    .workspace {
+      position: relative;
+      min-height: 760px;
+      border: 1px solid var(--stroke);
+      border-radius: 26px;
+      overflow: hidden;
+      background: #fdfdfd;
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.08);
+    }
+
+    .window-bar {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      height: 54px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--stroke-soft);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+    }
+
+    .red { background: #ff5f57; }
+    .yellow { background: #ffbd2f; }
+    .green { background: #28c840; }
+
+    .doc {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 62px 72px 112px;
+      font-size: 26px;
+      line-height: 1.58;
+    }
+
+    .doc p {
+      margin: 0 0 34px;
+    }
+
+    .selection {
+      display: inline;
+      background: #d8eafe;
+      box-shadow: 12px 0 0 #d8eafe, -12px 0 0 #d8eafe;
+    }
+
+    .panel {
+      position: absolute;
+      left: 50%;
+      top: 234px;
+      width: min(860px, calc(100% - 88px));
+      min-height: 312px;
+      transform: translateX(-50%);
+      padding: 18px 18px 16px;
+      border: 1px solid rgba(0, 0, 0, 0.075);
+      border-radius: 22px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(24px) saturate(1.25);
+    }
+
+    .panel-head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .state {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .spinner {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.065);
+    }
+
+    .spinner::before {
+      content: "";
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 2px solid rgba(0, 0, 0, 0.16);
+      border-top-color: rgba(0, 0, 0, 0.54);
+      animation: spin 0.82s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .answer-surface {
+      position: relative;
+      min-height: 188px;
+      padding: 17px;
+      border-radius: 16px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08)),
+        var(--panel);
+      border: 1px solid rgba(0, 0, 0, 0.045);
+      overflow: hidden;
+    }
+
+    .answer-surface.is-large {
+      min-height: 292px;
+    }
+
+    .answer-surface[data-state="result"] .skeleton-grid {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .answer-surface[data-state="loading"] .answer-text {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .answer-text,
+    .skeleton-grid {
+      transition: opacity 120ms ease-out;
+    }
+
+    .answer-text {
+      position: absolute;
+      inset: 17px;
+      margin: 0;
+      color: rgba(31, 31, 31, 0.88);
+      font-size: 16px;
+      line-height: 1.42;
+      white-space: pre-wrap;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .action {
+      border: 0;
+      min-height: 34px;
+      padding: 0 15px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.065);
+      color: rgba(31, 31, 31, 0.44);
+      font-weight: 650;
+    }
+
+    .action.primary {
+      color: rgba(255, 255, 255, 0.72);
+      background: rgba(0, 122, 255, 0.48);
+    }
+
+    .examples {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .example-card {
+      min-height: 178px;
+      padding: 14px;
+      border: 1px solid var(--stroke-soft);
+      border-radius: 17px;
+      background: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+    }
+
+    .example-card:hover {
+      border-color: rgba(0, 122, 255, 0.25);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .example-card.is-active {
+      border-color: rgba(0, 122, 255, 0.52);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+    }
+
+    .example-card h2 {
+      margin: 0 0 5px;
+      font-size: 14px;
+    }
+
+    .example-card p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .mini-space {
+      min-height: 86px;
+      padding: 9px;
+      border-radius: 12px;
+      background: var(--panel-solid);
+      overflow: hidden;
+    }
+
+    .skeleton-grid {
+      --cols: 18;
+      --cell: 1fr;
+      display: grid;
+      grid-template-columns: repeat(var(--cols), minmax(0, var(--cell)));
+      grid-auto-rows: 12px;
+      gap: 7px;
+      width: 100%;
+      height: 100%;
+      min-height: inherit;
+      align-content: start;
+    }
+
+    .block {
+      border-radius: 4px;
+      background:
+        linear-gradient(90deg, rgba(0, 122, 255, 0.06), rgba(0, 122, 255, 0.24), rgba(0, 122, 255, 0.08));
+      opacity: var(--idle, 0.16);
+      transform: scale(var(--scale, 1));
+      animation:
+        blockGlow var(--duration, 1.55s) ease-in-out infinite,
+        blockShift calc(var(--duration, 1.55s) * 2.3) ease-in-out infinite;
+      animation-delay: var(--delay, 0s), calc(var(--delay, 0s) * 0.7);
+      will-change: opacity, transform, background-position;
+    }
+
+    .block.is-gap {
+      visibility: hidden;
+    }
+
+    @keyframes blockGlow {
+      0%, 100% {
+        opacity: var(--idle, 0.13);
+        transform: scale(var(--scale, 0.96));
+      }
+      42% {
+        opacity: var(--peak, 0.78);
+        transform: scale(1);
+      }
+      67% {
+        opacity: var(--falloff, 0.28);
+      }
+    }
+
+    @keyframes blockShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    .variant-soft .block {
+      --idle: 0.12;
+      --peak: 0.42;
+      --falloff: 0.2;
+      background: rgba(0, 0, 0, 0.22);
+    }
+
+    .variant-blue .block {
+      --idle: 0.1;
+      --peak: 0.58;
+      --falloff: 0.23;
+      background: linear-gradient(90deg, rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0.31), rgba(0, 0, 0, 0.09));
+    }
+
+    .variant-mixed .block {
+      --idle: 0.12;
+      --peak: 0.68;
+      --falloff: 0.24;
+      background: var(--block-color, rgba(0, 0, 0, 0.2));
+    }
+
+    .variant-dense .block {
+      --idle: 0.09;
+      --peak: 0.5;
+      --falloff: 0.2;
+      border-radius: 3px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .is-previewing .variant-soft,
+    .is-previewing .variant-blue,
+    .is-previewing .variant-mixed,
+    .is-previewing .variant-dense {
+      min-height: 188px;
+    }
+
+    @media (max-width: 980px) {
+      header {
+        display: block;
+      }
+
+      .controls {
+        width: max-content;
+        margin-top: 18px;
+      }
+
+      .examples {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .doc {
+        padding-inline: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div>
+        <h1>Square Skeleton Loading Options</h1>
+        <p class="lede">Block-based loading states for the Lineform intelligence panel. The loading and result states use the same answer surface so the UI does not jump when content arrives.</p>
+      </div>
+      <div class="controls" aria-label="Preview scale">
+        <button class="control is-active" data-size="normal">Normal</button>
+        <button class="control" data-size="large">Long Text</button>
+        <button class="control is-active" data-state="loading">Loading</button>
+        <button class="control" data-state="result">Result</button>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <div class="window-bar">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+
+      <article class="doc">
+        <p>Lineform is a native macOS Markdown editor for calm writing, real files, and readable long-form text.</p>
+        <p><span class="selection">It edits ordinary `.md`, `.markdown`, and `.txt` files directly, with a minimal interface built around native macOS behavior.</span></p>
+        <p>Documents stay wherever you save them, and the editor does not add accounts, analytics, uploads, or external services.</p>
+      </article>
+
+      <div class="panel" aria-label="Loading panel preview">
+        <div class="panel-head">
+          <div>
+            <div class="title">Rewrite</div>
+            <div class="state">Generating</div>
+          </div>
+          <div></div>
+          <div class="spinner" aria-hidden="true"></div>
+        </div>
+
+        <div id="answerSurface" class="answer-surface is-previewing" data-state="loading">
+          <div id="mainSkeleton" class="skeleton-grid variant-blue"></div>
+          <p id="answerText" class="answer-text">It edits Markdown and text files directly, keeping documents local, portable, and free of accounts, analytics, uploads, or external services.</p>
+        </div>
+
+        <div class="actions">
+          <button class="action">↻</button>
+          <button class="action">Reject</button>
+          <button class="action primary">Accept</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="examples" aria-label="Skeleton variants">
+      <button class="example-card" data-variant="soft">
+        <h2>Soft Blocks</h2>
+        <p>Quiet neutral blocks with uneven left-to-right pulse.</p>
+        <div class="mini-space"><div class="skeleton-grid variant-soft" data-mini="soft"></div></div>
+      </button>
+
+      <button class="example-card is-active" data-variant="blue">
+        <h2>Grey Trace</h2>
+        <p>Same trace behavior, but neutral grey instead of blue.</p>
+        <div class="mini-space"><div class="skeleton-grid variant-blue" data-mini="blue"></div></div>
+      </button>
+
+      <button class="example-card" data-variant="mixed">
+        <h2>Mixed Depth</h2>
+        <p>Different block weights, more random but still calm.</p>
+        <div class="mini-space"><div class="skeleton-grid variant-mixed" data-mini="mixed"></div></div>
+      </button>
+
+      <button class="example-card" data-variant="dense">
+        <h2>Dense Field</h2>
+        <p>More coverage for larger generated text areas.</p>
+        <div class="mini-space"><div class="skeleton-grid variant-dense" data-mini="dense"></div></div>
+      </button>
+    </section>
+  </div>
+
+  <script>
+    const variants = {
+      soft: { columns: 20, rows: 9, gapRate: 0.12, className: "variant-soft" },
+      blue: { columns: 20, rows: 9, gapRate: 0.16, className: "variant-blue" },
+      mixed: { columns: 20, rows: 9, gapRate: 0.18, className: "variant-mixed" },
+      dense: { columns: 24, rows: 10, gapRate: 0.08, className: "variant-dense" }
+    };
+
+    const miniVariants = {
+      soft: { columns: 12, rows: 5, gapRate: 0.12, className: "variant-soft" },
+      blue: { columns: 12, rows: 5, gapRate: 0.16, className: "variant-blue" },
+      mixed: { columns: 12, rows: 5, gapRate: 0.18, className: "variant-mixed" },
+      dense: { columns: 14, rows: 5, gapRate: 0.08, className: "variant-dense" }
+    };
+
+    let activeVariant = "blue";
+    let activeSize = "normal";
+    let activeState = "loading";
+
+    function seededNoise(seed) {
+      const x = Math.sin(seed * 12.9898) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
+    function renderGrid(target, config, seedOffset = 0) {
+      target.innerHTML = "";
+      target.style.setProperty("--cols", config.columns);
+      target.className = `skeleton-grid ${config.className}`;
+
+      const count = config.columns * config.rows;
+
+      for (let index = 0; index < count; index += 1) {
+        const row = Math.floor(index / config.columns);
+        const column = index % config.columns;
+        const noise = seededNoise(index + seedOffset + 1);
+        const secondary = seededNoise((index + seedOffset + 1) * 3.17);
+        const cell = document.createElement("span");
+        cell.className = "block";
+
+        const preserveEdges = column === 0 || column === config.columns - 1;
+        if (!preserveEdges && noise < config.gapRate) {
+          cell.classList.add("is-gap");
+        }
+
+        const columnDelay = column * 0.045;
+        const rowJitter = ((row * 7) % 5) * 0.026;
+        const randomJitter = secondary * 0.12;
+        const duration = 1.18 + seededNoise(index * 2.11 + seedOffset) * 0.72;
+        const scale = 0.82 + seededNoise(index * 4.61 + seedOffset) * 0.18;
+
+        cell.style.setProperty("--delay", `${(columnDelay + rowJitter + randomJitter).toFixed(3)}s`);
+        cell.style.setProperty("--duration", `${duration.toFixed(3)}s`);
+        cell.style.setProperty("--scale", scale.toFixed(3));
+
+        if (config.className === "variant-mixed") {
+          const palette = [
+            "rgba(0, 0, 0, 0.21)",
+            "rgba(0, 0, 0, 0.27)",
+            "rgba(70, 70, 73, 0.18)"
+          ];
+          cell.style.setProperty("--block-color", palette[Math.floor(noise * palette.length)]);
+        }
+
+        target.appendChild(cell);
+      }
+    }
+
+    function renderMain() {
+      const config = { ...variants[activeVariant] };
+      if (activeSize === "large") {
+        config.rows += 5;
+      }
+      renderGrid(document.querySelector("#mainSkeleton"), config, activeSize === "large" ? 900 : 100);
+      document.querySelector("#answerSurface").classList.toggle("is-large", activeSize === "large");
+      document.querySelector("#answerSurface").dataset.state = activeState;
+      document.querySelector("#answerText").textContent = activeSize === "large"
+        ? "It edits Markdown and text files directly, keeping documents local, portable, and free of accounts, analytics, uploads, or external services. The interface stays minimal and native, with controls focused on drafting, reading, and previewing plain text without adding a document platform around it."
+        : "It edits Markdown and text files directly, keeping documents local, portable, and free of accounts, analytics, uploads, or external services.";
+    }
+
+    function renderMinis() {
+      document.querySelectorAll("[data-mini]").forEach((grid, index) => {
+        const key = grid.dataset.mini;
+        renderGrid(grid, miniVariants[key], index * 100);
+      });
+    }
+
+    document.querySelectorAll("[data-variant]").forEach((button) => {
+      button.addEventListener("click", () => {
+        activeVariant = button.dataset.variant;
+        document.querySelectorAll("[data-variant]").forEach((item) => item.classList.toggle("is-active", item === button));
+        renderMain();
+      });
+    });
+
+    document.querySelectorAll("[data-size]").forEach((button) => {
+      button.addEventListener("click", () => {
+        activeSize = button.dataset.size;
+        document.querySelectorAll("[data-size]").forEach((item) => item.classList.toggle("is-active", item === button));
+        renderMain();
+      });
+    });
+
+    document.querySelectorAll("[data-state]").forEach((button) => {
+      button.addEventListener("click", () => {
+        activeState = button.dataset.state;
+        document.querySelectorAll("[data-state]").forEach((item) => item.classList.toggle("is-active", item === button));
+        renderMain();
+      });
+    });
+
+    renderMinis();
+    renderMain();
+  </script>
+</body>
+</html>

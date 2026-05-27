@@ -51,9 +51,7 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
             "Italic",
             "Code",
             "Bulleted List",
-            "Link",
-            "",
-            "Intelligence"
+            "Link"
         ])
 
         XCTAssertFalse(titles.contains("Look Up"))
@@ -64,9 +62,10 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertFalse(titles.contains("Show Writing Tools"))
         XCTAssertFalse(titles.contains("Writing Tools"))
         XCTAssertFalse(titles.contains("Services"))
+        XCTAssertFalse(titles.contains("Intelligence"))
     }
 
-    func testContextMenuIntelligenceSubmenuKeepsOnlyLineformActions() throws {
+    func testContextMenuDoesNotExposeIntelligenceSubmenu() throws {
         let textView = LineformTextView()
         let event = try XCTUnwrap(NSEvent.mouseEvent(
             with: .rightMouseDown,
@@ -81,37 +80,11 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         ))
 
         let menu = try XCTUnwrap(textView.menu(for: event))
-        let intelligenceItem = try XCTUnwrap(menu.items.first { $0.title == "Intelligence" })
-        let submenu = try XCTUnwrap(intelligenceItem.submenu)
 
-        XCTAssertEqual(submenu.items.map(\.title), [
-            "Clean Markdown"
-        ])
+        XCTAssertNil(menu.items.first { $0.title == "Intelligence" })
     }
 
-    func testAutomaticIntelligenceMenuUsesContextualSuggestionsForCurrentSelection() throws {
-        let textView = LineformTextView()
-        textView.string = "# Title\n\n- rough item\n- second item"
-        textView.setSelectedRange(NSRange(location: 0, length: textView.string.utf16.count))
-
-        let menu = try XCTUnwrap(textView.makeAutomaticIntelligenceMenuForCurrentSelection())
-
-        XCTAssertEqual(menu.items.prefix(3).map(\.title), [
-            "Clean Markdown",
-            "Proofread",
-            "Rewrite"
-        ])
-    }
-
-    func testAutomaticIntelligenceMenuIsUnavailableWithoutSelection() {
-        let textView = LineformTextView()
-        textView.string = "No selection."
-        textView.setSelectedRange(NSRange(location: 0, length: 0))
-
-        XCTAssertNil(textView.makeAutomaticIntelligenceMenuForCurrentSelection())
-    }
-
-    func testMouseSelectionSchedulesAutomaticIntelligenceMenuButKeyboardSelectionDoesNot() {
+    func testMouseSelectionDoesNotScheduleAutomaticIntelligenceMenu() {
         let textView = LineformTextView()
         textView.string = "Selected text."
         textView.setSelectedRange(NSRange(location: 0, length: 8))
@@ -121,21 +94,21 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
 
         textView.markSelectionChangeAsMouseDriven()
-        XCTAssertTrue(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
+        XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
         textView.scheduleAutomaticIntelligenceMenuIfNeeded()
 
         XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
-        XCTAssertTrue(textView.hasPendingAutomaticIntelligenceMenu)
+        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
     }
 
-    func testKeyboardSelectionCancelsPendingAutomaticIntelligenceMenu() {
+    func testKeyboardSelectionKeepsAutomaticIntelligenceMenuCanceled() {
         let textView = LineformTextView()
         textView.string = "Selected text."
         textView.setSelectedRange(NSRange(location: 0, length: 8))
         textView.markSelectionChangeAsMouseDriven()
         textView.scheduleAutomaticIntelligenceMenuIfNeeded()
 
-        XCTAssertTrue(textView.hasPendingAutomaticIntelligenceMenu)
+        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
 
         textView.markSelectionChangeAsKeyboardDriven()
 

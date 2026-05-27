@@ -3,15 +3,12 @@ import AppKit
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
     static let readingRulerFillOpacity: CGFloat = 0.12
-    static let automaticIntelligenceMenuOpenDelay: TimeInterval = 0.12
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private var hasAppliedTypography = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var activeIntelligentSuggestionRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
-    private var selectionChangeIsMouseDriven = false
-    private var pendingAutomaticIntelligenceMenuToken: UUID?
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -34,6 +31,38 @@ final class LineformTextView: NSTextView {
 
     override var acceptsFirstResponder: Bool {
         true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if
+            let window,
+            EditorFloatingControlHitTestRegistry.contains(
+                windowPoint: convert(point, to: nil),
+                in: window
+            )
+        {
+            return nil
+        }
+
+        return super.hitTest(point)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        if isEventInsideFloatingControl(event) {
+            NSCursor.pointingHand.set()
+            return
+        }
+
+        super.mouseMoved(with: event)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if isEventInsideFloatingControl(event) {
+            NSCursor.pointingHand.set()
+            return
+        }
+
+        super.cursorUpdate(with: event)
     }
 
     func applyDefaultTypography() {
@@ -119,15 +148,12 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: "Code", action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
         menu.addItem(NSMenuItem(title: "Bulleted List", action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Link", action: #selector(toggleLinkMarkdown(_:)), keyEquivalent: "k"))
-        menu.addItem(.separator())
-        menu.addItem(intelligenceMenuItem())
         return menu
     }
 
     override func mouseDown(with event: NSEvent) {
         markSelectionChangeAsMouseDriven()
         super.mouseDown(with: event)
-        scheduleAutomaticIntelligenceMenuIfNeeded()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -136,36 +162,17 @@ final class LineformTextView: NSTextView {
     }
 
     func markSelectionChangeAsMouseDriven() {
-        cancelPendingAutomaticIntelligenceMenu()
-        selectionChangeIsMouseDriven = true
     }
 
     func markSelectionChangeAsKeyboardDriven() {
-        cancelPendingAutomaticIntelligenceMenu()
-        selectionChangeIsMouseDriven = false
     }
 
     func shouldOpenAutomaticIntelligenceMenuAfterMouseUp() -> Bool {
-        selectionChangeIsMouseDriven
+        false
     }
 
     var hasPendingAutomaticIntelligenceMenu: Bool {
-        pendingAutomaticIntelligenceMenuToken != nil
-    }
-
-    func makeAutomaticIntelligenceMenuForCurrentSelection() -> NSMenu? {
-        guard let selectedText = currentSelectedText(), !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-
-        let menu = NSMenu(title: "Intelligence")
-        let availability = IntelligenceAvailabilityService().currentStatus()
-
-        for action in IntelligentEditingAction.contextualActions(for: selectedText) {
-            menu.addItem(intelligentEditingMenuItem(for: action, enabled: availability.isAvailable, showsShortcut: false))
-        }
-
-        return menu
+        false
     }
 
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
@@ -266,111 +273,10 @@ final class LineformTextView: NSTextView {
         )
     }
 
-    private func intelligenceMenuItem() -> NSMenuItem {
-        let submenu = NSMenu(title: "Intelligence")
-        let availability = IntelligenceAvailabilityService().currentStatus()
-
-        if !availability.isAvailable {
-            let unavailableItem = NSMenuItem(title: availability.message, action: nil, keyEquivalent: "")
-            unavailableItem.isEnabled = false
-            submenu.addItem(unavailableItem)
-            submenu.addItem(.separator())
-        }
-
-        for action in IntelligentEditingAction.rightClickActions {
-            submenu.addItem(intelligentEditingMenuItem(for: action, enabled: availability.isAvailable, showsShortcut: true))
-        }
-
-        let item = NSMenuItem(title: "Intelligence", action: nil, keyEquivalent: "")
-        item.submenu = submenu
-        return item
-    }
-
-    private func currentSelectedText() -> String? {
-        let range = selectedRange()
-        let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (string as NSString).length))
-        guard safeRange.length > 0 else {
-            return nil
-        }
-
-        return (string as NSString).substring(with: safeRange)
-    }
-
-    private func intelligentEditingMenuItem(for action: IntelligentEditingAction, enabled: Bool, showsShortcut: Bool) -> NSMenuItem {
-        let item = NSMenuItem(
-            title: action.title,
-            action: #selector(runIntelligentEditingAction(_:)),
-            keyEquivalent: showsShortcut ? action.keyEquivalent : ""
-        )
-        if showsShortcut {
-            item.keyEquivalentModifierMask = [.command, .option]
-        }
-        item.representedObject = action.rawValue
-        item.isEnabled = enabled
-        return item
-    }
-
     func scheduleAutomaticIntelligenceMenuIfNeeded() {
-        guard shouldOpenAutomaticIntelligenceMenuAfterMouseUp() else {
-            return
-        }
-
-        selectionChangeIsMouseDriven = false
-
-        guard currentSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            return
-        }
-
-        let scheduledRange = selectedRange()
-        let token = UUID()
-        pendingAutomaticIntelligenceMenuToken = token
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.automaticIntelligenceMenuOpenDelay) { [weak self] in
-            self?.openScheduledAutomaticIntelligenceMenu(token: token, selectedRange: scheduledRange)
-        }
     }
 
     func cancelPendingAutomaticIntelligenceMenu() {
-        pendingAutomaticIntelligenceMenuToken = nil
-    }
-
-    private func openScheduledAutomaticIntelligenceMenu(token: UUID, selectedRange scheduledRange: NSRange) {
-        guard pendingAutomaticIntelligenceMenuToken == token else {
-            return
-        }
-
-        pendingAutomaticIntelligenceMenuToken = nil
-
-        guard selectedRange() == scheduledRange else {
-            return
-        }
-
-        guard let menu = makeAutomaticIntelligenceMenuForCurrentSelection() else {
-            return
-        }
-
-        menu.popUp(positioning: menu.items.first, at: automaticIntelligenceMenuAnchorPoint(), in: self)
-    }
-
-    private func automaticIntelligenceMenuAnchorPoint() -> NSPoint {
-        let range = selectedRange()
-        guard
-            range.length > 0,
-            let layoutManager,
-            let textContainer
-        else {
-            return NSPoint(x: textContainerInset.width, y: textContainerInset.height)
-        }
-
-        layoutManager.ensureLayout(for: textContainer)
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        rect.origin.x += textContainerOrigin.x
-        rect.origin.y += textContainerOrigin.y
-
-        let preferredX = min(max(rect.midX, bounds.minX + 18), bounds.maxX - 18)
-        let preferredY = min(max(rect.maxY + 8, bounds.minY + 18), bounds.maxY - 18)
-        return NSPoint(x: preferredX, y: preferredY)
     }
 
     private func drawIntelligentSuggestionHighlightIfNeeded() {
@@ -384,6 +290,17 @@ final class LineformTextView: NSTextView {
 
         NSColor.controlAccentColor.withAlphaComponent(0.10).setFill()
         rect.insetBy(dx: -8, dy: -4).fill()
+    }
+
+    private func isEventInsideFloatingControl(_ event: NSEvent) -> Bool {
+        guard let window else {
+            return false
+        }
+
+        return EditorFloatingControlHitTestRegistry.contains(
+            windowPoint: event.locationInWindow,
+            in: window
+        )
     }
 
     private func drawEmptyStatePlaceholderIfNeeded() {
