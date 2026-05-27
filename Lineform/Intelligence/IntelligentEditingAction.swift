@@ -4,13 +4,7 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
     case proofread
     case rewrite
     case summarize
-    case improveReadability
-    case makeClearer
-    case simplify
     case shorten
-    case fixGrammar
-    case makeScannable
-    case turnIntoBullets
     case cleanMarkdown
 
     var id: String {
@@ -21,12 +15,7 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
         .proofread,
         .rewrite,
         .summarize,
-        .improveReadability,
-        .makeClearer,
-        .simplify,
         .shorten,
-        .makeScannable,
-        .turnIntoBullets,
         .cleanMarkdown
     ]
 
@@ -41,18 +30,14 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
             .count
 
         if isMarkdownHeavy(normalizedText) {
-            return [.cleanMarkdown, .makeScannable, .proofread, .rewrite, .shorten]
+            return [.cleanMarkdown, .proofread, .rewrite]
         }
 
-        if wordCount >= 80 {
-            return [.summarize, .shorten, .makeScannable, .rewrite, .proofread]
+        if wordCount >= 100 {
+            return [.shorten, .summarize, .proofread]
         }
 
-        if normalizedText.contains("\n") || normalizedText.contains(";") {
-            return [.makeScannable, .makeClearer, .shorten, .proofread, .cleanMarkdown]
-        }
-
-        return [.rewrite, .makeClearer, .proofread, .shorten, .improveReadability]
+        return [.rewrite, .proofread, .shorten]
     }
 
     var title: String {
@@ -63,20 +48,8 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
             return "Rewrite"
         case .summarize:
             return "Summarize"
-        case .improveReadability:
-            return "Improve Readability"
-        case .makeClearer:
-            return "Make Clearer"
-        case .simplify:
-            return "Simplify"
         case .shorten:
-            return "Shorten"
-        case .fixGrammar:
-            return "Fix Grammar"
-        case .makeScannable:
-            return "Make Scannable"
-        case .turnIntoBullets:
-            return "Turn into Bullets"
+            return "Make Shorter"
         case .cleanMarkdown:
             return "Clean Markdown"
         }
@@ -90,20 +63,8 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
             return "Rewrite the selected text with better flow while preserving the meaning and tone."
         case .summarize:
             return "Summarize the selected text concisely while preserving the essential points."
-        case .improveReadability:
-            return "Improve flow, sentence rhythm, and readability without changing the meaning."
-        case .makeClearer:
-            return "Make the writing clearer and more direct without adding new ideas."
-        case .simplify:
-            return "Use simpler language while preserving the author's intent."
         case .shorten:
             return "Make the selection shorter while keeping the essential meaning."
-        case .fixGrammar:
-            return "Fix grammar, spelling, punctuation, and obvious wording issues only."
-        case .makeScannable:
-            return "Make the selection easier to scan with concise structure and spacing."
-        case .turnIntoBullets:
-            return "Convert the selection into clear Markdown bullet points."
         case .cleanMarkdown:
             return "Clean Markdown formatting while preserving content and structure."
         }
@@ -132,5 +93,20 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
         }
 
         return markerCount >= 2 || text.hasPrefix("#") || text.hasPrefix("- ")
+    }
+}
+
+enum IntelligentEditingPresentationPolicy {
+    static let maximumOptionCount = 3
+    static let multiOptionWordLimit = 100
+
+    static func optionCount(for selectedText: String) -> Int {
+        wordCount(in: selectedText) < multiOptionWordLimit ? maximumOptionCount : 1
+    }
+
+    private static func wordCount(in text: String) -> Int {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split { $0.isWhitespace || $0.isNewline }
+            .count
     }
 }

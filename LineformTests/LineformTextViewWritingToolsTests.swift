@@ -13,11 +13,11 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         }
     }
 
-    func testWritingToolsUseLimitedOverlayExperienceToAvoidIntermittentSelectionBadge() {
+    func testWritingToolsAreDisabledToAvoidAppleIntelligenceUI() {
         let textView = LineformTextView()
 
         if #available(macOS 15.0, *) {
-            XCTAssertEqual(textView.writingToolsBehavior, .limited)
+            XCTAssertEqual(textView.writingToolsBehavior, .none)
             XCTAssertTrue(textView.allowedWritingToolsResultOptions.contains(.plainText))
             XCTAssertFalse(textView.allowedWritingToolsResultOptions.contains(.table))
         }
@@ -66,7 +66,7 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertFalse(titles.contains("Services"))
     }
 
-    func testContextMenuIntelligenceSubmenuKeepsWritingToolsThenMinimalLineformActions() throws {
+    func testContextMenuIntelligenceSubmenuKeepsOnlyLineformActions() throws {
         let textView = LineformTextView()
         let event = try XCTUnwrap(NSEvent.mouseEvent(
             with: .rightMouseDown,
@@ -85,8 +85,6 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         let submenu = try XCTUnwrap(intelligenceItem.submenu)
 
         XCTAssertEqual(submenu.items.map(\.title), [
-            "Show Writing Tools",
-            "",
             "Clean Markdown"
         ])
     }
@@ -100,8 +98,8 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
 
         XCTAssertEqual(menu.items.prefix(3).map(\.title), [
             "Clean Markdown",
-            "Make Scannable",
-            "Proofread"
+            "Proofread",
+            "Rewrite"
         ])
     }
 

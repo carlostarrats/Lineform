@@ -8,21 +8,17 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertFalse(AppMenuConfiguration.usesTopLevelReadingMenu)
     }
 
-    func testIntelligenceMenuPrioritizesNativeWritingToolsBeforeLineformActions() {
-        XCTAssertEqual(AppMenuConfiguration.intelligencePrimaryCommandTitle, "Show Writing Tools")
+    func testIntelligenceMenuUsesOnlyLineformOwnedActions() {
+        XCTAssertNil(AppMenuConfiguration.intelligencePrimaryCommandTitle)
         XCTAssertEqual(AppMenuConfiguration.lineformIntelligenceCommandTitles, [
             "Proofread",
             "Rewrite",
             "Summarize",
-            "Improve Readability",
-            "Make Clearer",
-            "Simplify",
-            "Shorten",
-            "Make Scannable",
-            "Turn into Bullets",
+            "Make Shorter",
             "Clean Markdown"
         ])
         XCTAssertFalse(AppMenuConfiguration.addsWritingToolsToEditMenu)
+        XCTAssertFalse(AppMenuConfiguration.exposesAppleWritingTools)
     }
 
     func testFormatMenuContainsEveryMarkdownBasicsAction() {

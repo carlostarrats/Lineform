@@ -165,15 +165,6 @@ final class LineformTextView: NSTextView {
             menu.addItem(intelligentEditingMenuItem(for: action, enabled: availability.isAvailable, showsShortcut: false))
         }
 
-        if #available(macOS 15.2, *) {
-            menu.addItem(.separator())
-            menu.addItem(NSMenuItem(
-                title: AppMenuConfiguration.intelligencePrimaryCommandTitle,
-                action: #selector(NSResponder.showWritingTools(_:)),
-                keyEquivalent: ""
-            ))
-        }
-
         return menu
     }
 
@@ -197,6 +188,18 @@ final class LineformTextView: NSTextView {
     func setIntelligentSuggestionRange(_ range: NSRange?) {
         activeIntelligentSuggestionRange = range
         needsDisplay = true
+    }
+
+    func selectionAnchorRectInEnclosingScrollView() -> CGRect? {
+        guard let enclosingScrollView else {
+            return nil
+        }
+
+        guard let rect = rectForCharacterRange(selectedRange()) else {
+            return nil
+        }
+
+        return convert(rect, to: enclosingScrollView)
     }
 
     private func configureForMarkdownEditing() {
@@ -225,7 +228,7 @@ final class LineformTextView: NSTextView {
 
     private func configureWritingTools() {
         if #available(macOS 15.0, *) {
-            writingToolsBehavior = .limited
+            writingToolsBehavior = .none
             allowedWritingToolsResultOptions = [.plainText, .list]
         }
     }
@@ -262,15 +265,6 @@ final class LineformTextView: NSTextView {
     private func intelligenceMenuItem() -> NSMenuItem {
         let submenu = NSMenu(title: "Intelligence")
         let availability = IntelligenceAvailabilityService().currentStatus()
-
-        if #available(macOS 15.2, *) {
-            submenu.addItem(NSMenuItem(
-                title: AppMenuConfiguration.intelligencePrimaryCommandTitle,
-                action: #selector(NSResponder.showWritingTools(_:)),
-                keyEquivalent: ""
-            ))
-            submenu.addItem(.separator())
-        }
 
         if !availability.isAvailable {
             let unavailableItem = NSMenuItem(title: availability.message, action: nil, keyEquivalent: "")
@@ -419,6 +413,16 @@ final class LineformTextView: NSTextView {
     }
 
     private func rectForAssistRange(_ characterRange: NSRange?) -> NSRect? {
+        guard let rect = rectForCharacterRange(characterRange) else {
+            return nil
+        }
+
+        var fullWidthRect = rect
+        fullWidthRect.size.width = max(rect.width, bounds.width - textContainerInset.width * 2)
+        return fullWidthRect
+    }
+
+    private func rectForCharacterRange(_ characterRange: NSRange?) -> NSRect? {
         guard
             let characterRange,
             characterRange.length > 0,
@@ -438,7 +442,6 @@ final class LineformTextView: NSTextView {
         var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
         rect.origin.x += textContainerOrigin.x
         rect.origin.y += textContainerOrigin.y
-        rect.size.width = max(rect.width, bounds.width - textContainerInset.width * 2)
         return rect
     }
 

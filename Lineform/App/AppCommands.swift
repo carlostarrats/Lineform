@@ -9,9 +9,10 @@ enum AppMenuConfiguration {
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let keepsTopLevelIntelligenceMenu = true
     static let usesTopLevelReadingMenu = false
-    static let intelligencePrimaryCommandTitle = "Show Writing Tools"
+    static let intelligencePrimaryCommandTitle: String? = nil
     static let lineformIntelligenceCommandTitles = IntelligentEditingAction.menuBarActions.map(\.title)
     static let addsWritingToolsToEditMenu = false
+    static let exposesAppleWritingTools = false
     static let formatCommandTitles = [
         "Title",
         "Section",
@@ -87,14 +88,6 @@ struct AppCommands: Commands {
         }
 
         CommandMenu("Intelligence") {
-            if #available(macOS 15.2, *) {
-                Button(AppMenuConfiguration.intelligencePrimaryCommandTitle) {
-                    NSApp.sendAction(#selector(NSResponder.showWritingTools(_:)), to: nil, from: nil)
-                }
-
-                Divider()
-            }
-
             ForEach(IntelligentEditingAction.menuBarActions) { action in
                 Button(action.title) {
                     LineformAppNotification.runIntelligentEditingAction.post(

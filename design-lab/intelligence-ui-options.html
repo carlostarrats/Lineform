@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lineform Intelligence UI Options</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f4f5;
+      --surface: rgba(255, 255, 255, 0.82);
+      --surface-solid: #fbfbfc;
+      --text: #1f1f1f;
+      --muted: #727272;
+      --line: rgba(0, 0, 0, 0.1);
+      --soft-line: rgba(0, 0, 0, 0.06);
+      --selection: #d8eafe;
+      --selection-strong: #b9dafc;
+      --blue: #007aff;
+      --blue-dark: #0057b8;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.14), 0 5px 18px rgba(0, 0, 0, 0.08);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      --mono: "SF Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(0, 122, 255, 0.12), transparent 36rem),
+        linear-gradient(180deg, #fafafa 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: var(--font);
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 272px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 28px 20px;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.66);
+      backdrop-filter: blur(24px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: var(--blue);
+      color: white;
+      font-weight: 800;
+    }
+
+    .sidebar p {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .option-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav-option {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: 10px;
+      min-height: 42px;
+      padding: 9px 11px;
+      border: 0;
+      border-radius: 11px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .nav-option:hover {
+      background: rgba(0, 0, 0, 0.045);
+    }
+
+    .nav-option.is-active {
+      background: rgba(0, 122, 255, 0.12);
+      color: var(--blue-dark);
+    }
+
+    .nav-index {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.07);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .is-active .nav-index {
+      background: var(--blue);
+      color: white;
+    }
+
+    main {
+      padding: 34px min(5vw, 72px) 56px;
+    }
+
+    .page-title {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 26px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+      max-width: 760px;
+    }
+
+    .viewport {
+      position: relative;
+      min-height: 690px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--surface-solid);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+
+    .window-top {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      height: 54px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--soft-line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+    }
+
+    .red { background: #ff5f57; }
+    .yellow { background: #ffbd2f; }
+    .green { background: #28c840; }
+
+    .doc {
+      position: relative;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 52px 64px 88px;
+      font-size: 25px;
+      line-height: 1.62;
+    }
+
+    .doc h2 {
+      margin: 52px 0 18px;
+      font-size: 25px;
+      line-height: 1.2;
+      font-weight: 650;
+    }
+
+    .doc p {
+      margin: 0 0 28px;
+    }
+
+    .doc ul {
+      margin: 0;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .doc li {
+      margin: 14px 0;
+    }
+
+    .code {
+      color: #0759b5;
+      font-family: var(--mono);
+    }
+
+    .selection {
+      background: var(--selection);
+      box-shadow: 0 0 0 8px var(--selection);
+      border-radius: 3px;
+    }
+
+    .demo {
+      display: none;
+    }
+
+    .demo.is-active {
+      display: block;
+    }
+
+    .callout {
+      margin: 20px 0 0;
+      padding: 13px 15px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.62);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .inline-suggestion {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      margin: -8px 0 32px;
+      padding: 10px 10px 10px 12px;
+      border-left: 3px solid var(--blue);
+      border-radius: 0 13px 13px 0;
+      background: rgba(0, 122, 255, 0.065);
+      font-size: 17px;
+      line-height: 1.42;
+    }
+
+    .inline-copy {
+      color: #2d2d2d;
+    }
+
+    .inline-toolbar,
+    .tiny-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .chip,
+    .mini-button,
+    .primary-button {
+      height: 30px;
+      border: 0;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+
+    .chip {
+      min-width: 30px;
+      padding: 0 8px;
+      background: rgba(0, 0, 0, 0.055);
+      color: #555;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .chip:hover,
+    .mini-button:hover {
+      background: rgba(0, 0, 0, 0.09);
+    }
+
+    .chip.is-active {
+      background: var(--blue);
+      color: white;
+    }
+
+    .mini-button {
+      padding: 0 10px;
+      background: rgba(0, 0, 0, 0.055);
+      color: #333;
+      font-size: 13px;
+      font-weight: 560;
+    }
+
+    .primary-button {
+      padding: 0 12px;
+      background: var(--blue);
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .primary-button:hover {
+      background: #006ee6;
+    }
+
+    .margin-wrap {
+      position: relative;
+    }
+
+    .margin-trigger {
+      position: absolute;
+      left: -48px;
+      top: 11px;
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: var(--blue);
+      color: white;
+      box-shadow: 0 8px 22px rgba(0, 122, 255, 0.24);
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .margin-menu {
+      position: absolute;
+      left: -52px;
+      top: 54px;
+      width: 238px;
+      padding: 7px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      font-size: 14px;
+      z-index: 2;
+    }
+
+    .menu-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 34px;
+      padding: 0 10px;
+      border-radius: 9px;
+    }
+
+    .menu-row:hover,
+    .menu-row.is-active {
+      background: rgba(0, 122, 255, 0.12);
+    }
+
+    .shortcut {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .anchored-popover {
+      position: absolute;
+      left: 130px;
+      top: 200px;
+      width: 430px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(22px);
+      z-index: 3;
+    }
+
+    .popover-header,
+    .tray-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 9px;
+      color: #363636;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .popover-text {
+      padding: 10px 11px;
+      border-radius: 11px;
+      background: rgba(0, 0, 0, 0.035);
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    .arrow {
+      position: absolute;
+      left: 38px;
+      top: -8px;
+      width: 16px;
+      height: 16px;
+      border-left: 1px solid var(--line);
+      border-top: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.88);
+      transform: rotate(45deg);
+    }
+
+    .command-tray {
+      margin: -6px 0 32px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.74);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(16px);
+    }
+
+    .tray-main {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 46px;
+      padding: 0 4px 0 10px;
+    }
+
+    .tray-suggestion {
+      color: #333;
+      font-size: 16px;
+      line-height: 1.38;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .compare {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .note-card {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.66);
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .note-card strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    @media (max-width: 920px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .option-list {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      main {
+        padding: 24px 14px;
+      }
+
+      .doc {
+        padding: 36px 26px 72px;
+        font-size: 20px;
+      }
+
+      .compare {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="mark">L</span> Lineform AI UI Lab</div>
+      <p>Click between patterns. These are intentionally disposable mockups so we can decide direction before touching the SwiftUI/AppKit implementation again.</p>
+      <div class="option-list">
+        <button class="nav-option is-active" data-demo="inline"><span class="nav-index">1</span><span>Inline Insert</span></button>
+        <button class="nav-option" data-demo="margin"><span class="nav-index">2</span><span>Margin Menu</span></button>
+        <button class="nav-option" data-demo="popover"><span class="nav-index">3</span><span>Anchored Popover</span></button>
+        <button class="nav-option" data-demo="tray"><span class="nav-index">4</span><span>Command Tray</span></button>
+      </div>
+      <div class="callout">My current read: option 1 is closest to ChatGPT. Option 2 feels most native/editor-like. Option 4 is the safest to build.</div>
+    </aside>
+
+    <main>
+      <div class="page-title">
+        <div>
+          <h1>Selection Rewrite Patterns</h1>
+          <p class="lede">Same selected paragraph, four different ways to surface Lineform intelligence without Apple UI and without the muddy review card.</p>
+        </div>
+      </div>
+
+      <section class="viewport">
+        <div class="window-top">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+
+        <article class="doc">
+          <div class="demo is-active" id="demo-inline">
+            <p>Lineform is a native macOS Markdown editor for calm writing, real files, and readable long-form text.</p>
+            <p><span class="selection">It edits ordinary <span class="code">`.md`</span>, <span class="code">`.markdown`</span>, and <span class="code">`.txt`</span> files directly, with a minimal interface built around native macOS behavior. The app is local-first: documents stay wherever you save them, and the editor does not add accounts, analytics, document upload, or external AI services.</span></p>
+            <div class="inline-suggestion">
+              <div class="inline-copy">It edits plain Markdown and text files directly, keeping documents local and portable without accounts, analytics, uploads, or external services.</div>
+              <div class="inline-toolbar">
+                <button class="chip">1</button>
+                <button class="chip is-active">2</button>
+                <button class="chip">3</button>
+                <button class="mini-button">Again</button>
+                <button class="mini-button">Reject</button>
+                <button class="primary-button">Accept</button>
+              </div>
+            </div>
+            <h2>## Features</h2>
+            <ul>
+              <li>- Native macOS document app built with Swift, SwiftUI, AppKit, and TextKit.</li>
+              <li>- Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors.</li>
+              <li>- Write, Read, and Preview modes for drafting, reading, and side-by-side review.</li>
+            </ul>
+          </div>
+
+          <div class="demo" id="demo-margin">
+            <p>Lineform is a native macOS Markdown editor for calm writing, real files, and readable long-form text.</p>
+            <div class="margin-wrap">
+              <span class="margin-trigger">✦</span>
+              <div class="margin-menu">
+                <div class="menu-row is-active"><span>Rewrite</span><span class="shortcut">⌥⌘2</span></div>
+                <div class="menu-row"><span>Proofread</span><span class="shortcut">⌥⌘1</span></div>
+                <div class="menu-row"><span>Make Shorter</span><span class="shortcut">⌥⌘4</span></div>
+                <div class="menu-row"><span>Clean Markdown</span><span class="shortcut">⌥⌘5</span></div>
+              </div>
+              <p><span class="selection">It edits ordinary <span class="code">`.md`</span>, <span class="code">`.markdown`</span>, and <span class="code">`.txt`</span> files directly, with a minimal interface built around native macOS behavior. The app is local-first: documents stay wherever you save them, and the editor does not add accounts, analytics, document upload, or external AI services.</span></p>
+            </div>
+            <h2>## Features</h2>
+            <ul>
+              <li>- Native macOS document app built with Swift, SwiftUI, AppKit, and TextKit.</li>
+              <li>- Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors.</li>
+              <li>- Write, Read, and Preview modes for drafting, reading, and side-by-side review.</li>
+            </ul>
+          </div>
+
+          <div class="demo" id="demo-popover">
+            <p>Lineform is a native macOS Markdown editor for calm writing, real files, and readable long-form text.</p>
+            <p><span class="selection">It edits ordinary <span class="code">`.md`</span>, <span class="code">`.markdown`</span>, and <span class="code">`.txt`</span> files directly, with a minimal interface built around native macOS behavior. The app is local-first: documents stay wherever you save them, and the editor does not add accounts, analytics, document upload, or external AI services.</span></p>
+            <div class="anchored-popover">
+              <span class="arrow"></span>
+              <div class="popover-header">
+                <span>Rewrite</span>
+                <div class="tiny-toolbar">
+                  <button class="chip">1</button>
+                  <button class="chip is-active">2</button>
+                  <button class="chip">3</button>
+                </div>
+              </div>
+              <div class="popover-text">It edits Markdown and text files directly, keeping documents local, portable, and free of accounts, analytics, uploads, or external services.</div>
+              <div class="tiny-toolbar" style="justify-content: flex-end; margin-top: 9px;">
+                <button class="mini-button">Again</button>
+                <button class="mini-button">Reject</button>
+                <button class="primary-button">Accept</button>
+              </div>
+            </div>
+            <h2>## Features</h2>
+            <ul>
+              <li>- Native macOS document app built with Swift, SwiftUI, AppKit, and TextKit.</li>
+              <li>- Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors.</li>
+              <li>- Write, Read, and Preview modes for drafting, reading, and side-by-side review.</li>
+            </ul>
+          </div>
+
+          <div class="demo" id="demo-tray">
+            <p>Lineform is a native macOS Markdown editor for calm writing, real files, and readable long-form text.</p>
+            <p><span class="selection">It edits ordinary <span class="code">`.md`</span>, <span class="code">`.markdown`</span>, and <span class="code">`.txt`</span> files directly, with a minimal interface built around native macOS behavior. The app is local-first: documents stay wherever you save them, and the editor does not add accounts, analytics, document upload, or external AI services.</span></p>
+            <div class="command-tray">
+              <div class="tray-header">
+                <span>Rewrite</span>
+                <div class="tiny-toolbar">
+                  <button class="chip is-active">1</button>
+                  <button class="chip">2</button>
+                  <button class="chip">3</button>
+                </div>
+              </div>
+              <div class="tray-main">
+                <div class="tray-suggestion">It edits Markdown and text files directly, keeping documents local and portable without accounts, analytics, uploads, or external services.</div>
+                <div class="tiny-toolbar">
+                  <button class="mini-button">Again</button>
+                  <button class="mini-button">Reject</button>
+                  <button class="primary-button">Accept</button>
+                </div>
+              </div>
+            </div>
+            <h2>## Features</h2>
+            <ul>
+              <li>- Native macOS document app built with Swift, SwiftUI, AppKit, and TextKit.</li>
+              <li>- Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors.</li>
+              <li>- Write, Read, and Preview modes for drafting, reading, and side-by-side review.</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section class="compare">
+        <div class="note-card"><strong>1. Inline Insert</strong>Best ChatGPT feel. Most direct. Hardest to implement cleanly in real `NSTextView` if it pushes layout.</div>
+        <div class="note-card"><strong>2. Margin Menu</strong>Feels editor-native and does not cover text. Better for choosing actions than reviewing generated text.</div>
+        <div class="note-card"><strong>3. Anchored Popover</strong>Native macOS mental model. Still a separate UI, but much smaller than the current card.</div>
+        <div class="note-card"><strong>4. Command Tray</strong>Safest app implementation. Sits near text, compact, but less truly inline.</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const buttons = document.querySelectorAll(".nav-option");
+    const demos = document.querySelectorAll(".demo");
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.demo;
+        buttons.forEach((item) => item.classList.toggle("is-active", item === button));
+        demos.forEach((demo) => demo.classList.toggle("is-active", demo.id === `demo-${target}`));
+      });
+    });
+  </script>
+</body>
+</html>

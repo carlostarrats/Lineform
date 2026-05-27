@@ -7,28 +7,17 @@ final class IntelligentEditingActionTests: XCTestCase {
             "Proofread",
             "Rewrite",
             "Summarize",
-            "Improve Readability",
-            "Make Clearer",
-            "Simplify",
-            "Shorten",
-            "Fix Grammar",
-            "Make Scannable",
-            "Turn into Bullets",
+            "Make Shorter",
             "Clean Markdown",
         ])
     }
 
-    func testMenuBarActionsExposeWritingToolsBeforeLineformSpecificMarkdownCommands() {
+    func testMenuBarActionsStayConcreteForMarkdownTextEditing() {
         XCTAssertEqual(IntelligentEditingAction.menuBarActions.map(\.title), [
             "Proofread",
             "Rewrite",
             "Summarize",
-            "Improve Readability",
-            "Make Clearer",
-            "Simplify",
-            "Shorten",
-            "Make Scannable",
-            "Turn into Bullets",
+            "Make Shorter",
             "Clean Markdown"
         ])
     }
@@ -44,38 +33,110 @@ final class IntelligentEditingActionTests: XCTestCase {
 
         XCTAssertEqual(actions.prefix(3).map(\.title), [
             "Clean Markdown",
-            "Make Scannable",
-            "Proofread"
+            "Proofread",
+            "Rewrite"
         ])
     }
 
-    func testContextualActionsPrioritizeSummariesForLongSelections() {
+    func testContextualActionsPrioritizeConcreteCompressionForLongSelections() {
         let selection = Array(repeating: "This is a longer paragraph with enough words to benefit from summary and structure.", count: 8)
             .joined(separator: " ")
 
         let actions = IntelligentEditingAction.contextualActions(for: selection)
 
         XCTAssertEqual(actions.prefix(3).map(\.title), [
+            "Make Shorter",
             "Summarize",
-            "Shorten",
-            "Make Scannable"
+            "Proofread"
         ])
     }
 
-    func testContextualActionsPrioritizeClarityForShortProseSelections() {
+    func testContextualActionsPrioritizeRewriteForShortProseSelections() {
         let actions = IntelligentEditingAction.contextualActions(
             for: "This sentence feels a little awkward."
         )
 
         XCTAssertEqual(actions.prefix(3).map(\.title), [
             "Rewrite",
-            "Make Clearer",
-            "Proofread"
+            "Proofread",
+            "Make Shorter"
         ])
     }
 
     func testEachActionHasKeyboardAccess() {
         XCTAssertEqual(Set(IntelligentEditingAction.allCases.map(\.keyEquivalent)).count, IntelligentEditingAction.allCases.count)
         XCTAssertTrue(IntelligentEditingAction.allCases.allSatisfy { !$0.keyEquivalent.isEmpty })
+    }
+
+    func testSuggestionReviewControlsIncludeRetryBeforeFinalDecision() {
+        XCTAssertEqual(IntelligentEditingReviewControls.buttonTitles, [
+            "Try Again",
+            "Reject",
+            "Accept"
+        ])
+    }
+
+    func testShortSelectionsUseThreeLineformOwnedOptions() {
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: "This sentence needs a cleaner shape."),
+            3
+        )
+    }
+
+    func testSelectionsAtOneHundredWordsUseOneReviewSuggestion() {
+        let selection = Array(repeating: "word", count: 100).joined(separator: " ")
+
+        XCTAssertEqual(IntelligentEditingPresentationPolicy.optionCount(for: selection), 1)
+    }
+
+    func testShortOptionPanelUsesCompactInlinePresentation() {
+        XCTAssertNil(IntelligentEditingOptionsPresentation.previewLineLimit)
+        XCTAssertFalse(IntelligentEditingOptionsPresentation.truncatesCompactSuggestions)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.compactPreviewFontSize, 16)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.optionChipSize, 36)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.optionChipCornerRadius, 10)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.compactMaximumWidth, 560)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.expandedMaximumWidth, 900)
+        XCTAssertTrue(IntelligentEditingOptionsPresentation.usesSingleVisibleSuggestion)
+        XCTAssertTrue(IntelligentEditingOptionsPresentation.usesNestedPreviewCard)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.regenerateSystemImage, "arrow.clockwise")
+    }
+
+    func testIntelligenceLoadingPanelUsesSkeletonBeforeResultsArrive() {
+        XCTAssertTrue(IntelligentEditingOptionsPresentation.showsLoadingSkeleton)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonMinimumRows, 4)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonCompactColumns, 12)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonExpandedColumns, 16)
+    }
+
+    func testLongSuggestionsPromoteToExpandedReviewSurface() {
+        let longSuggestion = Array(repeating: "word", count: 600).joined(separator: " ")
+
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.presentation(for: longSuggestion), .expandedReview)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.presentation(for: "Short replacement."), .anchoredPopover)
+    }
+
+    func testAnchoredPopoverPlacementStaysInsideViewport() {
+        let placement = IntelligentEditingOverlayPlacement.placement(
+            anchorRect: CGRect(x: 10, y: 40, width: 80, height: 24),
+            containerSize: CGSize(width: 640, height: 480),
+            replacementText: "Short replacement."
+        )
+
+        XCTAssertEqual(placement.width, 560)
+        XCTAssertNil(placement.bodyHeight)
+        XCTAssertGreaterThanOrEqual(placement.position.x - placement.width / 2, 24)
+    }
+
+    func testLongReviewPlacementUsesExpandedScrollableBody() {
+        let longSuggestion = Array(repeating: "word", count: 600).joined(separator: " ")
+        let placement = IntelligentEditingOverlayPlacement.placement(
+            anchorRect: CGRect(x: 360, y: 120, width: 240, height: 40),
+            containerSize: CGSize(width: 1_000, height: 760),
+            replacementText: longSuggestion
+        )
+
+        XCTAssertEqual(placement.width, 900)
+        XCTAssertEqual(placement.bodyHeight, 380)
     }
 }

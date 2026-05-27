@@ -4,12 +4,12 @@ import XCTest
 final class IntelligentEditingPromptBuilderTests: XCTestCase {
     func testPromptKeepsTheActionContextualAndMarkdownPreserving() {
         let prompt = IntelligentEditingPromptBuilder().prompt(
-            for: .makeClearer,
+            for: .rewrite,
             selectedText: "This paragraph is confusing.",
             documentContext: "# Draft\n\nThis paragraph is confusing."
         )
 
-        XCTAssertTrue(prompt.contains("Make Clearer"))
+        XCTAssertTrue(prompt.contains("Rewrite"))
         XCTAssertTrue(prompt.contains("selected Markdown only"))
         XCTAssertTrue(prompt.contains("preserve Markdown"))
         XCTAssertTrue(prompt.contains("return only the replacement"))

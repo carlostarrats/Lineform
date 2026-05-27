@@ -11,9 +11,13 @@ struct EditorContainerView: View {
     @State private var isShowingOutline = false
     @State private var outlineItems: [MarkdownOutlineItem] = []
     @State private var requestedSelection: NSRange?
+    @State private var selectionAnchorRect: CGRect?
     @State private var intelligentSuggestion: IntelligentEditingSuggestion?
+    @State private var intelligentOptions: [IntelligentEditingSuggestion] = []
+    @State private var selectedIntelligentOptionIndex = 0
     @State private var currentIntelligentChangeIndex = 0
     @State private var isRunningIntelligentEdit = false
+    @State private var pendingIntelligentAction: IntelligentEditingAction?
     @State private var intelligentEditingStatus: String?
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
@@ -97,8 +101,8 @@ struct EditorContainerView: View {
         .onChange(of: document.text) { _, newValue in
             documentStatistics = DocumentStatistics(text: newValue)
             outlineItems = MarkdownOutlineParser().items(in: newValue)
-            if let intelligentSuggestion, !intelligentSuggestion.canApply(to: newValue) {
-                self.intelligentSuggestion = nil
+            if let activeIntelligentSuggestion, !activeIntelligentSuggestion.canApply(to: newValue) {
+                clearIntelligentSuggestions()
                 intelligentEditingStatus = "Suggestion expired after edits."
             }
         }
@@ -154,29 +158,59 @@ struct EditorContainerView: View {
     }
 
     private var editorPrimaryShell: some View {
-        VStack(spacing: 0) {
-            editorContent
-                .frame(minWidth: EditorLayout.minimumContentWidth, minHeight: EditorLayout.minimumContentHeight)
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                editorContent
+                    .frame(minWidth: EditorLayout.minimumContentWidth, minHeight: EditorLayout.minimumContentHeight)
 
-            if let intelligentSuggestion {
-                IntelligentEditingSuggestionBar(
-                    suggestion: intelligentSuggestion,
-                    currentChangeIndex: $currentIntelligentChangeIndex,
-                    navigateToChange: navigateToSuggestedChange,
-                    accept: acceptIntelligentSuggestion,
-                    reject: rejectIntelligentSuggestion
-                )
+                if let intelligentSuggestion, intelligentOptions.isEmpty {
+                    IntelligentEditingSuggestionBar(
+                        suggestion: intelligentSuggestion,
+                        currentChangeIndex: $currentIntelligentChangeIndex,
+                        navigateToChange: navigateToSuggestedChange,
+                        retry: retryIntelligentSuggestion,
+                        accept: acceptIntelligentSuggestion,
+                        reject: rejectIntelligentSuggestion
+                    )
+                }
+
+                if EditorStatusBar.isVisible(in: displayMode) {
+                    EditorStatusBar(
+                        lastSavedDisplay: lastSavedDisplay,
+                        statusText: statusText,
+                        statusAccessibilityLabel: statusAccessibilityLabel
+                    )
+                }
             }
 
-            if EditorStatusBar.isVisible(in: displayMode) {
-                EditorStatusBar(
-                    lastSavedDisplay: lastSavedDisplay,
-                    statusText: statusText,
-                    statusAccessibilityLabel: statusAccessibilityLabel
-                )
+            if shouldShowIntelligentOptionsPanel {
+                GeometryReader { proxy in
+                    let isLoadingIntelligentOptions = isRunningIntelligentEdit && pendingIntelligentAction != nil
+                    let placement = IntelligentEditingOverlayPlacement.placement(
+                        anchorRect: selectionAnchorRect,
+                        containerSize: proxy.size,
+                        replacementText: isLoadingIntelligentOptions ? selectionContext.selectedText : activeIntelligentSuggestion?.replacementText ?? ""
+                    )
+
+                    IntelligentEditingOptionsPanel(
+                        suggestions: isLoadingIntelligentOptions ? [] : intelligentOptions,
+                        selectedIndex: $selectedIntelligentOptionIndex,
+                        loadingActionTitle: isLoadingIntelligentOptions ? pendingIntelligentAction?.title : nil,
+                        loadingPreviewText: selectionContext.selectedText,
+                        maximumBodyHeight: placement.bodyHeight,
+                        retry: retryIntelligentSuggestion,
+                        accept: acceptIntelligentSuggestion,
+                        reject: rejectIntelligentSuggestion
+                    )
+                    .frame(maxWidth: placement.width)
+                    .position(placement.position)
+                }
+                .transition(.scale(scale: 0.98).combined(with: .opacity))
+                .zIndex(2)
             }
         }
         .background(Color(nsColor: currentTheme.backgroundColor))
+        .animation(.easeOut(duration: 0.18), value: intelligentOptions)
     }
 
     private var currentTheme: Theme {
@@ -208,10 +242,24 @@ struct EditorContainerView: View {
             text: $document.text,
             selectionContext: $selectionContext,
             requestedSelection: $requestedSelection,
+            selectionAnchorRect: $selectionAnchorRect,
             profile: readingProfileStore.activeProfile,
-            intelligentSuggestionRange: intelligentSuggestion?.selectedRange
+            intelligentSuggestionRange: activeIntelligentSuggestion?.selectedRange
         )
         .accessibilityLabel("Markdown editor")
+    }
+
+    private var activeIntelligentSuggestion: IntelligentEditingSuggestion? {
+        if !intelligentOptions.isEmpty {
+            let safeIndex = min(max(selectedIntelligentOptionIndex, 0), intelligentOptions.count - 1)
+            return intelligentOptions[safeIndex]
+        }
+
+        return intelligentSuggestion
+    }
+
+    private var shouldShowIntelligentOptionsPanel: Bool {
+        (isRunningIntelligentEdit && pendingIntelligentAction != nil) || !intelligentOptions.isEmpty
     }
 
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
@@ -244,11 +292,42 @@ struct EditorContainerView: View {
         }
 
         isRunningIntelligentEdit = true
+        pendingIntelligentAction = action
+        clearIntelligentSuggestions()
         intelligentEditingStatus = nil
 
         Task {
             let runner = IntelligentEditingRunner(service: intelligentEditingService)
             do {
+                let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: selectionContext.selectedText)
+
+                if optionCount > 1 {
+                    let suggestions = try await runner.runOptions(
+                        action: action,
+                        documentText: document.text,
+                        selectedRange: selectionContext.selectedRange,
+                        optionCount: optionCount
+                    )
+
+                    await MainActor.run {
+                        isRunningIntelligentEdit = false
+                        pendingIntelligentAction = nil
+                        let applicableSuggestions = suggestions.filter { $0.canApply(to: document.text) }
+                        guard !applicableSuggestions.isEmpty else {
+                            clearIntelligentSuggestions()
+                            intelligentEditingStatus = "Suggestion expired after edits."
+                            return
+                        }
+                        intelligentSuggestion = nil
+                        intelligentOptions = applicableSuggestions
+                        selectedIntelligentOptionIndex = 0
+                        currentIntelligentChangeIndex = 0
+                        intelligentEditingStatus = "\(applicableSuggestions.count) options ready."
+                        requestedSelection = applicableSuggestions[0].selectedRange
+                    }
+                    return
+                }
+
                 let suggestion = try await runner.run(
                     action: action,
                     documentText: document.text,
@@ -257,11 +336,14 @@ struct EditorContainerView: View {
 
                 await MainActor.run {
                     isRunningIntelligentEdit = false
+                    pendingIntelligentAction = nil
                     guard suggestion.canApply(to: document.text) else {
-                        intelligentSuggestion = nil
+                        clearIntelligentSuggestions()
                         intelligentEditingStatus = "Suggestion expired after edits."
                         return
                     }
+                    intelligentOptions = []
+                    selectedIntelligentOptionIndex = 0
                     intelligentSuggestion = suggestion
                     currentIntelligentChangeIndex = 0
                     intelligentEditingStatus = suggestion.diff.summary
@@ -269,8 +351,9 @@ struct EditorContainerView: View {
                 }
             } catch {
                 await MainActor.run {
-                    intelligentSuggestion = nil
+                    clearIntelligentSuggestions()
                     isRunningIntelligentEdit = false
+                    pendingIntelligentAction = nil
                     intelligentEditingStatus = (error as? LocalizedError)?.errorDescription ?? "Suggestion unavailable."
                 }
             }
@@ -278,7 +361,7 @@ struct EditorContainerView: View {
     }
 
     private func navigateToSuggestedChange(_ change: MarkdownDiff.Change) {
-        guard let intelligentSuggestion else {
+        guard let intelligentSuggestion = activeIntelligentSuggestion else {
             return
         }
 
@@ -289,25 +372,40 @@ struct EditorContainerView: View {
     }
 
     private func acceptIntelligentSuggestion() {
-        guard let intelligentSuggestion else {
+        guard let intelligentSuggestion = activeIntelligentSuggestion else {
             return
         }
 
         guard let updatedText = intelligentSuggestion.accept(in: document.text) else {
-            self.intelligentSuggestion = nil
+            clearIntelligentSuggestions()
             intelligentEditingStatus = "Suggestion expired after edits."
             return
         }
 
         document.text = updatedText
         requestedSelection = NSRange(location: intelligentSuggestion.selectedRange.location, length: (intelligentSuggestion.replacementText as NSString).length)
-        self.intelligentSuggestion = nil
+        clearIntelligentSuggestions()
         intelligentEditingStatus = "Suggestion accepted."
     }
 
+    private func retryIntelligentSuggestion() {
+        guard let intelligentSuggestion = activeIntelligentSuggestion else {
+            return
+        }
+
+        runIntelligentEditingAction(intelligentSuggestion.action)
+    }
+
     private func rejectIntelligentSuggestion() {
-        intelligentSuggestion = nil
+        clearIntelligentSuggestions()
         intelligentEditingStatus = "Suggestion rejected."
+    }
+
+    private func clearIntelligentSuggestions() {
+        intelligentSuggestion = nil
+        intelligentOptions = []
+        selectedIntelligentOptionIndex = 0
+        currentIntelligentChangeIndex = 0
     }
 
     private func notificationMatchesActiveWindow(_ notification: Notification) -> Bool {
@@ -344,6 +442,41 @@ enum EditorReadingLayout {
 enum EditorLayout {
     static let minimumContentWidth: CGFloat = 300
     static let minimumContentHeight: CGFloat = 480
+}
+
+enum IntelligentEditingOverlayPlacement {
+    struct Placement: Equatable {
+        let position: CGPoint
+        let width: CGFloat
+        let bodyHeight: CGFloat?
+    }
+
+    static func placement(anchorRect: CGRect?, containerSize: CGSize, replacementText: String) -> Placement {
+        let mode = IntelligentEditingOptionsPresentation.presentation(for: replacementText)
+        let maxWidth = mode == .expandedReview
+            ? IntelligentEditingOptionsPresentation.expandedMaximumWidth
+            : IntelligentEditingOptionsPresentation.compactMaximumWidth
+        let estimatedHeight = mode == .expandedReview
+            ? min(IntelligentEditingOptionsPresentation.expandedEstimatedHeight, max(240, containerSize.height - 80))
+            : IntelligentEditingOptionsPresentation.compactEstimatedHeight
+        let bodyHeight = mode == .expandedReview ? max(180, estimatedHeight - 140) : nil
+        let width = min(maxWidth, max(260, containerSize.width - 48))
+        let anchor = anchorRect ?? CGRect(x: containerSize.width / 2, y: 96, width: 0, height: 0)
+        let x = min(max(anchor.midX, width / 2 + 24), containerSize.width - width / 2 - 24)
+        let preferredY = anchor.maxY + 16 + estimatedHeight / 2
+        let fallbackY = anchor.minY - 16 - estimatedHeight / 2
+        let y: CGFloat
+
+        if preferredY + estimatedHeight / 2 <= containerSize.height - 24 {
+            y = preferredY
+        } else if fallbackY - estimatedHeight / 2 >= 24 {
+            y = fallbackY
+        } else {
+            y = min(max(preferredY, estimatedHeight / 2 + 24), containerSize.height - estimatedHeight / 2 - 24)
+        }
+
+        return Placement(position: CGPoint(x: x, y: y), width: width, bodyHeight: bodyHeight)
+    }
 }
 
 enum EditorToolbarVisibility {

@@ -2,8 +2,7 @@
 
 Lineform is a native macOS Markdown editor for calm writing, real files, and readable long-form text.
 
-It edits ordinary `.md`, `.markdown`, and `.txt` files directly, with a minimal interface built around native macOS behavior. The app is local-first: documents stay wherever you save them, and the editor does not add accounts, analytics, document upload, or external AI services.
-
+ 
 ## Features
 
 - Native macOS document app built with Swift, SwiftUI, AppKit, and TextKit.

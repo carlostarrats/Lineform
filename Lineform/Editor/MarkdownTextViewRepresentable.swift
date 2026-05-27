@@ -5,11 +5,12 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectionContext: SelectionContext
     @Binding var requestedSelection: NSRange?
+    @Binding var selectionAnchorRect: CGRect?
     var profile: ReadingProfile
     var intelligentSuggestionRange: NSRange?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, selectionContext: $selectionContext)
+        Coordinator(text: $text, selectionContext: $selectionContext, selectionAnchorRect: $selectionAnchorRect)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -48,6 +49,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         if let range = requestedSelection {
             let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))
             textView.setSelectedRange(safeRange)
+            context.coordinator.updateSelection(from: textView)
             textView.scrollRangeToVisible(safeRange)
             DispatchQueue.main.async {
                 requestedSelection = nil
@@ -59,13 +61,15 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 final class Coordinator: NSObject, NSTextViewDelegate {
     private var text: Binding<String>
     private var selectionContext: Binding<SelectionContext>
+    private var selectionAnchorRect: Binding<CGRect?>
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
     private var pendingHighlightWorkItem: DispatchWorkItem?
 
-    init(text: Binding<String>, selectionContext: Binding<SelectionContext>) {
+    init(text: Binding<String>, selectionContext: Binding<SelectionContext>, selectionAnchorRect: Binding<CGRect?>) {
         self.text = text
         self.selectionContext = selectionContext
+        self.selectionAnchorRect = selectionAnchorRect
     }
 
     func textDidChange(_ notification: Notification) {
@@ -117,6 +121,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     @MainActor
     func updateSelection(from textView: NSTextView) {
         selectionContext.wrappedValue = SelectionContext(text: textView.string, selectedRange: textView.selectedRange())
+        selectionAnchorRect.wrappedValue = (textView as? LineformTextView)?.selectionAnchorRectInEnclosingScrollView()
     }
 
     private func scheduleMarkdownHighlighting(for textView: LineformTextView) {
