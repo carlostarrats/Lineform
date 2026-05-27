@@ -115,9 +115,12 @@ enum IntelligentEditingOptionsPresentation {
     static let usesSingleVisibleSuggestion = true
     static let truncatesCompactSuggestions = false
     static let regenerateSystemImage = "arrow.clockwise"
-    static let loadingSkeletonMinimumRows = 4
-    static let loadingSkeletonCompactColumns = 12
-    static let loadingSkeletonExpandedColumns = 16
+    static let loadingSkeletonMinimumRows = 9
+    static let loadingSkeletonCompactColumns = 20
+    static let loadingSkeletonExpandedColumns = 24
+    static let loadingSkeletonBlockHeight: CGFloat = 10
+    static let loadingSkeletonSpacing: CGFloat = 7
+    static let loadingAnswerSurfaceMinimumHeight: CGFloat = 188
     static let showsLoadingSkeleton = true
 
     static func presentation(for replacementText: String) -> Mode {
@@ -150,9 +153,7 @@ struct IntelligentEditingOptionsPanel: View {
                 Spacer()
 
                 if isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: IntelligentEditingOptionsPresentation.optionChipSize, height: IntelligentEditingOptionsPresentation.optionChipSize)
+                    IntelligentEditingLoadingSpinnerSlot()
                 } else if suggestions.count > 1 {
                     HStack(spacing: 8) {
                         ForEach(suggestions.indices, id: \.self) { index in
@@ -181,7 +182,7 @@ struct IntelligentEditingOptionsPanel: View {
                 )
                     .help("Try Again")
 
-                IntelligentEditingActionButton(title: "Reject", style: .secondary, isDisabled: isLoading, action: reject)
+                IntelligentEditingActionButton(title: "Reject", style: .secondary, action: reject)
                     .keyboardShortcut(.cancelAction)
 
                 IntelligentEditingActionButton(title: "Accept", style: .primary, isDisabled: isLoading, action: accept)
@@ -202,51 +203,66 @@ struct IntelligentEditingOptionsPanel: View {
 
     @ViewBuilder
     private var suggestionBody: some View {
-        if isLoading {
-            loadingSkeletonBody
-        } else if presentationMode == .expandedReview {
-            ScrollView {
-                Text(previewText)
-                    .font(.system(size: IntelligentEditingOptionsPresentation.expandedPreviewFontSize))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, 6)
-            }
-            .frame(maxHeight: maximumBodyHeight ?? 380)
+        if presentationMode == .expandedReview {
+            answerSurface
+                .frame(maxHeight: maximumBodyHeight ?? 380)
         } else {
-            Text(previewText)
-                .font(.system(size: IntelligentEditingOptionsPresentation.compactPreviewFontSize))
-                .foregroundStyle(.primary)
-                .lineLimit(IntelligentEditingOptionsPresentation.previewLineLimit)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            answerSurface
         }
     }
 
-    private var loadingSkeletonBody: some View {
-        LazyVGrid(columns: skeletonGridColumns, alignment: .leading, spacing: 7) {
+    private var answerSurface: some View {
+        ZStack(alignment: .topLeading) {
+            if isLoading {
+                loadingSkeletonGrid
+                    .transition(.opacity)
+            } else if presentationMode == .expandedReview {
+                ScrollView {
+                    answerText
+                        .padding(.trailing, 6)
+                }
+                .transition(.opacity)
+            } else {
+                answerText
+                    .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, isLoading ? 13 : 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: answerSurfaceMinimumHeight, alignment: .topLeading)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var answerText: some View {
+        Text(previewText)
+            .font(.system(size: presentationMode == .expandedReview ? IntelligentEditingOptionsPresentation.expandedPreviewFontSize : IntelligentEditingOptionsPresentation.compactPreviewFontSize))
+            .foregroundStyle(.primary)
+            .lineLimit(presentationMode == .expandedReview ? nil : IntelligentEditingOptionsPresentation.previewLineLimit)
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var loadingSkeletonGrid: some View {
+        LazyVGrid(columns: skeletonGridColumns, alignment: .leading, spacing: IntelligentEditingOptionsPresentation.loadingSkeletonSpacing) {
             ForEach(0..<loadingSkeletonCellCount, id: \.self) { cellIndex in
                 let row = cellIndex / loadingSkeletonColumnCount
                 let column = cellIndex % loadingSkeletonColumnCount
 
-                if shouldDrawSkeletonBlock(row: row, column: column) {
-                    IntelligentEditingSkeletonBlock(delay: skeletonDelay(row: row, column: column))
+                if shouldDrawSkeletonBlock(row: row, column: column, cellIndex: cellIndex) {
+                    IntelligentEditingSkeletonBlock(
+                        delay: skeletonDelay(row: row, column: column, cellIndex: cellIndex),
+                        duration: skeletonDuration(cellIndex: cellIndex),
+                        scale: skeletonScale(cellIndex: cellIndex)
+                    )
                 } else {
                     Color.clear
-                        .frame(height: 10)
+                        .frame(height: IntelligentEditingOptionsPresentation.loadingSkeletonBlockHeight)
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(maxHeight: presentationMode == .expandedReview ? maximumBodyHeight ?? 380 : nil, alignment: .top)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(maxWidth: .infinity, minHeight: answerSurfaceMinimumHeight - 26, alignment: .topLeading)
     }
 
     private var isLoading: Bool {
@@ -277,8 +293,10 @@ struct IntelligentEditingOptionsPanel: View {
     }
 
     private var loadingSkeletonRowCount: Int {
-        let estimatedRows = max(IntelligentEditingOptionsPresentation.loadingSkeletonMinimumRows, loadingPreviewText.count / 96)
-        let maximumRows = presentationMode == .expandedReview ? 11 : 6
+        let rowHeight = IntelligentEditingOptionsPresentation.loadingSkeletonBlockHeight + IntelligentEditingOptionsPresentation.loadingSkeletonSpacing
+        let rowsForSurface = Int(max(2, floor((answerSurfaceMinimumHeight - 26) / rowHeight)))
+        let estimatedRows = max(rowsForSurface, loadingPreviewText.count / 72)
+        let maximumRows = presentationMode == .expandedReview ? 16 : 12
         return min(maximumRows, estimatedRows)
     }
 
@@ -299,26 +317,100 @@ struct IntelligentEditingOptionsPanel: View {
         )
     }
 
-    private func shouldDrawSkeletonBlock(row: Int, column: Int) -> Bool {
-        (row + column) % 7 != 0 && (row * 3 + column) % 11 != 0
+    private var answerSurfaceMinimumHeight: CGFloat {
+        if isVeryShortReference {
+            return 54
+        }
+
+        let lineHeight: CGFloat = presentationMode == .expandedReview ? 24 : 22
+        let estimatedLines = max(3, ceil(CGFloat(max(loadingPreviewText.count, previewText.count)) / 64))
+        let estimatedHeight = estimatedLines * lineHeight + 24
+        let maximumHeight = presentationMode == .expandedReview ? maximumBodyHeight ?? 380 : 300
+        return min(maximumHeight, max(IntelligentEditingOptionsPresentation.loadingAnswerSurfaceMinimumHeight, estimatedHeight))
     }
 
-    private func skeletonDelay(row: Int, column: Int) -> TimeInterval {
-        Double(column) * 0.055 + Double((row * 2) % 5) * 0.018
+    private var isVeryShortPreview: Bool {
+        let trimmedPreview = previewText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !isLoading && trimmedPreview.count <= 80 && !trimmedPreview.contains("\n")
+    }
+
+    private var isVeryShortReference: Bool {
+        if isLoading {
+            let trimmedReference = loadingPreviewText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedReference.count <= 80 && !trimmedReference.contains("\n")
+        }
+
+        return isVeryShortPreview
+    }
+
+    private func shouldDrawSkeletonBlock(row: Int, column: Int, cellIndex: Int) -> Bool {
+        let preserveEdges = column == 0 || column == loadingSkeletonColumnCount - 1
+        return preserveEdges || seededNoise(Double(cellIndex + 101)) >= 0.16
+    }
+
+    private func skeletonDelay(row: Int, column: Int, cellIndex: Int) -> TimeInterval {
+        let secondaryNoise = seededNoise(Double(cellIndex + 101) * 3.17)
+        return Double(column) * 0.045 + Double((row * 7) % 5) * 0.026 + secondaryNoise * 0.12
+    }
+
+    private func skeletonDuration(cellIndex: Int) -> TimeInterval {
+        1.18 + seededNoise(Double(cellIndex) * 2.11 + 100) * 0.72
+    }
+
+    private func skeletonScale(cellIndex: Int) -> Double {
+        0.82 + seededNoise(Double(cellIndex) * 4.61 + 100) * 0.18
+    }
+
+    private func seededNoise(_ seed: Double) -> Double {
+        let value = sin(seed * 12.9898) * 43758.5453
+        return value - floor(value)
+    }
+}
+
+private struct IntelligentEditingLoadingSpinnerSlot: View {
+    var body: some View {
+        ProgressView()
+            .controlSize(.small)
+            .frame(
+                width: IntelligentEditingOptionsPresentation.optionChipSize,
+                height: IntelligentEditingOptionsPresentation.optionChipSize
+            )
+            .background(Color.primary.opacity(0.065), in: RoundedRectangle(cornerRadius: IntelligentEditingOptionsPresentation.optionChipCornerRadius, style: .continuous))
+            .accessibilityLabel("Generating")
     }
 }
 
 private struct IntelligentEditingSkeletonBlock: View {
     let delay: TimeInterval
+    let duration: TimeInterval
+    let scale: Double
     @State private var isLit = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 4, style: .continuous)
-            .fill(Color.primary.opacity(isLit ? 0.18 : 0.055))
-            .frame(height: 10)
+        ZStack {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.primary.opacity(isLit ? 0.19 : 0.035))
+                .blur(radius: 3.2)
+
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.primary.opacity(isLit ? 0.05 : 0.018),
+                            Color.primary.opacity(isLit ? 0.31 : 0.07),
+                            Color.primary.opacity(isLit ? 0.07 : 0.022)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .blur(radius: 1.15)
+        }
+            .frame(height: IntelligentEditingOptionsPresentation.loadingSkeletonBlockHeight)
+            .scaleEffect(scale)
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    withAnimation(.easeInOut(duration: 0.78).repeatForever(autoreverses: true)) {
+                    withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: true)) {
                         isLit = true
                     }
                 }

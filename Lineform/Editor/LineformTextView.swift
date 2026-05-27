@@ -258,7 +258,11 @@ final class LineformTextView: NSTextView {
         }
 
         LineformAppNotification.runIntelligentEditingAction.post(
-            object: LineformAppNotification.Payload(windowNumber: window?.windowNumber, value: rawValue)
+            object: LineformAppNotification.Payload(
+                windowNumber: window?.windowNumber,
+                value: rawValue,
+                selectedRange: selectedRange()
+            )
         )
     }
 
@@ -374,7 +378,7 @@ final class LineformTextView: NSTextView {
             return
         }
 
-        guard let rect = rectForAssistRange(activeIntelligentSuggestionRange) else {
+        guard let rect = rectForCharacterRange(activeIntelligentSuggestionRange) else {
             return
         }
 

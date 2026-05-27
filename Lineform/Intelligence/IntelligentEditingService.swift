@@ -28,6 +28,7 @@ enum IntelligentEditingError: Error, Equatable, LocalizedError {
     case emptySelection
     case unavailable(String)
     case emptyResponse
+    case timedOut
 
     var errorDescription: String? {
         switch self {
@@ -37,11 +38,15 @@ enum IntelligentEditingError: Error, Equatable, LocalizedError {
             return reason
         case .emptyResponse:
             return "No replacement was suggested."
+        case .timedOut:
+            return "Suggestion took too long."
         }
     }
 }
 
 struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing {
+    static let responseTimeoutNanoseconds: UInt64 = 20_000_000_000
+
     private let availabilityService = IntelligenceAvailabilityService()
     private let promptBuilder = IntelligentEditingPromptBuilder()
 
@@ -63,6 +68,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing {
         Return exactly \(optionCount) distinct useful alternatives in this exact tagged format:
         \(IntelligentEditingOptionResponseParser.exampleFormat(for: optionCount))
 
+        Replace the angle-bracket placeholder text with real replacement text. Never return the placeholder text itself.
         Do not include commentary outside the tags.
         """
 
@@ -75,6 +81,25 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing {
     }
 
     private func responseContent(for prompt: String) async throws -> String {
+        try await withThrowingTaskGroup(of: String.self) { group in
+            group.addTask {
+                try await self.responseContentWithoutTimeout(for: prompt)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.responseTimeoutNanoseconds)
+                throw IntelligentEditingError.timedOut
+            }
+
+            guard let response = try await group.next() else {
+                throw IntelligentEditingError.emptyResponse
+            }
+
+            group.cancelAll()
+            return response
+        }
+    }
+
+    private func responseContentWithoutTimeout(for prompt: String) async throws -> String {
         let availability = availabilityService.currentStatus()
         guard availability.isAvailable else {
             throw IntelligentEditingError.unavailable(availability.message)
@@ -111,7 +136,7 @@ enum IntelligentEditingOptionResponseParser {
             .map { index in
                 """
                 <<<LINEFORM_OPTION_\(index)>>>
-                Replacement option \(index)
+                <write only replacement \(index) here>
                 <<<END_LINEFORM_OPTION_\(index)>>>
                 """
             }
@@ -119,9 +144,15 @@ enum IntelligentEditingOptionResponseParser {
     }
 
     static func parse(_ response: String, expectedCount: Int) -> [String] {
-        (1...expectedCount).compactMap { index in
+        let taggedOptions = (1...expectedCount).compactMap { index in
             taggedOption(index, in: response)
         }
+
+        if !taggedOptions.isEmpty {
+            return taggedOptions
+        }
+
+        return Array(fallbackOptions(in: response).prefix(expectedCount))
     }
 
     private static func taggedOption(_ index: Int, in response: String) -> String? {
@@ -137,6 +168,45 @@ enum IntelligentEditingOptionResponseParser {
 
         let option = response[startRange.upperBound..<endRange.lowerBound]
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return option.isEmpty ? nil : option
+        return option.isEmpty || isPlaceholder(option) ? nil : option
+    }
+
+    private static func isPlaceholder(_ option: String) -> Bool {
+        let normalized = option
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        return normalized.hasPrefix("replacement option")
+            || normalized.hasPrefix("<write only replacement")
+            || normalized.hasPrefix("option ")
+    }
+
+    private static func fallbackOptions(in response: String) -> [String] {
+        let lines = response
+            .components(separatedBy: .newlines)
+            .map { strippedListMarker(from: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { !$0.isEmpty && !isPlaceholder($0) }
+
+        if !lines.isEmpty {
+            return lines
+        }
+
+        let trimmedResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedResponse.isEmpty || isPlaceholder(trimmedResponse) ? [] : [trimmedResponse]
+    }
+
+    private static func strippedListMarker(from line: String) -> String {
+        let patterns = [
+            #"^\d+[\.)]\s+"#,
+            #"^[-*]\s+"#
+        ]
+
+        for pattern in patterns {
+            if let range = line.range(of: pattern, options: .regularExpression) {
+                return String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return line
     }
 }

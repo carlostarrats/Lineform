@@ -71,20 +71,77 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(service.optionRequests.first?.count, 3)
     }
 
+    func testRunnerRejectsParagraphReplacementForOneWordSelection() async throws {
+        let service = StubIntelligentEditingService(result: """
+        Lineform is a native macOS Markdown editor.
+
+        ## Features
+
+        - Built with Swift.
+        """)
+        let runner = IntelligentEditingRunner(service: service)
+
+        do {
+            _ = try await runner.run(
+                action: .rewrite,
+                documentText: "## Features\n\n- Built with Swift.",
+                selectedRange: NSRange(location: 3, length: 8)
+            )
+            XCTFail("Expected oversized replacement to be rejected.")
+        } catch IntelligentEditingError.emptyResponse {
+            XCTAssertEqual(service.requests.first?.selectedText, "Features")
+            XCTAssertEqual(service.requests.first?.documentContext, "")
+        }
+    }
+
+    func testRunnerFiltersOversizedOptionsForOneWordSelection() async throws {
+        let service = StubIntelligentEditingService(results: [
+            "Highlights",
+            "Lineform is a native macOS Markdown editor.\n\n## Features",
+            "Replacement option 3"
+        ])
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestions = try await runner.runOptions(
+            action: .rewrite,
+            documentText: "## Features\n\n- Built with Swift.",
+            selectedRange: NSRange(location: 3, length: 8),
+            optionCount: 3
+        )
+
+        XCTAssertEqual(suggestions.map(\.replacementText), ["Highlights"])
+        XCTAssertEqual(service.optionRequests.first?.selectedText, "Features")
+        XCTAssertEqual(service.optionRequests.first?.documentContext, "")
+    }
+
+    func testRunnerExtractsQuotedReplacementForOneWordSelection() async throws {
+        let service = StubIntelligentEditingService(result: "A better word is \"writer\".")
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestion = try await runner.run(
+            action: .rewrite,
+            documentText: "editor",
+            selectedRange: NSRange(location: 0, length: 6)
+        )
+
+        XCTAssertEqual(suggestion.replacementText, "writer")
+    }
+
     func testRunnerKeepsNearbyContextSmallForResponsiveEditing() async throws {
         let service = StubIntelligentEditingService(result: "Clear sentence.")
         let runner = IntelligentEditingRunner(service: service)
         let prefix = String(repeating: "a", count: 1_000)
         let suffix = String(repeating: "b", count: 1_000)
-        let document = "\(prefix)Selected text.\(suffix)"
+        let selectedText = "This selected sentence contains enough words for context."
+        let document = "\(prefix)\(selectedText)\(suffix)"
 
         _ = try await runner.run(
             action: .rewrite,
             documentText: document,
-            selectedRange: NSRange(location: 1_000, length: 14)
+            selectedRange: NSRange(location: 1_000, length: (selectedText as NSString).length)
         )
 
-        XCTAssertLessThanOrEqual(service.requests.first?.documentContext.count ?? 0, 14 + IntelligentEditingRunner.documentContextRadius * 2)
+        XCTAssertLessThanOrEqual(service.requests.first?.documentContext.count ?? 0, selectedText.count + IntelligentEditingRunner.documentContextRadius * 2)
     }
 
     func testOptionResponseParserExtractsTaggedOptionsInOrder() {
@@ -103,6 +160,38 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(
             IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
             ["First option.", "Second option.", "Third option."]
+        )
+    }
+
+    func testOptionResponseParserRejectsCopiedPlaceholderOptions() {
+        let response = """
+        <<<LINEFORM_OPTION_1>>>
+        <write only replacement 1 here>
+        <<<END_LINEFORM_OPTION_1>>>
+        <<<LINEFORM_OPTION_2>>>
+        Useful replacement.
+        <<<END_LINEFORM_OPTION_2>>>
+        <<<LINEFORM_OPTION_3>>>
+        Replacement option 3
+        <<<END_LINEFORM_OPTION_3>>>
+        """
+
+        XCTAssertEqual(
+            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
+            ["Useful replacement."]
+        )
+    }
+
+    func testOptionResponseParserFallsBackToNumberedOptions() {
+        let response = """
+        1. Clearer sentence.
+        2. Tighter sentence.
+        3. Simpler sentence.
+        """
+
+        XCTAssertEqual(
+            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
+            ["Clearer sentence.", "Tighter sentence.", "Simpler sentence."]
         )
     }
 }

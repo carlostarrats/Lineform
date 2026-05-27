@@ -83,6 +83,11 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
+    func testTinySelectionsUseSingleSuggestionToAvoidPromptPlaceholderOptions() {
+        XCTAssertEqual(IntelligentEditingPresentationPolicy.optionCount(for: "editor"), 1)
+        XCTAssertEqual(IntelligentEditingPresentationPolicy.optionCount(for: "better title"), 1)
+    }
+
     func testSelectionsAtOneHundredWordsUseOneReviewSuggestion() {
         let selection = Array(repeating: "word", count: 100).joined(separator: " ")
 
@@ -104,9 +109,10 @@ final class IntelligentEditingActionTests: XCTestCase {
 
     func testIntelligenceLoadingPanelUsesSkeletonBeforeResultsArrive() {
         XCTAssertTrue(IntelligentEditingOptionsPresentation.showsLoadingSkeleton)
-        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonMinimumRows, 4)
-        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonCompactColumns, 12)
-        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonExpandedColumns, 16)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonMinimumRows, 9)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonCompactColumns, 20)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonExpandedColumns, 24)
+        XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingAnswerSurfaceMinimumHeight, 188)
     }
 
     func testLongSuggestionsPromoteToExpandedReviewSurface() {

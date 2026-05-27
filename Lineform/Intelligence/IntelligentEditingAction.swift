@@ -101,7 +101,12 @@ enum IntelligentEditingPresentationPolicy {
     static let multiOptionWordLimit = 100
 
     static func optionCount(for selectedText: String) -> Int {
-        wordCount(in: selectedText) < multiOptionWordLimit ? maximumOptionCount : 1
+        let count = wordCount(in: selectedText)
+        guard count > 3 else {
+            return 1
+        }
+
+        return count < multiOptionWordLimit ? maximumOptionCount : 1
     }
 
     private static func wordCount(in text: String) -> Int {

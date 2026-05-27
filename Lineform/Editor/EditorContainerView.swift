@@ -12,12 +12,13 @@ struct EditorContainerView: View {
     @State private var outlineItems: [MarkdownOutlineItem] = []
     @State private var requestedSelection: NSRange?
     @State private var selectionAnchorRect: CGRect?
-    @State private var intelligentSuggestion: IntelligentEditingSuggestion?
     @State private var intelligentOptions: [IntelligentEditingSuggestion] = []
     @State private var selectedIntelligentOptionIndex = 0
     @State private var currentIntelligentChangeIndex = 0
     @State private var isRunningIntelligentEdit = false
+    @State private var intelligentEditingTask: Task<Void, Never>?
     @State private var pendingIntelligentAction: IntelligentEditingAction?
+    @State private var pendingIntelligentSelectedText = ""
     @State private var intelligentEditingStatus: String?
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
@@ -71,7 +72,7 @@ struct EditorContainerView: View {
             else {
                 return
             }
-            runIntelligentEditingAction(action)
+            runIntelligentEditingAction(action, selectedRange: notificationPayloadSelectedRange(notification))
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.setDisplayMode.name)) { notification in
             guard
@@ -163,17 +164,6 @@ struct EditorContainerView: View {
                 editorContent
                     .frame(minWidth: EditorLayout.minimumContentWidth, minHeight: EditorLayout.minimumContentHeight)
 
-                if let intelligentSuggestion, intelligentOptions.isEmpty {
-                    IntelligentEditingSuggestionBar(
-                        suggestion: intelligentSuggestion,
-                        currentChangeIndex: $currentIntelligentChangeIndex,
-                        navigateToChange: navigateToSuggestedChange,
-                        retry: retryIntelligentSuggestion,
-                        accept: acceptIntelligentSuggestion,
-                        reject: rejectIntelligentSuggestion
-                    )
-                }
-
                 if EditorStatusBar.isVisible(in: displayMode) {
                     EditorStatusBar(
                         lastSavedDisplay: lastSavedDisplay,
@@ -186,17 +176,20 @@ struct EditorContainerView: View {
             if shouldShowIntelligentOptionsPanel {
                 GeometryReader { proxy in
                     let isLoadingIntelligentOptions = isRunningIntelligentEdit && pendingIntelligentAction != nil
+                    let panelReferenceText = isLoadingIntelligentOptions
+                        ? pendingIntelligentSelectedText
+                        : activeIntelligentSuggestion?.originalText ?? ""
                     let placement = IntelligentEditingOverlayPlacement.placement(
                         anchorRect: selectionAnchorRect,
                         containerSize: proxy.size,
-                        replacementText: isLoadingIntelligentOptions ? selectionContext.selectedText : activeIntelligentSuggestion?.replacementText ?? ""
+                        replacementText: isLoadingIntelligentOptions ? panelReferenceText : activeIntelligentSuggestion?.replacementText ?? ""
                     )
 
                     IntelligentEditingOptionsPanel(
                         suggestions: isLoadingIntelligentOptions ? [] : intelligentOptions,
                         selectedIndex: $selectedIntelligentOptionIndex,
                         loadingActionTitle: isLoadingIntelligentOptions ? pendingIntelligentAction?.title : nil,
-                        loadingPreviewText: selectionContext.selectedText,
+                        loadingPreviewText: panelReferenceText,
                         maximumBodyHeight: placement.bodyHeight,
                         retry: retryIntelligentSuggestion,
                         accept: acceptIntelligentSuggestion,
@@ -250,12 +243,12 @@ struct EditorContainerView: View {
     }
 
     private var activeIntelligentSuggestion: IntelligentEditingSuggestion? {
-        if !intelligentOptions.isEmpty {
-            let safeIndex = min(max(selectedIntelligentOptionIndex, 0), intelligentOptions.count - 1)
-            return intelligentOptions[safeIndex]
+        guard !intelligentOptions.isEmpty else {
+            return nil
         }
 
-        return intelligentSuggestion
+        let safeIndex = min(max(selectedIntelligentOptionIndex, 0), intelligentOptions.count - 1)
+        return intelligentOptions[safeIndex]
     }
 
     private var shouldShowIntelligentOptionsPanel: Bool {
@@ -286,39 +279,46 @@ struct EditorContainerView: View {
         return "Document contains \(documentStatistics.wordCount) words and \(documentStatistics.characterCount) characters"
     }
 
-    private func runIntelligentEditingAction(_ action: IntelligentEditingAction) {
+    private func runIntelligentEditingAction(_ action: IntelligentEditingAction, selectedRange overrideSelectedRange: NSRange? = nil) {
         guard !isRunningIntelligentEdit else {
             return
         }
 
+        let editingContext = SelectionContext(
+            text: document.text,
+            selectedRange: overrideSelectedRange ?? selectionContext.selectedRange
+        )
+
         isRunningIntelligentEdit = true
         pendingIntelligentAction = action
+        pendingIntelligentSelectedText = editingContext.selectedText
         clearIntelligentSuggestions()
         intelligentEditingStatus = nil
 
-        Task {
+        let task = Task {
             let runner = IntelligentEditingRunner(service: intelligentEditingService)
             do {
-                let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: selectionContext.selectedText)
+                let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: editingContext.selectedText)
 
                 if optionCount > 1 {
                     let suggestions = try await runner.runOptions(
                         action: action,
-                        documentText: document.text,
-                        selectedRange: selectionContext.selectedRange,
+                        documentText: editingContext.text,
+                        selectedRange: editingContext.selectedRange,
                         optionCount: optionCount
                     )
 
                     await MainActor.run {
                         isRunningIntelligentEdit = false
+                        intelligentEditingTask = nil
                         pendingIntelligentAction = nil
+                        pendingIntelligentSelectedText = ""
                         let applicableSuggestions = suggestions.filter { $0.canApply(to: document.text) }
                         guard !applicableSuggestions.isEmpty else {
                             clearIntelligentSuggestions()
                             intelligentEditingStatus = "Suggestion expired after edits."
                             return
                         }
-                        intelligentSuggestion = nil
                         intelligentOptions = applicableSuggestions
                         selectedIntelligentOptionIndex = 0
                         currentIntelligentChangeIndex = 0
@@ -330,34 +330,38 @@ struct EditorContainerView: View {
 
                 let suggestion = try await runner.run(
                     action: action,
-                    documentText: document.text,
-                    selectedRange: selectionContext.selectedRange
+                    documentText: editingContext.text,
+                    selectedRange: editingContext.selectedRange
                 )
 
                 await MainActor.run {
                     isRunningIntelligentEdit = false
+                    intelligentEditingTask = nil
                     pendingIntelligentAction = nil
+                    pendingIntelligentSelectedText = ""
                     guard suggestion.canApply(to: document.text) else {
                         clearIntelligentSuggestions()
                         intelligentEditingStatus = "Suggestion expired after edits."
                         return
                     }
-                    intelligentOptions = []
+                    intelligentOptions = [suggestion]
                     selectedIntelligentOptionIndex = 0
-                    intelligentSuggestion = suggestion
                     currentIntelligentChangeIndex = 0
-                    intelligentEditingStatus = suggestion.diff.summary
+                    intelligentEditingStatus = "1 option ready."
                     requestedSelection = suggestion.selectedRange
                 }
             } catch {
                 await MainActor.run {
                     clearIntelligentSuggestions()
                     isRunningIntelligentEdit = false
+                    intelligentEditingTask = nil
                     pendingIntelligentAction = nil
-                    intelligentEditingStatus = (error as? LocalizedError)?.errorDescription ?? "Suggestion unavailable."
+                    pendingIntelligentSelectedText = ""
+                    intelligentEditingStatus = error is CancellationError ? "Suggestion canceled." : (error as? LocalizedError)?.errorDescription ?? "Suggestion unavailable."
                 }
             }
         }
+        intelligentEditingTask = task
     }
 
     private func navigateToSuggestedChange(_ change: MarkdownDiff.Change) {
@@ -393,19 +397,32 @@ struct EditorContainerView: View {
             return
         }
 
-        runIntelligentEditingAction(intelligentSuggestion.action)
+        runIntelligentEditingAction(intelligentSuggestion.action, selectedRange: intelligentSuggestion.selectedRange)
     }
 
     private func rejectIntelligentSuggestion() {
+        if isRunningIntelligentEdit {
+            intelligentEditingTask?.cancel()
+            intelligentEditingTask = nil
+            isRunningIntelligentEdit = false
+            pendingIntelligentAction = nil
+            pendingIntelligentSelectedText = ""
+            clearIntelligentSuggestions()
+            intelligentEditingStatus = "Suggestion canceled."
+            return
+        }
+
         clearIntelligentSuggestions()
         intelligentEditingStatus = "Suggestion rejected."
     }
 
     private func clearIntelligentSuggestions() {
-        intelligentSuggestion = nil
         intelligentOptions = []
         selectedIntelligentOptionIndex = 0
         currentIntelligentChangeIndex = 0
+        if !isRunningIntelligentEdit {
+            pendingIntelligentSelectedText = ""
+        }
     }
 
     private func notificationMatchesActiveWindow(_ notification: Notification) -> Bool {
@@ -417,6 +434,10 @@ struct EditorContainerView: View {
 
     private func notificationPayloadValue(_ notification: Notification) -> String? {
         (notification.object as? LineformAppNotification.Payload)?.value
+    }
+
+    private func notificationPayloadSelectedRange(_ notification: Notification) -> NSRange? {
+        (notification.object as? LineformAppNotification.Payload)?.selectedRange
     }
 
     private func handleToolbarAction(_ action: EditorToolbarAction) {

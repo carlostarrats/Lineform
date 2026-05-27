@@ -27,6 +27,7 @@ enum LineformAppNotification {
     struct Payload: Equatable {
         var windowNumber: Int?
         var value: String?
+        var selectedRange: NSRange? = nil
 
         func matches(windowNumber: Int?) -> Bool {
             self.windowNumber == windowNumber
@@ -35,6 +36,7 @@ enum LineformAppNotification {
 
     @MainActor
     static func activeWindowPayload(value: String? = nil) -> Payload {
-        Payload(windowNumber: NSApp.keyWindow?.windowNumber, value: value)
+        let selectedRange = (NSApp.keyWindow?.firstResponder as? NSTextView)?.selectedRange()
+        return Payload(windowNumber: NSApp.keyWindow?.windowNumber, value: value, selectedRange: selectedRange)
     }
 }
