@@ -296,68 +296,40 @@ struct EditorContainerView: View {
         intelligentEditingStatus = nil
 
         let task = Task {
-            let runner = IntelligentEditingRunner(service: intelligentEditingService)
-            do {
-                let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: action, selectedText: editingContext.selectedText)
+            let coordinator = IntelligentEditingRequestCoordinator(service: intelligentEditingService)
+            let result = await coordinator.run(
+                action: action,
+                documentText: editingContext.text,
+                currentDocumentText: editingContext.text,
+                selectedRange: editingContext.selectedRange
+            )
 
-                if optionCount > 1 {
-                    let suggestions = try await runner.runOptions(
-                        action: action,
-                        documentText: editingContext.text,
-                        selectedRange: editingContext.selectedRange,
-                        optionCount: optionCount
-                    )
-
-                    await MainActor.run {
-                        isRunningIntelligentEdit = false
-                        intelligentEditingTask = nil
-                        pendingIntelligentAction = nil
-                        pendingIntelligentSelectedText = ""
-                        let applicableSuggestions = suggestions.filter { $0.canApply(to: document.text) }
-                        guard !applicableSuggestions.isEmpty else {
-                            clearIntelligentSuggestions()
-                            intelligentEditingStatus = "Suggestion expired after edits."
-                            return
-                        }
-                        intelligentOptions = applicableSuggestions
-                        selectedIntelligentOptionIndex = 0
-                        currentIntelligentChangeIndex = 0
-                        intelligentEditingStatus = "\(applicableSuggestions.count) options ready."
-                        requestedSelection = applicableSuggestions[0].selectedRange
-                    }
-                    return
-                }
-
-                let suggestion = try await runner.run(
-                    action: action,
-                    documentText: editingContext.text,
-                    selectedRange: editingContext.selectedRange
-                )
-
-                await MainActor.run {
+            await MainActor.run {
+                switch result {
+                case .ready(let suggestions, _):
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
                     pendingIntelligentAction = nil
                     pendingIntelligentSelectedText = ""
-                    guard suggestion.canApply(to: document.text) else {
+                    let applicableSuggestions = suggestions.filter { $0.canApply(to: document.text) }
+                    guard !applicableSuggestions.isEmpty else {
                         clearIntelligentSuggestions()
                         intelligentEditingStatus = "Suggestion expired after edits."
                         return
                     }
-                    intelligentOptions = [suggestion]
+                    intelligentOptions = applicableSuggestions
                     selectedIntelligentOptionIndex = 0
                     currentIntelligentChangeIndex = 0
-                    intelligentEditingStatus = "1 option ready."
-                    requestedSelection = suggestion.selectedRange
-                }
-            } catch {
-                await MainActor.run {
+                    intelligentEditingStatus = IntelligentEditingRequestCoordinator.readyStatus(for: applicableSuggestions.count)
+                    requestedSelection = applicableSuggestions[0].selectedRange
+
+                case .expired(let message), .failed(let message):
                     clearIntelligentSuggestions()
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
                     pendingIntelligentAction = nil
                     pendingIntelligentSelectedText = ""
-                    intelligentEditingStatus = error is CancellationError ? "Suggestion canceled." : (error as? LocalizedError)?.errorDescription ?? "Suggestion unavailable."
+                    intelligentEditingStatus = message
                 }
             }
         }

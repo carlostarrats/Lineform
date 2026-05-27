@@ -1,6 +1,6 @@
 # Intelligent Editing Benchmarks
 
-This document defines the benchmark surface for Lineform's Apple Intelligence-backed editing actions. The goal is not to prove that every generative response will be good; the goal is to make bad output measurable, reproducible, and difficult to miss before it reaches the app.
+This document defines the benchmark surface for Lineform's Apple Intelligence-backed editing actions. The gate is designed to make known failures reproducible, catch likely unknown failures through scenario coverage, and block outputs that would reduce trust in selected-text editing.
 
 ## Actions
 
@@ -21,6 +21,8 @@ The corpus must keep coverage across the selection lengths users actually trigge
 - Sentence
 - Paragraph
 - Multiple paragraphs
+- Very long multi-paragraph selections
+- Weird whitespace around Markdown markers
 
 Short selections are scored more strictly. A one-word or short-phrase rewrite must stay word-like or phrase-like. A sentence rewrite must return a sentence-scale alternative, not a paragraph, list, prompt artifact, or copied selection.
 
@@ -36,10 +38,13 @@ Deterministic tests must cover these scenarios:
 - Unchanged transform rejection: rewrite, shorten, summarize, and messy clean-Markdown tasks must not return the selected text unchanged.
 - Nearby context leakage: output must not include unselected neighboring document text.
 - Markdown preservation: list shape, heading levels, front matter delimiters, blank lines between list items, and fenced code blocks must remain structurally safe.
+- Expanded Markdown preservation: links, tables, blockquotes, numbered lists, nested lists, and code-only selections must remain structurally safe.
+- Writing-risk coverage: local/privacy/storage facts must not be invented or reversed, mixed-language text must remain meaningful, and already-correct proofreading selections must be allowed as no-op replacements.
 - Provider failure modes: empty response, timeout, duplicate options, invalid options, and partial valid options must be tested.
 - Full fallback matrix: every golden task must still produce a rubric-passing fallback when the provider returns unusable output.
 - Multi-option fallback matrix: every rewrite task that requests multiple options must return the requested count of distinct, rubric-passing options when the provider returns unusable output.
 - Stale selection behavior: generated suggestions must not apply if the underlying selected text changed before acceptance.
+- App request flow: the editor selection path must use the same request coordinator exercised by tests, and suggestions must stay visible when validated suggestions are ready.
 
 ## Scoring
 
@@ -56,6 +61,7 @@ Critical failures are empty output, placeholder/protocol output, unchanged trans
 - Average score is 100.
 - Critical failure count is 0.
 - The report includes full selected text, document context, replacement text, failures, score, and quality band for every record.
+- Repeated live reports have no failed runs, empty outputs, duplicate options, critical failures, or average score loss.
 
 ## Live Eval Reports
 
@@ -63,6 +69,7 @@ Opt-in live Foundation Models evals write JSON reports to the app-hosted test pr
 
 - `lineform-intelligence-live-eval-single.json`
 - `lineform-intelligence-live-eval-options.json`
+- `lineform-intelligence-live-eval-repeated.json`
 
 Run live evals with:
 
@@ -72,7 +79,15 @@ xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platf
 rm /private/tmp/lineform-run-live-intelligence-evals
 ```
 
-Every prompt or validation change must compare the new reports against the previous run. A failed task should become either a better prompt, a deterministic fallback, a stricter validator, or a new benchmark case.
+Run repeated live evals with:
+
+```sh
+LINEFORM_LIVE_INTELLIGENCE_REPEAT_COUNT=2 \
+LINEFORM_RUN_REPEATED_LIVE_INTELLIGENCE_EVALS=1 \
+xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -only-testing:LineformTests/IntelligentEditingEvaluationTests/testRepeatedLiveFoundationModelsEvalIsOptIn
+```
+
+Every prompt or validation change must compare the new reports against the previous run. A failed task should become a better prompt, deterministic fallback, stricter validator, or new benchmark case.
 
 ## Release Gate
 
@@ -85,6 +100,7 @@ Before calling intelligent editing quality acceptable, run:
 - Multi-option rewrite fallback matrix tests.
 - Full XCTest suite.
 - Opt-in live single and option evals on a machine with Apple Intelligence available.
+- Opt-in repeated live evals with at least two runs.
 - Manual inspection of attached live reports for awkward-but-passing output.
 
 Any user-reported bad output must be added as a deterministic regression case before fixing it.

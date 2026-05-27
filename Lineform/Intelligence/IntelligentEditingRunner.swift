@@ -84,7 +84,7 @@ struct IntelligentEditingRunner {
     }
 
     private static func validatedReplacement(_ replacement: String, action: IntelligentEditingAction, selectedText: String, documentContext: String) throws -> String {
-        let trimmedReplacement = normalizedReplacement(replacement, for: selectedText)
+        let trimmedReplacement = normalizedReplacement(replacement, action: action, selectedText: selectedText)
         guard !trimmedReplacement.isEmpty else {
             throw IntelligentEditingError.emptyResponse
         }
@@ -111,8 +111,12 @@ struct IntelligentEditingRunner {
         wordCount(in: text) <= 3 && !text.trimmingCharacters(in: .whitespacesAndNewlines).contains("\n")
     }
 
-    private static func normalizedReplacement(_ replacement: String, for selectedText: String) -> String {
-        let trimmedReplacement = strippedEnclosingCodeFence(from: replacement.trimmingCharacters(in: .whitespacesAndNewlines))
+    private static func normalizedReplacement(_ replacement: String, action: IntelligentEditingAction, selectedText: String) -> String {
+        let trimmed = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        let selectedIsCodeOnly = selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("```")
+        let trimmedReplacement = action == .cleanMarkdown && selectedIsCodeOnly
+            ? trimmed
+            : strippedEnclosingCodeFence(from: trimmed)
         guard isShortSelection(selectedText), let quotedReplacement = quotedReplacement(in: trimmedReplacement) else {
             return trimmedReplacement
         }
@@ -198,6 +202,7 @@ struct IntelligentEditingRunner {
         action == .cleanMarkdown
             || selectedText.contains("```")
             || selectedText.contains("- ")
+            || selectedText.contains("> ")
             || selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#")
     }
 }

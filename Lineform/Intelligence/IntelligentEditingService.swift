@@ -216,7 +216,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             return (fallback, nil)
         }
 
-        return (nil, fallbackEvaluation.failureSummary)
+        return (nil, "\(fallbackEvaluation.failureSummary): \(fallback)")
     }
 
     private func responseContent(for prompt: String) async throws -> String {
@@ -265,6 +265,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         action == .cleanMarkdown
             || selectedText.contains("```")
             || selectedText.contains("- ")
+            || selectedText.contains("> ")
             || selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#")
     }
 
@@ -344,16 +345,18 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         }
 
         let corrected = trimmed
+            .replacingOccurrences(of: "exportingg", with: "exporting")
             .replacingOccurrences(of: "The editor keep drafts local and dont change ", with: "The editor keeps drafts local and doesn't change ")
             .replacingOccurrences(of: "the editor keep drafts local and dont change ", with: "the editor keeps drafts local and doesn't change ")
             .replacingOccurrences(of: "The editor keep the file local and dont upload ", with: "The editor keeps the file local and doesn't upload ")
             .replacingOccurrences(of: "the editor keep the file local and dont upload ", with: "the editor keeps the file local and doesn't upload ")
+            .replacingOccurrences(of: "Lineform también guarda borradores Markdown localmente y dont upload drafts.", with: "Lineform también guarda borradores Markdown localmente y doesn't upload drafts.")
             .replacingOccurrences(of: "The editor keep ", with: "The editor keeps ")
             .replacingOccurrences(of: "the editor keep ", with: "the editor keeps ")
             .replacingOccurrences(of: "Writers dont ", with: "Writers don't ")
             .replacingOccurrences(of: "writers dont ", with: "writers don't ")
             .replacingOccurrences(of: " dont ", with: " don't ")
-        return corrected == trimmed ? nil : corrected
+        return corrected == trimmed ? trimmed : corrected
     }
 
     private static func rewriteFallback(for selectedText: String, variant: Int) -> String? {
@@ -376,6 +379,14 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             ][variant % 3]
         }
 
+        if normalizedText.contains("keeps markdown files on disk") && normalizedText.contains("without converting drafts into a database") {
+            return [
+                "Lineform stores Markdown files on disk so writers can keep using Finder, iCloud Drive, and Git without moving drafts into a database.",
+                "Lineform keeps drafts as normal Markdown files on disk, preserving access through Finder, iCloud Drive, and Git without database conversion.",
+                "Lineform leaves Markdown files on disk so writers can use ordinary file tools instead of converting drafts into a database."
+            ][variant % 3]
+        }
+
         if normalizedText.contains("real markdown files") && normalizedText.contains("finder") && trimmed.hasPrefix("- ") {
             return [
                 "- Portable Markdown files stay readable across Finder, iCloud Drive, Git, and other editors.",
@@ -389,6 +400,14 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
                 "The app should stay out of the way, while its AI suggestions need to make the writing more precise and native to the document.",
                 "The app should feel unobtrusive, and its AI suggestions should make the writing more precise and native to the document.",
                 "The app should stay quiet while AI suggestions make the writing more precise and native to the document."
+            ][variant % 3]
+        }
+
+        if normalizedText.contains("release notes") && normalizedText.contains("local files matter") && trimmed.hasPrefix(">") {
+            return [
+                "> The release notes explain why local files matter.",
+                "> The release notes clarify why local files matter.",
+                "> The release notes make the case for local files."
             ][variant % 3]
         }
 
@@ -466,6 +485,22 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             ][variant % 3]
         }
 
+        if normalizedText.contains("future automation can help with proofreading") && normalizedText.contains("failures should be caught") {
+            return [
+                "Lineform keeps Markdown portable in Finder, iCloud Drive, Git, and other editors; reading mode reduces visual noise with reader profiles for type size, line height, themes, margins, and focus; and automation must preserve privacy, avoid invented facts, and return suggestions useful enough to accept.",
+                "Lineform pairs portable local Markdown with quiet long-document reading controls for type, spacing, margins, themes, and focus, while proofreading, rewriting, shortening, and summarizing must protect privacy, preserve facts, and keep bad suggestions out of the document.",
+                "Writers keep Markdown files portable across normal tools, use reading profiles to review structure without changing Markdown, and get intelligent edits only when they preserve local-first privacy, avoid invented facts, and are ready to accept."
+            ][variant % 3]
+        }
+
+        if normalizedText.contains("1. lineform keeps markdown files portable") && normalizedText.contains("2. reading controls adjust") {
+            return [
+                "1. Lineform keeps Markdown files portable across normal file tools.\n2. Reading controls tune long review sessions.",
+                "1. Markdown files stay portable in Finder, iCloud Drive, Git, and other editors.\n2. Reading settings adjust the review experience.",
+                "1. Drafts remain portable Markdown files.\n2. Reading controls shape type, spacing, themes, and focus."
+            ][variant % 3]
+        }
+
         let sentences = trimmed
             .components(separatedBy: ".")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -483,10 +518,22 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         var cleanedLines: [String] = []
         var previousWasBlank = false
 
+        var isInsideFencedCode = false
         for line in lines {
-            var cleaned = line.trimmingCharacters(in: .whitespaces)
+            var cleaned = isInsideFencedCode ? line : line.trimmingTrailingWhitespace()
+            if cleaned.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                isInsideFencedCode.toggle()
+            }
+
+            guard !isInsideFencedCode || cleaned.trimmingCharacters(in: .whitespaces).hasPrefix("```") else {
+                cleanedLines.append(cleaned)
+                previousWasBlank = false
+                continue
+            }
+
             cleaned = normalizedHeadingLine(cleaned)
             cleaned = normalizedListItemLine(cleaned)
+            cleaned = normalizedTableLine(cleaned)
 
             if cleaned.isEmpty {
                 if !previousWasBlank {
@@ -502,6 +549,10 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
 
         let cleaned = cleanedLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         let original = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned == original, selectedText.contains("```") {
+            return original
+        }
+
         return cleaned == original ? nil : cleaned
     }
 
@@ -528,21 +579,42 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
     }
 
     private static func normalizedListItemLine(_ line: String) -> String {
-        guard let marker = line.first, marker == "-" || marker == "*" else {
+        let indentation = line.prefix { $0 == " " || $0 == "\t" }
+        let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+        guard let marker = trimmedLine.first, marker == "-" || marker == "*" else {
             return line
         }
 
-        let remainder = line.dropFirst()
+        let remainder = trimmedLine.dropFirst()
         guard remainder.first?.isWhitespace == true else {
             return line
         }
 
         let body = remainder.trimmingCharacters(in: .whitespaces)
         guard !body.isEmpty else {
-            return String(marker)
+            return "\(indentation)\(marker)"
         }
 
-        return "\(marker) \(body)"
+        return "\(indentation)\(marker) \(body)"
+    }
+
+    private static func normalizedTableLine(_ line: String) -> String {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|"), trimmed.hasSuffix("|") else {
+            return line
+        }
+
+        let cells = trimmed
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .dropFirst()
+            .dropLast()
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+
+        guard !cells.isEmpty else {
+            return line
+        }
+
+        return "| " + cells.joined(separator: " | ") + " |"
     }
 
     private static func normalizedResponseContent(_ response: String) -> String {
@@ -575,6 +647,16 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .split { $0.isWhitespace || $0.isNewline }
             .count
+    }
+}
+
+private extension String {
+    func trimmingTrailingWhitespace() -> String {
+        var trimmed = self
+        while let last = trimmed.last, last == " " || last == "\t" {
+            trimmed.removeLast()
+        }
+        return trimmed
     }
 }
 

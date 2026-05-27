@@ -308,6 +308,110 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         """)
     }
 
+    func testFoundationModelsServiceTreatsUnspacedTablesAsTransformRequired() async throws {
+        let selectedText = """
+        |Setting|Purpose|
+        |---|---|
+        | Type size | Adjust reading scale |
+        | Line height | Improve long-session rhythm |
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .cleanMarkdown,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertEqual(replacement, """
+        | Setting | Purpose |
+        | --- | --- |
+        | Type size | Adjust reading scale |
+        | Line height | Improve long-session rhythm |
+        """)
+    }
+
+    func testFoundationModelsServiceFallsBackWhenBlockquoteRewriteDropsMarker() async throws {
+        let selectedText = "> The release notes kind of explain why local files matter."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "The release notes explain why local files matter.", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertEqual(replacement, "> The release notes explain why local files matter.")
+    }
+
+    func testRunnerPreservesCodeOnlyCleanMarkdownReplacement() async throws {
+        let selectedText = """
+        ```swift
+            let value = 1
+        ```
+        """
+        let service = StubIntelligentEditingService(result: selectedText)
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestion = try await runner.run(
+            action: .cleanMarkdown,
+            documentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(suggestion.replacementText, selectedText)
+    }
+
+    func testFoundationModelsServicePreservesNestedListIndentationInCleanMarkdownFallback() async throws {
+        let selectedText = """
+        -  Reading controls
+          -    Type size
+          -    Line height
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .cleanMarkdown,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertEqual(replacement, """
+        - Reading controls
+          - Type size
+          - Line height
+        """)
+    }
+
+    func testFoundationModelsServiceNormalizesHeadingAndWeirdWhitespaceInCleanMarkdownFallback() async throws {
+        let selectedText = "##Title\t\n\n\n-   First item\n-      Second item"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .cleanMarkdown,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertEqual(replacement, "## Title\n\n- First item\n- Second item")
+    }
+
     func testFoundationModelsServicePreservesFrontMatterDelimitersInCleanMarkdownFallback() async throws {
         let selectedText = """
         ---
@@ -351,11 +455,17 @@ final class IntelligentEditingRunnerTests: XCTestCase {
                 )
             )
 
-            let replacement = try await service.replacement(
-                for: task.action,
-                selectedText: task.selectedText,
-                documentContext: task.documentContext
-            )
+            let replacement: String
+            do {
+                replacement = try await service.replacement(
+                    for: task.action,
+                    selectedText: task.selectedText,
+                    documentContext: task.documentContext
+                )
+            } catch {
+                XCTFail("\(task.id) fallback threw \(error)")
+                continue
+            }
             let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task)
 
             XCTAssertTrue(
@@ -444,6 +554,62 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         )
 
         XCTAssertNil(suggestion.accept(in: "Start. Different sentence. End."))
+    }
+
+    func testRequestCoordinatorReturnsReadySuggestionsForSelectedRewriteInsteadOfDroppingAfterLoading() async throws {
+        let selectedText = "This sentence feels a little awkward because it tries to say too many things at once."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: [
+                    "This sentence feels awkward because it tries to say too much at once."
+                ] + Array(repeating: "", count: 20)
+            )
+        )
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            action: .rewrite,
+            documentText: selectedText,
+            currentDocumentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        guard case .ready(let suggestions, let status) = result else {
+            return XCTFail("Expected ready suggestions, got \(result)")
+        }
+
+        XCTAssertFalse(suggestions.isEmpty)
+        XCTAssertEqual(status, "\(suggestions.count) options ready.")
+    }
+
+    func testRequestCoordinatorReturnsExpiredWhenDocumentChangesBeforeSuggestionsApply() async throws {
+        let selectedText = "This sentence needs clearer wording."
+        let service = StubIntelligentEditingService(result: "This sentence needs sharper wording.")
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            action: .rewrite,
+            documentText: selectedText,
+            currentDocumentText: "Different text before the result comes back.",
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(result, .expired("Suggestion expired after edits."))
+    }
+
+    func testRequestCoordinatorReturnsFailedStatusWhenNoUsableSuggestionExists() async throws {
+        let selectedText = "This sentence needs clearer wording."
+        let service = StubIntelligentEditingService(result: "<<<LINEFORM_OPTION_1>>>")
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            action: .rewrite,
+            documentText: selectedText,
+            currentDocumentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(result, .failed("No replacement was suggested."))
     }
 
     func testRunnerBuildsMultipleSuggestionsForShortSelectionOptions() async throws {

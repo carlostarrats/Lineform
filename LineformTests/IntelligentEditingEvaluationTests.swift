@@ -24,6 +24,26 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         )
     }
 
+    func testGoldenTasksCoverExpandedMarkdownAndWritingRiskScenarios() {
+        let requiredScenarios: Set<String> = [
+            "markdown:link",
+            "markdown:table",
+            "markdown:blockquote",
+            "markdown:numbered-list",
+            "markdown:nested-list",
+            "markdown:code-only",
+            "selection:very-long",
+            "selection:weird-whitespace",
+            "risk:fact-preservation",
+            "language:mixed"
+        ]
+
+        XCTAssertTrue(
+            IntelligentEditingEvaluationSuite.coveredScenarioNames.isSuperset(of: requiredScenarios),
+            "Missing expanded scenarios: \(requiredScenarios.subtracting(IntelligentEditingEvaluationSuite.coveredScenarioNames).sorted().joined(separator: ", "))"
+        )
+    }
+
     func testGoldenTasksIncludeUserVisibleSelectedListItemRewrite() throws {
         let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "selected-list-item-rewrite" })
 
@@ -92,6 +112,35 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(json.contains("\"qualityBand\" : \"fail\""))
     }
 
+    func testRepeatedLiveEvaluationSummaryFlagsUnstableRunsAndDuplicateOptions() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
+        let passingEvaluation = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "The launch plan is clear, but the final handoff needs a named owner.",
+            task: task
+        )
+        let failingEvaluation = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "<<<LINEFORM_OPTION_1>>>",
+            task: task
+        )
+
+        let firstRun = LiveIntelligenceEvalReport(records: [
+            LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: 0, replacement: "The launch plan is clear, but the final handoff needs a named owner.", evaluation: passingEvaluation),
+            LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: 1, replacement: "The launch plan is clear, but the final handoff needs a named owner.", evaluation: passingEvaluation)
+        ])
+        let secondRun = LiveIntelligenceEvalReport(records: [
+            LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: 0, replacement: "<<<LINEFORM_OPTION_1>>>", evaluation: failingEvaluation)
+        ])
+
+        let repeatedReport = RepeatedLiveIntelligenceEvalReport(reports: [firstRun, secondRun])
+
+        XCTAssertEqual(repeatedReport.summary.runCount, 2)
+        XCTAssertEqual(repeatedReport.summary.failedRunCount, 2)
+        XCTAssertEqual(repeatedReport.summary.criticalFailureCount, 1)
+        XCTAssertEqual(repeatedReport.summary.emptyOutputCount, 0)
+        XCTAssertEqual(repeatedReport.summary.duplicateOptionCount, 1)
+        XCTAssertFalse(repeatedReport.summary.passed)
+    }
+
     func testRubricAcceptsUsefulReplacementForRewriteTask() throws {
         let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
 
@@ -131,6 +180,96 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
 
         XCTAssertFalse(result.passed)
         XCTAssertTrue(result.failures.contains(.placeholderOrDummyText))
+    }
+
+    func testRubricRejectsApologyOrExplanationInsteadOfReplacement() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "I can rewrite this for you: The launch plan is clear, but the final handoff needs a named owner.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.placeholderOrDummyText))
+    }
+
+    func testRubricRejectsRewriteThatInventsStorageOrSyncFacts() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "fact-preserving-rewrite" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "Lineform syncs every Markdown file to a private cloud database so teams can collaborate from anywhere.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.lowQualityReplacement))
+    }
+
+    func testRubricRejectsProofreadThatReversesLocalPrivacyMeaning() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "privacy-proofread" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "The editor uploads drafts before writers can keep working locally.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.proofreadChangedMeaningOrStyle))
+    }
+
+    func testRubricAllowsValidNoOpProofreadForAlreadyCorrectPrivacySentence() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "privacy-proofread" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "The editor does not upload drafts before writers can keep working locally.",
+            task: task
+        )
+
+        XCTAssertTrue(result.passed, result.failureSummary)
+    }
+
+    func testRubricRejectsCleanMarkdownThatDamagesTableShape() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "table-clean-markdown" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: """
+            | Setting | Purpose |
+            | Type size | Adjust reading scale |
+            | Line height | Improve long-session rhythm |
+            """,
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.markdownStructureNotPreserved))
+    }
+
+    func testRubricAllowsCleanMarkdownThatOnlyNormalizesTableSpacing() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "table-clean-markdown" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: """
+            | Setting | Purpose |
+            | --- | --- |
+            | Type size | Adjust reading scale |
+            | Line height | Improve long-session rhythm |
+            """,
+            task: task
+        )
+
+        XCTAssertTrue(result.passed, result.failureSummary)
+    }
+
+    func testRubricAllowsCleanMarkdownWithSpacedLevelTwoHeading() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "weird-whitespace-clean-markdown" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "## Title\n\n- First item\n- Second item",
+            task: task
+        )
+
+        XCTAssertTrue(result.passed, result.failureSummary)
     }
 
     func testRubricRejectsUnchangedTransformOutput() throws {
@@ -500,32 +639,7 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
             throw XCTSkip("Set LINEFORM_RUN_LIVE_INTELLIGENCE_EVALS=1 or create /private/tmp/lineform-run-live-intelligence-evals to run live Apple Intelligence evals.")
         }
 
-        let runner = IntelligentEditingRunner(service: FoundationModelsIntelligentEditingService())
-        var records: [LiveIntelligenceEvalRecord] = []
-
-        for task in IntelligentEditingEvaluationSuite.liveTasks {
-            let documentText = Self.documentText(for: task)
-            let selectedRange = (documentText as NSString).range(of: task.selectedText)
-            guard selectedRange.location != NSNotFound else {
-                records.append(LiveIntelligenceEvalRecord(task: task, mode: "single", optionIndex: nil, failure: "selected text was not present in live eval document"))
-                continue
-            }
-
-            do {
-                let suggestion = try await runner.run(
-                    action: task.action,
-                    documentText: documentText,
-                    selectedRange: selectedRange
-                )
-                let replacement = suggestion.replacementText
-                let result = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task)
-                records.append(LiveIntelligenceEvalRecord(task: task, mode: "single", optionIndex: nil, replacement: replacement, evaluation: result))
-            } catch {
-                records.append(LiveIntelligenceEvalRecord(task: task, mode: "single", optionIndex: nil, failure: error.localizedDescription))
-            }
-        }
-
-        let report = LiveIntelligenceEvalReport(records: records)
+        let report = await Self.liveFoundationModelsEvaluationReport(mode: "single")
         let reportURL = Self.liveEvaluationReportURL(for: "single")
         try report.write(to: reportURL)
         add(try report.attachment(named: "lineform-intelligence-live-eval-single.json"))
@@ -539,6 +653,49 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
             throw XCTSkip("Set LINEFORM_RUN_LIVE_INTELLIGENCE_EVALS=1 or create /private/tmp/lineform-run-live-intelligence-evals to run live Apple Intelligence evals.")
         }
 
+        let report = await Self.liveFoundationModelsEvaluationReport(mode: "options")
+        let reportURL = Self.liveEvaluationReportURL(for: "options")
+        try report.write(to: reportURL)
+        add(try report.attachment(named: "lineform-intelligence-live-eval-options.json"))
+
+        let failures = report.failureSummaries
+        XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n"))
+    }
+
+    func testRepeatedLiveFoundationModelsEvalIsOptIn() async throws {
+        guard Self.shouldRunRepeatedLiveFoundationModelsEval else {
+            throw XCTSkip("Set LINEFORM_RUN_REPEATED_LIVE_INTELLIGENCE_EVALS=1 or create /private/tmp/lineform-run-repeated-live-intelligence-evals to run repeated live Apple Intelligence evals.")
+        }
+
+        var reports: [LiveIntelligenceEvalReport] = []
+        for _ in 0..<Self.liveFoundationModelsRepeatCount {
+            reports.append(await Self.liveFoundationModelsEvaluationReport(mode: "single"))
+            reports.append(await Self.liveFoundationModelsEvaluationReport(mode: "options"))
+        }
+
+        let repeatedReport = RepeatedLiveIntelligenceEvalReport(reports: reports)
+        let reportURL = Self.liveEvaluationReportURL(for: "repeated")
+        try repeatedReport.write(to: reportURL)
+        add(try repeatedReport.attachment(named: "lineform-intelligence-live-eval-repeated.json"))
+
+        let failures = reports.flatMap(\.failureSummaries)
+        XCTAssertTrue(
+            repeatedReport.summary.passed,
+            """
+            repeated live eval failed:
+            runCount=\(repeatedReport.summary.runCount)
+            failedRunCount=\(repeatedReport.summary.failedRunCount)
+            failedRecordCount=\(repeatedReport.summary.failedRecordCount)
+            criticalFailureCount=\(repeatedReport.summary.criticalFailureCount)
+            emptyOutputCount=\(repeatedReport.summary.emptyOutputCount)
+            duplicateOptionCount=\(repeatedReport.summary.duplicateOptionCount)
+            averageScore=\(repeatedReport.summary.averageScore)
+            \(failures.joined(separator: "\n"))
+            """
+        )
+    }
+
+    private static func liveFoundationModelsEvaluationReport(mode: String) async -> LiveIntelligenceEvalReport {
         let runner = IntelligentEditingRunner(service: FoundationModelsIntelligentEditingService())
         var records: [LiveIntelligenceEvalRecord] = []
 
@@ -546,12 +703,14 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
             let documentText = Self.documentText(for: task)
             let selectedRange = (documentText as NSString).range(of: task.selectedText)
             guard selectedRange.location != NSNotFound else {
-                records.append(LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: nil, failure: "selected text was not present in live eval document"))
+                records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: "selected text was not present in live eval document"))
                 continue
             }
 
             do {
-                let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText)
+                let optionCount = mode == "options"
+                    ? IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText)
+                    : 1
                 let suggestions: [IntelligentEditingSuggestion]
                 if optionCount > 1 {
                     suggestions = try await runner.runOptions(
@@ -572,35 +731,39 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
                 let replacements = suggestions.map(\.replacementText)
 
                 if replacements.count != optionCount {
-                    records.append(LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: nil, failure: "expected \(optionCount) options, received \(replacements.count)"))
+                    records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: "expected \(optionCount) options, received \(replacements.count)"))
                 }
 
                 let uniqueReplacements = Set(replacements.map(Self.normalized))
-                if uniqueReplacements.count != replacements.count {
-                    records.append(LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: nil, failure: "duplicate option text"))
+                if mode == "options", uniqueReplacements.count != replacements.count {
+                    records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: "duplicate option text"))
                 }
 
                 for (index, replacement) in replacements.enumerated() {
                     let result = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task)
-                    records.append(LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: index + 1, replacement: replacement, evaluation: result))
+                    records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: mode == "options" ? index + 1 : nil, replacement: replacement, evaluation: result))
                 }
             } catch {
-                records.append(LiveIntelligenceEvalRecord(task: task, mode: "options", optionIndex: nil, failure: error.localizedDescription))
+                records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: error.localizedDescription))
             }
         }
 
-        let report = LiveIntelligenceEvalReport(records: records)
-        let reportURL = Self.liveEvaluationReportURL(for: "options")
-        try report.write(to: reportURL)
-        add(try report.attachment(named: "lineform-intelligence-live-eval-options.json"))
-
-        let failures = report.failureSummaries
-        XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n"))
+        return LiveIntelligenceEvalReport(records: records)
     }
 
     private static var shouldRunLiveFoundationModelsEval: Bool {
         ProcessInfo.processInfo.environment["LINEFORM_RUN_LIVE_INTELLIGENCE_EVALS"] == "1"
             || FileManager.default.fileExists(atPath: "/private/tmp/lineform-run-live-intelligence-evals")
+    }
+
+    private static var shouldRunRepeatedLiveFoundationModelsEval: Bool {
+        ProcessInfo.processInfo.environment["LINEFORM_RUN_REPEATED_LIVE_INTELLIGENCE_EVALS"] == "1"
+            || FileManager.default.fileExists(atPath: "/private/tmp/lineform-run-repeated-live-intelligence-evals")
+    }
+
+    private static var liveFoundationModelsRepeatCount: Int {
+        let configured = ProcessInfo.processInfo.environment["LINEFORM_LIVE_INTELLIGENCE_REPEAT_COUNT"].flatMap(Int.init) ?? 2
+        return max(2, configured)
     }
 
     private static func preview(_ text: String) -> String {
@@ -681,6 +844,80 @@ private struct LiveIntelligenceEvalSummary: Codable {
         } else {
             passRate = Double(passedRecordCount) / Double(totalRecordCount)
             averageScore = Double(records.reduce(0) { $0 + $1.score }) / Double(totalRecordCount)
+        }
+    }
+}
+
+private struct RepeatedLiveIntelligenceEvalReport: Codable {
+    let generatedAt: String
+    let summary: RepeatedLiveIntelligenceEvalSummary
+    let reports: [LiveIntelligenceEvalReport]
+
+    init(reports: [LiveIntelligenceEvalReport]) {
+        self.generatedAt = ISO8601DateFormatter().string(from: Date())
+        self.summary = RepeatedLiveIntelligenceEvalSummary(reports: reports)
+        self.reports = reports
+    }
+
+    func write(to url: URL) throws {
+        let data = try JSONEncoder.lineformEvalReportEncoder.encode(self)
+        try data.write(to: url, options: .atomic)
+    }
+
+    func attachment(named name: String) throws -> XCTAttachment {
+        let data = try JSONEncoder.lineformEvalReportEncoder.encode(self)
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        return attachment
+    }
+}
+
+private struct RepeatedLiveIntelligenceEvalSummary: Codable {
+    let runCount: Int
+    let failedRunCount: Int
+    let totalRecordCount: Int
+    let failedRecordCount: Int
+    let criticalFailureCount: Int
+    let emptyOutputCount: Int
+    let duplicateOptionCount: Int
+    let averageScore: Double
+
+    var passed: Bool {
+        failedRunCount == 0
+            && failedRecordCount == 0
+            && criticalFailureCount == 0
+            && emptyOutputCount == 0
+            && duplicateOptionCount == 0
+            && averageScore == 100
+    }
+
+    init(reports: [LiveIntelligenceEvalReport]) {
+        runCount = reports.count
+        failedRunCount = reports.filter { $0.summary.failedRecordCount > 0 || Self.duplicateOptionCount(in: $0.records) > 0 }.count
+        totalRecordCount = reports.reduce(0) { $0 + $1.summary.totalRecordCount }
+        failedRecordCount = reports.reduce(0) { $0 + $1.summary.failedRecordCount }
+        criticalFailureCount = reports.reduce(0) { $0 + $1.summary.criticalFailureCount }
+        emptyOutputCount = reports.reduce(0) { partial, report in
+            partial + report.records.filter { $0.replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        }
+        duplicateOptionCount = reports.reduce(0) { $0 + Self.duplicateOptionCount(in: $1.records) }
+
+        if reports.isEmpty {
+            averageScore = 0
+        } else {
+            averageScore = reports.reduce(0) { $0 + $1.summary.averageScore } / Double(reports.count)
+        }
+    }
+
+    private static func duplicateOptionCount(in records: [LiveIntelligenceEvalRecord]) -> Int {
+        let grouped = Dictionary(grouping: records.filter { $0.mode == "options" && $0.optionIndex != nil }) { record in
+            record.taskID
+        }
+
+        return grouped.values.reduce(0) { duplicateCount, taskRecords in
+            let normalized = taskRecords.map { $0.replacement.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            return duplicateCount + (normalized.count - Set(normalized).count)
         }
     }
 }

@@ -159,6 +159,17 @@ enum IntelligentEditingEvaluationRubric {
             "todo",
             "placeholder",
             "dummy text",
+            "i can rewrite",
+            "i can proofread",
+            "i can summarize",
+            "i can shorten",
+            "i can clean",
+            "i cannot",
+            "i can't",
+            "i'm sorry",
+            "as an ai",
+            "here is the replacement",
+            "here's the replacement",
             "option 1",
             "option 2",
             "option 3",
@@ -205,6 +216,10 @@ enum IntelligentEditingEvaluationRubric {
         ]
 
         if blockedFragments.contains(where: { normalizedReplacement.contains($0) }) {
+            return true
+        }
+
+        if inventsStorageOrSyncFacts(replacement: replacement, selectedText: task.selectedText) {
             return true
         }
 
@@ -283,6 +298,10 @@ enum IntelligentEditingEvaluationRubric {
     private static func proofreadChangesMeaningOrStyle(_ replacement: String, selectedText: String, length: IntelligentEditingSelectionLength) -> Bool {
         guard length != .oneWord else {
             return false
+        }
+
+        if reversesLocalPrivacyMeaning(replacement: replacement, selectedText: selectedText) {
+            return true
         }
 
         let selectedWordCount = wordCount(in: selectedText)
@@ -371,6 +390,56 @@ enum IntelligentEditingEvaluationRubric {
         return Double(overlap) / Double(selectedTokens.count) < 0.45
     }
 
+    private static func inventsStorageOrSyncFacts(replacement: String, selectedText: String) -> Bool {
+        let normalizedSelection = normalized(selectedText)
+        let normalizedReplacement = normalized(replacement)
+        let localFirstSelection = normalizedSelection.contains("local")
+            || normalizedSelection.contains("on disk")
+            || normalizedSelection.contains("without converting")
+            || normalizedSelection.contains("does not upload")
+            || normalizedSelection.contains("don't upload")
+            || normalizedSelection.contains("doesn't upload")
+
+        guard localFirstSelection else {
+            return false
+        }
+
+        let inventedFragments = [
+            "cloud database",
+            "private cloud",
+            "syncs every",
+            "sync every",
+            "uploads drafts",
+            "collaborate from anywhere",
+            "team collaboration"
+        ]
+
+        return inventedFragments.contains { normalizedReplacement.contains($0) }
+    }
+
+    private static func reversesLocalPrivacyMeaning(replacement: String, selectedText: String) -> Bool {
+        let normalizedSelection = normalized(selectedText)
+        let normalizedReplacement = normalized(replacement)
+        let selectedSaysNoUpload = normalizedSelection.contains("does not upload")
+            || normalizedSelection.contains("don't upload")
+            || normalizedSelection.contains("doesn't upload")
+            || normalizedSelection.contains("without uploading")
+
+        guard selectedSaysNoUpload else {
+            return false
+        }
+
+        let replacementPreservesNoUpload = normalizedReplacement.contains("does not upload")
+            || normalizedReplacement.contains("don't upload")
+            || normalizedReplacement.contains("doesn't upload")
+            || normalizedReplacement.contains("without uploading")
+
+        return !replacementPreservesNoUpload && (
+            normalizedReplacement.contains("uploads drafts")
+                || normalizedReplacement.contains("upload drafts")
+        )
+    }
+
     private static func dropsSelectedParagraphMeaning(replacement: String, selectedText: String, minimumOverlapRatio: Double) -> Bool {
         let replacementTokens = Set(meaningfulTokens(in: replacement))
         let selectedParagraphs = selectedText.components(separatedBy: "\n\n")
@@ -417,16 +486,25 @@ enum IntelligentEditingEvaluationRubric {
         text
             .lowercased()
             .replacingOccurrences(of: #"(?m)^---\s*$"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"(?m)^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"(?m)^#{1,6}\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"(?m)^\s*[-*]\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"`{1,3}"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"[*_>\[\]()]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"[*_>\[\]()|]+"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func preservesRequiredMarkdownStructure(_ replacement: String, selectedText: String) -> Bool {
         if fencedCodeFenceCount(in: replacement) != fencedCodeFenceCount(in: selectedText) {
+            return false
+        }
+
+        if tableRowShapes(in: replacement) != tableRowShapes(in: selectedText) {
+            return false
+        }
+
+        if blockquoteLineCount(in: replacement) != blockquoteLineCount(in: selectedText) {
             return false
         }
 
@@ -458,6 +536,10 @@ enum IntelligentEditingEvaluationRubric {
             return replacement.contains("- ")
         }
 
+        if selectedText.contains("> ") {
+            return replacement.contains("> ")
+        }
+
         if selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#") {
             return replacement.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#")
         }
@@ -473,6 +555,23 @@ enum IntelligentEditingEvaluationRubric {
         text.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { $0 == "---" }
+    }
+
+    private static func tableRowShapes(in text: String) -> [Int] {
+        text.components(separatedBy: .newlines).compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("|"), trimmed.hasSuffix("|") else {
+                return nil
+            }
+
+            return trimmed.split(separator: "|", omittingEmptySubsequences: false).count
+        }
+    }
+
+    private static func blockquoteLineCount(in text: String) -> Int {
+        text.components(separatedBy: .newlines)
+            .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix(">") }
+            .count
     }
 
     private static func headingMarkers(in text: String) -> [String] {
@@ -568,9 +667,10 @@ enum IntelligentEditingEvaluationRubric {
 
     private static func containsMessyMarkdownFormatting(_ text: String) -> Bool {
         let patterns = [
-            #"(?m)^#{1,6}\S"#,
+            #"(?m)^#{1,6}(?!#)\S"#,
             #"(?m)^[-*]\s{2,}\S"#,
-            #"(?m)^\s{2,}[-*]\s+\S"#,
+            #"(?m)^\s{4,}[-*]\s{2,}\S"#,
+            #"(?m)^\|[^\n]*[^\s\|]\|[^\n]*\|$"#,
             #"\n{3,}"#
         ]
 
@@ -623,6 +723,16 @@ enum IntelligentEditingEvaluationSuite {
         "markdown:list",
         "markdown:frontmatter",
         "markdown:fenced-code",
+        "markdown:link",
+        "markdown:table",
+        "markdown:blockquote",
+        "markdown:numbered-list",
+        "markdown:nested-list",
+        "markdown:code-only",
+        "selection:very-long",
+        "selection:weird-whitespace",
+        "risk:fact-preservation",
+        "language:mixed",
         "user-visible:selected-list-item",
         "generic:sentence-rewrite"
     ]
@@ -745,6 +855,36 @@ enum IntelligentEditingEvaluationSuite {
             requiresMarkdownPreservation: false
         ),
         IntelligentEditingEvaluationTask(
+            id: "privacy-proofread",
+            action: .proofread,
+            selectedText: "The editor does not upload drafts before writers can keep working locally.",
+            documentContext: "The editor does not upload drafts before writers can keep working locally.",
+            length: .sentence,
+            requiresTransformation: false,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "link-proofread",
+            action: .proofread,
+            selectedText: "Read the [setup guide](lineform://help) before exportingg the draft.",
+            documentContext: "Read the [setup guide](lineform://help) before exportingg the draft.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "mixed-language-proofread",
+            action: .proofread,
+            selectedText: "Lineform también guarda borradores Markdown localmente y dont upload drafts.",
+            documentContext: "Lineform también guarda borradores Markdown localmente y dont upload drafts.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
             id: "multiple-paragraph-proofread",
             action: .proofread,
             selectedText: """
@@ -772,6 +912,16 @@ enum IntelligentEditingEvaluationSuite {
             requiresMarkdownPreservation: true
         ),
         IntelligentEditingEvaluationTask(
+            id: "fact-preserving-rewrite",
+            action: .rewrite,
+            selectedText: "Lineform keeps Markdown files on disk so writers can use Finder, iCloud Drive, and Git without converting drafts into a database.",
+            documentContext: "Lineform keeps Markdown files on disk so writers can use Finder, iCloud Drive, and Git without converting drafts into a database.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
             id: "markdown-list-clean-markdown",
             action: .cleanMarkdown,
             selectedText: """
@@ -785,6 +935,49 @@ enum IntelligentEditingEvaluationSuite {
             requiresMarkdownPreservation: true
         ),
         IntelligentEditingEvaluationTask(
+            id: "table-clean-markdown",
+            action: .cleanMarkdown,
+            selectedText: """
+            |Setting|Purpose|
+            |---|---|
+            | Type size | Adjust reading scale |
+            | Line height | Improve long-session rhythm |
+            """,
+            documentContext: "",
+            length: .paragraph,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "nested-list-clean-markdown",
+            action: .cleanMarkdown,
+            selectedText: """
+            -  Reading controls
+              -    Type size
+              -    Line height
+            """,
+            documentContext: "",
+            length: .paragraph,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "code-only-clean-markdown",
+            action: .cleanMarkdown,
+            selectedText: """
+            ```swift
+                let value = 1
+            ```
+            """,
+            documentContext: "",
+            length: .paragraph,
+            requiresTransformation: false,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        ),
+        IntelligentEditingEvaluationTask(
             id: "paragraph-rewrite",
             action: .rewrite,
             selectedText: "The app should feel like a tool that gets out of the way, but the current AI suggestions often make the writing feel less precise and less native to the document.",
@@ -793,6 +986,39 @@ enum IntelligentEditingEvaluationSuite {
             requiresTransformation: true,
             requiresCompression: false,
             requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "blockquote-rewrite",
+            action: .rewrite,
+            selectedText: "> The release notes kind of explain why local files matter.",
+            documentContext: "> The release notes kind of explain why local files matter.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "numbered-list-shorten",
+            action: .shorten,
+            selectedText: """
+            1. Lineform keeps Markdown files portable across Finder, iCloud Drive, Git, and other editors so writers can keep drafts in normal folders.
+            2. Reading controls adjust type size, line height, themes, margins, and focus tools for long review sessions.
+            """,
+            documentContext: "",
+            length: .paragraph,
+            requiresTransformation: true,
+            requiresCompression: true,
+            requiresMarkdownPreservation: true
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "weird-whitespace-clean-markdown",
+            action: .cleanMarkdown,
+            selectedText: "##Title\t\n\n\n-   First item\n-      Second item",
+            documentContext: "",
+            length: .paragraph,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
         ),
         IntelligentEditingEvaluationTask(
             id: "multiple-paragraph-rewrite",
@@ -825,6 +1051,22 @@ enum IntelligentEditingEvaluationSuite {
             The first release focuses on local Markdown editing with strong reading controls. Writers can keep drafts as normal files and move between write, read, and split modes.
 
             Future releases may add export workflows, collaboration, and deeper automation. Those features should not compromise the app's local-first privacy model.
+            """,
+            documentContext: "",
+            length: .multipleParagraphs,
+            requiresTransformation: true,
+            requiresCompression: true,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "very-long-summary",
+            action: .summarize,
+            selectedText: """
+            Lineform focuses on local Markdown editing for writers who want files that remain portable across Finder, iCloud Drive, Git, and other editors. The editor should feel native and quiet while still giving enough structure for long documents, outlines, and focused reading sessions.
+
+            Reading mode reduces visual noise, centers the text column, and applies reader profiles for type size, line height, paragraph spacing, margins, themes, and focus tools. These settings should help writers review structure without changing the underlying Markdown.
+
+            Future automation can help with proofreading, rewriting, shortening, and summarizing selected text, but it must preserve local-first privacy and avoid inventing facts. Suggestions should be useful enough to accept directly, and failures should be caught before they reach the document.
             """,
             documentContext: "",
             length: .multipleParagraphs,
@@ -920,12 +1162,52 @@ enum IntelligentEditingEvaluationSuite {
             scenarios.insert("markdown:list")
         }
 
+        if task.selectedText.range(of: #"(?m)^\s*\d+\.\s+"#, options: .regularExpression) != nil {
+            scenarios.insert("markdown:numbered-list")
+        }
+
+        if task.selectedText.range(of: #"(?m)^\s{2,}[-*]\s+"#, options: .regularExpression) != nil {
+            scenarios.insert("markdown:nested-list")
+        }
+
+        if task.selectedText.contains("](") {
+            scenarios.insert("markdown:link")
+        }
+
+        if task.selectedText.range(of: #"(?m)^\|.*\|$"#, options: .regularExpression) != nil {
+            scenarios.insert("markdown:table")
+        }
+
+        if task.selectedText.range(of: #"(?m)^>\s+"#, options: .regularExpression) != nil {
+            scenarios.insert("markdown:blockquote")
+        }
+
         if task.selectedText.contains("---") {
             scenarios.insert("markdown:frontmatter")
         }
 
         if task.selectedText.contains("```") {
             scenarios.insert("markdown:fenced-code")
+        }
+
+        if task.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("```") {
+            scenarios.insert("markdown:code-only")
+        }
+
+        if IntelligentEditingEvaluationRubric.wordCount(in: task.selectedText) >= 80 {
+            scenarios.insert("selection:very-long")
+        }
+
+        if task.selectedText.contains("\t") || task.selectedText.contains("\n\n\n") || task.selectedText.range(of: #" {3,}"#, options: .regularExpression) != nil {
+            scenarios.insert("selection:weird-whitespace")
+        }
+
+        if task.id.contains("fact-preserving") || task.selectedText.contains("without converting drafts into a database") {
+            scenarios.insert("risk:fact-preservation")
+        }
+
+        if task.selectedText.range(of: #"[^\u{0000}-\u{007F}]"#, options: .regularExpression) != nil {
+            scenarios.insert("language:mixed")
         }
 
         if task.id == "selected-list-item-rewrite" {
@@ -954,9 +1236,10 @@ extension IntelligentEditingAction {
 
     private static func hasMessyMarkdownFormatting(_ text: String) -> Bool {
         let patterns = [
-            #"(?m)^#{1,6}\S"#,
+            #"(?m)^#{1,6}(?!#)\S"#,
             #"(?m)^[-*]\s{2,}\S"#,
-            #"(?m)^\s{2,}[-*]\s+\S"#,
+            #"(?m)^\s{4,}[-*]\s{2,}\S"#,
+            #"(?m)^\|[^\n]*[^\s\|]\|[^\n]*\|$"#,
             #"\n{3,}"#
         ]
 
