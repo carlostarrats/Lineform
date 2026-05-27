@@ -92,6 +92,16 @@ struct EditorContainerView: View {
             }
             displayMode = mode
         }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.convertTextFormat.name)) { notification in
+            guard
+                notificationMatchesActiveWindow(notification),
+                let rawValue = notificationPayloadValue(notification),
+                let format = LineformTextFormat(rawValue: rawValue)
+            else {
+                return
+            }
+            convertDocumentTextFormat(to: format, selectedRange: notificationPayloadSelectedRange(notification))
+        }
         .onChange(of: displayMode) { _, mode in
             if !EditorToolbarVisibility.showsMarkdownBasics(in: mode) {
                 isShowingMarkdownBasics = false
@@ -104,8 +114,12 @@ struct EditorContainerView: View {
             isShowingOutline.toggle()
         }
         .onAppear {
+            LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
             documentStatistics = DocumentStatistics(text: document.text)
             outlineItems = MarkdownOutlineParser().items(in: document.text)
+        }
+        .onChange(of: document.textFormat) { _, newValue in
+            LineformTextFormatMenuState.shared.setTextFormat(newValue)
         }
         .onChange(of: document.text) { _, newValue in
             documentStatistics = DocumentStatistics(text: newValue)
@@ -265,6 +279,8 @@ struct EditorContainerView: View {
     private var markdownEditor: some View {
         MarkdownTextViewRepresentable(
             text: $document.text,
+            textFormat: $document.textFormat,
+            plainTextConversion: $document.plainTextConversion,
             selectionContext: $selectionContext,
             requestedSelection: $requestedSelection,
             selectionAnchorRect: $selectionAnchorRect,
@@ -500,27 +516,30 @@ struct EditorContainerView: View {
         (notification.object as? LineformAppNotification.Payload)?.selectedRange
     }
 
+    private func convertDocumentTextFormat(to format: LineformTextFormat, selectedRange: NSRange?) {
+        switch format {
+        case .markdown:
+            requestedSelection = document.restoreConvertedMarkdown()
+        case .plainText:
+            requestedSelection = document.convertMarkdownToPlainText(selectedRange: selectedRange)
+        }
+        LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
+    }
+
     @ViewBuilder
     private func toolbarControl(for action: EditorToolbarAction) -> some View {
         switch action {
-        case .intelligence:
-            Button {
-                isIntelligenceRailEnabled.toggle()
-            } label: {
-                IntelligenceToolbarIcon(
-                    systemImage: action.systemImage,
-                    isOn: isIntelligenceRailEnabled
-                )
-            }
-            .help(isIntelligenceRailEnabled ? "Hide Intelligence Actions" : "Show Intelligence Actions")
-            .accessibilityLabel(action.title)
-        case .markdownBasics, .readingExperience:
+        case .intelligence, .markdownBasics, .readingExperience:
             Button {
                 handleToolbarAction(action)
             } label: {
-                Label(action.title, systemImage: action.systemImage)
+                IntelligenceToolbarIcon(
+                    systemImage: action.systemImage,
+                    isOn: toolbarActionIsActive(action)
+                )
             }
-            .help(action.title)
+            .help(toolbarHelp(for: action))
+            .accessibilityLabel(action.title)
         }
     }
 
@@ -532,6 +551,24 @@ struct EditorContainerView: View {
             isShowingMarkdownBasics.toggle()
         case .readingExperience:
             isShowingReadingInspector.toggle()
+        }
+    }
+
+    private func toolbarActionIsActive(_ action: EditorToolbarAction) -> Bool {
+        EditorToolbarPressedState.isActive(
+            action,
+            isIntelligenceRailEnabled: isIntelligenceRailEnabled,
+            isShowingMarkdownBasics: isShowingMarkdownBasics,
+            isShowingReadingInspector: isShowingReadingInspector
+        )
+    }
+
+    private func toolbarHelp(for action: EditorToolbarAction) -> String {
+        switch action {
+        case .intelligence:
+            return isIntelligenceRailEnabled ? "Hide Intelligence Actions" : "Show Intelligence Actions"
+        case .markdownBasics, .readingExperience:
+            return action.title
         }
     }
 }
@@ -670,6 +707,42 @@ enum IntelligenceToolbarTogglePresentation {
     static let usesWhiteIconWhenOn = true
     static let iconOpacityWhenOn = 1.0
     static let iconOpacityWhenOff = 0.72
+}
+
+enum EditorToolbarPressedState {
+    static let usesFilledActiveIcon = true
+    static let usesWhiteActiveIcon = true
+
+    static func isActive(
+        _ action: EditorToolbarAction,
+        isIntelligenceRailEnabled: Bool,
+        isShowingMarkdownBasics: Bool,
+        isShowingReadingInspector: Bool
+    ) -> Bool {
+        switch action {
+        case .intelligence:
+            return isIntelligenceRailEnabled
+        case .markdownBasics:
+            return isShowingMarkdownBasics
+        case .readingExperience:
+            return isShowingReadingInspector
+        }
+    }
+
+    static func activeActions(
+        isIntelligenceRailEnabled: Bool,
+        isShowingMarkdownBasics: Bool,
+        isShowingReadingInspector: Bool
+    ) -> [EditorToolbarAction] {
+        EditorToolbarAction.allCases.filter {
+            isActive(
+                $0,
+                isIntelligenceRailEnabled: isIntelligenceRailEnabled,
+                isShowingMarkdownBasics: isShowingMarkdownBasics,
+                isShowingReadingInspector: isShowingReadingInspector
+            )
+        }
+    }
 }
 
 struct IntelligenceToolbarIcon: View {
@@ -1896,6 +1969,7 @@ enum EditorStatusFormatter {
 struct EditorStatusBar: View {
     static let showsTopSeparator = false
     static let lastSavedDetailUsesPrimaryForeground = true
+    static let horizontalInset: CGFloat = 28
 
     static func isVisible(in mode: EditorDisplayMode) -> Bool {
         mode != .read
@@ -1929,7 +2003,7 @@ struct EditorStatusBar: View {
                 .lineLimit(1)
                 .accessibilityLabel(statusAccessibilityLabel)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Self.horizontalInset)
         .padding(.vertical, 6)
     }
 }

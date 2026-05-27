@@ -22,7 +22,7 @@ final class AppCommandNotificationTests: XCTestCase {
     }
 
     func testFormatMenuContainsEveryMarkdownBasicsAction() {
-        XCTAssertEqual(AppMenuConfiguration.formatCommandTitles, [
+        XCTAssertEqual(AppMenuConfiguration.markdownFormattingCommandTitles, [
             "Title",
             "Section",
             "Bold",
@@ -31,6 +31,25 @@ final class AppCommandNotificationTests: XCTestCase {
             "Bulleted List",
             "Link"
         ])
+        XCTAssertEqual(AppMenuConfiguration.formatCommandTitles(for: .markdown), [
+            "Title",
+            "Section",
+            "Bold",
+            "Italic",
+            "Code",
+            "Bulleted List",
+            "Link",
+            "Convert to Plain Text"
+        ])
+        XCTAssertEqual(AppMenuConfiguration.formatCommandTitles(for: .plainText), [
+            "Convert to Markdown"
+        ])
+    }
+
+    func testFileMenuExposesSaveAsBesideSave() {
+        XCTAssertEqual(AppMenuConfiguration.saveCommandTitle, "Save")
+        XCTAssertEqual(AppMenuConfiguration.saveAsCommandTitle, "Save As...")
+        XCTAssertEqual(AppMenuConfiguration.saveAsCommandKeyEquivalent, "S")
     }
 
     func testReadingExperienceCommandUsesStableNotificationName() {
@@ -47,6 +66,15 @@ final class AppCommandNotificationTests: XCTestCase {
             LineformAppNotification.focusSearch.name.rawValue,
             "Lineform.focusSearch"
         )
+    }
+
+    func testTextFormatConversionCommandUsesWindowScopedNotification() {
+        XCTAssertEqual(
+            LineformAppNotification.convertTextFormat.name.rawValue,
+            "Lineform.convertTextFormat"
+        )
+        XCTAssertEqual(LineformTextFormat.markdown.rawValue, "markdown")
+        XCTAssertEqual(LineformTextFormat.plainText.rawValue, "plainText")
     }
 
     func testNotificationPayloadCarriesActiveWindowIdentifier() {

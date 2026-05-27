@@ -5,6 +5,79 @@ struct MarkdownEdit: Equatable {
     var selectedRange: NSRange
 }
 
+enum LineformTextFormat: String, Equatable {
+    case markdown
+    case plainText
+}
+
+struct MarkdownPlainTextConversion: Equatable {
+    var originalMarkdown: String
+    var plainText: String
+    var range: NSRange
+
+    func restoredMarkdown(in text: String) -> MarkdownEdit? {
+        let nsText = text as NSString
+        guard NSMaxRange(range) <= nsText.length else {
+            return nil
+        }
+
+        guard nsText.substring(with: range) == plainText else {
+            return nil
+        }
+
+        var edited = text
+        guard let swiftRange = Range(range, in: text) else {
+            return nil
+        }
+        edited.replaceSubrange(swiftRange, with: originalMarkdown)
+        return MarkdownEdit(
+            text: edited,
+            selectedRange: NSRange(location: range.location, length: (originalMarkdown as NSString).length)
+        )
+    }
+}
+
+enum MarkdownPlainTextConverter {
+    static func plainText(from markdown: String) -> String {
+        var text = markdown
+            .components(separatedBy: .newlines)
+            .compactMap { line -> String? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                    return nil
+                }
+                return stripLinePrefix(from: line)
+            }
+            .joined(separator: "\n")
+
+        text = replace(pattern: #"!\[([^\]]*)\]\([^)]+\)"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"\[([^\]]+)\]\([^)]+\)"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(\*\*|__)(.*?)\1"#, in: text, withTemplate: "$2")
+        text = replace(pattern: #"(?<!\*)\*([^*\n]+)\*(?!\*)"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(?<!_)_([^_\n]+)_(?!_)"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"`([^`\n]+)`"#, in: text, withTemplate: "$1")
+
+        return text
+    }
+
+    private static func stripLinePrefix(from line: String) -> String {
+        var stripped = replace(pattern: #"^\s{0,3}#{1,6}\s+"#, in: line, withTemplate: "")
+        stripped = replace(pattern: #"^\s{0,3}>\s?"#, in: stripped, withTemplate: "")
+        stripped = replace(pattern: #"^\s{0,3}[-*+]\s+"#, in: stripped, withTemplate: "")
+        stripped = replace(pattern: #"^\s{0,3}\d+[.)]\s+"#, in: stripped, withTemplate: "")
+        return stripped
+    }
+
+    private static func replace(pattern: String, in text: String, withTemplate template: String) -> String {
+        guard let expression = try? NSRegularExpression(pattern: pattern) else {
+            return text
+        }
+
+        let range = NSRange(location: 0, length: (text as NSString).length)
+        return expression.stringByReplacingMatches(in: text, range: range, withTemplate: template)
+    }
+}
+
 enum MarkdownFormattingCommand {
     case title
     case section

@@ -11,6 +11,9 @@ final class LineformTextView: NSTextView {
     private var searchHighlightRanges: [NSRange] = []
     private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
+    var textFormat = LineformTextFormat.markdown
+    var lastPlainTextConversion: MarkdownPlainTextConversion?
+    var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -136,20 +139,72 @@ final class LineformTextView: NSTextView {
         applyFormattingCommand(.link)
     }
 
+    @objc func convertMarkdownToPlainText(_ sender: Any?) {
+        guard textFormat == .markdown else {
+            return
+        }
+
+        let nsText = string as NSString
+        let selection = selectedRange()
+        let conversionRange = selection.length > 0
+            ? selection
+            : NSRange(location: 0, length: nsText.length)
+        guard conversionRange.length > 0, NSMaxRange(conversionRange) <= nsText.length else {
+            return
+        }
+
+        let originalMarkdown = nsText.substring(with: conversionRange)
+        let plainText = MarkdownPlainTextConverter.plainText(from: originalMarkdown)
+        let conversion = MarkdownPlainTextConversion(
+            originalMarkdown: originalMarkdown,
+            plainText: plainText,
+            range: NSRange(location: conversionRange.location, length: (plainText as NSString).length)
+        )
+
+        applyWholeTextEdit(
+            replacing: conversionRange,
+            with: plainText,
+            selectedRange: conversion.range
+        )
+        lastPlainTextConversion = conversion
+        textFormat = .plainText
+        LineformTextFormatMenuState.shared.setTextFormat(.plainText)
+        textFormatChangeHandler?(.plainText, conversion)
+    }
+
+    @objc func restoreConvertedMarkdown(_ sender: Any?) {
+        if
+            let conversion = lastPlainTextConversion,
+            let edit = conversion.restoredMarkdown(in: string)
+        {
+            applyWholeTextReplacement(edit)
+        }
+
+        lastPlainTextConversion = nil
+        textFormat = .markdown
+        LineformTextFormatMenuState.shared.setTextFormat(.markdown)
+        textFormatChangeHandler?(.markdown, nil)
+    }
+
     override func menu(for event: NSEvent) -> NSMenu? {
         cancelPendingAutomaticIntelligenceMenu()
+        let contextMenuTextFormat = LineformTextFormatMenuState.shared.textFormat
+        textFormat = contextMenuTextFormat
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Cut", action: #selector(cut(_:)), keyEquivalent: "x"))
-        menu.addItem(NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: "c"))
-        menu.addItem(NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: "v"))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Title", action: #selector(toggleTitleMarkdown(_:)), keyEquivalent: "1"))
-        menu.addItem(NSMenuItem(title: "Section", action: #selector(toggleSectionMarkdown(_:)), keyEquivalent: "2"))
-        menu.addItem(NSMenuItem(title: "Bold", action: #selector(toggleBoldMarkdown(_:)), keyEquivalent: "b"))
-        menu.addItem(NSMenuItem(title: "Italic", action: #selector(toggleItalicMarkdown(_:)), keyEquivalent: "i"))
-        menu.addItem(NSMenuItem(title: "Code", action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
-        menu.addItem(NSMenuItem(title: "Bulleted List", action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Link", action: #selector(toggleLinkMarkdown(_:)), keyEquivalent: "k"))
+        menu.allowsContextMenuPlugIns = LineformTextContextMenuPresentation.allowsContextMenuPlugIns
+        menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.cutTitle, action: #selector(cut(_:)), keyEquivalent: "x"))
+        menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.copyTitle, action: #selector(copy(_:)), keyEquivalent: "c"))
+        menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.pasteTitle, action: #selector(paste(_:)), keyEquivalent: "v"))
+        if contextMenuTextFormat == .markdown {
+            menu.addItem(.separator())
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.titleTitle, action: #selector(toggleTitleMarkdown(_:)), keyEquivalent: "1"))
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.sectionTitle, action: #selector(toggleSectionMarkdown(_:)), keyEquivalent: "2"))
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.boldTitle, action: #selector(toggleBoldMarkdown(_:)), keyEquivalent: "b"))
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.italicTitle, action: #selector(toggleItalicMarkdown(_:)), keyEquivalent: "i"))
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.codeTitle, action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.bulletedListTitle, action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.linkTitle, action: #selector(toggleLinkMarkdown(_:)), keyEquivalent: "k"))
+        }
         return menu
     }
 
@@ -472,6 +527,19 @@ final class LineformTextView: NSTextView {
 
     private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {
         let edit = command.apply(to: string, selectedRange: selectedRange())
+        applyWholeTextReplacement(edit)
+    }
+
+    private func applyWholeTextEdit(replacing range: NSRange, with replacement: String, selectedRange: NSRange) {
+        var edited = string
+        guard let swiftRange = Range(range, in: edited) else {
+            return
+        }
+        edited.replaceSubrange(swiftRange, with: replacement)
+        applyWholeTextReplacement(MarkdownEdit(text: edited, selectedRange: selectedRange))
+    }
+
+    private func applyWholeTextReplacement(_ edit: MarkdownEdit) {
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
 
         guard shouldChangeText(in: fullRange, replacementString: edit.text) else {
@@ -482,5 +550,67 @@ final class LineformTextView: NSTextView {
         didChangeText()
         setSelectedRange(edit.selectedRange)
         refreshMarkdownHighlighting()
+    }
+}
+
+enum LineformTextContextMenuPresentation {
+    static let allowsContextMenuPlugIns = false
+    static let cutTitle = "Cut"
+    static let copyTitle = "Copy"
+    static let pasteTitle = "Paste"
+    static let titleTitle = "Title"
+    static let sectionTitle = "Section"
+    static let boldTitle = "Bold"
+    static let italicTitle = "Italic"
+    static let codeTitle = "Code"
+    static let bulletedListTitle = "Bulleted List"
+    static let linkTitle = "Link"
+    static let convertToPlainTextTitle = "Convert to Plain Text"
+    static let convertToMarkdownTitle = "Convert to Markdown"
+    static let excludedSystemPluginTitles = ["Autofill", "AutoFill", "Services"]
+
+    static func conversionTitle(for textFormat: LineformTextFormat) -> String {
+        switch textFormat {
+        case .markdown:
+            return convertToPlainTextTitle
+        case .plainText:
+            return convertToMarkdownTitle
+        }
+    }
+
+    static func conversionAction(for textFormat: LineformTextFormat) -> Selector {
+        switch textFormat {
+        case .markdown:
+            return #selector(LineformTextView.convertMarkdownToPlainText(_:))
+        case .plainText:
+            return #selector(LineformTextView.restoreConvertedMarkdown(_:))
+        }
+    }
+
+    static func commandTitles(for textFormat: LineformTextFormat) -> [String] {
+        let rawTextCommands = [
+            cutTitle,
+            copyTitle,
+            pasteTitle
+        ]
+
+        switch textFormat {
+        case .markdown:
+            return rawTextCommands + [
+            titleTitle,
+            sectionTitle,
+            boldTitle,
+            italicTitle,
+            codeTitle,
+            bulletedListTitle,
+            linkTitle
+        ]
+        case .plainText:
+            return rawTextCommands
+        }
+    }
+
+    static var commandTitles: [String] {
+        commandTitles(for: .markdown)
     }
 }

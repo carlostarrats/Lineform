@@ -8,6 +8,7 @@ final class LineformDocumentTests: XCTestCase {
         let document = LineformDocument()
 
         XCTAssertEqual(document.text, "")
+        XCTAssertEqual(document.textFormat, .markdown)
     }
 
     func testDocumentReadsUTF8MarkdownData() throws {
@@ -46,6 +47,51 @@ final class LineformDocumentTests: XCTestCase {
     func testDocumentAdvertisesMarkdownAndPlainTextTypes() {
         XCTAssertTrue(LineformDocument.readableContentTypes.contains(.markdownText))
         XCTAssertTrue(LineformDocument.readableContentTypes.contains(.plainText))
+        XCTAssertTrue(LineformDocument.writableContentTypes.contains(.markdownText))
+        XCTAssertTrue(LineformDocument.writableContentTypes.contains(.plainText))
+        XCTAssertTrue(LineformDocument.writableContentTypes.contains(.pdf))
+    }
+
+    func testDocumentCanRenderPDFDataForSavePanel() {
+        let document = LineformDocument(text: "# Title\n\nPortable **Markdown**.\n")
+
+        let pdfData = document.pdfData()
+
+        XCTAssertTrue(pdfData.starts(with: Data("%PDF".utf8)))
+        XCTAssertGreaterThan(pdfData.count, 100)
+    }
+
+    func testPlainTextSaveWritesPlainTextWithoutMarkdownMarkers() throws {
+        let document = LineformDocument(text: "# Title\n\nPortable **Markdown**.\n")
+
+        XCTAssertEqual(document.plainTextData(), Data("Title\n\nPortable Markdown.\n".utf8))
+    }
+
+    func testDocumentTextFormatConversionRoundTripsMarkdownFromMenuCommandState() {
+        var document = LineformDocument(text: "# Title\n\nPortable **Markdown**.\n")
+
+        document.convertMarkdownToPlainText()
+
+        XCTAssertEqual(document.text, "Title\n\nPortable Markdown.\n")
+        XCTAssertEqual(document.textFormat, .plainText)
+        XCTAssertEqual(document.plainTextConversion?.originalMarkdown, "# Title\n\nPortable **Markdown**.\n")
+
+        document.restoreConvertedMarkdown()
+
+        XCTAssertEqual(document.text, "# Title\n\nPortable **Markdown**.\n")
+        XCTAssertEqual(document.textFormat, .markdown)
+        XCTAssertNil(document.plainTextConversion)
+    }
+
+    func testRepeatedDocumentPlainTextConversionDoesNotOverwriteStoredMarkdownRestore() {
+        var document = LineformDocument(text: "# Title\n\nPortable **Markdown**.\n")
+
+        document.convertMarkdownToPlainText()
+        document.convertMarkdownToPlainText()
+        document.restoreConvertedMarkdown()
+
+        XCTAssertEqual(document.text, "# Title\n\nPortable **Markdown**.\n")
+        XCTAssertEqual(document.textFormat, .markdown)
     }
 
     func testDocumentRejectsInvalidUTF8InsteadOfRepairingBytes() {

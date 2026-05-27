@@ -7,6 +7,7 @@ enum LineformAppNotification {
     case runIntelligentEditingAction
     case setDisplayMode
     case toggleOutline
+    case convertTextFormat
 
     var name: Notification.Name {
         switch self {
@@ -20,6 +21,8 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.setDisplayMode")
         case .toggleOutline:
             return Notification.Name("Lineform.toggleOutline")
+        case .convertTextFormat:
+            return Notification.Name("Lineform.convertTextFormat")
         }
     }
 

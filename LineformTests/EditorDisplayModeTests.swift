@@ -141,6 +141,27 @@ final class EditorDisplayModeTests: XCTestCase {
         )
     }
 
+    func testToolbarPressedStateCoversInfoAndInspectorButtons() {
+        XCTAssertEqual(
+            EditorToolbarPressedState.activeActions(
+                isIntelligenceRailEnabled: true,
+                isShowingMarkdownBasics: false,
+                isShowingReadingInspector: false
+            ),
+            [.intelligence]
+        )
+        XCTAssertEqual(
+            EditorToolbarPressedState.activeActions(
+                isIntelligenceRailEnabled: false,
+                isShowingMarkdownBasics: true,
+                isShowingReadingInspector: true
+            ),
+            [.markdownBasics, .readingExperience]
+        )
+        XCTAssertTrue(EditorToolbarPressedState.usesFilledActiveIcon)
+        XCTAssertTrue(EditorToolbarPressedState.usesWhiteActiveIcon)
+    }
+
     @MainActor
     func testMarkdownBasicsModalHasExplicitAndOutsideDismissal() {
         XCTAssertTrue(MarkdownBasicsModal.showsCloseButton)
@@ -268,6 +289,7 @@ final class EditorDisplayModeTests: XCTestCase {
     func testStatusBarDoesNotDrawTopSeparator() {
         XCTAssertFalse(EditorStatusBar.showsTopSeparator)
         XCTAssertTrue(EditorStatusBar.lastSavedDetailUsesPrimaryForeground)
+        XCTAssertEqual(EditorStatusBar.horizontalInset, 28)
     }
 
     @MainActor

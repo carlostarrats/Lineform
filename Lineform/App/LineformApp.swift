@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct LineformApp: App {
+    @StateObject private var textFormatMenuState = LineformTextFormatMenuState.shared
+
     init() {
         BundledFontRegistrar.registerFonts()
     }
@@ -11,7 +13,7 @@ struct LineformApp: App {
             EditorContainerView(document: file.$document)
         }
         .commands {
-            AppCommands()
+            AppCommands(textFormatMenuState: textFormatMenuState)
         }
     }
 }

@@ -71,4 +71,46 @@ final class MarkdownFormattingCommandTests: XCTestCase {
         XCTAssertEqual(edit.text, "Open [docs](https://example.com)")
         XCTAssertEqual(edit.selectedRange, NSRange(location: 12, length: 19))
     }
+
+    func testPlainTextConversionRemovesCommonMarkdownSyntax() {
+        let markdown = """
+        # Title
+
+        > **Important** [link](https://example.com)
+        - `local` files
+        """
+
+        XCTAssertEqual(
+            MarkdownPlainTextConverter.plainText(from: markdown),
+            """
+            Title
+
+            Important link
+            local files
+            """
+        )
+    }
+
+    func testPlainTextConversionCanRestoreUnchangedConvertedRange() {
+        let conversion = MarkdownPlainTextConversion(
+            originalMarkdown: "# Title",
+            plainText: "Title",
+            range: NSRange(location: 0, length: 5)
+        )
+
+        let restored = conversion.restoredMarkdown(in: "Title\n\nBody")
+
+        XCTAssertEqual(restored?.text, "# Title\n\nBody")
+        XCTAssertEqual(restored?.selectedRange, NSRange(location: 0, length: 7))
+    }
+
+    func testPlainTextConversionDoesNotRestoreAfterPlainTextChanges() {
+        let conversion = MarkdownPlainTextConversion(
+            originalMarkdown: "# Title",
+            plainText: "Title",
+            range: NSRange(location: 0, length: 5)
+        )
+
+        XCTAssertNil(conversion.restoredMarkdown(in: "Edited title"))
+    }
 }

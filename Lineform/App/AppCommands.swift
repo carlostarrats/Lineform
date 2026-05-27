@@ -6,6 +6,10 @@ enum AppMenuCommandPlacement: Equatable {
 }
 
 enum AppMenuConfiguration {
+    static let saveCommandTitle = "Save"
+    static let saveAsCommandTitle = "Save As..."
+    static let saveAsCommandKeyEquivalent = "S"
+    static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
     static let findCommandKeyEquivalent = "f"
@@ -15,7 +19,7 @@ enum AppMenuConfiguration {
     static let lineformIntelligenceCommandTitles = IntelligentEditingAction.menuBarActions.map(\.title)
     static let addsWritingToolsToEditMenu = false
     static let exposesAppleWritingTools = false
-    static let formatCommandTitles = [
+    static let markdownFormattingCommandTitles = [
         "Title",
         "Section",
         "Bold",
@@ -24,49 +28,122 @@ enum AppMenuConfiguration {
         "Bulleted List",
         "Link"
     ]
+
+    static func formatCommandTitles(for textFormat: LineformTextFormat) -> [String] {
+        switch textFormat {
+        case .markdown:
+            return markdownFormattingCommandTitles + [conversionCommandTitle(for: textFormat)]
+        case .plainText:
+            return [conversionCommandTitle(for: textFormat)]
+        }
+    }
+
+    static func conversionCommandTitle(for textFormat: LineformTextFormat) -> String {
+        switch textFormat {
+        case .markdown:
+            return "Convert to Plain Text"
+        case .plainText:
+            return "Convert to Markdown"
+        }
+    }
+}
+
+@MainActor
+final class LineformTextFormatMenuState: ObservableObject {
+    static let shared = LineformTextFormatMenuState()
+
+    @Published private(set) var textFormat: LineformTextFormat
+
+    init(textFormat: LineformTextFormat = .markdown) {
+        self.textFormat = textFormat
+    }
+
+    func setTextFormat(_ textFormat: LineformTextFormat) {
+        guard self.textFormat != textFormat else {
+            return
+        }
+
+        self.textFormat = textFormat
+        NSApp.mainMenu?.update()
+    }
 }
 
 struct AppCommands: Commands {
+    @ObservedObject private var textFormatMenuState: LineformTextFormatMenuState
+
+    init(textFormatMenuState: LineformTextFormatMenuState = .shared) {
+        _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
+    }
+
     var body: some Commands {
+        CommandGroup(after: .saveItem) {
+            Button(AppMenuConfiguration.saveAsCommandTitle) {
+                NSApp.sendAction(AppMenuConfiguration.saveAsCommandSelector, to: nil, from: nil)
+            }
+            .keyboardShortcut(
+                KeyEquivalent(Character(AppMenuConfiguration.saveAsCommandKeyEquivalent)),
+                modifiers: [.command, .shift]
+            )
+        }
+
         CommandMenu("Format") {
-            Button("Title") {
-                NSApp.sendAction(#selector(LineformTextView.toggleTitleMarkdown(_:)), to: nil, from: nil)
+            if activeTextFormat == .markdown {
+                Button("Title") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleTitleMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("1", modifiers: .command)
+
+                Button("Section") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleSectionMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("2", modifiers: .command)
+
+                Divider()
+
+                Button("Bold") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleBoldMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("b", modifiers: .command)
+
+                Button("Italic") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleItalicMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("i", modifiers: .command)
+
+                Button("Code") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleInlineCodeMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("`", modifiers: .command)
+
+                Divider()
+
+                Button("Bulleted List") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleUnorderedListMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("8", modifiers: [.command, .shift])
+
+                Button("Link") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleLinkMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("k", modifiers: .command)
+
+                Divider()
             }
-            .keyboardShortcut("1", modifiers: .command)
 
-            Button("Section") {
-                NSApp.sendAction(#selector(LineformTextView.toggleSectionMarkdown(_:)), to: nil, from: nil)
+            switch activeTextFormat {
+            case .markdown:
+                Button(AppMenuConfiguration.conversionCommandTitle(for: .markdown)) {
+                    LineformAppNotification.convertTextFormat.post(
+                        object: LineformAppNotification.activeWindowPayload(value: LineformTextFormat.plainText.rawValue)
+                    )
+                }
+            case .plainText:
+                Button(AppMenuConfiguration.conversionCommandTitle(for: .plainText)) {
+                    LineformAppNotification.convertTextFormat.post(
+                        object: LineformAppNotification.activeWindowPayload(value: LineformTextFormat.markdown.rawValue)
+                    )
+                }
             }
-            .keyboardShortcut("2", modifiers: .command)
-
-            Divider()
-
-            Button("Bold") {
-                NSApp.sendAction(#selector(LineformTextView.toggleBoldMarkdown(_:)), to: nil, from: nil)
-            }
-            .keyboardShortcut("b", modifiers: .command)
-
-            Button("Italic") {
-                NSApp.sendAction(#selector(LineformTextView.toggleItalicMarkdown(_:)), to: nil, from: nil)
-            }
-            .keyboardShortcut("i", modifiers: .command)
-
-            Button("Code") {
-                NSApp.sendAction(#selector(LineformTextView.toggleInlineCodeMarkdown(_:)), to: nil, from: nil)
-            }
-            .keyboardShortcut("`", modifiers: .command)
-
-            Divider()
-
-            Button("Bulleted List") {
-                NSApp.sendAction(#selector(LineformTextView.toggleUnorderedListMarkdown(_:)), to: nil, from: nil)
-            }
-            .keyboardShortcut("8", modifiers: [.command, .shift])
-
-            Button("Link") {
-                NSApp.sendAction(#selector(LineformTextView.toggleLinkMarkdown(_:)), to: nil, from: nil)
-            }
-            .keyboardShortcut("k", modifiers: .command)
         }
 
         CommandGroup(after: .toolbar) {
@@ -113,6 +190,10 @@ struct AppCommands: Commands {
                 LineformHelp.openMarkdownGuide()
             }
         }
+    }
+
+    private var activeTextFormat: LineformTextFormat {
+        textFormatMenuState.textFormat
     }
 
     private var displayModeSelection: Binding<EditorDisplayMode> {

@@ -24,7 +24,65 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
     }
 
     func testContextMenuKeepsOnlyFastMarkdownEditingActions() throws {
+        LineformTextFormatMenuState.shared.setTextFormat(.markdown)
         let textView = LineformTextView()
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        let menu = try XCTUnwrap(textView.menu(for: event))
+        let titles = menu.items.map(\.title)
+
+        XCTAssertEqual(menu.allowsContextMenuPlugIns, LineformTextContextMenuPresentation.allowsContextMenuPlugIns)
+        XCTAssertEqual(titles, [
+            "Cut",
+            "Copy",
+            "Paste",
+            "",
+            "Title",
+            "Section",
+            "Bold",
+            "Italic",
+            "Code",
+            "Bulleted List",
+            "Link"
+        ])
+        XCTAssertFalse(titles.contains("Convert to Plain Text"))
+        XCTAssertFalse(titles.contains("Convert to Markdown"))
+
+        XCTAssertFalse(titles.contains("Look Up"))
+        XCTAssertFalse(titles.contains("Translate"))
+        XCTAssertFalse(titles.contains("Search With Google"))
+        XCTAssertFalse(titles.contains("Share..."))
+        XCTAssertFalse(titles.contains("Font"))
+        XCTAssertFalse(titles.contains("Show Writing Tools"))
+        XCTAssertFalse(titles.contains("Writing Tools"))
+        XCTAssertFalse(titles.contains("Autofill"))
+        XCTAssertFalse(titles.contains("AutoFill"))
+        XCTAssertFalse(titles.contains("Services"))
+        XCTAssertFalse(titles.contains("Intelligence"))
+    }
+
+    func testContextMenuPresentationDisablesSystemPluginItems() {
+        XCTAssertFalse(LineformTextContextMenuPresentation.allowsContextMenuPlugIns)
+        XCTAssertFalse(LineformTextContextMenuPresentation.commandTitles.contains("Autofill"))
+        XCTAssertFalse(LineformTextContextMenuPresentation.commandTitles.contains("AutoFill"))
+        XCTAssertFalse(LineformTextContextMenuPresentation.commandTitles.contains("Services"))
+        XCTAssertEqual(LineformTextContextMenuPresentation.excludedSystemPluginTitles, ["Autofill", "AutoFill", "Services"])
+    }
+
+    func testContextMenuKeepsOnlyRawTextEditingActionsWhenDocumentIsPlainText() throws {
+        LineformTextFormatMenuState.shared.setTextFormat(.plainText)
+        let textView = LineformTextView()
+        textView.textFormat = .plainText
         let event = try XCTUnwrap(NSEvent.mouseEvent(
             with: .rightMouseDown,
             location: .zero,
@@ -43,29 +101,116 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(titles, [
             "Cut",
             "Copy",
-            "Paste",
-            "",
-            "Title",
-            "Section",
-            "Bold",
-            "Italic",
-            "Code",
-            "Bulleted List",
-            "Link"
+            "Paste"
         ])
+        XCTAssertFalse(titles.contains("Convert to Markdown"))
+        XCTAssertFalse(titles.contains("Convert to Plain Text"))
+        XCTAssertFalse(titles.contains("Title"))
+        XCTAssertFalse(titles.contains("Section"))
+        XCTAssertFalse(titles.contains("Bold"))
+        XCTAssertFalse(titles.contains("Italic"))
+        XCTAssertFalse(titles.contains("Code"))
+        XCTAssertFalse(titles.contains("Bulleted List"))
+        XCTAssertFalse(titles.contains("Link"))
+    }
 
-        XCTAssertFalse(titles.contains("Look Up"))
-        XCTAssertFalse(titles.contains("Translate"))
-        XCTAssertFalse(titles.contains("Search With Google"))
-        XCTAssertFalse(titles.contains("Share..."))
-        XCTAssertFalse(titles.contains("Font"))
-        XCTAssertFalse(titles.contains("Show Writing Tools"))
-        XCTAssertFalse(titles.contains("Writing Tools"))
-        XCTAssertFalse(titles.contains("Services"))
-        XCTAssertFalse(titles.contains("Intelligence"))
+    func testContextMenuUsesDocumentFormatStateWhenTextViewFormatIsStaleAfterPlainTextConversion() throws {
+        LineformTextFormatMenuState.shared.setTextFormat(.plainText)
+        let textView = LineformTextView()
+        textView.textFormat = .markdown
+        let event = try XCTUnwrap(Self.contextMenuEvent())
+
+        let titles = try XCTUnwrap(textView.menu(for: event)).items.map(\.title)
+
+        XCTAssertEqual(titles, [
+            "Cut",
+            "Copy",
+            "Paste"
+        ])
+        XCTAssertEqual(textView.textFormat, .plainText)
+    }
+
+    func testContextMenuUsesDocumentFormatStateWhenTextViewFormatIsStaleAfterMarkdownRestore() throws {
+        LineformTextFormatMenuState.shared.setTextFormat(.markdown)
+        let textView = LineformTextView()
+        textView.textFormat = .plainText
+        let event = try XCTUnwrap(Self.contextMenuEvent())
+
+        let titles = try XCTUnwrap(textView.menu(for: event)).items.map(\.title)
+
+        XCTAssertTrue(titles.contains("Title"))
+        XCTAssertTrue(titles.contains("Section"))
+        XCTAssertTrue(titles.contains("Bold"))
+        XCTAssertTrue(titles.contains("Link"))
+        XCTAssertEqual(textView.textFormat, .markdown)
+    }
+
+    func testPlainTextConversionRoundTripReturnsTextViewToMarkdownState() throws {
+        let textView = LineformTextView()
+        textView.string = "# Title\n\nPortable **Markdown**.\n"
+        textView.setSelectedRange(NSRange(location: 0, length: (textView.string as NSString).length))
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        textView.convertMarkdownToPlainText(nil)
+        XCTAssertEqual(textView.string, "Title\n\nPortable Markdown.\n")
+        XCTAssertEqual(textView.textFormat, .plainText)
+
+        textView.restoreConvertedMarkdown(nil)
+
+        XCTAssertEqual(textView.string, "# Title\n\nPortable **Markdown**.\n")
+        XCTAssertEqual(textView.textFormat, .markdown)
+        let titles = textView.menu(for: event)?.items.map(\.title) ?? []
+        XCTAssertFalse(titles.contains("Convert to Plain Text"))
+        XCTAssertFalse(titles.contains("Convert to Markdown"))
+    }
+
+    func testRepeatedPlainTextConversionDoesNotOverwriteStoredMarkdownRestore() {
+        LineformTextFormatMenuState.shared.setTextFormat(.markdown)
+        let textView = LineformTextView()
+        textView.string = "# Title\n\nPortable **Markdown**.\n"
+        textView.setSelectedRange(NSRange(location: 0, length: (textView.string as NSString).length))
+
+        textView.convertMarkdownToPlainText(nil)
+        let firstConversion = textView.lastPlainTextConversion
+        XCTAssertEqual(LineformTextFormatMenuState.shared.textFormat, .plainText)
+
+        textView.convertMarkdownToPlainText(nil)
+        textView.restoreConvertedMarkdown(nil)
+
+        XCTAssertEqual(firstConversion?.originalMarkdown, "# Title\n\nPortable **Markdown**.\n")
+        XCTAssertEqual(textView.string, "# Title\n\nPortable **Markdown**.\n")
+        XCTAssertEqual(textView.textFormat, .markdown)
+        XCTAssertEqual(LineformTextFormatMenuState.shared.textFormat, .markdown)
+    }
+
+    func testMarkdownRestoreUsesStoredConversionEvenWhenLocalFormatStateIsStale() {
+        let textView = LineformTextView()
+        textView.string = "Title\n\nPortable Markdown.\n"
+        textView.textFormat = .markdown
+        textView.lastPlainTextConversion = MarkdownPlainTextConversion(
+            originalMarkdown: "# Title\n\nPortable **Markdown**.\n",
+            plainText: "Title\n\nPortable Markdown.\n",
+            range: NSRange(location: 0, length: (textView.string as NSString).length)
+        )
+
+        textView.restoreConvertedMarkdown(nil)
+
+        XCTAssertEqual(textView.string, "# Title\n\nPortable **Markdown**.\n")
+        XCTAssertEqual(textView.textFormat, .markdown)
     }
 
     func testContextMenuDoesNotExposeIntelligenceSubmenu() throws {
+        LineformTextFormatMenuState.shared.setTextFormat(.markdown)
         let textView = LineformTextView()
         let event = try XCTUnwrap(NSEvent.mouseEvent(
             with: .rightMouseDown,
@@ -82,6 +227,20 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         let menu = try XCTUnwrap(textView.menu(for: event))
 
         XCTAssertNil(menu.items.first { $0.title == "Intelligence" })
+    }
+
+    private static func contextMenuEvent() -> NSEvent? {
+        NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )
     }
 
     func testMouseSelectionDoesNotScheduleAutomaticIntelligenceMenu() {

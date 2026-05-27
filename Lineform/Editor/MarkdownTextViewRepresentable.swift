@@ -3,6 +3,8 @@ import SwiftUI
 
 struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String
+    @Binding var textFormat: LineformTextFormat
+    @Binding var plainTextConversion: MarkdownPlainTextConversion?
     @Binding var selectionContext: SelectionContext
     @Binding var requestedSelection: NSRange?
     @Binding var selectionAnchorRect: CGRect?
@@ -12,7 +14,13 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     var activeSearchRange: NSRange?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, selectionContext: $selectionContext, selectionAnchorRect: $selectionAnchorRect)
+        Coordinator(
+            text: $text,
+            textFormat: $textFormat,
+            plainTextConversion: $plainTextConversion,
+            selectionContext: $selectionContext,
+            selectionAnchorRect: $selectionAnchorRect
+        )
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -26,6 +34,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         let textView = LineformTextView()
         textView.string = text
         textView.delegate = context.coordinator
+        context.coordinator.configure(textView)
         textView.applyTypography(profile)
         textView.refreshMarkdownHighlighting()
         context.coordinator.updateSelection(from: textView)
@@ -40,6 +49,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
 
         textView.applyTypography(profile)
+        context.coordinator.configure(textView)
 
         if textView.string != text {
             textView.string = text
@@ -63,16 +73,37 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
 final class Coordinator: NSObject, NSTextViewDelegate {
     private var text: Binding<String>
+    private var textFormat: Binding<LineformTextFormat>
+    private var plainTextConversion: Binding<MarkdownPlainTextConversion?>
     private var selectionContext: Binding<SelectionContext>
     private var selectionAnchorRect: Binding<CGRect?>
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
     private var pendingHighlightWorkItem: DispatchWorkItem?
 
-    init(text: Binding<String>, selectionContext: Binding<SelectionContext>, selectionAnchorRect: Binding<CGRect?>) {
+    init(
+        text: Binding<String>,
+        textFormat: Binding<LineformTextFormat>,
+        plainTextConversion: Binding<MarkdownPlainTextConversion?>,
+        selectionContext: Binding<SelectionContext>,
+        selectionAnchorRect: Binding<CGRect?>
+    ) {
         self.text = text
+        self.textFormat = textFormat
+        self.plainTextConversion = plainTextConversion
         self.selectionContext = selectionContext
         self.selectionAnchorRect = selectionAnchorRect
+    }
+
+    @MainActor
+    func configure(_ textView: LineformTextView) {
+        textView.textFormat = textFormat.wrappedValue
+        textView.lastPlainTextConversion = plainTextConversion.wrappedValue
+        textView.textFormatChangeHandler = { [weak self] format, conversion in
+            self?.textFormat.wrappedValue = format
+            self?.plainTextConversion.wrappedValue = conversion
+            LineformTextFormatMenuState.shared.setTextFormat(format)
+        }
     }
 
     func textDidChange(_ notification: Notification) {
