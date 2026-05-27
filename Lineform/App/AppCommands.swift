@@ -1,9 +1,43 @@
 import AppKit
 import SwiftUI
 
+enum AppMenuCommandPlacement: Equatable {
+    case view
+}
+
+enum AppMenuConfiguration {
+    static let readingCommandPlacement = AppMenuCommandPlacement.view
+    static let keepsTopLevelIntelligenceMenu = true
+    static let usesTopLevelReadingMenu = false
+    static let intelligencePrimaryCommandTitle = "Show Writing Tools"
+    static let lineformIntelligenceCommandTitles = IntelligentEditingAction.menuBarActions.map(\.title)
+    static let addsWritingToolsToEditMenu = false
+    static let formatCommandTitles = [
+        "Title",
+        "Section",
+        "Bold",
+        "Italic",
+        "Code",
+        "Bulleted List",
+        "Link"
+    ]
+}
+
 struct AppCommands: Commands {
     var body: some Commands {
         CommandMenu("Format") {
+            Button("Title") {
+                NSApp.sendAction(#selector(LineformTextView.toggleTitleMarkdown(_:)), to: nil, from: nil)
+            }
+            .keyboardShortcut("1", modifiers: .command)
+
+            Button("Section") {
+                NSApp.sendAction(#selector(LineformTextView.toggleSectionMarkdown(_:)), to: nil, from: nil)
+            }
+            .keyboardShortcut("2", modifiers: .command)
+
+            Divider()
+
             Button("Bold") {
                 NSApp.sendAction(#selector(LineformTextView.toggleBoldMarkdown(_:)), to: nil, from: nil)
             }
@@ -25,9 +59,14 @@ struct AppCommands: Commands {
                 NSApp.sendAction(#selector(LineformTextView.toggleUnorderedListMarkdown(_:)), to: nil, from: nil)
             }
             .keyboardShortcut("8", modifiers: [.command, .shift])
+
+            Button("Link") {
+                NSApp.sendAction(#selector(LineformTextView.toggleLinkMarkdown(_:)), to: nil, from: nil)
+            }
+            .keyboardShortcut("k", modifiers: .command)
         }
 
-        CommandMenu("Reading") {
+        CommandGroup(after: .toolbar) {
             Picker("Mode", selection: displayModeSelection) {
                 ForEach(EditorDisplayMode.allCases) { mode in
                     Text(mode.title).tag(mode)
@@ -39,16 +78,24 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("0", modifiers: [.command, .option])
 
-            Divider()
-
             Button("Reading Experience") {
                 LineformAppNotification.showReadingExperience.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
+
+            Divider()
         }
 
         CommandMenu("Intelligence") {
-            ForEach(IntelligentEditingAction.allCases) { action in
+            if #available(macOS 15.2, *) {
+                Button(AppMenuConfiguration.intelligencePrimaryCommandTitle) {
+                    NSApp.sendAction(#selector(NSResponder.showWritingTools(_:)), to: nil, from: nil)
+                }
+
+                Divider()
+            }
+
+            ForEach(IntelligentEditingAction.menuBarActions) { action in
                 Button(action.title) {
                     LineformAppNotification.runIntelligentEditingAction.post(
                         object: LineformAppNotification.activeWindowPayload(value: action.rawValue)
@@ -62,16 +109,6 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .help) {
             Button("Lineform Markdown Guide") {
                 LineformHelp.openMarkdownGuide()
-            }
-        }
-
-        CommandGroup(after: .textEditing) {
-            if #available(macOS 15.2, *) {
-                Divider()
-
-                Button("Show Writing Tools") {
-                    NSApp.sendAction(#selector(NSResponder.showWritingTools(_:)), to: nil, from: nil)
-                }
             }
         }
     }

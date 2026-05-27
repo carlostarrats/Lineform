@@ -23,6 +23,106 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         }
     }
 
+    func testContextMenuKeepsOnlyFastMarkdownEditingActions() throws {
+        let textView = LineformTextView()
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        let menu = try XCTUnwrap(textView.menu(for: event))
+        let titles = menu.items.map(\.title)
+
+        XCTAssertEqual(titles, [
+            "Cut",
+            "Copy",
+            "Paste",
+            "",
+            "Title",
+            "Section",
+            "Bold",
+            "Italic",
+            "Code",
+            "Bulleted List",
+            "Link",
+            "",
+            "Intelligence"
+        ])
+
+        XCTAssertFalse(titles.contains("Look Up"))
+        XCTAssertFalse(titles.contains("Translate"))
+        XCTAssertFalse(titles.contains("Search With Google"))
+        XCTAssertFalse(titles.contains("Share..."))
+        XCTAssertFalse(titles.contains("Font"))
+        XCTAssertFalse(titles.contains("Show Writing Tools"))
+        XCTAssertFalse(titles.contains("Writing Tools"))
+        XCTAssertFalse(titles.contains("Services"))
+    }
+
+    func testContextMenuIntelligenceSubmenuKeepsWritingToolsThenMinimalLineformActions() throws {
+        let textView = LineformTextView()
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        let menu = try XCTUnwrap(textView.menu(for: event))
+        let intelligenceItem = try XCTUnwrap(menu.items.first { $0.title == "Intelligence" })
+        let submenu = try XCTUnwrap(intelligenceItem.submenu)
+
+        XCTAssertEqual(submenu.items.map(\.title), [
+            "Show Writing Tools",
+            "",
+            "Clean Markdown"
+        ])
+    }
+
+    func testAutomaticIntelligenceMenuUsesContextualSuggestionsForCurrentSelection() throws {
+        let textView = LineformTextView()
+        textView.string = "# Title\n\n- rough item\n- second item"
+        textView.setSelectedRange(NSRange(location: 0, length: textView.string.utf16.count))
+
+        let menu = try XCTUnwrap(textView.makeAutomaticIntelligenceMenuForCurrentSelection())
+
+        XCTAssertEqual(menu.items.prefix(3).map(\.title), [
+            "Clean Markdown",
+            "Make Scannable",
+            "Proofread"
+        ])
+    }
+
+    func testAutomaticIntelligenceMenuIsUnavailableWithoutSelection() {
+        let textView = LineformTextView()
+        textView.string = "No selection."
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+
+        XCTAssertNil(textView.makeAutomaticIntelligenceMenuForCurrentSelection())
+    }
+
+    func testMouseSelectionOpensAutomaticIntelligenceMenuButKeyboardSelectionDoesNot() {
+        let textView = LineformTextView()
+
+        textView.markSelectionChangeAsKeyboardDriven()
+        XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
+
+        textView.markSelectionChangeAsMouseDriven()
+        XCTAssertTrue(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
+    }
+
     func testColumnWidthCentersTextContainerInWideEditor() {
         let textView = LineformTextView()
         textView.setFrameSize(NSSize(width: 1_000, height: 500))
