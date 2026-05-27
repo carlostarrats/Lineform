@@ -88,6 +88,31 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertEqual(IntelligentEditingPresentationPolicy.optionCount(for: "better title"), 1)
     }
 
+    func testOnlyRewriteUsesMultipleCreativeOptions() {
+        let selection = "The editor keep files local and dont upload drafts."
+
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: .proofread, selectedText: selection),
+            1
+        )
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: .shorten, selectedText: selection),
+            1
+        )
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: .summarize, selectedText: selection),
+            1
+        )
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: .cleanMarkdown, selectedText: "-  item\n-    item"),
+            1
+        )
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: .rewrite, selectedText: selection),
+            3
+        )
+    }
+
     func testSelectionsAtOneHundredWordsUseOneReviewSuggestion() {
         let selection = Array(repeating: "word", count: 100).joined(separator: " ")
 

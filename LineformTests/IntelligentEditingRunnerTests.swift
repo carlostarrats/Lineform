@@ -114,6 +114,41 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(service.optionRequests.first?.documentContext, "")
     }
 
+    func testRunnerRejectsLineformControlTagOptions() async throws {
+        let service = StubIntelligentEditingService(results: [
+            "<<<LINEFORM_OPTION_1>>>",
+            "Clearer sentence."
+        ])
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestions = try await runner.runOptions(
+            action: .rewrite,
+            documentText: "Start. Rough sentence. End.",
+            selectedRange: NSRange(location: 7, length: 15),
+            optionCount: 2
+        )
+
+        XCTAssertEqual(suggestions.map(\.replacementText), ["Clearer sentence."])
+    }
+
+    func testRunnerRejectsDuplicateOptions() async throws {
+        let service = StubIntelligentEditingService(results: [
+            "Clearer sentence.",
+            "Clearer sentence.",
+            "Tighter sentence."
+        ])
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestions = try await runner.runOptions(
+            action: .rewrite,
+            documentText: "Start. Rough sentence. End.",
+            selectedRange: NSRange(location: 7, length: 15),
+            optionCount: 3
+        )
+
+        XCTAssertEqual(suggestions.map(\.replacementText), ["Clearer sentence.", "Tighter sentence."])
+    }
+
     func testRunnerExtractsQuotedReplacementForOneWordSelection() async throws {
         let service = StubIntelligentEditingService(result: "A better word is \"writer\".")
         let runner = IntelligentEditingRunner(service: service)
@@ -158,6 +193,26 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         } catch IntelligentEditingError.emptyResponse {
             XCTAssertEqual(service.requests.first?.selectedText, selectedText)
         }
+    }
+
+    func testRunnerStripsEnclosingMarkdownFenceBeforeValidation() async throws {
+        let selectedText = "#Title\n\n-  First item"
+        let service = StubIntelligentEditingService(result: """
+        ```markdown
+        # Title
+
+        - First item
+        ```
+        """)
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestion = try await runner.run(
+            action: .cleanMarkdown,
+            documentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(suggestion.replacementText, "# Title\n\n- First item")
     }
 
     func testRunnerRejectsNearbyContextLeakage() async throws {
@@ -234,6 +289,17 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         )
     }
 
+    func testOptionResponseParserRejectsMalformedLineformTags() {
+        let response = """
+        <<<LINEFORM_OPTION_1>>>
+        """
+
+        XCTAssertEqual(
+            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
+            []
+        )
+    }
+
     func testOptionResponseParserFallsBackToNumberedOptions() {
         let response = """
         1. Clearer sentence.
@@ -244,6 +310,18 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(
             IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
             ["Clearer sentence.", "Tighter sentence.", "Simpler sentence."]
+        )
+    }
+
+    func testOptionResponseParserDoesNotSplitPlainMultilineProseIntoOptions() {
+        let response = """
+        This is a single replacement with a line break.
+        It should not become two separate options.
+        """
+
+        XCTAssertEqual(
+            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
+            []
         )
     }
 }

@@ -26,6 +26,8 @@ enum IntelligentEditingEvaluationFailure: String, Hashable {
     case leakedNearbyContext
     case markdownStructureNotPreserved
     case missingCompression
+    case proofreadChangedMeaningOrStyle
+    case cleanMarkdownChangedContent
 }
 
 struct IntelligentEditingEvaluationResult {
@@ -66,8 +68,16 @@ enum IntelligentEditingEvaluationRubric {
             failures.append(.leakedNearbyContext)
         }
 
+        if task.action == .proofread && proofreadChangesMeaningOrStyle(trimmedReplacement, selectedText: trimmedSelection, length: task.length) {
+            failures.append(.proofreadChangedMeaningOrStyle)
+        }
+
         if task.requiresMarkdownPreservation && !preservesRequiredMarkdownStructure(trimmedReplacement, selectedText: trimmedSelection) {
             failures.append(.markdownStructureNotPreserved)
+        }
+
+        if task.action == .cleanMarkdown && cleanMarkdownChangesContent(trimmedReplacement, selectedText: trimmedSelection) {
+            failures.append(.cleanMarkdownChangedContent)
         }
 
         if task.requiresCompression && wordCount(in: trimmedReplacement) >= wordCount(in: trimmedSelection) {
@@ -89,7 +99,9 @@ enum IntelligentEditingEvaluationRubric {
             "dummy text",
             "option 1",
             "option 2",
-            "option 3"
+            "option 3",
+            "<<<lineform_option_",
+            "<<<end_lineform_option_"
         ]
 
         return blockedFragments.contains { normalizedText.contains($0) }
@@ -136,7 +148,71 @@ enum IntelligentEditingEvaluationRubric {
             let normalizedSentence = normalized(sentence)
             return !normalizedSelection.contains(normalizedSentence)
                 && normalizedReplacement.contains(normalizedSentence)
+        } || leaksContextOnlyTerms(replacement, task: task)
+    }
+
+    private static func leaksContextOnlyTerms(_ replacement: String, task: IntelligentEditingEvaluationTask) -> Bool {
+        let selectedTokens = Set(meaningfulTokens(in: task.selectedText))
+        let contextOnlyTokens = Set(meaningfulTokens(in: task.documentContext)).subtracting(selectedTokens)
+        guard contextOnlyTokens.count >= 2 else {
+            return false
         }
+
+        let replacementTokens = Set(meaningfulTokens(in: replacement))
+        return replacementTokens.intersection(contextOnlyTokens).count >= 2
+    }
+
+    private static func proofreadChangesMeaningOrStyle(_ replacement: String, selectedText: String, length: IntelligentEditingSelectionLength) -> Bool {
+        guard length != .oneWord else {
+            return false
+        }
+
+        let selectedWordCount = wordCount(in: selectedText)
+        guard selectedWordCount > 0 else {
+            return false
+        }
+
+        if wordCount(in: replacement) > selectedWordCount + 4 {
+            return true
+        }
+
+        let selectedTokens = Set(meaningfulTokens(in: selectedText))
+        let replacementTokens = Set(meaningfulTokens(in: replacement))
+        guard !selectedTokens.isEmpty, !replacementTokens.isEmpty else {
+            return false
+        }
+
+        let overlap = selectedTokens.intersection(replacementTokens).count
+        let requiredOverlap = max(1, Int(Double(selectedTokens.count) * 0.5))
+        return overlap < requiredOverlap
+    }
+
+    private static func cleanMarkdownChangesContent(_ replacement: String, selectedText: String) -> Bool {
+        normalizedMarkdownContent(replacement) != normalizedMarkdownContent(selectedText)
+    }
+
+    private static func meaningfulTokens(in text: String) -> [String] {
+        let stopwords: Set<String> = [
+            "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from",
+            "has", "have", "in", "into", "is", "it", "of", "on", "or", "so", "that",
+            "the", "their", "this", "to", "while", "with", "without"
+        ]
+        return text
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 5 && !stopwords.contains($0) }
+    }
+
+    private static func normalizedMarkdownContent(_ text: String) -> String {
+        text
+            .lowercased()
+            .replacingOccurrences(of: #"(?m)^---\s*$"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"(?m)^#{1,6}\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"(?m)^\s*[-*]\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"`{1,3}"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[*_>\[\]()]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func preservesRequiredMarkdownStructure(_ replacement: String, selectedText: String) -> Bool {
@@ -175,6 +251,26 @@ enum IntelligentEditingEvaluationSuite {
             requiresMarkdownPreservation: false
         ),
         IntelligentEditingEvaluationTask(
+            id: "one-word-rewrite-heading",
+            action: .rewrite,
+            selectedText: "Features",
+            documentContext: "# Features\n\n- Native Markdown files\n- Reading controls",
+            length: .oneWord,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "short-phrase-rewrite-title",
+            action: .rewrite,
+            selectedText: "better writing",
+            documentContext: "# better writing\n\nA calmer Markdown editor for long drafts.",
+            length: .oneWord,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
             id: "sentence-rewrite",
             action: .rewrite,
             selectedText: "The launch plan is clear but final handoff is still kind of owned by somebody.",
@@ -185,11 +281,44 @@ enum IntelligentEditingEvaluationSuite {
             requiresMarkdownPreservation: false
         ),
         IntelligentEditingEvaluationTask(
+            id: "sentence-shorten",
+            action: .shorten,
+            selectedText: "Lineform gives writers a quiet native editor that keeps Markdown files portable across Finder, iCloud Drive, Git, and other tools.",
+            documentContext: "Lineform gives writers a quiet native editor that keeps Markdown files portable across Finder, iCloud Drive, Git, and other tools.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: true,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
             id: "sentence-proofread",
             action: .proofread,
             selectedText: "The editor keep the file local and dont upload drafts.",
             documentContext: "The editor keep the file local and dont upload drafts.",
             length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "markdown-list-proofread",
+            action: .proofread,
+            selectedText: """
+            - The editor keep files local.
+            - Writers dont need a database.
+            """,
+            documentContext: "",
+            length: .paragraph,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "paragraph-rewrite",
+            action: .rewrite,
+            selectedText: "The app should feel like a tool that gets out of the way, but the current AI suggestions often make the writing feel less precise and less native to the document.",
+            documentContext: "The app should feel like a tool that gets out of the way, but the current AI suggestions often make the writing feel less precise and less native to the document.\n\nRelease notes are tracked separately.",
+            length: .paragraph,
             requiresTransformation: true,
             requiresCompression: false,
             requiresMarkdownPreservation: false
@@ -213,6 +342,25 @@ enum IntelligentEditingEvaluationSuite {
             requiresTransformation: true,
             requiresCompression: true,
             requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "frontmatter-clean-markdown",
+            action: .cleanMarkdown,
+            selectedText: """
+            ---
+            title: Draft
+            ---
+
+            #Title
+
+            -  First item
+            -    Second item
+            """,
+            documentContext: "",
+            length: .multipleParagraphs,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
         ),
         IntelligentEditingEvaluationTask(
             id: "multiple-paragraph-summary",

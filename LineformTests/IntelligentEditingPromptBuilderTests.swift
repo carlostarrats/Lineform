@@ -25,7 +25,8 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
         )
 
         XCTAssertTrue(prompt.contains("Clean Markdown"))
-        XCTAssertTrue(prompt.contains("Do not rewrite fenced code"))
+        XCTAssertTrue(prompt.contains("Do not rewrite prose, facts, fenced code blocks"))
+        XCTAssertTrue(prompt.contains("Change Markdown formatting only"))
         XCTAssertTrue(prompt.contains("Keep links, headings, lists, and emphasis intact"))
     }
 
@@ -66,18 +67,53 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
         XCTAssertTrue(format.contains("<<<END_LINEFORM_OPTION_3>>>"))
     }
 
+    func testOptionPromptDoesNotExposeInternalTags() {
+        let prompt = IntelligentEditingPromptBuilder().optionPrompt(
+            for: .rewrite,
+            selectedText: "The handoff is kind of unclear.",
+            documentContext: "The handoff is kind of unclear.",
+            optionNumber: 2,
+            optionCount: 3,
+            priorOptions: ["The handoff needs clearer ownership."],
+            rejectedDuplicate: nil
+        )
+
+        XCTAssertTrue(prompt.contains("Return exactly one replacement for option 2 of 3"))
+        XCTAssertTrue(prompt.contains("meaningfully different from accepted prior options"))
+        XCTAssertFalse(prompt.contains("<<<LINEFORM_OPTION"))
+        XCTAssertFalse(prompt.contains("<<<END_LINEFORM_OPTION"))
+    }
+
+    func testPromptForbidsInternalMarkersAndActionDrift() {
+        let proofreadPrompt = IntelligentEditingPromptBuilder().prompt(
+            for: .proofread,
+            selectedText: "The editor keep drafts local.",
+            documentContext: ""
+        )
+        let cleanMarkdownPrompt = IntelligentEditingPromptBuilder().prompt(
+            for: .cleanMarkdown,
+            selectedText: "#Title\n\n-  item",
+            documentContext: ""
+        )
+
+        XCTAssertTrue(proofreadPrompt.contains("Do not include LINEFORM_OPTION markers"))
+        XCTAssertTrue(proofreadPrompt.contains("do not improve style, tone, structure, or word choice"))
+        XCTAssertTrue(cleanMarkdownPrompt.contains("Change Markdown formatting only"))
+    }
+
     func testRepairPromptExplainsWhyPreviousAnswerWasRejected() {
         let prompt = IntelligentEditingPromptBuilder().repairPrompt(
             for: .shorten,
             selectedText: "Lineform keeps Markdown files on disk so writers can use Finder and version control without converting drafts into a private database.",
             documentContext: "",
             rejectedReplacement: "Lineform keeps Markdown files on disk so writers can use Finder and version control without converting drafts into a private database.",
-            failures: [.unchangedTransformOutput, .missingCompression]
+            failures: [.unchangedTransformOutput, .missingCompression, .cleanMarkdownChangedContent]
         )
 
         XCTAssertTrue(prompt.contains("Previous answer was rejected"))
         XCTAssertTrue(prompt.contains("It repeated the selected Markdown unchanged"))
-        XCTAssertTrue(prompt.contains("It was not shorter than the selection"))
+        XCTAssertTrue(prompt.contains("It was not compressed enough"))
+        XCTAssertTrue(prompt.contains("It changed content during Clean Markdown"))
         XCTAssertTrue(prompt.contains("Return a new replacement now"))
     }
 }

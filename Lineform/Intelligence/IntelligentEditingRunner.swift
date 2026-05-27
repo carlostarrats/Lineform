@@ -42,8 +42,15 @@ struct IntelligentEditingRunner {
             documentContext: documentContext,
             count: cappedOptionCount
         )
-        let replacements = rawReplacements.compactMap { rawReplacement in
-            try? Self.validatedReplacement(rawReplacement, action: action, selectedText: selectedText, documentContext: documentContext)
+        let replacements = rawReplacements.reduce(into: [String]()) { acceptedReplacements, rawReplacement in
+            guard
+                let replacement = try? Self.validatedReplacement(rawReplacement, action: action, selectedText: selectedText, documentContext: documentContext),
+                Self.isDistinctReplacement(replacement, from: acceptedReplacements)
+            else {
+                return
+            }
+
+            acceptedReplacements.append(replacement)
         }
 
         let suggestions = replacements
@@ -90,7 +97,7 @@ struct IntelligentEditingRunner {
             length: selectionLength(for: selectedText),
             requiresTransformation: action.requiresNonIdenticalReplacement(for: selectedText),
             requiresCompression: action == .summarize || action == .shorten,
-            requiresMarkdownPreservation: action == .cleanMarkdown
+            requiresMarkdownPreservation: requiresMarkdownPreservation(action: action, selectedText: selectedText)
         )
         let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: trimmedReplacement, task: evaluationTask)
         guard evaluation.passed else {
@@ -105,7 +112,7 @@ struct IntelligentEditingRunner {
     }
 
     private static func normalizedReplacement(_ replacement: String, for selectedText: String) -> String {
-        let trimmedReplacement = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedReplacement = strippedEnclosingCodeFence(from: replacement.trimmingCharacters(in: .whitespacesAndNewlines))
         guard isShortSelection(selectedText), let quotedReplacement = quotedReplacement(in: trimmedReplacement) else {
             return trimmedReplacement
         }
@@ -139,6 +146,31 @@ struct IntelligentEditingRunner {
         return nil
     }
 
+    private static func strippedEnclosingCodeFence(from text: String) -> String {
+        let pattern = #"(?s)^```[A-Za-z0-9_-]*\s*\n(.*)\n```\s*$"#
+        guard
+            let regex = try? NSRegularExpression(pattern: pattern),
+            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+            match.numberOfRanges == 2,
+            let contentRange = Range(match.range(at: 1), in: text)
+        else {
+            return text
+        }
+
+        return String(text[contentRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isDistinctReplacement(_ replacement: String, from acceptedReplacements: [String]) -> Bool {
+        let normalizedReplacement = normalized(replacement)
+        return !acceptedReplacements.contains { normalized($0) == normalizedReplacement }
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    }
+
     private static func wordCount(in text: String) -> Int {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .split { $0.isWhitespace || $0.isNewline }
@@ -160,5 +192,12 @@ struct IntelligentEditingRunner {
         }
 
         return .paragraph
+    }
+
+    private static func requiresMarkdownPreservation(action: IntelligentEditingAction, selectedText: String) -> Bool {
+        action == .cleanMarkdown
+            || selectedText.contains("```")
+            || selectedText.contains("- ")
+            || selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#")
     }
 }

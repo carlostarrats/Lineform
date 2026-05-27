@@ -109,6 +109,15 @@ enum IntelligentEditingPresentationPolicy {
         return count < multiOptionWordLimit ? maximumOptionCount : 1
     }
 
+    static func optionCount(for action: IntelligentEditingAction, selectedText: String) -> Int {
+        switch action {
+        case .rewrite:
+            return optionCount(for: selectedText)
+        case .proofread, .summarize, .shorten, .cleanMarkdown:
+            return 1
+        }
+    }
+
     private static func wordCount(in text: String) -> Int {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .split { $0.isWhitespace || $0.isNewline }

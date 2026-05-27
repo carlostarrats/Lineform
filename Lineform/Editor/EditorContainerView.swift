@@ -298,7 +298,7 @@ struct EditorContainerView: View {
         let task = Task {
             let runner = IntelligentEditingRunner(service: intelligentEditingService)
             do {
-                let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: editingContext.selectedText)
+                let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: action, selectedText: editingContext.selectedText)
 
                 if optionCount > 1 {
                     let suggestions = try await runner.runOptions(
