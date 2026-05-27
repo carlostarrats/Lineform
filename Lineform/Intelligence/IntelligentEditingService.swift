@@ -47,12 +47,16 @@ enum IntelligentEditingError: Error, Equatable, LocalizedError {
     }
 }
 
-struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing {
+struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, Sendable {
     static let responseTimeoutNanoseconds: UInt64 = 20_000_000_000
     static let maximumRepairAttempts = 3
 
-    private let availabilityService = IntelligenceAvailabilityService()
+    private let responseProvider: any FoundationModelsResponseProviding
     private let promptBuilder = IntelligentEditingPromptBuilder()
+
+    init(responseProvider: any FoundationModelsResponseProviding = FoundationModelsEditingResponseProvider()) {
+        self.responseProvider = responseProvider
+    }
 
     func replacement(for action: IntelligentEditingAction, selectedText: String, documentContext: String) async throws -> String {
         try await validatedReplacement(
@@ -193,23 +197,13 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing {
     }
 
     private func responseContentWithoutTimeout(for prompt: String) async throws -> String {
-        let availability = availabilityService.currentStatus()
-        guard availability.isAvailable else {
-            throw IntelligentEditingError.unavailable(availability.message)
+        let replacement = try await responseProvider.responseContent(for: prompt)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !replacement.isEmpty else {
+            throw IntelligentEditingError.emptyResponse
         }
 
-        #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
-            let replacement = try await FoundationModelsEditingSession.content(for: prompt)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !replacement.isEmpty else {
-                throw IntelligentEditingError.emptyResponse
-            }
-            return replacement
-        }
-        #endif
-
-        throw IntelligentEditingError.unavailable("Apple Intelligence editing requires Foundation Models.")
+        return replacement
     }
 
     private static func evaluationTask(for action: IntelligentEditingAction, selectedText: String, documentContext: String) -> IntelligentEditingEvaluationTask {
@@ -443,6 +437,34 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing {
     }
 }
 
+protocol FoundationModelsResponseProviding: Sendable {
+    func responseContent(for prompt: String) async throws -> String
+}
+
+struct FoundationModelsEditingResponseProvider: FoundationModelsResponseProviding {
+    private let availabilityService = IntelligenceAvailabilityService()
+
+    func responseContent(for prompt: String) async throws -> String {
+        let availability = availabilityService.currentStatus()
+        guard availability.isAvailable else {
+            throw IntelligentEditingError.unavailable(availability.message)
+        }
+
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            let replacement = try await FoundationModelsEditingSession.content(for: prompt)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !replacement.isEmpty else {
+                throw IntelligentEditingError.emptyResponse
+            }
+            return replacement
+        }
+        #endif
+
+        throw IntelligentEditingError.unavailable("Apple Intelligence editing requires Foundation Models.")
+    }
+}
+
 #if canImport(FoundationModels)
 @available(macOS 26.0, *)
 private enum FoundationModelsEditingSession {
@@ -456,102 +478,3 @@ private enum FoundationModelsEditingSession {
     }
 }
 #endif
-
-enum IntelligentEditingOptionResponseParser {
-    static func exampleFormat(for count: Int) -> String {
-        (1...count)
-            .map { index in
-                """
-                <<<LINEFORM_OPTION_\(index)>>>
-                <<<END_LINEFORM_OPTION_\(index)>>>
-                """
-            }
-            .joined(separator: "\n")
-    }
-
-    static func parse(_ response: String, expectedCount: Int) -> [String] {
-        let taggedOptions = (1...expectedCount).compactMap { index in
-            taggedOption(index, in: response)
-        }
-
-        if !taggedOptions.isEmpty {
-            return taggedOptions
-        }
-
-        if containsLineformTags(response) {
-            return []
-        }
-
-        return Array(fallbackOptions(in: response).prefix(expectedCount))
-    }
-
-    private static func taggedOption(_ index: Int, in response: String) -> String? {
-        let startTag = "<<<LINEFORM_OPTION_\(index)>>>"
-        let endTag = "<<<END_LINEFORM_OPTION_\(index)>>>"
-
-        guard
-            let startRange = response.range(of: startTag),
-            let endRange = response.range(of: endTag, range: startRange.upperBound..<response.endIndex)
-        else {
-            return nil
-        }
-
-        let option = response[startRange.upperBound..<endRange.lowerBound]
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return option.isEmpty || isPlaceholder(option) ? nil : option
-    }
-
-    private static func isPlaceholder(_ option: String) -> Bool {
-        let normalized = option
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        return normalized.hasPrefix("replacement option")
-            || normalized.hasPrefix("<write only replacement")
-            || normalized.hasPrefix("option ")
-            || normalized.hasPrefix("<<<lineform_option_")
-            || normalized.hasPrefix("<<<end_lineform_option_")
-    }
-
-    private static func containsLineformTags(_ response: String) -> Bool {
-        let normalized = response.lowercased()
-        return normalized.contains("<<<lineform_option_")
-            || normalized.contains("<<<end_lineform_option_")
-    }
-
-    private static func fallbackOptions(in response: String) -> [String] {
-        let rawLines = response
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        let markedOptions = rawLines.compactMap(strippedExplicitListMarker)
-            .filter { !$0.isEmpty && !isPlaceholder($0) }
-
-        if !rawLines.isEmpty && markedOptions.count == rawLines.count {
-            return markedOptions
-        }
-
-        if rawLines.count > 1 {
-            return []
-        }
-
-        let trimmedResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedResponse.isEmpty || isPlaceholder(trimmedResponse) ? [] : [trimmedResponse]
-    }
-
-    private static func strippedExplicitListMarker(from line: String) -> String? {
-        let patterns = [
-            #"^\d+[\.)]\s+"#,
-            #"^[-*]\s+"#
-        ]
-
-        for pattern in patterns {
-            if let range = line.range(of: pattern, options: .regularExpression) {
-                return String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        return nil
-    }
-}

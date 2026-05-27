@@ -100,8 +100,8 @@ enum IntelligentEditingEvaluationRubric {
             "option 1",
             "option 2",
             "option 3",
-            "<<<lineform_option_",
-            "<<<end_lineform_option_"
+            "lineform_option",
+            "end_lineform_option"
         ]
 
         return blockedFragments.contains { normalizedText.contains($0) }

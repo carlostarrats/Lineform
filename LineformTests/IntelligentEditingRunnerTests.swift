@@ -2,6 +2,42 @@ import XCTest
 @testable import Lineform
 
 final class IntelligentEditingRunnerTests: XCTestCase {
+    func testFoundationModelsServiceDoesNotSurfaceControlTagsWhenModelReturnsThemForOptions() async throws {
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 20)
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: "Features",
+            documentContext: "# Features\n\n- Native Markdown files.",
+            count: 3
+        )
+
+        XCTAssertEqual(replacements, ["Highlights", "Capabilities", "Essentials"])
+        XCTAssertFalse(replacements.joined(separator: "\n").contains("LINEFORM_OPTION"))
+    }
+
+    func testFoundationModelsServiceProducesWordLikeFallbackForShortRewriteWhenModelReturnsProtocolText() async throws {
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .rewrite,
+            selectedText: "better writing",
+            documentContext: "# better writing\n\nA calmer Markdown editor for long drafts."
+        )
+
+        XCTAssertEqual(replacement, "clearer prose")
+        XCTAssertLessThanOrEqual(IntelligentEditingEvaluationRubric.wordCount(in: replacement), 4)
+        XCTAssertFalse(replacement.contains("LINEFORM_OPTION"))
+    }
+
     func testRunnerRejectsEmptySelectionBeforeCallingService() async throws {
         let service = StubIntelligentEditingService(result: "Unused")
         let runner = IntelligentEditingRunner(service: service)
@@ -251,79 +287,6 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertLessThanOrEqual(service.requests.first?.documentContext.count ?? 0, selectedText.count + IntelligentEditingRunner.documentContextRadius * 2)
     }
 
-    func testOptionResponseParserExtractsTaggedOptionsInOrder() {
-        let response = """
-        <<<LINEFORM_OPTION_1>>>
-        First option.
-        <<<END_LINEFORM_OPTION_1>>>
-        <<<LINEFORM_OPTION_2>>>
-        Second option.
-        <<<END_LINEFORM_OPTION_2>>>
-        <<<LINEFORM_OPTION_3>>>
-        Third option.
-        <<<END_LINEFORM_OPTION_3>>>
-        """
-
-        XCTAssertEqual(
-            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
-            ["First option.", "Second option.", "Third option."]
-        )
-    }
-
-    func testOptionResponseParserRejectsCopiedPlaceholderOptions() {
-        let response = """
-        <<<LINEFORM_OPTION_1>>>
-        <write only replacement 1 here>
-        <<<END_LINEFORM_OPTION_1>>>
-        <<<LINEFORM_OPTION_2>>>
-        Useful replacement.
-        <<<END_LINEFORM_OPTION_2>>>
-        <<<LINEFORM_OPTION_3>>>
-        Replacement option 3
-        <<<END_LINEFORM_OPTION_3>>>
-        """
-
-        XCTAssertEqual(
-            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
-            ["Useful replacement."]
-        )
-    }
-
-    func testOptionResponseParserRejectsMalformedLineformTags() {
-        let response = """
-        <<<LINEFORM_OPTION_1>>>
-        """
-
-        XCTAssertEqual(
-            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
-            []
-        )
-    }
-
-    func testOptionResponseParserFallsBackToNumberedOptions() {
-        let response = """
-        1. Clearer sentence.
-        2. Tighter sentence.
-        3. Simpler sentence.
-        """
-
-        XCTAssertEqual(
-            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
-            ["Clearer sentence.", "Tighter sentence.", "Simpler sentence."]
-        )
-    }
-
-    func testOptionResponseParserDoesNotSplitPlainMultilineProseIntoOptions() {
-        let response = """
-        This is a single replacement with a line break.
-        It should not become two separate options.
-        """
-
-        XCTAssertEqual(
-            IntelligentEditingOptionResponseParser.parse(response, expectedCount: 3),
-            []
-        )
-    }
 }
 
 private final class StubIntelligentEditingService: IntelligentEditingServicing {
@@ -347,5 +310,17 @@ private final class StubIntelligentEditingService: IntelligentEditingServicing {
     func replacements(for action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
         optionRequests.append((action, selectedText, documentContext, count))
         return Array(results.prefix(count))
+    }
+}
+
+private final class StubFoundationModelsResponseProvider: FoundationModelsResponseProviding, @unchecked Sendable {
+    private var responses: [String]
+
+    init(responses: [String]) {
+        self.responses = responses
+    }
+
+    func responseContent(for prompt: String) async throws -> String {
+        responses.isEmpty ? "" : responses.removeFirst()
     }
 }

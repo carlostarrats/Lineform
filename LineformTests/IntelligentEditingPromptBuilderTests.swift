@@ -58,15 +58,6 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Do not return a sentence, paragraph, list, heading, or newline"))
     }
 
-    func testOptionPromptFormatDoesNotIncludeCopyablePlaceholderText() {
-        let format = IntelligentEditingOptionResponseParser.exampleFormat(for: 3)
-
-        XCTAssertFalse(format.contains("<write only replacement"))
-        XCTAssertFalse(format.localizedCaseInsensitiveContains("replacement option"))
-        XCTAssertTrue(format.contains("<<<LINEFORM_OPTION_1>>>"))
-        XCTAssertTrue(format.contains("<<<END_LINEFORM_OPTION_3>>>"))
-    }
-
     func testOptionPromptDoesNotExposeInternalTags() {
         let prompt = IntelligentEditingPromptBuilder().optionPrompt(
             for: .rewrite,
@@ -80,8 +71,9 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("Return exactly one replacement for option 2 of 3"))
         XCTAssertTrue(prompt.contains("meaningfully different from accepted prior options"))
-        XCTAssertFalse(prompt.contains("<<<LINEFORM_OPTION"))
-        XCTAssertFalse(prompt.contains("<<<END_LINEFORM_OPTION"))
+        XCTAssertFalse(prompt.contains("LINEFORM_OPTION"))
+        XCTAssertFalse(prompt.contains("<<<"))
+        XCTAssertFalse(prompt.contains(">>>"))
     }
 
     func testPromptForbidsInternalMarkersAndActionDrift() {
@@ -96,7 +88,8 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
             documentContext: ""
         )
 
-        XCTAssertTrue(proofreadPrompt.contains("Do not include LINEFORM_OPTION markers"))
+        XCTAssertFalse(proofreadPrompt.contains("LINEFORM_OPTION"))
+        XCTAssertFalse(cleanMarkdownPrompt.contains("LINEFORM_OPTION"))
         XCTAssertTrue(proofreadPrompt.contains("do not improve style, tone, structure, or word choice"))
         XCTAssertTrue(cleanMarkdownPrompt.contains("Change Markdown formatting only"))
     }
@@ -115,5 +108,6 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
         XCTAssertTrue(prompt.contains("It was not compressed enough"))
         XCTAssertTrue(prompt.contains("It changed content during Clean Markdown"))
         XCTAssertTrue(prompt.contains("Return a new replacement now"))
+        XCTAssertFalse(prompt.contains("LINEFORM_OPTION"))
     }
 }

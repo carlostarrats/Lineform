@@ -44,7 +44,7 @@ struct IntelligentEditingPromptBuilder {
         - Do not return placeholder text, dummy text, TODO, or Lorem ipsum.
         \(unchangedOutputRule(for: action))
         - Do not copy nearby context into the replacement.
-        - Do not include LINEFORM_OPTION markers, delimiters, option labels, or numbering.
+        - Do not include internal control markers, delimiters, option labels, or numbering.
         - Do not wrap the replacement in Markdown code fences unless the selected Markdown is itself only a fenced code block.
         - Do not explain the edit or wrap the replacement in quotes unless the replacement itself needs quotes.
 
@@ -90,7 +90,7 @@ struct IntelligentEditingPromptBuilder {
             Option requirements:
             - Return exactly one replacement for option \(optionNumber) of \(optionCount).
             - Do not include option labels, numbering, tags, explanations, or commentary.
-            - Do not include LINEFORM_OPTION markers or any other delimiter text.
+            - Do not include internal control markers or any other delimiter text.
             - Make this option meaningfully different from accepted prior options.
 
             Accepted prior options:
@@ -115,7 +115,7 @@ struct IntelligentEditingPromptBuilder {
         - Do not return placeholder text, dummy text, TODO, or Lorem ipsum.
         - Do not explain the edit or wrap the replacement in quotes.
         - Do not say there was a typo; return the corrected token itself.
-        - Do not include LINEFORM_OPTION markers, delimiters, option labels, or numbering.
+        - Do not include internal control markers, delimiters, option labels, or numbering.
         - Do not drop Markdown markers from the selection.
 
         Quality bar:
@@ -148,7 +148,7 @@ struct IntelligentEditingPromptBuilder {
         - Do not return placeholder text, dummy text, TODO, or Lorem ipsum.
         - Do not return the selected Markdown unchanged.
         - Do not explain the edit or wrap the replacement in quotes.
-        - Do not include LINEFORM_OPTION markers, delimiters, option labels, or numbering.
+        - Do not include internal control markers, delimiters, option labels, or numbering.
         - Do not copy nearby list items, headings, or surrounding document text.
 
         Quality bar:
@@ -182,7 +182,7 @@ struct IntelligentEditingPromptBuilder {
 
         Return only replacement Markdown for the selected text. Do not explain.
         Do not return placeholder text, dummy text, TODO, Lorem ipsum, or copied nearby context.
-        Do not include LINEFORM_OPTION markers, delimiters, option labels, or numbering.
+        Do not include internal control markers, delimiters, option labels, or numbering.
         Do not wrap the replacement in code fences unless the selected Markdown is itself only a fenced code block.
         Replace exactly the selected Markdown, not the nearby context.
         \(action.extraQualityRule)
