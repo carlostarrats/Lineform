@@ -11,12 +11,13 @@ struct IntelligentEditingRunner {
         }
 
         let selectedText = String(documentText[range])
+        let documentContext = documentContext(for: selectedRange, selectedText: selectedText, in: documentText)
         let rawReplacement = try await service.replacement(
             for: action,
             selectedText: selectedText,
-            documentContext: documentContext(for: selectedRange, selectedText: selectedText, in: documentText)
+            documentContext: documentContext
         )
-        let replacement = try Self.validatedReplacement(rawReplacement, for: selectedText)
+        let replacement = try Self.validatedReplacement(rawReplacement, action: action, selectedText: selectedText, documentContext: documentContext)
 
         return IntelligentEditingSuggestion(
             action: action,
@@ -34,14 +35,15 @@ struct IntelligentEditingRunner {
 
         let selectedText = String(documentText[range])
         let cappedOptionCount = min(max(optionCount, 1), IntelligentEditingPresentationPolicy.maximumOptionCount)
+        let documentContext = documentContext(for: selectedRange, selectedText: selectedText, in: documentText)
         let rawReplacements = try await service.replacements(
             for: action,
             selectedText: selectedText,
-            documentContext: documentContext(for: selectedRange, selectedText: selectedText, in: documentText),
+            documentContext: documentContext,
             count: cappedOptionCount
         )
         let replacements = rawReplacements.compactMap { rawReplacement in
-            try? Self.validatedReplacement(rawReplacement, for: selectedText)
+            try? Self.validatedReplacement(rawReplacement, action: action, selectedText: selectedText, documentContext: documentContext)
         }
 
         let suggestions = replacements
@@ -74,60 +76,32 @@ struct IntelligentEditingRunner {
         return nsText.substring(with: NSRange(location: location, length: upperBound - location))
     }
 
-    private static func validatedReplacement(_ replacement: String, for selectedText: String) throws -> String {
+    private static func validatedReplacement(_ replacement: String, action: IntelligentEditingAction, selectedText: String, documentContext: String) throws -> String {
         let trimmedReplacement = normalizedReplacement(replacement, for: selectedText)
         guard !trimmedReplacement.isEmpty else {
             throw IntelligentEditingError.emptyResponse
         }
 
-        guard !isPlaceholderReplacement(trimmedReplacement) else {
-            throw IntelligentEditingError.emptyResponse
-        }
-
-        guard replacementIsInScope(trimmedReplacement, for: selectedText) else {
+        let evaluationTask = IntelligentEditingEvaluationTask(
+            id: "runner-validation",
+            action: action,
+            selectedText: selectedText,
+            documentContext: documentContext,
+            length: selectionLength(for: selectedText),
+            requiresTransformation: action.requiresNonIdenticalReplacement(for: selectedText),
+            requiresCompression: action == .summarize || action == .shorten,
+            requiresMarkdownPreservation: action == .cleanMarkdown
+        )
+        let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: trimmedReplacement, task: evaluationTask)
+        guard evaluation.passed else {
             throw IntelligentEditingError.emptyResponse
         }
 
         return trimmedReplacement
     }
 
-    private static func replacementIsInScope(_ replacement: String, for selectedText: String) -> Bool {
-        guard isShortSelection(selectedText) else {
-            return true
-        }
-
-        let selectedWordCount = wordCount(in: selectedText)
-        let replacementWordCount = wordCount(in: replacement)
-        let maximumReplacementWords = max(8, selectedWordCount * 4)
-
-        guard replacementWordCount <= maximumReplacementWords else {
-            return false
-        }
-
-        if replacement.contains("\n") {
-            return false
-        }
-
-        let trimmedReplacement = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedReplacement.hasPrefix("- ") || trimmedReplacement.hasPrefix("* ") || trimmedReplacement.hasPrefix("#") {
-            return false
-        }
-
-        return true
-    }
-
     private static func isShortSelection(_ text: String) -> Bool {
         wordCount(in: text) <= 3 && !text.trimmingCharacters(in: .whitespacesAndNewlines).contains("\n")
-    }
-
-    private static func isPlaceholderReplacement(_ replacement: String) -> Bool {
-        let normalized = replacement
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        return normalized.hasPrefix("replacement option")
-            || normalized.hasPrefix("<write only replacement")
-            || normalized.hasPrefix("option ")
     }
 
     private static func normalizedReplacement(_ replacement: String, for selectedText: String) -> String {
@@ -169,5 +143,22 @@ struct IntelligentEditingRunner {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .split { $0.isWhitespace || $0.isNewline }
             .count
+    }
+
+    private static func selectionLength(for text: String) -> IntelligentEditingSelectionLength {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isShortSelection(trimmedText) {
+            return .oneWord
+        }
+
+        if !trimmedText.contains("\n") {
+            return .sentence
+        }
+
+        if trimmedText.components(separatedBy: "\n\n").count > 1 {
+            return .multipleParagraphs
+        }
+
+        return .paragraph
     }
 }

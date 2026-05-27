@@ -127,6 +127,58 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(suggestion.replacementText, "writer")
     }
 
+    func testRunnerRejectsDummyReplacementText() async throws {
+        let service = StubIntelligentEditingService(result: "Lorem ipsum dolor sit amet.")
+        let runner = IntelligentEditingRunner(service: service)
+
+        do {
+            _ = try await runner.run(
+                action: .rewrite,
+                documentText: "This sentence needs clearer wording.",
+                selectedRange: NSRange(location: 0, length: 36)
+            )
+            XCTFail("Expected dummy text to be rejected.")
+        } catch IntelligentEditingError.emptyResponse {
+            XCTAssertEqual(service.requests.first?.selectedText, "This sentence needs clearer wording.")
+        }
+    }
+
+    func testRunnerRejectsUnchangedRewriteOutput() async throws {
+        let selectedText = "This sentence needs clearer wording."
+        let service = StubIntelligentEditingService(result: selectedText)
+        let runner = IntelligentEditingRunner(service: service)
+
+        do {
+            _ = try await runner.run(
+                action: .rewrite,
+                documentText: selectedText,
+                selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+            )
+            XCTFail("Expected unchanged rewrite output to be rejected.")
+        } catch IntelligentEditingError.emptyResponse {
+            XCTAssertEqual(service.requests.first?.selectedText, selectedText)
+        }
+    }
+
+    func testRunnerRejectsNearbyContextLeakage() async throws {
+        let selectedText = "The launch plan is clear but final handoff still needs an owner."
+        let leakedContext = "The appendix contains budget assumptions."
+        let document = "\(selectedText)\n\n\(leakedContext)"
+        let service = StubIntelligentEditingService(result: "The appendix contains budget assumptions.")
+        let runner = IntelligentEditingRunner(service: service)
+
+        do {
+            _ = try await runner.run(
+                action: .rewrite,
+                documentText: document,
+                selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+            )
+            XCTFail("Expected leaked nearby context to be rejected.")
+        } catch IntelligentEditingError.emptyResponse {
+            XCTAssertEqual(service.requests.first?.documentContext, document)
+        }
+    }
+
     func testRunnerKeepsNearbyContextSmallForResponsiveEditing() async throws {
         let service = StubIntelligentEditingService(result: "Clear sentence.")
         let runner = IntelligentEditingRunner(service: service)

@@ -29,6 +29,7 @@
 		1F0000010000000000000092 /* IntelligentEditingPromptBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */; };
 		1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000093 /* MarkdownDiffTests.swift */; };
 		1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */; };
+		1F0000010000000000000124 /* IntelligentEditingEvaluationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
@@ -63,6 +64,7 @@
 		1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000100 /* IntelligentEditingService.swift */; };
 		1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000101 /* IntelligentEditingRunner.swift */; };
 		1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */; };
+		1F0000010000000000000123 /* IntelligentEditingEvaluation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */; };
 		1F0000010000000000000103 /* LineformHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000103 /* LineformHelp.swift */; };
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
@@ -114,6 +116,7 @@
 		1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingPromptBuilderTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000093 /* MarkdownDiffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDiffTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunnerTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingEvaluationTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -153,6 +156,7 @@
 		1F0000020000000000000100 /* IntelligentEditingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000101 /* IntelligentEditingRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunner.swift; sourceTree = "<group>"; };
 		1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingSuggestionBar.swift; sourceTree = "<group>"; };
+		1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingEvaluation.swift; sourceTree = "<group>"; };
 		1F0000020000000000000103 /* LineformHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformHelp.swift; sourceTree = "<group>"; };
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
@@ -294,6 +298,7 @@
 				1F0000020000000000000100 /* IntelligentEditingService.swift */,
 				1F0000020000000000000101 /* IntelligentEditingRunner.swift */,
 				1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */,
+				1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */,
 			);
 			path = Intelligence;
 			sourceTree = "<group>";
@@ -339,6 +344,7 @@
 				1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */,
 				1F0000020000000000000093 /* MarkdownDiffTests.swift */,
 				1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */,
+				1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
@@ -497,6 +503,7 @@
 				1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */,
 				1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */,
 				1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */,
+				1F0000010000000000000123 /* IntelligentEditingEvaluation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -526,6 +533,7 @@
 				1F0000010000000000000092 /* IntelligentEditingPromptBuilderTests.swift in Sources */,
 				1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */,
 				1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */,
+				1F0000010000000000000124 /* IntelligentEditingEvaluationTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
