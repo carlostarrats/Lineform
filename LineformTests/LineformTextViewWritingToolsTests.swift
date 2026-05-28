@@ -312,6 +312,21 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(textView.textContainer?.containerSize.width, 480)
     }
 
+    func testTextViewCanSmoothHorizontalInsetChangesForInspectorTransition() {
+        let textView = LineformTextView()
+
+        XCTAssertFalse(textView.smoothsHorizontalInsetChanges)
+
+        textView.smoothsHorizontalInsetChanges = true
+
+        XCTAssertTrue(textView.smoothsHorizontalInsetChanges)
+        XCTAssertEqual(
+            textView.horizontalInsetAnimationDuration,
+            EditorInspectorTextResponse.horizontalInsetAnimationDuration,
+            accuracy: 0.01
+        )
+    }
+
     func testTypographyAppliesFontSelectionAndCaretWidthSetting() {
         let textView = LineformTextView()
         var profile = ReadingProfile.original

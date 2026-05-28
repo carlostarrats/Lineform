@@ -215,6 +215,16 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertNil(EditorAuxiliaryPresentation.readingExperience.animationDuration)
     }
 
+    func testReadingInspectorSmoothsEditorTextRepositioning() {
+        XCTAssertTrue(EditorInspectorTextResponse.smoothsHorizontalInsetChanges)
+        XCTAssertEqual(EditorInspectorTextResponse.transitionDuration, 0.22, accuracy: 0.01)
+        XCTAssertGreaterThan(EditorInspectorTextResponse.horizontalInsetAnimationDuration, 0)
+        XCTAssertLessThanOrEqual(
+            EditorInspectorTextResponse.horizontalInsetAnimationDuration,
+            EditorInspectorTextResponse.transitionDuration
+        )
+    }
+
     func testLightReaderThemesForceLightWindowChromeAfterDarkThemes() {
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: false), .aqua)
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: true), .darkAqua)

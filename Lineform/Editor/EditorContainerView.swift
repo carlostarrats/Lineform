@@ -7,6 +7,8 @@ struct EditorContainerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
     @State private var isShowingReadingInspector = false
+    @State private var isReadingInspectorLayoutTransitionActive = false
+    @State private var readingInspectorTransitionID = 0
     @State private var isShowingMarkdownBasics = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline = false
@@ -69,7 +71,7 @@ struct EditorContainerView: View {
             guard notificationMatchesActiveWindow(notification) else {
                 return
             }
-            isShowingReadingInspector = true
+            setReadingInspectorVisible(true)
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.runIntelligentEditingAction.name)) { notification in
             guard
@@ -319,6 +321,7 @@ struct EditorContainerView: View {
             requestedSelection: $requestedSelection,
             selectionAnchorRect: $selectionAnchorRect,
             profile: readingProfileStore.activeProfile,
+            smoothsHorizontalInsetChanges: isReadingInspectorLayoutTransitionActive && EditorInspectorTextResponse.smoothsHorizontalInsetChanges,
             intelligentSuggestionRange: activeIntelligentSuggestion?.selectedRange,
             searchRanges: searchMatches,
             activeSearchRange: activeSearchRange
@@ -602,7 +605,42 @@ struct EditorContainerView: View {
         case .markdownBasics:
             isShowingMarkdownBasics.toggle()
         case .readingExperience:
-            isShowingReadingInspector.toggle()
+            setReadingInspectorVisible(!isShowingReadingInspector)
+        }
+    }
+
+    private func setReadingInspectorVisible(_ isVisible: Bool) {
+        guard isShowingReadingInspector != isVisible else {
+            return
+        }
+
+        readingInspectorTransitionID += 1
+        let transitionID = readingInspectorTransitionID
+        isReadingInspectorLayoutTransitionActive = !reduceMotion
+
+        if let animation = EditorMotionPolicy.animation(
+            .easeInOut(duration: EditorInspectorTextResponse.transitionDuration),
+            reduceMotion: reduceMotion
+        ) {
+            withAnimation(animation) {
+                isShowingReadingInspector = isVisible
+            }
+        } else {
+            isShowingReadingInspector = isVisible
+        }
+
+        Task { @MainActor in
+            let duration = EditorMotionPolicy.effectiveDuration(
+                EditorInspectorTextResponse.transitionDuration,
+                reduceMotion: reduceMotion
+            )
+            if duration > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            }
+            guard readingInspectorTransitionID == transitionID else {
+                return
+            }
+            isReadingInspectorLayoutTransitionActive = false
         }
     }
 
@@ -642,6 +680,12 @@ enum EditorReadingLayout {
 enum EditorLayout {
     static let minimumContentWidth: CGFloat = 300
     static let minimumContentHeight: CGFloat = 480
+}
+
+enum EditorInspectorTextResponse {
+    static let smoothsHorizontalInsetChanges = true
+    static let transitionDuration: TimeInterval = 0.22
+    static let horizontalInsetAnimationDuration: TimeInterval = 0.16
 }
 
 enum IntelligentEditingOverlayPlacement {

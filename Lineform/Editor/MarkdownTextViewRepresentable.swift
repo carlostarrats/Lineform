@@ -9,6 +9,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var requestedSelection: NSRange?
     @Binding var selectionAnchorRect: CGRect?
     var profile: ReadingProfile
+    var smoothsHorizontalInsetChanges = false
     var intelligentSuggestionRange: NSRange?
     var searchRanges: [NSRange] = []
     var activeSearchRange: NSRange?
@@ -34,6 +35,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         let textView = LineformTextView()
         textView.string = text
         textView.delegate = context.coordinator
+        textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         context.coordinator.configure(textView)
         textView.applyTypography(profile)
         textView.refreshMarkdownHighlighting()
@@ -48,6 +50,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             return
         }
 
+        textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         textView.applyTypography(profile)
         context.coordinator.configure(textView)
 

@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
@@ -6,6 +7,7 @@ final class LineformTextView: NSTextView {
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private var hasAppliedTypography = false
+    private var hasAppliedTextContainerLayout = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var activeIntelligentSuggestionRange: NSRange?
     private var searchHighlightRanges: [NSRange] = []
@@ -14,6 +16,10 @@ final class LineformTextView: NSTextView {
     var textFormat = LineformTextFormat.markdown
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
+    var smoothsHorizontalInsetChanges = false
+    var horizontalInsetAnimationDuration: TimeInterval {
+        EditorInspectorTextResponse.horizontalInsetAnimationDuration
+    }
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -521,15 +527,36 @@ final class LineformTextView: NSTextView {
     }
 
     private func updateTextContainerLayout(for profile: ReadingProfile) {
-        textContainerInset = NSSize(
+        setTextContainerInset(NSSize(
             width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile),
             height: 32
-        )
+        ))
         textContainer?.widthTracksTextView = false
         textContainer?.containerSize = NSSize(
             width: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: profile),
             height: CGFloat.greatestFiniteMagnitude
         )
+    }
+
+    private func setTextContainerInset(_ targetInset: NSSize) {
+        defer {
+            hasAppliedTextContainerLayout = true
+        }
+
+        guard
+            smoothsHorizontalInsetChanges,
+            hasAppliedTextContainerLayout,
+            abs(textContainerInset.width - targetInset.width) > 0.5
+        else {
+            textContainerInset = targetInset
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = horizontalInsetAnimationDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            animator().textContainerInset = targetInset
+        }
     }
 
     private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {
