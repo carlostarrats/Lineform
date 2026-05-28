@@ -27,7 +27,6 @@ struct EditorContainerView: View {
     @State private var isRunningIntelligentEdit = false
     @State private var intelligentEditingTask: Task<Void, Never>?
     @State private var pendingIntelligentRequest: IntelligentEditingRequest?
-    @State private var pendingIntelligentSelectedText = ""
     @State private var intelligentEditingStatus: String?
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
@@ -261,12 +260,13 @@ struct EditorContainerView: View {
 
             if IntelligenceActionRailPresentation.isVisible(
                 isEnabled: isIntelligenceRailEnabled,
-                hasSelection: hasActiveIntelligentSelection,
+                hasSelection: hasVisibleIntelligenceComposerSelection,
                 displayMode: displayMode
             ) {
                 IntelligenceInstructionComposer(
                     instruction: $intelligenceInstruction,
                     isActionEnabled: intelligenceComposerIsEnabled,
+                    isLoading: isRunningIntelligentEdit && pendingIntelligentRequest != nil,
                     usesDarkChrome: currentTheme.usesDarkChrome,
                     onFocusChanged: { isFocused in
                         isIntelligenceComposerFocused = isFocused
@@ -296,20 +296,16 @@ struct EditorContainerView: View {
 
             if shouldShowIntelligentOptionsPanel {
                 GeometryReader { proxy in
-                    let isLoadingIntelligentOptions = isRunningIntelligentEdit && pendingIntelligentRequest != nil
-                    let panelReferenceText = isLoadingIntelligentOptions
-                        ? pendingIntelligentSelectedText
-                        : activeIntelligentSuggestion?.originalText ?? ""
+                    let panelReferenceText = activeIntelligentSuggestion?.originalText ?? ""
                     let placement = IntelligentEditingOverlayPlacement.placement(
                         anchorRect: selectionAnchorRect,
                         containerSize: proxy.size,
-                        replacementText: isLoadingIntelligentOptions ? panelReferenceText : activeIntelligentSuggestion?.replacementText ?? ""
+                        replacementText: activeIntelligentSuggestion?.replacementText ?? ""
                     )
 
                     IntelligentEditingOptionsPanel(
-                        suggestions: isLoadingIntelligentOptions ? [] : intelligentOptions,
+                        suggestions: intelligentOptions,
                         selectedIndex: $selectedIntelligentOptionIndex,
-                        loadingActionTitle: isLoadingIntelligentOptions ? pendingIntelligentRequest?.title : nil,
                         loadingPreviewText: panelReferenceText,
                         maximumBodyHeight: placement.bodyHeight,
                         retry: retryIntelligentSuggestion,
@@ -400,7 +396,10 @@ struct EditorContainerView: View {
     }
 
     private var shouldShowIntelligentOptionsPanel: Bool {
-        (isRunningIntelligentEdit && pendingIntelligentRequest != nil) || !intelligentOptions.isEmpty
+        IntelligentEditingOptionsPresentation.isVisible(
+            isPreparingSuggestion: isRunningIntelligentEdit && pendingIntelligentRequest != nil,
+            hasSuggestions: !intelligentOptions.isEmpty
+        )
     }
 
     private var hasActionableIntelligentSelection: Bool {
@@ -416,6 +415,14 @@ struct EditorContainerView: View {
 
     private var hasActiveIntelligentSelection: Bool {
         activeIntelligenceSelection != nil
+    }
+
+    private var hasVisibleIntelligenceComposerSelection: Bool {
+        IntelligenceInstructionComposerState.hasVisibleSelection(
+            current: selectionContext,
+            retained: retainedIntelligenceSelection,
+            isPreparingSuggestion: isRunningIntelligentEdit && pendingIntelligentRequest != nil
+        )
     }
 
     private var intelligenceComposerIsEnabled: Bool {
@@ -523,7 +530,6 @@ struct EditorContainerView: View {
 
         isRunningIntelligentEdit = true
         pendingIntelligentRequest = request
-        pendingIntelligentSelectedText = editingContext.selectedText
         clearIntelligentSuggestions()
         intelligentEditingStatus = nil
         if request.usesUserInstruction {
@@ -546,7 +552,6 @@ struct EditorContainerView: View {
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
                     pendingIntelligentRequest = nil
-                    pendingIntelligentSelectedText = ""
                     let applicableSuggestions = suggestions.filter { $0.canApply(to: document.text) }
                     guard !applicableSuggestions.isEmpty else {
                         clearIntelligentSuggestions()
@@ -564,7 +569,6 @@ struct EditorContainerView: View {
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
                     pendingIntelligentRequest = nil
-                    pendingIntelligentSelectedText = ""
                     intelligentEditingStatus = message
                 }
             }
@@ -614,7 +618,6 @@ struct EditorContainerView: View {
             intelligentEditingTask = nil
             isRunningIntelligentEdit = false
             pendingIntelligentRequest = nil
-            pendingIntelligentSelectedText = ""
             clearIntelligentSuggestions()
             intelligentEditingStatus = "Suggestion canceled."
             return
@@ -628,9 +631,6 @@ struct EditorContainerView: View {
         intelligentOptions = []
         selectedIntelligentOptionIndex = 0
         currentIntelligentChangeIndex = 0
-        if !isRunningIntelligentEdit {
-            pendingIntelligentSelectedText = ""
-        }
     }
 
     private func refreshRetainedIntelligenceSelection(from nextSelection: SelectionContext) {
@@ -905,6 +905,25 @@ enum IntelligenceInstructionComposerPresentation {
     static let usesWhiteCapsuleBackground = false
     static let usesLightBlueCapsuleBackground = true
     static let usesNavPillLikeShadow = true
+    static let usesInlineLoadingState = true
+    static let usesExistingSkeletonShimmerForLoading = true
+    static let usesNeutralLoadingChrome = true
+    static let showsLoadingSpinnerInSubmitSlot = false
+    static let loadingStatePreservesCapsuleDimensions = true
+    static let loadingSkeletonMinimumRows = 4
+    static let loadingSkeletonColumns = 48
+    static let loadingSkeletonBlockHeight: CGFloat = 4
+    static let loadingSkeletonSpacing: CGFloat = 2
+    static let loadingSkeletonMinimumCellWidth: CGFloat = 6
+    static let loadingSkeletonMinimumBlockWidth: CGFloat = 7
+    static let loadingSkeletonTextSlotHeight: CGFloat = 24
+    static var loadingSkeletonGridHeight: CGFloat {
+        CGFloat(loadingSkeletonMinimumRows) * loadingSkeletonBlockHeight
+            + CGFloat(loadingSkeletonMinimumRows - 1) * loadingSkeletonSpacing
+    }
+    static var loadingSkeletonCapsuleInset: CGFloat {
+        (height - loadingSkeletonGridHeight) / 2
+    }
     static let maximumWidth: CGFloat = 560
     static let height: CGFloat = 52
     static let horizontalPadding: CGFloat = 14
@@ -931,6 +950,12 @@ enum IntelligenceInstructionComposerPresentation {
             : .actionRailBackground(isHovered: false)
     }
 
+    static func loadingBackgroundColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance
+            ? NSColor(srgbRed: 0x23 / 255.0, green: 0x23 / 255.0, blue: 0x23 / 255.0, alpha: 1)
+            : .windowBackgroundColor
+    }
+
     static func borderColor(usesDarkAppearance: Bool, isFocused: Bool) -> NSColor {
         if usesDarkAppearance {
             return NSColor.white.withAlphaComponent(isFocused ? 0.95 : 0.78)
@@ -939,6 +964,12 @@ enum IntelligenceInstructionComposerPresentation {
         return NSColor.controlAccentColor.withAlphaComponent(
             isFocused ? IntelligenceActionRailPresentation.hoverBorderOpacity : 0
         )
+    }
+
+    static func loadingBorderColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance
+            ? NSColor.white.withAlphaComponent(0.7)
+            : NSColor.separatorColor.withAlphaComponent(0.75)
     }
 
     static func foregroundColor(usesDarkAppearance: Bool) -> NSColor {
@@ -995,6 +1026,14 @@ enum IntelligenceInstructionComposerState {
         }
 
         return retained
+    }
+
+    static func hasVisibleSelection(
+        current: SelectionContext,
+        retained: SelectionContext?,
+        isPreparingSuggestion: Bool
+    ) -> Bool {
+        isPreparingSuggestion || activeSelection(current: current, retained: retained) != nil
     }
 
     static func shouldClearRetainedSelection(
@@ -1353,6 +1392,7 @@ struct IntelligenceActionRail: View {
 struct IntelligenceInstructionComposer: View {
     @Binding var instruction: String
     let isActionEnabled: Bool
+    var isLoading = false
     var usesDarkChrome = false
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
@@ -1361,6 +1401,7 @@ struct IntelligenceInstructionComposer: View {
         IntelligenceInstructionComposerOverlayHost(
             instruction: $instruction,
             isActionEnabled: isActionEnabled,
+            isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1371,6 +1412,7 @@ struct IntelligenceInstructionComposer: View {
 struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
     @Binding var instruction: String
     let isActionEnabled: Bool
+    let isLoading: Bool
     let usesDarkChrome: Bool
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
@@ -1379,6 +1421,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
         IntelligenceInstructionComposerOverlayNSView(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
@@ -1390,6 +1433,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
         nsView.update(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
@@ -1404,6 +1448,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
     init(
         instruction: String,
         isActionEnabled: Bool,
+        isLoading: Bool = false,
         usesDarkChrome: Bool,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
@@ -1412,6 +1457,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         composerView = IntelligenceInstructionComposerNSView(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
@@ -1437,6 +1483,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
     func update(
         instruction: String,
         isActionEnabled: Bool,
+        isLoading: Bool = false,
         usesDarkChrome: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
@@ -1445,6 +1492,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         composerView.update(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
@@ -1478,11 +1526,17 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
 final class IntelligenceInstructionComposerNSView: NSView {
     private let textView = IntelligenceInstructionTextView()
     private let submitButton: IntelligenceInstructionSubmitButtonNSView
+    private let loadingSkeletonView = IntelligenceInstructionLoadingSkeletonNSView()
     private var textChanged: (String) -> Void
     private var onFocusChanged: (Bool) -> Void
     private var submitInstruction: (String) -> Void
     private var mouseDownMonitor: LocalEventMonitor?
     private var usesDarkChrome: Bool
+    private var isLoading: Bool {
+        didSet {
+            applyLoadingState()
+        }
+    }
     private var isInputFocused = false {
         didSet {
             needsDisplay = true
@@ -1492,6 +1546,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
     init(
         instruction: String,
         isActionEnabled: Bool,
+        isLoading: Bool = false,
         usesDarkChrome: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
@@ -1501,6 +1556,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         self.onFocusChanged = onFocusChanged
         self.submitInstruction = submitInstruction
         self.usesDarkChrome = usesDarkChrome
+        self.isLoading = isLoading
         submitButton = IntelligenceInstructionSubmitButtonNSView(
             isActionEnabled: isActionEnabled,
             usesDarkChrome: usesDarkChrome,
@@ -1508,6 +1564,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         )
         super.init(frame: .zero)
         configureTextView()
+        configureLoadingViews()
         configureTextViewCallbacks()
         textView.string = instruction
         submitButton.performAction = { [weak self] in
@@ -1515,7 +1572,9 @@ final class IntelligenceInstructionComposerNSView: NSView {
         }
         addSubview(textView)
         addSubview(submitButton)
+        addSubview(loadingSkeletonView)
         wantsLayer = true
+        applyLoadingState()
         updateLayerShadow()
     }
 
@@ -1531,6 +1590,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
     func update(
         instruction: String,
         isActionEnabled: Bool,
+        isLoading: Bool = false,
         usesDarkChrome: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
@@ -1543,6 +1603,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
             self.usesDarkChrome = usesDarkChrome
             applyAppearanceStyling()
         }
+        self.isLoading = isLoading
         submitButton.isActionEnabled = isActionEnabled
         submitButton.usesDarkChrome = usesDarkChrome
         configureTextViewCallbacks()
@@ -1554,6 +1615,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
             self?.submitIfReady()
         }
         needsDisplay = true
+        needsLayout = true
     }
 
     override func layout() {
@@ -1577,6 +1639,8 @@ final class IntelligenceInstructionComposerNSView: NSView {
             width: max(0, bounds.width - horizontalPadding * 2 - sparklesWidth - 20 - buttonSize),
             height: controlHeight
         )
+        let loadingInset = IntelligenceInstructionComposerPresentation.loadingSkeletonCapsuleInset
+        loadingSkeletonView.frame = bounds.insetBy(dx: loadingInset, dy: loadingInset)
         registerHitTestRegion()
     }
 
@@ -1613,6 +1677,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
+        guard !isLoading else { return self }
 
         let submitPoint = convert(point, to: submitButton)
         if let submitHit = submitButton.hitTest(submitPoint) {
@@ -1631,10 +1696,14 @@ final class IntelligenceInstructionComposerNSView: NSView {
     }
 
     override func resetCursorRects() {
-        addCursorRect(textView.frame, cursor: .iBeam)
+        if !isLoading {
+            addCursorRect(textView.frame, cursor: .iBeam)
+        }
     }
 
     override func cursorUpdate(with event: NSEvent) {
+        guard !isLoading else { return }
+
         let point = convert(event.locationInWindow, from: nil)
         if textView.frame.contains(point) {
             NSCursor.iBeam.set()
@@ -1642,6 +1711,8 @@ final class IntelligenceInstructionComposerNSView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard !isLoading else { return }
+
         let point = convert(event.locationInWindow, from: nil)
         guard !submitButton.frame.contains(point) else {
             super.mouseDown(with: event)
@@ -1660,23 +1731,27 @@ final class IntelligenceInstructionComposerNSView: NSView {
             xRadius: IntelligenceInstructionComposerPresentation.cornerRadius,
             yRadius: IntelligenceInstructionComposerPresentation.cornerRadius
         )
-        IntelligenceInstructionComposerPresentation.backgroundColor(
-            usesDarkAppearance: usesDarkChrome
-        )
-        .setFill()
+        let backgroundColor = isLoading
+            ? IntelligenceInstructionComposerPresentation.loadingBackgroundColor(usesDarkAppearance: usesDarkChrome)
+            : IntelligenceInstructionComposerPresentation.backgroundColor(usesDarkAppearance: usesDarkChrome)
+        backgroundColor.setFill()
         path.fill()
 
-        if usesDarkChrome || isInputFocused {
-            IntelligenceInstructionComposerPresentation.borderColor(
-                usesDarkAppearance: usesDarkChrome,
-                isFocused: isInputFocused
-            )
-            .setStroke()
+        if isLoading || usesDarkChrome || isInputFocused {
+            let borderColor = isLoading
+                ? IntelligenceInstructionComposerPresentation.loadingBorderColor(usesDarkAppearance: usesDarkChrome)
+                : IntelligenceInstructionComposerPresentation.borderColor(
+                    usesDarkAppearance: usesDarkChrome,
+                    isFocused: isInputFocused
+                )
+            borderColor.setStroke()
             path.lineWidth = 1
             path.stroke()
         }
 
-        drawSparkles()
+        if !isLoading {
+            drawSparkles()
+        }
     }
 
     deinit {
@@ -1704,6 +1779,11 @@ final class IntelligenceInstructionComposerNSView: NSView {
         applyAppearanceStyling()
     }
 
+    private func configureLoadingViews() {
+        loadingSkeletonView.isHidden = true
+        loadingSkeletonView.usesDarkChrome = usesDarkChrome
+    }
+
     private func configureTextViewCallbacks() {
         textView.onTextChanged = { [weak self] text in
             self?.textChanged(text)
@@ -1719,6 +1799,8 @@ final class IntelligenceInstructionComposerNSView: NSView {
     }
 
     private func submitIfReady() {
+        guard !isLoading else { return }
+
         let trimmedInstruction = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard submitButton.isActionEnabled, !trimmedInstruction.isEmpty else {
             return
@@ -1731,12 +1813,16 @@ final class IntelligenceInstructionComposerNSView: NSView {
     }
 
     private func focusTextView() {
+        guard !isLoading else { return }
+
         isInputFocused = true
         onFocusChanged(true)
         window?.makeFirstResponder(textView)
     }
 
     private func focusTextView(insertingAt windowPoint: NSPoint?) {
+        guard !isLoading else { return }
+
         focusTextView()
         guard let windowPoint else { return }
 
@@ -1766,6 +1852,10 @@ final class IntelligenceInstructionComposerNSView: NSView {
                 return event
             }
 
+            guard !self.isLoading else {
+                return nil
+            }
+
             if self.submitButton.frame.contains(point) {
                 self.submitIfReady()
             } else if self.textView.frame.contains(point) {
@@ -1792,9 +1882,25 @@ final class IntelligenceInstructionComposerNSView: NSView {
             usesDarkAppearance: usesDarkChrome
         )
         submitButton.usesDarkChrome = usesDarkChrome
+        loadingSkeletonView.usesDarkChrome = usesDarkChrome
         textView.needsDisplay = true
         submitButton.needsDisplay = true
+        loadingSkeletonView.needsDisplay = true
         needsDisplay = true
+    }
+
+    private func applyLoadingState() {
+        textView.isHidden = isLoading
+        submitButton.isHidden = isLoading
+        loadingSkeletonView.isHidden = !isLoading
+        loadingSkeletonView.setAnimating(isLoading)
+        if isLoading {
+            window?.makeFirstResponder(nil)
+            isInputFocused = false
+        }
+        needsDisplay = true
+        needsLayout = true
+        discardCursorRects()
     }
 
     private func drawSparkles() {
@@ -1842,6 +1948,142 @@ final class IntelligenceInstructionComposerNSView: NSView {
                 self?.focusTextView()
             }
         )
+    }
+}
+
+final class IntelligenceInstructionLoadingSkeletonNSView: NSView {
+    var usesDarkChrome = false {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    private var animationStartDate = Date()
+    private var animationTimer: Timer?
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopAnimating()
+        } else if !isHidden {
+            startAnimating()
+        }
+    }
+
+    func setAnimating(_ isAnimating: Bool) {
+        if isAnimating, window != nil {
+            startAnimating()
+        } else {
+            stopAnimating()
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        let rowCount = IntelligenceInstructionComposerPresentation.loadingSkeletonMinimumRows
+        let columnCount = IntelligenceInstructionComposerPresentation.loadingSkeletonColumns
+        let blockHeight = IntelligenceInstructionComposerPresentation.loadingSkeletonBlockHeight
+        let spacing = IntelligenceInstructionComposerPresentation.loadingSkeletonSpacing
+        let rowHeight = blockHeight + spacing
+        let gridHeight = CGFloat(rowCount) * blockHeight + CGFloat(rowCount - 1) * spacing
+        let originY = max(0, (bounds.height - gridHeight) / 2)
+        let availableWidth = max(0, bounds.width - CGFloat(columnCount - 1) * spacing)
+        let cellWidth = max(
+            IntelligenceInstructionComposerPresentation.loadingSkeletonMinimumCellWidth,
+            availableWidth / CGFloat(columnCount)
+        )
+
+        for row in 0..<rowCount {
+            for column in 0..<columnCount {
+                let cellIndex = row * columnCount + column
+                guard shouldDrawSkeletonBlock(row: row, column: column, cellIndex: cellIndex) else {
+                    continue
+                }
+
+                let scale = skeletonScale(cellIndex: cellIndex)
+                let width = min(
+                    cellWidth,
+                    max(
+                        IntelligenceInstructionComposerPresentation.loadingSkeletonMinimumBlockWidth,
+                        cellWidth * scale
+                    )
+                )
+                let x = CGFloat(column) * (cellWidth + spacing) + (cellWidth - width) / 2
+                let y = originY + CGFloat(row) * rowHeight
+                let rect = NSRect(x: x, y: y, width: width, height: blockHeight)
+                drawSkeletonBlock(in: rect, alpha: skeletonAlpha(row: row, column: column, cellIndex: cellIndex))
+            }
+        }
+    }
+
+    private func startAnimating() {
+        guard animationTimer == nil else { return }
+
+        animationStartDate = Date()
+        let timer = Timer(timeInterval: 1 / 30, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.needsDisplay = true
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
+    }
+
+    private func stopAnimating() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+    }
+
+    private func drawSkeletonBlock(in rect: NSRect, alpha: CGFloat) {
+        let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+        let baseColor = NSColor.labelColor.withAlphaComponent(usesDarkChrome ? 0.08 + alpha * 0.17 : 0.045 + alpha * 0.17)
+        baseColor.setFill()
+        path.fill()
+
+        guard let gradient = NSGradient(colors: [
+            NSColor.labelColor.withAlphaComponent(0.018 + alpha * 0.04),
+            NSColor.labelColor.withAlphaComponent(0.07 + alpha * 0.24),
+            NSColor.labelColor.withAlphaComponent(0.022 + alpha * 0.05),
+        ]) else {
+            return
+        }
+        gradient.draw(in: path, angle: 0)
+    }
+
+    private func shouldDrawSkeletonBlock(row: Int, column: Int, cellIndex: Int) -> Bool {
+        let preserveEdges = column == 0 || column == IntelligenceInstructionComposerPresentation.loadingSkeletonColumns - 1
+        return preserveEdges || seededNoise(Double(cellIndex + 101)) >= 0.16
+    }
+
+    private func skeletonAlpha(row: Int, column: Int, cellIndex: Int) -> CGFloat {
+        let elapsed = Date().timeIntervalSince(animationStartDate)
+        let phase = (elapsed - skeletonDelay(row: row, column: column, cellIndex: cellIndex))
+            / skeletonDuration(cellIndex: cellIndex)
+        let wave = (sin(phase * .pi * 2 - .pi / 2) + 1) / 2
+        return CGFloat(wave)
+    }
+
+    private func skeletonDelay(row: Int, column: Int, cellIndex: Int) -> TimeInterval {
+        let secondaryNoise = seededNoise(Double(cellIndex + 101) * 3.17)
+        return Double(column) * 0.045 + Double((row * 7) % 5) * 0.026 + secondaryNoise * 0.12
+    }
+
+    private func skeletonDuration(cellIndex: Int) -> TimeInterval {
+        1.18 + seededNoise(Double(cellIndex) * 2.11 + 100) * 0.72
+    }
+
+    private func skeletonScale(cellIndex: Int) -> CGFloat {
+        0.82 + CGFloat(seededNoise(Double(cellIndex) * 4.61 + 100)) * 0.18
+    }
+
+    private func seededNoise(_ seed: Double) -> Double {
+        let value = sin(seed * 12.9898) * 43758.5453
+        return value - floor(value)
     }
 }
 

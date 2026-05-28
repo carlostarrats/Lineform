@@ -136,6 +136,10 @@ enum IntelligentEditingOptionsPresentation {
     static let controlsReassertPointingHandCursorWhileHovered = true
     static let controlCursorRectFillsControlBounds = true
 
+    static func isVisible(isPreparingSuggestion _: Bool, hasSuggestions: Bool) -> Bool {
+        hasSuggestions
+    }
+
     static func presentation(for replacementText: String) -> Mode {
         let wordCount = replacementText
             .trimmingCharacters(in: .whitespacesAndNewlines)

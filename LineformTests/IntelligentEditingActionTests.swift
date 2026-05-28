@@ -44,6 +44,44 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesNavPillLikeShadow)
     }
 
+    func testAiComposerOwnsLoadingStateBeforeResultReview() {
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesInlineLoadingState)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesExistingSkeletonShimmerForLoading)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesNeutralLoadingChrome)
+        XCTAssertFalse(IntelligenceInstructionComposerPresentation.showsLoadingSpinnerInSubmitSlot)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.loadingStatePreservesCapsuleDimensions)
+
+        XCTAssertFalse(
+            IntelligentEditingOptionsPresentation.isVisible(
+                isPreparingSuggestion: true,
+                hasSuggestions: false
+            )
+        )
+        XCTAssertTrue(
+            IntelligentEditingOptionsPresentation.isVisible(
+                isPreparingSuggestion: false,
+                hasSuggestions: true
+            )
+        )
+    }
+
+    func testAiComposerLoadingShimmerFitsInsideInputSlot() {
+        XCTAssertLessThanOrEqual(
+            IntelligenceInstructionComposerPresentation.loadingSkeletonGridHeight,
+            IntelligenceInstructionComposerPresentation.loadingSkeletonTextSlotHeight
+        )
+    }
+
+    func testAiComposerLoadingShimmerUsesDenseShortMarks() {
+        XCTAssertGreaterThanOrEqual(IntelligenceInstructionComposerPresentation.loadingSkeletonMinimumRows, 4)
+        XCTAssertGreaterThanOrEqual(IntelligenceInstructionComposerPresentation.loadingSkeletonColumns, 44)
+        XCTAssertLessThanOrEqual(IntelligenceInstructionComposerPresentation.loadingSkeletonBlockHeight, 4)
+        XCTAssertLessThanOrEqual(
+            IntelligenceInstructionComposerPresentation.loadingSkeletonSpacing,
+            2
+        )
+    }
+
     func testAiComposerUsesInvertedDarkAppearanceColors() throws {
         let background = try XCTUnwrap(
             IntelligenceInstructionComposerPresentation.backgroundColor(usesDarkAppearance: true)
@@ -190,6 +228,28 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
+    func testAiComposerStaysVisibleWhileInstructionIsPreparing() {
+        let collapsed = SelectionContext(
+            text: "Selected text was already sent to AI.",
+            selectedRange: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertTrue(
+            IntelligenceInstructionComposerState.hasVisibleSelection(
+                current: collapsed,
+                retained: nil,
+                isPreparingSuggestion: true
+            )
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerState.hasVisibleSelection(
+                current: collapsed,
+                retained: nil,
+                isPreparingSuggestion: false
+            )
+        )
+    }
+
     func testCustomInstructionsCanRequestMultipleSuggestionsForCreativeEdits() {
         XCTAssertEqual(
             IntelligentEditingPresentationPolicy.optionCount(
@@ -321,7 +381,7 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertTrue(IntelligentEditingOptionsPresentation.controlCursorRectFillsControlBounds)
     }
 
-    func testIntelligenceLoadingPanelUsesSkeletonBeforeResultsArrive() {
+    func testIntelligenceSkeletonMetricsRemainStableForLoadingSurfaces() {
         XCTAssertTrue(IntelligentEditingOptionsPresentation.showsLoadingSkeleton)
         XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonMinimumRows, 9)
         XCTAssertEqual(IntelligentEditingOptionsPresentation.loadingSkeletonCompactColumns, 20)

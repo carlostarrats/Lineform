@@ -321,6 +321,47 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(composerView.descendants(ofType: IntelligenceInstructionTextView.self).count, 1)
     }
 
+    func testInstructionComposerLoadingStateOwnsChromeWithoutInputTargets() throws {
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "Rewrite this",
+            isActionEnabled: true,
+            isLoading: true,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.frame = NSRect(x: 0, y: 0, width: 560, height: 52)
+        composerView.layoutSubtreeIfNeeded()
+
+        let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        let submitButton = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionSubmitButtonNSView.self).first)
+        let skeletonView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionLoadingSkeletonNSView.self).first)
+
+        XCTAssertTrue(textView.isHidden)
+        XCTAssertTrue(submitButton.isHidden)
+        XCTAssertFalse(skeletonView.isHidden)
+        XCTAssertEqual(composerView.descendants(ofType: NSProgressIndicator.self).count, 0)
+        XCTAssertEqual(skeletonView.frame.minX, skeletonView.frame.minY, accuracy: 0.5)
+        XCTAssertEqual(composerView.bounds.maxX - skeletonView.frame.maxX, skeletonView.frame.minY, accuracy: 0.5)
+        XCTAssertEqual(composerView.bounds.maxY - skeletonView.frame.maxY, skeletonView.frame.minY, accuracy: 0.5)
+        XCTAssertTrue(composerView.hitTest(NSPoint(x: 280, y: 26)) === composerView)
+
+        composerView.update(
+            instruction: "Rewrite this",
+            isActionEnabled: true,
+            isLoading: false,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(textView.isHidden)
+        XCTAssertFalse(submitButton.isHidden)
+        XCTAssertTrue(skeletonView.isHidden)
+        XCTAssertEqual(composerView.descendants(ofType: NSProgressIndicator.self).count, 0)
+    }
+
     func testInstructionComposerExposesAccessibleInputAndSendButton() throws {
         let composerView = IntelligenceInstructionComposerNSView(
             instruction: "",
