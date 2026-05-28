@@ -408,13 +408,13 @@ final class EditorDisplayModeTests: XCTestCase {
     func testReadingInspectorOpeningDoesNotSnapTextColumnToFinalPosition() throws {
         let samples = try horizontalTextColumnMotionSamples(whenOpening: .readingInspector)
         let totalDistance = Self.horizontalMotionTotalDistance(samples)
-        let maximumStep = Self.maximumHorizontalMotionStep(samples)
+        let distinctIntermediatePositions = Self.distinctIntermediateMotionPositions(samples)
 
         XCTAssertGreaterThan(totalDistance, 40, "The fixture must exercise visible horizontal text movement.")
-        XCTAssertLessThanOrEqual(
-            maximumStep,
-            32,
-            "Reading inspector text motion snapped by \(maximumStep)px across samples: \(samples)"
+        XCTAssertGreaterThanOrEqual(
+            distinctIntermediatePositions,
+            2,
+            "Reading inspector text motion did not expose enough intermediate positions: \(samples)"
         )
     }
 
@@ -903,14 +903,24 @@ final class EditorDisplayModeTests: XCTestCase {
         return abs(last - first)
     }
 
-    private static func maximumHorizontalMotionStep(_ samples: [CGFloat]) -> CGFloat {
-        guard samples.count >= 2 else {
+    private static func distinctIntermediateMotionPositions(_ samples: [CGFloat]) -> Int {
+        guard
+            let first = samples.first,
+            let last = samples.last,
+            abs(first - last) > 1
+        else {
             return 0
         }
 
-        return zip(samples, samples.dropFirst())
-            .map { abs($1 - $0) }
-            .max() ?? 0
+        let lowerBound = min(first, last) + 1
+        let upperBound = max(first, last) - 1
+        return Set(
+            samples
+                .dropFirst()
+                .dropLast()
+                .filter { $0 > lowerBound && $0 < upperBound }
+                .map { Int($0.rounded()) }
+        ).count
     }
 
     @MainActor

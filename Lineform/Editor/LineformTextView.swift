@@ -354,7 +354,7 @@ final class LineformTextView: NSTextView {
     override func setFrameSize(_ newSize: NSSize) {
         let previousVerticalScrollOrigin = enclosingScrollView?.contentView.bounds.origin.y
         preserveVisibleLayoutAnchorDuring(
-            preservesVisualAnchor: shouldPreserveVisualLayoutAnchor(forProposedFrameWidth: newSize.width),
+            preservesVisualAnchor: shouldPreserveVisualLayoutAnchorDuringLayoutTransition(),
             restoresAfterDeferredLayout: true
         ) {
             super.setFrameSize(sizePreservingScrollableDocumentHeight(for: newSize))
@@ -392,21 +392,11 @@ final class LineformTextView: NSTextView {
         }
     }
 
-    func shouldPreserveVisualLayoutAnchor(forProposedFrameWidth proposedFrameWidth: CGFloat) -> Bool {
+    func shouldPreserveVisualLayoutAnchorDuringLayoutTransition() -> Bool {
         guard !smoothsHorizontalInsetChanges else {
             return false
         }
-
-        let currentWidth = textContainer?.containerSize.width
-        let targetWidth = EditorReadingLayout.textContainerWidth(
-            forContainerWidth: proposedFrameWidth,
-            profile: activeReadingProfile
-        )
-        guard let currentWidth else {
-            return true
-        }
-
-        return abs(currentWidth - targetWidth) <= 0.5
+        return true
     }
 
     func writingToolsWillBegin() {

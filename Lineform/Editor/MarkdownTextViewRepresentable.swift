@@ -88,7 +88,7 @@ final class LineformEditorScrollView: NSScrollView {
         }
 
         textView.preserveVisibleLayoutAnchorDuring(
-            preservesVisualAnchor: false,
+            preservesVisualAnchor: textView.shouldPreserveVisualLayoutAnchorDuringLayoutTransition(),
             restoresAfterDeferredLayout: true,
             verticalScrollOrigin: verticalScrollOriginForLayoutPreservation(textView)
         ) {
@@ -103,7 +103,7 @@ final class LineformEditorScrollView: NSScrollView {
         }
 
         textView.preserveVisibleLayoutAnchorDuring(
-            preservesVisualAnchor: false,
+            preservesVisualAnchor: textView.shouldPreserveVisualLayoutAnchorDuringLayoutTransition(),
             restoresAfterDeferredLayout: true,
             verticalScrollOrigin: verticalScrollOriginForLayoutPreservation(textView)
         ) {
