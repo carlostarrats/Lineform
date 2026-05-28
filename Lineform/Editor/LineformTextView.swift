@@ -558,18 +558,20 @@ final class LineformTextView: NSTextView {
         for profile: ReadingProfile,
         preservingVerticalScrollOrigin previousVerticalScrollOrigin: CGFloat? = nil
     ) {
+        let verticalScrollOriginToRestore = previousVerticalScrollOrigin ?? enclosingScrollView?.contentView.bounds.origin.y
         setTextContainerInset(
             NSSize(
                 width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile),
                 height: 32
             ),
-            preservingVerticalScrollOrigin: previousVerticalScrollOrigin
+            preservingVerticalScrollOrigin: verticalScrollOriginToRestore
         )
         textContainer?.widthTracksTextView = false
         textContainer?.containerSize = NSSize(
             width: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: profile),
             height: CGFloat.greatestFiniteMagnitude
         )
+        restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
     }
 
     private func setTextContainerInset(

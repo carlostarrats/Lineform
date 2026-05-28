@@ -686,8 +686,22 @@ enum EditorLayout {
 
 enum EditorInspectorTextResponse {
     static let smoothsHorizontalInsetChanges = true
+    static let usesPresentationLayerHorizontalSmoothing = false
+    static let preservesVerticalAnchorDuringPresentationSmoothing = true
+    static let usesExplicitPresentationOffsetAnimation = false
+    static let allowsImplicitContentAnimationDuringPresentationSmoothing = false
     static let transitionDuration: TimeInterval = 0.22
     static let horizontalInsetAnimationDuration: TimeInterval = 0.16
+    static let presentationOffsetAnimationDuration = transitionDuration
+    static let presentationOffsetDistance: CGFloat = 0
+
+    static func presentationOffset(opening: Bool, reduceMotion: Bool) -> CGFloat {
+        guard usesPresentationLayerHorizontalSmoothing, !reduceMotion else {
+            return 0
+        }
+
+        return opening ? presentationOffsetDistance : -presentationOffsetDistance
+    }
 }
 
 enum IntelligentEditingOverlayPlacement {

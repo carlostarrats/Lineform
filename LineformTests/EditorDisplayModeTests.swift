@@ -261,11 +261,33 @@ final class EditorDisplayModeTests: XCTestCase {
 
     func testReadingInspectorSmoothsEditorTextRepositioning() {
         XCTAssertTrue(EditorInspectorTextResponse.smoothsHorizontalInsetChanges)
+        XCTAssertFalse(EditorInspectorTextResponse.usesPresentationLayerHorizontalSmoothing)
+        XCTAssertTrue(EditorInspectorTextResponse.preservesVerticalAnchorDuringPresentationSmoothing)
+        XCTAssertFalse(EditorInspectorTextResponse.usesExplicitPresentationOffsetAnimation)
+        XCTAssertFalse(EditorInspectorTextResponse.allowsImplicitContentAnimationDuringPresentationSmoothing)
         XCTAssertEqual(EditorInspectorTextResponse.transitionDuration, 0.22, accuracy: 0.01)
         XCTAssertGreaterThan(EditorInspectorTextResponse.horizontalInsetAnimationDuration, 0)
         XCTAssertLessThanOrEqual(
             EditorInspectorTextResponse.horizontalInsetAnimationDuration,
             EditorInspectorTextResponse.transitionDuration
+        )
+        XCTAssertEqual(
+            EditorInspectorTextResponse.presentationOffsetAnimationDuration,
+            EditorInspectorTextResponse.transitionDuration,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(EditorInspectorTextResponse.presentationOffsetDistance, 0)
+        XCTAssertEqual(
+            EditorInspectorTextResponse.presentationOffset(opening: true, reduceMotion: false),
+            0
+        )
+        XCTAssertEqual(
+            EditorInspectorTextResponse.presentationOffset(opening: false, reduceMotion: false),
+            0
+        )
+        XCTAssertEqual(
+            EditorInspectorTextResponse.presentationOffset(opening: true, reduceMotion: true),
+            0
         )
     }
 
