@@ -35,6 +35,18 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertNil(EditorSearchResolver.previousIndex(before: nil, matchCount: 0))
     }
 
+    func testEditorSearchAccessibilitySummarizesMatchPosition() {
+        XCTAssertEqual(
+            EditorSearchResolver.accessibilitySummary(query: "line", matchCount: 3, activeIndex: 1),
+            "Search for line. 3 matches. Result 2 of 3."
+        )
+        XCTAssertEqual(
+            EditorSearchResolver.accessibilitySummary(query: "line", matchCount: 0, activeIndex: nil),
+            "Search for line. No matches."
+        )
+        XCTAssertNil(EditorSearchResolver.accessibilitySummary(query: "   ", matchCount: 0, activeIndex: nil))
+    }
+
     func testEditorSearchToolbarUsesSeparateNativeFieldPresentation() {
         XCTAssertTrue(EditorSearchToolbarPresentation.usesNativeSearchableToolbarItem)
         XCTAssertTrue(EditorSearchToolbarPresentation.preservesSystemToolbarButtonGroup)
@@ -323,6 +335,10 @@ final class EditorDisplayModeTests: XCTestCase {
             ),
             EditorStatusIndicator(text: "AI available", tone: .available)
         )
+        XCTAssertEqual(
+            EditorStatusIndicator(text: "AI available", tone: .available).accessibilityText,
+            "Status: AI available"
+        )
     }
 
     func testStatusIndicatorShowsWarningBeforeAvailableHealth() {
@@ -333,6 +349,10 @@ final class EditorDisplayModeTests: XCTestCase {
                 intelligenceAvailability: .available
             ),
             EditorStatusIndicator(text: "Suggestion took too long.", tone: .warning)
+        )
+        XCTAssertEqual(
+            EditorStatusIndicator(text: "Suggestion took too long.", tone: .warning).accessibilityText,
+            "Warning: Suggestion took too long."
         )
     }
 
@@ -445,6 +465,15 @@ final class EditorDisplayModeTests: XCTestCase {
             EditorModeSegmentedControl.liquidPillWidth(from: .split, to: .read),
             splitOffset - readOffset + EditorModeSegmentedControl.segmentWidth
         )
+    }
+
+    func testReduceMotionDisablesCustomEditorMotion() {
+        XCTAssertTrue(EditorMotionPolicy.supportsReduceMotion)
+        XCTAssertEqual(EditorMotionPolicy.effectiveDuration(0.24, reduceMotion: false), 0.24, accuracy: 0.01)
+        XCTAssertEqual(EditorMotionPolicy.effectiveDuration(0.24, reduceMotion: true), 0, accuracy: 0.01)
+        XCTAssertTrue(EditorMotionPolicy.usesAnimatedTransitions(reduceMotion: false))
+        XCTAssertFalse(EditorMotionPolicy.usesAnimatedTransitions(reduceMotion: true))
+        XCTAssertTrue(EditorModeSegmentedControl.usesReduceMotionForLiquidBridge)
     }
 
     private static func contrastRatio(_ foreground: NSColor, _ background: NSColor) -> CGFloat {

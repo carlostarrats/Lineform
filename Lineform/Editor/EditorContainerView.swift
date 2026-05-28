@@ -4,6 +4,7 @@ struct EditorContainerView: View {
     @Binding var document: LineformDocument
     @StateObject private var readingProfileStore = ReadingProfileStore()
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
     @State private var isShowingReadingInspector = false
     @State private var isShowingMarkdownBasics = false
@@ -51,7 +52,11 @@ struct EditorContainerView: View {
         .searchFocused($isSearchFocused)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                EditorModeSegmentedControl(selection: $displayMode, usesDarkChrome: theme.usesDarkChrome)
+                EditorModeSegmentedControl(
+                    selection: $displayMode,
+                    usesDarkChrome: theme.usesDarkChrome,
+                    reduceMotion: reduceMotion
+                )
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -174,14 +179,23 @@ struct EditorContainerView: View {
                 }
                 .transition(
                     .asymmetric(
-                        insertion: .offset(y: MarkdownBasicsModal.entranceYOffset).combined(with: .opacity),
-                        removal: .offset(y: MarkdownBasicsModal.entranceYOffset / 2).combined(with: .opacity)
+                        insertion: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: MarkdownBasicsModal.entranceYOffset,
+                            reduceMotion: reduceMotion
+                        ),
+                        removal: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: MarkdownBasicsModal.entranceYOffset / 2,
+                            reduceMotion: reduceMotion
+                        )
                     )
                 )
                 .zIndex(2)
             }
         }
-        .animation(.easeOut(duration: MarkdownBasicsModal.animationDuration), value: isShowingMarkdownBasics)
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: MarkdownBasicsModal.animationDuration), reduceMotion: reduceMotion),
+            value: isShowingMarkdownBasics
+        )
     }
 
     private var editorPrimaryShell: some View {
@@ -212,8 +226,14 @@ struct EditorContainerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(
                     .asymmetric(
-                        insertion: .offset(y: IntelligenceActionRailPresentation.entranceYOffset).combined(with: .opacity),
-                        removal: .offset(y: IntelligenceActionRailPresentation.entranceYOffset / 2).combined(with: .opacity)
+                        insertion: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: IntelligenceActionRailPresentation.entranceYOffset,
+                            reduceMotion: reduceMotion
+                        ),
+                        removal: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: IntelligenceActionRailPresentation.entranceYOffset / 2,
+                            reduceMotion: reduceMotion
+                        )
                     )
                 )
                 .zIndex(1)
@@ -244,14 +264,26 @@ struct EditorContainerView: View {
                     .frame(maxWidth: placement.width)
                     .position(placement.position)
                 }
-                .transition(.scale(scale: 0.98).combined(with: .opacity))
+                .transition(EditorMotionPolicy.scaleAndFadeTransition(scale: 0.98, reduceMotion: reduceMotion))
                 .zIndex(2)
             }
         }
         .background(Color(nsColor: currentTheme.backgroundColor))
-        .animation(.easeOut(duration: 0.18), value: intelligentOptions)
-        .animation(.easeOut(duration: IntelligenceActionRailPresentation.animationDuration), value: isIntelligenceRailEnabled)
-        .animation(.easeOut(duration: IntelligenceActionRailPresentation.animationDuration), value: displayMode)
+        .animation(EditorMotionPolicy.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion), value: intelligentOptions)
+        .animation(
+            EditorMotionPolicy.animation(
+                .easeOut(duration: IntelligenceActionRailPresentation.animationDuration),
+                reduceMotion: reduceMotion
+            ),
+            value: isIntelligenceRailEnabled
+        )
+        .animation(
+            EditorMotionPolicy.animation(
+                .easeOut(duration: IntelligenceActionRailPresentation.animationDuration),
+                reduceMotion: reduceMotion
+            ),
+            value: displayMode
+        )
     }
 
     private var currentTheme: Theme {
@@ -292,6 +324,7 @@ struct EditorContainerView: View {
             activeSearchRange: activeSearchRange
         )
         .accessibilityLabel("Markdown editor")
+        .accessibilityValue(searchAccessibilitySummary ?? "")
     }
 
     private var activeIntelligentSuggestion: IntelligentEditingSuggestion? {
@@ -322,6 +355,14 @@ struct EditorContainerView: View {
             return nil
         }
         return searchMatches[activeSearchIndex]
+    }
+
+    private var searchAccessibilitySummary: String? {
+        EditorSearchResolver.accessibilitySummary(
+            query: searchQuery,
+            matchCount: searchMatches.count,
+            activeIndex: activeSearchIndex
+        )
     }
 
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
@@ -925,6 +966,21 @@ enum EditorSearchResolver {
 
         return (index - 1 + matchCount) % matchCount
     }
+
+    static func accessibilitySummary(query: String, matchCount: Int, activeIndex: Int?) -> String? {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            return nil
+        }
+
+        guard matchCount > 0 else {
+            return "Search for \(trimmedQuery). No matches."
+        }
+
+        let safeActiveIndex = min(max(activeIndex ?? 0, 0), matchCount - 1)
+        let matchWord = matchCount == 1 ? "match" : "matches"
+        return "Search for \(trimmedQuery). \(matchCount) \(matchWord). Result \(safeActiveIndex + 1) of \(matchCount)."
+    }
 }
 
 enum EditorSearchToolbarPresentation {
@@ -935,6 +991,30 @@ enum EditorSearchToolbarPresentation {
     static let usesNativeSearchClearButton = true
     static let showsNavigationControlsWhenQueryIsEmpty = false
     static let usesSystemSearchFieldSizing = true
+}
+
+enum EditorMotionPolicy {
+    static let supportsReduceMotion = true
+
+    static func effectiveDuration(_ duration: TimeInterval, reduceMotion: Bool) -> TimeInterval {
+        reduceMotion ? 0 : duration
+    }
+
+    static func usesAnimatedTransitions(reduceMotion: Bool) -> Bool {
+        !reduceMotion
+    }
+
+    static func animation(_ animation: Animation, reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : animation
+    }
+
+    static func fadeAndMoveTransition(y: CGFloat, reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : .offset(y: y).combined(with: .opacity)
+    }
+
+    static func scaleAndFadeTransition(scale: CGFloat, reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : .scale(scale: scale).combined(with: .opacity)
+    }
 }
 
 struct IntelligenceActionRail: View {
@@ -2129,6 +2209,15 @@ struct EditorStatusIndicator: Equatable {
 
     var text: String
     var tone: Tone
+
+    var accessibilityText: String {
+        switch tone {
+        case .available:
+            return "Status: \(text)"
+        case .warning:
+            return "Warning: \(text)"
+        }
+    }
 }
 
 struct EditorStatusBar: View {
@@ -2175,7 +2264,7 @@ struct EditorStatusBar: View {
                     .frame(maxWidth: Self.statusMessageMaximumWidth, alignment: .leading)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(statusIndicator.text)
+            .accessibilityLabel(statusIndicator.accessibilityText)
 
             Spacer(minLength: 16)
 
@@ -2218,9 +2307,11 @@ struct EditorModeSegmentedControl: View {
     static let hitAreaHeight: CGFloat = segmentHeight
     static let dividerSlotWidth: CGFloat = 3
     static let liquidSettleDelay: TimeInterval = 0.16
+    static let usesReduceMotionForLiquidBridge = true
 
     @Binding var selection: EditorDisplayMode
     var usesDarkChrome = false
+    var reduceMotion = false
 
     @State private var hoveredMode: EditorDisplayMode?
     @State private var liquidBridge: LiquidBridge?
@@ -2293,8 +2384,14 @@ struct EditorModeSegmentedControl: View {
             }
             .frame(width: selectedPillWidth, height: Self.segmentHeight)
             .offset(x: selectedPillOffset)
-            .animation(.spring(response: 0.30, dampingFraction: 0.82), value: selection)
-            .animation(.spring(response: 0.24, dampingFraction: 0.78), value: liquidBridge)
+            .animation(
+                EditorMotionPolicy.animation(.spring(response: 0.30, dampingFraction: 0.82), reduceMotion: reduceMotion),
+                value: selection
+            )
+            .animation(
+                EditorMotionPolicy.animation(.spring(response: 0.24, dampingFraction: 0.78), reduceMotion: reduceMotion),
+                value: liquidBridge
+            )
     }
 
     @ViewBuilder
@@ -2382,6 +2479,13 @@ struct EditorModeSegmentedControl: View {
 
     private func select(_ mode: EditorDisplayMode) {
         guard mode != selection else {
+            return
+        }
+
+        guard !reduceMotion else {
+            liquidTransitionID += 1
+            liquidBridge = nil
+            selection = mode
             return
         }
 
