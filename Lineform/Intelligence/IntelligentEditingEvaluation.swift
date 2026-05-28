@@ -10,12 +10,21 @@ enum IntelligentEditingSelectionLength: String, CaseIterable {
 struct IntelligentEditingEvaluationTask: Identifiable {
     let id: String
     let action: IntelligentEditingAction
+    var userInstruction: String? = nil
     let selectedText: String
     let documentContext: String
     let length: IntelligentEditingSelectionLength
     let requiresTransformation: Bool
     let requiresCompression: Bool
     let requiresMarkdownPreservation: Bool
+
+    var request: IntelligentEditingRequest {
+        if let userInstruction {
+            return .custom(userInstruction)
+        }
+
+        return .action(action)
+    }
 }
 
 enum IntelligentEditingEvaluationFailure: String, Hashable {
@@ -797,6 +806,8 @@ enum IntelligentEditingEvaluationSuite {
         "selection:weird-whitespace",
         "risk:fact-preservation",
         "language:mixed",
+        "input:user-instruction",
+        "input:custom-tone",
         "user-visible:selected-list-item",
         "generic:sentence-rewrite"
     ]
@@ -820,6 +831,17 @@ enum IntelligentEditingEvaluationSuite {
     }
 
     static let goldenTasks: [IntelligentEditingEvaluationTask] = [
+        IntelligentEditingEvaluationTask(
+            id: "custom-friendly-rewrite",
+            action: .rewrite,
+            userInstruction: "Make this friendlier without adding facts.",
+            selectedText: "This update may inconvenience users during migration.",
+            documentContext: "Release note:\n\nThis update may inconvenience users during migration.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
         IntelligentEditingEvaluationTask(
             id: "one-word-proofread",
             action: .proofread,
@@ -1280,6 +1302,18 @@ enum IntelligentEditingEvaluationSuite {
 
         if task.id == "generic-sentence-rewrite" {
             scenarios.insert("generic:sentence-rewrite")
+        }
+
+        if let userInstruction = task.userInstruction {
+            scenarios.insert("input:user-instruction")
+            let normalizedInstruction = userInstruction.lowercased()
+            if normalizedInstruction.contains("friendly")
+                || normalizedInstruction.contains("friendlier")
+                || normalizedInstruction.contains("warmer")
+                || normalizedInstruction.contains("kinder")
+                || normalizedInstruction.contains("tone") {
+                scenarios.insert("input:custom-tone")
+            }
         }
 
         return scenarios

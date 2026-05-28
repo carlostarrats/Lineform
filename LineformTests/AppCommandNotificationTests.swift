@@ -2,21 +2,15 @@ import XCTest
 @testable import Lineform
 
 final class AppCommandNotificationTests: XCTestCase {
-    func testReadingCommandsLiveInViewMenuWhileIntelligenceStaysTopLevel() {
+    func testReadingCommandsLiveInViewMenuWhileIntelligenceDoesNotExposeShortcutMenu() {
         XCTAssertEqual(AppMenuConfiguration.readingCommandPlacement, .view)
-        XCTAssertTrue(AppMenuConfiguration.keepsTopLevelIntelligenceMenu)
+        XCTAssertFalse(AppMenuConfiguration.keepsTopLevelIntelligenceMenu)
         XCTAssertFalse(AppMenuConfiguration.usesTopLevelReadingMenu)
     }
 
-    func testIntelligenceMenuUsesOnlyLineformOwnedActions() {
+    func testIntelligenceMenuDoesNotExposeFixedShortcutActions() {
         XCTAssertNil(AppMenuConfiguration.intelligencePrimaryCommandTitle)
-        XCTAssertEqual(AppMenuConfiguration.lineformIntelligenceCommandTitles, [
-            "Proofread",
-            "Rewrite",
-            "Summarize",
-            "Make Shorter",
-            "Clean Markdown"
-        ])
+        XCTAssertTrue(AppMenuConfiguration.lineformIntelligenceCommandTitles.isEmpty)
         XCTAssertFalse(AppMenuConfiguration.addsWritingToolsToEditMenu)
         XCTAssertFalse(AppMenuConfiguration.exposesAppleWritingTools)
     }

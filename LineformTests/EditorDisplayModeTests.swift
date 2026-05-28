@@ -141,10 +141,11 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testIntelligenceRailIsVisuallyScopedToWriteModeButPreservesToggleState() {
-        XCTAssertTrue(IntelligenceActionRailPresentation.isVisible(isEnabled: true, displayMode: .write))
-        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, displayMode: .read))
-        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, displayMode: .split))
-        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: false, displayMode: .write))
+        XCTAssertTrue(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: true, displayMode: .write))
+        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: false, displayMode: .write))
+        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: true, displayMode: .read))
+        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: true, displayMode: .split))
+        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: false, hasSelection: true, displayMode: .write))
     }
 
     func testIntelligenceRailUsesBottomCenteredBlueLabeledDock() {

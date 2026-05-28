@@ -11,22 +11,11 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
         rawValue
     }
 
-    static let menuBarActions: [IntelligentEditingAction] = [
-        .proofread,
-        .rewrite,
-        .summarize,
-        .shorten,
-        .cleanMarkdown
-    ]
+    static let menuBarActions: [IntelligentEditingAction] = []
 
     static let rightClickActions: [IntelligentEditingAction] = []
 
-    static let actionRailActions: [IntelligentEditingAction] = [
-        .cleanMarkdown,
-        .proofread,
-        .rewrite,
-        .shorten
-    ]
+    static let actionRailActions: [IntelligentEditingAction] = []
 
     static func contextualActions(for selectedText: String) -> [IntelligentEditingAction] {
         let normalizedText = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -131,6 +120,120 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
     }
 }
 
+struct IntelligentEditingRequest: Equatable {
+    enum Kind: Equatable {
+        case action(IntelligentEditingAction)
+        case custom
+    }
+
+    static let maximumInstructionLength = 220
+
+    let kind: Kind
+    let userInstruction: String
+
+    static func action(_ action: IntelligentEditingAction) -> IntelligentEditingRequest {
+        IntelligentEditingRequest(kind: .action(action), userInstruction: action.instruction)
+    }
+
+    static func custom(_ instruction: String) -> IntelligentEditingRequest {
+        IntelligentEditingRequest(kind: .custom, userInstruction: sanitizedInstruction(instruction))
+    }
+
+    var title: String {
+        switch kind {
+        case .action(let action):
+            return action.title
+        case .custom:
+            return "Custom Instruction"
+        }
+    }
+
+    var evaluationAction: IntelligentEditingAction {
+        switch kind {
+        case .action(let action):
+            return action
+        case .custom:
+            return inferredCustomAction
+        }
+    }
+
+    var usesUserInstruction: Bool {
+        kind == .custom
+    }
+
+    var allowsMultipleOptions: Bool {
+        guard kind == .custom else {
+            return evaluationAction == .rewrite
+        }
+
+        let normalizedInstruction = Self.normalized(userInstruction)
+        if evaluationAction != .rewrite {
+            return false
+        }
+
+        return normalizedInstruction.contains("alternative")
+            || normalizedInstruction.contains("options")
+            || normalizedInstruction.contains("three")
+            || normalizedInstruction.contains("3")
+            || normalizedInstruction.contains("different")
+            || normalizedInstruction.contains("another")
+    }
+
+    private var inferredCustomAction: IntelligentEditingAction {
+        let normalizedInstruction = Self.normalized(userInstruction)
+
+        if normalizedInstruction.contains("proofread")
+            || normalizedInstruction.contains("grammar")
+            || normalizedInstruction.contains("spelling")
+            || normalizedInstruction.contains("punctuation")
+            || normalizedInstruction.contains("typo")
+            || normalizedInstruction.contains("fix errors")
+            || normalizedInstruction.contains("fix grammar") {
+            return .proofread
+        }
+
+        if normalizedInstruction.contains("shorten")
+            || normalizedInstruction.contains("shorter")
+            || normalizedInstruction.contains("concise")
+            || normalizedInstruction.contains("condense")
+            || normalizedInstruction.contains("cut down") {
+            return .shorten
+        }
+
+        if normalizedInstruction.contains("summarize")
+            || normalizedInstruction.contains("summary")
+            || normalizedInstruction.contains("summarise") {
+            return .summarize
+        }
+
+        if normalizedInstruction.contains("clean markdown")
+            || normalizedInstruction.contains("format markdown")
+            || normalizedInstruction.contains("markdown formatting") {
+            return .cleanMarkdown
+        }
+
+        return .rewrite
+    }
+
+    private static func sanitizedInstruction(_ instruction: String) -> String {
+        let normalizedWhitespace = instruction
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        guard normalizedWhitespace.count > maximumInstructionLength else {
+            return normalizedWhitespace
+        }
+
+        return String(normalizedWhitespace.prefix(maximumInstructionLength))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    }
+}
+
 enum IntelligentEditingPresentationPolicy {
     static let maximumOptionCount = 3
     static let multiOptionWordLimit = 100
@@ -151,6 +254,14 @@ enum IntelligentEditingPresentationPolicy {
         case .proofread, .summarize, .shorten, .cleanMarkdown:
             return 1
         }
+    }
+
+    static func optionCount(for request: IntelligentEditingRequest, selectedText: String) -> Int {
+        guard request.allowsMultipleOptions else {
+            return 1
+        }
+
+        return optionCount(for: selectedText)
     }
 
     private static func wordCount(in text: String) -> Int {

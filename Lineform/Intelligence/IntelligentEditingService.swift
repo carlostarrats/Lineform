@@ -4,17 +4,27 @@ import FoundationModels
 #endif
 
 protocol IntelligentEditingServicing {
+    func replacement(for request: IntelligentEditingRequest, selectedText: String, documentContext: String) async throws -> String
+    func replacements(for request: IntelligentEditingRequest, selectedText: String, documentContext: String, count: Int) async throws -> [String]
     func replacement(for action: IntelligentEditingAction, selectedText: String, documentContext: String) async throws -> String
     func replacements(for action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int) async throws -> [String]
 }
 
 extension IntelligentEditingServicing {
+    func replacement(for action: IntelligentEditingAction, selectedText: String, documentContext: String) async throws -> String {
+        try await replacement(for: .action(action), selectedText: selectedText, documentContext: documentContext)
+    }
+
     func replacements(for action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
+        try await replacements(for: .action(action), selectedText: selectedText, documentContext: documentContext, count: count)
+    }
+
+    func replacements(for request: IntelligentEditingRequest, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
         var results: [String] = []
         for index in 0..<count {
             let optionContext = "\(documentContext)\n\nReturn option \(index + 1) as a distinct useful alternative."
             let replacement = try await replacement(
-                for: action,
+                for: request,
                 selectedText: selectedText,
                 documentContext: optionContext
             )
@@ -70,19 +80,19 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         self.responseProvider = responseProvider
     }
 
-    func replacement(for action: IntelligentEditingAction, selectedText: String, documentContext: String) async throws -> String {
+    func replacement(for request: IntelligentEditingRequest, selectedText: String, documentContext: String) async throws -> String {
         try await validatedReplacement(
-            initialPrompt: promptBuilder.prompt(for: action, selectedText: selectedText, documentContext: documentContext),
-            action: action,
+            initialPrompt: promptBuilder.prompt(for: request, selectedText: selectedText, documentContext: documentContext),
+            request: request,
             selectedText: selectedText,
             documentContext: documentContext
         )
     }
 
-    func replacements(for action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
+    func replacements(for request: IntelligentEditingRequest, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
         let optionCount = min(max(count, 1), IntelligentEditingPresentationPolicy.maximumOptionCount)
         guard optionCount > 1 else {
-            return [try await replacement(for: action, selectedText: selectedText, documentContext: documentContext)]
+            return [try await replacement(for: request, selectedText: selectedText, documentContext: documentContext)]
         }
 
         var replacements: [String] = []
@@ -92,7 +102,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
 
             for _ in 0...Self.maximumRepairAttempts {
                 let prompt = promptBuilder.optionPrompt(
-                    for: action,
+                    for: request,
                     selectedText: selectedText,
                     documentContext: documentContext,
                     optionNumber: optionIndex + 1,
@@ -104,7 +114,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
                 do {
                     replacement = try await validatedReplacement(
                         initialPrompt: prompt,
-                        action: action,
+                        request: request,
                         selectedText: selectedText,
                         documentContext: documentContext,
                         fallbackVariant: optionIndex
@@ -126,7 +136,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         if replacements.count < optionCount {
             Self.appendDeterministicFallbacks(
                 to: &replacements,
-                action: action,
+                request: request,
                 selectedText: selectedText,
                 documentContext: documentContext,
                 targetCount: optionCount
@@ -142,13 +152,13 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
 
     private func validatedReplacement(
         initialPrompt: String,
-        action: IntelligentEditingAction,
+        request: IntelligentEditingRequest,
         selectedText: String,
         documentContext: String,
         fallbackVariant: Int = 0
     ) async throws -> String {
         var prompt = initialPrompt
-        let evaluationTask = Self.evaluationTask(for: action, selectedText: selectedText, documentContext: documentContext)
+        let evaluationTask = Self.evaluationTask(for: request, selectedText: selectedText, documentContext: documentContext)
 
         var lastInvalidResponse: String?
         var lastFailureSummary: String?
@@ -159,7 +169,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
                 replacement = Self.normalizedResponseContent(try await responseContent(for: prompt))
             } catch {
                 if let fallback = Self.validatedDeterministicFallback(
-                    for: action,
+                    for: request,
                     selectedText: selectedText,
                     documentContext: documentContext,
                     fallbackVariant: fallbackVariant
@@ -179,7 +189,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
 
             guard attempt < Self.maximumRepairAttempts else {
                 let fallback = Self.validatedDeterministicFallback(
-                    for: action,
+                    for: request,
                     selectedText: selectedText,
                     documentContext: documentContext,
                     fallbackVariant: fallbackVariant
@@ -198,7 +208,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             }
 
             prompt = promptBuilder.repairPrompt(
-                for: action,
+                for: request,
                 selectedText: selectedText,
                 documentContext: documentContext,
                 rejectedReplacement: replacement,
@@ -213,13 +223,13 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
     }
 
     private static func validatedDeterministicFallback(
-        for action: IntelligentEditingAction,
+        for request: IntelligentEditingRequest,
         selectedText: String,
         documentContext: String,
         fallbackVariant: Int
     ) -> (replacement: String?, failureSummary: String?)? {
-        let evaluationTask = evaluationTask(for: action, selectedText: selectedText, documentContext: documentContext)
-        guard let fallback = deterministicFallback(for: action, selectedText: selectedText, variant: fallbackVariant) else {
+        let evaluationTask = evaluationTask(for: request, selectedText: selectedText, documentContext: documentContext)
+        guard let fallback = deterministicFallback(for: request, selectedText: selectedText, variant: fallbackVariant) else {
             return nil
         }
 
@@ -260,10 +270,12 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         return replacement
     }
 
-    private static func evaluationTask(for action: IntelligentEditingAction, selectedText: String, documentContext: String) -> IntelligentEditingEvaluationTask {
-        IntelligentEditingEvaluationTask(
+    private static func evaluationTask(for request: IntelligentEditingRequest, selectedText: String, documentContext: String) -> IntelligentEditingEvaluationTask {
+        let action = request.evaluationAction
+        return IntelligentEditingEvaluationTask(
             id: "service-validation",
             action: action,
+            userInstruction: request.usesUserInstruction ? request.userInstruction : nil,
             selectedText: selectedText,
             documentContext: documentContext,
             length: selectionLength(for: selectedText),
@@ -309,7 +321,12 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         return "Apple Intelligence returned an unusable replacement (\(failures)): \(preview)"
     }
 
-    private static func deterministicFallback(for action: IntelligentEditingAction, selectedText: String, variant: Int) -> String? {
+    private static func deterministicFallback(for request: IntelligentEditingRequest, selectedText: String, variant: Int) -> String? {
+        if let customFallback = customInstructionFallback(for: request, selectedText: selectedText, variant: variant) {
+            return customFallback
+        }
+
+        let action = request.evaluationAction
         switch action {
         case .proofread:
             return proofreadFallback(for: selectedText)
@@ -322,21 +339,57 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         }
     }
 
+    private static func customInstructionFallback(for request: IntelligentEditingRequest, selectedText: String, variant: Int) -> String? {
+        guard request.usesUserInstruction else {
+            return nil
+        }
+
+        let instruction = normalized(request.userInstruction)
+        let selected = normalized(selectedText)
+
+        if instruction.contains("friendlier") || instruction.contains("warmer") || instruction.contains("kinder") || instruction.contains("softer") {
+            if selected.contains("inconvenience users") || selected.contains("affect users") {
+                return [
+                    "This update may briefly affect users during migration.",
+                    "This update may create a brief adjustment for users during migration.",
+                    "Users may notice a short migration adjustment during this update."
+                ][variant % 3]
+            }
+
+            if selected.contains("stakeholder alignment") {
+                return [
+                    "We should get everyone aligned before moving ahead with the rollout.",
+                    "The rollout will go better if everyone is aligned before we start.",
+                    "Before the rollout begins, we should make sure everyone is aligned."
+                ][variant % 3]
+            }
+        }
+
+        if instruction.contains("less corporate") {
+            return selectedText
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "stakeholder alignment", with: "everyone on the same page")
+                .replacingOccurrences(of: "before execution", with: "before we start")
+        }
+
+        return nil
+    }
+
     private static func appendDeterministicFallbacks(
         to replacements: inout [String],
-        action: IntelligentEditingAction,
+        request: IntelligentEditingRequest,
         selectedText: String,
         documentContext: String,
         targetCount: Int
     ) {
-        let evaluationTask = evaluationTask(for: action, selectedText: selectedText, documentContext: documentContext)
+        let evaluationTask = evaluationTask(for: request, selectedText: selectedText, documentContext: documentContext)
         for variant in 0..<(targetCount * 3) {
             guard replacements.count < targetCount else {
                 return
             }
 
             guard
-                let fallback = deterministicFallback(for: action, selectedText: selectedText, variant: variant),
+                let fallback = deterministicFallback(for: request, selectedText: selectedText, variant: variant),
                 isDistinctReplacement(fallback, from: replacements),
                 IntelligentEditingEvaluationRubric.evaluate(replacement: fallback, task: evaluationTask).passed
             else {

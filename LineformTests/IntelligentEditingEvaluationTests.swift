@@ -11,6 +11,7 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.action == .summarize })
         XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.action == .shorten })
         XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.action == .cleanMarkdown })
+        XCTAssertTrue(IntelligentEditingEvaluationSuite.goldenTasks.contains { $0.userInstruction != nil })
         XCTAssertTrue(
             IntelligentEditingEvaluationSuite.missingRequiredActionLengthPairs.isEmpty,
             "Missing action/length pairs: \(IntelligentEditingEvaluationSuite.missingRequiredActionLengthPairs.sorted().joined(separator: ", "))"
@@ -22,6 +23,15 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
             IntelligentEditingEvaluationSuite.missingRequiredScenarioNames.isEmpty,
             "Missing scenarios: \(IntelligentEditingEvaluationSuite.missingRequiredScenarioNames.sorted().joined(separator: ", "))"
         )
+    }
+
+    func testGoldenTasksIncludeUserDirectedInstructionCoverage() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "custom-friendly-rewrite" })
+
+        XCTAssertEqual(task.action, .rewrite)
+        XCTAssertEqual(task.userInstruction, "Make this friendlier without adding facts.")
+        XCTAssertTrue(IntelligentEditingEvaluationSuite.coveredScenarioNames.contains("input:user-instruction"))
+        XCTAssertTrue(IntelligentEditingEvaluationSuite.coveredScenarioNames.contains("input:custom-tone"))
     }
 
     func testGoldenTasksCoverExpandedMarkdownAndWritingRiskScenarios() {
@@ -56,8 +66,8 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
     }
 
     func testLiveEvaluationReportCapturesSuccessfulReplacementText() throws {
-        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
-        let replacement = "The launch plan is clear, but the final handoff needs a named owner."
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "custom-friendly-rewrite" })
+        let replacement = "This may briefly affect users during migration."
         let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task)
         let record = LiveIntelligenceEvalRecord(
             task: task,
@@ -73,7 +83,8 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(evaluation.passed)
         XCTAssertEqual(evaluation.score, 100)
         XCTAssertEqual(evaluation.qualityBand, "pass")
-        XCTAssertTrue(json.contains("\"taskID\" : \"sentence-rewrite\""))
+        XCTAssertTrue(json.contains("\"taskID\" : \"custom-friendly-rewrite\""))
+        XCTAssertTrue(json.contains("\"userInstruction\" : \"Make this friendlier without adding facts.\""))
         XCTAssertTrue(json.contains("\"averageScore\" : 100"))
         XCTAssertTrue(json.contains("\"criticalFailureCount\" : 0"))
         XCTAssertTrue(json.contains("\"passed\" : true"))
@@ -775,12 +786,12 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
 
             do {
                 let optionCount = mode == "options"
-                    ? IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText)
+                    ? IntelligentEditingPresentationPolicy.optionCount(for: Self.request(for: task), selectedText: task.selectedText)
                     : 1
                 let suggestions: [IntelligentEditingSuggestion]
                 if optionCount > 1 {
                     suggestions = try await runner.runOptions(
-                        action: task.action,
+                        request: Self.request(for: task),
                         documentText: documentText,
                         selectedRange: selectedRange,
                         optionCount: optionCount
@@ -788,7 +799,7 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
                 } else {
                     suggestions = [
                         try await runner.run(
-                            action: task.action,
+                            request: Self.request(for: task),
                             documentText: documentText,
                             selectedRange: selectedRange
                         )
@@ -849,6 +860,14 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
 
     private static func documentText(for task: IntelligentEditingEvaluationTask) -> String {
         task.documentContext.contains(task.selectedText) ? task.documentContext : task.selectedText
+    }
+
+    private static func request(for task: IntelligentEditingEvaluationTask) -> IntelligentEditingRequest {
+        if let userInstruction = task.userInstruction {
+            return .custom(userInstruction)
+        }
+
+        return .action(task.action)
     }
 
     private static func liveEvaluationReportURL(for mode: String) -> URL {
@@ -991,6 +1010,7 @@ private struct RepeatedLiveIntelligenceEvalSummary: Codable {
 private struct LiveIntelligenceEvalRecord: Codable {
     let taskID: String
     let action: String
+    let userInstruction: String?
     let length: String
     let mode: String
     let optionIndex: Int?
@@ -1012,6 +1032,7 @@ private struct LiveIntelligenceEvalRecord: Codable {
     ) {
         self.taskID = task.id
         self.action = task.action.rawValue
+        self.userInstruction = task.userInstruction
         self.length = task.length.rawValue
         self.mode = mode
         self.optionIndex = optionIndex
@@ -1028,6 +1049,7 @@ private struct LiveIntelligenceEvalRecord: Codable {
     init(task: IntelligentEditingEvaluationTask, mode: String, optionIndex: Int?, failure: String) {
         self.taskID = task.id
         self.action = task.action.rawValue
+        self.userInstruction = task.userInstruction
         self.length = task.length.rawValue
         self.mode = mode
         self.optionIndex = optionIndex

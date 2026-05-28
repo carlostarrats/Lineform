@@ -15,15 +15,29 @@ struct IntelligentEditingRequestCoordinator {
         currentDocumentText: String,
         selectedRange: NSRange
     ) async -> Result {
+        await run(
+            request: .action(action),
+            documentText: documentText,
+            currentDocumentText: currentDocumentText,
+            selectedRange: selectedRange
+        )
+    }
+
+    func run(
+        request: IntelligentEditingRequest,
+        documentText: String,
+        currentDocumentText: String,
+        selectedRange: NSRange
+    ) async -> Result {
         let runner = IntelligentEditingRunner(service: service)
 
         do {
-            let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: action, selectedText: selectedText(in: documentText, selectedRange: selectedRange))
+            let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: request, selectedText: selectedText(in: documentText, selectedRange: selectedRange))
             let suggestions: [IntelligentEditingSuggestion]
 
             if optionCount > 1 {
                 suggestions = try await runner.runOptions(
-                    action: action,
+                    request: request,
                     documentText: documentText,
                     selectedRange: selectedRange,
                     optionCount: optionCount
@@ -31,7 +45,7 @@ struct IntelligentEditingRequestCoordinator {
             } else {
                 suggestions = [
                     try await runner.run(
-                        action: action,
+                        request: request,
                         documentText: documentText,
                         selectedRange: selectedRange
                     )

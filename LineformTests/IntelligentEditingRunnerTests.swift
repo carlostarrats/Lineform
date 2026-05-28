@@ -2,6 +2,38 @@ import XCTest
 @testable import Lineform
 
 final class IntelligentEditingRunnerTests: XCTestCase {
+    func testRunnerUsesCustomInstructionRequestAndReturnsSelectionScopedSuggestion() async throws {
+        let selectedText = "This update may inconvenience users during migration."
+        let service = StubIntelligentEditingService(result: "This update may briefly affect users during migration.")
+        let runner = IntelligentEditingRunner(service: service)
+
+        let suggestion = try await runner.run(
+            request: .custom("Make this softer without hiding the migration impact."),
+            documentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(suggestion.request, .custom("Make this softer without hiding the migration impact."))
+        XCTAssertEqual(suggestion.replacementText, "This update may briefly affect users during migration.")
+        XCTAssertEqual(service.requests.first?.request, .custom("Make this softer without hiding the migration impact."))
+        XCTAssertEqual(service.requests.first?.selectedText, selectedText)
+    }
+
+    func testRequestCoordinatorRunsCustomInstructionThroughSameStaleSelectionProtection() async throws {
+        let selectedText = "This sentence needs a kinder shape."
+        let service = StubIntelligentEditingService(result: "This sentence could use a gentler shape.")
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            request: .custom("Make this kinder."),
+            documentText: selectedText,
+            currentDocumentText: "Changed before the suggestion came back.",
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(result, .expired("Suggestion expired after edits."))
+    }
+
     func testFoundationModelsServiceDoesNotSurfaceControlTagsWhenModelReturnsThemForOptions() async throws {
         let service = FoundationModelsIntelligentEditingService(
             responseProvider: StubFoundationModelsResponseProvider(
@@ -458,7 +490,7 @@ final class IntelligentEditingRunnerTests: XCTestCase {
             let replacement: String
             do {
                 replacement = try await service.replacement(
-                    for: task.action,
+                    for: task.request,
                     selectedText: task.selectedText,
                     documentContext: task.documentContext
                 )
@@ -478,13 +510,13 @@ final class IntelligentEditingRunnerTests: XCTestCase {
     func testFoundationModelsServiceProducesUsableOptionsForEveryRewriteGoldenTaskWhenProviderReturnsUnusableOutput() async throws {
         let rewriteTasks = IntelligentEditingEvaluationSuite.goldenTasks.filter { task in
             task.action == .rewrite &&
-                IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText) > 1
+                IntelligentEditingPresentationPolicy.optionCount(for: task.request, selectedText: task.selectedText) > 1
         }
 
         XCTAssertFalse(rewriteTasks.isEmpty)
 
         for task in rewriteTasks {
-            let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: task.action, selectedText: task.selectedText)
+            let optionCount = IntelligentEditingPresentationPolicy.optionCount(for: task.request, selectedText: task.selectedText)
             let service = FoundationModelsIntelligentEditingService(
                 responseProvider: StubFoundationModelsResponseProvider(
                     responses: Array(repeating: "<<<LINEFORM_OPTION_1>>>", count: 80)
@@ -492,7 +524,7 @@ final class IntelligentEditingRunnerTests: XCTestCase {
             )
 
             let replacements = try await service.replacements(
-                for: task.action,
+                for: task.request,
                 selectedText: task.selectedText,
                 documentContext: task.documentContext,
                 count: optionCount
@@ -540,7 +572,7 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(suggestion.originalText, "Confusing sentence.")
         XCTAssertEqual(suggestion.replacementText, "Clearer sentence.")
         XCTAssertEqual(suggestion.accept(in: "Start. Confusing sentence. End."), "Start. Clearer sentence. End.")
-        XCTAssertEqual(service.requests.first?.action, .rewrite)
+        XCTAssertEqual(service.requests.first?.request, .action(.rewrite))
     }
 
     func testSuggestionDoesNotApplyWhenOriginalSelectionChanged() async throws {
@@ -880,8 +912,8 @@ final class IntelligentEditingRunnerTests: XCTestCase {
 }
 
 private final class StubIntelligentEditingService: IntelligentEditingServicing {
-    private(set) var requests: [(action: IntelligentEditingAction, selectedText: String, documentContext: String)] = []
-    private(set) var optionRequests: [(action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int)] = []
+    private(set) var requests: [(request: IntelligentEditingRequest, selectedText: String, documentContext: String)] = []
+    private(set) var optionRequests: [(request: IntelligentEditingRequest, selectedText: String, documentContext: String, count: Int)] = []
     private let results: [String]
     private let error: Error?
 
@@ -901,7 +933,11 @@ private final class StubIntelligentEditingService: IntelligentEditingServicing {
     }
 
     func replacement(for action: IntelligentEditingAction, selectedText: String, documentContext: String) async throws -> String {
-        requests.append((action, selectedText, documentContext))
+        try await replacement(for: .action(action), selectedText: selectedText, documentContext: documentContext)
+    }
+
+    func replacement(for request: IntelligentEditingRequest, selectedText: String, documentContext: String) async throws -> String {
+        requests.append((request, selectedText, documentContext))
         if let error {
             throw error
         }
@@ -909,7 +945,11 @@ private final class StubIntelligentEditingService: IntelligentEditingServicing {
     }
 
     func replacements(for action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
-        optionRequests.append((action, selectedText, documentContext, count))
+        try await replacements(for: .action(action), selectedText: selectedText, documentContext: documentContext, count: count)
+    }
+
+    func replacements(for request: IntelligentEditingRequest, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
+        optionRequests.append((request, selectedText, documentContext, count))
         if let error {
             throw error
         }

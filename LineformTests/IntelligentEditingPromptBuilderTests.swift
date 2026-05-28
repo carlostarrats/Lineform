@@ -2,6 +2,34 @@ import XCTest
 @testable import Lineform
 
 final class IntelligentEditingPromptBuilderTests: XCTestCase {
+    func testCustomInstructionPromptPrioritizesTheUserDirectionAndSelectionBoundary() {
+        let prompt = IntelligentEditingPromptBuilder().prompt(
+            for: .custom("Make this warmer and less corporate."),
+            selectedText: "The rollout requires stakeholder alignment before execution.",
+            documentContext: "Do not copy this neighboring sentence into the answer."
+        )
+
+        XCTAssertTrue(prompt.contains("User instruction:"))
+        XCTAssertTrue(prompt.contains("Make this warmer and less corporate."))
+        XCTAssertTrue(prompt.contains("Follow the user instruction exactly when it is safe for the selected text."))
+        XCTAssertTrue(prompt.contains("Replace exactly the selected Markdown, not nearby context."))
+        XCTAssertTrue(prompt.contains("Use nearby context only to understand tone and boundaries."))
+        XCTAssertFalse(prompt.contains("Action: Rewrite"))
+        XCTAssertFalse(prompt.contains("Action: Proofread"))
+        XCTAssertFalse(prompt.contains("LINEFORM_OPTION"))
+    }
+
+    func testCustomInstructionPromptTrimsAndLimitsUserInstructions() {
+        let longInstruction = String(repeating: "make this calmer ", count: 40)
+
+        let request = IntelligentEditingRequest.custom("   \(longInstruction)   ")
+
+        XCTAssertEqual(request.title, "Custom Instruction")
+        XCTAssertLessThanOrEqual(request.userInstruction.count, IntelligentEditingRequest.maximumInstructionLength)
+        XCTAssertFalse(request.userInstruction.hasPrefix(" "))
+        XCTAssertFalse(request.userInstruction.hasSuffix(" "))
+    }
+
     func testPromptKeepsTheActionContextualAndMarkdownPreserving() {
         let prompt = IntelligentEditingPromptBuilder().prompt(
             for: .rewrite,

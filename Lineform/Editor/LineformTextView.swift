@@ -59,7 +59,6 @@ final class LineformTextView: NSTextView {
 
     override func mouseMoved(with event: NSEvent) {
         if isEventInsideFloatingControl(event) {
-            NSCursor.pointingHand.set()
             return
         }
 
@@ -68,7 +67,6 @@ final class LineformTextView: NSTextView {
 
     override func cursorUpdate(with event: NSEvent) {
         if isEventInsideFloatingControl(event) {
-            NSCursor.pointingHand.set()
             return
         }
 
@@ -214,6 +212,16 @@ final class LineformTextView: NSTextView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if
+            let window,
+            EditorFloatingControlHitTestRegistry.handleMouseDown(
+                windowPoint: event.locationInWindow,
+                in: window
+            )
+        {
+            return
+        }
+
         markSelectionChangeAsMouseDriven()
         super.mouseDown(with: event)
     }

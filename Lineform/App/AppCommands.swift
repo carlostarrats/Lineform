@@ -13,7 +13,7 @@ enum AppMenuConfiguration {
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
     static let findCommandKeyEquivalent = "f"
-    static let keepsTopLevelIntelligenceMenu = true
+    static let keepsTopLevelIntelligenceMenu = false
     static let usesTopLevelReadingMenu = false
     static let intelligencePrimaryCommandTitle: String? = nil
     static let lineformIntelligenceCommandTitles = IntelligentEditingAction.menuBarActions.map(\.title)
@@ -198,15 +198,17 @@ struct AppCommands: Commands {
             .keyboardShortcut(KeyEquivalent(Character(AppMenuConfiguration.findCommandKeyEquivalent)), modifiers: .command)
         }
 
-        CommandMenu("Intelligence") {
-            ForEach(IntelligentEditingAction.menuBarActions) { action in
-                Button(action.title) {
-                    LineformAppNotification.runIntelligentEditingAction.post(
-                        object: LineformAppNotification.activeWindowPayload(value: action.rawValue)
-                    )
+        if AppMenuConfiguration.keepsTopLevelIntelligenceMenu {
+            CommandMenu("Intelligence") {
+                ForEach(IntelligentEditingAction.menuBarActions) { action in
+                    Button(action.title) {
+                        LineformAppNotification.runIntelligentEditingAction.post(
+                            object: LineformAppNotification.activeWindowPayload(value: action.rawValue)
+                        )
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character(action.keyEquivalent)), modifiers: [.command, .option])
+                    .disabled(!intelligenceAvailable)
                 }
-                .keyboardShortcut(KeyEquivalent(Character(action.keyEquivalent)), modifiers: [.command, .option])
-                .disabled(!intelligenceAvailable)
             }
         }
 

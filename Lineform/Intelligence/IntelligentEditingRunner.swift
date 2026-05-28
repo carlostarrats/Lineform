@@ -6,6 +6,10 @@ struct IntelligentEditingRunner {
     let service: IntelligentEditingServicing
 
     func run(action: IntelligentEditingAction, documentText: String, selectedRange: NSRange) async throws -> IntelligentEditingSuggestion {
+        try await run(request: .action(action), documentText: documentText, selectedRange: selectedRange)
+    }
+
+    func run(request: IntelligentEditingRequest, documentText: String, selectedRange: NSRange) async throws -> IntelligentEditingSuggestion {
         guard selectedRange.length > 0, let range = Range(selectedRange, in: documentText) else {
             throw IntelligentEditingError.emptySelection
         }
@@ -13,14 +17,14 @@ struct IntelligentEditingRunner {
         let selectedText = String(documentText[range])
         let documentContext = documentContext(for: selectedRange, selectedText: selectedText, in: documentText)
         let rawReplacement = try await service.replacement(
-            for: action,
+            for: request,
             selectedText: selectedText,
             documentContext: documentContext
         )
-        let replacement = try Self.validatedReplacement(rawReplacement, action: action, selectedText: selectedText, documentContext: documentContext)
+        let replacement = try Self.validatedReplacement(rawReplacement, request: request, selectedText: selectedText, documentContext: documentContext)
 
         return IntelligentEditingSuggestion(
-            action: action,
+            request: request,
             selectedRange: selectedRange,
             originalText: selectedText,
             replacementText: replacement,
@@ -29,6 +33,10 @@ struct IntelligentEditingRunner {
     }
 
     func runOptions(action: IntelligentEditingAction, documentText: String, selectedRange: NSRange, optionCount: Int) async throws -> [IntelligentEditingSuggestion] {
+        try await runOptions(request: .action(action), documentText: documentText, selectedRange: selectedRange, optionCount: optionCount)
+    }
+
+    func runOptions(request: IntelligentEditingRequest, documentText: String, selectedRange: NSRange, optionCount: Int) async throws -> [IntelligentEditingSuggestion] {
         guard selectedRange.length > 0, let range = Range(selectedRange, in: documentText) else {
             throw IntelligentEditingError.emptySelection
         }
@@ -37,14 +45,14 @@ struct IntelligentEditingRunner {
         let cappedOptionCount = min(max(optionCount, 1), IntelligentEditingPresentationPolicy.maximumOptionCount)
         let documentContext = documentContext(for: selectedRange, selectedText: selectedText, in: documentText)
         let rawReplacements = try await service.replacements(
-            for: action,
+            for: request,
             selectedText: selectedText,
             documentContext: documentContext,
             count: cappedOptionCount
         )
         let replacements = rawReplacements.reduce(into: [String]()) { acceptedReplacements, rawReplacement in
             guard
-                let replacement = try? Self.validatedReplacement(rawReplacement, action: action, selectedText: selectedText, documentContext: documentContext),
+                let replacement = try? Self.validatedReplacement(rawReplacement, request: request, selectedText: selectedText, documentContext: documentContext),
                 Self.isDistinctReplacement(replacement, from: acceptedReplacements)
             else {
                 return
@@ -57,7 +65,7 @@ struct IntelligentEditingRunner {
             .prefix(cappedOptionCount)
             .map { replacement in
                 IntelligentEditingSuggestion(
-                    action: action,
+                    request: request,
                     selectedRange: selectedRange,
                     originalText: selectedText,
                     replacementText: replacement,
@@ -84,6 +92,11 @@ struct IntelligentEditingRunner {
     }
 
     private static func validatedReplacement(_ replacement: String, action: IntelligentEditingAction, selectedText: String, documentContext: String) throws -> String {
+        try validatedReplacement(replacement, request: .action(action), selectedText: selectedText, documentContext: documentContext)
+    }
+
+    private static func validatedReplacement(_ replacement: String, request: IntelligentEditingRequest, selectedText: String, documentContext: String) throws -> String {
+        let action = request.evaluationAction
         let trimmedReplacement = normalizedReplacement(replacement, action: action, selectedText: selectedText)
         guard !trimmedReplacement.isEmpty else {
             throw IntelligentEditingError.emptyResponse
@@ -92,6 +105,7 @@ struct IntelligentEditingRunner {
         let evaluationTask = IntelligentEditingEvaluationTask(
             id: "runner-validation",
             action: action,
+            userInstruction: request.usesUserInstruction ? request.userInstruction : nil,
             selectedText: selectedText,
             documentContext: documentContext,
             length: selectionLength(for: selectedText),

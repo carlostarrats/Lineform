@@ -19,18 +19,26 @@ struct EditorContainerView: View {
     @State private var searchMatches: [NSRange] = []
     @State private var activeSearchIndex: Int?
     @FocusState private var isSearchFocused: Bool
-    @State private var isIntelligenceRailEnabled = false
+    @State private var isIntelligenceRailEnabled: Bool
+    @State private var intelligenceInstruction = ""
+    @State private var retainedIntelligenceSelection: SelectionContext?
+    @State private var isIntelligenceComposerFocused = false
     @State private var intelligentOptions: [IntelligentEditingSuggestion] = []
     @State private var selectedIntelligentOptionIndex = 0
     @State private var currentIntelligentChangeIndex = 0
     @State private var isRunningIntelligentEdit = false
     @State private var intelligentEditingTask: Task<Void, Never>?
-    @State private var pendingIntelligentAction: IntelligentEditingAction?
+    @State private var pendingIntelligentRequest: IntelligentEditingRequest?
     @State private var pendingIntelligentSelectedText = ""
     @State private var intelligentEditingStatus: String?
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
     private let intelligentEditingService = FoundationModelsIntelligentEditingService()
+
+    init(document: Binding<LineformDocument>, initialIntelligenceRailEnabled: Bool = false) {
+        _document = document
+        _isIntelligenceRailEnabled = State(initialValue: initialIntelligenceRailEnabled)
+    }
 
     var body: some View {
         let theme = currentTheme
@@ -133,11 +141,23 @@ struct EditorContainerView: View {
         .onChange(of: document.text) { _, newValue in
             documentStatistics = DocumentStatistics(text: newValue)
             outlineItems = MarkdownOutlineParser().items(in: newValue)
+            if let retainedIntelligenceSelection {
+                let refreshedSelection = SelectionContext(
+                    text: newValue,
+                    selectedRange: retainedIntelligenceSelection.selectedRange
+                )
+                self.retainedIntelligenceSelection = refreshedSelection.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : refreshedSelection
+            }
             refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil, navigatesToActiveMatch: false)
             if let activeIntelligentSuggestion, !activeIntelligentSuggestion.canApply(to: newValue) {
                 clearIntelligentSuggestions()
                 intelligentEditingStatus = "Suggestion expired after edits."
             }
+        }
+        .onChange(of: selectionContext) { _, newValue in
+            refreshRetainedIntelligenceSelection(from: newValue)
         }
         .onChange(of: searchQuery) { _, _ in
             refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
@@ -219,12 +239,22 @@ struct EditorContainerView: View {
                 }
             }
 
-            if IntelligenceActionRailPresentation.isVisible(isEnabled: isIntelligenceRailEnabled, displayMode: displayMode) {
-                IntelligenceActionRailOverlayHost(
-                    actions: IntelligentEditingAction.actionRailActions,
-                    isActionEnabled: intelligenceRailActionsAreEnabled,
-                    runAction: { action in
-                        runIntelligentEditingAction(action)
+            if IntelligenceActionRailPresentation.isVisible(
+                isEnabled: isIntelligenceRailEnabled,
+                hasSelection: hasActiveIntelligentSelection,
+                displayMode: displayMode
+            ) {
+                IntelligenceInstructionComposer(
+                    instruction: $intelligenceInstruction,
+                    isActionEnabled: intelligenceComposerIsEnabled,
+                    onFocusChanged: { isFocused in
+                        isIntelligenceComposerFocused = isFocused
+                        if !isFocused {
+                            clearRetainedIntelligenceSelectionIfIdle()
+                        }
+                    },
+                    submitInstruction: { instruction in
+                        runIntelligentEditingRequest(.custom(instruction))
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -245,7 +275,7 @@ struct EditorContainerView: View {
 
             if shouldShowIntelligentOptionsPanel {
                 GeometryReader { proxy in
-                    let isLoadingIntelligentOptions = isRunningIntelligentEdit && pendingIntelligentAction != nil
+                    let isLoadingIntelligentOptions = isRunningIntelligentEdit && pendingIntelligentRequest != nil
                     let panelReferenceText = isLoadingIntelligentOptions
                         ? pendingIntelligentSelectedText
                         : activeIntelligentSuggestion?.originalText ?? ""
@@ -258,7 +288,7 @@ struct EditorContainerView: View {
                     IntelligentEditingOptionsPanel(
                         suggestions: isLoadingIntelligentOptions ? [] : intelligentOptions,
                         selectedIndex: $selectedIntelligentOptionIndex,
-                        loadingActionTitle: isLoadingIntelligentOptions ? pendingIntelligentAction?.title : nil,
+                        loadingActionTitle: isLoadingIntelligentOptions ? pendingIntelligentRequest?.title : nil,
                         loadingPreviewText: panelReferenceText,
                         maximumBodyHeight: placement.bodyHeight,
                         retry: retryIntelligentSuggestion,
@@ -280,6 +310,13 @@ struct EditorContainerView: View {
                 reduceMotion: reduceMotion
             ),
             value: isIntelligenceRailEnabled
+        )
+        .animation(
+            EditorMotionPolicy.animation(
+                .easeOut(duration: IntelligenceActionRailPresentation.animationDuration),
+                reduceMotion: reduceMotion
+            ),
+            value: hasActiveIntelligentSelection
         )
         .animation(
             EditorMotionPolicy.animation(
@@ -342,17 +379,29 @@ struct EditorContainerView: View {
     }
 
     private var shouldShowIntelligentOptionsPanel: Bool {
-        (isRunningIntelligentEdit && pendingIntelligentAction != nil) || !intelligentOptions.isEmpty
+        (isRunningIntelligentEdit && pendingIntelligentRequest != nil) || !intelligentOptions.isEmpty
     }
 
     private var hasActionableIntelligentSelection: Bool {
         !selectionContext.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var intelligenceRailActionsAreEnabled: Bool {
-        hasActionableIntelligentSelection
+    private var activeIntelligenceSelection: SelectionContext? {
+        IntelligenceInstructionComposerState.activeSelection(
+            current: selectionContext,
+            retained: retainedIntelligenceSelection
+        )
+    }
+
+    private var hasActiveIntelligentSelection: Bool {
+        activeIntelligenceSelection != nil
+    }
+
+    private var intelligenceComposerIsEnabled: Bool {
+        hasActiveIntelligentSelection
             && !isRunningIntelligentEdit
             && IntelligenceAvailabilityService().currentStatus().isAvailable
+            && !intelligenceInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var activeSearchRange: NSRange? {
@@ -433,13 +482,17 @@ struct EditorContainerView: View {
     }
 
     private func runIntelligentEditingAction(_ action: IntelligentEditingAction, selectedRange overrideSelectedRange: NSRange? = nil) {
+        runIntelligentEditingRequest(.action(action), selectedRange: overrideSelectedRange)
+    }
+
+    private func runIntelligentEditingRequest(_ request: IntelligentEditingRequest, selectedRange overrideSelectedRange: NSRange? = nil) {
         guard !isRunningIntelligentEdit else {
             return
         }
 
         let editingContext = SelectionContext(
             text: document.text,
-            selectedRange: overrideSelectedRange ?? selectionContext.selectedRange
+            selectedRange: overrideSelectedRange ?? activeIntelligenceSelection?.selectedRange ?? selectionContext.selectedRange
         )
 
         guard !editingContext.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -448,15 +501,19 @@ struct EditorContainerView: View {
         }
 
         isRunningIntelligentEdit = true
-        pendingIntelligentAction = action
+        pendingIntelligentRequest = request
         pendingIntelligentSelectedText = editingContext.selectedText
         clearIntelligentSuggestions()
         intelligentEditingStatus = nil
+        if request.usesUserInstruction {
+            intelligenceInstruction = ""
+            clearRetainedIntelligenceSelectionIfIdle()
+        }
 
         let task = Task {
             let coordinator = IntelligentEditingRequestCoordinator(service: intelligentEditingService)
             let result = await coordinator.run(
-                action: action,
+                request: request,
                 documentText: editingContext.text,
                 currentDocumentText: editingContext.text,
                 selectedRange: editingContext.selectedRange
@@ -467,7 +524,7 @@ struct EditorContainerView: View {
                 case .ready(let suggestions, _):
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
-                    pendingIntelligentAction = nil
+                    pendingIntelligentRequest = nil
                     pendingIntelligentSelectedText = ""
                     let applicableSuggestions = suggestions.filter { $0.canApply(to: document.text) }
                     guard !applicableSuggestions.isEmpty else {
@@ -485,7 +542,7 @@ struct EditorContainerView: View {
                     clearIntelligentSuggestions()
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
-                    pendingIntelligentAction = nil
+                    pendingIntelligentRequest = nil
                     pendingIntelligentSelectedText = ""
                     intelligentEditingStatus = message
                 }
@@ -527,7 +584,7 @@ struct EditorContainerView: View {
             return
         }
 
-        runIntelligentEditingAction(intelligentSuggestion.action, selectedRange: intelligentSuggestion.selectedRange)
+        runIntelligentEditingRequest(intelligentSuggestion.request, selectedRange: intelligentSuggestion.selectedRange)
     }
 
     private func rejectIntelligentSuggestion() {
@@ -535,7 +592,7 @@ struct EditorContainerView: View {
             intelligentEditingTask?.cancel()
             intelligentEditingTask = nil
             isRunningIntelligentEdit = false
-            pendingIntelligentAction = nil
+            pendingIntelligentRequest = nil
             pendingIntelligentSelectedText = ""
             clearIntelligentSuggestions()
             intelligentEditingStatus = "Suggestion canceled."
@@ -552,6 +609,27 @@ struct EditorContainerView: View {
         currentIntelligentChangeIndex = 0
         if !isRunningIntelligentEdit {
             pendingIntelligentSelectedText = ""
+        }
+    }
+
+    private func refreshRetainedIntelligenceSelection(from nextSelection: SelectionContext) {
+        if !nextSelection.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            retainedIntelligenceSelection = nextSelection
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            clearRetainedIntelligenceSelectionIfIdle()
+        }
+    }
+
+    private func clearRetainedIntelligenceSelectionIfIdle() {
+        if IntelligenceInstructionComposerState.shouldClearRetainedSelection(
+            current: selectionContext,
+            isFocused: isIntelligenceComposerFocused,
+            instruction: intelligenceInstruction
+        ) {
+            retainedIntelligenceSelection = nil
         }
     }
 
@@ -787,8 +865,8 @@ enum IntelligenceActionRailPresentation {
     static let restoresPreviousCursorOnDisappear = true
     static let usesAccentTint = true
 
-    static func isVisible(isEnabled: Bool, displayMode: EditorDisplayMode) -> Bool {
-        isEnabled && displayMode == .write
+    static func isVisible(isEnabled: Bool, hasSelection: Bool, displayMode: EditorDisplayMode) -> Bool {
+        isEnabled && hasSelection && displayMode == .write
     }
 
     static func backgroundColor(isHovered: Bool) -> Color {
@@ -804,6 +882,60 @@ enum IntelligenceActionRailPresentation {
 
     static func borderColor(isHovered: Bool) -> Color {
         Color.accentColor.opacity(isHovered ? hoverBorderOpacity : borderOpacity)
+    }
+}
+
+enum IntelligenceInstructionComposerPresentation {
+    static let prompt = "Tell AI what to do..."
+    static let submitSystemImage = "arrow.up.circle.fill"
+    static let usesFixedShortcutButtons = false
+    static let animatesSelectionVisibilityChanges = true
+    static let usesStableNativePlaceholder = true
+    static let darkensWhenFocused = false
+    static let showsBorderWhenFocused = true
+    static let showsFocusedBorderBeforeTyping = true
+    static let sendButtonSupportsHoverState = true
+    static let usesWhiteCapsuleBackground = false
+    static let usesLightBlueCapsuleBackground = true
+    static let usesNavPillLikeShadow = true
+    static let maximumWidth: CGFloat = 560
+    static let height: CGFloat = 52
+    static let horizontalPadding: CGFloat = 14
+    static let cornerRadius: CGFloat = 18
+    static let backgroundOpacity = 1.0
+    static let borderOpacity = 0.65
+    static let disabledOpacity = 0.38
+    static let sendButtonSize: CGFloat = 28
+    static let sendButtonHoverBackgroundOpacity = 0.28
+    static let shadowOpacity = 0.08
+    static let shadowRadius: CGFloat = 16
+    static let shadowYOffset: CGFloat = 4
+}
+
+enum IntelligenceInstructionComposerState {
+    static func activeSelection(current: SelectionContext, retained: SelectionContext?) -> SelectionContext? {
+        if !current.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return current
+        }
+
+        guard
+            let retained,
+            !retained.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+
+        return retained
+    }
+
+    static func shouldClearRetainedSelection(
+        current: SelectionContext,
+        isFocused: Bool,
+        instruction: String
+    ) -> Bool {
+        current.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !isFocused
+            && instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -1146,6 +1278,766 @@ struct IntelligenceActionRail: View {
                 )
             }
         }
+    }
+}
+
+struct IntelligenceInstructionComposer: View {
+    @Binding var instruction: String
+    let isActionEnabled: Bool
+    let onFocusChanged: (Bool) -> Void
+    let submitInstruction: (String) -> Void
+
+    var body: some View {
+        IntelligenceInstructionComposerOverlayHost(
+            instruction: $instruction,
+            isActionEnabled: isActionEnabled,
+            onFocusChanged: onFocusChanged,
+            submitInstruction: submitInstruction
+        )
+    }
+}
+
+struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
+    @Binding var instruction: String
+    let isActionEnabled: Bool
+    let onFocusChanged: (Bool) -> Void
+    let submitInstruction: (String) -> Void
+
+    func makeNSView(context: Context) -> IntelligenceInstructionComposerOverlayNSView {
+        IntelligenceInstructionComposerOverlayNSView(
+            instruction: instruction,
+            isActionEnabled: isActionEnabled,
+            textChanged: { instruction = $0 },
+            onFocusChanged: onFocusChanged,
+            submitInstruction: submitInstruction
+        )
+    }
+
+    func updateNSView(_ nsView: IntelligenceInstructionComposerOverlayNSView, context: Context) {
+        nsView.update(
+            instruction: instruction,
+            isActionEnabled: isActionEnabled,
+            textChanged: { instruction = $0 },
+            onFocusChanged: onFocusChanged,
+            submitInstruction: submitInstruction
+        )
+    }
+}
+
+final class IntelligenceInstructionComposerOverlayNSView: NSView {
+    private let composerView: IntelligenceInstructionComposerNSView
+
+    init(
+        instruction: String,
+        isActionEnabled: Bool,
+        textChanged: @escaping (String) -> Void,
+        onFocusChanged: @escaping (Bool) -> Void,
+        submitInstruction: @escaping (String) -> Void
+    ) {
+        composerView = IntelligenceInstructionComposerNSView(
+            instruction: instruction,
+            isActionEnabled: isActionEnabled,
+            textChanged: textChanged,
+            onFocusChanged: onFocusChanged,
+            submitInstruction: submitInstruction
+        )
+        super.init(frame: .zero)
+        addSubview(composerView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    func update(
+        instruction: String,
+        isActionEnabled: Bool,
+        textChanged: @escaping (String) -> Void,
+        onFocusChanged: @escaping (Bool) -> Void,
+        submitInstruction: @escaping (String) -> Void
+    ) {
+        composerView.update(
+            instruction: instruction,
+            isActionEnabled: isActionEnabled,
+            textChanged: textChanged,
+            onFocusChanged: onFocusChanged,
+            submitInstruction: submitInstruction
+        )
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+
+        let width = min(
+            IntelligenceInstructionComposerPresentation.maximumWidth,
+            max(0, bounds.width - 48)
+        )
+        composerView.frame = NSRect(
+            x: (bounds.width - width) / 2,
+            y: max(0, bounds.height - IntelligenceActionRailPresentation.bottomInset - IntelligenceInstructionComposerPresentation.height),
+            width: width,
+            height: IntelligenceInstructionComposerPresentation.height
+        )
+        composerView.layoutSubtreeIfNeeded()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let composerPoint = convert(point, to: composerView)
+        return composerView.hitTest(composerPoint)
+    }
+}
+
+final class IntelligenceInstructionComposerNSView: NSView {
+    private let textView = IntelligenceInstructionTextView()
+    private let submitButton: IntelligenceInstructionSubmitButtonNSView
+    private var textChanged: (String) -> Void
+    private var onFocusChanged: (Bool) -> Void
+    private var submitInstruction: (String) -> Void
+    private var isInputFocused = false {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    init(
+        instruction: String,
+        isActionEnabled: Bool,
+        textChanged: @escaping (String) -> Void,
+        onFocusChanged: @escaping (Bool) -> Void,
+        submitInstruction: @escaping (String) -> Void
+    ) {
+        self.textChanged = textChanged
+        self.onFocusChanged = onFocusChanged
+        self.submitInstruction = submitInstruction
+        submitButton = IntelligenceInstructionSubmitButtonNSView(
+            isActionEnabled: isActionEnabled,
+            performAction: {}
+        )
+        super.init(frame: .zero)
+        configureTextView()
+        configureTextViewCallbacks()
+        textView.string = instruction
+        submitButton.performAction = { [weak self] in
+            self?.submitIfReady()
+        }
+        addSubview(textView)
+        addSubview(submitButton)
+        wantsLayer = true
+        updateLayerShadow()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    func update(
+        instruction: String,
+        isActionEnabled: Bool,
+        textChanged: @escaping (String) -> Void,
+        onFocusChanged: @escaping (Bool) -> Void,
+        submitInstruction: @escaping (String) -> Void
+    ) {
+        self.textChanged = textChanged
+        self.onFocusChanged = onFocusChanged
+        self.submitInstruction = submitInstruction
+        submitButton.isActionEnabled = isActionEnabled
+        configureTextViewCallbacks()
+        if window?.firstResponder !== textView && textView.string != instruction {
+            textView.string = instruction
+            textView.needsDisplay = true
+        }
+        submitButton.performAction = { [weak self] in
+            self?.submitIfReady()
+        }
+        needsDisplay = true
+    }
+
+    override func layout() {
+        super.layout()
+        updateLayerShadow()
+
+        let horizontalPadding = IntelligenceInstructionComposerPresentation.horizontalPadding
+        let sparklesWidth: CGFloat = 20
+        let buttonSize = IntelligenceInstructionComposerPresentation.sendButtonSize
+        let controlHeight: CGFloat = 24
+        let centerY = bounds.midY
+        submitButton.frame = NSRect(
+            x: bounds.width - horizontalPadding - buttonSize,
+            y: centerY - buttonSize / 2,
+            width: buttonSize,
+            height: buttonSize
+        )
+        textView.frame = NSRect(
+            x: horizontalPadding + sparklesWidth + 10,
+            y: centerY - controlHeight / 2,
+            width: max(0, bounds.width - horizontalPadding * 2 - sparklesWidth - 20 - buttonSize),
+            height: controlHeight
+        )
+        registerHitTestRegion()
+    }
+
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+        super.setFrameOrigin(newOrigin)
+        registerHitTestRegion()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        registerHitTestRegion()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        registerHitTestRegion()
+        if window == nil {
+            EditorFloatingControlHitTestRegistry.remove(owner: self)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window != nil else { return }
+                self.focusTextView()
+            }
+        }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard bounds.contains(point) else { return nil }
+
+        let submitPoint = convert(point, to: submitButton)
+        if let submitHit = submitButton.hitTest(submitPoint) {
+            return submitHit
+        }
+
+        if textView.frame.contains(point) {
+            return textView
+        }
+
+        return self
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(textView.frame, cursor: .iBeam)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if textView.frame.contains(point) {
+            NSCursor.iBeam.set()
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard !submitButton.frame.contains(point) else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        focusTextView()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        let rect = bounds.insetBy(dx: 0.5, dy: 0.5)
+        let path = NSBezierPath(
+            roundedRect: rect,
+            xRadius: IntelligenceInstructionComposerPresentation.cornerRadius,
+            yRadius: IntelligenceInstructionComposerPresentation.cornerRadius
+        )
+        NSColor.actionRailBackground(isHovered: false).setFill()
+        path.fill()
+
+        if isInputFocused {
+            NSColor.controlAccentColor
+                .withAlphaComponent(IntelligenceActionRailPresentation.hoverBorderOpacity)
+                .setStroke()
+            path.lineWidth = 1
+            path.stroke()
+        }
+
+        drawSparkles()
+    }
+
+    deinit {
+        EditorFloatingControlHitTestRegistry.remove(owner: self)
+    }
+
+    private func configureTextView() {
+        textView.placeholder = IntelligenceInstructionComposerPresentation.prompt
+        textView.font = .systemFont(ofSize: 15, weight: .regular)
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .controlAccentColor
+        textView.drawsBackground = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.textContainerInset = NSSize(width: 0, height: 3)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = true
+    }
+
+    private func configureTextViewCallbacks() {
+        textView.onTextChanged = { [weak self] text in
+            self?.textChanged(text)
+        }
+        textView.onFocusChanged = { [weak self] isFocused in
+            guard let self else { return }
+            isInputFocused = isFocused
+            onFocusChanged(isFocused)
+        }
+        textView.onSubmit = { [weak self] in
+            self?.submitIfReady()
+        }
+    }
+
+    private func submitIfReady() {
+        let trimmedInstruction = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard submitButton.isActionEnabled, !trimmedInstruction.isEmpty else {
+            return
+        }
+
+        textView.string = ""
+        textView.needsDisplay = true
+        textChanged("")
+        submitInstruction(trimmedInstruction)
+    }
+
+    private func focusTextView() {
+        isInputFocused = true
+        onFocusChanged(true)
+        window?.makeFirstResponder(textView)
+    }
+
+    private func drawSparkles() {
+        guard let image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil) else {
+            return
+        }
+
+        let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        let colorConfiguration = NSImage.SymbolConfiguration(hierarchicalColor: .controlAccentColor)
+        let configuredImage = image.withSymbolConfiguration(
+            symbolConfiguration.applying(colorConfiguration)
+        ) ?? image
+        let imageRect = NSRect(
+            x: IntelligenceInstructionComposerPresentation.horizontalPadding,
+            y: bounds.midY - 8,
+            width: 16,
+            height: 16
+        )
+        configuredImage.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1)
+    }
+
+    private func updateLayerShadow() {
+        layer?.masksToBounds = false
+        layer?.shadowColor = NSColor.black.cgColor
+        layer?.shadowOpacity = Float(IntelligenceInstructionComposerPresentation.shadowOpacity)
+        layer?.shadowRadius = IntelligenceInstructionComposerPresentation.shadowRadius
+        layer?.shadowOffset = CGSize(width: 0, height: -IntelligenceInstructionComposerPresentation.shadowYOffset)
+    }
+
+    private func registerHitTestRegion() {
+        guard let window else {
+            EditorFloatingControlHitTestRegistry.remove(owner: self)
+            return
+        }
+
+        EditorFloatingControlHitTestRegistry.setRegion(
+            owner: self,
+            window: window,
+            rect: convert(bounds, to: nil),
+            mouseDownHandler: { [weak self] in
+                self?.focusTextView()
+            }
+        )
+    }
+}
+
+final class IntelligenceInstructionTextView: NSTextView {
+    var placeholder = "" {
+        didSet {
+            needsDisplay = true
+        }
+    }
+    var onTextChanged: (String) -> Void = { _ in }
+    var onFocusChanged: (Bool) -> Void = { _ in }
+    var onSubmit: () -> Void = {}
+
+    convenience init() {
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(textContainer)
+        self.init(frame: .zero, textContainer: textContainer)
+    }
+
+    override var acceptsFirstResponder: Bool {
+        true
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        setSelectedRange(NSRange(location: (string as NSString).length, length: 0))
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let becameFirstResponder = super.becomeFirstResponder()
+        if becameFirstResponder {
+            onFocusChanged(true)
+            needsDisplay = true
+        }
+        return becameFirstResponder
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resignedFirstResponder = super.resignFirstResponder()
+        if resignedFirstResponder {
+            onFocusChanged(false)
+            needsDisplay = true
+        }
+        return resignedFirstResponder
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        string = string.replacingOccurrences(of: "\n", with: " ")
+        onTextChanged(string)
+        needsDisplay = true
+    }
+
+    override func insertNewline(_ sender: Any?) {
+        onSubmit()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard string.isEmpty else { return }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font ?? .systemFont(ofSize: 15, weight: .regular),
+            .foregroundColor: NSColor.placeholderTextColor
+        ]
+        (placeholder as NSString).draw(
+            at: NSPoint(x: textContainerInset.width, y: textContainerInset.height),
+            withAttributes: attributes
+        )
+    }
+}
+
+struct IntelligenceInstructionSubmitButton: NSViewRepresentable {
+    let isActionEnabled: Bool
+    let performAction: () -> Void
+
+    func makeNSView(context: Context) -> IntelligenceInstructionSubmitButtonNSView {
+        IntelligenceInstructionSubmitButtonNSView(
+            isActionEnabled: isActionEnabled,
+            performAction: performAction
+        )
+    }
+
+    func updateNSView(_ nsView: IntelligenceInstructionSubmitButtonNSView, context: Context) {
+        nsView.isActionEnabled = isActionEnabled
+        nsView.performAction = performAction
+    }
+}
+
+final class IntelligenceInstructionSubmitButtonNSView: NSView {
+    var isActionEnabled: Bool {
+        didSet {
+            needsDisplay = true
+        }
+    }
+    var performAction: () -> Void
+
+    private(set) var isHovering = false
+    private var hoverTrackingArea: NSTrackingArea?
+
+    init(isActionEnabled: Bool, performAction: @escaping () -> Void) {
+        self.isActionEnabled = isActionEnabled
+        self.performAction = performAction
+        super.init(frame: .zero)
+        wantsLayer = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(
+            width: IntelligenceInstructionComposerPresentation.sendButtonSize,
+            height: IntelligenceInstructionComposerPresentation.sendButtonSize
+        )
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(point) ? self : nil
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    override func updateTrackingAreas() {
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+            self.hoverTrackingArea = nil
+        }
+
+        registerHitTestRegion()
+
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        hoverTrackingArea = trackingArea
+
+        super.updateTrackingAreas()
+    }
+
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+        super.setFrameOrigin(newOrigin)
+        registerHitTestRegion()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        registerHitTestRegion()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        registerHitTestRegion()
+        window?.invalidateCursorRects(for: self)
+        if window == nil {
+            EditorFloatingControlHitTestRegistry.remove(owner: self)
+            setHovering(false)
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        registerHitTestRegion()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        setHovering(true)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        reassertCursorIfHovering()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setHovering(false)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.pointingHand.set()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        performAction()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        if isHovering {
+            NSColor.controlAccentColor
+                .withAlphaComponent(IntelligenceInstructionComposerPresentation.sendButtonHoverBackgroundOpacity)
+                .setFill()
+            NSBezierPath(ovalIn: bounds).fill()
+        }
+
+        guard let image = NSImage(
+            systemSymbolName: IntelligenceInstructionComposerPresentation.submitSystemImage,
+            accessibilityDescription: "Run AI instruction"
+        ) else {
+            return
+        }
+
+        let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 22, weight: .semibold)
+        let colorConfiguration = NSImage.SymbolConfiguration(
+            hierarchicalColor: NSColor.controlAccentColor.withAlphaComponent(
+                isActionEnabled ? 1 : IntelligenceInstructionComposerPresentation.disabledOpacity
+            )
+        )
+        let configuredImage = image.withSymbolConfiguration(
+            symbolConfiguration.applying(colorConfiguration)
+        ) ?? image
+        let imageSize = NSSize(width: 22, height: 22)
+        let imageRect = NSRect(
+            x: bounds.midX - imageSize.width / 2,
+            y: bounds.midY - imageSize.height / 2,
+            width: imageSize.width,
+            height: imageSize.height
+        )
+
+        configuredImage.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1)
+    }
+
+    deinit {
+        let wasHovering = isHovering
+        let ownerID = ObjectIdentifier(self)
+        EditorFloatingControlHitTestRegistry.remove(ownerID: ownerID)
+        if wasHovering {
+            NSCursor.pop()
+        }
+    }
+
+    private func setHovering(_ hovering: Bool) {
+        guard hovering != isHovering else { return }
+
+        isHovering = hovering
+        if hovering {
+            NSCursor.pointingHand.push()
+            NSCursor.pointingHand.set()
+        } else {
+            NSCursor.pop()
+        }
+        needsDisplay = true
+    }
+
+    private func reassertCursorIfHovering() {
+        guard isHovering else { return }
+        NSCursor.pointingHand.set()
+    }
+
+    private func registerHitTestRegion() {
+        guard let window else {
+            EditorFloatingControlHitTestRegistry.remove(owner: self)
+            return
+        }
+
+        EditorFloatingControlHitTestRegistry.setRegion(
+            owner: self,
+            window: window,
+            rect: convert(bounds, to: nil),
+            mouseDownHandler: { [weak self] in
+                self?.performAction()
+            }
+        )
+    }
+}
+
+struct FloatingControlRegionRegistrationView: NSViewRepresentable {
+    let isEnabled: Bool
+
+    func makeNSView(context: Context) -> FloatingControlRegionRegistrationNSView {
+        FloatingControlRegionRegistrationNSView(isEnabled: isEnabled)
+    }
+
+    func updateNSView(_ nsView: FloatingControlRegionRegistrationNSView, context: Context) {
+        nsView.isEnabled = isEnabled
+        DispatchQueue.main.async {
+            nsView.refreshFloatingHitTestRegion()
+        }
+    }
+}
+
+final class FloatingControlRegionRegistrationNSView: NSView {
+    var isEnabled: Bool {
+        didSet {
+            guard oldValue != isEnabled else { return }
+            refreshFloatingHitTestRegion()
+        }
+    }
+
+    init(isEnabled: Bool) {
+        self.isEnabled = isEnabled
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+        super.setFrameOrigin(newOrigin)
+        refreshFloatingHitTestRegion()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        refreshFloatingHitTestRegion()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        refreshFloatingHitTestRegion()
+        if window == nil {
+            EditorFloatingControlHitTestRegistry.remove(owner: self)
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        refreshFloatingHitTestRegion()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    deinit {
+        EditorFloatingControlHitTestRegistry.remove(owner: self)
+    }
+
+    func refreshFloatingHitTestRegion() {
+        guard isEnabled, let window else {
+            EditorFloatingControlHitTestRegistry.remove(owner: self)
+            return
+        }
+
+        EditorFloatingControlHitTestRegistry.setRegion(
+            owner: self,
+            window: window,
+            rect: convert(bounds, to: nil)
+        )
     }
 }
 
@@ -1648,7 +2540,18 @@ final class ActionRailButtonEventNSView: NSView {
     private var isHovering = false
     private var hoverTrackingArea: NSTrackingArea?
 
-    var isEnabled: Bool
+    var isEnabled: Bool {
+        didSet {
+            guard oldValue != isEnabled else { return }
+            if !isEnabled {
+                setHovering(false)
+                EditorFloatingControlHitTestRegistry.remove(owner: self)
+            } else {
+                registerHitTestRegion()
+            }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     var onHoverChanged: (Bool) -> Void
     var performAction: () -> Void
 
@@ -1683,15 +2586,23 @@ final class ActionRailButtonEventNSView: NSView {
     }
 
     override func resetCursorRects() {
+        guard isEnabled else { return }
         addCursorRect(bounds, cursor: .pointingHand)
     }
 
     override func updateTrackingAreas() {
-        registerHitTestRegion()
-
         if let hoverTrackingArea {
             removeTrackingArea(hoverTrackingArea)
+            self.hoverTrackingArea = nil
         }
+
+        guard isEnabled else {
+            EditorFloatingControlHitTestRegistry.remove(owner: self)
+            super.updateTrackingAreas()
+            return
+        }
+
+        registerHitTestRegion()
 
         let trackingArea = NSTrackingArea(
             rect: .zero,
@@ -1710,14 +2621,17 @@ final class ActionRailButtonEventNSView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        bounds.contains(point) ? self : nil
+        guard isEnabled else { return nil }
+        return bounds.contains(point) ? self : nil
     }
 
     override func mouseEntered(with event: NSEvent) {
+        guard isEnabled else { return }
         setHovering(true)
     }
 
     override func mouseMoved(with event: NSEvent) {
+        guard isEnabled else { return }
         reassertCursorIfHovering()
     }
 
@@ -1726,7 +2640,7 @@ final class ActionRailButtonEventNSView: NSView {
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        if isHovering {
+        if isEnabled && isHovering {
             NSCursor.pointingHand.set()
         }
     }
@@ -1779,7 +2693,7 @@ final class ActionRailButtonEventNSView: NSView {
     }
 
     private func registerHitTestRegion() {
-        guard let window else {
+        guard isEnabled, let window else {
             EditorFloatingControlHitTestRegistry.remove(owner: self)
             return
         }
@@ -1796,17 +2710,28 @@ enum EditorFloatingControlHitTestRegistry {
     private final class Region {
         weak var window: NSWindow?
         var rect: NSRect
+        var mouseDownHandler: (() -> Void)?
 
-        init(window: NSWindow, rect: NSRect) {
+        init(window: NSWindow, rect: NSRect, mouseDownHandler: (() -> Void)?) {
             self.window = window
             self.rect = rect
+            self.mouseDownHandler = mouseDownHandler
         }
     }
 
     nonisolated(unsafe) private static var regions: [ObjectIdentifier: Region] = [:]
 
-    static func setRegion(owner: AnyObject, window: NSWindow, rect: NSRect) {
-        regions[ObjectIdentifier(owner)] = Region(window: window, rect: rect)
+    static func setRegion(
+        owner: AnyObject,
+        window: NSWindow,
+        rect: NSRect,
+        mouseDownHandler: (() -> Void)? = nil
+    ) {
+        regions[ObjectIdentifier(owner)] = Region(
+            window: window,
+            rect: rect,
+            mouseDownHandler: mouseDownHandler
+        )
     }
 
     static func remove(owner: AnyObject) {
@@ -1825,6 +2750,28 @@ enum EditorFloatingControlHitTestRegistry {
         return regions.values.contains { region in
             region.window === window && region.rect.contains(windowPoint)
         }
+    }
+
+    @discardableResult
+    static func handleMouseDown(windowPoint: NSPoint, in window: NSWindow) -> Bool {
+        regions = regions.filter { _, region in
+            region.window != nil
+        }
+
+        let matchingRegions = regions.values
+            .filter { region in
+                region.window === window && region.rect.contains(windowPoint)
+            }
+            .sorted { lhs, rhs in
+                lhs.rect.width * lhs.rect.height < rhs.rect.width * rhs.rect.height
+            }
+
+        guard let region = matchingRegions.first else {
+            return false
+        }
+
+        region.mouseDownHandler?()
+        return true
     }
 }
 

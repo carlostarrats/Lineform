@@ -2,6 +2,69 @@ import Foundation
 
 struct IntelligentEditingPromptBuilder {
     func prompt(
+        for request: IntelligentEditingRequest,
+        selectedText: String,
+        documentContext: String,
+        additionalRequirements: String = ""
+    ) -> String {
+        guard request.usesUserInstruction else {
+            return prompt(
+                for: request.evaluationAction,
+                selectedText: selectedText,
+                documentContext: documentContext,
+                additionalRequirements: additionalRequirements
+            )
+        }
+
+        let action = request.evaluationAction
+        return """
+        Task:
+        User instruction:
+        \(request.userInstruction)
+
+        Interpreted editing mode: \(action.title)
+        \(action.successCriteria)
+
+        Follow the user instruction exactly when it is safe for the selected text.
+        Rewrite the selected Markdown only.
+
+        Output contract:
+        - return only the replacement text.
+        - Replace exactly the selected Markdown, not nearby context.
+        - preserve Markdown whenever possible.
+        - Keep links, headings, lists, and emphasis intact.
+        - Do not invent facts or add new claims.
+        - Do not include text from nearby document context in the replacement.
+        - Use nearby context only to understand tone and boundaries. Facts that appear only in nearby context are forbidden in the replacement.
+        - If the instruction asks for alternatives, return the single best replacement for this request, not a numbered list.
+
+        Invalid outputs:
+        - Do not return placeholder text, dummy text, TODO, or Lorem ipsum.
+        \(unchangedOutputRule(for: action))
+        - Do not copy nearby context into the replacement.
+        - Do not include internal control markers, delimiters, option labels, or numbering.
+        - Do not wrap the replacement in Markdown code fences unless the selected Markdown is itself only a fenced code block.
+        - Do not explain the edit or wrap the replacement in quotes unless the replacement itself needs quotes.
+
+        Quality bar:
+        - The replacement must be useful enough to show directly in a writing app.
+        - Preserve the selected meaning unless the user explicitly asks to summarize or shorten.
+        - Keep the replacement proportional to the selected Markdown.
+        \(action.extraQualityRule)
+        \(shortSelectionRule(for: selectedText, action: action))
+        \(cleanMarkdownRule(for: action))
+        \(proofreadRule(for: action))
+        \(additionalRequirementsSection(additionalRequirements))
+
+        Selected Markdown:
+        \(selectedText)
+
+        Nearby document context (not selected; do not copy from this section):
+        \(documentContext)
+        """
+    }
+
+    func prompt(
         for action: IntelligentEditingAction,
         selectedText: String,
         documentContext: String,
@@ -64,6 +127,39 @@ struct IntelligentEditingPromptBuilder {
         Nearby document context (not selected; do not copy from this section):
         \(documentContext)
         """
+    }
+
+    func optionPrompt(
+        for request: IntelligentEditingRequest,
+        selectedText: String,
+        documentContext: String,
+        optionNumber: Int,
+        optionCount: Int,
+        priorOptions: [String],
+        rejectedDuplicate: String?
+    ) -> String {
+        let priorOptionsText = priorOptions.isEmpty
+            ? "- No accepted prior options yet."
+            : priorOptions.enumerated()
+                .map { index, option in "- Option \(index + 1): \(Self.preview(option))" }
+                .joined(separator: "\n")
+        let duplicateText = rejectedDuplicate.map { "\nThe previous attempt repeated an existing option and was rejected: \(Self.preview($0))" } ?? ""
+
+        return prompt(
+            for: request,
+            selectedText: selectedText,
+            documentContext: documentContext,
+            additionalRequirements: """
+            Option requirements:
+            - Return exactly one replacement for option \(optionNumber) of \(optionCount).
+            - Do not include option labels, numbering, tags, explanations, or commentary.
+            - Do not include internal control markers or any other delimiter text.
+            - Make this option meaningfully different from accepted prior options.
+
+            Accepted prior options:
+            \(priorOptionsText)\(duplicateText)
+            """
+        )
     }
 
     func optionPrompt(
@@ -165,6 +261,58 @@ struct IntelligentEditingPromptBuilder {
 
         Nearby document context (not selected; do not copy from this section):
         \(documentContext)
+        """
+    }
+
+    func repairPrompt(
+        for request: IntelligentEditingRequest,
+        selectedText: String,
+        documentContext: String,
+        rejectedReplacement: String,
+        failures: [IntelligentEditingEvaluationFailure]
+    ) -> String {
+        guard request.usesUserInstruction else {
+            return repairPrompt(
+                for: request.evaluationAction,
+                selectedText: selectedText,
+                documentContext: documentContext,
+                rejectedReplacement: rejectedReplacement,
+                failures: failures
+            )
+        }
+
+        let action = request.evaluationAction
+        return """
+        User instruction:
+        \(request.userInstruction)
+
+        Interpreted editing mode: \(action.title)
+        \(action.successCriteria)
+
+        Return only replacement Markdown for the selected text. Do not explain.
+        Follow the user instruction exactly when it is safe for the selected text.
+        Do not return placeholder text, dummy text, TODO, Lorem ipsum, or copied nearby context.
+        Do not include internal control markers, delimiters, option labels, or numbering.
+        Do not wrap the replacement in code fences unless the selected Markdown is itself only a fenced code block.
+        Replace exactly the selected Markdown, not the nearby context.
+        \(action.extraQualityRule)
+        \(shortSelectionRule(for: selectedText, action: action))
+        \(cleanMarkdownRule(for: action))
+        \(proofreadRule(for: action))
+
+        Previous answer was rejected:
+        \(Self.preview(rejectedReplacement))
+
+        Rejection reasons:
+        \(failureInstructions(for: failures))
+
+        Selected Markdown:
+        \(selectedText)
+
+        Nearby document context, for tone only:
+        \(documentContext)
+
+        Return a new replacement now. It must satisfy the user instruction and output contract.
         """
     }
 

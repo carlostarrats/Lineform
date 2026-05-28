@@ -13,40 +13,110 @@ final class IntelligentEditingActionTests: XCTestCase {
     }
 
     func testMenuBarActionsStayConcreteForMarkdownTextEditing() {
-        XCTAssertEqual(IntelligentEditingAction.menuBarActions.map(\.title), [
-            "Proofread",
-            "Rewrite",
-            "Summarize",
-            "Make Shorter",
-            "Clean Markdown"
-        ])
+        XCTAssertTrue(IntelligentEditingAction.menuBarActions.isEmpty)
     }
 
     func testRightClickActionsStayMinimal() {
         XCTAssertTrue(IntelligentEditingAction.rightClickActions.isEmpty)
     }
 
-    func testActionRailActionsMatchWriteModeSelectedTextWorkflow() {
-        XCTAssertEqual(IntelligentEditingAction.actionRailActions.map(\.title), [
-            "Clean Markdown",
-            "Proofread",
-            "Rewrite",
-            "Make Shorter"
-        ])
+    func testAiComposerReplacesFixedShortcutRail() {
+        XCTAssertTrue(IntelligentEditingAction.actionRailActions.isEmpty)
+        XCTAssertFalse(IntelligenceInstructionComposerPresentation.usesFixedShortcutButtons)
+        XCTAssertEqual(IntelligenceInstructionComposerPresentation.prompt, "Tell AI what to do...")
+        XCTAssertEqual(IntelligenceInstructionComposerPresentation.submitSystemImage, "arrow.up.circle.fill")
     }
 
-    func testActionRailLabelsStayShortEnoughForBottomDock() {
-        XCTAssertEqual(IntelligentEditingAction.actionRailActions.map(\.railDisplayTitle), [
-            "Clean",
-            "Proofread",
-            "Rewrite",
-            "Shorten"
-        ])
+    func testAiComposerKeepsStableInputAndExplicitInteractiveStates() {
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.animatesSelectionVisibilityChanges)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesStableNativePlaceholder)
+        XCTAssertFalse(IntelligenceInstructionComposerPresentation.darkensWhenFocused)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.showsBorderWhenFocused)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.showsFocusedBorderBeforeTyping)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.sendButtonSupportsHoverState)
+        XCTAssertGreaterThan(IntelligenceInstructionComposerPresentation.sendButtonHoverBackgroundOpacity, 0.18)
+        XCTAssertFalse(IntelligenceInstructionComposerPresentation.usesWhiteCapsuleBackground)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesLightBlueCapsuleBackground)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesNavPillLikeShadow)
     }
 
-    func testActionRailIconsUseConcreteActionMetaphors() {
-        XCTAssertEqual(IntelligentEditingAction.cleanMarkdown.railSystemImage, "paintbrush.pointed")
-        XCTAssertEqual(IntelligentEditingAction.proofread.railSystemImage, "eye")
+    func testAiComposerUsesRetainedSelectionWhileInputIsFocused() {
+        let document = "One selected sentence. Another sentence."
+        let selected = SelectionContext(
+            text: document,
+            selectedRange: NSRange(location: 0, length: 22)
+        )
+        let collapsed = SelectionContext(
+            text: document,
+            selectedRange: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertEqual(
+            IntelligenceInstructionComposerState.activeSelection(current: collapsed, retained: selected),
+            selected
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerState.shouldClearRetainedSelection(
+                current: collapsed,
+                isFocused: true,
+                instruction: "Rewrite this more directly."
+            )
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerState.shouldClearRetainedSelection(
+                current: collapsed,
+                isFocused: false,
+                instruction: "Rewrite this more directly."
+            )
+        )
+        XCTAssertTrue(
+            IntelligenceInstructionComposerState.shouldClearRetainedSelection(
+                current: collapsed,
+                isFocused: false,
+                instruction: ""
+            )
+        )
+    }
+
+    func testAiComposerPrefersCurrentSelectionOverRetainedSelection() {
+        let document = "First selected sentence. Second selected sentence."
+        let retained = SelectionContext(
+            text: document,
+            selectedRange: NSRange(location: 0, length: 24)
+        )
+        let current = SelectionContext(
+            text: document,
+            selectedRange: NSRange(location: 25, length: 25)
+        )
+
+        XCTAssertEqual(
+            IntelligenceInstructionComposerState.activeSelection(current: current, retained: retained),
+            current
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerState.shouldClearRetainedSelection(
+                current: current,
+                isFocused: false,
+                instruction: ""
+            )
+        )
+    }
+
+    func testCustomInstructionsCanRequestMultipleSuggestionsForCreativeEdits() {
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(
+                for: .custom("Give me three friendlier alternatives."),
+                selectedText: "The deadline cannot move because launch coordination depends on it."
+            ),
+            3
+        )
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(
+                for: .custom("Fix grammar only."),
+                selectedText: "The editor keep drafts local."
+            ),
+            1
+        )
     }
 
     func testContextualActionsPrioritizeMarkdownCleanupForMarkdownHeavySelections() {

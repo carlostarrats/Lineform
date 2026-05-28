@@ -1,16 +1,18 @@
 # Intelligent Editing Benchmarks
 
-This document defines the benchmark surface for Lineform's Apple Intelligence-backed editing actions. The gate is designed to make known failures reproducible, catch likely unknown failures through scenario coverage, and block outputs that would reduce trust in selected-text editing.
+This document defines the benchmark surface for Lineform's Apple Intelligence-backed selected-text instruction flow. The gate is designed to make known failures reproducible, catch likely unknown failures through scenario coverage, and block outputs that would reduce trust in selected-text editing.
 
-## Actions
+## Request Modes
 
-The benchmark suite covers every app action exposed through selected text:
+The app UI is freeform-instruction first: writers select text, type what they want, and review a replacement before accepting it. The fixed action enum still exists as an internal validation profile so custom instructions can be scored against the closest safe behavior:
 
 - Rewrite
 - Proofread
 - Shorten
 - Summarize
 - Clean Markdown
+
+Benchmarks must include explicit user-instruction tasks, not only internal action/profile tasks. A user-instruction task records the exact instruction in eval reports so live Apple Intelligence output can be audited against what the writer asked for.
 
 ## Selection Lengths
 
@@ -34,6 +36,7 @@ Deterministic tests must cover these scenarios:
 - All scenario names declared in `IntelligentEditingEvaluationSuite.requiredScenarioNames`.
 - User-visible list item rewrite: selected Markdown list items must preserve list shape and never surface protocol tags such as `<<<LINEFORM_OPTION_1>>>`.
 - Generic sentence rewrite: arbitrary sentence input must produce useful sentence-scale alternatives even when the provider returns empty output.
+- User-directed custom instruction: freeform tone, wording, grammar, shortening, and Markdown-formatting instructions must be represented by benchmark tasks and must preserve the selected-text boundary.
 - Placeholder rejection: `Replacement option 1`, `Lorem ipsum`, `TODO`, and Lineform protocol tags must score as failures.
 - Unchanged transform rejection: rewrite, shorten, summarize, and messy clean-Markdown tasks must not return the selected text unchanged.
 - Nearby context leakage: output must not include unselected neighboring document text.
@@ -61,6 +64,7 @@ Critical failures are empty output, placeholder/protocol output, unchanged trans
 - Average score is 100.
 - Critical failure count is 0.
 - The report includes full selected text, document context, replacement text, failures, score, and quality band for every record.
+- The report includes the exact user instruction for custom-instruction records.
 - Repeated live reports have no failed runs, empty outputs, duplicate options, critical failures, or average score loss.
 
 ## Live Eval Reports
@@ -97,7 +101,7 @@ Before calling intelligent editing quality acceptable, run:
 - Runner validation tests.
 - Evaluation rubric tests.
 - Golden-task fallback matrix tests.
-- Multi-option rewrite fallback matrix tests.
+- Multi-option rewrite and user-instruction fallback matrix tests.
 - Full XCTest suite.
 - Opt-in live single and option evals on a machine with Apple Intelligence available.
 - Opt-in repeated live evals with at least two runs.

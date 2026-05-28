@@ -25,7 +25,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
+        let scrollView = LineformEditorScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
@@ -37,9 +37,11 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         context.coordinator.configure(textView)
-        textView.applyTypography(profile)
-        textView.refreshMarkdownHighlighting()
-        context.coordinator.updateSelection(from: textView)
+        context.coordinator.performWithoutSelectionUpdates {
+            textView.applyTypography(profile)
+            textView.refreshMarkdownHighlighting()
+        }
+        context.coordinator.updateSelection(from: textView, asynchronously: true)
 
         scrollView.documentView = textView
         return scrollView
@@ -64,13 +66,31 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
         if let range = requestedSelection {
             let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))
-            textView.setSelectedRange(safeRange)
-            context.coordinator.updateSelection(from: textView)
+            context.coordinator.performWithoutSelectionUpdates {
+                textView.setSelectedRange(safeRange)
+            }
+            context.coordinator.updateSelection(from: textView, asynchronously: true)
             textView.scrollRangeToVisible(safeRange)
             DispatchQueue.main.async {
                 requestedSelection = nil
             }
         }
+    }
+}
+
+final class LineformEditorScrollView: NSScrollView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if
+            let window,
+            EditorFloatingControlHitTestRegistry.contains(
+                windowPoint: convert(point, to: nil),
+                in: window
+            )
+        {
+            return nil
+        }
+
+        return super.hitTest(point)
     }
 }
 
@@ -83,6 +103,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
     private var pendingHighlightWorkItem: DispatchWorkItem?
+    private var suppressSelectionUpdates = false
 
     init(
         text: Binding<String>,
@@ -109,6 +130,12 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         }
     }
 
+    func performWithoutSelectionUpdates(_ body: () -> Void) {
+        suppressSelectionUpdates = true
+        body()
+        suppressSelectionUpdates = false
+    }
+
     func textDidChange(_ notification: Notification) {
         guard let textView = notification.object as? NSTextView else {
             return
@@ -128,6 +155,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
+        guard !suppressSelectionUpdates else { return }
         guard let textView = notification.object as? NSTextView else {
             return
         }
@@ -156,9 +184,21 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     }
 
     @MainActor
-    func updateSelection(from textView: NSTextView) {
-        selectionContext.wrappedValue = SelectionContext(text: textView.string, selectedRange: textView.selectedRange())
-        selectionAnchorRect.wrappedValue = (textView as? LineformTextView)?.selectionAnchorRectInEnclosingScrollView()
+    func updateSelection(from textView: NSTextView, asynchronously: Bool = false) {
+        let nextSelectionContext = SelectionContext(text: textView.string, selectedRange: textView.selectedRange())
+        let nextAnchorRect = (textView as? LineformTextView)?.selectionAnchorRectInEnclosingScrollView()
+        let selectionContext = selectionContext
+        let selectionAnchorRect = selectionAnchorRect
+
+        if asynchronously {
+            DispatchQueue.main.async {
+                selectionContext.wrappedValue = nextSelectionContext
+                selectionAnchorRect.wrappedValue = nextAnchorRect
+            }
+        } else {
+            selectionContext.wrappedValue = nextSelectionContext
+            selectionAnchorRect.wrappedValue = nextAnchorRect
+        }
     }
 
     private func scheduleMarkdownHighlighting(for textView: LineformTextView) {
