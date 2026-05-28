@@ -12,6 +12,10 @@ final class LineformTextView: NSTextView {
     private var searchHighlightRanges: [NSRange] = []
     private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
+    private var pendingDeferredVisualLayoutAnchor: VisualLayoutAnchor?
+    private var pendingDeferredVerticalScrollOrigin: CGFloat?
+    private var hasScheduledDeferredVisualLayoutAnchorRestore = false
+    private var hasScheduledDeferredVerticalScrollOriginRestore = false
     var textFormat = LineformTextFormat.markdown
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
@@ -339,9 +343,60 @@ final class LineformTextView: NSTextView {
 
     override func setFrameSize(_ newSize: NSSize) {
         let previousVerticalScrollOrigin = enclosingScrollView?.contentView.bounds.origin.y
-        super.setFrameSize(newSize)
-        updateTextContainerLayout(for: activeReadingProfile, preservingVerticalScrollOrigin: previousVerticalScrollOrigin)
-        restoreVerticalScrollOrigin(previousVerticalScrollOrigin)
+        preserveVisibleLayoutAnchorDuring(
+            preservesVisualAnchor: shouldPreserveVisualLayoutAnchor(forProposedFrameWidth: newSize.width),
+            restoresAfterDeferredLayout: true
+        ) {
+            super.setFrameSize(sizePreservingScrollableDocumentHeight(for: newSize))
+            updateTextContainerLayout(for: activeReadingProfile, preservingVerticalScrollOrigin: previousVerticalScrollOrigin)
+            restoreVerticalScrollOrigin(previousVerticalScrollOrigin)
+        }
+    }
+
+    func preserveVisibleLayoutAnchorDuring(
+        preservesVisualAnchor: Bool = true,
+        restoresAfterDeferredLayout: Bool = false,
+        verticalScrollOrigin: CGFloat? = nil,
+        _ updates: () -> Void
+    ) {
+        if !preservesVisualAnchor {
+            pendingDeferredVisualLayoutAnchor = nil
+        }
+
+        let verticalScrollOriginToRestore = preservesVisualAnchor
+            ? nil
+            : verticalScrollOrigin ?? enclosingScrollView?.contentView.bounds.origin.y
+        let visualAnchor = preservesVisualAnchor ? visualLayoutAnchorForPreservation() : nil
+        updates()
+        if let visualAnchor {
+            restoreVisualLayoutAnchor(visualAnchor)
+        } else {
+            restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
+        }
+        if restoresAfterDeferredLayout {
+            if let visualAnchor {
+                restoreVisualLayoutAnchorAfterDeferredLayout(visualAnchor)
+            } else {
+                restoreVerticalScrollOriginAfterDeferredLayout(verticalScrollOriginToRestore)
+            }
+        }
+    }
+
+    func shouldPreserveVisualLayoutAnchor(forProposedFrameWidth proposedFrameWidth: CGFloat) -> Bool {
+        guard !smoothsHorizontalInsetChanges else {
+            return false
+        }
+
+        let currentWidth = textContainer?.containerSize.width
+        let targetWidth = EditorReadingLayout.textContainerWidth(
+            forContainerWidth: proposedFrameWidth,
+            profile: activeReadingProfile
+        )
+        guard let currentWidth else {
+            return true
+        }
+
+        return abs(currentWidth - targetWidth) <= 0.5
     }
 
     func writingToolsWillBegin() {
@@ -582,6 +637,36 @@ final class LineformTextView: NSTextView {
         restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
     }
 
+    private func sizePreservingScrollableDocumentHeight(for proposedSize: NSSize) -> NSSize {
+        guard
+            isVerticallyResizable,
+            enclosingScrollView != nil,
+            let layoutManager,
+            let textContainer
+        else {
+            return proposedSize
+        }
+
+        let targetContainerWidth = EditorReadingLayout.textContainerWidth(
+            forContainerWidth: proposedSize.width,
+            profile: activeReadingProfile
+        )
+        textContainer.widthTracksTextView = false
+        textContainer.containerSize = NSSize(
+            width: targetContainerWidth,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        layoutManager.ensureLayout(for: textContainer)
+
+        let minimumDocumentHeight = ceil(
+            layoutManager.usedRect(for: textContainer).height + textContainerInset.height * 2
+        )
+        return NSSize(
+            width: proposedSize.width,
+            height: max(proposedSize.height, minimumDocumentHeight)
+        )
+    }
+
     private func setTextContainerInset(
         _ targetInset: NSSize,
         preservingVerticalScrollOrigin previousVerticalScrollOrigin: CGFloat? = nil
@@ -622,6 +707,102 @@ final class LineformTextView: NSTextView {
         restoredOrigin.y = previousVerticalScrollOrigin
         scrollView.contentView.setBoundsOrigin(restoredOrigin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    private struct VisualLayoutAnchor {
+        let characterRange: NSRange
+        let yInWindow: CGFloat
+    }
+
+    private func visualLayoutAnchorForPreservation() -> VisualLayoutAnchor? {
+        guard
+            let visibleRange = visibleCharacterRangeForLayoutPreservation(),
+            visibleRange.location < (string as NSString).length,
+            enclosingScrollView != nil
+        else {
+            return nil
+        }
+
+        let characterRange = NSRange(location: visibleRange.location, length: 1)
+        guard let yInWindow = yPositionInWindow(for: characterRange) else {
+            return nil
+        }
+
+        return VisualLayoutAnchor(characterRange: characterRange, yInWindow: yInWindow)
+    }
+
+    private func restoreVisualLayoutAnchor(_ anchor: VisualLayoutAnchor?) {
+        guard
+            let anchor,
+            let scrollView = enclosingScrollView,
+            let currentY = yPositionInWindow(for: anchor.characterRange)
+        else {
+            return
+        }
+
+        let verticalDelta = currentY - anchor.yInWindow
+        guard abs(verticalDelta) > 0.5 else {
+            return
+        }
+
+        var restoredOrigin = scrollView.contentView.bounds.origin
+        restoredOrigin.y -= verticalDelta
+        scrollView.contentView.setBoundsOrigin(restoredOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    private func restoreVisualLayoutAnchorAfterDeferredLayout(_ anchor: VisualLayoutAnchor?) {
+        guard anchor != nil else {
+            return
+        }
+
+        pendingDeferredVisualLayoutAnchor = anchor
+        guard !hasScheduledDeferredVisualLayoutAnchorRestore else {
+            return
+        }
+
+        hasScheduledDeferredVisualLayoutAnchorRestore = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+
+            let pendingAnchor = pendingDeferredVisualLayoutAnchor
+            pendingDeferredVisualLayoutAnchor = nil
+            hasScheduledDeferredVisualLayoutAnchorRestore = false
+            restoreVisualLayoutAnchor(pendingAnchor)
+        }
+    }
+
+    private func restoreVerticalScrollOriginAfterDeferredLayout(_ verticalScrollOrigin: CGFloat?) {
+        guard let verticalScrollOrigin else {
+            return
+        }
+
+        pendingDeferredVerticalScrollOrigin = verticalScrollOrigin
+        guard !hasScheduledDeferredVerticalScrollOriginRestore else {
+            return
+        }
+
+        hasScheduledDeferredVerticalScrollOriginRestore = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+
+            let pendingScrollOrigin = pendingDeferredVerticalScrollOrigin
+            pendingDeferredVerticalScrollOrigin = nil
+            hasScheduledDeferredVerticalScrollOriginRestore = false
+            restoreVerticalScrollOrigin(pendingScrollOrigin)
+        }
+    }
+
+    private func yPositionInWindow(for characterRange: NSRange) -> CGFloat? {
+        guard let rect = rectForCharacterRange(characterRange) else {
+            return nil
+        }
+
+        return convert(rect, to: nil).midY
     }
 
     private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {

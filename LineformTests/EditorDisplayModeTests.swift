@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import XCTest
 @testable import Lineform
 
@@ -292,6 +293,118 @@ final class EditorDisplayModeTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens() throws {
+        let harness = try makeEditorDrawerHarness()
+        let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
+        let trackedRange = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        let scrollView = try XCTUnwrap(textView.enclosingScrollView)
+        let trackedYBefore = try trackedCharacterY(
+            NSRange(location: trackedRange.location, length: 1),
+            in: textView,
+            relativeTo: harness.window
+        )
+        let scrollFrameBefore = scrollView.convert(scrollView.bounds, to: nil)
+        let textFrameBefore = textView.convert(textView.bounds, to: nil)
+        let scrollOriginBefore = scrollView.contentView.bounds.origin
+
+        LineformAppNotification.toggleOutline.post(
+            object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+        )
+        let maximumAnimatedDelta = try maximumTrackedYDelta(
+            NSRange(location: trackedRange.location, length: 1),
+            in: textView,
+            baselineY: trackedYBefore,
+            duration: 0.45
+        )
+
+        let trackedYAfter = try trackedCharacterY(
+            NSRange(location: trackedRange.location, length: 1),
+            in: textView,
+            relativeTo: harness.window
+        )
+        let scrollFrameAfter = scrollView.convert(scrollView.bounds, to: nil)
+        let textFrameAfter = textView.convert(textView.bounds, to: nil)
+        let scrollOriginAfter = scrollView.contentView.bounds.origin
+        XCTAssertEqual(
+            trackedYAfter,
+            trackedYBefore,
+            accuracy: 1.0,
+            """
+            scrollFrame: \(scrollFrameBefore) -> \(scrollFrameAfter)
+            textFrame: \(textFrameBefore) -> \(textFrameAfter)
+            scrollOrigin: \(scrollOriginBefore) -> \(scrollOriginAfter)
+            """
+        )
+        XCTAssertLessThanOrEqual(maximumAnimatedDelta, 1.0)
+    }
+
+    @MainActor
+    func testEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens() throws {
+        let harness = try makeEditorDrawerHarness()
+        let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
+        let trackedRange = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        let scrollView = try XCTUnwrap(textView.enclosingScrollView)
+        let trackedYBefore = try trackedCharacterY(
+            NSRange(location: trackedRange.location, length: 1),
+            in: textView,
+            relativeTo: harness.window
+        )
+        let scrollFrameBefore = scrollView.convert(scrollView.bounds, to: nil)
+        let textFrameBefore = textView.convert(textView.bounds, to: nil)
+        let scrollOriginBefore = scrollView.contentView.bounds.origin
+
+        LineformAppNotification.showReadingExperience.post(
+            object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+        )
+        let maximumAnimatedDelta = try maximumTrackedYDelta(
+            NSRange(location: trackedRange.location, length: 1),
+            in: textView,
+            baselineY: trackedYBefore,
+            duration: 0.45
+        )
+
+        let trackedYAfter = try trackedCharacterY(
+            NSRange(location: trackedRange.location, length: 1),
+            in: textView,
+            relativeTo: harness.window
+        )
+        let scrollFrameAfter = scrollView.convert(scrollView.bounds, to: nil)
+        let textFrameAfter = textView.convert(textView.bounds, to: nil)
+        let scrollOriginAfter = scrollView.contentView.bounds.origin
+        XCTAssertEqual(
+            trackedYAfter,
+            trackedYBefore,
+            accuracy: 1.0,
+            """
+            scrollFrame: \(scrollFrameBefore) -> \(scrollFrameAfter)
+            textFrame: \(textFrameBefore) -> \(textFrameAfter)
+            scrollOrigin: \(scrollOriginBefore) -> \(scrollOriginAfter)
+            """
+        )
+        XCTAssertLessThanOrEqual(maximumAnimatedDelta, 1.0)
+    }
+
+    @MainActor
+    func testScrolledEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens() throws {
+        try assertScrolledEditorVisibleTextDoesNotJumpVerticallyWhenDrawerOpens(.outline)
+    }
+
+    @MainActor
+    func testScrolledEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens() throws {
+        try assertScrolledEditorVisibleTextDoesNotJumpVerticallyWhenDrawerOpens(.readingInspector)
+    }
+
+    @MainActor
+    func testReflowingEditorDoesNotScrollUpWhenOutlineDrawerOpens() throws {
+        try assertScrolledEditorDoesNotScrollUpWhenDrawerOpens(.outline, text: Self.reflowingDrawerTestDocument)
+    }
+
+    @MainActor
+    func testReflowingEditorDoesNotScrollUpWhenReadingInspectorOpens() throws {
+        try assertScrolledEditorDoesNotScrollUpWhenDrawerOpens(.readingInspector, text: Self.reflowingDrawerTestDocument)
+    }
+
     func testLightReaderThemesForceLightWindowChromeAfterDarkThemes() {
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: false), .aqua)
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: true), .darkAqua)
@@ -544,6 +657,7 @@ final class EditorDisplayModeTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testReduceMotionDisablesCustomEditorMotion() {
         XCTAssertTrue(EditorMotionPolicy.supportsReduceMotion)
         XCTAssertEqual(EditorMotionPolicy.effectiveDuration(0.24, reduceMotion: false), 0.24, accuracy: 0.01)
@@ -551,6 +665,250 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertTrue(EditorMotionPolicy.usesAnimatedTransitions(reduceMotion: false))
         XCTAssertFalse(EditorMotionPolicy.usesAnimatedTransitions(reduceMotion: true))
         XCTAssertTrue(EditorModeSegmentedControl.usesReduceMotionForLiquidBridge)
+    }
+
+    @MainActor
+    private func assertScrolledEditorVisibleTextDoesNotJumpVerticallyWhenDrawerOpens(_ drawer: EditorDrawerKind) throws {
+        let harness = try makeEditorDrawerHarness(text: Self.longDrawerTestDocument)
+        let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
+        let scrollView = try XCTUnwrap(textView.enclosingScrollView)
+        let startingOrigin = NSPoint(x: 0, y: 520)
+        scrollView.contentView.setBoundsOrigin(startingOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        runMainLoop(for: 0.1)
+
+        let trackedRange = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        let trackedCharacter = NSRange(location: trackedRange.location, length: 1)
+        let trackedYBefore = try trackedCharacterY(trackedCharacter, in: textView, relativeTo: harness.window)
+        let scrollOriginBefore = scrollView.contentView.bounds.origin
+
+        switch drawer {
+        case .outline:
+            LineformAppNotification.toggleOutline.post(
+                object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+            )
+        case .readingInspector:
+            LineformAppNotification.showReadingExperience.post(
+                object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+            )
+        }
+
+        let animatedDeltas = try maximumTrackedYAndScrollOriginDelta(
+            trackedCharacter,
+            in: textView,
+            scrollView: scrollView,
+            baselineY: trackedYBefore,
+            baselineScrollOriginY: scrollOriginBefore.y,
+            duration: 0.45
+        )
+        let trackedYAfter = try trackedCharacterY(trackedCharacter, in: textView, relativeTo: harness.window)
+        let scrollOriginAfter = scrollView.contentView.bounds.origin
+
+        XCTAssertEqual(
+            trackedYAfter,
+            trackedYBefore,
+            accuracy: 1.0,
+            "scrollOrigin: \(scrollOriginBefore) -> \(scrollOriginAfter)"
+        )
+        XCTAssertEqual(scrollOriginAfter.y, scrollOriginBefore.y, accuracy: 1.0)
+        XCTAssertLessThanOrEqual(animatedDeltas.trackedY, 1.0)
+        XCTAssertLessThanOrEqual(animatedDeltas.scrollOriginY, 1.0)
+    }
+
+    @MainActor
+    private func assertScrolledEditorDoesNotScrollUpWhenDrawerOpens(_ drawer: EditorDrawerKind, text: String) throws {
+        let harness = try makeEditorDrawerHarness(text: text)
+        let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
+        let scrollView = try XCTUnwrap(textView.enclosingScrollView)
+        let startingOrigin = NSPoint(x: 0, y: 520)
+        scrollView.contentView.setBoundsOrigin(startingOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        runMainLoop(for: 0.1)
+        let scrollOriginBefore = scrollView.contentView.bounds.origin.y
+
+        switch drawer {
+        case .outline:
+            LineformAppNotification.toggleOutline.post(
+                object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+            )
+        case .readingInspector:
+            LineformAppNotification.showReadingExperience.post(
+                object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+            )
+        }
+
+        let maximumScrollOriginDelta = maximumScrollOriginYDelta(
+            in: scrollView,
+            baselineY: scrollOriginBefore,
+            duration: 0.45
+        )
+        let scrollOriginAfter = scrollView.contentView.bounds.origin.y
+
+        XCTAssertEqual(scrollOriginAfter, scrollOriginBefore, accuracy: 1.0)
+        XCTAssertLessThanOrEqual(maximumScrollOriginDelta, 1.0)
+    }
+
+    @MainActor
+    private func makeEditorDrawerHarness(text: String? = nil) throws -> EditorDrawerHarness {
+        var document = LineformDocument(
+            text: text ?? Self.shortDrawerTestDocument
+        )
+        let editor = EditorContainerView(
+            document: Binding(
+                get: { document },
+                set: { document = $0 }
+            )
+        )
+        let hostingView = NSHostingView(rootView: editor)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 1_080, height: 720)
+
+        let window = NSWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        runMainLoop(for: 0.3)
+        _ = try XCTUnwrap(hostingView.descendants(ofType: LineformTextView.self).first)
+        return EditorDrawerHarness(window: window, hostingView: hostingView)
+    }
+
+    private static let shortDrawerTestDocument = """
+            # Features
+
+            Native macOS document with AppKit and TextKit.
+
+            Real Markdown files that remain portable.
+
+            Write, Read, and Preview modes for drafting.
+
+            Markdown outline navigation from document headings.
+
+            Reading controls for type size, line height, paragraph spacing, margins, column width, themes, focus, ruler, and caret width.
+
+            Apple Books-style reader themes, with accessibility adjustments layered on top.
+
+            Native Writing Tools and Apple Intelligence selected-text editing.
+
+            ## Requirements
+
+            - Xcode with macOS SDK support
+            - Swift 6
+            - Plain UTF-8 Markdown and text file handling
+            """
+
+    private static let longDrawerTestDocument = (0..<72)
+        .map { index in
+            """
+            ## Section \(index + 1)
+
+            This is a stable paragraph for testing drawer layout in a longer writing session. It has enough words to wrap at ordinary editor widths without being so long that one line dominates the viewport.
+
+            The editor should slide sideways when a drawer opens. The visible text should not jump upward while the outline or reading controls appear.
+            """
+        }
+        .joined(separator: "\n\n")
+
+    private static let reflowingDrawerTestDocument = (0..<48)
+        .map { index in
+            """
+            ## Reflow Section \(index + 1)
+
+            This deliberately long editor line sits above or inside the viewport and will rewrap when a side drawer narrows the writing canvas, which is the case that can make the visible text appear to jump upward during drawer presentation.
+            """
+        }
+        .joined(separator: "\n\n")
+
+    @MainActor
+    private func trackedCharacterY(
+        _ characterRange: NSRange,
+        in textView: LineformTextView,
+        relativeTo window: NSWindow
+    ) throws -> CGFloat {
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let textContainer = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: textContainer)
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: characterRange,
+            actualCharacterRange: nil
+        )
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        rect.origin.x += textView.textContainerOrigin.x
+        rect.origin.y += textView.textContainerOrigin.y
+        return textView.convert(rect, to: nil).midY
+    }
+
+    @MainActor
+    private func maximumTrackedYDelta(
+        _ characterRange: NSRange,
+        in textView: LineformTextView,
+        baselineY: CGFloat,
+        duration: TimeInterval,
+        interval: TimeInterval = 0.03
+    ) throws -> CGFloat {
+        let window = try XCTUnwrap(textView.window)
+        var maximumDelta: CGFloat = 0
+        let deadline = Date(timeIntervalSinceNow: duration)
+
+        while Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: interval))
+            let currentY = try trackedCharacterY(characterRange, in: textView, relativeTo: window)
+            maximumDelta = max(maximumDelta, abs(currentY - baselineY))
+        }
+
+        return maximumDelta
+    }
+
+    @MainActor
+    private func maximumScrollOriginYDelta(
+        in scrollView: NSScrollView,
+        baselineY: CGFloat,
+        duration: TimeInterval,
+        interval: TimeInterval = 0.03
+    ) -> CGFloat {
+        var maximumDelta: CGFloat = 0
+        let deadline = Date(timeIntervalSinceNow: duration)
+
+        while Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: interval))
+            maximumDelta = max(maximumDelta, abs(scrollView.contentView.bounds.origin.y - baselineY))
+        }
+
+        return maximumDelta
+    }
+
+    @MainActor
+    private func maximumTrackedYAndScrollOriginDelta(
+        _ characterRange: NSRange,
+        in textView: LineformTextView,
+        scrollView: NSScrollView,
+        baselineY: CGFloat,
+        baselineScrollOriginY: CGFloat,
+        duration: TimeInterval,
+        interval: TimeInterval = 0.03
+    ) throws -> (trackedY: CGFloat, scrollOriginY: CGFloat) {
+        let window = try XCTUnwrap(textView.window)
+        var maximumTrackedDelta: CGFloat = 0
+        var maximumScrollOriginDelta: CGFloat = 0
+        let deadline = Date(timeIntervalSinceNow: duration)
+
+        while Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: interval))
+            let currentY = try trackedCharacterY(characterRange, in: textView, relativeTo: window)
+            maximumTrackedDelta = max(maximumTrackedDelta, abs(currentY - baselineY))
+            maximumScrollOriginDelta = max(
+                maximumScrollOriginDelta,
+                abs(scrollView.contentView.bounds.origin.y - baselineScrollOriginY)
+            )
+        }
+
+        return (maximumTrackedDelta, maximumScrollOriginDelta)
+    }
+
+    private func runMainLoop(for duration: TimeInterval) {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: duration))
     }
 
     private static func contrastRatio(_ foreground: NSColor, _ background: NSColor) -> CGFloat {
@@ -571,5 +929,25 @@ final class EditorDisplayModeTests: XCTestCase {
         return 0.2126 * linearized(color.redComponent)
             + 0.7152 * linearized(color.greenComponent)
             + 0.0722 * linearized(color.blueComponent)
+    }
+}
+
+private struct EditorDrawerHarness {
+    let window: NSWindow
+    let hostingView: NSHostingView<EditorContainerView>
+}
+
+private enum EditorDrawerKind {
+    case outline
+    case readingInspector
+}
+
+private extension NSView {
+    func descendants<T: NSView>(ofType type: T.Type) -> [T] {
+        var matches = subviews.compactMap { $0 as? T }
+        for subview in subviews {
+            matches.append(contentsOf: subview.descendants(ofType: type))
+        }
+        return matches
     }
 }

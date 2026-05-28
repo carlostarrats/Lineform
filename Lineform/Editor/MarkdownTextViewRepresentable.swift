@@ -79,6 +79,51 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 }
 
 final class LineformEditorScrollView: NSScrollView {
+    private var lockedVerticalScrollOriginDuringLayoutTransition: CGFloat?
+
+    override func layout() {
+        guard let textView = documentView as? LineformTextView else {
+            super.layout()
+            return
+        }
+
+        textView.preserveVisibleLayoutAnchorDuring(
+            preservesVisualAnchor: false,
+            restoresAfterDeferredLayout: true,
+            verticalScrollOrigin: verticalScrollOriginForLayoutPreservation(textView)
+        ) {
+            super.layout()
+        }
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        guard let textView = documentView as? LineformTextView else {
+            super.setFrameSize(newSize)
+            return
+        }
+
+        textView.preserveVisibleLayoutAnchorDuring(
+            preservesVisualAnchor: false,
+            restoresAfterDeferredLayout: true,
+            verticalScrollOrigin: verticalScrollOriginForLayoutPreservation(textView)
+        ) {
+            super.setFrameSize(newSize)
+        }
+    }
+
+    private func verticalScrollOriginForLayoutPreservation(_ textView: LineformTextView) -> CGFloat? {
+        guard textView.smoothsHorizontalInsetChanges else {
+            lockedVerticalScrollOriginDuringLayoutTransition = nil
+            return contentView.bounds.origin.y
+        }
+
+        if lockedVerticalScrollOriginDuringLayoutTransition == nil {
+            lockedVerticalScrollOriginDuringLayoutTransition = contentView.bounds.origin.y
+        }
+
+        return lockedVerticalScrollOriginDuringLayoutTransition
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         if
             let window,

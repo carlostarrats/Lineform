@@ -345,13 +345,47 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         scrollView.reflectScrolledClipView(scrollView.contentView)
         let visibleRangeBeforeResize = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
 
-        textView.setFrameSize(NSSize(width: 520, height: 1_200))
+        textView.setFrameSize(NSSize(width: 520, height: textView.frame.height))
 
         let visibleRangeAfterResize = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
         XCTAssertEqual(visibleRangeAfterResize.location, visibleRangeBeforeResize.location, accuracy: 8)
         RunLoop.current.run(until: Date().addingTimeInterval(textView.horizontalInsetAnimationDuration + 0.05))
         let visibleRangeAfterLayoutSettles = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
         XCTAssertEqual(visibleRangeAfterLayoutSettles.location, visibleRangeBeforeResize.location, accuracy: 8)
+    }
+
+    func testHorizontalResizeKeepsUnwrappedVisibleTextAtSameVerticalPositionWhenParentSendsViewportHeight() throws {
+        var profile = ReadingProfile.original
+        profile.columnWidth = 420
+        profile.marginWidth = 40
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 640, height: 260))
+        let textView = LineformTextView()
+        textView.setFrameSize(NSSize(width: 640, height: 1_200))
+        textView.string = Array(repeating: "Short stable line.", count: 80).joined(separator: "\n")
+        textView.smoothsHorizontalInsetChanges = true
+        scrollView.documentView = textView
+        textView.applyTypography(profile)
+
+        let originalScrollOrigin = NSPoint(x: 0, y: 220)
+        scrollView.contentView.setBoundsOrigin(originalScrollOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        let visibleRangeBeforeResize = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        let trackedRange = NSRange(location: visibleRangeBeforeResize.location, length: 1)
+        let trackedYBeforeResize = try trackedCharacterY(
+            trackedRange,
+            in: textView,
+            relativeTo: scrollView
+        )
+        textView.setFrameSize(NSSize(width: 520, height: 1_200))
+
+        let trackedYAfterResize = try trackedCharacterY(
+            trackedRange,
+            in: textView,
+            relativeTo: scrollView
+        )
+        XCTAssertEqual(trackedYAfterResize, trackedYBeforeResize, accuracy: 0.5)
     }
 
     func testTypographyRefreshAfterInspectorResizeKeepsVisibleTextAnchored() throws {
@@ -541,5 +575,23 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         return abs((firstRGB?.redComponent ?? -1) - (secondRGB?.redComponent ?? -2)) < 0.005
             && abs((firstRGB?.greenComponent ?? -1) - (secondRGB?.greenComponent ?? -2)) < 0.005
             && abs((firstRGB?.blueComponent ?? -1) - (secondRGB?.blueComponent ?? -2)) < 0.005
+    }
+
+    private func trackedCharacterY(
+        _ characterRange: NSRange,
+        in textView: LineformTextView,
+        relativeTo scrollView: NSScrollView
+    ) throws -> CGFloat {
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let textContainer = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: textContainer)
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: characterRange,
+            actualCharacterRange: nil
+        )
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        rect.origin.x += textView.textContainerOrigin.x
+        rect.origin.y += textView.textContainerOrigin.y
+        return textView.convert(rect, to: scrollView).midY
     }
 }
