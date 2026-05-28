@@ -286,6 +286,32 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(textView.textContainerInset.width, 250)
     }
 
+    func testColumnWidthCapsLineWrappingInWideEditor() {
+        let textView = LineformTextView()
+        textView.setFrameSize(NSSize(width: 1_000, height: 500))
+        var profile = ReadingProfile.original
+        profile.columnWidth = 500
+        profile.marginWidth = 40
+
+        textView.applyTypography(profile)
+
+        XCTAssertFalse(textView.textContainer?.widthTracksTextView ?? true)
+        XCTAssertEqual(textView.textContainer?.containerSize.width, 500)
+    }
+
+    func testColumnWidthUsesAvailableWidthInNarrowEditor() {
+        let textView = LineformTextView()
+        textView.setFrameSize(NSSize(width: 560, height: 500))
+        var profile = ReadingProfile.original
+        profile.columnWidth = 500
+        profile.marginWidth = 40
+
+        textView.applyTypography(profile)
+
+        XCTAssertEqual(textView.textContainerInset.width, 40)
+        XCTAssertEqual(textView.textContainer?.containerSize.width, 480)
+    }
+
     func testTypographyAppliesFontSelectionAndCaretWidthSetting() {
         let textView = LineformTextView()
         var profile = ReadingProfile.original

@@ -288,8 +288,11 @@ final class LineformTextView: NSTextView {
         autoresizingMask = [.width]
         minSize = NSSize(width: 0, height: 0)
         maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textContainer?.widthTracksTextView = true
-        textContainer?.containerSize = NSSize(width: bounds.width, height: CGFloat.greatestFiniteMagnitude)
+        textContainer?.widthTracksTextView = false
+        textContainer?.containerSize = NSSize(
+            width: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: activeReadingProfile),
+            height: CGFloat.greatestFiniteMagnitude
+        )
         setAccessibilityLabel("Markdown editor")
         setAccessibilityRole(.textArea)
         setAccessibilityHelp(emptyStatePlaceholder)
@@ -522,7 +525,11 @@ final class LineformTextView: NSTextView {
             width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile),
             height: 32
         )
-        textContainer?.widthTracksTextView = true
+        textContainer?.widthTracksTextView = false
+        textContainer?.containerSize = NSSize(
+            width: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: profile),
+            height: CGFloat.greatestFiniteMagnitude
+        )
     }
 
     private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {

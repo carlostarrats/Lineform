@@ -633,6 +633,10 @@ enum EditorReadingLayout {
     static func horizontalInset(forContainerWidth containerWidth: CGFloat, profile: ReadingProfile) -> CGFloat {
         max(CGFloat(profile.marginWidth), (containerWidth - textColumnMaxWidth(for: profile)) / 2)
     }
+
+    static func textContainerWidth(forContainerWidth containerWidth: CGFloat, profile: ReadingProfile) -> CGFloat {
+        max(0, containerWidth - (horizontalInset(forContainerWidth: containerWidth, profile: profile) * 2))
+    }
 }
 
 enum EditorLayout {
