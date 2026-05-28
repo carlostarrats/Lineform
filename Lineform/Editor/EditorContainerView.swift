@@ -247,6 +247,7 @@ struct EditorContainerView: View {
                 IntelligenceInstructionComposer(
                     instruction: $intelligenceInstruction,
                     isActionEnabled: intelligenceComposerIsEnabled,
+                    usesDarkChrome: currentTheme.usesDarkChrome,
                     onFocusChanged: { isFocused in
                         isIntelligenceComposerFocused = isFocused
                         if !isFocused {
@@ -887,7 +888,7 @@ enum IntelligenceActionRailPresentation {
 
 enum IntelligenceInstructionComposerPresentation {
     static let prompt = "Tell AI what to do..."
-    static let submitSystemImage = "arrow.up.circle.fill"
+    static let submitSystemImage = "arrow.up"
     static let usesFixedShortcutButtons = false
     static let animatesSelectionVisibilityChanges = true
     static let usesStableNativePlaceholder = true
@@ -905,11 +906,73 @@ enum IntelligenceInstructionComposerPresentation {
     static let backgroundOpacity = 1.0
     static let borderOpacity = 0.65
     static let disabledOpacity = 0.38
-    static let sendButtonSize: CGFloat = 28
+    static let sendButtonSize: CGFloat = 30
+    static let sendButtonSymbolPointSize: CGFloat = 16
+    static let sendButtonUsesFilledAccentBackground = true
+    static let sendButtonUsesWhiteSymbol = true
     static let sendButtonHoverBackgroundOpacity = 0.28
     static let shadowOpacity = 0.08
     static let shadowRadius: CGFloat = 16
     static let shadowYOffset: CGFloat = 4
+
+    static func usesDarkAppearance(_ appearance: NSAppearance) -> Bool {
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
+    static func backgroundColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance
+            ? NSColor(srgbRed: 0x23 / 255.0, green: 0x23 / 255.0, blue: 0x23 / 255.0, alpha: 1)
+            : .actionRailBackground(isHovered: false)
+    }
+
+    static func borderColor(usesDarkAppearance: Bool, isFocused: Bool) -> NSColor {
+        if usesDarkAppearance {
+            return NSColor.white.withAlphaComponent(isFocused ? 0.95 : 0.78)
+        }
+
+        return NSColor.controlAccentColor.withAlphaComponent(
+            isFocused ? IntelligenceActionRailPresentation.hoverBorderOpacity : 0
+        )
+    }
+
+    static func foregroundColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance ? .white : .labelColor
+    }
+
+    static func insertionPointColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance ? .white : .controlAccentColor
+    }
+
+    static func iconColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance ? .white : .controlAccentColor
+    }
+
+    static func placeholderColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance ? NSColor.white.withAlphaComponent(0.62) : .placeholderTextColor
+    }
+
+    static func sendButtonFillColor(
+        usesDarkAppearance: Bool,
+        isHovered: Bool,
+        isEnabled: Bool
+    ) -> NSColor {
+        let baseColor: NSColor
+        if usesDarkAppearance {
+            baseColor = isHovered ? NSColor.white.withAlphaComponent(0.84) : .white
+        } else {
+            let accentColor = NSColor.controlAccentColor
+            baseColor = isHovered
+                ? accentColor.blended(withFraction: 0.14, of: .black) ?? accentColor
+                : accentColor
+        }
+
+        return baseColor.withAlphaComponent(isEnabled ? baseColor.alphaComponent : disabledOpacity)
+    }
+
+    static func sendButtonSymbolColor(usesDarkAppearance: Bool, isEnabled: Bool) -> NSColor {
+        let baseColor: NSColor = usesDarkAppearance ? .black : .white
+        return baseColor.withAlphaComponent(isEnabled ? 1 : disabledOpacity)
+    }
 }
 
 enum IntelligenceInstructionComposerState {
@@ -1284,6 +1347,7 @@ struct IntelligenceActionRail: View {
 struct IntelligenceInstructionComposer: View {
     @Binding var instruction: String
     let isActionEnabled: Bool
+    var usesDarkChrome = false
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
 
@@ -1291,6 +1355,7 @@ struct IntelligenceInstructionComposer: View {
         IntelligenceInstructionComposerOverlayHost(
             instruction: $instruction,
             isActionEnabled: isActionEnabled,
+            usesDarkChrome: usesDarkChrome,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
         )
@@ -1300,6 +1365,7 @@ struct IntelligenceInstructionComposer: View {
 struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
     @Binding var instruction: String
     let isActionEnabled: Bool
+    let usesDarkChrome: Bool
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
 
@@ -1307,6 +1373,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
         IntelligenceInstructionComposerOverlayNSView(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            usesDarkChrome: usesDarkChrome,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1317,6 +1384,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
         nsView.update(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            usesDarkChrome: usesDarkChrome,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1330,6 +1398,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
     init(
         instruction: String,
         isActionEnabled: Bool,
+        usesDarkChrome: Bool,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1337,6 +1406,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         composerView = IntelligenceInstructionComposerNSView(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            usesDarkChrome: usesDarkChrome,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1361,6 +1431,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
     func update(
         instruction: String,
         isActionEnabled: Bool,
+        usesDarkChrome: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1368,6 +1439,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         composerView.update(
             instruction: instruction,
             isActionEnabled: isActionEnabled,
+            usesDarkChrome: usesDarkChrome,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1403,6 +1475,8 @@ final class IntelligenceInstructionComposerNSView: NSView {
     private var textChanged: (String) -> Void
     private var onFocusChanged: (Bool) -> Void
     private var submitInstruction: (String) -> Void
+    private var mouseDownMonitor: LocalEventMonitor?
+    private var usesDarkChrome: Bool
     private var isInputFocused = false {
         didSet {
             needsDisplay = true
@@ -1412,6 +1486,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
     init(
         instruction: String,
         isActionEnabled: Bool,
+        usesDarkChrome: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1419,8 +1494,10 @@ final class IntelligenceInstructionComposerNSView: NSView {
         self.textChanged = textChanged
         self.onFocusChanged = onFocusChanged
         self.submitInstruction = submitInstruction
+        self.usesDarkChrome = usesDarkChrome
         submitButton = IntelligenceInstructionSubmitButtonNSView(
             isActionEnabled: isActionEnabled,
+            usesDarkChrome: usesDarkChrome,
             performAction: {}
         )
         super.init(frame: .zero)
@@ -1448,6 +1525,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
     func update(
         instruction: String,
         isActionEnabled: Bool,
+        usesDarkChrome: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1455,7 +1533,12 @@ final class IntelligenceInstructionComposerNSView: NSView {
         self.textChanged = textChanged
         self.onFocusChanged = onFocusChanged
         self.submitInstruction = submitInstruction
+        if self.usesDarkChrome != usesDarkChrome {
+            self.usesDarkChrome = usesDarkChrome
+            applyAppearanceStyling()
+        }
         submitButton.isActionEnabled = isActionEnabled
+        submitButton.usesDarkChrome = usesDarkChrome
         configureTextViewCallbacks()
         if window?.firstResponder !== textView && textView.string != instruction {
             textView.string = instruction
@@ -1503,15 +1586,23 @@ final class IntelligenceInstructionComposerNSView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        applyAppearanceStyling()
         registerHitTestRegion()
         if window == nil {
+            removeMouseDownMonitor()
             EditorFloatingControlHitTestRegistry.remove(owner: self)
         } else {
+            installMouseDownMonitorIfNeeded()
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.window != nil else { return }
                 self.focusTextView()
             }
         }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyAppearanceStyling()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1551,7 +1642,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
             return
         }
 
-        focusTextView()
+        focusTextView(insertingAt: event.locationInWindow)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1563,13 +1654,18 @@ final class IntelligenceInstructionComposerNSView: NSView {
             xRadius: IntelligenceInstructionComposerPresentation.cornerRadius,
             yRadius: IntelligenceInstructionComposerPresentation.cornerRadius
         )
-        NSColor.actionRailBackground(isHovered: false).setFill()
+        IntelligenceInstructionComposerPresentation.backgroundColor(
+            usesDarkAppearance: usesDarkChrome
+        )
+        .setFill()
         path.fill()
 
-        if isInputFocused {
-            NSColor.controlAccentColor
-                .withAlphaComponent(IntelligenceActionRailPresentation.hoverBorderOpacity)
-                .setStroke()
+        if usesDarkChrome || isInputFocused {
+            IntelligenceInstructionComposerPresentation.borderColor(
+                usesDarkAppearance: usesDarkChrome,
+                isFocused: isInputFocused
+            )
+            .setStroke()
             path.lineWidth = 1
             path.stroke()
         }
@@ -1584,8 +1680,6 @@ final class IntelligenceInstructionComposerNSView: NSView {
     private func configureTextView() {
         textView.placeholder = IntelligenceInstructionComposerPresentation.prompt
         textView.font = .systemFont(ofSize: 15, weight: .regular)
-        textView.textColor = .labelColor
-        textView.insertionPointColor = .controlAccentColor
         textView.drawsBackground = false
         textView.isEditable = true
         textView.isSelectable = true
@@ -1599,6 +1693,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = true
+        applyAppearanceStyling()
     }
 
     private func configureTextViewCallbacks() {
@@ -1633,13 +1728,78 @@ final class IntelligenceInstructionComposerNSView: NSView {
         window?.makeFirstResponder(textView)
     }
 
+    private func focusTextView(insertingAt windowPoint: NSPoint?) {
+        focusTextView()
+        guard let windowPoint else { return }
+
+        let point = convert(windowPoint, from: nil)
+        if textView.frame.contains(point) {
+            let textViewPoint = textView.convert(windowPoint, from: nil)
+            textView.setSelectedRange(NSRange(location: textView.characterIndexForInsertion(at: textViewPoint), length: 0))
+        } else {
+            textView.setSelectedRange(NSRange(location: (textView.string as NSString).length, length: 0))
+        }
+    }
+
+    private func installMouseDownMonitorIfNeeded() {
+        guard mouseDownMonitor == nil else { return }
+
+        guard let monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown, handler: { [weak self] event in
+            guard
+                let self,
+                let window = self.window,
+                event.window === window
+            else {
+                return event
+            }
+
+            let point = self.convert(event.locationInWindow, from: nil)
+            guard self.bounds.contains(point) else {
+                return event
+            }
+
+            if self.submitButton.frame.contains(point) {
+                self.submitIfReady()
+            } else if self.textView.frame.contains(point) {
+                self.textView.handleMouseDown(with: event)
+            } else {
+                self.focusTextView(insertingAt: event.locationInWindow)
+            }
+            return nil
+        }) else { return }
+        mouseDownMonitor = LocalEventMonitor(monitor)
+    }
+
+    private func removeMouseDownMonitor() {
+        mouseDownMonitor?.remove()
+        mouseDownMonitor = nil
+    }
+
+    private func applyAppearanceStyling() {
+        textView.usesDarkChrome = usesDarkChrome
+        textView.textColor = IntelligenceInstructionComposerPresentation.foregroundColor(
+            usesDarkAppearance: usesDarkChrome
+        )
+        textView.insertionPointColor = IntelligenceInstructionComposerPresentation.insertionPointColor(
+            usesDarkAppearance: usesDarkChrome
+        )
+        submitButton.usesDarkChrome = usesDarkChrome
+        textView.needsDisplay = true
+        submitButton.needsDisplay = true
+        needsDisplay = true
+    }
+
     private func drawSparkles() {
         guard let image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil) else {
             return
         }
 
         let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-        let colorConfiguration = NSImage.SymbolConfiguration(hierarchicalColor: .controlAccentColor)
+        let colorConfiguration = NSImage.SymbolConfiguration(
+            hierarchicalColor: IntelligenceInstructionComposerPresentation.iconColor(
+                usesDarkAppearance: usesDarkChrome
+            )
+        )
         let configuredImage = image.withSymbolConfiguration(
             symbolConfiguration.applying(colorConfiguration)
         ) ?? image
@@ -1677,8 +1837,31 @@ final class IntelligenceInstructionComposerNSView: NSView {
     }
 }
 
+private final class LocalEventMonitor: @unchecked Sendable {
+    private var monitor: Any?
+
+    init(_ monitor: Any) {
+        self.monitor = monitor
+    }
+
+    func remove() {
+        guard let monitor else { return }
+        NSEvent.removeMonitor(monitor)
+        self.monitor = nil
+    }
+
+    deinit {
+        remove()
+    }
+}
+
 final class IntelligenceInstructionTextView: NSTextView {
     var placeholder = "" {
+        didSet {
+            needsDisplay = true
+        }
+    }
+    var usesDarkChrome = false {
         didSet {
             needsDisplay = true
         }
@@ -1705,8 +1888,30 @@ final class IntelligenceInstructionTextView: NSTextView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        handleMouseDown(with: event)
+    }
+
+    func handleMouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        setSelectedRange(NSRange(location: (string as NSString).length, length: 0))
+        let localPoint = convert(event.locationInWindow, from: nil)
+        let textLength = (string as NSString).length
+
+        if event.clickCount >= 3 {
+            setSelectedRange(NSRange(location: 0, length: textLength))
+            return
+        }
+
+        let characterIndex = characterIndexForInsertion(at: localPoint)
+        if event.clickCount == 2, textLength > 0 {
+            let wordLocation = min(max(characterIndex, 0), textLength - 1)
+            setSelectedRange(selectionRange(
+                forProposedRange: NSRange(location: wordLocation, length: 0),
+                granularity: .selectByWord
+            ))
+            return
+        }
+
+        setSelectedRange(NSRange(location: characterIndex, length: 0))
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -1745,7 +1950,9 @@ final class IntelligenceInstructionTextView: NSTextView {
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font ?? .systemFont(ofSize: 15, weight: .regular),
-            .foregroundColor: NSColor.placeholderTextColor
+            .foregroundColor: IntelligenceInstructionComposerPresentation.placeholderColor(
+                usesDarkAppearance: usesDarkChrome
+            )
         ]
         (placeholder as NSString).draw(
             at: NSPoint(x: textContainerInset.width, y: textContainerInset.height),
@@ -1756,17 +1963,20 @@ final class IntelligenceInstructionTextView: NSTextView {
 
 struct IntelligenceInstructionSubmitButton: NSViewRepresentable {
     let isActionEnabled: Bool
+    var usesDarkChrome = false
     let performAction: () -> Void
 
     func makeNSView(context: Context) -> IntelligenceInstructionSubmitButtonNSView {
         IntelligenceInstructionSubmitButtonNSView(
             isActionEnabled: isActionEnabled,
+            usesDarkChrome: usesDarkChrome,
             performAction: performAction
         )
     }
 
     func updateNSView(_ nsView: IntelligenceInstructionSubmitButtonNSView, context: Context) {
         nsView.isActionEnabled = isActionEnabled
+        nsView.usesDarkChrome = usesDarkChrome
         nsView.performAction = performAction
     }
 }
@@ -1777,13 +1987,19 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
             needsDisplay = true
         }
     }
+    var usesDarkChrome: Bool {
+        didSet {
+            needsDisplay = true
+        }
+    }
     var performAction: () -> Void
 
     private(set) var isHovering = false
     private var hoverTrackingArea: NSTrackingArea?
 
-    init(isActionEnabled: Bool, performAction: @escaping () -> Void) {
+    init(isActionEnabled: Bool, usesDarkChrome: Bool = false, performAction: @escaping () -> Void) {
         self.isActionEnabled = isActionEnabled
+        self.usesDarkChrome = usesDarkChrome
         self.performAction = performAction
         super.init(frame: .zero)
         wantsLayer = true
@@ -1881,12 +2097,13 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        if isHovering {
-            NSColor.controlAccentColor
-                .withAlphaComponent(IntelligenceInstructionComposerPresentation.sendButtonHoverBackgroundOpacity)
-                .setFill()
-            NSBezierPath(ovalIn: bounds).fill()
-        }
+        IntelligenceInstructionComposerPresentation.sendButtonFillColor(
+            usesDarkAppearance: usesDarkChrome,
+            isHovered: isHovering,
+            isEnabled: isActionEnabled
+        )
+        .setFill()
+        NSBezierPath(ovalIn: bounds).fill()
 
         guard let image = NSImage(
             systemSymbolName: IntelligenceInstructionComposerPresentation.submitSystemImage,
@@ -1895,16 +2112,18 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
             return
         }
 
-        let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 22, weight: .semibold)
+        let symbolPointSize = IntelligenceInstructionComposerPresentation.sendButtonSymbolPointSize
+        let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .bold)
         let colorConfiguration = NSImage.SymbolConfiguration(
-            hierarchicalColor: NSColor.controlAccentColor.withAlphaComponent(
-                isActionEnabled ? 1 : IntelligenceInstructionComposerPresentation.disabledOpacity
+            hierarchicalColor: IntelligenceInstructionComposerPresentation.sendButtonSymbolColor(
+                usesDarkAppearance: usesDarkChrome,
+                isEnabled: isActionEnabled
             )
         )
         let configuredImage = image.withSymbolConfiguration(
             symbolConfiguration.applying(colorConfiguration)
         ) ?? image
-        let imageSize = NSSize(width: 22, height: 22)
+        let imageSize = NSSize(width: symbolPointSize, height: symbolPointSize)
         let imageRect = NSRect(
             x: bounds.midX - imageSize.width / 2,
             y: bounds.midY - imageSize.height / 2,
@@ -2763,7 +2982,16 @@ enum EditorFloatingControlHitTestRegistry {
                 region.window === window && region.rect.contains(windowPoint)
             }
             .sorted { lhs, rhs in
-                lhs.rect.width * lhs.rect.height < rhs.rect.width * rhs.rect.height
+                switch (lhs.mouseDownHandler == nil, rhs.mouseDownHandler == nil) {
+                case (false, true):
+                    return true
+                case (true, false):
+                    return false
+                default:
+                    break
+                }
+
+                return lhs.rect.width * lhs.rect.height < rhs.rect.width * rhs.rect.height
             }
 
         guard let region = matchingRegions.first else {

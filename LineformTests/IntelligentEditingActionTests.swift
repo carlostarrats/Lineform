@@ -24,7 +24,7 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertTrue(IntelligentEditingAction.actionRailActions.isEmpty)
         XCTAssertFalse(IntelligenceInstructionComposerPresentation.usesFixedShortcutButtons)
         XCTAssertEqual(IntelligenceInstructionComposerPresentation.prompt, "Tell AI what to do...")
-        XCTAssertEqual(IntelligenceInstructionComposerPresentation.submitSystemImage, "arrow.up.circle.fill")
+        XCTAssertEqual(IntelligenceInstructionComposerPresentation.submitSystemImage, "arrow.up")
     }
 
     func testAiComposerKeepsStableInputAndExplicitInteractiveStates() {
@@ -35,9 +35,75 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.showsFocusedBorderBeforeTyping)
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.sendButtonSupportsHoverState)
         XCTAssertGreaterThan(IntelligenceInstructionComposerPresentation.sendButtonHoverBackgroundOpacity, 0.18)
+        XCTAssertEqual(IntelligenceInstructionComposerPresentation.sendButtonSize, 30)
+        XCTAssertLessThanOrEqual(IntelligenceInstructionComposerPresentation.sendButtonSymbolPointSize, 16)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.sendButtonUsesFilledAccentBackground)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.sendButtonUsesWhiteSymbol)
         XCTAssertFalse(IntelligenceInstructionComposerPresentation.usesWhiteCapsuleBackground)
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesLightBlueCapsuleBackground)
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesNavPillLikeShadow)
+    }
+
+    func testAiComposerUsesInvertedDarkAppearanceColors() throws {
+        let background = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.backgroundColor(usesDarkAppearance: true)
+                .usingColorSpace(.sRGB)
+        )
+        let border = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.borderColor(
+                usesDarkAppearance: true,
+                isFocused: true
+            )
+            .usingColorSpace(.sRGB)
+        )
+        let foreground = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.foregroundColor(usesDarkAppearance: true)
+                .usingColorSpace(.sRGB)
+        )
+        let buttonFill = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.sendButtonFillColor(
+                usesDarkAppearance: true,
+                isHovered: false,
+                isEnabled: true
+            )
+            .usingColorSpace(.sRGB)
+        )
+        let buttonSymbol = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.sendButtonSymbolColor(
+                usesDarkAppearance: true,
+                isEnabled: true
+            )
+            .usingColorSpace(.sRGB)
+        )
+
+        XCTAssertEqual(background.redComponent, 0x23 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(background.greenComponent, 0x23 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(background.blueComponent, 0x23 / 255.0, accuracy: 0.005)
+        XCTAssertGreaterThan(border.redComponent, 0.9)
+        XCTAssertGreaterThan(foreground.redComponent, 0.9)
+        XCTAssertGreaterThan(buttonFill.redComponent, 0.9)
+        XCTAssertLessThan(buttonSymbol.redComponent, 0.1)
+    }
+
+    func testAiComposerKeepsLightAppearanceBlueAccentTreatment() throws {
+        let background = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.backgroundColor(usesDarkAppearance: false)
+                .usingColorSpace(.sRGB)
+        )
+        let buttonFill = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.sendButtonFillColor(
+                usesDarkAppearance: false,
+                isHovered: false,
+                isEnabled: true
+            )
+            .usingColorSpace(.sRGB)
+        )
+
+        XCTAssertGreaterThan(background.redComponent, 0.85)
+        XCTAssertGreaterThan(background.greenComponent, 0.9)
+        XCTAssertEqual(background.blueComponent, 1.0, accuracy: 0.005)
+        XCTAssertLessThan(buttonFill.redComponent, 0.2)
+        XCTAssertGreaterThan(buttonFill.blueComponent, 0.7)
     }
 
     func testAiComposerUsesRetainedSelectionWhileInputIsFocused() {

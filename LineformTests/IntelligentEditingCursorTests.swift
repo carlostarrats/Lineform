@@ -516,6 +516,163 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(inputTextView.string, "x")
     }
 
+    func testFullEditorComposerDismissesAfterClearingInputAndCollapsingSelection() throws {
+        var document = LineformDocument(text: "Select this sentence for AI.")
+        let editor = EditorContainerView(
+            document: Binding(
+                get: { document },
+                set: { document = $0 }
+            ),
+            initialIntelligenceRailEnabled: true
+        )
+        let hostingView = NSHostingView(rootView: editor)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 820, height: 620)
+
+        let window = KeyCapableTestWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let editorTextView = try XCTUnwrap(hostingView.descendants(ofType: LineformTextView.self).first)
+        editorTextView.setSelectedRange(NSRange(location: 0, length: 6))
+        editorTextView.delegate?.textViewDidChangeSelection?(
+            Notification(name: NSTextView.didChangeSelectionNotification, object: editorTextView)
+        )
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let inputTextView = try XCTUnwrap(hostingView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        let inputFrameInWindow = inputTextView.convert(inputTextView.bounds, to: nil)
+        let inputPoint = NSPoint(x: inputFrameInWindow.midX, y: inputFrameInWindow.midY)
+
+        window.makeFirstResponder(inputTextView)
+        try sendKey("a", keyCode: 0, at: inputPoint, in: window)
+        try sendKey("b", keyCode: 11, at: inputPoint, in: window)
+        try sendKey("c", keyCode: 8, at: inputPoint, in: window)
+        XCTAssertEqual(inputTextView.string, "abc")
+
+        inputTextView.setSelectedRange(NSRange(location: 0, length: 3))
+        try sendDelete(at: inputPoint, in: window)
+        XCTAssertEqual(inputTextView.string, "")
+
+        editorTextView.setSelectedRange(NSRange(location: 15, length: 0))
+        editorTextView.delegate?.textViewDidChangeSelection?(
+            Notification(name: NSTextView.didChangeSelectionNotification, object: editorTextView)
+        )
+        window.makeFirstResponder(editorTextView)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.45))
+        hostingView.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(
+            hostingView.descendants(ofType: IntelligenceInstructionTextView.self).isEmpty,
+            "The AI input should disappear once both the instruction and selected text are empty."
+        )
+    }
+
+    func testFullEditorComposerAcceptsTypingAfterCollapsingSelectionWithExistingInstruction() throws {
+        var document = LineformDocument(text: "Select this sentence for AI.")
+        let editor = EditorContainerView(
+            document: Binding(
+                get: { document },
+                set: { document = $0 }
+            ),
+            initialIntelligenceRailEnabled: true
+        )
+        let hostingView = NSHostingView(rootView: editor)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 820, height: 620)
+
+        let window = KeyCapableTestWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let editorTextView = try XCTUnwrap(hostingView.descendants(ofType: LineformTextView.self).first)
+        editorTextView.setSelectedRange(NSRange(location: 0, length: 6))
+        editorTextView.delegate?.textViewDidChangeSelection?(
+            Notification(name: NSTextView.didChangeSelectionNotification, object: editorTextView)
+        )
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let inputTextView = try XCTUnwrap(hostingView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        let inputFrameInWindow = inputTextView.convert(inputTextView.bounds, to: nil)
+        let inputPoint = NSPoint(x: inputFrameInWindow.midX, y: inputFrameInWindow.midY)
+
+        window.makeFirstResponder(inputTextView)
+        try sendKey("a", keyCode: 0, at: inputPoint, in: window)
+        try sendKey("b", keyCode: 11, at: inputPoint, in: window)
+        try sendKey("c", keyCode: 8, at: inputPoint, in: window)
+        XCTAssertEqual(inputTextView.string, "abc")
+
+        editorTextView.setSelectedRange(NSRange(location: 15, length: 0))
+        editorTextView.delegate?.textViewDidChangeSelection?(
+            Notification(name: NSTextView.didChangeSelectionNotification, object: editorTextView)
+        )
+        window.makeFirstResponder(editorTextView)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.45))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let liveInputTextView = try XCTUnwrap(
+            hostingView.descendants(ofType: IntelligenceInstructionTextView.self).first,
+            "The AI input should remain live while it contains an instruction."
+        )
+        XCTAssertTrue(liveInputTextView === inputTextView)
+        XCTAssertTrue(liveInputTextView.window === window)
+        let liveInputFrameInWindow = liveInputTextView.convert(liveInputTextView.bounds, to: nil)
+        let liveInputPoint = NSPoint(x: liveInputFrameInWindow.midX, y: liveInputFrameInWindow.midY)
+        XCTAssertTrue(
+            EditorFloatingControlHitTestRegistry.contains(windowPoint: liveInputPoint, in: window),
+            "The AI composer should keep its floating hit-test region registered after the editor selection collapses."
+        )
+        let liveHitPoint = hostingView.convert(liveInputPoint, from: nil)
+        let liveHitView = hostingView.hitTest(liveHitPoint)
+        XCTAssertNotNil(liveHitView)
+        XCTAssertTrue(
+            liveHitView === liveInputTextView || liveHitView?.hasAncestor(liveInputTextView) == true,
+            "Expected the live AI input point to hit the composer text view, got \(String(describing: liveHitView))."
+        )
+        XCTAssertFalse(
+            liveHitView is LineformTextView,
+            "The AI input point should not hit the editor after the selection collapses; got \(String(describing: liveHitView))."
+        )
+
+        let inputClick = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: liveInputPoint,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 0
+        ))
+        NSApp.sendEvent(inputClick)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        XCTAssertTrue(
+            window.firstResponder === liveInputTextView,
+            "Expected clicking back into the AI input with existing text to restore focus, got \(String(describing: window.firstResponder))."
+        )
+
+        try sendKey("z", keyCode: 6, at: liveInputPoint, in: window)
+        XCTAssertEqual(liveInputTextView.string, "abcz")
+    }
+
     func testInstructionComposerTextViewAcceptsTypingAboveEditorScrollView() throws {
         var instruction = ""
         let root = ZStack(alignment: .bottom) {
@@ -641,6 +798,154 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(instruction, "x")
     }
 
+    func testInstructionComposerTextViewKeepsNativeClickEditingAfterRefocus() throws {
+        var instruction = ""
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "frozen",
+            isActionEnabled: true,
+            textChanged: { instruction = $0 },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.frame = NSRect(x: 0, y: 0, width: 560, height: 52)
+
+        let window = KeyCapableTestWindow(
+            contentRect: composerView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = composerView
+        window.makeKeyAndOrderFront(nil)
+        composerView.layoutSubtreeIfNeeded()
+
+        let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        textView.string = ""
+        instruction = ""
+        window.makeFirstResponder(nil)
+        XCTAssertFalse(window.firstResponder === textView)
+
+        let textFrame = textView.convert(textView.bounds, to: nil)
+        let mouseDown = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: textFrame.minX + 3, y: textFrame.midY),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        ))
+
+        textView.mouseDown(with: mouseDown)
+        XCTAssertTrue(window.firstResponder === textView)
+        XCTAssertEqual(textView.selectedRange().location, 0)
+
+        let keyDown = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: mouseDown.locationInWindow,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "y",
+            charactersIgnoringModifiers: "y",
+            isARepeat: false,
+            keyCode: 16
+        ))
+        window.sendEvent(keyDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        XCTAssertEqual(textView.string, "y")
+        XCTAssertEqual(instruction, "y")
+    }
+
+    func testInstructionComposerTextViewAllowsNativeDoubleClickSelectionAfterRefocus() throws {
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "alpha beta",
+            isActionEnabled: true,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.frame = NSRect(x: 0, y: 0, width: 560, height: 52)
+
+        let window = KeyCapableTestWindow(
+            contentRect: composerView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = composerView
+        window.makeKeyAndOrderFront(nil)
+        composerView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        window.makeFirstResponder(nil)
+        XCTAssertFalse(window.firstResponder === textView)
+
+        let firstGlyphRect = try XCTUnwrap(textView.layoutManager?.boundingRect(
+            forGlyphRange: NSRange(location: 1, length: 1),
+            in: try XCTUnwrap(textView.textContainer)
+        ))
+        let doubleClickPointInTextView = NSPoint(
+            x: textView.textContainerInset.width + firstGlyphRect.midX,
+            y: textView.textContainerInset.height + firstGlyphRect.midY
+        )
+        let doubleClickPoint = textView.convert(doubleClickPointInTextView, to: nil)
+        let doubleClick = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: doubleClickPoint,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 2,
+            pressure: 0
+        ))
+
+        NSApp.sendEvent(doubleClick)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        XCTAssertTrue(window.firstResponder === textView)
+        XCTAssertEqual((textView.string as NSString).substring(with: textView.selectedRange()), "alpha")
+    }
+
+    func testInstructionComposerKeepsLightThemeColorsInsideDarkWindowAppearance() throws {
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "",
+            isActionEnabled: true,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.appearance = NSAppearance(named: .darkAqua)
+        composerView.frame = NSRect(x: 0, y: 0, width: 560, height: 52)
+
+        let window = KeyCapableTestWindow(
+            contentRect: composerView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = composerView
+        window.makeKeyAndOrderFront(nil)
+        composerView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        let textColor = try XCTUnwrap(textView.textColor?.usingColorSpace(.sRGB))
+        let lightTextColor = try XCTUnwrap(NSColor.labelColor.usingColorSpace(.sRGB))
+
+        XCTAssertEqual(textColor.redComponent, lightTextColor.redComponent, accuracy: 0.01)
+        XCTAssertEqual(textColor.greenComponent, lightTextColor.greenComponent, accuracy: 0.01)
+        XCTAssertEqual(textColor.blueComponent, lightTextColor.blueComponent, accuracy: 0.01)
+    }
+
     func testTextViewDoesNotForcePointingHandForPassiveFloatingComposerRegion() throws {
         let textView = LineformTextView()
         textView.string = "Selected text sits behind the AI composer."
@@ -690,18 +995,32 @@ final class IntelligentEditingCursorTests: XCTestCase {
             performAction: { actionCount += 1 }
         )
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 28, height: 28),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: IntelligenceInstructionComposerPresentation.sendButtonSize,
+                height: IntelligenceInstructionComposerPresentation.sendButtonSize
+            ),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
         window.contentView = buttonView
-        buttonView.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 28, height: 28)
+        buttonView.frame = window.contentView?.bounds ?? NSRect(
+            x: 0,
+            y: 0,
+            width: IntelligenceInstructionComposerPresentation.sendButtonSize,
+            height: IntelligenceInstructionComposerPresentation.sendButtonSize
+        )
         buttonView.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(buttonView.intrinsicContentSize.width, IntelligenceInstructionComposerPresentation.sendButtonSize)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.sendButtonUsesFilledAccentBackground)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.sendButtonUsesWhiteSymbol)
 
         let event = try XCTUnwrap(NSEvent.mouseEvent(
             with: .leftMouseDown,
-            location: NSPoint(x: 14, y: 14),
+            location: NSPoint(x: buttonView.bounds.midX, y: buttonView.bounds.midY),
             modifierFlags: [],
             timestamp: 0,
             windowNumber: window.windowNumber,
@@ -711,7 +1030,7 @@ final class IntelligentEditingCursorTests: XCTestCase {
             pressure: 0
         ))
 
-        XCTAssertTrue(buttonView.hitTest(NSPoint(x: 14, y: 14)) === buttonView)
+        XCTAssertTrue(buttonView.hitTest(NSPoint(x: buttonView.bounds.midX, y: buttonView.bounds.midY)) === buttonView)
 
         buttonView.mouseEntered(with: event)
         XCTAssertTrue(buttonView.isHovering)
@@ -965,6 +1284,40 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(NSCursor.current, .iBeam)
         XCTAssertTrue(hoverStates.isEmpty)
         XCTAssertEqual(actionCount, 0)
+    }
+
+    private func sendKey(_ character: String, keyCode: UInt16, at point: NSPoint, in window: NSWindow) throws {
+        let keyDown = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: character,
+            charactersIgnoringModifiers: character,
+            isARepeat: false,
+            keyCode: keyCode
+        ))
+        window.sendEvent(keyDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+    }
+
+    private func sendDelete(at point: NSPoint, in window: NSWindow) throws {
+        let keyDown = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: String(UnicodeScalar(NSDeleteCharacter)!),
+            charactersIgnoringModifiers: String(UnicodeScalar(NSDeleteCharacter)!),
+            isARepeat: false,
+            keyCode: 51
+        ))
+        window.sendEvent(keyDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
     }
 
 }
