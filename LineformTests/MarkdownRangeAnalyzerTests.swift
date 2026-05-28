@@ -33,4 +33,12 @@ final class MarkdownRangeAnalyzerTests: XCTestCase {
 
         XCTAssertEqual(token?.range, NSRange(location: 0, length: 3))
     }
+
+    func testOrderedListMarkersCanUseParentheses() {
+        let markdown = "1) First item"
+
+        let token = MarkdownRangeAnalyzer().ranges(in: markdown).first { $0.kind == .listMarker }
+
+        XCTAssertEqual(token?.range, NSRange(location: 0, length: 3))
+    }
 }

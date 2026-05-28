@@ -177,7 +177,14 @@ enum IntelligentEditingEvaluationRubric {
             "end_lineform_option"
         ]
 
-        return blockedFragments.contains { normalizedText.contains($0) }
+        if blockedFragments.contains(where: { normalizedText.contains($0) }) {
+            return true
+        }
+
+        return text.range(
+            of: #"<<<\s*(?:END_)?LINEFORM_[A-Z0-9_]+\s*>>>"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 
     static func isUnchangedTransformOutput(_ replacement: String, selectedText: String) -> Bool {
@@ -406,10 +413,20 @@ enum IntelligentEditingEvaluationRubric {
 
         let inventedFragments = [
             "cloud database",
+            "cloud storage",
+            "stored in the cloud",
+            "stores markdown files in icloud",
+            "stores files in icloud",
+            "icloud cloud",
+            "icloud storage",
             "private cloud",
             "syncs every",
             "sync every",
+            "syncs markdown",
+            "syncs files",
             "uploads drafts",
+            "server database",
+            "remote database",
             "collaborate from anywhere",
             "team collaboration"
         ]
@@ -512,6 +529,14 @@ enum IntelligentEditingEvaluationRubric {
             return false
         }
 
+        if linkDestinations(in: replacement) != linkDestinations(in: selectedText) {
+            return false
+        }
+
+        if inlineCodeSpanCount(in: replacement) != inlineCodeSpanCount(in: selectedText) {
+            return false
+        }
+
         if selectedText.contains("\n\n```") && !replacement.contains("\n\n```") {
             return false
         }
@@ -593,17 +618,56 @@ enum IntelligentEditingEvaluationRubric {
         text.components(separatedBy: .newlines).compactMap { line in
             let leadingWhitespace = line.prefix { $0 == " " || $0 == "\t" }.count
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard let marker = trimmed.first, marker == "-" || marker == "*" else {
+
+            if let marker = trimmed.first, marker == "-" || marker == "*" {
+                let remainder = trimmed.dropFirst()
+                guard remainder.first?.isWhitespace == true else {
+                    return nil
+                }
+
+                return "\(leadingWhitespace):\(marker)"
+            }
+
+            guard let orderedMarker = orderedListMarker(in: trimmed) else {
                 return nil
             }
 
-            let remainder = trimmed.dropFirst()
-            guard remainder.first?.isWhitespace == true else {
-                return nil
-            }
-
-            return "\(leadingWhitespace):\(marker)"
+            return "\(leadingWhitespace):\(orderedMarker)"
         }
+    }
+
+    private static func orderedListMarker(in line: String) -> String? {
+        guard let matchRange = line.range(of: #"^\d+[.)]\s"#, options: .regularExpression) else {
+            return nil
+        }
+
+        let marker = String(line[matchRange]).trimmingCharacters(in: .whitespaces)
+        return marker.last.map { "ordered:\($0)" }
+    }
+
+    private static func linkDestinations(in text: String) -> [String] {
+        let pattern = #"\[[^\]]+\]\(([^\)]+)\)"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else {
+            return []
+        }
+
+        let nsText = text as NSString
+        return expression
+            .matches(in: text, range: NSRange(location: 0, length: nsText.length))
+            .compactMap { match in
+                guard match.numberOfRanges > 1 else {
+                    return nil
+                }
+                return nsText.substring(with: match.range(at: 1))
+            }
+    }
+
+    private static func inlineCodeSpanCount(in text: String) -> Int {
+        guard let expression = try? NSRegularExpression(pattern: #"`[^`\n]+`"#) else {
+            return 0
+        }
+
+        return expression.numberOfMatches(in: text, range: NSRange(location: 0, length: (text as NSString).length))
     }
 
     private static func listItemBlankSeparatorCount(in text: String) -> Int {
@@ -658,11 +722,11 @@ enum IntelligentEditingEvaluationRubric {
 
     private static func isListItemLine(_ line: String) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard let marker = trimmed.first, marker == "-" || marker == "*" else {
-            return false
+        if let marker = trimmed.first, marker == "-" || marker == "*" {
+            return trimmed.dropFirst().first?.isWhitespace == true
         }
 
-        return trimmed.dropFirst().first?.isWhitespace == true
+        return orderedListMarker(in: trimmed) != nil
     }
 
     private static func containsMessyMarkdownFormatting(_ text: String) -> Bool {

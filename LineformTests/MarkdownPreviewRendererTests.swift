@@ -57,4 +57,15 @@ final class MarkdownPreviewRendererTests: XCTestCase {
 
         XCTAssertEqual(textView.textContainerInset.width, 40)
     }
+
+    @MainActor
+    func testPreviewTextViewDoesNotRerenderUnchangedContent() {
+        let textView = MarkdownPreviewTextView()
+
+        textView.apply(text: "Body copy", profile: .original)
+        textView.setSelectedRange(NSRange(location: 5, length: 4))
+        textView.apply(text: "Body copy", profile: .original)
+
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 5, length: 4))
+    }
 }

@@ -17,6 +17,13 @@ struct MarkdownTokenRange: Equatable, Hashable {
 }
 
 struct MarkdownRangeAnalyzer {
+    private static let headingRegex = try? NSRegularExpression(pattern: #"^#{1,6}(?=\s)"#)
+    private static let listRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-+*]|\d+[.)])\s"#)
+    private static let checkboxRegex = try? NSRegularExpression(pattern: #"\[[ xX]\]"#)
+    private static let blockquoteRegex = try? NSRegularExpression(pattern: #"^\s*>\s?"#)
+    private static let codeSpanRegex = try? NSRegularExpression(pattern: "`[^`\\n]+`")
+    private static let linkRegex = try? NSRegularExpression(pattern: #"\[([^\]]+)\]\(([^\)]+)\)"#)
+
     func ranges(in text: String) -> [MarkdownTokenRange] {
         var tokens: [MarkdownTokenRange] = []
         let nsText = text as NSString
@@ -26,7 +33,7 @@ struct MarkdownRangeAnalyzer {
             tokens.append(contentsOf: lineTokens(in: nsText, lineRange: lineRange))
         }
 
-        tokens.append(contentsOf: regexTokens(pattern: "`[^`\\n]+`", kind: .codeSpan, text: text))
+        tokens.append(contentsOf: regexTokens(regex: Self.codeSpanRegex, kind: .codeSpan, text: text))
         tokens.append(contentsOf: linkTokens(in: text))
 
         return tokens.sorted { lhs, rhs in
@@ -45,19 +52,19 @@ struct MarkdownRangeAnalyzer {
             tokens.append(MarkdownTokenRange(kind: .codeFence, range: NSRange(location: lineRange.location, length: 3)))
         }
 
-        if let headingRange = firstMatch(pattern: #"^#{1,6}(?=\s)"#, in: line as String) {
+        if let headingRange = firstMatch(regex: Self.headingRegex, in: line as String) {
             tokens.append(offsetToken(kind: .headingMarker, localRange: headingRange, lineRange: lineRange))
         }
 
-        if let listRange = firstMatch(pattern: #"^\s*(?:[-+*]|\d+\.)\s"#, in: line as String) {
+        if let listRange = firstMatch(regex: Self.listRegex, in: line as String) {
             tokens.append(offsetToken(kind: .listMarker, localRange: listRange, lineRange: lineRange))
         }
 
-        if let checkboxRange = firstMatch(pattern: #"\[[ xX]\]"#, in: line as String) {
+        if let checkboxRange = firstMatch(regex: Self.checkboxRegex, in: line as String) {
             tokens.append(offsetToken(kind: .checkbox, localRange: checkboxRange, lineRange: lineRange))
         }
 
-        if let quoteRange = firstMatch(pattern: #"^\s*>\s?"#, in: line as String) {
+        if let quoteRange = firstMatch(regex: Self.blockquoteRegex, in: line as String) {
             tokens.append(offsetToken(kind: .blockquoteMarker, localRange: quoteRange, lineRange: lineRange))
         }
 
@@ -65,9 +72,8 @@ struct MarkdownRangeAnalyzer {
     }
 
     private func linkTokens(in text: String) -> [MarkdownTokenRange] {
-        let regex = try? NSRegularExpression(pattern: #"\[([^\]]+)\]\(([^\)]+)\)"#)
         let nsText = text as NSString
-        let matches = regex?.matches(in: text, range: NSRange(location: 0, length: nsText.length)) ?? []
+        let matches = Self.linkRegex?.matches(in: text, range: NSRange(location: 0, length: nsText.length)) ?? []
 
         return matches.flatMap { match -> [MarkdownTokenRange] in
             [
@@ -77,15 +83,13 @@ struct MarkdownRangeAnalyzer {
         }
     }
 
-    private func regexTokens(pattern: String, kind: MarkdownTokenKind, text: String) -> [MarkdownTokenRange] {
-        let regex = try? NSRegularExpression(pattern: pattern)
+    private func regexTokens(regex: NSRegularExpression?, kind: MarkdownTokenKind, text: String) -> [MarkdownTokenRange] {
         let nsText = text as NSString
         let matches = regex?.matches(in: text, range: NSRange(location: 0, length: nsText.length)) ?? []
         return matches.map { MarkdownTokenRange(kind: kind, range: $0.range) }
     }
 
-    private func firstMatch(pattern: String, in text: String) -> NSRange? {
-        let regex = try? NSRegularExpression(pattern: pattern)
+    private func firstMatch(regex: NSRegularExpression?, in text: String) -> NSRange? {
         let nsText = text as NSString
         return regex?.firstMatch(in: text, range: NSRange(location: 0, length: nsText.length))?.range
     }

@@ -84,4 +84,26 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertFalse(payload.matches(windowNumber: 7))
         XCTAssertEqual(payload.value, "read")
     }
+
+    @MainActor
+    func testDisplayModeMenuStateTracksCurrentMode() {
+        let state = LineformDisplayModeMenuState(displayMode: .write)
+
+        state.setDisplayMode(.read)
+
+        XCTAssertEqual(state.displayMode, .read)
+    }
+
+    func testAppDeclaresImportedMarkdownType() throws {
+        let bundle = try XCTUnwrap(Bundle(identifier: "com.lineform.app"))
+        let declarations = try XCTUnwrap(
+            bundle.infoDictionary?["UTImportedTypeDeclarations"] as? [[String: Any]]
+        )
+
+        let importedTypes = declarations.compactMap { declaration in
+            declaration["UTTypeIdentifier"] as? String
+        }
+
+        XCTAssertTrue(importedTypes.contains("net.daringfireball.markdown"))
+    }
 }

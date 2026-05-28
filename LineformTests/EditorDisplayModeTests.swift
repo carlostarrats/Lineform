@@ -28,6 +28,50 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorSearchResolver.previousIndex(before: 0, matchCount: matches.count), 2)
     }
 
+    func testEditorSearchRefreshDoesNotNavigateDuringPassiveDocumentEdits() {
+        let matches = EditorSearchResolver.matches(in: "alpha beta alpha", query: "alpha")
+
+        let result = EditorSearchResolver.refreshState(
+            currentActiveIndex: 0,
+            matches: matches,
+            selectFirstWhenNeeded: false,
+            navigatesToActiveMatch: false
+        )
+
+        XCTAssertEqual(result.activeIndex, 0)
+        XCTAssertNil(result.requestedSelection)
+    }
+
+    func testEditorSearchRefreshNavigatesWhenRequestedByQueryOrArrow() {
+        let matches = EditorSearchResolver.matches(in: "alpha beta alpha", query: "alpha")
+
+        let result = EditorSearchResolver.refreshState(
+            currentActiveIndex: nil,
+            matches: matches,
+            selectFirstWhenNeeded: true,
+            navigatesToActiveMatch: true
+        )
+
+        XCTAssertEqual(result.activeIndex, 0)
+        XCTAssertEqual(result.requestedSelection, matches[0])
+    }
+
+    func testEditorSearchVisibleMatchesIncludesOnlyVisibleAndActiveRanges() {
+        let ranges = [
+            NSRange(location: 0, length: 3),
+            NSRange(location: 50, length: 3),
+            NSRange(location: 120, length: 3)
+        ]
+
+        let visible = EditorSearchResolver.visibleMatches(
+            ranges,
+            activeRange: ranges[0],
+            visibleCharacterRange: NSRange(location: 45, length: 20)
+        )
+
+        XCTAssertEqual(visible, [ranges[0], ranges[1]])
+    }
+
     func testEditorSearchIgnoresEmptyAndWhitespaceQueries() {
         XCTAssertTrue(EditorSearchResolver.matches(in: "Anything", query: "").isEmpty)
         XCTAssertTrue(EditorSearchResolver.matches(in: "Anything", query: "   ").isEmpty)

@@ -182,6 +182,18 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(result.failures.contains(.placeholderOrDummyText))
     }
 
+    func testRubricRejectsGenericLineformProtocolTags() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "<<<LINEFORM_SELECTED_TEXT>>>",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.placeholderOrDummyText))
+    }
+
     func testRubricRejectsApologyOrExplanationInsteadOfReplacement() throws {
         let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "sentence-rewrite" })
 
@@ -199,6 +211,18 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
 
         let result = IntelligentEditingEvaluationRubric.evaluate(
             replacement: "Lineform syncs every Markdown file to a private cloud database so teams can collaborate from anywhere.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.lowQualityReplacement))
+    }
+
+    func testRubricRejectsRewriteThatMovesLocalFilesToCloudStorage() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "fact-preserving-rewrite" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "Lineform stores Markdown files in iCloud cloud storage so writers can access drafts from anywhere.",
             task: task
         )
 
@@ -259,6 +283,48 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         )
 
         XCTAssertTrue(result.passed, result.failureSummary)
+    }
+
+    func testRubricRejectsDroppedOrderedListMarkersWhenMarkdownMustBePreserved() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "ordered-list-preservation",
+            action: .rewrite,
+            selectedText: "1. Keep files local.\n2. Preserve Markdown structure.",
+            documentContext: "1. Keep files local.\n2. Preserve Markdown structure.",
+            length: .paragraph,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "Keep files local.\nPreserve Markdown structure.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.markdownStructureNotPreserved))
+    }
+
+    func testRubricRejectsDroppedMarkdownLinksWhenMarkdownMustBePreserved() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "link-preservation",
+            action: .rewrite,
+            selectedText: "Open [release notes](https://example.com) before shipping.",
+            documentContext: "Open [release notes](https://example.com) before shipping.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "Open release notes before shipping.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.markdownStructureNotPreserved))
     }
 
     func testRubricAllowsCleanMarkdownWithSpacedLevelTwoHeading() throws {

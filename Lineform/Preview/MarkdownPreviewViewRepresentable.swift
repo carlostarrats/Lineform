@@ -33,6 +33,8 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
 
 final class MarkdownPreviewTextView: NSTextView {
     private var activeProfile = ReadingProfile.original
+    private var renderedText: String?
+    private var renderedProfile: ReadingProfile?
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -64,7 +66,14 @@ final class MarkdownPreviewTextView: NSTextView {
         backgroundColor = theme.backgroundColor
         textColor = theme.textColor
         updateTextContainerLayout()
+
+        guard text != renderedText || profile != renderedProfile else {
+            return
+        }
+
         textStorage?.setAttributedString(MarkdownPreviewRenderer().render(text, profile: profile))
+        renderedText = text
+        renderedProfile = profile
     }
 
     private func configure() {
@@ -83,10 +92,13 @@ final class MarkdownPreviewTextView: NSTextView {
     }
 
     private func updateTextContainerLayout() {
-        textContainerInset = NSSize(
+        let inset = NSSize(
             width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: activeProfile),
             height: 32
         )
+        if textContainerInset != inset {
+            textContainerInset = inset
+        }
         textContainer?.widthTracksTextView = true
     }
 }

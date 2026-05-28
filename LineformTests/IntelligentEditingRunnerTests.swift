@@ -826,6 +826,40 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         }
     }
 
+    func testRunnerRejectsRewriteThatDropsOrderedListMarkers() async throws {
+        let selectedText = "1. Keep files local.\n2. Preserve Markdown structure."
+        let service = StubIntelligentEditingService(result: "Keep files local.\nPreserve Markdown structure.")
+        let runner = IntelligentEditingRunner(service: service)
+
+        do {
+            _ = try await runner.run(
+                action: .rewrite,
+                documentText: selectedText,
+                selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+            )
+            XCTFail("Expected dropped ordered-list markers to be rejected.")
+        } catch IntelligentEditingError.emptyResponse {
+            XCTAssertEqual(service.requests.first?.selectedText, selectedText)
+        }
+    }
+
+    func testRunnerRejectsRewriteThatDropsMarkdownLinkDestination() async throws {
+        let selectedText = "Open [release notes](https://example.com) before shipping."
+        let service = StubIntelligentEditingService(result: "Open release notes before shipping.")
+        let runner = IntelligentEditingRunner(service: service)
+
+        do {
+            _ = try await runner.run(
+                action: .rewrite,
+                documentText: selectedText,
+                selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+            )
+            XCTFail("Expected dropped Markdown link to be rejected.")
+        } catch IntelligentEditingError.emptyResponse {
+            XCTAssertEqual(service.requests.first?.selectedText, selectedText)
+        }
+    }
+
     func testRunnerKeepsNearbyContextSmallForResponsiveEditing() async throws {
         let service = StubIntelligentEditingService(result: "This selected sentence keeps enough words for context.")
         let runner = IntelligentEditingRunner(service: service)

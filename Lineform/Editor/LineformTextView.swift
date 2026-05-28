@@ -370,7 +370,13 @@ final class LineformTextView: NSTextView {
             return
         }
 
-        for range in searchHighlightRanges {
+        let rangesToDraw = EditorSearchResolver.visibleMatches(
+            searchHighlightRanges,
+            activeRange: activeSearchHighlightRange,
+            visibleCharacterRange: visibleCharacterRangeForSearchHighlights()
+        )
+
+        for range in rangesToDraw {
             let isActive = range == activeSearchHighlightRange
             let color = isActive
                 ? NSColor.controlAccentColor.withAlphaComponent(0.22)
@@ -381,6 +387,23 @@ final class LineformTextView: NSTextView {
                 rect.insetBy(dx: -2, dy: -1).fill()
             }
         }
+    }
+
+    private func visibleCharacterRangeForSearchHighlights() -> NSRange? {
+        guard
+            let layoutManager,
+            let textContainer,
+            let scrollView = enclosingScrollView
+        else {
+            return nil
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        var visibleRect = scrollView.contentView.bounds
+        visibleRect.origin.x -= textContainerOrigin.x
+        visibleRect.origin.y -= textContainerOrigin.y
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+        return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
     }
 
     private func isEventInsideFloatingControl(_ event: NSEvent) -> Bool {

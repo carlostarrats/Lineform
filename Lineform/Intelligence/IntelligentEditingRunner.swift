@@ -202,7 +202,11 @@ struct IntelligentEditingRunner {
         action == .cleanMarkdown
             || selectedText.contains("```")
             || selectedText.contains("- ")
+            || selectedText.range(of: #"(?m)^\s*\d+[.)]\s"#, options: .regularExpression) != nil
             || selectedText.contains("> ")
+            || selectedText.range(of: #"\[[^\]]+\]\([^\)]+\)"#, options: .regularExpression) != nil
+            || selectedText.range(of: #"`[^`\n]+`"#, options: .regularExpression) != nil
+            || selectedText.contains("|")
             || selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("#")
     }
 }

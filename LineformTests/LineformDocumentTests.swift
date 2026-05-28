@@ -61,10 +61,52 @@ final class LineformDocumentTests: XCTestCase {
         XCTAssertGreaterThan(pdfData.count, 100)
     }
 
+    func testPDFExportPaginatesLongDocuments() throws {
+        let longText = (1...220)
+            .map { "Line \($0): Lineform keeps Markdown files portable across normal file tools." }
+            .joined(separator: "\n")
+        let document = LineformDocument(text: longText)
+
+        let pdfData = document.pdfData()
+        let provider = try XCTUnwrap(CGDataProvider(data: pdfData as CFData))
+        let pdfDocument = try XCTUnwrap(CGPDFDocument(provider))
+
+        XCTAssertGreaterThan(pdfDocument.numberOfPages, 1)
+    }
+
     func testPlainTextSaveWritesPlainTextWithoutMarkdownMarkers() throws {
         let document = LineformDocument(text: "# Title\n\nPortable **Markdown**.\n")
 
         XCTAssertEqual(document.plainTextData(), Data("Title\n\nPortable Markdown.\n".utf8))
+    }
+
+    func testPlainTextDocumentSavePreservesLiteralMarkdownLookingText() throws {
+        let source = "# Not a heading\n- Not a list marker\n**Literal stars** and `literal ticks`\n"
+        let document = LineformDocument(text: source, textFormat: .plainText)
+
+        let data = try document.data(for: .plainText)
+
+        XCTAssertEqual(data, Data(source.utf8))
+    }
+
+    func testReadConfigurationRejectsNonRegularFileWrappers() throws {
+        let directoryWrapper = FileWrapper(directoryWithFileWrappers: [:])
+
+        XCTAssertThrowsError(
+            try LineformDocument(fileWrapper: directoryWrapper, contentType: .plainText)
+        )
+    }
+
+    func testOnlyNativeDocumentSavesUpdateLastSavedStatus() {
+        let markdownDocument = LineformDocument(text: "# Title", textFormat: .markdown)
+        let plainTextDocument = LineformDocument(text: "# Literal", textFormat: .plainText)
+
+        XCTAssertTrue(markdownDocument.recordsSourceSave(for: .markdownText))
+        XCTAssertFalse(markdownDocument.recordsSourceSave(for: .plainText))
+        XCTAssertFalse(markdownDocument.recordsSourceSave(for: .pdf))
+        XCTAssertTrue(plainTextDocument.recordsSourceSave(for: .plainText))
+        XCTAssertFalse(plainTextDocument.recordsSourceSave(for: .markdownText))
+        XCTAssertFalse(plainTextDocument.recordsSourceSave(for: .pdf))
     }
 
     func testDocumentTextFormatConversionRoundTripsMarkdownFromMenuCommandState() {

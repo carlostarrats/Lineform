@@ -68,11 +68,36 @@ final class LineformTextFormatMenuState: ObservableObject {
     }
 }
 
+@MainActor
+final class LineformDisplayModeMenuState: ObservableObject {
+    static let shared = LineformDisplayModeMenuState()
+
+    @Published private(set) var displayMode: EditorDisplayMode
+
+    init(displayMode: EditorDisplayMode = .write) {
+        self.displayMode = displayMode
+    }
+
+    func setDisplayMode(_ displayMode: EditorDisplayMode) {
+        guard self.displayMode != displayMode else {
+            return
+        }
+
+        self.displayMode = displayMode
+        NSApp.mainMenu?.update()
+    }
+}
+
 struct AppCommands: Commands {
     @ObservedObject private var textFormatMenuState: LineformTextFormatMenuState
+    @ObservedObject private var displayModeMenuState: LineformDisplayModeMenuState
 
-    init(textFormatMenuState: LineformTextFormatMenuState = .shared) {
+    init(
+        textFormatMenuState: LineformTextFormatMenuState = .shared,
+        displayModeMenuState: LineformDisplayModeMenuState = .shared
+    ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
+        _displayModeMenuState = ObservedObject(wrappedValue: displayModeMenuState)
     }
 
     var body: some Commands {
@@ -198,8 +223,9 @@ struct AppCommands: Commands {
 
     private var displayModeSelection: Binding<EditorDisplayMode> {
         Binding(
-            get: { .write },
+            get: { displayModeMenuState.displayMode },
             set: { mode in
+                displayModeMenuState.setDisplayMode(mode)
                 LineformAppNotification.setDisplayMode.post(
                     object: LineformAppNotification.activeWindowPayload(value: mode.rawValue)
                 )

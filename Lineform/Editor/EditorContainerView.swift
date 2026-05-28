@@ -110,6 +110,7 @@ struct EditorContainerView: View {
             convertDocumentTextFormat(to: format, selectedRange: notificationPayloadSelectedRange(notification))
         }
         .onChange(of: displayMode) { _, mode in
+            LineformDisplayModeMenuState.shared.setDisplayMode(mode)
             if !EditorToolbarVisibility.showsMarkdownBasics(in: mode) {
                 isShowingMarkdownBasics = false
             }
@@ -122,6 +123,7 @@ struct EditorContainerView: View {
         }
         .onAppear {
             LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
+            LineformDisplayModeMenuState.shared.setDisplayMode(displayMode)
             documentStatistics = DocumentStatistics(text: document.text)
             outlineItems = MarkdownOutlineParser().items(in: document.text)
         }
@@ -131,14 +133,14 @@ struct EditorContainerView: View {
         .onChange(of: document.text) { _, newValue in
             documentStatistics = DocumentStatistics(text: newValue)
             outlineItems = MarkdownOutlineParser().items(in: newValue)
-            refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil)
+            refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil, navigatesToActiveMatch: false)
             if let activeIntelligentSuggestion, !activeIntelligentSuggestion.canApply(to: newValue) {
                 clearIntelligentSuggestions()
                 intelligentEditingStatus = "Suggestion expired after edits."
             }
         }
         .onChange(of: searchQuery) { _, _ in
-            refreshSearchMatches(selectFirstWhenNeeded: true)
+            refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
         }
     }
 
@@ -375,23 +377,23 @@ struct EditorContainerView: View {
         }
     }
 
-    private func refreshSearchMatches(selectFirstWhenNeeded: Bool) {
+    private func refreshSearchMatches(selectFirstWhenNeeded: Bool, navigatesToActiveMatch: Bool = true) {
         let matches = EditorSearchResolver.matches(in: document.text, query: searchQuery)
         searchMatches = matches
 
-        guard !matches.isEmpty else {
-            activeSearchIndex = nil
-            return
-        }
+        let refresh = EditorSearchResolver.refreshState(
+            currentActiveIndex: activeSearchIndex,
+            matches: matches,
+            selectFirstWhenNeeded: selectFirstWhenNeeded,
+            navigatesToActiveMatch: navigatesToActiveMatch
+        )
+        activeSearchIndex = refresh.activeIndex
 
-        if
-            let activeSearchIndex,
-            matches.indices.contains(activeSearchIndex)
-        {
-            selectSearchMatch(at: activeSearchIndex)
-        } else if selectFirstWhenNeeded {
-            activeSearchIndex = 0
-            selectSearchMatch(at: 0)
+        if let requestedSelection = refresh.requestedSelection {
+            if displayMode == .read {
+                displayMode = .write
+            }
+            self.requestedSelection = requestedSelection
         }
     }
 
@@ -958,6 +960,11 @@ enum EditorToolbarAction: CaseIterable, Equatable, Identifiable {
 }
 
 enum EditorSearchResolver {
+    struct RefreshState: Equatable {
+        let activeIndex: Int?
+        let requestedSelection: NSRange?
+    }
+
     static func matches(in text: String, query: String) -> [NSRange] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
@@ -989,6 +996,51 @@ enum EditorSearchResolver {
         }
 
         return matches
+    }
+
+    static func refreshState(
+        currentActiveIndex: Int?,
+        matches: [NSRange],
+        selectFirstWhenNeeded: Bool,
+        navigatesToActiveMatch: Bool
+    ) -> RefreshState {
+        guard !matches.isEmpty else {
+            return RefreshState(activeIndex: nil, requestedSelection: nil)
+        }
+
+        let activeIndex: Int?
+        if let currentActiveIndex, matches.indices.contains(currentActiveIndex) {
+            activeIndex = currentActiveIndex
+        } else if selectFirstWhenNeeded {
+            activeIndex = 0
+        } else {
+            activeIndex = nil
+        }
+
+        guard
+            navigatesToActiveMatch,
+            let activeIndex,
+            matches.indices.contains(activeIndex)
+        else {
+            return RefreshState(activeIndex: activeIndex, requestedSelection: nil)
+        }
+
+        return RefreshState(activeIndex: activeIndex, requestedSelection: matches[activeIndex])
+    }
+
+    static func visibleMatches(_ ranges: [NSRange], activeRange: NSRange?, visibleCharacterRange: NSRange?) -> [NSRange] {
+        guard let visibleCharacterRange else {
+            return ranges
+        }
+
+        var visibleRanges: [NSRange] = []
+        for range in ranges {
+            let intersectsVisibleRange = NSIntersectionRange(range, visibleCharacterRange).length > 0
+            if intersectsVisibleRange || range == activeRange {
+                visibleRanges.append(range)
+            }
+        }
+        return visibleRanges
     }
 
     static func nextIndex(after index: Int?, matchCount: Int) -> Int? {

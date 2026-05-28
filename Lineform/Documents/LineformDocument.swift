@@ -44,11 +44,17 @@ struct LineformDocument: FileDocument, Equatable {
         plainTextConversion = nil
     }
 
+    init(fileWrapper: FileWrapper, contentType: UTType, id: UUID = UUID()) throws {
+        guard fileWrapper.isRegularFile, let data = fileWrapper.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let textFormat: LineformTextFormat = contentType == .plainText ? .plainText : .markdown
+        try self.init(markdownData: data, id: id, textFormat: textFormat)
+    }
+
     init(configuration: ReadConfiguration) throws {
-        let data = configuration.file.regularFileContents ?? Data()
         let documentID = UUID()
-        let textFormat: LineformTextFormat = configuration.contentType == .plainText ? .plainText : .markdown
-        try self.init(markdownData: data, id: documentID, textFormat: textFormat)
+        try self.init(fileWrapper: configuration.file, contentType: configuration.contentType, id: documentID)
 
         if let modificationDate = Self.modificationDate(from: configuration.file) {
             Task { @MainActor in
@@ -118,6 +124,26 @@ struct LineformDocument: FileDocument, Equatable {
         return nil
     }
 
+    func data(for contentType: UTType) throws -> Data {
+        switch contentType {
+        case .pdf:
+            return pdfData()
+        case .plainText:
+            return textFormat == .plainText ? markdownData() : plainTextData()
+        default:
+            return markdownData()
+        }
+    }
+
+    func recordsSourceSave(for contentType: UTType) -> Bool {
+        switch textFormat {
+        case .markdown:
+            return contentType == .markdownText
+        case .plainText:
+            return contentType == .plainText
+        }
+    }
+
     func pdfData() -> Data {
         let pageRect = CGRect(x: 0, y: 0, width: 612, height: 792)
         let margin: CGFloat = 72
@@ -145,12 +171,29 @@ struct LineformDocument: FileDocument, Equatable {
             return Data()
         }
 
-        context.beginPDFPage(nil)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        attributedText.draw(in: textRect)
-        NSGraphicsContext.restoreGraphicsState()
-        context.endPDFPage()
+        let textStorage = NSTextStorage(attributedString: attributedText)
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+
+        repeat {
+            let textContainer = NSTextContainer(size: textRect.size)
+            textContainer.lineFragmentPadding = 0
+            layoutManager.addTextContainer(textContainer)
+
+            let glyphRange = layoutManager.glyphRange(for: textContainer)
+            guard glyphRange.length > 0 else {
+                break
+            }
+
+            context.beginPDFPage(nil)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+            layoutManager.drawBackground(forGlyphRange: glyphRange, at: textRect.origin)
+            layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: textRect.origin)
+            NSGraphicsContext.restoreGraphicsState()
+            context.endPDFPage()
+        } while layoutManager.textContainers.count < layoutManager.numberOfGlyphs
+
         context.closePDF()
 
         return data as Data
@@ -161,20 +204,14 @@ struct LineformDocument: FileDocument, Equatable {
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        let documentID = id
-        Task { @MainActor in
-            DocumentSaveStatus.shared.markSaved(documentID: documentID)
+        let data = try data(for: configuration.contentType)
+        if recordsSourceSave(for: configuration.contentType) {
+            let documentID = id
+            Task { @MainActor in
+                DocumentSaveStatus.shared.markSaved(documentID: documentID)
+            }
         }
 
-        let data: Data
-        switch configuration.contentType {
-        case .pdf:
-            data = pdfData()
-        case .plainText:
-            data = plainTextData()
-        default:
-            data = markdownData()
-        }
         return FileWrapper(regularFileWithContents: data)
     }
 
