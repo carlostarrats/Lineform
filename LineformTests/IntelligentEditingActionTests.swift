@@ -106,6 +106,28 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertGreaterThan(buttonFill.blueComponent, 0.7)
     }
 
+    func testAiComposerPlaceholderMeetsAAContrastInLightAndDarkThemes() throws {
+        let lightBackground = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.backgroundColor(usesDarkAppearance: false)
+                .usingColorSpace(.sRGB)
+        )
+        let darkBackground = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.backgroundColor(usesDarkAppearance: true)
+                .usingColorSpace(.sRGB)
+        )
+        let lightPlaceholder = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.placeholderColor(usesDarkAppearance: false)
+                .usingColorSpace(.sRGB)
+        )
+        let darkPlaceholder = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.placeholderColor(usesDarkAppearance: true)
+                .usingColorSpace(.sRGB)
+        )
+
+        XCTAssertGreaterThanOrEqual(Self.contrastRatio(lightPlaceholder, lightBackground), 4.5)
+        XCTAssertGreaterThanOrEqual(Self.contrastRatio(darkPlaceholder, darkBackground), 4.5)
+    }
+
     func testAiComposerUsesRetainedSelectionWhileInputIsFocused() {
         let document = "One selected sentence. Another sentence."
         let selected = SelectionContext(
@@ -336,5 +358,25 @@ final class IntelligentEditingActionTests: XCTestCase {
 
         XCTAssertEqual(placement.width, 900)
         XCTAssertEqual(placement.bodyHeight, 380)
+    }
+
+    private static func contrastRatio(_ foreground: NSColor, _ background: NSColor) -> CGFloat {
+        let foregroundLuminance = relativeLuminance(foreground)
+        let backgroundLuminance = relativeLuminance(background)
+        return (max(foregroundLuminance, backgroundLuminance) + 0.05)
+            / (min(foregroundLuminance, backgroundLuminance) + 0.05)
+    }
+
+    private static func relativeLuminance(_ color: NSColor) -> CGFloat {
+        let rgb = color.usingColorSpace(.sRGB) ?? color
+        return 0.2126 * linearized(rgb.redComponent)
+            + 0.7152 * linearized(rgb.greenComponent)
+            + 0.0722 * linearized(rgb.blueComponent)
+    }
+
+    private static func linearized(_ component: CGFloat) -> CGFloat {
+        component <= 0.03928
+            ? component / 12.92
+            : pow((component + 0.055) / 1.055, 2.4)
     }
 }

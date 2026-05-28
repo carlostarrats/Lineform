@@ -7,8 +7,6 @@ struct EditorContainerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
     @State private var isShowingReadingInspector = false
-    @State private var isReadingInspectorLayoutTransitionActive = false
-    @State private var readingInspectorTransitionID = 0
     @State private var isShowingMarkdownBasics = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline = false
@@ -177,17 +175,39 @@ struct EditorContainerView: View {
         let theme = currentTheme
 
         return ZStack {
-            editorPrimaryShell
-                .inspector(isPresented: $isShowingReadingInspector) {
+            HStack(spacing: 0) {
+                editorPrimaryShell
+                    .frame(minWidth: EditorLayout.minimumContentWidth, maxWidth: .infinity, maxHeight: .infinity)
+
+                ZStack(alignment: .leading) {
                     ReadingExperienceInspector(store: readingProfileStore, usesDarkChrome: theme.usesDarkChrome)
-                        .inspectorColumnWidth(
-                            min: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
-                            ideal: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
-                            max: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380
+                        .frame(
+                            minWidth: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
+                            idealWidth: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
+                            maxWidth: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380,
+                            maxHeight: .infinity
                         )
                         .id(theme.usesDarkChrome)
                         .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
+                        .opacity(isShowingReadingInspector ? 1 : 0)
+                        .accessibilityHidden(!isShowingReadingInspector)
                 }
+                .frame(
+                    width: isShowingReadingInspector
+                        ? EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320
+                        : 0,
+                    alignment: .leading
+                )
+                .clipped()
+                .allowsHitTesting(isShowingReadingInspector)
+            }
+            .animation(
+                EditorMotionPolicy.animation(
+                    .linear(duration: EditorInspectorTextResponse.transitionDuration),
+                    reduceMotion: reduceMotion
+                ),
+                value: isShowingReadingInspector
+            )
 
             if isShowingMarkdownBasics {
                 MarkdownBasicsOverlay {
@@ -361,7 +381,7 @@ struct EditorContainerView: View {
             requestedSelection: $requestedSelection,
             selectionAnchorRect: $selectionAnchorRect,
             profile: readingProfileStore.activeProfile,
-            smoothsHorizontalInsetChanges: isReadingInspectorLayoutTransitionActive && EditorInspectorTextResponse.smoothsHorizontalInsetChanges,
+            smoothsHorizontalInsetChanges: false,
             intelligentSuggestionRange: activeIntelligentSuggestion?.selectedRange,
             searchRanges: searchMatches,
             activeSearchRange: activeSearchRange
@@ -695,12 +715,8 @@ struct EditorContainerView: View {
             return
         }
 
-        readingInspectorTransitionID += 1
-        let transitionID = readingInspectorTransitionID
-        isReadingInspectorLayoutTransitionActive = !reduceMotion
-
         if let animation = EditorMotionPolicy.animation(
-            .easeInOut(duration: EditorInspectorTextResponse.transitionDuration),
+            .linear(duration: EditorInspectorTextResponse.transitionDuration),
             reduceMotion: reduceMotion
         ) {
             withAnimation(animation) {
@@ -708,20 +724,6 @@ struct EditorContainerView: View {
             }
         } else {
             isShowingReadingInspector = isVisible
-        }
-
-        Task { @MainActor in
-            let duration = EditorMotionPolicy.effectiveDuration(
-                EditorInspectorTextResponse.transitionDuration,
-                reduceMotion: reduceMotion
-            )
-            if duration > 0 {
-                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            }
-            guard readingInspectorTransitionID == transitionID else {
-                return
-            }
-            isReadingInspectorLayoutTransitionActive = false
         }
     }
 
@@ -764,12 +766,12 @@ enum EditorLayout {
 }
 
 enum EditorInspectorTextResponse {
-    static let smoothsHorizontalInsetChanges = true
+    static let smoothsHorizontalInsetChanges = false
     static let usesPresentationLayerHorizontalSmoothing = false
-    static let preservesVerticalAnchorDuringPresentationSmoothing = true
+    static let preservesVerticalAnchorDuringPresentationSmoothing = false
     static let usesExplicitPresentationOffsetAnimation = false
     static let allowsImplicitContentAnimationDuringPresentationSmoothing = false
-    static let transitionDuration: TimeInterval = 0.22
+    static let transitionDuration: TimeInterval = 0.18
     static let horizontalInsetAnimationDuration: TimeInterval = transitionDuration
     static let presentationOffsetAnimationDuration = transitionDuration
     static let presentationOffsetDistance: CGFloat = 0
@@ -889,6 +891,10 @@ enum IntelligenceActionRailPresentation {
 enum IntelligenceInstructionComposerPresentation {
     static let prompt = "Tell AI what to do..."
     static let submitSystemImage = "arrow.up"
+    static let inputAccessibilityLabel = "AI instruction"
+    static let inputAccessibilityHelp = "Describe how Lineform should edit the selected text."
+    static let submitAccessibilityLabel = "Run AI instruction"
+    static let submitAccessibilityHelp = "Apply the typed AI instruction to the selected text."
     static let usesFixedShortcutButtons = false
     static let animatesSelectionVisibilityChanges = true
     static let usesStableNativePlaceholder = true
@@ -1693,6 +1699,8 @@ final class IntelligenceInstructionComposerNSView: NSView {
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = true
+        textView.setAccessibilityLabel(IntelligenceInstructionComposerPresentation.inputAccessibilityLabel)
+        textView.setAccessibilityHelp(IntelligenceInstructionComposerPresentation.inputAccessibilityHelp)
         applyAppearanceStyling()
     }
 
@@ -1984,6 +1992,13 @@ struct IntelligenceInstructionSubmitButton: NSViewRepresentable {
 final class IntelligenceInstructionSubmitButtonNSView: NSView {
     var isActionEnabled: Bool {
         didSet {
+            if oldValue != isActionEnabled {
+                if !isActionEnabled {
+                    setHovering(false)
+                }
+                setAccessibilityEnabled(isActionEnabled)
+                window?.invalidateCursorRects(for: self)
+            }
             needsDisplay = true
         }
     }
@@ -2003,6 +2018,11 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
         self.performAction = performAction
         super.init(frame: .zero)
         wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(IntelligenceInstructionComposerPresentation.submitAccessibilityLabel)
+        setAccessibilityHelp(IntelligenceInstructionComposerPresentation.submitAccessibilityHelp)
+        setAccessibilityEnabled(isActionEnabled)
     }
 
     @available(*, unavailable)
@@ -2021,11 +2041,16 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
         true
     }
 
+    override var acceptsFirstResponder: Bool {
+        isActionEnabled
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         bounds.contains(point) ? self : nil
     }
 
     override func resetCursorRects() {
+        guard isActionEnabled else { return }
         addCursorRect(bounds, cursor: .pointingHand)
     }
 
@@ -2075,10 +2100,15 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        guard isActionEnabled else {
+            setHovering(false)
+            return
+        }
         setHovering(true)
     }
 
     override func mouseMoved(with event: NSEvent) {
+        guard isActionEnabled else { return }
         reassertCursorIfHovering()
     }
 
@@ -2087,11 +2117,25 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
     }
 
     override func cursorUpdate(with event: NSEvent) {
+        guard isActionEnabled else { return }
         NSCursor.pointingHand.set()
     }
 
     override func mouseDown(with event: NSEvent) {
-        performAction()
+        performActionIfEnabled()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        let activatesButton = event.keyCode == 36 || event.keyCode == 49
+        if activatesButton, performActionIfEnabled() {
+            return
+        }
+
+        super.keyDown(with: event)
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        performActionIfEnabled()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -2161,6 +2205,16 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
         NSCursor.pointingHand.set()
     }
 
+    @discardableResult
+    private func performActionIfEnabled() -> Bool {
+        guard isActionEnabled else {
+            return false
+        }
+
+        performAction()
+        return true
+    }
+
     private func registerHitTestRegion() {
         guard let window else {
             EditorFloatingControlHitTestRegistry.remove(owner: self)
@@ -2172,7 +2226,7 @@ final class IntelligenceInstructionSubmitButtonNSView: NSView {
             window: window,
             rect: convert(bounds, to: nil),
             mouseDownHandler: { [weak self] in
-                self?.performAction()
+                self?.performActionIfEnabled()
             }
         )
     }
@@ -3161,6 +3215,7 @@ final class CursorRectNSView: NSView {
 struct EditorAuxiliaryPresentation: Equatable {
     enum Kind: Equatable {
         case nativeInspector
+        case trailingDrawer
         case centeredModal
     }
 
@@ -3174,14 +3229,14 @@ struct EditorAuxiliaryPresentation: Equatable {
     var animationDuration: Double?
 
     static let readingExperience = EditorAuxiliaryPresentation(
-        kind: .nativeInspector,
-        presenter: .systemInspector,
+        kind: .trailingDrawer,
+        presenter: .customLayout,
         accessibilityLabel: "Reading Experience Inspector",
         minimumWidth: 280,
         idealWidth: 320,
         maximumWidth: 380,
         transitionStyle: .slideAndFade,
-        animationDuration: nil
+        animationDuration: EditorInspectorTextResponse.transitionDuration
     )
 
     static let markdownBasics = EditorAuxiliaryPresentation(
@@ -3198,6 +3253,7 @@ struct EditorAuxiliaryPresentation: Equatable {
 
 enum EditorAuxiliaryPresenter: Equatable {
     case systemInspector
+    case customLayout
     case customOverlay
 }
 

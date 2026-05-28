@@ -321,6 +321,75 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(composerView.descendants(ofType: IntelligenceInstructionTextView.self).count, 1)
     }
 
+    func testInstructionComposerExposesAccessibleInputAndSendButton() throws {
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "",
+            isActionEnabled: true,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.frame = NSRect(x: 0, y: 0, width: 560, height: 52)
+        composerView.layoutSubtreeIfNeeded()
+
+        let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        let buttonView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionSubmitButtonNSView.self).first)
+
+        XCTAssertEqual(textView.accessibilityLabel(), "AI instruction")
+        XCTAssertEqual(textView.accessibilityHelp(), "Describe how Lineform should edit the selected text.")
+        XCTAssertEqual(buttonView.accessibilityRole(), .button)
+        XCTAssertEqual(buttonView.accessibilityLabel(), "Run AI instruction")
+        XCTAssertEqual(buttonView.accessibilityHelp(), "Apply the typed AI instruction to the selected text.")
+    }
+
+    func testInstructionSubmitButtonSupportsKeyboardAndAccessibilityPress() throws {
+        var actionCount = 0
+        let buttonView = IntelligenceInstructionSubmitButtonNSView(
+            isActionEnabled: true,
+            performAction: { actionCount += 1 }
+        )
+        let window = KeyCapableTestWindow(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: IntelligenceInstructionComposerPresentation.sendButtonSize,
+                height: IntelligenceInstructionComposerPresentation.sendButtonSize
+            ),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = buttonView
+        buttonView.frame = window.contentView?.bounds ?? .zero
+        window.makeKeyAndOrderFront(nil)
+
+        XCTAssertTrue(buttonView.acceptsFirstResponder)
+        XCTAssertTrue(window.makeFirstResponder(buttonView))
+
+        let returnKey = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: NSPoint(x: buttonView.bounds.midX, y: buttonView.bounds.midY),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: 36
+        ))
+        buttonView.keyDown(with: returnKey)
+        XCTAssertEqual(actionCount, 1)
+
+        XCTAssertTrue(buttonView.accessibilityPerformPress())
+        XCTAssertEqual(actionCount, 2)
+
+        buttonView.isActionEnabled = false
+        buttonView.keyDown(with: returnKey)
+        XCTAssertFalse(buttonView.accessibilityPerformPress())
+        XCTAssertEqual(actionCount, 2)
+    }
+
     func testInstructionComposerInputAreaOwnsHitTestingAboveEditorScrollView() throws {
         let root = ZStack(alignment: .bottom) {
             TestEditorScrollSurface()
@@ -1041,6 +1110,57 @@ final class IntelligentEditingCursorTests: XCTestCase {
 
         buttonView.mouseExited(with: event)
         XCTAssertFalse(buttonView.isHovering)
+    }
+
+    func testDisabledInstructionSubmitButtonDoesNotShowHoverCursorOrRunAction() throws {
+        var actionCount = 0
+        let buttonView = IntelligenceInstructionSubmitButtonNSView(
+            isActionEnabled: false,
+            performAction: { actionCount += 1 }
+        )
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: IntelligenceInstructionComposerPresentation.sendButtonSize,
+                height: IntelligenceInstructionComposerPresentation.sendButtonSize
+            ),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = buttonView
+        buttonView.frame = window.contentView?.bounds ?? NSRect(
+            x: 0,
+            y: 0,
+            width: IntelligenceInstructionComposerPresentation.sendButtonSize,
+            height: IntelligenceInstructionComposerPresentation.sendButtonSize
+        )
+        buttonView.layoutSubtreeIfNeeded()
+
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: buttonView.bounds.midX, y: buttonView.bounds.midY),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        ))
+
+        NSCursor.arrow.set()
+        buttonView.mouseEntered(with: event)
+        XCTAssertFalse(buttonView.isHovering)
+        XCTAssertEqual(NSCursor.current, .arrow)
+
+        buttonView.cursorUpdate(with: event)
+        XCTAssertEqual(NSCursor.current, .arrow)
+
+        buttonView.mouseDown(with: event)
+        XCTAssertEqual(actionCount, 0)
+        XCTAssertFalse(buttonView.accessibilityPerformPress())
     }
 
     func testActionRailButtonViewOwnsHoverCursorAndClickAction() throws {

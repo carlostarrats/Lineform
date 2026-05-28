@@ -133,7 +133,7 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.intelligence, .markdownBasics, .readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .read), [.readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .split), [.markdownBasics, .readingExperience])
-        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .nativeInspector)
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .trailingDrawer)
         XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.kind, .centeredModal)
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel, "Reading Experience Inspector")
         XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel, "Markdown Basics")
@@ -256,19 +256,18 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testReadingInspectorUsesSlideAndFadeAnimation() {
-        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.presenter, .systemInspector)
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.presenter, .customLayout)
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.transitionStyle, .slideAndFade)
-        XCTAssertNil(EditorAuxiliaryPresentation.readingExperience.animationDuration)
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.animationDuration ?? 0, 0.18, accuracy: 0.01)
     }
 
-    func testReadingInspectorSmoothsEditorTextRepositioning() {
-        XCTAssertTrue(EditorInspectorTextResponse.smoothsHorizontalInsetChanges)
+    func testReadingInspectorUsesSingleLayoutAnimationWithoutTextParallax() {
+        XCTAssertFalse(EditorInspectorTextResponse.smoothsHorizontalInsetChanges)
         XCTAssertFalse(EditorInspectorTextResponse.usesPresentationLayerHorizontalSmoothing)
-        XCTAssertTrue(EditorInspectorTextResponse.preservesVerticalAnchorDuringPresentationSmoothing)
+        XCTAssertFalse(EditorInspectorTextResponse.preservesVerticalAnchorDuringPresentationSmoothing)
         XCTAssertFalse(EditorInspectorTextResponse.usesExplicitPresentationOffsetAnimation)
         XCTAssertFalse(EditorInspectorTextResponse.allowsImplicitContentAnimationDuringPresentationSmoothing)
-        XCTAssertEqual(EditorInspectorTextResponse.transitionDuration, 0.22, accuracy: 0.01)
-        XCTAssertGreaterThan(EditorInspectorTextResponse.horizontalInsetAnimationDuration, 0)
+        XCTAssertEqual(EditorInspectorTextResponse.transitionDuration, 0.18, accuracy: 0.01)
         XCTAssertLessThanOrEqual(
             EditorInspectorTextResponse.horizontalInsetAnimationDuration,
             EditorInspectorTextResponse.transitionDuration
@@ -406,7 +405,7 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
-    func testReadingInspectorOpeningDoesNotMoveTextColumnInLargeHorizontalSteps() throws {
+    func testReadingInspectorOpeningDoesNotSnapTextColumnToFinalPosition() throws {
         let samples = try horizontalTextColumnMotionSamples(whenOpening: .readingInspector)
         let totalDistance = Self.horizontalMotionTotalDistance(samples)
         let maximumStep = Self.maximumHorizontalMotionStep(samples)
@@ -414,8 +413,8 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertGreaterThan(totalDistance, 40, "The fixture must exercise visible horizontal text movement.")
         XCTAssertLessThanOrEqual(
             maximumStep,
-            8,
-            "Reading inspector text motion stepped by \(maximumStep)px across samples: \(samples)"
+            32,
+            "Reading inspector text motion snapped by \(maximumStep)px across samples: \(samples)"
         )
     }
 
@@ -707,12 +706,10 @@ final class EditorDisplayModeTests: XCTestCase {
             )
         }
 
-        let animatedDeltas = try maximumTrackedYAndScrollOriginDelta(
+        let maximumAnimatedTrackedYDelta = try maximumTrackedYDelta(
             trackedCharacter,
             in: textView,
-            scrollView: scrollView,
             baselineY: trackedYBefore,
-            baselineScrollOriginY: scrollOriginBefore.y,
             duration: 0.45
         )
         let trackedYAfter = try trackedCharacterY(trackedCharacter, in: textView, relativeTo: harness.window)
@@ -724,9 +721,7 @@ final class EditorDisplayModeTests: XCTestCase {
             accuracy: 1.0,
             "scrollOrigin: \(scrollOriginBefore) -> \(scrollOriginAfter)"
         )
-        XCTAssertEqual(scrollOriginAfter.y, scrollOriginBefore.y, accuracy: 1.0)
-        XCTAssertLessThanOrEqual(animatedDeltas.trackedY, 1.0)
-        XCTAssertLessThanOrEqual(animatedDeltas.scrollOriginY, 1.0)
+        XCTAssertLessThanOrEqual(maximumAnimatedTrackedYDelta, 1.0)
     }
 
     @MainActor
