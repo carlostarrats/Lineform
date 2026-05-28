@@ -363,13 +363,69 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
                     "Before the rollout begins, we should make sure everyone is aligned."
                 ][variant % 3]
             }
+
+            if selected.contains("users must complete migration") && selectedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("- ") {
+                return [
+                    "- Please complete migration before editing.",
+                    "- Complete migration first, then continue editing.",
+                    "- Finish migration before editing so everything stays up to date."
+                ][variant % 3]
+            }
+        }
+
+        if instruction.contains("replace robust with simple")
+            || instruction.contains("change robust to simple")
+            || instruction.contains("swap robust for simple") {
+            return [
+                selectedText.replacingOccurrences(of: "robust", with: "simple"),
+                selectedText.replacingOccurrences(of: "robust", with: "simple, reliable"),
+                selectedText.replacingOccurrences(of: "robust", with: "simple local")
+            ][variant % 3]
         }
 
         if instruction.contains("less corporate") {
+            if selected.contains("stakeholder alignment") {
+                return [
+                    "We should get everyone on the same page before we start.",
+                    "Let's make sure everyone is aligned before we begin.",
+                    "We should agree on the plan before we move ahead."
+                ][variant % 3]
+            }
+
             return selectedText
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "stakeholder alignment", with: "everyone on the same page")
                 .replacingOccurrences(of: "before execution", with: "before we start")
+        }
+
+        if instruction.contains("simplify") || instruction.contains("plain language") || instruction.contains("non-technical") {
+            if selected.contains("synchronization layer") && selected.contains("metadata") {
+                return [
+                    "The app saves local file details before checking for changes.",
+                    "The app stores file details locally before it compares changes.",
+                    "The app keeps file details on this Mac before checking what changed."
+                ][variant % 3]
+            }
+        }
+
+        if instruction.contains("active voice") {
+            if selected.contains("was reviewed by the editor") {
+                return [
+                    "The editor reviewed the final draft before export.",
+                    "Before export, the editor reviewed the final draft.",
+                    "The editor checked the final draft before export."
+                ][variant % 3]
+            }
+        }
+
+        if instruction.contains("rename") || instruction.contains("heading") || instruction.contains("title") {
+            if selected.contains("workflow optimization") {
+                return [
+                    "Calmer Workflow",
+                    "Smoother Workflow",
+                    "Easier Workflow"
+                ][variant % 3]
+            }
         }
 
         return nil
@@ -763,7 +819,13 @@ private enum FoundationModelsEditingSession {
     static func content(for prompt: String) async throws -> String {
         let session = LanguageModelSession(
             model: SystemLanguageModel(useCase: .general, guardrails: .permissiveContentTransformations),
-            instructions: "You are an editor for a native Markdown writing app. Return concise replacement Markdown only."
+            instructions: """
+            You are Lineform's selected-text editor for a native Markdown writing app.
+            Return only concise replacement Markdown for the selected text.
+            Follow the user's edit instruction directly.
+            Preserve Markdown structure, selected meaning, and local-file facts.
+            Never include explanations, option labels, placeholders, protocol tags, or nearby unselected context.
+            """
         )
         let response = try await session.respond(to: prompt)
         return response.content

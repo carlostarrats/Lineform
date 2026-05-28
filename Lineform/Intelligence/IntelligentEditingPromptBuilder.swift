@@ -27,6 +27,7 @@ struct IntelligentEditingPromptBuilder {
 
         Follow the user instruction exactly when it is safe for the selected text.
         Rewrite the selected Markdown only.
+        \(customInstructionExecutionRules(for: request.userInstruction))
 
         Output contract:
         - return only the replacement text.
@@ -291,6 +292,7 @@ struct IntelligentEditingPromptBuilder {
 
         Return only replacement Markdown for the selected text. Do not explain.
         Follow the user instruction exactly when it is safe for the selected text.
+        \(customInstructionExecutionRules(for: request.userInstruction))
         Do not return placeholder text, dummy text, TODO, Lorem ipsum, or copied nearby context.
         Do not include internal control markers, delimiters, option labels, or numbering.
         Do not wrap the replacement in code fences unless the selected Markdown is itself only a fenced code block.
@@ -375,6 +377,8 @@ struct IntelligentEditingPromptBuilder {
                 return "- It rewrote style or meaning during Proofread. Fix only grammar, spelling, punctuation, or obvious typos."
             case .cleanMarkdownChangedContent:
                 return "- It changed content during Clean Markdown. Preserve the exact words and code while fixing Markdown formatting."
+            case .userInstructionNotFollowed:
+                return "- It did not follow the user's instruction. Apply the requested word swap, tone change, simplification, active voice rewrite, or rename directly."
             case .lowQualityReplacement:
                 return "- It was awkward, misspelled, overlong, or too generic. Return a polished replacement a writer could accept directly."
             }
@@ -415,6 +419,45 @@ struct IntelligentEditingPromptBuilder {
 
     private func proofreadRule(for action: IntelligentEditingAction) -> String {
         action == .proofread ? "- For Proofread, do not improve style, tone, structure, or word choice unless required to fix an actual error. If the selection is a Markdown list, return a Markdown list with the same number of items and the same list markers." : ""
+    }
+
+    private func customInstructionExecutionRules(for instruction: String) -> String {
+        let normalizedInstruction = instruction.lowercased()
+        var rules: [String] = [
+            "Custom instruction rules:",
+            "- Identify the requested edit first, then apply it directly to the selected Markdown.",
+            "- Do not answer the instruction as a question; produce the edited replacement text."
+        ]
+
+        if normalizedInstruction.contains("replace ")
+            || normalizedInstruction.contains("change ")
+            || normalizedInstruction.contains("swap ") {
+            rules.append("- If the instruction asks to replace, change, or swap a word or phrase, remove the old wording and include the requested new wording.")
+        }
+
+        if normalizedInstruction.contains("less corporate")
+            || normalizedInstruction.contains("less business")
+            || normalizedInstruction.contains("more human") {
+            rules.append("- For less-corporate edits, replace business jargon with plain human wording without adding facts.")
+            rules.append("- Avoid corporate terms such as stakeholder, alignment, execution, leverage, synergy, and moving forward.")
+        }
+
+        if normalizedInstruction.contains("simplify")
+            || normalizedInstruction.contains("plain language")
+            || normalizedInstruction.contains("non-technical") {
+            rules.append("- For simplification, use plain language and remove jargon while preserving the original facts.")
+        }
+
+        if normalizedInstruction.contains("active voice") {
+            rules.append("- For active voice, make the subject perform the action and remove passive 'was ... by' phrasing.")
+        }
+
+        if normalizedInstruction.contains("rename") || normalizedInstruction.contains("heading") || normalizedInstruction.contains("title") {
+            rules.append("- For a rename, return only the new heading or label text, without a sentence or explanation.")
+            rules.append("- If the rename asks for a calmer heading, avoid tense business words such as optimization, enhancement, improved, improvement, performance, simplification, streamlining, and maximize.")
+        }
+
+        return rules.joined(separator: "\n")
     }
 
     private func shortSelectionRule(for selectedText: String, action: IntelligentEditingAction) -> String {

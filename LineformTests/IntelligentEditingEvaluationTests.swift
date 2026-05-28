@@ -34,6 +34,35 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(IntelligentEditingEvaluationSuite.coveredScenarioNames.contains("input:custom-tone"))
     }
 
+    func testGoldenTasksCoverExpandedCustomInstructionScenarios() {
+        let requiredScenarios: Set<String> = [
+            "input:custom-word-swap",
+            "input:custom-less-corporate",
+            "input:custom-simplify",
+            "input:custom-active-voice",
+            "input:custom-heading-rename",
+            "input:custom-markdown-safe"
+        ]
+        let requiredTaskIDs: Set<String> = [
+            "custom-word-swap-rewrite",
+            "custom-less-corporate-rewrite",
+            "custom-simplify-rewrite",
+            "custom-active-voice-rewrite",
+            "custom-heading-rename",
+            "custom-markdown-safe-list-rewrite"
+        ]
+        let coveredTaskIDs = Set(IntelligentEditingEvaluationSuite.goldenTasks.map(\.id))
+
+        XCTAssertTrue(
+            IntelligentEditingEvaluationSuite.coveredScenarioNames.isSuperset(of: requiredScenarios),
+            "Missing custom scenarios: \(requiredScenarios.subtracting(IntelligentEditingEvaluationSuite.coveredScenarioNames).sorted().joined(separator: ", "))"
+        )
+        XCTAssertTrue(
+            coveredTaskIDs.isSuperset(of: requiredTaskIDs),
+            "Missing custom tasks: \(requiredTaskIDs.subtracting(coveredTaskIDs).sorted().joined(separator: ", "))"
+        )
+    }
+
     func testGoldenTasksCoverExpandedMarkdownAndWritingRiskScenarios() {
         let requiredScenarios: Set<String> = [
             "markdown:link",
@@ -179,6 +208,234 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(placeholder.failures.contains(.placeholderOrDummyText))
         XCTAssertFalse(dummy.passed)
         XCTAssertTrue(dummy.failures.contains(.placeholderOrDummyText))
+    }
+
+    func testRubricRejectsCustomLessCorporateRewriteThatKeepsCorporateWording() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-less-corporate-regression",
+            action: .rewrite,
+            userInstruction: "Make this less corporate.",
+            selectedText: "We need stakeholder alignment before execution.",
+            documentContext: "We need stakeholder alignment before execution.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "We need stakeholder alignment before we execute.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed))
+    }
+
+    func testRubricRejectsCustomLessCorporateRewriteThatMentionsStakeholders() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-less-corporate-live-regression",
+            action: .rewrite,
+            userInstruction: "Make this less corporate.",
+            selectedText: "We need stakeholder alignment before execution.",
+            documentContext: "We need stakeholder alignment before execution.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "We need to align with stakeholders before moving forward.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed))
+    }
+
+    func testRubricRejectsCustomWordSwapThatMissesRequestedReplacement() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-word-swap-regression",
+            action: .rewrite,
+            userInstruction: "Replace robust with simple.",
+            selectedText: "The robust export flow keeps drafts local.",
+            documentContext: "The robust export flow keeps drafts local.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "The reliable export flow keeps drafts local.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed))
+    }
+
+    func testRubricAcceptsCustomWordSwapThatAppliesRequestedReplacement() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-word-swap-acceptance",
+            action: .rewrite,
+            userInstruction: "Replace robust with simple.",
+            selectedText: "The robust export flow keeps drafts local.",
+            documentContext: "The robust export flow keeps drafts local.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "The simple export flow keeps drafts local.",
+            task: task
+        )
+
+        XCTAssertTrue(result.passed, result.failureSummary)
+    }
+
+    func testRubricAcceptsCustomLessCorporateRewrite() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-less-corporate-acceptance",
+            action: .rewrite,
+            userInstruction: "Make this less corporate.",
+            selectedText: "We need stakeholder alignment before execution.",
+            documentContext: "We need stakeholder alignment before execution.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "We should get everyone on the same page before we start.",
+            task: task
+        )
+
+        XCTAssertTrue(result.passed, result.failureSummary)
+    }
+
+    func testRubricRejectsCustomFriendlierRewriteThatKeepsHarshWording() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-friendly-live-regression",
+            action: .rewrite,
+            userInstruction: "Make this friendlier without adding facts.",
+            selectedText: "This update may inconvenience users during migration.",
+            documentContext: "This update may inconvenience users during migration.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        for replacement in [
+            "This update may cause some inconvenience during migration.",
+            "This update may be a bit of a hassle for users during migration.",
+            "This update may be a little tricky for some users during the migration.",
+            "**This update may briefly affect users during migration.**",
+            "**This update may be a little tricky for some users during the migration.**"
+        ] {
+            let result = IntelligentEditingEvaluationRubric.evaluate(
+                replacement: replacement,
+                task: task
+            )
+
+            XCTAssertFalse(result.passed, replacement)
+            XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed), replacement)
+        }
+    }
+
+    func testRubricRejectsCustomCalmerHeadingThatKeepsOptimizationLanguage() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-heading-live-regression",
+            action: .rewrite,
+            userInstruction: "Rename this heading to sound calmer.",
+            selectedText: "Workflow Optimization",
+            documentContext: "# Workflow Optimization\n\nDraft review settings.",
+            length: .oneWord,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "Optimization of Workflow",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed))
+    }
+
+    func testRubricRejectsCustomCalmerHeadingThatUsesGenericImprovementLanguage() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-heading-improvement-regression",
+            action: .rewrite,
+            userInstruction: "Rename this heading to sound calmer.",
+            selectedText: "Workflow Optimization",
+            documentContext: "# Workflow Optimization\n\nDraft review settings.",
+            length: .oneWord,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        for replacement in ["Workflow Enhancement", "Workflow Improvement", "Improved Workflow", "Workflow Simplification", "Workflow Streamlining"] {
+            let result = IntelligentEditingEvaluationRubric.evaluate(
+                replacement: replacement,
+                task: task
+            )
+
+            XCTAssertFalse(result.passed, replacement)
+            XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed), replacement)
+        }
+    }
+
+    func testRubricRejectsCustomSimplifyRewriteThatKeepsJargon() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-simplify-regression",
+            action: .rewrite,
+            userInstruction: "Simplify this for a non-technical reader.",
+            selectedText: "The synchronization layer persists local file metadata before reconciliation.",
+            documentContext: "The synchronization layer persists local file metadata before reconciliation.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "The synchronization layer persists metadata before reconciliation.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed))
+    }
+
+    func testRubricRejectsCustomActiveVoiceRewriteThatStaysPassive() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "custom-active-voice-regression",
+            action: .rewrite,
+            userInstruction: "Make this active voice.",
+            selectedText: "The final draft was reviewed by the editor before export.",
+            documentContext: "The final draft was reviewed by the editor before export.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "The final draft was carefully reviewed by the editor before export.",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.userInstructionNotFollowed))
     }
 
     func testRubricRejectsLineformControlTags() throws {

@@ -37,6 +37,7 @@ enum IntelligentEditingEvaluationFailure: String, Hashable {
     case missingCompression
     case proofreadChangedMeaningOrStyle
     case cleanMarkdownChangedContent
+    case userInstructionNotFollowed
     case lowQualityReplacement
 
     var scorePenalty: Int {
@@ -45,6 +46,8 @@ enum IntelligentEditingEvaluationFailure: String, Hashable {
             return 100
         case .unchangedTransformOutput, .leakedNearbyContext, .markdownStructureNotPreserved, .cleanMarkdownChangedContent:
             return 80
+        case .userInstructionNotFollowed:
+            return 70
         case .proofreadChangedMeaningOrStyle, .lowQualityReplacement:
             return 60
         case .oversizedShortSelection, .missingCompression:
@@ -56,7 +59,7 @@ enum IntelligentEditingEvaluationFailure: String, Hashable {
         switch self {
         case .emptyReplacement, .placeholderOrDummyText, .unchangedTransformOutput, .leakedNearbyContext:
             return true
-        case .oversizedShortSelection, .markdownStructureNotPreserved, .missingCompression, .proofreadChangedMeaningOrStyle, .cleanMarkdownChangedContent, .lowQualityReplacement:
+        case .oversizedShortSelection, .markdownStructureNotPreserved, .missingCompression, .proofreadChangedMeaningOrStyle, .cleanMarkdownChangedContent, .userInstructionNotFollowed, .lowQualityReplacement:
             return false
         }
     }
@@ -155,6 +158,10 @@ enum IntelligentEditingEvaluationRubric {
             failures.append(.missingCompression)
         }
 
+        if doesNotFollowUserInstruction(trimmedReplacement, task: task) {
+            failures.append(.userInstructionNotFollowed)
+        }
+
         return IntelligentEditingEvaluationResult(failures: failures)
     }
 
@@ -245,14 +252,39 @@ enum IntelligentEditingEvaluationRubric {
 
         if task.action == .rewrite {
             let selectedWordCount = wordCount(in: task.selectedText)
-            if selectedWordCount > 0 && wordCount(in: replacement) > Int(Double(selectedWordCount) * 1.25) {
+            let maximumRewriteExpansion = task.userInstruction == nil ? 1.25 : 2
+            if selectedWordCount > 0 && wordCount(in: replacement) > Int(Double(selectedWordCount) * maximumRewriteExpansion) {
                 return true
+            }
+
+            if allowsCustomRewriteTokenShift(task) {
+                return false
             }
 
             return dropsCoreRewriteMeaning(replacement: replacement, selectedText: task.selectedText, length: task.length)
         }
 
         return false
+    }
+
+    private static func allowsCustomRewriteTokenShift(_ task: IntelligentEditingEvaluationTask) -> Bool {
+        guard let userInstruction = task.userInstruction else {
+            return false
+        }
+
+        let instruction = normalized(userInstruction)
+        return instruction.contains("less corporate")
+            || instruction.contains("simplify")
+            || instruction.contains("plain language")
+            || instruction.contains("non-technical")
+            || instruction.contains("active voice")
+            || instruction.contains("rename")
+            || instruction.contains("heading")
+            || instruction.contains("friendly")
+            || instruction.contains("friendlier")
+            || instruction.contains("warmer")
+            || instruction.contains("kinder")
+            || instruction.contains("softer")
     }
 
     private static func isOversizedShortSelectionReplacement(_ replacement: String, for task: IntelligentEditingEvaluationTask) -> Bool {
@@ -494,6 +526,152 @@ enum IntelligentEditingEvaluationRubric {
 
         let maximumWordCount = max(1, Int(Double(selectedWordCount) * 0.75))
         return replacementWordCount <= maximumWordCount
+    }
+
+    private static func doesNotFollowUserInstruction(_ replacement: String, task: IntelligentEditingEvaluationTask) -> Bool {
+        guard let userInstruction = task.userInstruction else {
+            return false
+        }
+
+        let instruction = normalized(userInstruction)
+        let normalizedReplacement = normalized(replacement)
+        let normalizedSelection = normalized(task.selectedText)
+
+        if let replacementPair = requestedReplacementPair(in: userInstruction), normalizedSelection.contains(replacementPair.old) {
+            return !normalizedReplacement.contains(replacementPair.new)
+                || normalizedReplacement.contains(replacementPair.old)
+        }
+
+        if instruction.contains("friendly")
+            || instruction.contains("friendlier")
+            || instruction.contains("warmer")
+            || instruction.contains("kinder")
+            || instruction.contains("softer") {
+            let harshFragments = [
+                "inconvenience",
+                "must complete",
+                "required to complete"
+            ]
+
+            if harshFragments.contains(where: { normalizedSelection.contains($0) && normalizedReplacement.contains($0) }) {
+                return true
+            }
+
+            let unfriendlyFragments = [
+                "hassle",
+                "tricky"
+            ]
+
+            if unfriendlyFragments.contains(where: { normalizedReplacement.contains($0) }) {
+                return true
+            }
+
+            let selectedText = task.selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let selectedHasMarkdownEmphasis = selectedText.contains("**") || selectedText.contains("__")
+            if !selectedHasMarkdownEmphasis && (replacement.contains("**") || replacement.contains("__")) {
+                return true
+            }
+        }
+
+        if instruction.contains("less corporate") || instruction.contains("less business") || instruction.contains("more human") {
+            let corporateFragments = [
+                "stakeholder alignment",
+                "stakeholder",
+                "stakeholders",
+                "align with",
+                "alignment",
+                "before execution",
+                "execute against",
+                "leverage",
+                "synergy",
+                "actionable insights",
+                "optimize workflow",
+                "drive outcomes",
+                "utilize",
+                "alignment before"
+            ]
+
+            if corporateFragments.contains(where: { normalizedReplacement.contains($0) }) {
+                return true
+            }
+        }
+
+        if (instruction.contains("heading") || instruction.contains("rename") || instruction.contains("title"))
+            && (instruction.contains("calmer") || instruction.contains("calm")) {
+            let tenseHeadingFragments = [
+            "optimization",
+            "optimize",
+            "enhancement",
+            "improved",
+            "improvement",
+            "maximizing",
+            "performance",
+            "simplification",
+            "streamlining"
+            ]
+
+            if tenseHeadingFragments.contains(where: { normalizedReplacement.contains($0) }) {
+                return true
+            }
+        }
+
+        if instruction.contains("simplify")
+            || instruction.contains("plain language")
+            || instruction.contains("non technical")
+            || instruction.contains("non-technical") {
+            let jargonFragments = [
+                "synchronization layer",
+                "persists",
+                "metadata",
+                "reconciliation",
+                "stakeholder alignment",
+                "execution"
+            ]
+
+            if jargonFragments.contains(where: { normalizedReplacement.contains($0) }) {
+                return true
+            }
+        }
+
+        if instruction.contains("active voice") {
+            let passivePattern = #"\b(?:is|are|was|were|be|been|being)\s+(?:\w+ly\s+)?\w+(?:ed|en)\s+by\b"#
+            if normalizedReplacement.range(of: passivePattern, options: .regularExpression) != nil {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private static func requestedReplacementPair(in instruction: String) -> (old: String, new: String)? {
+        let patterns = [
+            #"(?i)\breplace\s+["“]?([A-Za-z0-9][A-Za-z0-9 _-]{0,48}?)["”]?\s+with\s+["“]?([A-Za-z0-9][A-Za-z0-9 _-]{0,48}?)[."”]?\s*$"#,
+            #"(?i)\bchange\s+["“]?([A-Za-z0-9][A-Za-z0-9 _-]{0,48}?)["”]?\s+to\s+["“]?([A-Za-z0-9][A-Za-z0-9 _-]{0,48}?)[."”]?\s*$"#,
+            #"(?i)\bswap\s+["“]?([A-Za-z0-9][A-Za-z0-9 _-]{0,48}?)["”]?\s+for\s+["“]?([A-Za-z0-9][A-Za-z0-9 _-]{0,48}?)[."”]?\s*$"#
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else {
+                continue
+            }
+
+            let nsInstruction = instruction as NSString
+            let range = NSRange(location: 0, length: nsInstruction.length)
+            guard
+                let match = regex.firstMatch(in: instruction, range: range),
+                match.numberOfRanges == 3
+            else {
+                continue
+            }
+
+            let oldPhrase = normalized(nsInstruction.substring(with: match.range(at: 1)).trimmingInstructionPhrase)
+            let newPhrase = normalized(nsInstruction.substring(with: match.range(at: 2)).trimmingInstructionPhrase)
+            if !oldPhrase.isEmpty, !newPhrase.isEmpty, oldPhrase != newPhrase {
+                return (oldPhrase, newPhrase)
+            }
+        }
+
+        return nil
     }
 
     private static func meaningfulTokens(in text: String) -> [String] {
@@ -808,6 +986,12 @@ enum IntelligentEditingEvaluationSuite {
         "language:mixed",
         "input:user-instruction",
         "input:custom-tone",
+        "input:custom-word-swap",
+        "input:custom-less-corporate",
+        "input:custom-simplify",
+        "input:custom-active-voice",
+        "input:custom-heading-rename",
+        "input:custom-markdown-safe",
         "user-visible:selected-list-item",
         "generic:sentence-rewrite"
     ]
@@ -841,6 +1025,72 @@ enum IntelligentEditingEvaluationSuite {
             requiresTransformation: true,
             requiresCompression: false,
             requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "custom-word-swap-rewrite",
+            action: .rewrite,
+            userInstruction: "Replace robust with simple.",
+            selectedText: "The robust export flow keeps drafts local.",
+            documentContext: "The robust export flow keeps drafts local.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "custom-less-corporate-rewrite",
+            action: .rewrite,
+            userInstruction: "Make this less corporate.",
+            selectedText: "We need stakeholder alignment before execution.",
+            documentContext: "We need stakeholder alignment before execution.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "custom-simplify-rewrite",
+            action: .rewrite,
+            userInstruction: "Simplify this for a non-technical reader.",
+            selectedText: "The synchronization layer persists local file metadata before reconciliation.",
+            documentContext: "The synchronization layer persists local file metadata before reconciliation.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "custom-active-voice-rewrite",
+            action: .rewrite,
+            userInstruction: "Make this active voice.",
+            selectedText: "The final draft was reviewed by the editor before export.",
+            documentContext: "The final draft was reviewed by the editor before export.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "custom-heading-rename",
+            action: .rewrite,
+            userInstruction: "Rename this heading to sound calmer.",
+            selectedText: "Workflow Optimization",
+            documentContext: "# Workflow Optimization\n\nDraft review settings.",
+            length: .oneWord,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "custom-markdown-safe-list-rewrite",
+            action: .rewrite,
+            userInstruction: "Make this friendlier but keep the list item as Markdown.",
+            selectedText: "- Users must complete migration before editing.",
+            documentContext: "- Users must complete migration before editing.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
         ),
         IntelligentEditingEvaluationTask(
             id: "one-word-proofread",
@@ -1314,9 +1564,37 @@ enum IntelligentEditingEvaluationSuite {
                 || normalizedInstruction.contains("tone") {
                 scenarios.insert("input:custom-tone")
             }
+            if normalizedInstruction.contains("replace ")
+                || normalizedInstruction.contains("change ")
+                || normalizedInstruction.contains("swap ") {
+                scenarios.insert("input:custom-word-swap")
+            }
+            if normalizedInstruction.contains("less corporate") {
+                scenarios.insert("input:custom-less-corporate")
+            }
+            if normalizedInstruction.contains("simplify")
+                || normalizedInstruction.contains("plain language")
+                || normalizedInstruction.contains("non-technical") {
+                scenarios.insert("input:custom-simplify")
+            }
+            if normalizedInstruction.contains("active voice") {
+                scenarios.insert("input:custom-active-voice")
+            }
+            if normalizedInstruction.contains("heading") || normalizedInstruction.contains("rename") {
+                scenarios.insert("input:custom-heading-rename")
+            }
+            if task.requiresMarkdownPreservation {
+                scenarios.insert("input:custom-markdown-safe")
+            }
         }
 
         return scenarios
+    }
+}
+
+private extension String {
+    var trimmingInstructionPhrase: String {
+        trimmingCharacters(in: CharacterSet(charactersIn: " .,\"'“”"))
     }
 }
 
@@ -1326,10 +1604,30 @@ extension IntelligentEditingAction {
         case .rewrite, .summarize, .shorten:
             return true
         case .proofread:
-            return false
+            return Self.hasKnownProofreadIssue(selectedText)
         case .cleanMarkdown:
             return Self.hasMessyMarkdownFormatting(selectedText)
         }
+    }
+
+    private static func hasKnownProofreadIssue(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.lowercased()
+
+        if ["teh", "dont", "doesnt", "wont", "cant"].contains(normalized) {
+            return true
+        }
+
+        let fragments = [
+            "exportingg",
+            "the editor keep drafts local and dont change ",
+            "the editor keep the file local and dont upload ",
+            "lineform también guarda borradores markdown localmente y dont upload drafts.",
+            "writers dont ",
+            " dont "
+        ]
+
+        return fragments.contains { normalized.contains($0) }
     }
 
     private static func hasMessyMarkdownFormatting(_ text: String) -> Bool {

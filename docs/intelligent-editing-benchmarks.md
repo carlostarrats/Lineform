@@ -37,6 +37,7 @@ Deterministic tests must cover these scenarios:
 - User-visible list item rewrite: selected Markdown list items must preserve list shape and never surface protocol tags such as `<<<LINEFORM_OPTION_1>>>`.
 - Generic sentence rewrite: arbitrary sentence input must produce useful sentence-scale alternatives even when the provider returns empty output.
 - User-directed custom instruction: freeform tone, wording, grammar, shortening, and Markdown-formatting instructions must be represented by benchmark tasks and must preserve the selected-text boundary.
+- Custom instruction intent: word swaps, less-corporate rewrites, simplification for non-technical readers, active-voice rewrites, heading renames, and Markdown-safe list-item edits must have explicit golden tasks and deterministic rubric checks where possible.
 - Placeholder rejection: `Replacement option 1`, `Lorem ipsum`, `TODO`, and Lineform protocol tags must score as failures.
 - Unchanged transform rejection: rewrite, shorten, summarize, and messy clean-Markdown tasks must not return the selected text unchanged.
 - Nearby context leakage: output must not include unselected neighboring document text.
@@ -58,13 +59,14 @@ Each evaluated replacement receives:
 - `qualityBand`: `pass`, `review`, or `fail`.
 - `criticalFailureCount`: count of failures that should block release.
 
-Critical failures are empty output, placeholder/protocol output, unchanged transform output, and leaked nearby context. A live report is acceptable only when:
+Critical failures are empty output, placeholder/protocol output, unchanged transform output, and leaked nearby context. Instruction-following failures are non-critical scoring failures, but they still make the record fail and should be treated as release-blocking for custom-instruction quality. A live report is acceptable only when:
 
 - Pass rate is 100%.
 - Average score is 100.
 - Critical failure count is 0.
 - The report includes full selected text, document context, replacement text, failures, score, and quality band for every record.
 - The report includes the exact user instruction for custom-instruction records.
+- Custom-instruction records visibly satisfy the requested operation, especially direct word swaps and tone/voice/simplification requests.
 - Repeated live reports have no failed runs, empty outputs, duplicate options, critical failures, or average score loss.
 
 ## Live Eval Reports

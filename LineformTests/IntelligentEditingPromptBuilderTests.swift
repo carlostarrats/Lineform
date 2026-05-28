@@ -12,11 +12,25 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
         XCTAssertTrue(prompt.contains("User instruction:"))
         XCTAssertTrue(prompt.contains("Make this warmer and less corporate."))
         XCTAssertTrue(prompt.contains("Follow the user instruction exactly when it is safe for the selected text."))
+        XCTAssertTrue(prompt.contains("Custom instruction rules:"))
+        XCTAssertTrue(prompt.contains("replace business jargon with plain human wording"))
         XCTAssertTrue(prompt.contains("Replace exactly the selected Markdown, not nearby context."))
         XCTAssertTrue(prompt.contains("Use nearby context only to understand tone and boundaries."))
         XCTAssertFalse(prompt.contains("Action: Rewrite"))
         XCTAssertFalse(prompt.contains("Action: Proofread"))
         XCTAssertFalse(prompt.contains("LINEFORM_OPTION"))
+    }
+
+    func testCustomInstructionPromptDefinesSpecificInstructionModes() {
+        let prompt = IntelligentEditingPromptBuilder().prompt(
+            for: .custom("Replace robust with simple and make this active voice."),
+            selectedText: "The robust draft was reviewed by the editor.",
+            documentContext: ""
+        )
+
+        XCTAssertTrue(prompt.contains("remove the old wording and include the requested new wording"))
+        XCTAssertTrue(prompt.contains("make the subject perform the action"))
+        XCTAssertTrue(prompt.contains("Do not answer the instruction as a question"))
     }
 
     func testCustomInstructionPromptTrimsAndLimitsUserInstructions() {
@@ -136,6 +150,21 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
         XCTAssertTrue(prompt.contains("It was not compressed enough"))
         XCTAssertTrue(prompt.contains("It changed content during Clean Markdown"))
         XCTAssertTrue(prompt.contains("Return a new replacement now"))
+        XCTAssertFalse(prompt.contains("LINEFORM_OPTION"))
+    }
+
+    func testCustomRepairPromptExplainsInstructionFollowingFailures() {
+        let prompt = IntelligentEditingPromptBuilder().repairPrompt(
+            for: .custom("Replace robust with simple."),
+            selectedText: "The robust export flow keeps drafts local.",
+            documentContext: "",
+            rejectedReplacement: "The reliable export flow keeps drafts local.",
+            failures: [.userInstructionNotFollowed]
+        )
+
+        XCTAssertTrue(prompt.contains("Custom instruction rules:"))
+        XCTAssertTrue(prompt.contains("remove the old wording and include the requested new wording"))
+        XCTAssertTrue(prompt.contains("It did not follow the user's instruction"))
         XCTAssertFalse(prompt.contains("LINEFORM_OPTION"))
     }
 }

@@ -111,6 +111,31 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         """)
     }
 
+    func testFoundationModelsServiceRejectsUnchangedProofreadWhenKnownErrorsRemain() async throws {
+        let selectedText = """
+        The editor keep drafts local and dont change Markdown syntax.
+
+        Writers dont need to upload files before they can edit.
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, """
+        The editor keeps drafts local and doesn't change Markdown syntax.
+
+        Writers don't need to upload files before they can edit.
+        """)
+    }
+
     func testFoundationModelsServiceProducesListItemFallbackForSelectedMarkdownListRewrite() async throws {
         let selectedText = "- Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors."
         let service = FoundationModelsIntelligentEditingService(
