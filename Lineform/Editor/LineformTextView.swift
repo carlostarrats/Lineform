@@ -1,5 +1,4 @@
 import AppKit
-import QuartzCore
 
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
@@ -279,6 +278,23 @@ final class LineformTextView: NSTextView {
         return convert(rect, to: enclosingScrollView)
     }
 
+    func visibleCharacterRangeForLayoutPreservation() -> NSRange? {
+        guard
+            let layoutManager,
+            let textContainer,
+            let scrollView = enclosingScrollView
+        else {
+            return nil
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        var visibleRect = scrollView.contentView.bounds
+        visibleRect.origin.x -= textContainerOrigin.x
+        visibleRect.origin.y -= textContainerOrigin.y
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+        return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+    }
+
     private func configureForMarkdownEditing() {
         allowsUndo = true
         isRichText = false
@@ -314,8 +330,10 @@ final class LineformTextView: NSTextView {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        let previousVerticalScrollOrigin = enclosingScrollView?.contentView.bounds.origin.y
         super.setFrameSize(newSize)
-        updateTextContainerLayout(for: activeReadingProfile)
+        updateTextContainerLayout(for: activeReadingProfile, preservingVerticalScrollOrigin: previousVerticalScrollOrigin)
+        restoreVerticalScrollOrigin(previousVerticalScrollOrigin)
     }
 
     func writingToolsWillBegin() {
@@ -390,20 +408,7 @@ final class LineformTextView: NSTextView {
     }
 
     private func visibleCharacterRangeForSearchHighlights() -> NSRange? {
-        guard
-            let layoutManager,
-            let textContainer,
-            let scrollView = enclosingScrollView
-        else {
-            return nil
-        }
-
-        layoutManager.ensureLayout(for: textContainer)
-        var visibleRect = scrollView.contentView.bounds
-        visibleRect.origin.x -= textContainerOrigin.x
-        visibleRect.origin.y -= textContainerOrigin.y
-        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
-        return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+        visibleCharacterRangeForLayoutPreservation()
     }
 
     private func isEventInsideFloatingControl(_ event: NSEvent) -> Bool {
@@ -549,11 +554,17 @@ final class LineformTextView: NSTextView {
         self.scrollOriginBeforeTypewriterMode = nil
     }
 
-    private func updateTextContainerLayout(for profile: ReadingProfile) {
-        setTextContainerInset(NSSize(
-            width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile),
-            height: 32
-        ))
+    private func updateTextContainerLayout(
+        for profile: ReadingProfile,
+        preservingVerticalScrollOrigin previousVerticalScrollOrigin: CGFloat? = nil
+    ) {
+        setTextContainerInset(
+            NSSize(
+                width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile),
+                height: 32
+            ),
+            preservingVerticalScrollOrigin: previousVerticalScrollOrigin
+        )
         textContainer?.widthTracksTextView = false
         textContainer?.containerSize = NSSize(
             width: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: profile),
@@ -561,10 +572,15 @@ final class LineformTextView: NSTextView {
         )
     }
 
-    private func setTextContainerInset(_ targetInset: NSSize) {
+    private func setTextContainerInset(
+        _ targetInset: NSSize,
+        preservingVerticalScrollOrigin previousVerticalScrollOrigin: CGFloat? = nil
+    ) {
         defer {
             hasAppliedTextContainerLayout = true
         }
+
+        let verticalScrollOriginToRestore = previousVerticalScrollOrigin ?? enclosingScrollView?.contentView.bounds.origin.y
 
         guard
             smoothsHorizontalInsetChanges,
@@ -572,14 +588,30 @@ final class LineformTextView: NSTextView {
             abs(textContainerInset.width - targetInset.width) > 0.5
         else {
             textContainerInset = targetInset
+            restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
             return
         }
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = horizontalInsetAnimationDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            animator().textContainerInset = targetInset
+        textContainerInset = targetInset
+        restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
+    }
+
+    private func restoreVerticalScrollOrigin(_ previousVerticalScrollOrigin: CGFloat?) {
+        guard
+            let previousVerticalScrollOrigin,
+            let scrollView = enclosingScrollView
+        else {
+            return
         }
+
+        var restoredOrigin = scrollView.contentView.bounds.origin
+        guard abs(restoredOrigin.y - previousVerticalScrollOrigin) > 0.01 else {
+            return
+        }
+
+        restoredOrigin.y = previousVerticalScrollOrigin
+        scrollView.contentView.setBoundsOrigin(restoredOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     private func applyFormattingCommand(_ command: MarkdownFormattingCommand) {

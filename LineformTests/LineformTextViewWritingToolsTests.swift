@@ -327,6 +327,33 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         )
     }
 
+    func testHorizontalInsetSmoothingKeepsVisibleTextAnchoredDuringResize() throws {
+        var profile = ReadingProfile.original
+        profile.columnWidth = 420
+        profile.marginWidth = 40
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 640, height: 260))
+        let textView = LineformTextView()
+        textView.setFrameSize(NSSize(width: 640, height: 1_200))
+        textView.string = Array(repeating: "A line of text that keeps the editor scrollable.", count: 80).joined(separator: "\n")
+        textView.smoothsHorizontalInsetChanges = true
+        scrollView.documentView = textView
+        textView.applyTypography(profile)
+
+        let originalScrollOrigin = NSPoint(x: 0, y: 220)
+        scrollView.contentView.setBoundsOrigin(originalScrollOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        let visibleRangeBeforeResize = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+
+        textView.setFrameSize(NSSize(width: 520, height: 1_200))
+
+        let visibleRangeAfterResize = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        XCTAssertEqual(visibleRangeAfterResize.location, visibleRangeBeforeResize.location, accuracy: 8)
+        RunLoop.current.run(until: Date().addingTimeInterval(textView.horizontalInsetAnimationDuration + 0.05))
+        let visibleRangeAfterLayoutSettles = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        XCTAssertEqual(visibleRangeAfterLayoutSettles.location, visibleRangeBeforeResize.location, accuracy: 8)
+    }
+
     func testTypographyAppliesFontSelectionAndCaretWidthSetting() {
         let textView = LineformTextView()
         var profile = ReadingProfile.original
