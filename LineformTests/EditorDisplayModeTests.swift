@@ -405,6 +405,20 @@ final class EditorDisplayModeTests: XCTestCase {
         try assertScrolledEditorDoesNotScrollUpWhenDrawerOpens(.readingInspector, text: Self.reflowingDrawerTestDocument)
     }
 
+    @MainActor
+    func testReadingInspectorOpeningDoesNotMoveTextColumnInLargeHorizontalSteps() throws {
+        let samples = try horizontalTextColumnMotionSamples(whenOpening: .readingInspector)
+        let totalDistance = Self.horizontalMotionTotalDistance(samples)
+        let maximumStep = Self.maximumHorizontalMotionStep(samples)
+
+        XCTAssertGreaterThan(totalDistance, 40, "The fixture must exercise visible horizontal text movement.")
+        XCTAssertLessThanOrEqual(
+            maximumStep,
+            8,
+            "Reading inspector text motion stepped by \(maximumStep)px across samples: \(samples)"
+        )
+    }
+
     func testLightReaderThemesForceLightWindowChromeAfterDarkThemes() {
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: false), .aqua)
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: true), .darkAqua)
@@ -749,6 +763,36 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
+    private func horizontalTextColumnMotionSamples(
+        whenOpening drawer: EditorDrawerKind,
+        duration: TimeInterval = 0.45,
+        interval: TimeInterval = 0.015
+    ) throws -> [CGFloat] {
+        let harness = try makeEditorDrawerHarness()
+        let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
+        var samples = [try textColumnMinX(in: textView)]
+
+        switch drawer {
+        case .outline:
+            LineformAppNotification.toggleOutline.post(
+                object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+            )
+        case .readingInspector:
+            LineformAppNotification.showReadingExperience.post(
+                object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+            )
+        }
+
+        let deadline = Date(timeIntervalSinceNow: duration)
+        while Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: interval))
+            samples.append(try textColumnMinX(in: textView))
+        }
+
+        return samples
+    }
+
+    @MainActor
     private func makeEditorDrawerHarness(text: String? = nil) throws -> EditorDrawerHarness {
         var document = LineformDocument(
             text: text ?? Self.shortDrawerTestDocument
@@ -838,6 +882,40 @@ final class EditorDisplayModeTests: XCTestCase {
         rect.origin.x += textView.textContainerOrigin.x
         rect.origin.y += textView.textContainerOrigin.y
         return textView.convert(rect, to: nil).midY
+    }
+
+    @MainActor
+    private func textColumnMinX(in textView: LineformTextView) throws -> CGFloat {
+        _ = try XCTUnwrap(textView.window)
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let textContainer = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let rect = NSRect(
+            x: textView.textContainerOrigin.x,
+            y: textView.textContainerOrigin.y,
+            width: 1,
+            height: 1
+        )
+        return textView.convert(rect, to: nil).minX
+    }
+
+    private static func horizontalMotionTotalDistance(_ samples: [CGFloat]) -> CGFloat {
+        guard let first = samples.first, let last = samples.last else {
+            return 0
+        }
+
+        return abs(last - first)
+    }
+
+    private static func maximumHorizontalMotionStep(_ samples: [CGFloat]) -> CGFloat {
+        guard samples.count >= 2 else {
+            return 0
+        }
+
+        return zip(samples, samples.dropFirst())
+            .map { abs($1 - $0) }
+            .max() ?? 0
     }
 
     @MainActor

@@ -770,7 +770,7 @@ enum EditorInspectorTextResponse {
     static let usesExplicitPresentationOffsetAnimation = false
     static let allowsImplicitContentAnimationDuringPresentationSmoothing = false
     static let transitionDuration: TimeInterval = 0.22
-    static let horizontalInsetAnimationDuration: TimeInterval = 0.16
+    static let horizontalInsetAnimationDuration: TimeInterval = transitionDuration
     static let presentationOffsetAnimationDuration = transitionDuration
     static let presentationOffsetDistance: CGFloat = 0
 

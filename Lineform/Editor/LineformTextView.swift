@@ -3,6 +3,7 @@ import AppKit
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
     static let readingRulerFillOpacity: CGFloat = 0.12
+    private static let maximumHorizontalInsetAnimationSpeed: CGFloat = 220
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private var hasAppliedTypography = false
@@ -16,6 +17,15 @@ final class LineformTextView: NSTextView {
     private var pendingDeferredVerticalScrollOrigin: CGFloat?
     private var hasScheduledDeferredVisualLayoutAnchorRestore = false
     private var hasScheduledDeferredVerticalScrollOriginRestore = false
+    private var horizontalInsetAnimationTimer: Timer?
+    private var horizontalInsetAnimationStartDate = Date.distantPast
+    private var horizontalInsetAnimationLastUpdateDate = Date.distantPast
+    private var horizontalInsetAnimationDurationValue: TimeInterval = 0
+    private var horizontalInsetAnimationStartInset = NSSize.zero
+    private var horizontalInsetAnimationTargetInset = NSSize.zero
+    private var horizontalInsetAnimationStartContainerWidth: CGFloat = 0
+    private var horizontalInsetAnimationTargetContainerWidth: CGFloat = 0
+    private var horizontalInsetAnimationVerticalScrollOrigin: CGFloat?
     var textFormat = LineformTextFormat.markdown
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
@@ -622,18 +632,15 @@ final class LineformTextView: NSTextView {
         preservingVerticalScrollOrigin previousVerticalScrollOrigin: CGFloat? = nil
     ) {
         let verticalScrollOriginToRestore = previousVerticalScrollOrigin ?? enclosingScrollView?.contentView.bounds.origin.y
-        setTextContainerInset(
-            NSSize(
+        setTextContainerLayout(
+            targetInset: NSSize(
                 width: EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile),
                 height: 32
             ),
+            targetContainerWidth: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: profile),
             preservingVerticalScrollOrigin: verticalScrollOriginToRestore
         )
         textContainer?.widthTracksTextView = false
-        textContainer?.containerSize = NSSize(
-            width: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: profile),
-            height: CGFloat.greatestFiniteMagnitude
-        )
         restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
     }
 
@@ -652,10 +659,12 @@ final class LineformTextView: NSTextView {
             profile: activeReadingProfile
         )
         textContainer.widthTracksTextView = false
-        textContainer.containerSize = NSSize(
-            width: targetContainerWidth,
-            height: CGFloat.greatestFiniteMagnitude
-        )
+        if !smoothsHorizontalInsetChanges && horizontalInsetAnimationTimer == nil {
+            textContainer.containerSize = NSSize(
+                width: targetContainerWidth,
+                height: CGFloat.greatestFiniteMagnitude
+            )
+        }
         layoutManager.ensureLayout(for: textContainer)
 
         let minimumDocumentHeight = ceil(
@@ -667,8 +676,9 @@ final class LineformTextView: NSTextView {
         )
     }
 
-    private func setTextContainerInset(
-        _ targetInset: NSSize,
+    private func setTextContainerLayout(
+        targetInset: NSSize,
+        targetContainerWidth: CGFloat,
         preservingVerticalScrollOrigin previousVerticalScrollOrigin: CGFloat? = nil
     ) {
         defer {
@@ -677,18 +687,150 @@ final class LineformTextView: NSTextView {
 
         let verticalScrollOriginToRestore = previousVerticalScrollOrigin ?? enclosingScrollView?.contentView.bounds.origin.y
 
+        if
+            horizontalInsetAnimationTimer != nil,
+            textContainerLayoutDiffers(fromInset: targetInset, containerWidth: targetContainerWidth)
+        {
+            animateTextContainerLayout(
+                toInset: targetInset,
+                containerWidth: targetContainerWidth,
+                preservingVerticalScrollOrigin: verticalScrollOriginToRestore
+            )
+            return
+        }
+
         guard
             smoothsHorizontalInsetChanges,
             hasAppliedTextContainerLayout,
-            abs(textContainerInset.width - targetInset.width) > 0.5
+            textContainerLayoutDiffers(fromInset: targetInset, containerWidth: targetContainerWidth)
         else {
+            horizontalInsetAnimationTimer?.invalidate()
+            horizontalInsetAnimationTimer = nil
             textContainerInset = targetInset
+            textContainer?.containerSize = NSSize(
+                width: targetContainerWidth,
+                height: CGFloat.greatestFiniteMagnitude
+            )
             restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
             return
         }
 
-        textContainerInset = targetInset
-        restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
+        animateTextContainerLayout(
+            toInset: targetInset,
+            containerWidth: targetContainerWidth,
+            preservingVerticalScrollOrigin: verticalScrollOriginToRestore
+        )
+    }
+
+    private func textContainerLayoutDiffers(fromInset targetInset: NSSize, containerWidth targetContainerWidth: CGFloat) -> Bool {
+        abs(textContainerInset.width - targetInset.width) > 0.5
+            || abs((textContainer?.containerSize.width ?? 0) - targetContainerWidth) > 0.5
+    }
+
+    private func animateTextContainerLayout(
+        toInset targetInset: NSSize,
+        containerWidth targetContainerWidth: CGFloat,
+        preservingVerticalScrollOrigin previousVerticalScrollOrigin: CGFloat?
+    ) {
+        if horizontalInsetAnimationTimer != nil {
+            horizontalInsetAnimationTargetInset = targetInset
+            horizontalInsetAnimationTargetContainerWidth = targetContainerWidth
+            if horizontalInsetAnimationVerticalScrollOrigin == nil {
+                horizontalInsetAnimationVerticalScrollOrigin = previousVerticalScrollOrigin
+            }
+            return
+        }
+
+        horizontalInsetAnimationStartInset = textContainerInset
+        horizontalInsetAnimationTargetInset = targetInset
+        horizontalInsetAnimationStartContainerWidth = textContainer?.containerSize.width ?? targetContainerWidth
+        horizontalInsetAnimationTargetContainerWidth = targetContainerWidth
+        horizontalInsetAnimationVerticalScrollOrigin = previousVerticalScrollOrigin
+        horizontalInsetAnimationDurationValue = max(horizontalInsetAnimationDuration, 0.01)
+        horizontalInsetAnimationStartDate = Date()
+        horizontalInsetAnimationLastUpdateDate = horizontalInsetAnimationStartDate
+        applyHorizontalInsetAnimationProgress(0)
+
+        let timer = Timer(
+            timeInterval: 1.0 / 120.0,
+            target: self,
+            selector: #selector(handleHorizontalInsetAnimationTimer(_:)),
+            userInfo: nil,
+            repeats: true
+        )
+        horizontalInsetAnimationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    @objc private func handleHorizontalInsetAnimationTimer(_ timer: Timer) {
+        let updateDate = Date()
+        let elapsed = updateDate.timeIntervalSince(horizontalInsetAnimationStartDate)
+        let elapsedSinceLastUpdate = max(updateDate.timeIntervalSince(horizontalInsetAnimationLastUpdateDate), 0)
+        horizontalInsetAnimationLastUpdateDate = updateDate
+        let progress = min(max(elapsed / horizontalInsetAnimationDurationValue, 0), 1)
+        applyHorizontalInsetAnimationProgress(
+            CGFloat(progress),
+            maximumStep: Self.maximumHorizontalInsetAnimationSpeed * CGFloat(elapsedSinceLastUpdate)
+        )
+
+        if
+            progress >= 1,
+            !textContainerLayoutDiffers(
+                fromInset: horizontalInsetAnimationTargetInset,
+                containerWidth: horizontalInsetAnimationTargetContainerWidth
+            )
+        {
+            textContainerInset = horizontalInsetAnimationTargetInset
+            textContainer?.containerSize = NSSize(
+                width: horizontalInsetAnimationTargetContainerWidth,
+                height: CGFloat.greatestFiniteMagnitude
+            )
+            restoreVerticalScrollOrigin(horizontalInsetAnimationVerticalScrollOrigin)
+            restoreVerticalScrollOriginAfterDeferredLayout(horizontalInsetAnimationVerticalScrollOrigin)
+            timer.invalidate()
+            if horizontalInsetAnimationTimer === timer {
+                horizontalInsetAnimationTimer = nil
+            }
+        }
+    }
+
+    private func applyHorizontalInsetAnimationProgress(_ progress: CGFloat, maximumStep: CGFloat = 0) {
+        let horizontalDelta = horizontalInsetAnimationTargetInset.width - horizontalInsetAnimationStartInset.width
+        let desiredWidth = horizontalInsetAnimationStartInset.width + horizontalDelta * Self.clampedProgress(progress)
+        let currentWidth = textContainerInset.width
+        let nextInsetWidth: CGFloat
+        let remainingDistance = desiredWidth - currentWidth
+        if maximumStep <= 0 || abs(remainingDistance) <= maximumStep {
+            nextInsetWidth = desiredWidth
+        } else {
+            nextInsetWidth = currentWidth + maximumStep * (remainingDistance < 0 ? -1 : 1)
+        }
+
+        textContainerInset = NSSize(
+            width: nextInsetWidth,
+            height: horizontalInsetAnimationTargetInset.height
+        )
+        let containerWidthDelta = horizontalInsetAnimationTargetContainerWidth - horizontalInsetAnimationStartContainerWidth
+        let desiredContainerWidth = horizontalInsetAnimationStartContainerWidth + containerWidthDelta * Self.clampedProgress(progress)
+        let currentContainerWidth = textContainer?.containerSize.width ?? desiredContainerWidth
+        let nextContainerWidth: CGFloat
+        let remainingContainerWidthDistance = desiredContainerWidth - currentContainerWidth
+        if maximumStep <= 0 || abs(remainingContainerWidthDistance) <= maximumStep {
+            nextContainerWidth = desiredContainerWidth
+        } else {
+            nextContainerWidth = currentContainerWidth + maximumStep * (remainingContainerWidthDistance < 0 ? -1 : 1)
+        }
+        textContainer?.containerSize = NSSize(
+            width: nextContainerWidth,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        restoreVerticalScrollOrigin(horizontalInsetAnimationVerticalScrollOrigin)
+        restoreVerticalScrollOriginAfterDeferredLayout(horizontalInsetAnimationVerticalScrollOrigin)
+        needsDisplay = true
+    }
+
+    private static func clampedProgress(_ progress: CGFloat) -> CGFloat {
+        min(max(progress, 0), 1)
     }
 
     private func restoreVerticalScrollOrigin(_ previousVerticalScrollOrigin: CGFloat?) {
