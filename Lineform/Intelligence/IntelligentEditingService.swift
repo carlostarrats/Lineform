@@ -38,12 +38,24 @@ enum IntelligentEditingError: Error, Equatable, LocalizedError {
         case .unavailable(let reason):
             return reason
         case .emptyResponse:
-            return "No replacement was suggested."
+            return "Suggestion unavailable."
         case .invalidResponse(let reason):
-            return reason
+            return Self.userFacingInvalidResponseMessage(for: reason)
         case .timedOut:
             return "Suggestion took too long."
         }
+    }
+
+    private static func userFacingInvalidResponseMessage(for reason: String) -> String {
+        if
+            reason.contains("Apple Intelligence returned an unusable replacement")
+                || reason.contains("unchangedTransformOutput")
+                || reason.contains("fallback rejected")
+        {
+            return "Suggestion unavailable."
+        }
+
+        return "Suggestion unavailable."
     }
 }
 

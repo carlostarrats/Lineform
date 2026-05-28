@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Lineform
 
@@ -235,7 +236,109 @@ final class EditorDisplayModeTests: XCTestCase {
                 isPreparingSuggestion: true,
                 intelligentEditingStatus: nil
             ),
-            "Preparing suggestion — 304 words — 2345 characters"
+            "304 words — 2345 characters"
+        )
+    }
+
+    func testStatusBarKeepsOnlyFailureMessagesAwayFromCounts() {
+        let hiddenRoutineMessages = [
+            "Preparing suggestion",
+            "Select text to use Intelligence.",
+            "1 option ready.",
+            "3 options ready.",
+            "Suggestion expired after edits.",
+            "Suggestion accepted.",
+            "Suggestion canceled.",
+            "Suggestion rejected."
+        ]
+
+        for message in hiddenRoutineMessages {
+            XCTAssertNil(
+                EditorStatusFormatter.statusMessage(
+                    isPreparingSuggestion: message == "Preparing suggestion",
+                    intelligentEditingStatus: message == "Preparing suggestion" ? nil : message
+                ),
+                message
+            )
+        }
+
+        XCTAssertEqual(
+            EditorStatusFormatter.statisticsText(wordCount: 263, characterCount: 1874),
+            "263 words — 1874 characters"
+        )
+    }
+
+    func testStatusBarSanitizesTechnicalIntelligenceFailureMessages() {
+        let message = EditorStatusFormatter.statusMessage(
+            isPreparingSuggestion: false,
+            intelligentEditingStatus: "Apple Intelligence returned an unusable replacement (unchangedTransformOutput; fallback rejected: none available): Lineform"
+        )
+
+        XCTAssertEqual(message, "Suggestion unavailable.")
+        XCTAssertFalse(message?.contains("unchangedTransformOutput") ?? true)
+        XCTAssertFalse(message?.contains("fallback rejected") ?? true)
+    }
+
+    func testStatusBarTruncatesLongMessagesWithEllipsis() {
+        let message = EditorStatusFormatter.statusMessage(
+            isPreparingSuggestion: false,
+            intelligentEditingStatus: "Apple Intelligence is unavailable. \(String(repeating: "Long message ", count: 20))"
+        )
+
+        XCTAssertEqual(message?.last, "…")
+        XCTAssertLessThanOrEqual(message?.count ?? 0, EditorStatusFormatter.maximumStatusMessageLength)
+    }
+
+    func testStatusBarWarningAmberMeetsAAContrast() throws {
+        let lightAmber = try XCTUnwrap(EditorStatusBar.warningAmberColor(usesDarkChrome: false).usingColorSpace(.sRGB))
+        let darkAmber = try XCTUnwrap(EditorStatusBar.warningAmberColor(usesDarkChrome: true).usingColorSpace(.sRGB))
+        let lightBackground = try XCTUnwrap(LineformColors.originalBackground.usingColorSpace(.sRGB))
+        let darkBackground = try XCTUnwrap(LineformColors.darkControlBackground.usingColorSpace(.sRGB))
+
+        XCTAssertGreaterThanOrEqual(Self.contrastRatio(lightAmber, lightBackground), 4.5)
+        XCTAssertGreaterThanOrEqual(Self.contrastRatio(darkAmber, darkBackground), 4.5)
+    }
+
+    func testStatusIndicatorShowsAvailableWhenIntelligenceIsReady() {
+        XCTAssertEqual(
+            EditorStatusFormatter.statusIndicator(
+                isPreparingSuggestion: false,
+                intelligentEditingStatus: nil,
+                intelligenceAvailability: .available
+            ),
+            EditorStatusIndicator(text: "AI available", tone: .available)
+        )
+    }
+
+    func testStatusIndicatorShowsWarningBeforeAvailableHealth() {
+        XCTAssertEqual(
+            EditorStatusFormatter.statusIndicator(
+                isPreparingSuggestion: false,
+                intelligentEditingStatus: "Suggestion took too long.",
+                intelligenceAvailability: .available
+            ),
+            EditorStatusIndicator(text: "Suggestion took too long.", tone: .warning)
+        )
+    }
+
+    func testStatusIndicatorCollapsesAppleAvailabilityToNotEnabled() {
+        XCTAssertEqual(
+            EditorStatusFormatter.statusIndicator(
+                isPreparingSuggestion: false,
+                intelligentEditingStatus: "Apple Intelligence is turned off in System Settings.",
+                intelligenceAvailability: .unavailable("Apple Intelligence is turned off in System Settings.")
+            ),
+            EditorStatusIndicator(text: "AI not enabled", tone: .warning)
+        )
+    }
+
+    func testStatusMetadataCombinesLastSaveAndCountsOnRight() {
+        XCTAssertEqual(
+            EditorStatusFormatter.metadataText(
+                lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "3:54 PM"),
+                statisticsText: "363 words — 1948 characters"
+            ),
+            "Last save: 3:54 PM  |  363 words — 1948 characters"
         )
     }
 
@@ -288,8 +391,10 @@ final class EditorDisplayModeTests: XCTestCase {
     @MainActor
     func testStatusBarDoesNotDrawTopSeparator() {
         XCTAssertFalse(EditorStatusBar.showsTopSeparator)
-        XCTAssertTrue(EditorStatusBar.lastSavedDetailUsesPrimaryForeground)
+        XCTAssertFalse(EditorStatusBar.lastSavedDetailUsesPrimaryForeground)
         XCTAssertEqual(EditorStatusBar.horizontalInset, 28)
+        XCTAssertEqual(EditorStatusBar.statusMessageMaximumWidth, 520)
+        XCTAssertEqual(EditorStatusBar.statusDotDiameter, 7)
     }
 
     @MainActor
@@ -325,5 +430,25 @@ final class EditorDisplayModeTests: XCTestCase {
             EditorModeSegmentedControl.liquidPillWidth(from: .split, to: .read),
             splitOffset - readOffset + EditorModeSegmentedControl.segmentWidth
         )
+    }
+
+    private static func contrastRatio(_ foreground: NSColor, _ background: NSColor) -> CGFloat {
+        let foregroundLuminance = relativeLuminance(foreground)
+        let backgroundLuminance = relativeLuminance(background)
+        let lighter = max(foregroundLuminance, backgroundLuminance)
+        let darker = min(foregroundLuminance, backgroundLuminance)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    private static func relativeLuminance(_ color: NSColor) -> CGFloat {
+        func linearized(_ component: CGFloat) -> CGFloat {
+            component <= 0.03928
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+
+        return 0.2126 * linearized(color.redComponent)
+            + 0.7152 * linearized(color.greenComponent)
+            + 0.0722 * linearized(color.blueComponent)
     }
 }

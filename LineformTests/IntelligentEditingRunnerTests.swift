@@ -609,7 +609,34 @@ final class IntelligentEditingRunnerTests: XCTestCase {
             selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
         )
 
-        XCTAssertEqual(result, .failed("No replacement was suggested."))
+        XCTAssertEqual(result, .failed("Suggestion unavailable."))
+    }
+
+    func testInvalidModelResponseUsesUserFacingFailureMessage() {
+        let error = IntelligentEditingError.invalidResponse(
+            "Apple Intelligence returned an unusable replacement (unchangedTransformOutput; fallback rejected: none available): Lineform"
+        )
+
+        XCTAssertEqual(error.errorDescription, "Suggestion unavailable.")
+        XCTAssertFalse(error.errorDescription?.contains("unchangedTransformOutput") ?? true)
+        XCTAssertFalse(error.errorDescription?.contains("fallback rejected") ?? true)
+    }
+
+    func testRequestCoordinatorDoesNotSurfaceInternalInvalidResponseDetails() async throws {
+        let selectedText = "This sentence needs clearer wording."
+        let service = StubIntelligentEditingService(error: IntelligentEditingError.invalidResponse(
+            "Apple Intelligence returned an unusable replacement (unchangedTransformOutput; fallback rejected: none available): Lineform"
+        ))
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            action: .cleanMarkdown,
+            documentText: selectedText,
+            currentDocumentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(result, .failed("Suggestion unavailable."))
     }
 
     func testRunnerBuildsMultipleSuggestionsForShortSelectionOptions() async throws {
@@ -822,22 +849,36 @@ private final class StubIntelligentEditingService: IntelligentEditingServicing {
     private(set) var requests: [(action: IntelligentEditingAction, selectedText: String, documentContext: String)] = []
     private(set) var optionRequests: [(action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int)] = []
     private let results: [String]
+    private let error: Error?
 
     init(result: String) {
         self.results = [result]
+        self.error = nil
     }
 
     init(results: [String]) {
         self.results = results
+        self.error = nil
+    }
+
+    init(error: Error) {
+        self.results = []
+        self.error = error
     }
 
     func replacement(for action: IntelligentEditingAction, selectedText: String, documentContext: String) async throws -> String {
         requests.append((action, selectedText, documentContext))
+        if let error {
+            throw error
+        }
         return results[0]
     }
 
     func replacements(for action: IntelligentEditingAction, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
         optionRequests.append((action, selectedText, documentContext, count))
+        if let error {
+            throw error
+        }
         return Array(results.prefix(count))
     }
 }
