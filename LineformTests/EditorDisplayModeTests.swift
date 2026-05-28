@@ -163,6 +163,21 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertTrue(EditorToolbarPressedState.usesWhiteActiveIcon)
     }
 
+    func testToolbarActiveButtonsReplaceSymbolsWithCloseAction() {
+        XCTAssertTrue(EditorToolbarPressedState.replacesActiveSymbolWithCloseAction)
+        XCTAssertEqual(EditorToolbarPressedState.closeSystemImage, "xmark")
+        XCTAssertEqual(EditorToolbarPressedState.closeSymbolScale, 0.67, accuracy: 0.01)
+        XCTAssertEqual(EditorToolbarPressedState.openSymbolTransition, .replaceOffUp)
+        XCTAssertEqual(EditorToolbarPressedState.closeSymbolTransition, .instant)
+
+        for action in EditorToolbarAction.allCases {
+            XCTAssertEqual(EditorToolbarPressedState.displaySystemImage(for: action, isActive: false), action.systemImage)
+            XCTAssertEqual(EditorToolbarPressedState.displaySystemImage(for: action, isActive: true), "xmark")
+            XCTAssertEqual(EditorToolbarPressedState.displaySymbolScale(for: action, isActive: false), 1.0, accuracy: 0.01)
+            XCTAssertEqual(EditorToolbarPressedState.displaySymbolScale(for: action, isActive: true), 0.67, accuracy: 0.01)
+        }
+    }
+
     @MainActor
     func testMarkdownBasicsModalHasExplicitAndOutsideDismissal() {
         XCTAssertTrue(MarkdownBasicsModal.showsCloseButton)

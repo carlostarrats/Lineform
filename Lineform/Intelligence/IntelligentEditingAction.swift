@@ -98,7 +98,7 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
     var railSystemImage: String {
         switch self {
         case .proofread:
-            return "checkmark.circle"
+            return "eye"
         case .rewrite:
             return "text.bubble"
         case .summarize:
@@ -106,7 +106,7 @@ enum IntelligentEditingAction: String, CaseIterable, Identifiable {
         case .shorten:
             return "arrow.down.right.and.arrow.up.left"
         case .cleanMarkdown:
-            return "wand.and.stars"
+            return "paintbrush.pointed"
         }
     }
 

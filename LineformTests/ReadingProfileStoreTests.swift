@@ -112,6 +112,13 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(ReadingExperienceInspector.sectionLabelFontSize, 13)
     }
 
+    func testReadingExperienceInspectorUsesNativeUIFontOutsideThemePreviews() throws {
+        XCTAssertTrue(ReadingExperienceInspector.usesNativeUIFontOutsideThemePreviews)
+        XCTAssertFalse(ReadingExperienceInspector.usesMonospacedInspectorValueFont)
+        XCTAssertEqual(ReadingExperienceInspector.controlLabelFontSize, ReadingExperienceInspector.sectionLabelFontSize)
+        XCTAssertEqual(ReadingExperienceInspector.valueFontSize, ReadingExperienceInspector.controlLabelFontSize)
+    }
+
     func testReadingExperienceInspectorKeepsNativeControlHoverOnly() {
         XCTAssertTrue(ReadingExperienceInspector.usesNativeControlHoverOnly)
         XCTAssertGreaterThan(ReadingExperienceInspector.presetCardHoverFillOpacity, 0)

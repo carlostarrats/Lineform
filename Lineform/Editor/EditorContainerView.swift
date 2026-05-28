@@ -538,12 +538,15 @@ struct EditorContainerView: View {
     private func toolbarControl(for action: EditorToolbarAction) -> some View {
         switch action {
         case .intelligence, .markdownBasics, .readingExperience:
+            let isActive = toolbarActionIsActive(action)
             Button {
                 handleToolbarAction(action)
             } label: {
                 IntelligenceToolbarIcon(
-                    systemImage: action.systemImage,
-                    isOn: toolbarActionIsActive(action)
+                    systemImage: EditorToolbarPressedState.displaySystemImage(for: action, isActive: isActive),
+                    isOn: isActive,
+                    symbolScale: EditorToolbarPressedState.displaySymbolScale(for: action, isActive: isActive),
+                    symbolTransitionStyle: EditorToolbarPressedState.symbolTransitionStyle(isActive: isActive)
                 )
             }
             .help(toolbarHelp(for: action))
@@ -720,6 +723,11 @@ enum IntelligenceToolbarTogglePresentation {
 enum EditorToolbarPressedState {
     static let usesFilledActiveIcon = true
     static let usesWhiteActiveIcon = true
+    static let replacesActiveSymbolWithCloseAction = true
+    static let closeSystemImage = "xmark"
+    static let closeSymbolScale = 0.67
+    static let openSymbolTransition = EditorToolbarSymbolTransitionStyle.replaceOffUp
+    static let closeSymbolTransition = EditorToolbarSymbolTransitionStyle.instant
 
     static func isActive(
         _ action: EditorToolbarAction,
@@ -751,11 +759,30 @@ enum EditorToolbarPressedState {
             )
         }
     }
+
+    static func displaySystemImage(for action: EditorToolbarAction, isActive: Bool) -> String {
+        isActive ? closeSystemImage : action.systemImage
+    }
+
+    static func displaySymbolScale(for action: EditorToolbarAction, isActive: Bool) -> CGFloat {
+        isActive ? closeSymbolScale : 1
+    }
+
+    static func symbolTransitionStyle(isActive: Bool) -> EditorToolbarSymbolTransitionStyle {
+        isActive ? openSymbolTransition : closeSymbolTransition
+    }
+}
+
+enum EditorToolbarSymbolTransitionStyle: Equatable {
+    case replaceOffUp
+    case instant
 }
 
 struct IntelligenceToolbarIcon: View {
     let systemImage: String
     let isOn: Bool
+    var symbolScale: CGFloat = 1
+    var symbolTransitionStyle: EditorToolbarSymbolTransitionStyle = .instant
 
     var body: some View {
         ZStack {
@@ -769,11 +796,32 @@ struct IntelligenceToolbarIcon: View {
             }
 
             Image(systemName: systemImage)
+                .contentTransition(contentTransition)
+                .animation(symbolAnimation, value: systemImage)
+                .scaleEffect(symbolScale)
                 .foregroundStyle(
                     isOn
                         ? Color.white.opacity(IntelligenceToolbarTogglePresentation.iconOpacityWhenOn)
                         : Color(nsColor: .labelColor).opacity(IntelligenceToolbarTogglePresentation.iconOpacityWhenOff)
                 )
+        }
+    }
+
+    private var contentTransition: ContentTransition {
+        switch symbolTransitionStyle {
+        case .replaceOffUp:
+            return .symbolEffect(.replace.offUp)
+        case .instant:
+            return .identity
+        }
+    }
+
+    private var symbolAnimation: Animation? {
+        switch symbolTransitionStyle {
+        case .replaceOffUp:
+            return .easeOut(duration: 0.16)
+        case .instant:
+            return nil
         }
     }
 }

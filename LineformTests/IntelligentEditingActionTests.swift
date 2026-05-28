@@ -44,6 +44,11 @@ final class IntelligentEditingActionTests: XCTestCase {
         ])
     }
 
+    func testActionRailIconsUseConcreteActionMetaphors() {
+        XCTAssertEqual(IntelligentEditingAction.cleanMarkdown.railSystemImage, "paintbrush.pointed")
+        XCTAssertEqual(IntelligentEditingAction.proofread.railSystemImage, "eye")
+    }
+
     func testContextualActionsPrioritizeMarkdownCleanupForMarkdownHeavySelections() {
         let actions = IntelligentEditingAction.contextualActions(
             for: "# Title\n\n- rough item\n- second item"

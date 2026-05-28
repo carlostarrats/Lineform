@@ -24,11 +24,15 @@ struct ReadingExperienceInspector: View {
     static let presetGridColumnCount = 3
     static let themeTitle = "Themes"
     static let themeTitleFontSize: CGFloat = 13
+    static let controlLabelFontSize: CGFloat = 13
+    static let valueFontSize: CGFloat = 13
     static let unselectedPresetOpacity = 1.0
     static let unselectedPresetContentOpacity: Double = 1
     static let themeToFontSpacing: CGFloat = 10
     static let usesReadingAidsSectionLabel = true
     static let sectionLabelFontSize: CGFloat = 13
+    static let usesNativeUIFontOutsideThemePreviews = true
+    static let usesMonospacedInspectorValueFont = false
     static let usesNativeControlHoverOnly = true
     static let resetButtonShowsHoverFeedback = true
     static let resetButtonHoverFillOpacity = 0.08
@@ -120,9 +124,14 @@ struct ReadingExperienceInspector: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(Color(nsColor: Self.backgroundColor(usesDarkChrome: usesDarkChrome)))
+        .font(Self.inspectorUIFont())
         .environment(\.colorScheme, Self.colorScheme(usesDarkChrome: usesDarkChrome))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Reading Experience Inspector")
+    }
+
+    static func inspectorUIFont(size: CGFloat = controlLabelFontSize, weight: Font.Weight = .medium) -> Font {
+        .system(size: size, weight: weight)
     }
 
     static func colorScheme(usesDarkChrome: Bool) -> ColorScheme {
@@ -144,7 +153,7 @@ struct ReadingExperienceInspector: View {
 
         return VStack(alignment: .leading, spacing: 10) {
             Text(Self.themeTitle)
-                .font(.system(size: Self.themeTitleFontSize, weight: .medium))
+                .font(Self.inspectorUIFont(size: Self.themeTitleFontSize))
                 .foregroundStyle(.primary)
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
@@ -232,7 +241,7 @@ private struct InspectorSectionLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: ReadingExperienceInspector.sectionLabelFontSize, weight: .medium))
+            .font(ReadingExperienceInspector.inspectorUIFont(size: ReadingExperienceInspector.sectionLabelFontSize))
             .foregroundStyle(.primary)
     }
 }
@@ -245,12 +254,13 @@ private struct PickerRow<Content: View>: View {
         InspectorControlRow {
             HStack(alignment: .center, spacing: 12) {
                 Text(title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(ReadingExperienceInspector.inspectorUIFont())
                     .foregroundStyle(.primary)
 
                 Spacer(minLength: 12)
 
                 content
+                    .font(ReadingExperienceInspector.inspectorUIFont())
                     .frame(maxWidth: 170, alignment: .trailing)
             }
         }
@@ -340,13 +350,16 @@ private struct InspectorSliderRow: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(title)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(ReadingExperienceInspector.inspectorUIFont())
                         .foregroundStyle(.primary)
 
                     Spacer(minLength: 12)
 
                     Text(valueText)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .font(ReadingExperienceInspector.inspectorUIFont(
+                            size: ReadingExperienceInspector.valueFontSize,
+                            weight: .semibold
+                        ))
                         .foregroundStyle(.secondary)
                         .frame(minWidth: 54, alignment: .trailing)
                         .accessibilityLabel("\(title) value \(valueText)")
@@ -365,6 +378,7 @@ private struct InspectorToggleRow: View {
     var body: some View {
         InspectorControlRow {
             Toggle(title, isOn: $isOn)
+                .font(ReadingExperienceInspector.inspectorUIFont())
         }
     }
 }
@@ -381,6 +395,7 @@ private struct HoverFeedbackButton: View {
 
     var body: some View {
         Button(title, action: action)
+            .font(ReadingExperienceInspector.inspectorUIFont())
             .buttonStyle(.bordered)
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
