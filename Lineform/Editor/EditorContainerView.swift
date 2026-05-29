@@ -1903,6 +1903,9 @@ final class IntelligenceInstructionComposerNSView: NSView {
 
             let point = self.convert(event.locationInWindow, from: nil)
             guard self.bounds.contains(point) else {
+                if self.focusEditorForMouseDownIfNeeded(event, in: window) {
+                    return nil
+                }
                 return event
             }
 
@@ -1920,6 +1923,52 @@ final class IntelligenceInstructionComposerNSView: NSView {
             return nil
         }) else { return }
         mouseDownMonitor = LocalEventMonitor(monitor)
+    }
+
+    private func focusEditorForMouseDownIfNeeded(_ event: NSEvent, in window: NSWindow) -> Bool {
+        guard window.firstResponder === textView else {
+            return false
+        }
+
+        guard !EditorFloatingControlHitTestRegistry.contains(windowPoint: event.locationInWindow, in: window) else {
+            return false
+        }
+
+        guard
+            let contentView = window.contentView,
+            let editorTextView = Self.lineformTextView(at: event.locationInWindow, in: contentView)
+        else {
+            return false
+        }
+
+        guard editorTextView.selectedRange().length > 0 else {
+            return false
+        }
+
+        guard
+            window.makeFirstResponder(editorTextView),
+            window.firstResponder === editorTextView
+        else {
+            return false
+        }
+
+        editorTextView.needsDisplay = true
+        return true
+    }
+
+    private static func lineformTextView(at windowPoint: NSPoint, in view: NSView) -> LineformTextView? {
+        for subview in view.subviews.reversed() {
+            if let match = lineformTextView(at: windowPoint, in: subview) {
+                return match
+            }
+        }
+
+        guard let textView = view as? LineformTextView else {
+            return nil
+        }
+
+        let localPoint = textView.convert(windowPoint, from: nil)
+        return textView.bounds.contains(localPoint) ? textView : nil
     }
 
     private func removeMouseDownMonitor() {

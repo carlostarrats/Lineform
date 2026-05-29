@@ -237,6 +237,7 @@ final class LineformTextView: NSTextView {
         }
 
         markSelectionChangeAsMouseDriven()
+        window?.makeFirstResponder(self)
         super.mouseDown(with: event)
     }
 

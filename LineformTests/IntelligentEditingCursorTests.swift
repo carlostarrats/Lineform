@@ -783,6 +783,110 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(liveInputTextView.string, "abcz")
     }
 
+    func testFullEditorReclaimsFocusWhenClickedAfterTypingInComposer() throws {
+        var document = LineformDocument(text: "Select this sentence for AI.\n\nThen select a different sentence.")
+        let editor = EditorContainerView(
+            document: Binding(
+                get: { document },
+                set: { document = $0 }
+            ),
+            initialIntelligenceRailEnabled: true
+        )
+        let hostingView = NSHostingView(rootView: editor)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 820, height: 620)
+
+        let window = KeyCapableTestWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let editorTextView = try XCTUnwrap(hostingView.descendants(ofType: LineformTextView.self).first)
+        editorTextView.setSelectedRange(NSRange(location: 0, length: 6))
+        editorTextView.delegate?.textViewDidChangeSelection?(
+            Notification(name: NSTextView.didChangeSelectionNotification, object: editorTextView)
+        )
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let inputTextView = try XCTUnwrap(hostingView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        let inputPoint = NSPoint(
+            x: inputTextView.convert(inputTextView.bounds, to: nil).midX,
+            y: inputTextView.convert(inputTextView.bounds, to: nil).midY
+        )
+        window.makeFirstResponder(inputTextView)
+        try sendKey("a", keyCode: 0, at: inputPoint, in: window)
+        XCTAssertEqual(inputTextView.string, "a")
+        XCTAssertTrue(window.firstResponder === inputTextView)
+
+        func editorWindowPoint(forCharacterAt location: Int) throws -> NSPoint {
+            let layoutManager = try XCTUnwrap(editorTextView.layoutManager)
+            let textContainer = try XCTUnwrap(editorTextView.textContainer)
+            layoutManager.ensureLayout(for: textContainer)
+            let glyphRange = layoutManager.glyphRange(
+                forCharacterRange: NSRange(location: location, length: 1),
+                actualCharacterRange: nil
+            )
+            var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            rect.origin.x += editorTextView.textContainerOrigin.x
+            rect.origin.y += editorTextView.textContainerOrigin.y
+            return editorTextView.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
+        }
+
+        let editorPoint = try editorWindowPoint(forCharacterAt: 8)
+        XCTAssertFalse(
+            EditorFloatingControlHitTestRegistry.contains(windowPoint: editorPoint, in: window),
+            "The editor click point must be outside the composer floating hit region."
+        )
+
+        let mouseDown = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: editorPoint,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 0
+        ))
+        NSApp.sendEvent(mouseDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        XCTAssertTrue(
+            window.firstResponder === editorTextView,
+            "The editor should reclaim active selection focus after leaving the AI input, got \(String(describing: window.firstResponder))."
+        )
+        XCTAssertEqual(
+            editorTextView.selectedRange(),
+            NSRange(location: 0, length: 6),
+            "The first click back into the editor should reactivate the existing selection instead of collapsing it."
+        )
+
+        let secondEditorPoint = try editorWindowPoint(forCharacterAt: 12)
+        XCTAssertFalse(
+            EditorFloatingControlHitTestRegistry.contains(windowPoint: secondEditorPoint, in: window),
+            "The second editor click point must also be outside the composer floating hit region."
+        )
+        let secondInsertionIndex = editorTextView.characterIndexForInsertion(
+            at: editorTextView.convert(secondEditorPoint, from: nil)
+        )
+        editorTextView.setSelectedRange(NSRange(location: secondInsertionIndex, length: 0))
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        XCTAssertEqual(
+            editorTextView.selectedRange().length,
+            0,
+            "After the editor has focus, later editor selection changes should return to normal behavior and collapse the selection."
+        )
+    }
+
     func testInstructionComposerTextViewAcceptsTypingAboveEditorScrollView() throws {
         var instruction = ""
         let root = ZStack(alignment: .bottom) {
