@@ -927,6 +927,7 @@ enum IntelligenceInstructionComposerPresentation {
     static let usesNeutralLoadingChrome = true
     static let showsLoadingSpinnerInSubmitSlot = false
     static let loadingStatePreservesCapsuleDimensions = true
+    static let loadingDrawsBorder = false
     static let loadingSkeletonMinimumRows = 4
     static let loadingSkeletonColumns = 48
     static let loadingSkeletonBlockHeight: CGFloat = 4
@@ -956,8 +957,8 @@ enum IntelligenceInstructionComposerPresentation {
     static let shadowOpacity = 0.08
     static let shadowRadius: CGFloat = 16
     static let shadowYOffset: CGFloat = 4
-    static let lightLoadingBorderWhiteComponent: CGFloat = 0.50
-    static let lightLoadingBorderAlpha: CGFloat = 0.78
+    static let lightLoadingBackgroundWhiteComponent: CGFloat = 0.68
+    static let lightLoadingBackgroundAlpha: CGFloat = 0.82
 
     static func usesDarkAppearance(_ appearance: NSAppearance) -> Bool {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -972,7 +973,12 @@ enum IntelligenceInstructionComposerPresentation {
     static func loadingBackgroundColor(usesDarkAppearance: Bool) -> NSColor {
         usesDarkAppearance
             ? NSColor(srgbRed: 0x23 / 255.0, green: 0x23 / 255.0, blue: 0x23 / 255.0, alpha: 1)
-            : .windowBackgroundColor
+            : NSColor(
+                srgbRed: lightLoadingBackgroundWhiteComponent,
+                green: lightLoadingBackgroundWhiteComponent,
+                blue: lightLoadingBackgroundWhiteComponent,
+                alpha: lightLoadingBackgroundAlpha
+            )
     }
 
     static func borderColor(usesDarkAppearance: Bool, isFocused: Bool) -> NSColor {
@@ -985,17 +991,6 @@ enum IntelligenceInstructionComposerPresentation {
         )
     }
 
-    static func loadingBorderColor(usesDarkAppearance: Bool) -> NSColor {
-        usesDarkAppearance
-            ? NSColor.white.withAlphaComponent(0.7)
-            : NSColor(
-                srgbRed: lightLoadingBorderWhiteComponent,
-                green: lightLoadingBorderWhiteComponent,
-                blue: lightLoadingBorderWhiteComponent,
-                alpha: lightLoadingBorderAlpha
-            )
-    }
-
     static func foregroundColor(usesDarkAppearance: Bool) -> NSColor {
         usesDarkAppearance ? .white : .labelColor
     }
@@ -1006,6 +1001,28 @@ enum IntelligenceInstructionComposerPresentation {
 
     static func iconColor(usesDarkAppearance: Bool) -> NSColor {
         usesDarkAppearance ? .white : .controlAccentColor
+    }
+
+    static func loadingSkeletonBaseColor(usesDarkAppearance: Bool, alpha: CGFloat) -> NSColor {
+        usesDarkAppearance
+            ? NSColor.labelColor.withAlphaComponent(0.08 + alpha * 0.17)
+            : NSColor.white.withAlphaComponent(0.30 + alpha * 0.08)
+    }
+
+    static func loadingSkeletonGradientColors(usesDarkAppearance: Bool, alpha: CGFloat) -> [NSColor] {
+        if usesDarkAppearance {
+            return [
+                NSColor.labelColor.withAlphaComponent(0.018 + alpha * 0.04),
+                NSColor.labelColor.withAlphaComponent(0.07 + alpha * 0.24),
+                NSColor.labelColor.withAlphaComponent(0.022 + alpha * 0.05),
+            ]
+        }
+
+        return [
+            NSColor.white.withAlphaComponent(0.18 + alpha * 0.12),
+            NSColor.white.withAlphaComponent(0.58 + alpha * 0.34),
+            NSColor.white.withAlphaComponent(0.20 + alpha * 0.14),
+        ]
     }
 
     static func placeholderColor(usesDarkAppearance: Bool) -> NSColor {
@@ -1791,13 +1808,11 @@ final class IntelligenceInstructionComposerNSView: NSView {
         backgroundColor.setFill()
         path.fill()
 
-        if isLoading || usesDarkChrome || isInputFocused {
-            let borderColor = isLoading
-                ? IntelligenceInstructionComposerPresentation.loadingBorderColor(usesDarkAppearance: usesDarkChrome)
-                : IntelligenceInstructionComposerPresentation.borderColor(
-                    usesDarkAppearance: usesDarkChrome,
-                    isFocused: isInputFocused
-                )
+        if !isLoading && (usesDarkChrome || isInputFocused) {
+            let borderColor = IntelligenceInstructionComposerPresentation.borderColor(
+                usesDarkAppearance: usesDarkChrome,
+                isFocused: isInputFocused
+            )
             borderColor.setStroke()
             path.lineWidth = 1
             path.stroke()
@@ -2150,15 +2165,19 @@ final class IntelligenceInstructionLoadingSkeletonNSView: NSView {
 
     private func drawSkeletonBlock(in rect: NSRect, alpha: CGFloat) {
         let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
-        let baseColor = NSColor.labelColor.withAlphaComponent(usesDarkChrome ? 0.08 + alpha * 0.17 : 0.045 + alpha * 0.17)
+        let baseColor = IntelligenceInstructionComposerPresentation.loadingSkeletonBaseColor(
+            usesDarkAppearance: usesDarkChrome,
+            alpha: alpha
+        )
         baseColor.setFill()
         path.fill()
 
-        guard let gradient = NSGradient(colors: [
-            NSColor.labelColor.withAlphaComponent(0.018 + alpha * 0.04),
-            NSColor.labelColor.withAlphaComponent(0.07 + alpha * 0.24),
-            NSColor.labelColor.withAlphaComponent(0.022 + alpha * 0.05),
-        ]) else {
+        guard let gradient = NSGradient(
+            colors: IntelligenceInstructionComposerPresentation.loadingSkeletonGradientColors(
+                usesDarkAppearance: usesDarkChrome,
+                alpha: alpha
+            )
+        ) else {
             return
         }
         gradient.draw(in: path, angle: 0)

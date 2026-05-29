@@ -83,16 +83,43 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
-    func testAiComposerLoadingBorderUsesDarkGrayInLightAppearance() throws {
-        let border = try XCTUnwrap(
-            IntelligenceInstructionComposerPresentation.loadingBorderColor(usesDarkAppearance: false)
+    func testAiComposerLoadingUsesGrayBackgroundAndNoOutline() throws {
+        XCTAssertFalse(IntelligenceInstructionComposerPresentation.loadingDrawsBorder)
+
+        let background = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.loadingBackgroundColor(usesDarkAppearance: false)
                 .usingColorSpace(.sRGB)
         )
 
-        XCTAssertEqual(border.redComponent, 0.50, accuracy: 0.01)
-        XCTAssertEqual(border.greenComponent, 0.50, accuracy: 0.01)
-        XCTAssertEqual(border.blueComponent, 0.50, accuracy: 0.01)
-        XCTAssertEqual(border.alphaComponent, 0.78, accuracy: 0.01)
+        XCTAssertEqual(background.redComponent, 0.68, accuracy: 0.01)
+        XCTAssertEqual(background.greenComponent, 0.68, accuracy: 0.01)
+        XCTAssertEqual(background.blueComponent, 0.68, accuracy: 0.01)
+        XCTAssertEqual(background.alphaComponent, 0.82, accuracy: 0.01)
+    }
+
+    func testAiComposerLoadingShimmerUsesWhiteMarksInLightAppearance() throws {
+        let base = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.loadingSkeletonBaseColor(usesDarkAppearance: false, alpha: 0.5)
+                .usingColorSpace(.sRGB)
+        )
+        let gradient = try IntelligenceInstructionComposerPresentation.loadingSkeletonGradientColors(
+            usesDarkAppearance: false,
+            alpha: 0.5
+        ).map { color in
+            try XCTUnwrap(color.usingColorSpace(.sRGB))
+        }
+
+        for color in [base] + gradient {
+            XCTAssertEqual(color.redComponent, 1, accuracy: 0.01)
+            XCTAssertEqual(color.greenComponent, 1, accuracy: 0.01)
+            XCTAssertEqual(color.blueComponent, 1, accuracy: 0.01)
+            XCTAssertGreaterThan(color.alphaComponent, 0.1)
+        }
+        XCTAssertGreaterThan(
+            gradient[1].alphaComponent - base.alphaComponent,
+            0.30,
+            "The light loading shimmer should have a brighter moving highlight instead of blending into the gray loading background."
+        )
     }
 
     @MainActor
