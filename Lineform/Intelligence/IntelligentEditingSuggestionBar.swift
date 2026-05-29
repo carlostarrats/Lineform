@@ -136,6 +136,12 @@ enum IntelligentEditingOptionsPresentation {
     static let controlsReassertPointingHandCursorWhileHovered = true
     static let controlCursorRectFillsControlBounds = true
 
+    static func answerSurfaceBackgroundColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance
+            ? NSColor(srgbRed: 0x24 / 255.0, green: 0x24 / 255.0, blue: 0x24 / 255.0, alpha: 1)
+            : .controlBackgroundColor
+    }
+
     static func isVisible(isPreparingSuggestion _: Bool, hasSuggestions: Bool) -> Bool {
         hasSuggestions
     }
@@ -151,6 +157,8 @@ enum IntelligentEditingOptionsPresentation {
 }
 
 struct IntelligentEditingOptionsPanel: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let suggestions: [IntelligentEditingSuggestion]
     @Binding var selectedIndex: Int
     var loadingActionTitle: String?
@@ -248,7 +256,10 @@ struct IntelligentEditingOptionsPanel: View {
         .padding(.vertical, isLoading ? 13 : 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: answerSurfaceMinimumHeight, alignment: .topLeading)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            Color(nsColor: IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: colorScheme == .dark)),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
     }
 
     private var answerText: some View {

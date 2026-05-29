@@ -267,7 +267,7 @@ struct EditorContainerView: View {
                 IntelligenceInstructionComposer(
                     instruction: $intelligenceInstruction,
                     isActionEnabled: intelligenceComposerIsEnabled,
-                    isLoading: isRunningIntelligentEdit && pendingIntelligentRequest != nil,
+                    isLoading: isPreparingIntelligentSuggestion,
                     usesDarkChrome: currentTheme.usesDarkChrome,
                     reduceMotion: reduceMotion,
                     onFocusChanged: { isFocused in
@@ -399,8 +399,16 @@ struct EditorContainerView: View {
 
     private var shouldShowIntelligentOptionsPanel: Bool {
         IntelligentEditingOptionsPresentation.isVisible(
-            isPreparingSuggestion: isRunningIntelligentEdit && pendingIntelligentRequest != nil,
+            isPreparingSuggestion: isPreparingIntelligentSuggestion,
             hasSuggestions: !intelligentOptions.isEmpty
+        )
+    }
+
+    private var isPreparingIntelligentSuggestion: Bool {
+        IntelligentEditingRequestLifecycle.isPreparingSuggestion(
+            isRunning: isRunningIntelligentEdit,
+            pendingRequest: pendingIntelligentRequest,
+            activeRequestID: activeIntelligentEditingRequestID
         )
     }
 
@@ -423,7 +431,7 @@ struct EditorContainerView: View {
         IntelligenceInstructionComposerState.hasVisibleSelection(
             current: selectionContext,
             retained: retainedIntelligenceSelection,
-            isPreparingSuggestion: isRunningIntelligentEdit && pendingIntelligentRequest != nil
+            isPreparingSuggestion: isPreparingIntelligentSuggestion
         )
     }
 
@@ -490,7 +498,7 @@ struct EditorContainerView: View {
 
     private var statusIndicator: EditorStatusIndicator {
         EditorStatusFormatter.statusIndicator(
-            isPreparingSuggestion: isRunningIntelligentEdit,
+            isPreparingSuggestion: isPreparingIntelligentSuggestion,
             intelligentEditingStatus: intelligentEditingStatus,
             intelligenceAvailability: IntelligenceAvailabilityService().currentStatus()
         )
@@ -664,7 +672,8 @@ struct EditorContainerView: View {
         if IntelligenceInstructionComposerState.shouldClearRetainedSelection(
             current: selectionContext,
             isFocused: isIntelligenceComposerFocused,
-            instruction: intelligenceInstruction
+            instruction: intelligenceInstruction,
+            isPreparingSuggestion: isPreparingIntelligentSuggestion
         ) {
             retainedIntelligenceSelection = nil
         }
@@ -935,6 +944,7 @@ enum IntelligenceInstructionComposerPresentation {
     static let loadingSkeletonMinimumCellWidth: CGFloat = 6
     static let loadingSkeletonMinimumBlockWidth: CGFloat = 7
     static let loadingSkeletonTextSlotHeight: CGFloat = 24
+    static let loadingSkeletonUsesQuickCadence = true
     static var loadingSkeletonGridHeight: CGFloat {
         CGFloat(loadingSkeletonMinimumRows) * loadingSkeletonBlockHeight
             + CGFloat(loadingSkeletonMinimumRows - 1) * loadingSkeletonSpacing
@@ -991,6 +1001,14 @@ enum IntelligenceInstructionComposerPresentation {
         )
     }
 
+    static func drawsInputBorder(
+        usesDarkAppearance _: Bool,
+        isFocused _: Bool,
+        hasExplicitInputInteraction _: Bool
+    ) -> Bool {
+        false
+    }
+
     static func foregroundColor(usesDarkAppearance: Bool) -> NSColor {
         usesDarkAppearance ? .white : .labelColor
     }
@@ -1006,7 +1024,7 @@ enum IntelligenceInstructionComposerPresentation {
     static func loadingSkeletonBaseColor(usesDarkAppearance: Bool, alpha: CGFloat) -> NSColor {
         usesDarkAppearance
             ? NSColor.labelColor.withAlphaComponent(0.08 + alpha * 0.17)
-            : NSColor.white.withAlphaComponent(0.30 + alpha * 0.08)
+            : NSColor.white.withAlphaComponent(0.12 + alpha * 0.12)
     }
 
     static func loadingSkeletonGradientColors(usesDarkAppearance: Bool, alpha: CGFloat) -> [NSColor] {
@@ -1019,9 +1037,9 @@ enum IntelligenceInstructionComposerPresentation {
         }
 
         return [
-            NSColor.white.withAlphaComponent(0.18 + alpha * 0.12),
-            NSColor.white.withAlphaComponent(0.58 + alpha * 0.34),
-            NSColor.white.withAlphaComponent(0.20 + alpha * 0.14),
+            NSColor.white.withAlphaComponent(0.08 + alpha * 0.10),
+            NSColor.white.withAlphaComponent(0.22 + alpha * 0.74),
+            NSColor.white.withAlphaComponent(0.10 + alpha * 0.12),
         ]
     }
 
@@ -1080,15 +1098,28 @@ enum IntelligenceInstructionComposerState {
     static func shouldClearRetainedSelection(
         current: SelectionContext,
         isFocused: Bool,
-        instruction: String
+        instruction: String,
+        isPreparingSuggestion: Bool = false
     ) -> Bool {
-        current.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard !isPreparingSuggestion else {
+            return false
+        }
+
+        return current.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isFocused
             && instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
 enum IntelligentEditingRequestLifecycle {
+    static func isPreparingSuggestion(
+        isRunning: Bool,
+        pendingRequest: IntelligentEditingRequest?,
+        activeRequestID: UUID?
+    ) -> Bool {
+        isRunning && pendingRequest != nil && activeRequestID != nil
+    }
+
     static func canPublishResult(
         activeRequestID: UUID?,
         completingRequestID: UUID,
@@ -1607,6 +1638,11 @@ final class IntelligenceInstructionComposerNSView: NSView {
             needsDisplay = true
         }
     }
+    private var hasExplicitInputInteraction = false {
+        didSet {
+            needsDisplay = true
+        }
+    }
 
     init(
         instruction: String,
@@ -1790,7 +1826,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
             return
         }
 
-        focusTextView(insertingAt: event.locationInWindow)
+        focusTextView(insertingAt: event.locationInWindow, showingOutline: true)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1808,7 +1844,11 @@ final class IntelligenceInstructionComposerNSView: NSView {
         backgroundColor.setFill()
         path.fill()
 
-        if !isLoading && (usesDarkChrome || isInputFocused) {
+        if !isLoading && IntelligenceInstructionComposerPresentation.drawsInputBorder(
+            usesDarkAppearance: usesDarkChrome,
+            isFocused: isInputFocused,
+            hasExplicitInputInteraction: hasExplicitInputInteraction
+        ) {
             let borderColor = IntelligenceInstructionComposerPresentation.borderColor(
                 usesDarkAppearance: usesDarkChrome,
                 isFocused: isInputFocused
@@ -1860,6 +1900,9 @@ final class IntelligenceInstructionComposerNSView: NSView {
         textView.onFocusChanged = { [weak self] isFocused in
             guard let self else { return }
             isInputFocused = isFocused
+            if !isFocused {
+                hasExplicitInputInteraction = false
+            }
             onFocusChanged(isFocused)
         }
         textView.onSubmit = { [weak self] in
@@ -1881,18 +1924,21 @@ final class IntelligenceInstructionComposerNSView: NSView {
         submitInstruction(trimmedInstruction)
     }
 
-    private func focusTextView() {
+    private func focusTextView(showingOutline: Bool = false) {
         guard !isLoading else { return }
 
+        if showingOutline {
+            hasExplicitInputInteraction = true
+        }
         isInputFocused = true
         onFocusChanged(true)
         window?.makeFirstResponder(textView)
     }
 
-    private func focusTextView(insertingAt windowPoint: NSPoint?) {
+    private func focusTextView(insertingAt windowPoint: NSPoint?, showingOutline: Bool = false) {
         guard !isLoading else { return }
 
-        focusTextView()
+        focusTextView(showingOutline: showingOutline)
         guard let windowPoint else { return }
 
         let point = convert(windowPoint, from: nil)
@@ -1931,9 +1977,10 @@ final class IntelligenceInstructionComposerNSView: NSView {
             if self.submitButton.frame.contains(point) {
                 self.submitIfReady()
             } else if self.textView.frame.contains(point) {
+                self.hasExplicitInputInteraction = true
                 self.textView.handleMouseDown(with: event)
             } else {
-                self.focusTextView(insertingAt: event.locationInWindow)
+                self.focusTextView(insertingAt: event.locationInWindow, showingOutline: true)
             }
             return nil
         }) else { return }
@@ -2015,6 +2062,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         if isLoading {
             window?.makeFirstResponder(nil)
             isInputFocused = false
+            hasExplicitInputInteraction = false
         }
         needsDisplay = true
         needsLayout = true
@@ -2063,7 +2111,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
             window: window,
             rect: convert(bounds, to: nil),
             mouseDownHandler: { [weak self] in
-                self?.focusTextView()
+                self?.focusTextView(showingOutline: true)
             }
         )
     }
@@ -2198,11 +2246,11 @@ final class IntelligenceInstructionLoadingSkeletonNSView: NSView {
 
     private func skeletonDelay(row: Int, column: Int, cellIndex: Int) -> TimeInterval {
         let secondaryNoise = seededNoise(Double(cellIndex + 101) * 3.17)
-        return Double(column) * 0.045 + Double((row * 7) % 5) * 0.026 + secondaryNoise * 0.12
+        return Double(column) * 0.026 + Double((row * 7) % 5) * 0.016 + secondaryNoise * 0.07
     }
 
     private func skeletonDuration(cellIndex: Int) -> TimeInterval {
-        1.18 + seededNoise(Double(cellIndex) * 2.11 + 100) * 0.72
+        0.72 + seededNoise(Double(cellIndex) * 2.11 + 100) * 0.34
     }
 
     private func skeletonScale(cellIndex: Int) -> CGFloat {

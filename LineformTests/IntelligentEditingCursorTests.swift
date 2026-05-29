@@ -362,6 +362,92 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(composerView.descendants(ofType: NSProgressIndicator.self).count, 0)
     }
 
+    func testInstructionComposerStartsSkeletonAnimationWhenUpdatedToLoadingInWindow() throws {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 52),
+            styleMask: [],
+            backing: .buffered,
+            defer: false
+        )
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "Rewrite this",
+            isActionEnabled: true,
+            isLoading: false,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 560, height: 52)
+        window.contentView?.addSubview(composerView)
+        window.makeKeyAndOrderFront(nil)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        composerView.update(
+            instruction: "Rewrite this",
+            isActionEnabled: true,
+            isLoading: true,
+            reduceMotion: false,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        let skeletonView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionLoadingSkeletonNSView.self).first)
+        XCTAssertFalse(skeletonView.isHidden)
+        XCTAssertTrue(skeletonView.isAnimatingForAccessibilityTesting)
+    }
+
+    func testInstructionComposerKeepsLoadingSkeletonVisibleAfterWindowResize() throws {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 180),
+            styleMask: [.resizable],
+            backing: .buffered,
+            defer: false
+        )
+        let overlayView = IntelligenceInstructionComposerOverlayNSView(
+            instruction: "",
+            isActionEnabled: false,
+            isLoading: true,
+            usesDarkChrome: false,
+            reduceMotion: false,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        overlayView.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 560, height: 180)
+        overlayView.autoresizingMask = [.width, .height]
+        window.contentView?.addSubview(overlayView)
+        window.makeKeyAndOrderFront(nil)
+        overlayView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        window.setContentSize(NSSize(width: 880, height: 260))
+        overlayView.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 880, height: 260)
+        overlayView.update(
+            instruction: "",
+            isActionEnabled: false,
+            isLoading: true,
+            usesDarkChrome: false,
+            reduceMotion: false,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        overlayView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        let composerView = try XCTUnwrap(overlayView.descendants(ofType: IntelligenceInstructionComposerNSView.self).first)
+        let textView = try XCTUnwrap(overlayView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        let skeletonView = try XCTUnwrap(overlayView.descendants(ofType: IntelligenceInstructionLoadingSkeletonNSView.self).first)
+
+        XCTAssertTrue(textView.isHidden)
+        XCTAssertFalse(skeletonView.isHidden)
+        XCTAssertTrue(skeletonView.isAnimatingForAccessibilityTesting)
+        XCTAssertEqual(composerView.frame.width, IntelligenceInstructionComposerPresentation.maximumWidth, accuracy: 0.5)
+    }
+
     func testInstructionComposerExposesAccessibleInputAndSendButton() throws {
         let composerView = IntelligenceInstructionComposerNSView(
             instruction: "",

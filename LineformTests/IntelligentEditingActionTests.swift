@@ -44,6 +44,46 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesNavPillLikeShadow)
     }
 
+    func testAiComposerInputDoesNotDrawOutlineInEitherAppearance() {
+        XCTAssertFalse(
+            IntelligenceInstructionComposerPresentation.drawsInputBorder(
+                usesDarkAppearance: false,
+                isFocused: true,
+                hasExplicitInputInteraction: false
+            ),
+            "Light mode should not draw the input outline just because selection auto-focused the composer."
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerPresentation.drawsInputBorder(
+                usesDarkAppearance: false,
+                isFocused: true,
+                hasExplicitInputInteraction: true
+            )
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerPresentation.drawsInputBorder(
+                usesDarkAppearance: false,
+                isFocused: false,
+                hasExplicitInputInteraction: true
+            )
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerPresentation.drawsInputBorder(
+                usesDarkAppearance: true,
+                isFocused: true,
+                hasExplicitInputInteraction: true
+            )
+        )
+        XCTAssertFalse(
+            IntelligenceInstructionComposerPresentation.drawsInputBorder(
+                usesDarkAppearance: true,
+                isFocused: true,
+                hasExplicitInputInteraction: false
+            ),
+            "The AI input keeps behavior unchanged but does not draw a visual outline."
+        )
+    }
+
     func testAiComposerOwnsLoadingStateBeforeResultReview() {
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesInlineLoadingState)
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesExistingSkeletonShimmerForLoading)
@@ -83,6 +123,10 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
+    func testAiComposerLoadingShimmerUsesQuickCadence() {
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.loadingSkeletonUsesQuickCadence)
+    }
+
     func testAiComposerLoadingUsesGrayBackgroundAndNoOutline() throws {
         XCTAssertFalse(IntelligenceInstructionComposerPresentation.loadingDrawsBorder)
 
@@ -113,12 +157,17 @@ final class IntelligentEditingActionTests: XCTestCase {
             XCTAssertEqual(color.redComponent, 1, accuracy: 0.01)
             XCTAssertEqual(color.greenComponent, 1, accuracy: 0.01)
             XCTAssertEqual(color.blueComponent, 1, accuracy: 0.01)
-            XCTAssertGreaterThan(color.alphaComponent, 0.1)
+            XCTAssertGreaterThan(color.alphaComponent, 0.05)
         }
         XCTAssertGreaterThan(
             gradient[1].alphaComponent - base.alphaComponent,
             0.30,
             "The light loading shimmer should have a brighter moving highlight instead of blending into the gray loading background."
+        )
+        XCTAssertGreaterThan(
+            gradient[1].alphaComponent - gradient[0].alphaComponent,
+            0.35,
+            "The light loading shimmer needs enough center-to-edge contrast to read as motion on a gray background."
         )
     }
 
@@ -303,6 +352,55 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
+    func testAiComposerDoesNotClearRetainedSelectionWhileInstructionIsPreparing() {
+        let collapsed = SelectionContext(
+            text: "Selected text was already sent to AI.",
+            selectedRange: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertFalse(
+            IntelligenceInstructionComposerState.shouldClearRetainedSelection(
+                current: collapsed,
+                isFocused: false,
+                instruction: "",
+                isPreparingSuggestion: true
+            )
+        )
+    }
+
+    func testPreparingSuggestionRequiresRunningPendingRequest() {
+        let activeRequestID = UUID()
+
+        XCTAssertTrue(
+            IntelligentEditingRequestLifecycle.isPreparingSuggestion(
+                isRunning: true,
+                pendingRequest: .custom("Rewrite this."),
+                activeRequestID: activeRequestID
+            )
+        )
+        XCTAssertFalse(
+            IntelligentEditingRequestLifecycle.isPreparingSuggestion(
+                isRunning: false,
+                pendingRequest: .custom("Rewrite this."),
+                activeRequestID: activeRequestID
+            )
+        )
+        XCTAssertFalse(
+            IntelligentEditingRequestLifecycle.isPreparingSuggestion(
+                isRunning: true,
+                pendingRequest: nil,
+                activeRequestID: activeRequestID
+            )
+        )
+        XCTAssertFalse(
+            IntelligentEditingRequestLifecycle.isPreparingSuggestion(
+                isRunning: true,
+                pendingRequest: .custom("Rewrite this."),
+                activeRequestID: nil
+            )
+        )
+    }
+
     func testStaleOrCanceledIntelligentEditingRequestsCannotPublishResults() {
         let activeRequestID = UUID()
 
@@ -465,6 +563,20 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertTrue(IntelligentEditingOptionsPresentation.controlsUseAppKitCursorRect)
         XCTAssertTrue(IntelligentEditingOptionsPresentation.controlsReassertPointingHandCursorWhileHovered)
         XCTAssertTrue(IntelligentEditingOptionsPresentation.controlCursorRectFillsControlBounds)
+    }
+
+    func testDarkOptionPanelAnswerSurfaceIsSlightlyLighterThanOuterCard() throws {
+        let darkSurface = try XCTUnwrap(
+            IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: true)
+                .usingColorSpace(.sRGB)
+        )
+        let lightSurface = IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: false)
+
+        XCTAssertEqual(darkSurface.redComponent, 0x24 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(darkSurface.greenComponent, 0x24 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(darkSurface.blueComponent, 0x24 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(darkSurface.alphaComponent, 1, accuracy: 0.005)
+        XCTAssertEqual(lightSurface, NSColor.controlBackgroundColor)
     }
 
     func testIntelligenceSkeletonMetricsRemainStableForLoadingSurfaces() {
