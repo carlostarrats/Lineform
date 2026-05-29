@@ -175,39 +175,17 @@ struct EditorContainerView: View {
         let theme = currentTheme
 
         return ZStack {
-            HStack(spacing: 0) {
-                editorPrimaryShell
-                    .frame(minWidth: EditorLayout.minimumContentWidth, maxWidth: .infinity, maxHeight: .infinity)
-
-                ZStack(alignment: .leading) {
+            editorPrimaryShell
+                .inspector(isPresented: $isShowingReadingInspector) {
                     ReadingExperienceInspector(store: readingProfileStore, usesDarkChrome: theme.usesDarkChrome)
-                        .frame(
-                            minWidth: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
-                            idealWidth: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
-                            maxWidth: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380,
-                            maxHeight: .infinity
+                        .inspectorColumnWidth(
+                            min: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
+                            ideal: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
+                            max: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380
                         )
                         .id(theme.usesDarkChrome)
                         .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
-                        .opacity(isShowingReadingInspector ? 1 : 0)
-                        .accessibilityHidden(!isShowingReadingInspector)
                 }
-                .frame(
-                    width: isShowingReadingInspector
-                        ? EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320
-                        : 0,
-                    alignment: .leading
-                )
-                .clipped()
-                .allowsHitTesting(isShowingReadingInspector)
-            }
-            .animation(
-                EditorMotionPolicy.animation(
-                    .linear(duration: EditorInspectorTextResponse.transitionDuration),
-                    reduceMotion: reduceMotion
-                ),
-                value: isShowingReadingInspector
-            )
 
             if isShowingMarkdownBasics {
                 MarkdownBasicsOverlay {
@@ -3647,14 +3625,14 @@ struct EditorAuxiliaryPresentation: Equatable {
     var animationDuration: Double?
 
     static let readingExperience = EditorAuxiliaryPresentation(
-        kind: .trailingDrawer,
-        presenter: .customLayout,
+        kind: .nativeInspector,
+        presenter: .systemInspector,
         accessibilityLabel: "Reading Experience Inspector",
         minimumWidth: 280,
         idealWidth: 320,
         maximumWidth: 380,
-        transitionStyle: .slideAndFade,
-        animationDuration: EditorInspectorTextResponse.transitionDuration
+        transitionStyle: .systemInspector,
+        animationDuration: nil
     )
 
     static let markdownBasics = EditorAuxiliaryPresentation(
@@ -3677,6 +3655,7 @@ enum EditorAuxiliaryPresenter: Equatable {
 
 enum EditorAuxiliaryTransitionStyle: Equatable {
     case instant
+    case systemInspector
     case fadeAndMoveUp
     case slideAndFade
 }

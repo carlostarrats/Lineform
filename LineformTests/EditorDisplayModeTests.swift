@@ -170,7 +170,7 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.intelligence, .markdownBasics, .readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .read), [.readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .split), [.markdownBasics, .readingExperience])
-        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .trailingDrawer)
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .nativeInspector)
         XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.kind, .centeredModal)
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel, "Reading Experience Inspector")
         XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel, "Markdown Basics")
@@ -292,10 +292,10 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(MarkdownBasicsModal.animationDuration, 0.24, accuracy: 0.01)
     }
 
-    func testReadingInspectorUsesSlideAndFadeAnimation() {
-        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.presenter, .customLayout)
-        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.transitionStyle, .slideAndFade)
-        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.animationDuration ?? 0, 0.18, accuracy: 0.01)
+    func testReadingInspectorUsesNativeInspectorChrome() {
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.presenter, .systemInspector)
+        XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.transitionStyle, .systemInspector)
+        XCTAssertNil(EditorAuxiliaryPresentation.readingExperience.animationDuration)
     }
 
     func testReadingInspectorUsesSingleLayoutAnimationWithoutTextParallax() {
