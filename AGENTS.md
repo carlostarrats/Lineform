@@ -108,26 +108,30 @@ Use serial testing for the full suite. Some AppKit-hosted tests can contaminate 
 Live Apple Intelligence single/options eval:
 
 ```sh
-touch /private/tmp/lineform-run-live-intelligence-evals
-xcodebuild test \
-  -project Lineform.xcodeproj \
-  -scheme Lineform \
-  -destination 'platform=macOS' \
-  -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn \
-  -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
-rm /private/tmp/lineform-run-live-intelligence-evals
+(
+  touch /private/tmp/lineform-run-live-intelligence-evals
+  trap 'rm -f /private/tmp/lineform-run-live-intelligence-evals' EXIT
+  xcodebuild test \
+    -project Lineform.xcodeproj \
+    -scheme Lineform \
+    -destination 'platform=macOS' \
+    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn \
+    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
+)
 ```
 
 Repeated live Apple Intelligence stability eval:
 
 ```sh
-touch /private/tmp/lineform-run-repeated-live-intelligence-evals
-xcodebuild test \
-  -project Lineform.xcodeproj \
-  -scheme Lineform \
-  -destination 'platform=macOS' \
-  -only-testing:LineformTests/IntelligentEditingEvaluationTests/testRepeatedLiveFoundationModelsEvalIsOptIn
-rm /private/tmp/lineform-run-repeated-live-intelligence-evals
+(
+  touch /private/tmp/lineform-run-repeated-live-intelligence-evals
+  trap 'rm -f /private/tmp/lineform-run-repeated-live-intelligence-evals' EXIT
+  xcodebuild test \
+    -project Lineform.xcodeproj \
+    -scheme Lineform \
+    -destination 'platform=macOS' \
+    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testRepeatedLiveFoundationModelsEvalIsOptIn
+)
 ```
 
 For prompt, validation, fallback, or intelligence UI changes, run:

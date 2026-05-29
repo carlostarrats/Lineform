@@ -728,6 +728,10 @@ enum IntelligentEditingEvaluationRubric {
             return false
         }
 
+        if selectedText.contains("\n\n~~~") && !replacement.contains("\n\n~~~") {
+            return false
+        }
+
         if headingMarkers(in: replacement) != headingMarkers(in: selectedText) {
             return false
         }
@@ -742,6 +746,10 @@ enum IntelligentEditingEvaluationRubric {
 
         if selectedText.contains("```") {
             return replacement.contains("```")
+        }
+
+        if selectedText.contains("~~~") {
+            return replacement.contains("~~~")
         }
 
         if selectedText.contains("- ") {
@@ -760,7 +768,9 @@ enum IntelligentEditingEvaluationRubric {
     }
 
     private static func fencedCodeFenceCount(in text: String) -> Int {
-        text.components(separatedBy: "```").count - 1
+        text.components(separatedBy: "```").count
+            + text.components(separatedBy: "~~~").count
+            - 2
     }
 
     private static func frontMatterDelimiters(in text: String) -> [String] {

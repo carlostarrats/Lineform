@@ -27,6 +27,7 @@ struct EditorContainerView: View {
     @State private var isRunningIntelligentEdit = false
     @State private var intelligentEditingTask: Task<Void, Never>?
     @State private var pendingIntelligentRequest: IntelligentEditingRequest?
+    @State private var activeIntelligentEditingRequestID: UUID?
     @State private var intelligentEditingStatus: String?
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
@@ -268,6 +269,7 @@ struct EditorContainerView: View {
                     isActionEnabled: intelligenceComposerIsEnabled,
                     isLoading: isRunningIntelligentEdit && pendingIntelligentRequest != nil,
                     usesDarkChrome: currentTheme.usesDarkChrome,
+                    reduceMotion: reduceMotion,
                     onFocusChanged: { isFocused in
                         isIntelligenceComposerFocused = isFocused
                         if !isFocused {
@@ -530,6 +532,8 @@ struct EditorContainerView: View {
 
         isRunningIntelligentEdit = true
         pendingIntelligentRequest = request
+        let requestID = UUID()
+        activeIntelligentEditingRequestID = requestID
         clearIntelligentSuggestions()
         intelligentEditingStatus = nil
         if request.usesUserInstruction {
@@ -546,12 +550,22 @@ struct EditorContainerView: View {
                 selectedRange: editingContext.selectedRange
             )
 
+            let isCancelled = Task.isCancelled
             await MainActor.run {
+                guard IntelligentEditingRequestLifecycle.canPublishResult(
+                    activeRequestID: activeIntelligentEditingRequestID,
+                    completingRequestID: requestID,
+                    isCancelled: isCancelled
+                ) else {
+                    return
+                }
+
                 switch result {
                 case .ready(let suggestions, _):
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
                     pendingIntelligentRequest = nil
+                    activeIntelligentEditingRequestID = nil
                     let applicableSuggestions = suggestions.filter { $0.canApply(to: document.text) }
                     guard !applicableSuggestions.isEmpty else {
                         clearIntelligentSuggestions()
@@ -569,6 +583,7 @@ struct EditorContainerView: View {
                     isRunningIntelligentEdit = false
                     intelligentEditingTask = nil
                     pendingIntelligentRequest = nil
+                    activeIntelligentEditingRequestID = nil
                     intelligentEditingStatus = message
                 }
             }
@@ -618,6 +633,7 @@ struct EditorContainerView: View {
             intelligentEditingTask = nil
             isRunningIntelligentEdit = false
             pendingIntelligentRequest = nil
+            activeIntelligentEditingRequestID = nil
             clearIntelligentSuggestions()
             intelligentEditingStatus = "Suggestion canceled."
             return
@@ -907,6 +923,7 @@ enum IntelligenceInstructionComposerPresentation {
     static let usesNavPillLikeShadow = true
     static let usesInlineLoadingState = true
     static let usesExistingSkeletonShimmerForLoading = true
+    static let pausesLoadingShimmerForReducedMotion = true
     static let usesNeutralLoadingChrome = true
     static let showsLoadingSpinnerInSubmitSlot = false
     static let loadingStatePreservesCapsuleDimensions = true
@@ -1044,6 +1061,16 @@ enum IntelligenceInstructionComposerState {
         current.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isFocused
             && instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+enum IntelligentEditingRequestLifecycle {
+    static func canPublishResult(
+        activeRequestID: UUID?,
+        completingRequestID: UUID,
+        isCancelled: Bool
+    ) -> Bool {
+        !isCancelled && activeRequestID == completingRequestID
     }
 }
 
@@ -1394,6 +1421,7 @@ struct IntelligenceInstructionComposer: View {
     let isActionEnabled: Bool
     var isLoading = false
     var usesDarkChrome = false
+    var reduceMotion = false
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
 
@@ -1403,6 +1431,7 @@ struct IntelligenceInstructionComposer: View {
             isActionEnabled: isActionEnabled,
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
+            reduceMotion: reduceMotion,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
         )
@@ -1414,6 +1443,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
     let isActionEnabled: Bool
     let isLoading: Bool
     let usesDarkChrome: Bool
+    let reduceMotion: Bool
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
 
@@ -1423,6 +1453,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
             isActionEnabled: isActionEnabled,
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
+            reduceMotion: reduceMotion,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1435,6 +1466,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
             isActionEnabled: isActionEnabled,
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
+            reduceMotion: reduceMotion,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1450,6 +1482,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         isActionEnabled: Bool,
         isLoading: Bool = false,
         usesDarkChrome: Bool,
+        reduceMotion: Bool,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1459,6 +1492,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
             isActionEnabled: isActionEnabled,
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
+            reduceMotion: reduceMotion,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1485,6 +1519,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         isActionEnabled: Bool,
         isLoading: Bool = false,
         usesDarkChrome: Bool = false,
+        reduceMotion: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1494,6 +1529,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
             isActionEnabled: isActionEnabled,
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
+            reduceMotion: reduceMotion,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1532,6 +1568,11 @@ final class IntelligenceInstructionComposerNSView: NSView {
     private var submitInstruction: (String) -> Void
     private var mouseDownMonitor: LocalEventMonitor?
     private var usesDarkChrome: Bool
+    private var reduceMotion: Bool {
+        didSet {
+            applyLoadingState()
+        }
+    }
     private var isLoading: Bool {
         didSet {
             applyLoadingState()
@@ -1548,6 +1589,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         isActionEnabled: Bool,
         isLoading: Bool = false,
         usesDarkChrome: Bool = false,
+        reduceMotion: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1556,6 +1598,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         self.onFocusChanged = onFocusChanged
         self.submitInstruction = submitInstruction
         self.usesDarkChrome = usesDarkChrome
+        self.reduceMotion = reduceMotion
         self.isLoading = isLoading
         submitButton = IntelligenceInstructionSubmitButtonNSView(
             isActionEnabled: isActionEnabled,
@@ -1592,6 +1635,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         isActionEnabled: Bool,
         isLoading: Bool = false,
         usesDarkChrome: Bool = false,
+        reduceMotion: Bool = false,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1602,6 +1646,9 @@ final class IntelligenceInstructionComposerNSView: NSView {
         if self.usesDarkChrome != usesDarkChrome {
             self.usesDarkChrome = usesDarkChrome
             applyAppearanceStyling()
+        }
+        if self.reduceMotion != reduceMotion {
+            self.reduceMotion = reduceMotion
         }
         self.isLoading = isLoading
         submitButton.isActionEnabled = isActionEnabled
@@ -1893,7 +1940,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         textView.isHidden = isLoading
         submitButton.isHidden = isLoading
         loadingSkeletonView.isHidden = !isLoading
-        loadingSkeletonView.setAnimating(isLoading)
+        loadingSkeletonView.setAnimating(isLoading, reduceMotion: reduceMotion)
         if isLoading {
             window?.makeFirstResponder(nil)
             isInputFocused = false
@@ -1957,9 +2004,13 @@ final class IntelligenceInstructionLoadingSkeletonNSView: NSView {
             needsDisplay = true
         }
     }
+    private var reduceMotion = false
 
     private var animationStartDate = Date()
     private var animationTimer: Timer?
+    var isAnimatingForAccessibilityTesting: Bool {
+        animationTimer != nil
+    }
 
     override var isFlipped: Bool {
         true
@@ -1969,17 +2020,19 @@ final class IntelligenceInstructionLoadingSkeletonNSView: NSView {
         super.viewDidMoveToWindow()
         if window == nil {
             stopAnimating()
-        } else if !isHidden {
+        } else if !isHidden && !reduceMotion {
             startAnimating()
         }
     }
 
-    func setAnimating(_ isAnimating: Bool) {
-        if isAnimating, window != nil {
+    func setAnimating(_ isAnimating: Bool, reduceMotion: Bool) {
+        self.reduceMotion = reduceMotion
+        if isAnimating, !reduceMotion, window != nil {
             startAnimating()
         } else {
             stopAnimating()
         }
+        needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -3530,6 +3583,7 @@ struct MarkdownBasicsModal: View {
     static let title = "Info"
     static let showsCloseButton = true
     static let dismissesWhenClickingOutside = true
+    static let supportsEscapeDismissal = true
     static let usesRowSeparators = true
     static let usesMonospacedExampleFont = false
     static let contentWidth: CGFloat = 560
@@ -3591,6 +3645,7 @@ struct MarkdownBasicsModal: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
                 .contentShape(Circle())
                 .help("Close")
                 .onHover { hovering in

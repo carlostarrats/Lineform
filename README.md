@@ -54,14 +54,16 @@ xcodebuild test \
 Run live Apple Intelligence evals only on machines where Apple Intelligence is available:
 
 ```sh
-touch /private/tmp/lineform-run-live-intelligence-evals
-xcodebuild test \
-  -project Lineform.xcodeproj \
-  -scheme Lineform \
-  -destination 'platform=macOS' \
-  -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn \
-  -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
-rm /private/tmp/lineform-run-live-intelligence-evals
+(
+  touch /private/tmp/lineform-run-live-intelligence-evals
+  trap 'rm -f /private/tmp/lineform-run-live-intelligence-evals' EXIT
+  xcodebuild test \
+    -project Lineform.xcodeproj \
+    -scheme Lineform \
+    -destination 'platform=macOS' \
+    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn \
+    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
+)
 ```
 
 See `docs/intelligent-editing-benchmarks.md` for the full intelligence benchmark and release gate.

@@ -80,9 +80,11 @@ Opt-in live Foundation Models evals write JSON reports to the app-hosted test pr
 Run live evals with:
 
 ```sh
-touch /private/tmp/lineform-run-live-intelligence-evals
-xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
-rm /private/tmp/lineform-run-live-intelligence-evals
+(
+  touch /private/tmp/lineform-run-live-intelligence-evals
+  trap 'rm -f /private/tmp/lineform-run-live-intelligence-evals' EXIT
+  xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
+)
 ```
 
 Run repeated live evals with:

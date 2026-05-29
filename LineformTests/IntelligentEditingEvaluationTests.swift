@@ -574,6 +574,27 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(result.failures.contains(.markdownStructureNotPreserved))
     }
 
+    func testRubricRejectsDroppedTildeCodeFenceWhenMarkdownMustBePreserved() {
+        let task = IntelligentEditingEvaluationTask(
+            id: "tilde-code-fence-preservation",
+            action: .rewrite,
+            selectedText: "~~~swift\nlet value = 1\n~~~",
+            documentContext: "~~~swift\nlet value = 1\n~~~",
+            length: .paragraph,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: true
+        )
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "let value = 1",
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.markdownStructureNotPreserved))
+    }
+
     func testRubricRejectsDroppedMarkdownLinksWhenMarkdownMustBePreserved() {
         let task = IntelligentEditingEvaluationTask(
             id: "link-preservation",

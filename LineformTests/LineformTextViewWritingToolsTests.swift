@@ -416,7 +416,7 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(visibleRangeAfterTypographyRefresh.location, visibleRangeBeforeResize.location, accuracy: 8)
     }
 
-    func testTypographyAppliesFontSelectionAndCaretWidthSetting() {
+    func testTypographyAppliesFontSelectionAndRetainsStoredProfileMetadata() {
         let textView = LineformTextView()
         var profile = ReadingProfile.original
         profile.fontID = .jetBrainsMono

@@ -844,6 +844,23 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         }
     }
 
+    func testRunnerRejectsRewriteThatDropsTildeCodeFence() async throws {
+        let selectedText = "~~~swift\nlet value = 1\n~~~"
+        let service = StubIntelligentEditingService(result: "let value = 1")
+        let runner = IntelligentEditingRunner(service: service)
+
+        do {
+            _ = try await runner.run(
+                action: .rewrite,
+                documentText: selectedText,
+                selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+            )
+            XCTFail("Expected dropped tilde code fence to be rejected.")
+        } catch IntelligentEditingError.emptyResponse {
+            XCTAssertEqual(service.requests.first?.selectedText, selectedText)
+        }
+    }
+
     func testRunnerStripsEnclosingMarkdownFenceBeforeValidation() async throws {
         let selectedText = "#Title\n\n-  First item"
         let service = StubIntelligentEditingService(result: """

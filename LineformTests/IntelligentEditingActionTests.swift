@@ -47,6 +47,7 @@ final class IntelligentEditingActionTests: XCTestCase {
     func testAiComposerOwnsLoadingStateBeforeResultReview() {
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesInlineLoadingState)
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesExistingSkeletonShimmerForLoading)
+        XCTAssertTrue(IntelligenceInstructionComposerPresentation.pausesLoadingShimmerForReducedMotion)
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.usesNeutralLoadingChrome)
         XCTAssertFalse(IntelligenceInstructionComposerPresentation.showsLoadingSpinnerInSubmitSlot)
         XCTAssertTrue(IntelligenceInstructionComposerPresentation.loadingStatePreservesCapsuleDimensions)
@@ -80,6 +81,19 @@ final class IntelligentEditingActionTests: XCTestCase {
             IntelligenceInstructionComposerPresentation.loadingSkeletonSpacing,
             2
         )
+    }
+
+    @MainActor
+    func testAiComposerLoadingShimmerStopsAnimatingWhenReduceMotionIsEnabled() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 52), styleMask: [], backing: .buffered, defer: false)
+        let skeletonView = IntelligenceInstructionLoadingSkeletonNSView()
+        window.contentView?.addSubview(skeletonView)
+
+        skeletonView.setAnimating(true, reduceMotion: false)
+        XCTAssertTrue(skeletonView.isAnimatingForAccessibilityTesting)
+
+        skeletonView.setAnimating(true, reduceMotion: true)
+        XCTAssertFalse(skeletonView.isAnimatingForAccessibilityTesting)
     }
 
     func testAiComposerUsesInvertedDarkAppearanceColors() throws {
@@ -246,6 +260,39 @@ final class IntelligentEditingActionTests: XCTestCase {
                 current: collapsed,
                 retained: nil,
                 isPreparingSuggestion: false
+            )
+        )
+    }
+
+    func testStaleOrCanceledIntelligentEditingRequestsCannotPublishResults() {
+        let activeRequestID = UUID()
+
+        XCTAssertTrue(
+            IntelligentEditingRequestLifecycle.canPublishResult(
+                activeRequestID: activeRequestID,
+                completingRequestID: activeRequestID,
+                isCancelled: false
+            )
+        )
+        XCTAssertFalse(
+            IntelligentEditingRequestLifecycle.canPublishResult(
+                activeRequestID: nil,
+                completingRequestID: activeRequestID,
+                isCancelled: false
+            )
+        )
+        XCTAssertFalse(
+            IntelligentEditingRequestLifecycle.canPublishResult(
+                activeRequestID: UUID(),
+                completingRequestID: activeRequestID,
+                isCancelled: false
+            )
+        )
+        XCTAssertFalse(
+            IntelligentEditingRequestLifecycle.canPublishResult(
+                activeRequestID: activeRequestID,
+                completingRequestID: activeRequestID,
+                isCancelled: true
             )
         )
     }

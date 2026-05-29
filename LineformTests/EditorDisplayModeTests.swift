@@ -130,6 +130,7 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "AI Editing"])
         XCTAssertTrue(MarkdownBasicsModal.usesRowSeparators)
         XCTAssertFalse(MarkdownBasicsModal.usesMonospacedExampleFont)
+        XCTAssertTrue(MarkdownBasicsModal.supportsEscapeDismissal)
         XCTAssertEqual(MarkdownBasicsModal.contentWidth, 560)
         XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { row in
             row.detail.localizedCaseInsensitiveContains("git")

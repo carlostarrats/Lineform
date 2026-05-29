@@ -215,6 +215,7 @@ struct IntelligentEditingRunner {
     private static func requiresMarkdownPreservation(action: IntelligentEditingAction, selectedText: String) -> Bool {
         action == .cleanMarkdown
             || selectedText.contains("```")
+            || selectedText.contains("~~~")
             || selectedText.contains("- ")
             || selectedText.range(of: #"(?m)^\s*\d+[.)]\s"#, options: .regularExpression) != nil
             || selectedText.contains("> ")
