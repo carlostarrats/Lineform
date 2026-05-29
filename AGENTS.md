@@ -105,6 +105,13 @@ xcodebuild test \
 
 Use serial testing for the full suite. Some AppKit-hosted tests can contaminate each other when Xcode runs them in parallel.
 
+Known AppKit test-harness warning:
+
+- `EditorDisplayModeTests/testEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens` may log `[WarnOnce] It's not legal to call -layoutSubtreeIfNeeded on a view which is already being laid out`.
+- This warning was investigated in an isolated worktree on May 28, 2026. It appears when the test constructs the full `NSHostingView`/`NSWindow` editor harness via `makeEditorDrawerHarness()`.
+- Sandbox checks ruled out the drawer notification, the tuned text-canvas drawer motion code, the AI composer `layoutSubtreeIfNeeded()` call, Lineform's SwiftUI toolbar/search modifiers, and `makeKeyAndOrderFront` as direct causes.
+- Do not weaken or replace the full hosted drawer-motion harness just to silence this warning. The harness protects real UI motion regressions. Revisit only if the warning appears during normal app use, becomes a CI failure, or has a proven user-visible layout symptom.
+
 Live Apple Intelligence single/options eval:
 
 ```sh
