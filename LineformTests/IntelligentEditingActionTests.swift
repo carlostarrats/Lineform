@@ -83,6 +83,18 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
+    func testAiComposerLoadingBorderUsesDarkGrayInLightAppearance() throws {
+        let border = try XCTUnwrap(
+            IntelligenceInstructionComposerPresentation.loadingBorderColor(usesDarkAppearance: false)
+                .usingColorSpace(.sRGB)
+        )
+
+        XCTAssertEqual(border.redComponent, 0.50, accuracy: 0.01)
+        XCTAssertEqual(border.greenComponent, 0.50, accuracy: 0.01)
+        XCTAssertEqual(border.blueComponent, 0.50, accuracy: 0.01)
+        XCTAssertEqual(border.alphaComponent, 0.78, accuracy: 0.01)
+    }
+
     @MainActor
     func testAiComposerLoadingShimmerStopsAnimatingWhenReduceMotionIsEnabled() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 52), styleMask: [], backing: .buffered, defer: false)

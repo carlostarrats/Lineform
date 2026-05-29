@@ -956,6 +956,8 @@ enum IntelligenceInstructionComposerPresentation {
     static let shadowOpacity = 0.08
     static let shadowRadius: CGFloat = 16
     static let shadowYOffset: CGFloat = 4
+    static let lightLoadingBorderWhiteComponent: CGFloat = 0.50
+    static let lightLoadingBorderAlpha: CGFloat = 0.78
 
     static func usesDarkAppearance(_ appearance: NSAppearance) -> Bool {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -986,7 +988,12 @@ enum IntelligenceInstructionComposerPresentation {
     static func loadingBorderColor(usesDarkAppearance: Bool) -> NSColor {
         usesDarkAppearance
             ? NSColor.white.withAlphaComponent(0.7)
-            : NSColor.separatorColor.withAlphaComponent(0.75)
+            : NSColor(
+                srgbRed: lightLoadingBorderWhiteComponent,
+                green: lightLoadingBorderWhiteComponent,
+                blue: lightLoadingBorderWhiteComponent,
+                alpha: lightLoadingBorderAlpha
+            )
     }
 
     static func foregroundColor(usesDarkAppearance: Bool) -> NSColor {
