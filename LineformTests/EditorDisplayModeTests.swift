@@ -122,11 +122,47 @@ final class EditorDisplayModeTests: XCTestCase {
 
     @MainActor
     func testMarkdownBasicsExamplesCoverCommonFormatting() {
-        XCTAssertEqual(MarkdownBasicsModal.title, "Markdown Basics")
+        XCTAssertEqual(MarkdownBasicsModal.title, "Info")
         XCTAssertEqual(
             MarkdownBasicsModal.examples.map(\.syntax),
             ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "`code`", "[link](https://example.com)"]
         )
+        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "AI Editing"])
+        XCTAssertTrue(MarkdownBasicsModal.usesRowSeparators)
+        XCTAssertFalse(MarkdownBasicsModal.usesMonospacedExampleFont)
+        XCTAssertEqual(MarkdownBasicsModal.contentWidth, 560)
+        XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { row in
+            row.detail.localizedCaseInsensitiveContains("git")
+                || row.detail.localizedCaseInsensitiveContains("privacy")
+                || row.detail.localizedCaseInsensitiveContains("file")
+        })
+    }
+
+    @MainActor
+    func testMarkdownGuideTextMeetsAAContrast() {
+        let background = NSColor(
+            calibratedRed: MarkdownBasicsModal.backgroundWhiteComponent,
+            green: MarkdownBasicsModal.backgroundWhiteComponent,
+            blue: MarkdownBasicsModal.backgroundWhiteComponent,
+            alpha: 1
+        )
+        let primary = NSColor(
+            calibratedRed: MarkdownBasicsModal.textRedComponent,
+            green: MarkdownBasicsModal.textRedComponent,
+            blue: MarkdownBasicsModal.textRedComponent,
+            alpha: 1
+        )
+        let secondaryComponent = MarkdownBasicsModal.textRedComponent * MarkdownBasicsModal.secondaryTextOpacity
+            + MarkdownBasicsModal.backgroundWhiteComponent * (1 - MarkdownBasicsModal.secondaryTextOpacity)
+        let secondary = NSColor(
+            calibratedRed: secondaryComponent,
+            green: secondaryComponent,
+            blue: secondaryComponent,
+            alpha: 1
+        )
+
+        XCTAssertGreaterThanOrEqual(Self.contrastRatio(primary, background), 4.5)
+        XCTAssertGreaterThanOrEqual(Self.contrastRatio(secondary, background), 4.5)
     }
 
     func testToolbarButtonsUseSeparateNativePresentationModels() {
@@ -825,7 +861,7 @@ final class EditorDisplayModeTests: XCTestCase {
 
             Markdown outline navigation from document headings.
 
-            Reading controls for type size, line height, paragraph spacing, margins, column width, themes, focus, ruler, and caret width.
+            Reading controls for type size, line height, paragraph spacing, margins, column width, themes, focus, and ruler.
 
             Apple Books-style reader themes, with accessibility adjustments layered on top.
 

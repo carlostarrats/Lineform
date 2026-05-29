@@ -3513,9 +3513,26 @@ struct MarkdownBasicsModal: View {
         var id: String { syntax }
     }
 
-    static let title = "Markdown Basics"
+    struct Row: Identifiable, Equatable {
+        var label: String
+        var detail: String
+
+        var id: String { "\(label)-\(detail)" }
+    }
+
+    struct Section: Identifiable, Equatable {
+        var title: String
+        var rows: [Row]
+
+        var id: String { title }
+    }
+
+    static let title = "Info"
     static let showsCloseButton = true
     static let dismissesWhenClickingOutside = true
+    static let usesRowSeparators = true
+    static let usesMonospacedExampleFont = false
+    static let contentWidth: CGFloat = 560
     static let closeRestingFillOpacity = 0.0
     static let closeHoverFillOpacity = 0.08
     static let animationDuration = 0.24
@@ -3523,6 +3540,7 @@ struct MarkdownBasicsModal: View {
     static let usesThemeIndependentLightChrome = true
     static let backgroundWhiteComponent: CGFloat = 0.98
     static let textRedComponent: CGFloat = 0.12
+    static let secondaryTextOpacity: CGFloat = 0.74
     static let transitionStyle = EditorAuxiliaryTransitionStyle.fadeAndMoveUp
     static let examples = [
         Example(label: "Title", syntax: "# Title"),
@@ -3533,12 +3551,26 @@ struct MarkdownBasicsModal: View {
         Example(label: "Code", syntax: "`code`"),
         Example(label: "Link", syntax: "[link](https://example.com)")
     ]
+    static let sections = [
+        Section(
+            title: "Markdown Basics",
+            rows: examples.map { Row(label: $0.syntax, detail: $0.label) }
+        ),
+        Section(
+            title: "AI Editing",
+            rows: [
+                Row(label: "Turn on AI", detail: "Use the sparkle button in the toolbar while writing."),
+                Row(label: "Select text", detail: "Highlight the text you want Lineform to change."),
+                Row(label: "Give direction", detail: "Tell AI what to do, then review the suggestion before accepting.")
+            ]
+        )
+    ]
 
     var dismiss: () -> Void = {}
     @State private var isCloseHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .firstTextBaseline) {
                 Text(Self.title)
                     .font(.title2.weight(.semibold))
@@ -3567,22 +3599,14 @@ struct MarkdownBasicsModal: View {
                 .animation(.easeOut(duration: 0.12), value: isCloseHovered)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(Self.examples) { example in
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(example.syntax)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(Self.primaryTextColor)
-                            .frame(width: 178, alignment: .leading)
-
-                        Text(example.label)
-                            .foregroundStyle(Self.secondaryTextColor)
-                    }
+            VStack(alignment: .leading, spacing: 18) {
+                ForEach(Self.sections) { section in
+                    guideSection(section)
                 }
             }
         }
         .padding(24)
-        .frame(width: 420, alignment: .leading)
+        .frame(width: Self.contentWidth, alignment: .leading)
         .background(Self.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
@@ -3595,6 +3619,40 @@ struct MarkdownBasicsModal: View {
         .accessibilityLabel(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel)
     }
 
+    private func guideSection(_ section: Section) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(section.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Self.primaryTextColor)
+
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
+                    guideRow(row)
+
+                    if Self.usesRowSeparators && index < section.rows.count - 1 {
+                        Divider()
+                            .overlay(Self.primaryTextColor.opacity(0.08))
+                    }
+                }
+            }
+        }
+    }
+
+    private func guideRow(_ row: Row) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(row.label)
+                .font(.body)
+                .foregroundStyle(Self.primaryTextColor)
+                .frame(width: 172, alignment: .leading)
+
+            Text(row.detail)
+                .font(.body)
+                .foregroundStyle(Self.secondaryTextColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 8)
+    }
+
     private static var backgroundColor: Color {
         Color(nsColor: NSColor(calibratedWhite: backgroundWhiteComponent, alpha: 1))
     }
@@ -3604,7 +3662,7 @@ struct MarkdownBasicsModal: View {
     }
 
     private static var secondaryTextColor: Color {
-        primaryTextColor.opacity(0.58)
+        primaryTextColor.opacity(secondaryTextOpacity)
     }
 }
 

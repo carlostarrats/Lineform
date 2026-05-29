@@ -7,7 +7,7 @@ Lineform includes accessibility as core product behavior.
 - Keyboard-accessible menu commands.
 - Native text editing with standard selection, undo, spell checking, and find behavior.
 - Reading Experience presets for focus, dyslexia-friendly settings, low vision, and low light.
-- Adjustable font family, font size, line spacing, margins, themes, caret width, typewriter mode, and reading ruler.
+- Adjustable font family, font size, line spacing, margins, themes, typewriter mode, and reading ruler.
 - Native read and outline views.
 - Accessible diff navigation for intelligent editing suggestions.
 - Reduced-motion handling for custom editor transitions.

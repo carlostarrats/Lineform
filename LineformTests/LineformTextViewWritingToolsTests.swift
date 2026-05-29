@@ -429,14 +429,14 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(textView.appliedReadingProfile.insertionPointWidth, 4)
     }
 
-    func testCaretWidthSettingChangesDrawnInsertionPointWidth() {
+    func testCaretWidthSettingDoesNotOverrideNativeInsertionPointWidth() {
         let baseRect = NSRect(x: 20, y: 10, width: 1, height: 24)
         var profile = ReadingProfile.original
         profile.insertionPointWidth = 4
 
         let caretRect = LineformTextView.insertionPointRect(for: baseRect, profile: profile)
 
-        XCTAssertEqual(caretRect.width, 4)
+        XCTAssertEqual(caretRect.width, baseRect.width)
         XCTAssertEqual(caretRect.origin.x, baseRect.origin.x)
         XCTAssertEqual(caretRect.height, baseRect.height)
     }

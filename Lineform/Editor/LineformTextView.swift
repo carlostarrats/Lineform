@@ -264,9 +264,7 @@ final class LineformTextView: NSTextView {
     }
 
     static func insertionPointRect(for rect: NSRect, profile: ReadingProfile) -> NSRect {
-        var caretRect = rect
-        caretRect.size.width = max(rect.width, CGFloat(profile.insertionPointWidth))
-        return caretRect
+        rect
     }
 
     override func drawBackground(in rect: NSRect) {

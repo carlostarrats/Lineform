@@ -1153,7 +1153,7 @@ enum IntelligentEditingEvaluationSuite {
             - Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors.
             - Write, Read, and Split modes for drafting, reading, and side-by-side review.
             - Markdown outline navigation from document headings.
-            - Reading controls for type size, line height, paragraph spacing, margins, column width, themes, focus, ruler, and caret visibility.
+            - Reading controls for type size, line height, paragraph spacing, margins, column width, themes, focus, and ruler.
             """,
             length: .sentence,
             requiresTransformation: true,

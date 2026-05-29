@@ -16,7 +16,6 @@ struct ReadingExperienceInspector: View {
         "Reduce Markdown Noise",
         "Reading Ruler",
         "Typewriter Mode",
-        "Caret Width",
         "Reset to Default",
     ]
     static let resetTopSpacing: CGFloat = 20
@@ -102,13 +101,6 @@ struct ReadingExperienceInspector: View {
                 InspectorToggleRow(title: "Reading Ruler", isOn: boolBinding(\.readingRulerEnabled))
 
                 InspectorToggleRow(title: "Typewriter Mode", isOn: boolBinding(\.typewriterModeEnabled))
-
-                InspectorSliderRow(
-                    title: "Caret Width",
-                    valueText: Self.valueText(for: \.insertionPointWidth, in: store.activeProfile),
-                    value: numericBinding(\.insertionPointWidth, range: 1...4),
-                    range: 1...4
-                )
 
                 VStack(alignment: .leading, spacing: 12) {
                     InspectorControlRow {
