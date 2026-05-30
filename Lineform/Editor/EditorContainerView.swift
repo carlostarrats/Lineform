@@ -2,7 +2,7 @@ import SwiftUI
 
 struct EditorContainerView: View {
     @Binding var document: LineformDocument
-    @StateObject private var readingProfileStore = ReadingProfileStore()
+    @StateObject private var readingProfileStore: ReadingProfileStore
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
@@ -33,9 +33,14 @@ struct EditorContainerView: View {
     @State private var windowNumber: Int?
     private let intelligentEditingService = FoundationModelsIntelligentEditingService()
 
-    init(document: Binding<LineformDocument>, initialIntelligenceRailEnabled: Bool = false) {
+    init(
+        document: Binding<LineformDocument>,
+        initialIntelligenceRailEnabled: Bool = false,
+        readingProfileStore: ReadingProfileStore = ReadingProfileStore()
+    ) {
         _document = document
         _isIntelligenceRailEnabled = State(initialValue: initialIntelligenceRailEnabled)
+        _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
     }
 
     var body: some View {
@@ -43,7 +48,7 @@ struct EditorContainerView: View {
 
         NavigationSplitView(columnVisibility: outlineVisibility) {
             OutlineSidebarView(items: outlineItems, jumpToHeading: jumpToHeading)
-                .environment(\.colorScheme, .light)
+                .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
                 .navigationSplitViewColumnWidth(
                     min: OutlineSidebarView.minimumColumnWidth,
                     ideal: OutlineSidebarView.idealColumnWidth,
@@ -693,6 +698,7 @@ struct EditorContainerView: View {
                 IntelligenceToolbarIcon(
                     systemImage: EditorToolbarPressedState.displaySystemImage(for: action, isActive: isActive),
                     isOn: isActive,
+                    usesDarkChrome: currentTheme.usesDarkChrome,
                     symbolScale: EditorToolbarPressedState.displaySymbolScale(for: action, isActive: isActive),
                     symbolTransitionStyle: EditorToolbarPressedState.symbolTransitionStyle(isActive: isActive)
                 )
@@ -1121,8 +1127,17 @@ enum IntelligenceToolbarTogglePresentation {
     static let iconFillDiameter: CGFloat = 20
     static let fillOpacityWhenOn = 1.0
     static let usesWhiteIconWhenOn = true
+    static let lightChromeIconWhiteComponent: CGFloat = 0.18
+    static let darkChromeIconWhiteComponent: CGFloat = 0.92
     static let iconOpacityWhenOn = 1.0
     static let iconOpacityWhenOff = 0.72
+
+    static func offIconColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: NSColor(
+            calibratedWhite: usesDarkChrome ? darkChromeIconWhiteComponent : lightChromeIconWhiteComponent,
+            alpha: 1
+        ))
+    }
 }
 
 enum EditorToolbarPressedState {
@@ -1186,6 +1201,7 @@ enum EditorToolbarSymbolTransitionStyle: Equatable {
 struct IntelligenceToolbarIcon: View {
     let systemImage: String
     let isOn: Bool
+    let usesDarkChrome: Bool
     var symbolScale: CGFloat = 1
     var symbolTransitionStyle: EditorToolbarSymbolTransitionStyle = .instant
 
@@ -1207,7 +1223,8 @@ struct IntelligenceToolbarIcon: View {
                 .foregroundStyle(
                     isOn
                         ? Color.white.opacity(IntelligenceToolbarTogglePresentation.iconOpacityWhenOn)
-                        : Color(nsColor: .labelColor).opacity(IntelligenceToolbarTogglePresentation.iconOpacityWhenOff)
+                        : IntelligenceToolbarTogglePresentation.offIconColor(usesDarkChrome: usesDarkChrome)
+                            .opacity(IntelligenceToolbarTogglePresentation.iconOpacityWhenOff)
                 )
         }
     }

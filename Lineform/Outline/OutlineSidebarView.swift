@@ -12,16 +12,21 @@ struct OutlineSidebarView: View {
     static let emptyStateMessage = "Add # Title or ## Section to build an outline."
     static let titleShowsIcon = false
     static let usesSubtleGradientBackground = false
-    static let usesThemeIndependentLightChrome = true
+    static let usesThemeIndependentLightChrome = false
     static let backgroundOpacity: Double = 0.94
+    static let lightBackgroundWhiteComponent: CGFloat = 0.988
+    static let darkBackgroundWhiteComponent: CGFloat = 0.18
     static let primaryTextWhiteComponent: CGFloat = 0.16
     static let secondaryTextWhiteComponent: CGFloat = 0.43
+    static let darkPrimaryTextWhiteComponent: CGFloat = 0.90
+    static let darkSecondaryTextWhiteComponent: CGFloat = 0.68
     static let rowsShowHoverFeedback = true
     static let rowHoverFillOpacity = 0.08
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
     static let maximumColumnWidth: CGFloat = 300
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedNodeIDs: Set<String> = []
 
     static func showsTitle(for items: [MarkdownOutlineItem]) -> Bool {
@@ -92,11 +97,11 @@ struct OutlineSidebarView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(Self.emptyStateTitle)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Self.primaryTextColor)
+                            .foregroundStyle(Self.primaryTextColor(usesDarkChrome: usesDarkChrome))
 
                         Text(Self.emptyStateMessage)
                             .font(.system(size: 12))
-                            .foregroundStyle(Self.secondaryTextColor)
+                            .foregroundStyle(Self.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -130,7 +135,7 @@ struct OutlineSidebarView: View {
         HStack {
             Text("Outline")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Self.secondaryTextColor)
+                .foregroundStyle(Self.secondaryTextColor(usesDarkChrome: usesDarkChrome))
 
             Spacer()
         }
@@ -140,16 +145,33 @@ struct OutlineSidebarView: View {
     }
 
     private var sidebarBackground: Color {
-        Color(nsColor: NSColor(calibratedWhite: 0.988, alpha: 1))
+        Self.backgroundColor(usesDarkChrome: usesDarkChrome)
             .opacity(Self.backgroundOpacity)
     }
 
-    fileprivate static var primaryTextColor: Color {
-        Color(nsColor: NSColor(calibratedWhite: primaryTextWhiteComponent, alpha: 1))
+    private var usesDarkChrome: Bool {
+        colorScheme == .dark
     }
 
-    fileprivate static var secondaryTextColor: Color {
-        Color(nsColor: NSColor(calibratedWhite: secondaryTextWhiteComponent, alpha: 1))
+    static func backgroundColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: NSColor(
+            calibratedWhite: usesDarkChrome ? darkBackgroundWhiteComponent : lightBackgroundWhiteComponent,
+            alpha: 1
+        ))
+    }
+
+    fileprivate static func primaryTextColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: NSColor(
+            calibratedWhite: usesDarkChrome ? darkPrimaryTextWhiteComponent : primaryTextWhiteComponent,
+            alpha: 1
+        ))
+    }
+
+    fileprivate static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: NSColor(
+            calibratedWhite: usesDarkChrome ? darkSecondaryTextWhiteComponent : secondaryTextWhiteComponent,
+            alpha: 1
+        ))
     }
 }
 
@@ -201,6 +223,7 @@ private struct OutlineSidebarRow: View {
     var isCollapsed: Bool
     var toggleCollapsed: () -> Void
     var jumpToHeading: (MarkdownOutlineItem) -> Void
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     var body: some View {
@@ -214,7 +237,7 @@ private struct OutlineSidebarRow: View {
                 Button(action: toggleCollapsed) {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(OutlineSidebarView.secondaryTextColor)
+                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                         .frame(width: 10)
                 }
                 .buttonStyle(.plain)
@@ -227,12 +250,12 @@ private struct OutlineSidebarRow: View {
                 HStack(spacing: 8) {
                     Image(systemName: OutlineSidebarView.iconName(forHeadingLevel: node.item.level))
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(OutlineSidebarView.primaryTextColor)
+                        .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
                         .frame(width: 18)
 
                     Text(node.item.title)
                         .font(.system(size: 13, weight: node.item.level == 1 ? .medium : .regular))
-                        .foregroundStyle(OutlineSidebarView.primaryTextColor)
+                        .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
                         .lineLimit(1)
 
                     Spacer(minLength: 0)
@@ -248,7 +271,7 @@ private struct OutlineSidebarRow: View {
         .frame(height: 26)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(OutlineSidebarView.primaryTextColor.opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
+                .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
         }
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -256,5 +279,9 @@ private struct OutlineSidebarRow: View {
                 isHovered = hovering
             }
         }
+    }
+
+    private var usesDarkChrome: Bool {
+        colorScheme == .dark
     }
 }

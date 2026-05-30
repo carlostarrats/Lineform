@@ -231,6 +231,8 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(IntelligenceToolbarTogglePresentation.iconFillDiameter, 20)
         XCTAssertEqual(IntelligenceToolbarTogglePresentation.fillOpacityWhenOn, 1.0, accuracy: 0.01)
         XCTAssertTrue(IntelligenceToolbarTogglePresentation.usesWhiteIconWhenOn)
+        XCTAssertLessThan(IntelligenceToolbarTogglePresentation.lightChromeIconWhiteComponent, 0.35)
+        XCTAssertGreaterThan(IntelligenceToolbarTogglePresentation.darkChromeIconWhiteComponent, 0.75)
         XCTAssertGreaterThan(
             IntelligenceToolbarTogglePresentation.iconOpacityWhenOn,
             IntelligenceToolbarTogglePresentation.iconOpacityWhenOff
@@ -825,15 +827,24 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
-    private func makeEditorDrawerHarness(text: String? = nil) throws -> EditorDrawerHarness {
+    private func makeEditorDrawerHarness(
+        text: String? = nil,
+        profile: ReadingProfile = .original
+    ) throws -> EditorDrawerHarness {
         var document = LineformDocument(
             text: text ?? Self.shortDrawerTestDocument
         )
+        let defaultsName = "LineformEditorDrawerHarness-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        defaults.removePersistentDomain(forName: defaultsName)
+        let readingProfileStore = ReadingProfileStore(defaults: defaults)
+        readingProfileStore.apply(profile)
         let editor = EditorContainerView(
             document: Binding(
                 get: { document },
                 set: { document = $0 }
-            )
+            ),
+            readingProfileStore: readingProfileStore
         )
         let hostingView = NSHostingView(rootView: editor)
         hostingView.frame = NSRect(x: 0, y: 0, width: 1_080, height: 720)

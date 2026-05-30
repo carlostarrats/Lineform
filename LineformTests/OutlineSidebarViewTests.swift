@@ -29,11 +29,16 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testOutlineDrawerKeepsLightChromeIndependentOfEditorTheme() {
-        XCTAssertTrue(OutlineSidebarView.usesThemeIndependentLightChrome)
+    func testOutlineDrawerAdaptsChromeToEditorTheme() {
+        XCTAssertFalse(OutlineSidebarView.usesThemeIndependentLightChrome)
+        XCTAssertGreaterThan(OutlineSidebarView.lightBackgroundWhiteComponent, 0.95)
+        XCTAssertLessThan(OutlineSidebarView.darkBackgroundWhiteComponent, 0.25)
         XCTAssertLessThan(OutlineSidebarView.primaryTextWhiteComponent, 0.25)
         XCTAssertGreaterThan(OutlineSidebarView.secondaryTextWhiteComponent, OutlineSidebarView.primaryTextWhiteComponent)
         XCTAssertLessThan(OutlineSidebarView.secondaryTextWhiteComponent, 0.55)
+        XCTAssertGreaterThan(OutlineSidebarView.darkPrimaryTextWhiteComponent, 0.85)
+        XCTAssertGreaterThan(OutlineSidebarView.darkSecondaryTextWhiteComponent, 0.60)
+        XCTAssertLessThan(OutlineSidebarView.darkSecondaryTextWhiteComponent, OutlineSidebarView.darkPrimaryTextWhiteComponent)
     }
 
     @MainActor
