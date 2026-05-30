@@ -17,8 +17,23 @@ final class OutlineSidebarViewTests: XCTestCase {
     func testOutlineTitleOnlyShowsForEmptyDrawer() {
         let items = MarkdownOutlineParser().items(in: "# Title")
 
-        XCTAssertTrue(OutlineSidebarView.showsTitle(for: []))
+        XCTAssertFalse(OutlineSidebarView.showsTitle(for: []))
         XCTAssertFalse(OutlineSidebarView.showsTitle(for: items))
+    }
+
+    @MainActor
+    func testOutlineDrawerAddsOutlineAndFilesTabs() {
+        XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files"])
+        XCTAssertTrue(OutlineSidebarView.tabsFillAvailableWidth)
+        XCTAssertTrue(OutlineSidebarView.tabsUseNativeEqualWidthSegments)
+    }
+
+    @MainActor
+    func testFilesTabUsesICloudAndReplaceableWorkspaceRoots() {
+        XCTAssertEqual(OutlineSidebarView.fileRootTitles, ["iCloud", "Workspace"])
+        XCTAssertEqual(OutlineSidebarView.chooseWorkspaceButtonTitle, "Choose folder")
+        XCTAssertEqual(OutlineSidebarView.replaceWorkspaceButtonTitle, "Replace")
+        XCTAssertEqual(OutlineSidebarView.workspaceDisconnectedSystemImage, "exclamationmark.triangle.fill")
     }
 
     @MainActor
