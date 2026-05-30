@@ -27,6 +27,7 @@ struct OutlineSidebarView: View {
 
     static let emptyStateTitle = "No headings yet"
     static let emptyStateMessage = "Add # Title or ## Section to build an outline."
+    static let emptyStateTopPadding: CGFloat = 10
     static let titleShowsIcon = false
     static let usesSubtleGradientBackground = false
     static let usesThemeIndependentLightChrome = false
@@ -168,7 +169,7 @@ struct OutlineSidebarView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
+            .padding(.top, Self.emptyStateTopPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             ScrollView {
