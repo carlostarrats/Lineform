@@ -139,7 +139,25 @@ enum IntelligentEditingOptionsPresentation {
     static func answerSurfaceBackgroundColor(usesDarkAppearance: Bool) -> NSColor {
         usesDarkAppearance
             ? NSColor(srgbRed: 0x24 / 255.0, green: 0x24 / 255.0, blue: 0x24 / 255.0, alpha: 1)
-            : .controlBackgroundColor
+            : NSColor(srgbRed: 0xF2 / 255.0, green: 0xF3 / 255.0, blue: 0xF4 / 255.0, alpha: 1)
+    }
+
+    static func panelBackgroundColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance
+            ? NSColor(srgbRed: 0x1E / 255.0, green: 0x1E / 255.0, blue: 0x1E / 255.0, alpha: 1)
+            : .white
+    }
+
+    static func panelBorderColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance
+            ? NSColor.white.withAlphaComponent(0.14)
+            : NSColor.black.withAlphaComponent(0.11)
+    }
+
+    static func primaryTextColor(usesDarkAppearance: Bool) -> NSColor {
+        usesDarkAppearance
+            ? NSColor.white.withAlphaComponent(0.92)
+            : LineformColors.primaryText
     }
 
     static func isVisible(isPreparingSuggestion _: Bool, hasSuggestions: Bool) -> Bool {
@@ -157,13 +175,12 @@ enum IntelligentEditingOptionsPresentation {
 }
 
 struct IntelligentEditingOptionsPanel: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     let suggestions: [IntelligentEditingSuggestion]
     @Binding var selectedIndex: Int
     var loadingActionTitle: String?
     var loadingPreviewText = ""
     var maximumBodyHeight: CGFloat?
+    var usesDarkChrome = false
     var retry: () -> Void
     var accept: () -> Void
     var reject: () -> Void
@@ -173,7 +190,7 @@ struct IntelligentEditingOptionsPanel: View {
             HStack(spacing: 8) {
                 Text(panelTitle)
                     .font(.callout.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color(nsColor: IntelligentEditingOptionsPresentation.primaryTextColor(usesDarkAppearance: usesDarkChrome)))
 
                 Spacer()
 
@@ -216,12 +233,16 @@ struct IntelligentEditingOptionsPanel: View {
         }
         .padding(presentationMode == .expandedReview ? 16 : 14)
         .frame(maxWidth: maximumWidth)
-        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(
+            Color(nsColor: IntelligentEditingOptionsPresentation.panelBackgroundColor(usesDarkAppearance: usesDarkChrome)),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.28))
+                .strokeBorder(Color(nsColor: IntelligentEditingOptionsPresentation.panelBorderColor(usesDarkAppearance: usesDarkChrome)))
         }
         .shadow(color: .black.opacity(presentationMode == .expandedReview ? 0.18 : 0.12), radius: presentationMode == .expandedReview ? 28 : 18, y: presentationMode == .expandedReview ? 14 : 8)
+        .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isLoading ? "\(panelTitle) is generating" : "Lineform options")
     }
@@ -257,7 +278,7 @@ struct IntelligentEditingOptionsPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: answerSurfaceMinimumHeight, alignment: .topLeading)
         .background(
-            Color(nsColor: IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: colorScheme == .dark)),
+            Color(nsColor: IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: usesDarkChrome)),
             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
     }
@@ -265,7 +286,7 @@ struct IntelligentEditingOptionsPanel: View {
     private var answerText: some View {
         Text(previewText)
             .font(.system(size: presentationMode == .expandedReview ? IntelligentEditingOptionsPresentation.expandedPreviewFontSize : IntelligentEditingOptionsPresentation.compactPreviewFontSize))
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color(nsColor: IntelligentEditingOptionsPresentation.primaryTextColor(usesDarkAppearance: usesDarkChrome)))
             .lineLimit(presentationMode == .expandedReview ? nil : IntelligentEditingOptionsPresentation.previewLineLimit)
             .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.leading)

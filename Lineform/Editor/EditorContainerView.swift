@@ -253,6 +253,7 @@ struct EditorContainerView: View {
                     isLoading: isPreparingIntelligentSuggestion,
                     usesDarkChrome: currentTheme.usesDarkChrome,
                     reduceMotion: reduceMotion,
+                    allowsAutomaticFocus: !isSearchFocused,
                     onFocusChanged: { isFocused in
                         isIntelligenceComposerFocused = isFocused
                         if !isFocused {
@@ -293,6 +294,7 @@ struct EditorContainerView: View {
                         selectedIndex: $selectedIntelligentOptionIndex,
                         loadingPreviewText: panelReferenceText,
                         maximumBodyHeight: placement.bodyHeight,
+                        usesDarkChrome: currentTheme.usesDarkChrome,
                         retry: retryIntelligentSuggestion,
                         accept: acceptIntelligentSuggestion,
                         reject: rejectIntelligentSuggestion
@@ -605,7 +607,8 @@ struct EditorContainerView: View {
         }
 
         document.text = updatedText
-        requestedSelection = NSRange(location: intelligentSuggestion.selectedRange.location, length: (intelligentSuggestion.replacementText as NSString).length)
+        requestedSelection = IntelligentEditingSelectionDismissal.acceptedCaretSelection(for: intelligentSuggestion)
+        retainedIntelligenceSelection = nil
         clearIntelligentSuggestions()
         intelligentEditingStatus = "Suggestion accepted."
     }
@@ -630,6 +633,10 @@ struct EditorContainerView: View {
             return
         }
 
+        if let activeIntelligentSuggestion {
+            requestedSelection = IntelligentEditingSelectionDismissal.rejectedCaretSelection(for: activeIntelligentSuggestion)
+        }
+        retainedIntelligenceSelection = nil
         clearIntelligentSuggestions()
         intelligentEditingStatus = "Suggestion rejected."
     }
@@ -994,7 +1001,7 @@ enum IntelligenceInstructionComposerPresentation {
     }
 
     static func foregroundColor(usesDarkAppearance: Bool) -> NSColor {
-        usesDarkAppearance ? .white : .labelColor
+        usesDarkAppearance ? .white : LineformColors.primaryText
     }
 
     static func insertionPointColor(usesDarkAppearance: Bool) -> NSColor {
@@ -1028,7 +1035,9 @@ enum IntelligenceInstructionComposerPresentation {
     }
 
     static func placeholderColor(usesDarkAppearance: Bool) -> NSColor {
-        usesDarkAppearance ? NSColor.white.withAlphaComponent(0.62) : .placeholderTextColor
+        usesDarkAppearance
+            ? NSColor.white.withAlphaComponent(0.62)
+            : LineformColors.primaryText.withAlphaComponent(0.48)
     }
 
     static func sendButtonFillColor(
@@ -1092,6 +1101,19 @@ enum IntelligenceInstructionComposerState {
         return current.selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isFocused
             && instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+enum IntelligentEditingSelectionDismissal {
+    static func acceptedCaretSelection(for suggestion: IntelligentEditingSuggestion) -> NSRange {
+        NSRange(
+            location: suggestion.selectedRange.location + (suggestion.replacementText as NSString).length,
+            length: 0
+        )
+    }
+
+    static func rejectedCaretSelection(for suggestion: IntelligentEditingSuggestion) -> NSRange {
+        NSRange(location: NSMaxRange(suggestion.selectedRange), length: 0)
     }
 }
 
@@ -1472,6 +1494,7 @@ struct IntelligenceInstructionComposer: View {
     var isLoading = false
     var usesDarkChrome = false
     var reduceMotion = false
+    var allowsAutomaticFocus = true
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
 
@@ -1482,6 +1505,7 @@ struct IntelligenceInstructionComposer: View {
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             reduceMotion: reduceMotion,
+            allowsAutomaticFocus: allowsAutomaticFocus,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
         )
@@ -1494,6 +1518,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
     let isLoading: Bool
     let usesDarkChrome: Bool
     let reduceMotion: Bool
+    let allowsAutomaticFocus: Bool
     let onFocusChanged: (Bool) -> Void
     let submitInstruction: (String) -> Void
 
@@ -1504,6 +1529,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             reduceMotion: reduceMotion,
+            allowsAutomaticFocus: allowsAutomaticFocus,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1517,6 +1543,7 @@ struct IntelligenceInstructionComposerOverlayHost: NSViewRepresentable {
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             reduceMotion: reduceMotion,
+            allowsAutomaticFocus: allowsAutomaticFocus,
             textChanged: { instruction = $0 },
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1533,6 +1560,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         isLoading: Bool = false,
         usesDarkChrome: Bool,
         reduceMotion: Bool,
+        allowsAutomaticFocus: Bool = true,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1543,6 +1571,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             reduceMotion: reduceMotion,
+            allowsAutomaticFocus: allowsAutomaticFocus,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1570,6 +1599,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
         isLoading: Bool = false,
         usesDarkChrome: Bool = false,
         reduceMotion: Bool = false,
+        allowsAutomaticFocus: Bool = true,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1580,6 +1610,7 @@ final class IntelligenceInstructionComposerOverlayNSView: NSView {
             isLoading: isLoading,
             usesDarkChrome: usesDarkChrome,
             reduceMotion: reduceMotion,
+            allowsAutomaticFocus: allowsAutomaticFocus,
             textChanged: textChanged,
             onFocusChanged: onFocusChanged,
             submitInstruction: submitInstruction
@@ -1618,6 +1649,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
     private var submitInstruction: (String) -> Void
     private var mouseDownMonitor: LocalEventMonitor?
     private var usesDarkChrome: Bool
+    private var allowsAutomaticFocus: Bool
     private var reduceMotion: Bool {
         didSet {
             applyLoadingState()
@@ -1645,6 +1677,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         isLoading: Bool = false,
         usesDarkChrome: Bool = false,
         reduceMotion: Bool = false,
+        allowsAutomaticFocus: Bool = true,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1653,6 +1686,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         self.onFocusChanged = onFocusChanged
         self.submitInstruction = submitInstruction
         self.usesDarkChrome = usesDarkChrome
+        self.allowsAutomaticFocus = allowsAutomaticFocus
         self.reduceMotion = reduceMotion
         self.isLoading = isLoading
         submitButton = IntelligenceInstructionSubmitButtonNSView(
@@ -1691,6 +1725,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         isLoading: Bool = false,
         usesDarkChrome: Bool = false,
         reduceMotion: Bool = false,
+        allowsAutomaticFocus: Bool = true,
         textChanged: @escaping (String) -> Void,
         onFocusChanged: @escaping (Bool) -> Void,
         submitInstruction: @escaping (String) -> Void
@@ -1698,6 +1733,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         self.textChanged = textChanged
         self.onFocusChanged = onFocusChanged
         self.submitInstruction = submitInstruction
+        self.allowsAutomaticFocus = allowsAutomaticFocus
         if self.usesDarkChrome != usesDarkChrome {
             self.usesDarkChrome = usesDarkChrome
             applyAppearanceStyling()
@@ -1709,6 +1745,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
         submitButton.isActionEnabled = isActionEnabled
         submitButton.usesDarkChrome = usesDarkChrome
         configureTextViewCallbacks()
+        yieldFocusIfAutomaticFocusIsDisabled()
         if window?.firstResponder !== textView && textView.string != instruction {
             textView.string = instruction
             textView.needsDisplay = true
@@ -1765,10 +1802,7 @@ final class IntelligenceInstructionComposerNSView: NSView {
             EditorFloatingControlHitTestRegistry.remove(owner: self)
         } else {
             installMouseDownMonitorIfNeeded()
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.window != nil else { return }
-                self.focusTextView()
-            }
+            focusTextViewAutomaticallyIfAllowed()
         }
     }
 
@@ -1903,6 +1937,45 @@ final class IntelligenceInstructionComposerNSView: NSView {
         textView.onSubmit = { [weak self] in
             self?.submitIfReady()
         }
+    }
+
+    private func focusTextViewAutomaticallyIfAllowed() {
+        DispatchQueue.main.async { [weak self] in
+            guard
+                let self,
+                self.window != nil,
+                self.shouldAutomaticallyFocusTextView()
+            else {
+                return
+            }
+            self.focusTextView()
+        }
+    }
+
+    private func shouldAutomaticallyFocusTextView() -> Bool {
+        guard !isLoading, allowsAutomaticFocus else {
+            return false
+        }
+
+        guard let firstResponder = window?.firstResponder else {
+            return true
+        }
+
+        if firstResponder === textView {
+            return false
+        }
+
+        return firstResponder is LineformTextView
+    }
+
+    private func yieldFocusIfAutomaticFocusIsDisabled() {
+        guard !allowsAutomaticFocus, window?.firstResponder === textView else {
+            return
+        }
+
+        isInputFocused = false
+        onFocusChanged(false)
+        window?.makeFirstResponder(nil)
     }
 
     private func submitIfReady() {

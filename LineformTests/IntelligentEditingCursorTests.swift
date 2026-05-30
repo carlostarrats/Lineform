@@ -1098,6 +1098,79 @@ final class IntelligentEditingCursorTests: XCTestCase {
         XCTAssertEqual(instruction, "x")
     }
 
+    func testInstructionComposerDoesNotStealExistingTextFocusWhenAutomaticFocusIsDisabled() throws {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 140))
+        let focusedTextView = NSTextView(frame: NSRect(x: 24, y: 88, width: 280, height: 28))
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "",
+            isActionEnabled: true,
+            allowsAutomaticFocus: false,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.frame = NSRect(x: 40, y: 20, width: 560, height: 52)
+
+        container.addSubview(focusedTextView)
+
+        let window = KeyCapableTestWindow(
+            contentRect: container.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = container
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(focusedTextView)
+        XCTAssertTrue(window.firstResponder === focusedTextView)
+
+        container.addSubview(composerView)
+        composerView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        XCTAssertTrue(window.firstResponder === focusedTextView)
+        XCTAssertFalse(window.firstResponder === textView)
+    }
+
+    func testInstructionComposerYieldsFocusWhenAutomaticFocusIsDisabledAfterUpdate() throws {
+        let composerView = IntelligenceInstructionComposerNSView(
+            instruction: "",
+            isActionEnabled: true,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        composerView.frame = NSRect(x: 0, y: 0, width: 560, height: 52)
+
+        let window = KeyCapableTestWindow(
+            contentRect: composerView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = composerView
+        window.makeKeyAndOrderFront(nil)
+        composerView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
+        window.makeFirstResponder(textView)
+        XCTAssertTrue(window.firstResponder === textView)
+
+        composerView.update(
+            instruction: "",
+            isActionEnabled: true,
+            allowsAutomaticFocus: false,
+            textChanged: { _ in },
+            onFocusChanged: { _ in },
+            submitInstruction: { _ in }
+        )
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        XCTAssertFalse(window.firstResponder === textView)
+    }
+
     func testInstructionComposerTextViewKeepsNativeClickEditingAfterRefocus() throws {
         var instruction = ""
         let composerView = IntelligenceInstructionComposerNSView(
@@ -1239,7 +1312,7 @@ final class IntelligentEditingCursorTests: XCTestCase {
 
         let textView = try XCTUnwrap(composerView.descendants(ofType: IntelligenceInstructionTextView.self).first)
         let textColor = try XCTUnwrap(textView.textColor?.usingColorSpace(.sRGB))
-        let lightTextColor = try XCTUnwrap(NSColor.labelColor.usingColorSpace(.sRGB))
+        let lightTextColor = try XCTUnwrap(LineformColors.primaryText.usingColorSpace(.sRGB))
 
         XCTAssertEqual(textColor.redComponent, lightTextColor.redComponent, accuracy: 0.01)
         XCTAssertEqual(textColor.greenComponent, lightTextColor.greenComponent, accuracy: 0.01)

@@ -537,6 +537,75 @@ final class EditorDisplayModeTests: XCTestCase {
         )
     }
 
+    func testIntelligentEditingDismissalCollapsesAcceptedSelectionToReplacementEnd() {
+        let suggestion = IntelligentEditingSuggestion(
+            request: .custom("make it clearer"),
+            selectedRange: NSRange(location: 8, length: 9),
+            originalText: "rough text",
+            replacementText: "clearer text",
+            diff: MarkdownDiff.make(original: "rough text", replacement: "clearer text")
+        )
+
+        XCTAssertEqual(
+            IntelligentEditingSelectionDismissal.acceptedCaretSelection(for: suggestion),
+            NSRange(location: 20, length: 0)
+        )
+    }
+
+    func testIntelligentEditingDismissalCollapsesRejectedSelectionToOriginalEnd() {
+        let suggestion = IntelligentEditingSuggestion(
+            request: .custom("make it clearer"),
+            selectedRange: NSRange(location: 8, length: 9),
+            originalText: "rough text",
+            replacementText: "clearer text",
+            diff: MarkdownDiff.make(original: "rough text", replacement: "clearer text")
+        )
+
+        XCTAssertEqual(
+            IntelligentEditingSelectionDismissal.rejectedCaretSelection(for: suggestion),
+            NSRange(location: 17, length: 0)
+        )
+    }
+
+    func testIntelligentEditingLightPresentationStaysLightUnderDarkSystemAppearance() throws {
+        let darkAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        var inputText: NSColor?
+        var placeholderText: NSColor?
+        var panelBackground: NSColor?
+        var answerBackground: NSColor?
+        var panelText: NSColor?
+
+        darkAppearance.performAsCurrentDrawingAppearance {
+            inputText = IntelligenceInstructionComposerPresentation.foregroundColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
+            placeholderText = IntelligenceInstructionComposerPresentation.placeholderColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
+            panelBackground = IntelligentEditingOptionsPresentation.panelBackgroundColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
+            answerBackground = IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
+            panelText = IntelligentEditingOptionsPresentation.primaryTextColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
+        }
+
+        XCTAssertLessThan(try XCTUnwrap(inputText).redComponent, 0.18)
+        XCTAssertLessThan(try XCTUnwrap(placeholderText).redComponent, 0.18)
+        XCTAssertGreaterThan(try XCTUnwrap(panelBackground).redComponent, 0.95)
+        XCTAssertGreaterThan(try XCTUnwrap(answerBackground).redComponent, 0.90)
+        XCTAssertLessThan(try XCTUnwrap(panelText).redComponent, 0.18)
+    }
+
+    func testIntelligentEditingDarkPresentationStaysDark() throws {
+        let panelBackground = try XCTUnwrap(
+            IntelligentEditingOptionsPresentation.panelBackgroundColor(usesDarkAppearance: true).usingColorSpace(.sRGB)
+        )
+        let answerBackground = try XCTUnwrap(
+            IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: true).usingColorSpace(.sRGB)
+        )
+        let panelText = try XCTUnwrap(
+            IntelligentEditingOptionsPresentation.primaryTextColor(usesDarkAppearance: true).usingColorSpace(.sRGB)
+        )
+
+        XCTAssertLessThan(panelBackground.redComponent, 0.16)
+        XCTAssertLessThan(answerBackground.redComponent, 0.18)
+        XCTAssertGreaterThan(panelText.redComponent, 0.80)
+    }
+
     func testStatusBarSanitizesTechnicalIntelligenceFailureMessages() {
         let message = EditorStatusFormatter.statusMessage(
             isPreparingSuggestion: false,
