@@ -7,7 +7,9 @@ const controls = {
   dispersion: document.getElementById("dispersion"),
   refraction: document.getElementById("refraction"),
   glass: document.getElementById("glass"),
-  brightness: document.getElementById("brightness")
+  brightness: document.getElementById("brightness"),
+  taglineX: document.getElementById("taglineX"),
+  taglineY: document.getElementById("taglineY")
 };
 const controlOutputs = Object.fromEntries(
   Object.entries(controls).map(([name, input]) => [name, document.querySelector(`output[for="${input.id}"]`)])
@@ -71,6 +73,27 @@ float logoAlpha(vec2 logoUV) {
     return 0.0;
   }
   return texture2D(u_logo, logoUV).a;
+}
+
+float progressiveLogoBlur(vec2 logoUV, vec2 texel, float radius) {
+  float a = logoAlpha(logoUV) * 0.18;
+  a += logoAlpha(logoUV + texel * radius * vec2(1.0, 0.0)) * 0.07;
+  a += logoAlpha(logoUV + texel * radius * vec2(-1.0, 0.0)) * 0.07;
+  a += logoAlpha(logoUV + texel * radius * vec2(0.0, 1.0)) * 0.07;
+  a += logoAlpha(logoUV + texel * radius * vec2(0.0, -1.0)) * 0.07;
+  a += logoAlpha(logoUV + texel * radius * vec2(0.72, 0.72)) * 0.065;
+  a += logoAlpha(logoUV + texel * radius * vec2(-0.72, 0.72)) * 0.065;
+  a += logoAlpha(logoUV + texel * radius * vec2(0.72, -0.72)) * 0.065;
+  a += logoAlpha(logoUV + texel * radius * vec2(-0.72, -0.72)) * 0.065;
+  a += logoAlpha(logoUV + texel * radius * vec2(1.45, 0.36)) * 0.045;
+  a += logoAlpha(logoUV + texel * radius * vec2(-1.45, 0.36)) * 0.045;
+  a += logoAlpha(logoUV + texel * radius * vec2(1.45, -0.36)) * 0.045;
+  a += logoAlpha(logoUV + texel * radius * vec2(-1.45, -0.36)) * 0.045;
+  a += logoAlpha(logoUV + texel * radius * vec2(0.36, 1.45)) * 0.045;
+  a += logoAlpha(logoUV + texel * radius * vec2(-0.36, 1.45)) * 0.045;
+  a += logoAlpha(logoUV + texel * radius * vec2(0.36, -1.45)) * 0.045;
+  a += logoAlpha(logoUV + texel * radius * vec2(-0.36, -1.45)) * 0.045;
+  return a;
 }
 
 float band(vec2 p, vec2 center, float angle, float length, float width) {
@@ -151,13 +174,28 @@ void main() {
   color += vec3(0.18, 0.68, 1.0) * writeSpark * 0.24;
   color += vec3(1.0, 0.72, 0.10) * writeSpark * 0.16;
 
+  vec2 fLensUV = (logoUV - vec2(0.70, 0.53)) / vec2(0.15, 0.38);
+  float fLensDistance = length(fLensUV);
+  float fLens = 1.0 - smoothstep(0.58, 1.08, fLensDistance);
+  float fLensCore = 1.0 - smoothstep(0.26, 0.7, fLensDistance);
+  float blurRadius = mix(1.4, 7.2, fLensCore);
+  float blurredAlpha = progressiveLogoBlur(logoUV, texel, blurRadius);
+  float strokeEdge = smoothstep(0.06, 0.5, edge);
+  float coreInk = center * (0.72 + strokeEdge * 0.18);
+  float edgeInk = blurredAlpha * (0.46 + strokeEdge * 0.5);
+  float treatedInk = max(coreInk, edgeInk) * revealMask * fLens;
+  float treatedEdgeColor = strokeEdge * fLens;
+  color *= 1.0 - treatedEdgeColor * 0.36;
+  color = mix(color, vec3(0.0), clamp(treatedInk * 0.96, 0.0, 1.0));
+
   float alpha = clamp(
     chromaStrength * 0.42 +
     ghost * 0.12 +
     smear * 0.36 +
     halo * 0.2 +
     caustic * 0.52 +
-    writeSpark,
+    writeSpark +
+    treatedInk * 0.92,
     0.0,
     0.92
   );
@@ -327,11 +365,19 @@ function setBackgroundBrightness(value) {
 }
 
 function updateControlValue(name) {
-  controlOutputs[name].value = Number(controls[name].value).toFixed(2);
+  const decimals = name === "taglineX" || name === "taglineY" ? 1 : 2;
+  controlOutputs[name].value = Number(controls[name].value).toFixed(decimals);
 }
 
 function updateAllControlValues() {
   Object.keys(controls).forEach(updateControlValue);
+}
+
+function setTaglinePosition() {
+  document.documentElement.style.setProperty("--tagline-x", `${controls.taglineX.value}%`);
+  document.documentElement.style.setProperty("--tagline-y", `${controls.taglineY.value}%`);
+  updateControlValue("taglineX");
+  updateControlValue("taglineY");
 }
 
 function setTuningVisible(visible) {
@@ -361,6 +407,8 @@ Object.entries(controls).forEach(([name, input]) => {
   input.addEventListener("input", () => updateControlValue(name));
 });
 controls.brightness.addEventListener("input", event => setBackgroundBrightness(event.target.value));
+controls.taglineX.addEventListener("input", setTaglinePosition);
+controls.taglineY.addEventListener("input", setTaglinePosition);
 startButton.addEventListener("click", () => {
   shell.classList.add("is-exiting");
   startButton.setAttribute("aria-disabled", "true");
@@ -386,6 +434,7 @@ window.addEventListener("keydown", event => {
 });
 
 setBackgroundBrightness(params.get("dim") === "1" ? 1 : 0);
+setTaglinePosition();
 updateAllControlValues();
 setTuningVisible(params.get("tune") === "1");
 

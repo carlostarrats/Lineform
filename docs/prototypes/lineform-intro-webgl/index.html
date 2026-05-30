@@ -29,6 +29,7 @@
         <img class="wordmark wordmark-shadow" src="./assets/Lineform.svg" alt="">
         <img class="wordmark wordmark-clean" src="./assets/Lineform.svg" alt="Lineform">
       </div>
+      <p class="intro-tagline">Simple markdown editing</p>
       <button class="start-button" type="button">
         <span>Get Started</span>
         <svg width="28" height="18" viewBox="0 0 28 18" aria-hidden="true">
@@ -40,23 +41,33 @@
     <aside class="tuning-panel" aria-label="Visual tuning controls" hidden>
       <label>
         <span>dispersion</span>
-        <input id="dispersion" type="range" min="0" max="3.5" value="2.35" step="0.01">
-        <output for="dispersion">2.35</output>
+        <input id="dispersion" type="range" min="0" max="3.5" value="3.5" step="0.01">
+        <output for="dispersion">3.50</output>
       </label>
       <label>
         <span>refraction</span>
-        <input id="refraction" type="range" min="0" max="3.5" value="2.2" step="0.01">
-        <output for="refraction">2.20</output>
+        <input id="refraction" type="range" min="0" max="3.5" value="3.5" step="0.01">
+        <output for="refraction">3.50</output>
       </label>
       <label>
         <span>glass</span>
-        <input id="glass" type="range" min="0" max="2.75" value="1.95" step="0.01">
-        <output for="glass">1.95</output>
+        <input id="glass" type="range" min="0" max="2.75" value="0" step="0.01">
+        <output for="glass">0.00</output>
       </label>
       <label>
         <span>background</span>
         <input id="brightness" type="range" min="0" max="1" value="0" step="0.01">
         <output for="brightness">0.00</output>
+      </label>
+      <label>
+        <span>tagline x</span>
+        <input id="taglineX" type="range" min="0" max="100" value="67.6" step="0.1">
+        <output for="taglineX">67.6</output>
+      </label>
+      <label>
+        <span>tagline y</span>
+        <input id="taglineY" type="range" min="0" max="100" value="57.6" step="0.1">
+        <output for="taglineY">57.6</output>
       </label>
       <button id="replay" type="button">Replay</button>
     </aside>
