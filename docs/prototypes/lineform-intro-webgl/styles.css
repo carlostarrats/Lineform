@@ -5,6 +5,8 @@
   --warm-shadow: rgba(44, 34, 18, 0.22);
   --panel: rgba(255, 255, 255, 0.54);
   --bg-dim: 0;
+  --pointer-x: 0;
+  --pointer-y: 0;
   color-scheme: light;
 }
 
@@ -65,6 +67,10 @@ body {
   z-index: 1;
   overflow: hidden;
   filter: saturate(0.92);
+  transform:
+    translate3d(calc(var(--pointer-x) * -12px), calc(var(--pointer-y) * -10px), 0)
+    scale(1.015);
+  transition: transform 280ms ease-out;
 }
 
 .ghost-window {
@@ -74,6 +80,8 @@ body {
   background: rgba(246, 246, 242, 0.45);
   box-shadow: 0 22px 70px rgba(32, 28, 22, 0.16);
   backdrop-filter: blur(18px);
+  opacity: 0;
+  animation: window-arrive 960ms cubic-bezier(.18, .86, .28, 1) forwards;
   transition: background 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
 }
 
@@ -83,12 +91,14 @@ body {
 }
 
 .ghost-window-a {
-  left: 4vw;
-  bottom: 7vh;
-  width: min(41vw, 620px);
-  height: 45vh;
-  min-height: 360px;
+  left: max(-28px, 3vw);
+  bottom: 5vh;
+  width: min(38vw, 560px);
+  height: 40vh;
+  min-height: 330px;
   background: rgba(22, 24, 25, 0.78);
+  animation-delay: 110ms;
+  transform: translate3d(calc(var(--pointer-x) * 9px), calc(var(--pointer-y) * 8px), 0);
 }
 
 .intro-shell .ghost-window-a {
@@ -119,6 +129,8 @@ body {
   top: 7vh;
   width: min(36vw, 520px);
   height: 38vh;
+  animation-delay: 230ms;
+  transform: translate3d(calc(var(--pointer-x) * -7px), calc(var(--pointer-y) * -5px), 0);
 }
 
 .traffic {
@@ -191,9 +203,11 @@ body {
 
 .wordmark-wrap {
   position: relative;
-  width: min(88vw, 1500px);
+  width: min(80vw, 1120px);
   aspect-ratio: 639 / 255;
-  transform: translateY(-3vh);
+  transform:
+    translate3d(calc(var(--pointer-x) * 4px), calc(-5vh + var(--pointer-y) * 4px), 0);
+  animation: mark-settle 1200ms cubic-bezier(.18, .86, .28, 1) both;
 }
 
 .wordmark {
@@ -230,7 +244,7 @@ body {
   min-width: 214px;
   height: 62px;
   padding: 0 24px 0 30px;
-  margin-top: clamp(16px, 2vh, 34px);
+  margin-top: clamp(12px, 1vh, 24px);
   color: #10100e;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 244, 237, 0.78)),
@@ -251,6 +265,10 @@ body {
 .intro-shell.is-complete .start-button {
   opacity: 1;
   transform: translateY(0) scale(1);
+}
+
+.intro-shell.is-exiting {
+  pointer-events: none;
 }
 
 .start-button:hover {
@@ -280,9 +298,13 @@ body {
   backdrop-filter: blur(24px) saturate(1.25);
 }
 
+.tuning-panel[hidden] {
+  display: none;
+}
+
 .tuning-panel label {
   display: grid;
-  grid-template-columns: 86px 1fr;
+  grid-template-columns: 86px 1fr 42px;
   align-items: center;
   gap: 12px;
   color: rgba(20, 19, 16, 0.74);
@@ -293,6 +315,12 @@ body {
 
 .tuning-panel input {
   accent-color: #161615;
+}
+
+.tuning-panel output {
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .tuning-panel button {
@@ -306,6 +334,29 @@ body {
   cursor: pointer;
 }
 
+@keyframes window-arrive {
+  from {
+    opacity: 0;
+    scale: 0.985;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes mark-settle {
+  from {
+    opacity: 0.72;
+    filter: blur(4px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
 
 @media (max-width: 760px) {
   .intro-shell {
@@ -313,23 +364,39 @@ body {
   }
 
   .wordmark-wrap {
-    width: 112vw;
+    width: 94vw;
+    transform:
+      translate3d(calc(var(--pointer-x) * 2px), calc(-7vh + var(--pointer-y) * 2px), 0);
   }
 
   .ghost-window-a {
-    left: -24vw;
-    width: 72vw;
+    left: -34vw;
+    bottom: 6vh;
+    width: 84vw;
+    min-height: 320px;
   }
 
   .ghost-window-b {
-    right: -20vw;
-    width: 74vw;
+    right: -48vw;
+    top: 7vh;
+    width: 96vw;
+    height: 38vh;
+  }
+
+  .start-button {
+    height: 58px;
+    min-width: 198px;
+    padding: 0 22px 0 28px;
   }
 
   .tuning-panel {
     left: 18px;
     right: 18px;
     width: auto;
+  }
+
+  .tuning-panel label {
+    grid-template-columns: 82px 1fr 38px;
   }
 }
 
@@ -342,5 +409,17 @@ body {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+
+  .desktop-backdrop,
+  .ghost-window,
+  .wordmark-wrap {
+    animation: none;
+    transform: none;
+    transition: none;
+  }
+
+  .ghost-window {
+    opacity: 1;
   }
 }

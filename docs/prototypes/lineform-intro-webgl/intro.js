@@ -1,5 +1,7 @@
 const canvas = document.getElementById("glass-canvas");
 const shell = document.querySelector(".intro-shell");
+const wordmarkWrap = document.querySelector(".wordmark-wrap");
+const startButton = document.querySelector(".start-button");
 const replayButton = document.getElementById("replay");
 const controls = {
   dispersion: document.getElementById("dispersion"),
@@ -7,6 +9,9 @@ const controls = {
   glass: document.getElementById("glass"),
   brightness: document.getElementById("brightness")
 };
+const controlOutputs = Object.fromEntries(
+  Object.entries(controls).map(([name, input]) => [name, document.querySelector(`output[for="${input.id}"]`)])
+);
 
 const gl = canvas.getContext("webgl", {
   alpha: true,
@@ -14,11 +19,13 @@ const gl = canvas.getContext("webgl", {
   premultipliedAlpha: false
 });
 
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const params = new URLSearchParams(window.location.search);
+let parallaxEnabled = params.get("parallax") === "1";
 let startTime = performance.now();
-let reveal = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0;
+let reveal = reducedMotion ? 1 : 0;
 let logoTexture = null;
 let logoReady = false;
-const logoAspect = 639 / 255;
 
 const vertexSource = `
 attribute vec2 a_position;
@@ -180,19 +187,28 @@ function makeProgram() {
   return program;
 }
 
-const program = gl ? makeProgram() : null;
-const locations = program ? {
-  position: gl.getAttribLocation(program, "a_position"),
-  resolution: gl.getUniformLocation(program, "u_resolution"),
-  logoRect: gl.getUniformLocation(program, "u_logoRect"),
-  time: gl.getUniformLocation(program, "u_time"),
-  reveal: gl.getUniformLocation(program, "u_reveal"),
-  dispersion: gl.getUniformLocation(program, "u_dispersion"),
-  refraction: gl.getUniformLocation(program, "u_refraction"),
-  glass: gl.getUniformLocation(program, "u_glass")
-} : null;
+let program = null;
+let locations = null;
 
 if (gl) {
+  try {
+    program = makeProgram();
+    locations = {
+      position: gl.getAttribLocation(program, "a_position"),
+      resolution: gl.getUniformLocation(program, "u_resolution"),
+      logoRect: gl.getUniformLocation(program, "u_logoRect"),
+      time: gl.getUniformLocation(program, "u_time"),
+      reveal: gl.getUniformLocation(program, "u_reveal"),
+      dispersion: gl.getUniformLocation(program, "u_dispersion"),
+      refraction: gl.getUniformLocation(program, "u_refraction"),
+      glass: gl.getUniformLocation(program, "u_glass")
+    };
+  } catch (error) {
+    console.warn("Lineform intro WebGL disabled:", error);
+  }
+}
+
+if (gl && program) {
   const quad = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, quad);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -209,6 +225,10 @@ if (gl) {
 }
 
 function createLogoTexture() {
+  if (!gl) {
+    return;
+  }
+
   const image = new Image();
   image.onload = () => {
     logoTexture = gl.createTexture();
@@ -225,6 +245,10 @@ function createLogoTexture() {
 }
 
 function resize() {
+  if (!gl) {
+    return;
+  }
+
   const scale = Math.min(window.devicePixelRatio || 1, 2);
   const width = Math.floor(canvas.clientWidth * scale);
   const height = Math.floor(canvas.clientHeight * scale);
@@ -236,24 +260,31 @@ function resize() {
 }
 
 function logoRect() {
-  const width = Math.min(canvas.width * 0.88, 1500 * Math.min(window.devicePixelRatio || 1, 2));
-  const height = width / logoAspect;
+  const canvasBox = canvas.getBoundingClientRect();
+  const wordmarkBox = wordmarkWrap.getBoundingClientRect();
+  const scaleX = canvas.width / canvasBox.width;
+  const scaleY = canvas.height / canvasBox.height;
+
   return [
-    (canvas.width - width) * 0.5,
-    canvas.height * 0.43 - height * 0.5,
-    width,
-    height
+    (wordmarkBox.left - canvasBox.left) * scaleX,
+    canvas.height - (wordmarkBox.bottom - canvasBox.top) * scaleY,
+    wordmarkBox.width * scaleX,
+    wordmarkBox.height * scaleY
   ];
 }
 
 function animate(now) {
   resize();
   const elapsed = (now - startTime) / 1000;
-  const duration = 2.65;
-  const targetReveal = Math.min(1, elapsed / duration);
-  reveal += (targetReveal - reveal) * 0.075;
-  if (targetReveal >= 1) {
-    reveal = Math.min(1, reveal + 0.012);
+  if (reducedMotion) {
+    reveal = 1;
+  } else {
+    const duration = 2.65;
+    const targetReveal = Math.min(1, elapsed / duration);
+    reveal += (targetReveal - reveal) * 0.075;
+    if (targetReveal >= 1) {
+      reveal = Math.min(1, reveal + 0.012);
+    }
   }
 
   document.documentElement.style.setProperty("--reveal", reveal.toFixed(4));
@@ -282,19 +313,57 @@ function animate(now) {
 
 function replay() {
   startTime = performance.now();
-  reveal = 0;
-  shell.classList.remove("is-complete");
+  reveal = reducedMotion ? 1 : 0;
+  shell.classList.remove("is-complete", "is-exiting");
+  startButton.removeAttribute("aria-disabled");
+  shell.getAnimations().forEach(animation => animation.cancel());
 }
 
 function setBackgroundBrightness(value) {
   const brightness = Math.max(0, Math.min(1, Number(value) || 0));
   controls.brightness.value = String(brightness);
+  updateControlValue("brightness");
   document.documentElement.style.setProperty("--bg-dim", brightness.toFixed(2));
 }
 
+function updateControlValue(name) {
+  controlOutputs[name].value = Number(controls[name].value).toFixed(2);
+}
+
+function updateAllControlValues() {
+  Object.keys(controls).forEach(updateControlValue);
+}
+
+function setTuningVisible(visible) {
+  const panel = replayButton.closest(".tuning-panel");
+  panel.hidden = !visible;
+}
+
+function resetPointerPosition() {
+  document.documentElement.style.setProperty("--pointer-x", "0");
+  document.documentElement.style.setProperty("--pointer-y", "0");
+}
+
+function setPointerPosition(event) {
+  if (reducedMotion || !parallaxEnabled) {
+    return;
+  }
+
+  const bounds = shell.getBoundingClientRect();
+  const x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
+  const y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2;
+  document.documentElement.style.setProperty("--pointer-x", x.toFixed(3));
+  document.documentElement.style.setProperty("--pointer-y", y.toFixed(3));
+}
+
 replayButton.addEventListener("click", replay);
+Object.entries(controls).forEach(([name, input]) => {
+  input.addEventListener("input", () => updateControlValue(name));
+});
 controls.brightness.addEventListener("input", event => setBackgroundBrightness(event.target.value));
-document.querySelector(".start-button").addEventListener("click", () => {
+startButton.addEventListener("click", () => {
+  shell.classList.add("is-exiting");
+  startButton.setAttribute("aria-disabled", "true");
   shell.animate(
     [
       { opacity: 1, filter: "blur(0px)" },
@@ -303,10 +372,24 @@ document.querySelector(".start-button").addEventListener("click", () => {
     { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }
   );
 });
+shell.addEventListener("pointermove", setPointerPosition);
+shell.addEventListener("pointerleave", resetPointerPosition);
+window.addEventListener("keydown", event => {
+  if (event.key.toLowerCase() === "t") {
+    const panel = replayButton.closest(".tuning-panel");
+    setTuningVisible(panel.hidden);
+  }
+  if (event.key.toLowerCase() === "p") {
+    parallaxEnabled = !parallaxEnabled;
+    resetPointerPosition();
+  }
+});
 
-setBackgroundBrightness(new URLSearchParams(window.location.search).get("dim") === "1" ? 1 : 0);
+setBackgroundBrightness(params.get("dim") === "1" ? 1 : 0);
+updateAllControlValues();
+setTuningVisible(params.get("tune") === "1");
 
-if (gl) {
+if (gl && program) {
   createLogoTexture();
   requestAnimationFrame(animate);
 } else {
