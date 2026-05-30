@@ -13,6 +13,10 @@ struct LineformApp: App {
         DocumentGroup(newDocument: LineformDocument()) { file in
             EditorContainerView(document: file.$document)
         }
+        .defaultSize(
+            width: LineformWindowDefaults.defaultWidth,
+            height: LineformWindowDefaults.defaultHeight
+        )
         .commands {
             AppCommands(textFormatMenuState: textFormatMenuState)
         }
@@ -28,4 +32,9 @@ struct LineformApp: App {
 
         NSApplication.shared.applicationIconImage = icon
     }
+}
+
+enum LineformWindowDefaults {
+    static let defaultWidth: CGFloat = 1_120
+    static let defaultHeight: CGFloat = 840
 }
