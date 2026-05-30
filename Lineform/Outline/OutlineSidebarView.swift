@@ -8,7 +8,7 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
-struct OutlineFileTreeItem: Identifiable, Equatable {
+struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
     var url: URL
     var name: String
     var isDirectory: Bool
@@ -43,8 +43,24 @@ struct OutlineSidebarView: View {
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
     static let fileRootTitles = ["iCloud", "Workspace"]
-    static let chooseWorkspaceButtonTitle = "Choose folder"
+    static let chooseWorkspaceButtonTitle = "Choose"
     static let replaceWorkspaceButtonTitle = "Replace"
+    static let iCloudUnavailableShowsLabel = true
+    static let iCloudUnavailableStatusTitle = "Unavailable"
+    static let filesRowsFillAvailableWidth = true
+    static let filesContentHorizontalPadding: CGFloat = 10
+    static let filesRootRowHeight: CGFloat = 28
+    static let filesChildRowHeight: CGFloat = 26
+    static let filesUnavailableRootOpacity = 0.56
+    static let filesActionUsesPillStyle = true
+    static let filesActionButtonsUseHighContrastFill = true
+    static let filesActionButtonsReverseInDarkMode = true
+    static let filesActionButtonsShowHoverState = true
+    static let filesRootRowsShowLeadingIcons = false
+    static let filesRootRowsAlwaysShowDisclosure = true
+    static let filesRootTextFollowsDisclosureDirectly = true
+    static let filesRootDisclosureIsVisualOnly = true
+    static let filesRootTextTogglesCollapse = true
     static let workspaceDisconnectedSystemImage = "exclamationmark.triangle.fill"
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
@@ -374,10 +390,15 @@ private struct OutlineFileRoot: Identifiable, Equatable {
     var systemImage: String
     var state: OutlineFileRootState
     var items: [OutlineFileTreeItem]
+
+    var showsTree: Bool {
+        state == .available || state == .disconnected
+    }
 }
 
 private final class OutlineFileBrowserStore: ObservableObject {
     static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
+    static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"
     static let maximumTreeDepth = 4
     static let maximumChildrenPerFolder = 80
     static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
@@ -400,10 +421,12 @@ private final class OutlineFileBrowserStore: ObservableObject {
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private var workspaceURL: URL?
+    private var lastWorkspaceItems: [OutlineFileTreeItem] = []
 
     init(defaults: UserDefaults = .standard, fileManager: FileManager = .default) {
         self.defaults = defaults
         self.fileManager = fileManager
+        loadWorkspaceSnapshot()
         loadWorkspaceBookmark()
         refresh()
     }
@@ -429,6 +452,14 @@ private final class OutlineFileBrowserStore: ObservableObject {
         setWorkspaceURL(url)
     }
 
+    func clearWorkspaceAssignment() {
+        workspaceURL = nil
+        lastWorkspaceItems = []
+        defaults.removeObject(forKey: Self.workspaceBookmarkDefaultsKey)
+        defaults.removeObject(forKey: Self.workspaceSnapshotDefaultsKey)
+        refreshWorkspaceRoot()
+    }
+
     @MainActor
     func openFile(_ item: OutlineFileTreeItem) {
         guard !item.isDirectory else {
@@ -444,6 +475,10 @@ private final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
+        workspaceURL = resolveWorkspaceBookmark(from: data)
+    }
+
+    private func resolveWorkspaceBookmark(from data: Data) -> URL? {
         do {
             var isStale = false
             let url = try URL(
@@ -452,19 +487,42 @@ private final class OutlineFileBrowserStore: ObservableObject {
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
-            workspaceURL = url
 
             if isStale {
-                setWorkspaceURL(url)
+                saveWorkspaceBookmark(for: url)
             }
+
+            return url
         } catch {
-            workspaceURL = nil
+            return nil
         }
+    }
+
+    private func loadWorkspaceSnapshot() {
+        guard let data = defaults.data(forKey: Self.workspaceSnapshotDefaultsKey),
+              let items = try? JSONDecoder().decode([OutlineFileTreeItem].self, from: data)
+        else {
+            return
+        }
+
+        lastWorkspaceItems = items
+    }
+
+    private func saveWorkspaceSnapshot(_ items: [OutlineFileTreeItem]) {
+        guard let data = try? JSONEncoder().encode(items) else {
+            return
+        }
+
+        defaults.set(data, forKey: Self.workspaceSnapshotDefaultsKey)
     }
 
     private func setWorkspaceURL(_ url: URL) {
         workspaceURL = url
+        saveWorkspaceBookmark(for: url)
+        refreshWorkspaceRoot()
+    }
 
+    private func saveWorkspaceBookmark(for url: URL) {
         do {
             let bookmark = try url.bookmarkData(
                 options: [.withSecurityScope],
@@ -475,8 +533,6 @@ private final class OutlineFileBrowserStore: ObservableObject {
         } catch {
             defaults.removeObject(forKey: Self.workspaceBookmarkDefaultsKey)
         }
-
-        refreshWorkspaceRoot()
     }
 
     private func refreshICloudRoot() {
@@ -484,7 +540,7 @@ private final class OutlineFileBrowserStore: ObservableObject {
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
                 title: "iCloud",
-                systemImage: "icloud.slash",
+                systemImage: "icloud",
                 state: .unavailable,
                 items: []
             )
@@ -512,6 +568,14 @@ private final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
+        if let data = defaults.data(forKey: Self.workspaceBookmarkDefaultsKey),
+           let resolvedURL = resolveWorkspaceBookmark(from: data),
+           resolvedURL != workspaceURL {
+            self.workspaceURL = resolvedURL
+            refreshWorkspaceRoot()
+            return
+        }
+
         var isDirectory: ObjCBool = false
         guard
             fileManager.fileExists(atPath: workspaceURL.path, isDirectory: &isDirectory),
@@ -522,7 +586,7 @@ private final class OutlineFileBrowserStore: ObservableObject {
                 title: "Workspace",
                 systemImage: "folder.badge.questionmark",
                 state: .disconnected,
-                items: []
+                items: lastWorkspaceItems
             )
             return
         }
@@ -534,12 +598,16 @@ private final class OutlineFileBrowserStore: ObservableObject {
             }
         }
 
+        let items = Self.items(in: workspaceURL, fileManager: fileManager)
+        lastWorkspaceItems = items
+        saveWorkspaceSnapshot(items)
+
         workspaceRoot = OutlineFileRoot(
             id: "workspace",
             title: "Workspace",
             systemImage: "folder",
             state: .available,
-            items: Self.items(in: workspaceURL, fileManager: fileManager)
+            items: items
         )
     }
 
@@ -624,7 +692,8 @@ private struct OutlineFileBrowserView: View {
                 rootView(store.iCloudRoot)
                 rootView(store.workspaceRoot)
             }
-            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
             .padding(.top, 4)
             .padding(.bottom, 14)
         }
@@ -638,16 +707,19 @@ private struct OutlineFileBrowserView: View {
                 root: root,
                 isCollapsed: collapsedIDs.contains(root.id),
                 toggleCollapsed: { toggle(root.id) },
-                chooseWorkspaceFolder: store.chooseWorkspaceFolder
+                chooseWorkspaceFolder: store.chooseWorkspaceFolder,
+                replaceWorkspaceFolder: store.clearWorkspaceAssignment
             )
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            if root.state == .available, !collapsedIDs.contains(root.id) {
+            if root.showsTree, !collapsedIDs.contains(root.id) {
                 if root.items.isEmpty {
                     Text("No Markdown files")
                         .font(.system(size: 12))
                         .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                        .padding(.leading, 30)
+                        .padding(.leading, 28)
                         .padding(.vertical, 4)
+                        .opacity(root.state == .disconnected ? 0.48 : 1)
                 } else {
                     ForEach(root.items) { item in
                         OutlineFileTreeNodeView(
@@ -656,24 +728,14 @@ private struct OutlineFileBrowserView: View {
                             collapsedIDs: $collapsedIDs,
                             openFile: store.openFile
                         )
+                        .opacity(root.state == .disconnected ? 0.48 : 1)
+                        .allowsHitTesting(root.state != .disconnected)
                     }
                 }
             }
         }
-        .opacity(root.state == .disconnected ? 0.48 : 1)
-        .allowsHitTesting(root.state != .disconnected)
-        .overlay(alignment: .topTrailing) {
-            if root.state == .disconnected {
-                Button(OutlineSidebarView.replaceWorkspaceButtonTitle) {
-                    store.chooseWorkspaceFolder()
-                }
-                .font(.system(size: 11, weight: .medium))
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                .allowsHitTesting(true)
-                .opacity(1)
-            }
-        }
+        .opacity(root.state == .unavailable ? OutlineSidebarView.filesUnavailableRootOpacity : 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func toggle(_ id: String) {
@@ -694,7 +756,10 @@ private struct OutlineFileRootRow: View {
     var isCollapsed: Bool
     var toggleCollapsed: () -> Void
     var chooseWorkspaceFolder: () -> Void
+    var replaceWorkspaceFolder: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+    @State private var isWorkspaceActionHovered = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -702,54 +767,107 @@ private struct OutlineFileRootRow: View {
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                 .frame(width: 10)
-                .opacity(root.state == .available ? 1 : 0)
+                .accessibilityHidden(true)
 
-            Image(systemName: root.systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                .frame(width: 18)
-
-            Text(root.title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                .lineLimit(1)
-
-            if root.state == .disconnected {
-                Image(systemName: OutlineSidebarView.workspaceDisconnectedSystemImage)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            Button(action: toggleCollapsed) {
+                Text(root.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                    .lineLimit(1)
             }
+            .buttonStyle(.plain)
+            .opacity(root.state == .disconnected ? 0.48 : 1)
+            .accessibilityLabel(isCollapsed ? "Expand \(root.title)" : "Collapse \(root.title)")
 
             Spacer(minLength: 0)
 
-            if root.state == .unassigned {
-                Button(OutlineSidebarView.chooseWorkspaceButtonTitle) {
-                    chooseWorkspaceFolder()
+            if root.id == "icloud", root.state == .unavailable {
+                Text(Self.unavailableStatusTitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .frame(height: 22)
+                    .background {
+                        Capsule()
+                            .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(usesDarkChrome ? 0.16 : 0.08))
+                    }
+                    .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                    .allowsHitTesting(false)
+            }
+
+            if root.id == "workspace", root.state != .unavailable {
+                if root.state == .disconnected {
+                    Image(systemName: OutlineSidebarView.workspaceDisconnectedSystemImage)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                 }
-                .font(.system(size: 11, weight: .medium))
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-            } else if root.id == "workspace", root.state == .available {
-                Button(OutlineSidebarView.replaceWorkspaceButtonTitle) {
-                    chooseWorkspaceFolder()
+
+                Button {
+                    if root.state == .unassigned {
+                        chooseWorkspaceFolder()
+                    } else {
+                        replaceWorkspaceFolder()
+                    }
+                } label: {
+                    Text(workspaceActionTitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(.horizontal, 10)
+                        .frame(height: 22)
                 }
-                .font(.system(size: 11, weight: .medium))
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
+                .buttonStyle(.plain)
+                .background {
+                    Capsule()
+                        .fill(workspaceActionBackgroundColor)
+                }
+                .foregroundStyle(workspaceActionTextColor)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        isWorkspaceActionHovered = hovering
+                    }
+                }
             }
         }
         .padding(.horizontal, 6)
-        .frame(height: 28)
+        .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesRootRowHeight, maxHeight: OutlineSidebarView.filesRootRowHeight, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(isHovered && root.state != .unavailable ? OutlineSidebarView.rowHoverFillOpacity : 0))
+        }
         .contentShape(Rectangle())
-        .onTapGesture {
-            if root.state == .available {
-                toggleCollapsed()
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovered = hovering
             }
         }
     }
 
     private var chevronSystemImage: String {
         isCollapsed ? "chevron.right" : "chevron.down"
+    }
+
+    private var workspaceActionTitle: String {
+        root.state == .unassigned
+            ? OutlineSidebarView.chooseWorkspaceButtonTitle
+            : OutlineSidebarView.replaceWorkspaceButtonTitle
+    }
+
+    private var workspaceActionBackgroundColor: Color {
+        Color(nsColor: NSColor(
+            calibratedWhite: usesDarkChrome
+                ? (isWorkspaceActionHovered ? 1.0 : 0.92)
+                : (isWorkspaceActionHovered ? 0.12 : 0.20),
+            alpha: 1
+        ))
+    }
+
+    private var workspaceActionTextColor: Color {
+        Color(nsColor: NSColor(
+            calibratedWhite: usesDarkChrome ? 0.10 : 1.0,
+            alpha: 1
+        ))
+    }
+
+    private static var unavailableStatusTitle: String {
+        OutlineSidebarView.iCloudUnavailableStatusTitle
     }
 
     private var usesDarkChrome: Bool {
@@ -814,7 +932,7 @@ private struct OutlineFileTreeNodeView: View {
         }
         .padding(.leading, CGFloat(depth) * 14)
         .padding(.horizontal, 6)
-        .frame(height: 26)
+        .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))

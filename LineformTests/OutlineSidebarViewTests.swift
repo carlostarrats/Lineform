@@ -31,8 +31,24 @@ final class OutlineSidebarViewTests: XCTestCase {
     @MainActor
     func testFilesTabUsesICloudAndReplaceableWorkspaceRoots() {
         XCTAssertEqual(OutlineSidebarView.fileRootTitles, ["iCloud", "Workspace"])
-        XCTAssertEqual(OutlineSidebarView.chooseWorkspaceButtonTitle, "Choose folder")
+        XCTAssertEqual(OutlineSidebarView.chooseWorkspaceButtonTitle, "Choose")
         XCTAssertEqual(OutlineSidebarView.replaceWorkspaceButtonTitle, "Replace")
+        XCTAssertTrue(OutlineSidebarView.iCloudUnavailableShowsLabel)
+        XCTAssertEqual(OutlineSidebarView.iCloudUnavailableStatusTitle, "Unavailable")
+        XCTAssertTrue(OutlineSidebarView.filesRowsFillAvailableWidth)
+        XCTAssertEqual(OutlineSidebarView.filesContentHorizontalPadding, 10)
+        XCTAssertEqual(OutlineSidebarView.filesRootRowHeight, 28)
+        XCTAssertEqual(OutlineSidebarView.filesChildRowHeight, 26)
+        XCTAssertLessThan(OutlineSidebarView.filesUnavailableRootOpacity, 0.7)
+        XCTAssertTrue(OutlineSidebarView.filesActionUsesPillStyle)
+        XCTAssertTrue(OutlineSidebarView.filesActionButtonsUseHighContrastFill)
+        XCTAssertTrue(OutlineSidebarView.filesActionButtonsReverseInDarkMode)
+        XCTAssertTrue(OutlineSidebarView.filesActionButtonsShowHoverState)
+        XCTAssertFalse(OutlineSidebarView.filesRootRowsShowLeadingIcons)
+        XCTAssertTrue(OutlineSidebarView.filesRootRowsAlwaysShowDisclosure)
+        XCTAssertTrue(OutlineSidebarView.filesRootTextFollowsDisclosureDirectly)
+        XCTAssertTrue(OutlineSidebarView.filesRootDisclosureIsVisualOnly)
+        XCTAssertTrue(OutlineSidebarView.filesRootTextTogglesCollapse)
         XCTAssertEqual(OutlineSidebarView.workspaceDisconnectedSystemImage, "exclamationmark.triangle.fill")
     }
 
