@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct LineformApp: App {
+    @NSApplicationDelegateAdaptor(LineformAppDelegate.self) private var appDelegate
     @StateObject private var textFormatMenuState = LineformTextFormatMenuState.shared
 
     init() {
