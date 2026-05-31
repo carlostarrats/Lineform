@@ -9,7 +9,6 @@
   --pointer-y: 0;
   --tagline-x: 67.6%;
   --tagline-y: 57.6%;
-  --wordmark-chroma: 1;
   color-scheme: light;
 }
 
@@ -143,40 +142,6 @@ body {
   opacity: calc(var(--reveal) * 0.34);
   transform: translate(0.9%, 2.2%);
   filter: blur(14px);
-}
-
-.wordmark-chroma {
-  z-index: 3;
-  opacity: calc(var(--reveal) * 0.58 * var(--wordmark-chroma));
-  mix-blend-mode: multiply;
-  -webkit-mask-image:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.16) 48%, rgba(0, 0, 0, 0.68) 64%, #000 100%);
-  mask-image:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.16) 48%, rgba(0, 0, 0, 0.68) 64%, #000 100%);
-}
-
-.wordmark-chroma-amber {
-  transform: translate(calc(-2.4px - 0.32vw), calc(1.1px + 0.12vw));
-  filter:
-    invert(78%)
-    sepia(95%)
-    saturate(1150%)
-    hue-rotate(342deg)
-    brightness(107%)
-    contrast(102%)
-    blur(0.25px);
-}
-
-.wordmark-chroma-cyan {
-  transform: translate(calc(2px + 0.26vw), calc(-0.9px - 0.1vw));
-  filter:
-    invert(62%)
-    sepia(82%)
-    saturate(760%)
-    hue-rotate(118deg)
-    brightness(96%)
-    contrast(104%)
-    blur(0.2px);
 }
 
 .intro-tagline {
