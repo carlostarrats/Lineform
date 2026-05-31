@@ -106,6 +106,16 @@ float band(vec2 p, vec2 center, float angle, float length, float width) {
   return body * cross;
 }
 
+float curlBand(vec2 logoUV, vec2 center, float radius, float width, float startAngle, float endAngle) {
+  vec2 delta = logoUV - center;
+  float distance = length(delta);
+  float angle = atan(delta.y, delta.x);
+  float ring = 1.0 - smoothstep(width, width * 2.1, abs(distance - radius));
+  float start = smoothstep(startAngle - 0.22, startAngle + 0.08, angle);
+  float end = 1.0 - smoothstep(endAngle - 0.08, endAngle + 0.24, angle);
+  return ring * start * end;
+}
+
 void main() {
   vec2 frag = v_uv * u_resolution;
   vec2 logoUV = (frag - u_logoRect.xy) / u_logoRect.zw;
@@ -156,6 +166,15 @@ void main() {
   halo += logoAlpha(logoUV + texel * vec2(3.0, -8.0)) * 0.22;
   halo *= revealMask;
 
+  float fCurl = curlBand(logoUV, vec2(0.54, 0.54), 0.215, 0.022, -2.56, 0.82) * revealMask;
+  vec2 curlTangent = normalize(vec2(-(logoUV.y - 0.54), logoUV.x - 0.54));
+  vec2 curlOffset = curlTangent * texel * 34.0 + vec2(-texel.x * 14.0, texel.y * 3.0);
+  float curlAlpha = progressiveLogoBlur(logoUV + curlOffset, texel, 5.8) * fCurl;
+  float curlEdge = max(
+    logoAlpha(logoUV + curlOffset * 1.2 + texel * vec2(8.0, -2.0)),
+    logoAlpha(logoUV + curlOffset * 0.75 - texel * vec2(7.0, 2.0))
+  ) * fCurl;
+
   vec3 chroma = vec3(red * 1.02 + halo * 0.22, green * 0.82 + halo * 0.06, blue * 1.04 + halo * 0.22);
   float chromaStrength = clamp((abs(red - blue) + edge * 0.54 + glassMask * center * 0.5) * 0.54, 0.0, 1.0);
 
@@ -173,6 +192,9 @@ void main() {
   color += vec3(1.0, 0.02, 0.34) * smear * 0.1;
   color += vec3(0.18, 0.68, 1.0) * writeSpark * 0.24;
   color += vec3(1.0, 0.72, 0.10) * writeSpark * 0.16;
+  color += vec3(0.02, 0.0, 0.0) * curlAlpha * 0.72;
+  color += vec3(0.95, 0.7, 0.14) * curlEdge * 0.18;
+  color += vec3(0.12, 0.52, 0.88) * curlEdge * 0.16;
 
   vec2 fLensUV = (logoUV - vec2(0.70, 0.53)) / vec2(0.15, 0.38);
   float fLensDistance = length(fLensUV);
@@ -193,6 +215,8 @@ void main() {
     ghost * 0.12 +
     smear * 0.36 +
     halo * 0.2 +
+    curlAlpha * 0.78 +
+    curlEdge * 0.18 +
     caustic * 0.52 +
     writeSpark +
     treatedInk * 0.92,
