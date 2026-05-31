@@ -167,15 +167,15 @@ body {
     blur(0.25px);
 }
 
-.wordmark-chroma-cyan {
+.wordmark-chroma-blue {
   transform: translate(calc(2px + 0.26vw), calc(-0.9px - 0.1vw));
   filter:
-    invert(62%)
-    sepia(82%)
-    saturate(760%)
-    hue-rotate(118deg)
-    brightness(96%)
-    contrast(104%)
+    invert(66%)
+    sepia(68%)
+    saturate(1130%)
+    hue-rotate(166deg)
+    brightness(92%)
+    contrast(92%)
     blur(0.2px);
 }
 
