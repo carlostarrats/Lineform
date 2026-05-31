@@ -1,6 +1,7 @@
 const canvas = document.getElementById("glass-canvas");
 const shell = document.querySelector(".intro-shell");
 const wordmarkWrap = document.querySelector(".wordmark-wrap");
+const writeStrokes = Array.from(document.querySelectorAll(".write-stroke"));
 const startButton = document.querySelector(".start-button");
 const replayButton = document.getElementById("replay");
 const controls = {
@@ -9,7 +10,11 @@ const controls = {
   glass: document.getElementById("glass"),
   brightness: document.getElementById("brightness"),
   taglineX: document.getElementById("taglineX"),
-  taglineY: document.getElementById("taglineY")
+  taglineY: document.getElementById("taglineY"),
+  writeTime: document.getElementById("writeTime"),
+  finalDelay: document.getElementById("finalDelay"),
+  finalFade: document.getElementById("finalFade"),
+  effectFade: document.getElementById("effectFade")
 };
 const controlOutputs = Object.fromEntries(
   Object.entries(controls).map(([name, input]) => [name, document.querySelector(`output[for="${input.id}"]`)])
@@ -26,8 +31,11 @@ const params = new URLSearchParams(window.location.search);
 let parallaxEnabled = params.get("parallax") === "1";
 let startTime = performance.now();
 let reveal = reducedMotion ? 1 : 0;
+let effectReveal = reducedMotion ? 1 : 0;
+let finalReveal = reducedMotion ? 1 : 0;
 let logoTexture = null;
 let logoReady = false;
+let strokeLengths = [];
 
 const vertexSource = `
 attribute vec2 a_position;
@@ -122,8 +130,8 @@ void main() {
   logoUV.y = 1.0 - logoUV.y;
 
   float writtenNoise = noise(vec2(logoUV.x * 5.0 - u_time * 0.24, logoUV.y * 3.0));
-  float revealEdge = smoothstep(-0.12, 0.04, u_reveal - logoUV.x + (writtenNoise - 0.5) * 0.06);
-  float revealGlow = smoothstep(0.07, -0.02, abs(u_reveal - logoUV.x));
+  float revealEdge = smoothstep(-0.05, 0.12, u_reveal + (writtenNoise - 0.5) * 0.04);
+  float revealGlow = smoothstep(0.0, 0.36, u_reveal);
   float revealMask = clamp(revealEdge, 0.0, 1.0);
 
   vec2 p = v_uv;
@@ -227,6 +235,29 @@ void main() {
   gl_FragColor = vec4(color, alpha);
 }
 `;
+
+function prepareWriteStrokes() {
+  strokeLengths = writeStrokes.map(path => {
+    const length = path.getTotalLength();
+    path.style.strokeDasharray = `${length}`;
+    path.style.strokeDashoffset = reducedMotion ? "0" : `${length}`;
+    return length;
+  });
+}
+
+function updateWriteStrokes(progress) {
+  if (!strokeLengths.length) {
+    return;
+  }
+
+  const strokeCount = Math.max(1, writeStrokes.length);
+  writeStrokes.forEach((path, index) => {
+    const stagger = index / strokeCount * 0.42;
+    const localProgress = Math.max(0, Math.min(1, (progress - stagger) / 0.5));
+    const eased = 1 - Math.pow(1 - localProgress, 3);
+    path.style.strokeDashoffset = `${strokeLengths[index] * (1 - eased)}`;
+  });
+}
 
 function compileShader(type, source) {
   const shader = gl.createShader(type);
@@ -340,16 +371,23 @@ function animate(now) {
   const elapsed = (now - startTime) / 1000;
   if (reducedMotion) {
     reveal = 1;
+    effectReveal = 1;
+    finalReveal = 1;
   } else {
-    const duration = 2.65;
-    const targetReveal = Math.min(1, elapsed / duration);
-    reveal += (targetReveal - reveal) * 0.075;
-    if (targetReveal >= 1) {
-      reveal = Math.min(1, reveal + 0.012);
-    }
+    const writeTime = Number(controls.writeTime.value);
+    const finalDelay = Number(controls.finalDelay.value);
+    const finalFade = Number(controls.finalFade.value);
+    const effectFade = Number(controls.effectFade.value);
+    const rawReveal = Math.min(1, elapsed / writeTime);
+    reveal = rawReveal * rawReveal * (3 - 2 * rawReveal);
+    finalReveal = Math.min(1, Math.max(0, (elapsed - finalDelay) / finalFade));
+    effectReveal = Math.min(1, elapsed / effectFade);
   }
 
+  updateWriteStrokes(reveal);
   document.documentElement.style.setProperty("--reveal", reveal.toFixed(4));
+  document.documentElement.style.setProperty("--effect-reveal", effectReveal.toFixed(4));
+  document.documentElement.style.setProperty("--final-reveal", finalReveal.toFixed(4));
   if (reveal > 0.985) {
     shell.classList.add("is-complete");
   }
@@ -376,6 +414,11 @@ function animate(now) {
 function replay() {
   startTime = performance.now();
   reveal = reducedMotion ? 1 : 0;
+  effectReveal = reducedMotion ? 1 : 0;
+  finalReveal = reducedMotion ? 1 : 0;
+  updateWriteStrokes(reveal);
+  document.documentElement.style.setProperty("--effect-reveal", effectReveal.toFixed(4));
+  document.documentElement.style.setProperty("--final-reveal", finalReveal.toFixed(4));
   shell.classList.remove("is-complete", "is-exiting");
   startButton.removeAttribute("aria-disabled");
   shell.getAnimations().forEach(animation => animation.cancel());
@@ -461,6 +504,7 @@ setBackgroundBrightness(params.get("dim") === "1" ? 1 : 0);
 setTaglinePosition();
 updateAllControlValues();
 setTuningVisible(params.get("tune") === "1");
+prepareWriteStrokes();
 
 if (gl && program) {
   createLogoTexture();
