@@ -9,7 +9,8 @@ struct ReadingExperienceInspector: View {
         "Font",
         "Font Size",
         "Line Height",
-        "Paragraph Spacing",
+        "Block Spacing",
+        "(Read / Preview)",
         "Letter Spacing",
         "Column Width",
         "Reading Aids",
@@ -24,6 +25,7 @@ struct ReadingExperienceInspector: View {
     static let themeTitle = "Themes"
     static let themeTitleFontSize: CGFloat = 13
     static let controlLabelFontSize: CGFloat = 13
+    static let controlQualifierFontSize: CGFloat = 11
     static let valueFontSize: CGFloat = 13
     static let unselectedPresetOpacity = 1.0
     static let unselectedPresetContentOpacity: Double = 1
@@ -74,7 +76,8 @@ struct ReadingExperienceInspector: View {
                 )
 
                 InspectorSliderRow(
-                    title: "Paragraph Spacing",
+                    title: "Block Spacing",
+                    subtitle: "(Read / Preview)",
                     valueText: Self.valueText(for: \.paragraphSpacing, in: store.activeProfile),
                     value: numericBinding(\.paragraphSpacing, range: 0...24),
                     range: 0...24
@@ -335,17 +338,43 @@ private struct ReadingPresetCard: View {
 
 private struct InspectorSliderRow: View {
     var title: String
+    var subtitle: String?
     var valueText: String
     @Binding var value: Double
     var range: ClosedRange<Double>
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        valueText: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.valueText = valueText
+        self._value = value
+        self.range = range
+    }
 
     var body: some View {
         InspectorControlRow {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(title)
-                        .font(ReadingExperienceInspector.inspectorUIFont())
-                        .foregroundStyle(.primary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title)
+                            .font(ReadingExperienceInspector.inspectorUIFont())
+                            .foregroundStyle(.primary)
+
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(ReadingExperienceInspector.inspectorUIFont(
+                                    size: ReadingExperienceInspector.controlQualifierFontSize,
+                                    weight: .regular
+                                ))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
                     Spacer(minLength: 12)
 
@@ -356,12 +385,19 @@ private struct InspectorSliderRow: View {
                         ))
                         .foregroundStyle(.secondary)
                         .frame(minWidth: 54, alignment: .trailing)
-                        .accessibilityLabel("\(title) value \(valueText)")
+                        .accessibilityLabel("\(accessibilityTitle) value \(valueText)")
                 }
 
                 Slider(value: $value, in: range)
             }
         }
+    }
+
+    private var accessibilityTitle: String {
+        if let subtitle {
+            return "\(title) \(subtitle)"
+        }
+        return title
     }
 }
 

@@ -52,7 +52,7 @@ final class MarkdownSyntaxHighlighter {
     static func paragraphStyle(
         for profile: ReadingProfile,
         font: NSFont,
-        additionalParagraphSpacing: CGFloat = 0
+        blockSpacing: CGFloat = 0
     ) -> NSMutableParagraphStyle {
         let paragraphStyle = NSMutableParagraphStyle()
         let lineHeightMultiple = CGFloat(profile.lineHeightMultiple)
@@ -63,8 +63,91 @@ final class MarkdownSyntaxHighlighter {
         } else {
             paragraphStyle.lineHeightMultiple = lineHeightMultiple
         }
-        paragraphStyle.paragraphSpacing = CGFloat(profile.paragraphSpacing) + additionalParagraphSpacing
+        paragraphStyle.paragraphSpacing = blockSpacing
         return paragraphStyle
+    }
+
+    static func blockSpacingParagraphStyle(
+        for profile: ReadingProfile,
+        font: NSFont,
+        additionalSpacing: CGFloat = 0
+    ) -> NSMutableParagraphStyle {
+        paragraphStyle(
+            for: profile,
+            font: font,
+            blockSpacing: CGFloat(profile.paragraphSpacing) + additionalSpacing
+        )
+    }
+
+    static func markdownBlockSpacingLineRanges(
+        in text: String,
+        includeLineTerminators: Bool = true,
+        includeTrailingBlankBoundary: Bool = true
+    ) -> [NSRange] {
+        let lines = text.components(separatedBy: "\n")
+        let blockSpacingLineIndexes = Set(markdownBlockSpacingLineIndexes(
+            in: text,
+            includeTrailingBlankBoundary: includeTrailingBlankBoundary
+        ))
+        var ranges: [NSRange] = []
+        var currentLocation = 0
+
+        for (index, line) in lines.enumerated() {
+            let length = (line as NSString).length
+
+            if blockSpacingLineIndexes.contains(index) {
+                let includesLineTerminator = includeLineTerminators && index < lines.count - 1
+                ranges.append(NSRange(location: currentLocation, length: max(length + (includesLineTerminator ? 1 : 0), 1)))
+            }
+
+            currentLocation += length
+            if index < lines.count - 1 {
+                currentLocation += 1
+            }
+        }
+
+        return ranges
+    }
+
+    static func markdownBlockSpacingLineIndexes(
+        in text: String,
+        includeTrailingBlankBoundary: Bool = true
+    ) -> [Int] {
+        let lines = text.components(separatedBy: "\n")
+        var inFence = false
+
+        return lines.indices.compactMap { index in
+            let line = lines[index]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let isFenceDelimiter = trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~")
+            let isClosingFence = inFence && isFenceDelimiter
+            let nextLine = index + 1 < lines.count ? lines[index + 1] : nil
+            let nextLineIsBlank = nextLine?.trimmingCharacters(in: .whitespaces).isEmpty == true
+            let nextLineIsHeading = nextLine.map { !inFence && MarkdownHeadingParser.heading(in: $0) != nil } ?? false
+            let blankBoundaryIsStable = includeTrailingBlankBoundary || hasNonEmptyLine(after: index + 1, in: lines)
+            let isHeading = !inFence && MarkdownHeadingParser.heading(in: line) != nil
+            let usesBlockSpacing = !trimmed.isEmpty
+                && (
+                    isHeading
+                        || nextLineIsHeading
+                        || (!inFence && nextLineIsBlank && blankBoundaryIsStable)
+                        || (isClosingFence && nextLineIsBlank && blankBoundaryIsStable)
+                )
+
+            if isFenceDelimiter {
+                inFence.toggle()
+            }
+
+            return usesBlockSpacing ? index : nil
+        }
+    }
+
+    private static func hasNonEmptyLine(after index: Int, in lines: [String]) -> Bool {
+        guard index + 1 < lines.count else {
+            return false
+        }
+
+        return lines[(index + 1)...].contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
 
     private let analyzer = MarkdownRangeAnalyzer()

@@ -102,7 +102,9 @@ struct MarkdownBasicsModal: View {
     static let sections = [
         Section(
             title: "Markdown Basics",
-            rows: examples.map { Row(label: $0.syntax, detail: $0.label) }
+            rows: examples.map { Row(label: $0.syntax, detail: $0.label) } + [
+                Row(label: "Block Spacing", detail: "In Read and Preview modes, adds space around Markdown block breaks.")
+            ]
         ),
         Section(
             title: "AI Editing",

@@ -337,6 +337,60 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         )
     }
 
+    func testBlockSpacingDoesNotApplyParagraphSpacingInEditableTextView() throws {
+        let textView = LineformTextView()
+        textView.string = "First line\nsame paragraph\n\nNext paragraph\n# Title\nBody\n## Section\nBody"
+        var profile = ReadingProfile.original
+        profile.paragraphSpacing = 18
+
+        textView.applyTypography(profile)
+
+        let storage = try XCTUnwrap(textView.textStorage)
+        let firstLineStyle = try paragraphStyle(in: storage, searchText: "First line")
+        let sameParagraphStyle = try paragraphStyle(in: storage, searchText: "same paragraph")
+        let nextParagraphStyle = try paragraphStyle(in: storage, searchText: "Next paragraph")
+        let titleStyle = try paragraphStyle(in: storage, searchText: "Title")
+        let headingStyle = try paragraphStyle(in: storage, searchText: "Section")
+        let bodyStyle = try paragraphStyle(in: storage, searchText: "Body")
+
+        XCTAssertEqual(firstLineStyle.paragraphSpacing, 0)
+        XCTAssertEqual(sameParagraphStyle.paragraphSpacing, 0)
+        XCTAssertEqual(nextParagraphStyle.paragraphSpacing, 0)
+        XCTAssertEqual(titleStyle.paragraphSpacing, 0)
+        XCTAssertEqual(headingStyle.paragraphSpacing, 0)
+        XCTAssertEqual(bodyStyle.paragraphSpacing, 0)
+    }
+
+    func testBlockSpacingDoesNotTreatSingleTrailingBlankLineAsStableEditorBoundary() throws {
+        let textView = LineformTextView()
+        textView.string = "Draft line\n"
+        var profile = ReadingProfile.original
+        profile.paragraphSpacing = 18
+
+        textView.applyTypography(profile)
+
+        let storage = try XCTUnwrap(textView.textStorage)
+        let draftStyle = try paragraphStyle(in: storage, searchText: "Draft line")
+
+        XCTAssertEqual(draftStyle.paragraphSpacing, 0)
+    }
+
+    func testEditableTextViewTypingAttributesStayUnspacedWithBlockSpacingProfile() throws {
+        let textView = LineformTextView()
+        textView.string = "# Title\nBody"
+        textView.setSelectedRange(NSRange(location: ("# Title" as NSString).length, length: 0))
+        var profile = ReadingProfile.original
+        profile.paragraphSpacing = 18
+        textView.applyTypography(profile)
+
+        let storage = try XCTUnwrap(textView.textStorage)
+        let titleStyle = try paragraphStyle(in: storage, searchText: "Title")
+        let typingStyle = try XCTUnwrap(textView.typingAttributes[.paragraphStyle] as? NSParagraphStyle)
+
+        XCTAssertEqual(titleStyle.paragraphSpacing, 0)
+        XCTAssertEqual(typingStyle.paragraphSpacing, 0)
+    }
+
     func testTextViewCanSmoothHorizontalInsetChangesForInspectorTransition() {
         let textView = LineformTextView()
 
@@ -592,6 +646,16 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(firstRGB?.redComponent ?? -1, secondRGB?.redComponent ?? -2, accuracy: 0.005, file: file, line: line)
         XCTAssertEqual(firstRGB?.greenComponent ?? -1, secondRGB?.greenComponent ?? -2, accuracy: 0.005, file: file, line: line)
         XCTAssertEqual(firstRGB?.blueComponent ?? -1, secondRGB?.blueComponent ?? -2, accuracy: 0.005, file: file, line: line)
+    }
+
+    private func paragraphStyle(in storage: NSTextStorage, searchText: String) throws -> NSParagraphStyle {
+        let range = (storage.string as NSString).range(of: searchText)
+        XCTAssertNotEqual(range.location, NSNotFound)
+        return try paragraphStyle(in: storage, location: range.location)
+    }
+
+    private func paragraphStyle(in storage: NSTextStorage, location: Int) throws -> NSParagraphStyle {
+        try XCTUnwrap(storage.attribute(.paragraphStyle, at: location, effectiveRange: nil) as? NSParagraphStyle)
     }
 
     private func colorsHaveSameRGB(_ first: NSColor, _ second: NSColor) -> Bool {

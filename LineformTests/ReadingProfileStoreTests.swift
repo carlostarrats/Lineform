@@ -74,11 +74,15 @@ final class ReadingProfileStoreTests: XCTestCase {
 
         XCTAssertTrue(labels.contains("Themes"))
         XCTAssertTrue(labels.contains("Font"))
+        XCTAssertTrue(labels.contains("Block Spacing"))
+        XCTAssertTrue(labels.contains("(Read / Preview)"))
         XCTAssertTrue(labels.contains("Column Width"))
         XCTAssertTrue(labels.contains("Reduce Markdown Noise"))
         XCTAssertTrue(labels.contains("Reading Ruler"))
         XCTAssertTrue(labels.contains("Typewriter Mode"))
 
+        XCTAssertFalse(labels.contains("Paragraph Spacing"))
+        XCTAssertFalse(labels.contains("Block Spacing (Read/Preview)"))
         XCTAssertFalse(labels.contains("Appearance"))
         XCTAssertFalse(labels.contains("Theme"))
         XCTAssertFalse(labels.contains("Focus"))
@@ -116,6 +120,7 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertTrue(ReadingExperienceInspector.usesNativeUIFontOutsideThemePreviews)
         XCTAssertFalse(ReadingExperienceInspector.usesMonospacedInspectorValueFont)
         XCTAssertEqual(ReadingExperienceInspector.controlLabelFontSize, ReadingExperienceInspector.sectionLabelFontSize)
+        XCTAssertLessThan(ReadingExperienceInspector.controlQualifierFontSize, ReadingExperienceInspector.controlLabelFontSize)
         XCTAssertEqual(ReadingExperienceInspector.valueFontSize, ReadingExperienceInspector.controlLabelFontSize)
     }
 

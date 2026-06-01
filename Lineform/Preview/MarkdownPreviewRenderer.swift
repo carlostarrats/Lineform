@@ -17,25 +17,43 @@ struct MarkdownPreviewRenderer {
     func render(_ text: String, profile: ReadingProfile) -> NSAttributedString {
         let output = NSMutableAttributedString(string: "")
         let bodyAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
         let codeAttributes = codeAttributes(profile: profile)
+        let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
+        let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(in: text))
         var inFence = false
         let lines = text.components(separatedBy: "\n")
 
         for (index, line) in lines.enumerated() {
+            let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
+            let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
+            let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
+            var lineTerminatorAttributes = activeBodyAttributes
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 inFence.toggle()
-                output.append(NSAttributedString(string: line, attributes: codeAttributes))
+                output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
+                lineTerminatorAttributes = activeCodeAttributes
             } else if inFence {
-                output.append(NSAttributedString(string: line, attributes: codeAttributes))
+                output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
+                lineTerminatorAttributes = activeCodeAttributes
             } else if let heading = heading(in: line) {
-                output.append(NSAttributedString(string: heading.title, attributes: headingAttributes(level: heading.level, profile: profile)))
+                let activeHeadingAttributes = headingAttributes(
+                    level: heading.level,
+                    profile: profile,
+                    usesBlockSpacing: usesBlockSpacing
+                )
+                output.append(NSAttributedString(
+                    string: heading.title,
+                    attributes: activeHeadingAttributes
+                ))
+                lineTerminatorAttributes = activeHeadingAttributes
             } else {
-                output.append(inlineMarkdown(in: line, baseAttributes: bodyAttributes, profile: profile))
+                output.append(inlineMarkdown(in: line, baseAttributes: activeBodyAttributes, profile: profile))
             }
 
             if index < lines.count - 1 {
-                output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                output.append(NSAttributedString(string: "\n", attributes: lineTerminatorAttributes))
             }
         }
 
@@ -46,17 +64,15 @@ struct MarkdownPreviewRenderer {
         MarkdownHeadingParser.heading(in: line)
     }
 
-    private func headingAttributes(level: Int, profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
+    private func headingAttributes(level: Int, profile: ReadingProfile, usesBlockSpacing: Bool) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
         let bodyFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
         let sizeBoost = Self.headingSizeBoosts[level] ?? 0
         let headingFont = NSFontManager.shared.convert(bodyFont, toHaveTrait: .boldFontMask)
         let resolvedHeadingFont = NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost) ?? headingFont
-        let paragraphStyle = MarkdownSyntaxHighlighter.paragraphStyle(
-            for: profile,
-            font: resolvedHeadingFont,
-            additionalParagraphSpacing: 4
-        )
+        let paragraphStyle = usesBlockSpacing
+            ? MarkdownSyntaxHighlighter.blockSpacingParagraphStyle(for: profile, font: resolvedHeadingFont, additionalSpacing: 4)
+            : MarkdownSyntaxHighlighter.paragraphStyle(for: profile, font: resolvedHeadingFont)
 
         return [
             NSAttributedString.Key.font: resolvedHeadingFont,
@@ -70,6 +86,19 @@ struct MarkdownPreviewRenderer {
         var attributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
         return attributes
+    }
+
+    private func blockSpacingAttributes(
+        _ attributes: [NSAttributedString.Key: Any],
+        profile: ReadingProfile
+    ) -> [NSAttributedString.Key: Any] {
+        guard profile.paragraphSpacing > 0, let font = attributes[.font] as? NSFont else {
+            return attributes
+        }
+
+        var spacedAttributes = attributes
+        spacedAttributes[.paragraphStyle] = MarkdownSyntaxHighlighter.blockSpacingParagraphStyle(for: profile, font: font)
+        return spacedAttributes
     }
 
     private func inlineMarkdown(in line: String, baseAttributes: [NSAttributedString.Key: Any], profile: ReadingProfile) -> NSAttributedString {

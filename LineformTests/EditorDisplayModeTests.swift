@@ -128,6 +128,9 @@ final class EditorDisplayModeTests: XCTestCase {
             ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "`code`", "[link](https://example.com)"]
         )
         XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "AI Editing"])
+        XCTAssertEqual(MarkdownBasicsModal.sections.first?.rows.last?.label, "Block Spacing")
+        XCTAssertTrue(MarkdownBasicsModal.sections.first?.rows.last?.detail.localizedCaseInsensitiveContains("Read and Preview") == true)
+        XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { $0.label == "Line Height" })
         XCTAssertTrue(MarkdownBasicsModal.usesRowSeparators)
         XCTAssertFalse(MarkdownBasicsModal.usesMonospacedExampleFont)
         XCTAssertTrue(MarkdownBasicsModal.supportsEscapeDismissal)
@@ -982,7 +985,7 @@ final class EditorDisplayModeTests: XCTestCase {
 
             Markdown outline navigation from document headings.
 
-            Reading controls for type size, line height, paragraph spacing, margins, column width, themes, focus, and ruler.
+            Reading controls for type size, line height, block spacing, margins, column width, themes, focus, and ruler.
 
             Apple Books-style reader themes, with accessibility adjustments layered on top.
 

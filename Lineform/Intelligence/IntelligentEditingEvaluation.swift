@@ -1163,7 +1163,7 @@ enum IntelligentEditingEvaluationSuite {
             - Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors.
             - Write, Read, and Split modes for drafting, reading, and side-by-side review.
             - Markdown outline navigation from document headings.
-            - Reading controls for type size, line height, paragraph spacing, margins, column width, themes, focus, and ruler.
+            - Reading controls for type size, line height, block spacing, margins, column width, themes, focus, and ruler.
             """,
             length: .sentence,
             requiresTransformation: true,
@@ -1410,7 +1410,7 @@ enum IntelligentEditingEvaluationSuite {
             selectedText: """
             Lineform focuses on local Markdown editing for writers who want files that remain portable across Finder, iCloud Drive, Git, and other editors. The editor should feel native and quiet while still giving enough structure for long documents, outlines, and focused reading sessions.
 
-            Reading mode reduces visual noise, centers the text column, and applies reader profiles for type size, line height, paragraph spacing, margins, themes, and focus tools. These settings should help writers review structure without changing the underlying Markdown.
+            Reading mode reduces visual noise, centers the text column, and applies reader profiles for type size, line height, block spacing, margins, themes, and focus tools. These settings should help writers review structure without changing the underlying Markdown.
 
             Future automation can help with proofreading, rewriting, shortening, and summarizing selected text, but it must preserve local-first privacy and avoid inventing facts. Suggestions should be useful enough to accept directly, and failures should be caught before they reach the document.
             """,
@@ -1423,7 +1423,7 @@ enum IntelligentEditingEvaluationSuite {
         IntelligentEditingEvaluationTask(
             id: "paragraph-summarize",
             action: .summarize,
-            selectedText: "The reading mode reduces visual noise, centers the text column, and applies reader profiles for type size, line height, paragraph spacing, and theme. These controls are designed for long sessions where writers need to review structure without changing the underlying Markdown file.",
+            selectedText: "The reading mode reduces visual noise, centers the text column, and applies reader profiles for type size, line height, block spacing, and theme. These controls are designed for long sessions where writers need to review structure without changing the underlying Markdown file.",
             documentContext: "",
             length: .paragraph,
             requiresTransformation: true,
