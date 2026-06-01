@@ -6,9 +6,25 @@ struct DocumentStatistics: Equatable {
 
     init(text: String) {
         characterCount = (text as NSString).length
-        wordCount = text
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .count
+        wordCount = Self.countWords(in: text)
+    }
+
+    private static func countWords(in text: String) -> Int {
+        var count = 0
+        var isInsideWord = false
+        let wordCharacters = CharacterSet.alphanumerics
+
+        for scalar in text.unicodeScalars {
+            if wordCharacters.contains(scalar) {
+                if !isInsideWord {
+                    count += 1
+                    isInsideWord = true
+                }
+            } else {
+                isInsideWord = false
+            }
+        }
+
+        return count
     }
 }

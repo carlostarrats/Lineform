@@ -15,4 +15,12 @@ final class DocumentStatisticsTests: XCTestCase {
         XCTAssertEqual(stats.wordCount, 0)
         XCTAssertEqual(stats.characterCount, 3)
     }
+
+    func testWordCountingDoesNotDependOnAllocatingSeparatedComponents() {
+        let text = "One-two three_4\nfive...six"
+        let stats = DocumentStatistics(text: text)
+
+        XCTAssertEqual(stats.wordCount, 6)
+        XCTAssertEqual(stats.characterCount, (text as NSString).length)
+    }
 }

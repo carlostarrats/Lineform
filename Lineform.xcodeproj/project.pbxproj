@@ -88,6 +88,7 @@
 		1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000140 /* EditorSearchResolver.swift */; };
 		1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000141 /* EditorStatusPresentation.swift */; };
 		1F0000010000000000000142 /* EditorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000142 /* EditorPresentation.swift */; };
+		1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000143 /* EditorChromeAndControls.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -185,6 +186,7 @@
 		1F0000020000000000000140 /* EditorSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSearchResolver.swift; sourceTree = "<group>"; };
 		1F0000020000000000000141 /* EditorStatusPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorStatusPresentation.swift; sourceTree = "<group>"; };
 		1F0000020000000000000142 /* EditorPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPresentation.swift; sourceTree = "<group>"; };
+		1F0000020000000000000143 /* EditorChromeAndControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorChromeAndControls.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -254,6 +256,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000014 /* EditorContainerView.swift */,
+				1F0000020000000000000143 /* EditorChromeAndControls.swift */,
 				1F0000020000000000000074 /* EditorDisplayMode.swift */,
 				1F0000020000000000000142 /* EditorPresentation.swift */,
 				1F0000020000000000000140 /* EditorSearchResolver.swift */,
@@ -516,6 +519,7 @@
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
+				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
 				1F0000010000000000000142 /* EditorPresentation.swift in Sources */,
 				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
 				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
