@@ -6,6 +6,7 @@
 - Keep documents local and avoid startup network work.
 - Debounce expensive editor refresh paths where they can affect typing.
 - Verify large Markdown files before release builds.
+- Run `LineformTests/LargeDocumentPerformanceTests` to record clock metrics for large-document statistics, outline parsing, preview rendering, syntax highlighting, and repeated read-view updates.
 
 ## Memory
 

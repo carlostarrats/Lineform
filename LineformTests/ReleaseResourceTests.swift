@@ -27,7 +27,8 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertEqual(entitlements["com.apple.security.app-sandbox"] as? Bool, true)
         XCTAssertEqual(entitlements["com.apple.security.files.user-selected.read-write"] as? Bool, true)
-        XCTAssertNil(entitlements["com.apple.security.network.client"])
+        // WKWebView needs this for its helper processes even when rendering bundled intro files.
+        XCTAssertEqual(entitlements["com.apple.security.network.client"] as? Bool, true)
     }
 
     func testReleaseMarkdownResourcesAreBundled() throws {
