@@ -24,7 +24,7 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #e8e5dc;
+  background: transparent;
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
 }
 
@@ -38,26 +38,13 @@ body {
   height: 100vh;
   min-height: 620px;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 28% 78%, rgba(255, 255, 255, calc(0.9 - var(--bg-dim) * 0.78)), transparent 34%),
-    radial-gradient(circle at 78% 19%, rgba(89, 180, 188, calc(0.34 - var(--bg-dim) * 0.16)), transparent 28%),
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, #f7f5ee calc((1 - var(--bg-dim)) * 100%), #57564f calc(var(--bg-dim) * 100%)) 0%,
-      color-mix(in srgb, #ece7dc calc((1 - var(--bg-dim)) * 100%), #3f3d38 calc(var(--bg-dim) * 100%)) 42%,
-      color-mix(in srgb, #d9d5cd calc((1 - var(--bg-dim)) * 100%), #1e1e1b calc(var(--bg-dim) * 100%)) 100%
-    );
+  background: transparent;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .intro-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  opacity: 0.23;
-  background-image:
-    repeating-linear-gradient(0deg, rgba(35, 31, 24, 0.05) 0 1px, transparent 1px 19px);
-  mix-blend-mode: multiply;
+  content: none;
 }
 
 .intro-shell::before {

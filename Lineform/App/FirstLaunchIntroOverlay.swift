@@ -56,9 +56,11 @@ final class FirstLaunchIntroPresenter {
         overlay.level = .screenSaver
         overlay.titleVisibility = .hidden
 
-        let hostingView = NSHostingView(rootView: FirstLaunchIntroWebView { [weak self] in
-            self?.dismiss()
-        })
+        let hostingView = NSHostingView(rootView:
+            FirstLaunchIntroWebView { [weak self] in
+                self?.dismiss()
+            }
+        )
         hostingView.frame = screen.frame
         overlay.contentView = hostingView
         overlay.makeKeyAndOrderFront(nil)
