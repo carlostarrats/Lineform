@@ -163,6 +163,61 @@ struct IntelligentEditingPromptBuilder {
         )
     }
 
+    func optionSetPrompt(
+        for request: IntelligentEditingRequest,
+        selectedText: String,
+        documentContext: String,
+        optionCount: Int
+    ) -> String {
+        guard request.usesUserInstruction else {
+            return optionSetPrompt(
+                for: request.evaluationAction,
+                selectedText: selectedText,
+                documentContext: documentContext,
+                optionCount: optionCount
+            )
+        }
+
+        let action = request.evaluationAction
+        return """
+        Task:
+        User instruction:
+        \(request.userInstruction)
+
+        Interpreted editing mode: \(action.title)
+        \(action.successCriteria)
+
+        Return exactly \(optionCount) distinct replacement options for the selected Markdown.
+        Each option must replace exactly the selected Markdown, not nearby context.
+        Follow the user instruction exactly when it is safe for the selected text.
+        \(customInstructionExecutionRules(for: request.userInstruction))
+
+        Output contract:
+        - Return a numbered list with exactly \(optionCount) items.
+        - Each numbered item must contain one replacement only.
+        - Do not add explanations, headings, labels, tags, delimiters, or commentary.
+        - Do not include internal control markers.
+        - Do not copy nearby document context into the replacement.
+        - Preserve Markdown whenever possible.
+
+        Quality bar:
+        - Every option must be useful enough to show directly in a writing app.
+        - Every option must be meaningfully different from the other options.
+        - Preserve the selected meaning unless the user explicitly asks to summarize or shorten.
+        - Keep each option proportional to the selected Markdown.
+        \(action.extraQualityRule)
+        \(shortSelectionRule(for: selectedText, action: action))
+        \(cleanMarkdownRule(for: action))
+        \(proofreadRule(for: action))
+
+        Selected Markdown:
+        \(selectedText)
+
+        Nearby document context (not selected; do not copy from this section):
+        \(documentContext)
+        """
+    }
+
     func optionPrompt(
         for action: IntelligentEditingAction,
         selectedText: String,
@@ -194,6 +249,47 @@ struct IntelligentEditingPromptBuilder {
             \(priorOptionsText)\(duplicateText)
             """
         )
+    }
+
+    func optionSetPrompt(
+        for action: IntelligentEditingAction,
+        selectedText: String,
+        documentContext: String,
+        optionCount: Int
+    ) -> String {
+        """
+        Task:
+        Action: \(action.title)
+        \(action.successCriteria)
+
+        Return exactly \(optionCount) distinct replacement options for the selected Markdown.
+        Each option must replace exactly the selected Markdown, not nearby context.
+        \(action.instruction)
+
+        Output contract:
+        - Return a numbered list with exactly \(optionCount) items.
+        - Each numbered item must contain one replacement only.
+        - Do not add explanations, headings, labels, tags, delimiters, or commentary.
+        - Do not include internal control markers.
+        - Do not copy nearby document context into the replacement.
+        - Preserve Markdown whenever possible.
+
+        Quality bar:
+        - Every option must be useful enough to show directly in a writing app.
+        - Every option must be meaningfully different from the other options.
+        - Preserve the selected meaning unless the action is Summarize or Make Shorter.
+        - Keep each option proportional to the selected Markdown.
+        \(action.extraQualityRule)
+        \(shortSelectionRule(for: selectedText, action: action))
+        \(cleanMarkdownRule(for: action))
+        \(proofreadRule(for: action))
+
+        Selected Markdown:
+        \(selectedText)
+
+        Nearby document context (not selected; do not copy from this section):
+        \(documentContext)
+        """
     }
 
     private func shortProofreadPrompt(selectedText: String, documentContext: String, additionalRequirements: String) -> String {

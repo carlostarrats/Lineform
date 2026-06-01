@@ -103,9 +103,14 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             return [try await replacement(for: request, selectedText: selectedText, documentContext: documentContext)]
         }
 
-        var replacements: [String] = []
+        var replacements = await optionSetReplacements(
+            for: request,
+            selectedText: selectedText,
+            documentContext: documentContext,
+            count: optionCount
+        )
 
-        for optionIndex in 0..<optionCount {
+        for optionIndex in replacements.count..<optionCount {
             var rejectedDuplicate: String?
 
             for _ in 0...Self.maximumRepairAttempts {
@@ -156,6 +161,47 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         }
 
         return Array(replacements.prefix(optionCount))
+    }
+
+    private func optionSetReplacements(
+        for request: IntelligentEditingRequest,
+        selectedText: String,
+        documentContext: String,
+        count: Int
+    ) async -> [String] {
+        guard Self.canUseOptionSetPrompt(for: selectedText) else {
+            return []
+        }
+
+        let prompt = promptBuilder.optionSetPrompt(
+            for: request,
+            selectedText: selectedText,
+            documentContext: documentContext,
+            optionCount: count
+        )
+
+        guard let response = try? await responseContent(for: prompt) else {
+            return []
+        }
+
+        let evaluationTask = Self.evaluationTask(for: request, selectedText: selectedText, documentContext: documentContext)
+        var replacements: [String] = []
+
+        for candidate in Self.optionSetCandidates(from: response) {
+            guard replacements.count < count else {
+                break
+            }
+
+            let replacement = Self.normalizedResponseContent(candidate)
+            let evaluation = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: evaluationTask)
+            guard evaluation.passed, Self.isDistinctReplacement(replacement, from: replacements) else {
+                continue
+            }
+
+            replacements.append(replacement.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        return replacements
     }
 
     private func validatedReplacement(
@@ -510,112 +556,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
     }
 
     private static func proofreadFallback(for selectedText: String, variant: Int) -> String? {
-        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let fallback = ambiguousProofreadFallback(for: trimmed, variant: variant) {
-            return fallback
-        }
-
-        let oneWordCorrections = [
-            "teh": "the",
-            "dont": "don't",
-            "doesnt": "doesn't",
-            "wont": "won't",
-            "cant": "can't",
-            "tommorow": "tomorrow",
-            "tomorow": "tomorrow",
-            "recieve": "receive",
-            "seperate": "separate",
-            "adress": "address",
-            "occured": "occurred",
-            "definately": "definitely",
-            "consistant": "consistent",
-            "consistatnt": "consistent",
-            "recoginze": "recognize",
-            "consern": "concern",
-            "ableo": "able to",
-            "foer": "for"
-        ]
-        if let correction = oneWordCorrections[trimmed.lowercased()] {
-            return correction
-        }
-
-        let phraseCorrected = trimmed
-            .replacingOccurrences(of: "exportingg", with: "exporting")
-            .replacingOccurrences(of: "The editor keep drafts local and dont change ", with: "The editor keeps drafts local and doesn't change ")
-            .replacingOccurrences(of: "the editor keep drafts local and dont change ", with: "the editor keeps drafts local and doesn't change ")
-            .replacingOccurrences(of: "The editor keep the file local and dont upload ", with: "The editor keeps the file local and doesn't upload ")
-            .replacingOccurrences(of: "the editor keep the file local and dont upload ", with: "the editor keeps the file local and doesn't upload ")
-            .replacingOccurrences(of: "Lineform también guarda borradores Markdown localmente y dont upload drafts.", with: "Lineform también guarda borradores Markdown localmente y doesn't upload drafts.")
-            .replacingOccurrences(of: "The editor keep ", with: "The editor keeps ")
-            .replacingOccurrences(of: "the editor keep ", with: "the editor keeps ")
-            .replacingOccurrences(of: "Writers dont ", with: "Writers don't ")
-            .replacingOccurrences(of: "writers dont ", with: "writers don't ")
-            .replacingOccurrences(of: " dont ", with: " don't ")
-        let corrected = applyingProofreadSpellingCorrections(to: phraseCorrected)
-        return corrected == trimmed ? trimmed : corrected
-    }
-
-    private static func ambiguousProofreadFallback(for selectedText: String, variant: Int) -> String? {
-        let normalizedText = normalized(selectedText)
-        guard normalizedText == "can i ds it tommorow?" || normalizedText == "can i ds it tomorrow?" else {
-            return nil
-        }
-
-        return [
-            "Can I do it tomorrow?",
-            "Can I discuss it tomorrow?",
-            "Can I see it tomorrow?"
-        ][variant % 3]
-    }
-
-    private static func applyingProofreadSpellingCorrections(to text: String) -> String {
-        let corrections = [
-            "tommorow": "tomorrow",
-            "tomorow": "tomorrow",
-            "recieve": "receive",
-            "seperate": "separate",
-            "adress": "address",
-            "occured": "occurred",
-            "definately": "definitely",
-            "consistant": "consistent",
-            "consistatnt": "consistent",
-            "recoginze": "recognize",
-            "consern": "concern",
-            "ableo": "able to",
-            "foer": "for"
-        ]
-
-        return corrections.reduce(text) { partial, pair in
-            replacingWord(pair.key, with: pair.value, in: partial)
-        }
-    }
-
-    private static func replacingWord(_ misspelling: String, with correction: String, in text: String) -> String {
-        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: misspelling))\\b"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return text
-        }
-
-        let nsText = text as NSString
-        var result = text
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length)).reversed()
-        for match in matches {
-            let original = nsText.substring(with: match.range)
-            let replacement = preservesInitialCapitalization(original: original, correction: correction)
-            if let range = Range(match.range, in: result) {
-                result.replaceSubrange(range, with: replacement)
-            }
-        }
-
-        return result
-    }
-
-    private static func preservesInitialCapitalization(original: String, correction: String) -> String {
-        guard original.first?.isUppercase == true, let first = correction.first else {
-            return correction
-        }
-
-        return first.uppercased() + correction.dropFirst()
+        LineformProofreadingSupport.deterministicFallback(for: selectedText, variant: variant)
     }
 
     private static func rewriteFallback(for selectedText: String, variant: Int) -> String? {
@@ -874,6 +815,64 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         }
 
         return "| " + cells.joined(separator: " | ") + " |"
+    }
+
+    private static func canUseOptionSetPrompt(for selectedText: String) -> Bool {
+        !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).contains("\n")
+    }
+
+    private static func optionSetCandidates(from response: String) -> [String] {
+        let normalizedResponse = normalizedResponseContent(response)
+        let lines = normalizedResponse
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let listedCandidates = lines.compactMap { strippedOptionListMarker(from: $0) }
+        if listedCandidates.count > 1 {
+            return listedCandidates.map(strippedWrappingQuotes)
+        }
+
+        if lines.count == 1, let singleCandidate = strippedOptionListMarker(from: lines[0]) ?? lines.first {
+            return [strippedWrappingQuotes(from: singleCandidate)]
+        }
+
+        return []
+    }
+
+    private static func strippedOptionListMarker(from line: String) -> String? {
+        let pattern = #"^\s*(?:(?:\d{1,2}[\.)])|[-*])\s+(.+)$"#
+        guard
+            let regex = try? NSRegularExpression(pattern: pattern),
+            let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+            match.numberOfRanges == 2,
+            let candidateRange = Range(match.range(at: 1), in: line)
+        else {
+            return nil
+        }
+
+        let candidate = String(line[candidateRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return candidate.isEmpty ? nil : candidate
+    }
+
+    private static func strippedWrappingQuotes(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quotePairs: [(Character, Character)] = [
+            ("\"", "\""),
+            ("'", "'"),
+            ("\u{201C}", "\u{201D}"),
+            ("\u{2018}", "\u{2019}")
+        ]
+
+        for (openingQuote, closingQuote) in quotePairs {
+            guard trimmed.first == openingQuote, trimmed.last == closingQuote, trimmed.count >= 2 else {
+                continue
+            }
+
+            return String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return trimmed
     }
 
     private static func normalizedResponseContent(_ response: String) -> String {

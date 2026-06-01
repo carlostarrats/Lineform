@@ -40,6 +40,7 @@ Deterministic tests must cover these scenarios:
 - Custom instruction intent: word swaps, less-corporate rewrites, simplification for non-technical readers, active-voice rewrites, heading renames, and Markdown-safe list-item edits must have explicit golden tasks and deterministic rubric checks where possible.
 - Placeholder rejection: `Replacement option 1`, `Lorem ipsum`, `TODO`, and Lineform protocol tags must score as failures.
 - Unchanged transform rejection: rewrite, shorten, summarize, and messy clean-Markdown tasks must not return the selected text unchanged.
+- Proofread no-op rejection: proofreading may be unchanged only when the selection is already clean. If local issue detection still sees spelling, punctuation, or obvious typo issues, unchanged provider output must be rejected or repaired before a suggestion is shown.
 - Nearby context leakage: output must not include unselected neighboring document text.
 - Markdown preservation: list shape, heading levels, front matter delimiters, blank lines between list items, and fenced code blocks must remain structurally safe.
 - Expanded Markdown preservation: links, tables, blockquotes, numbered lists, nested lists, and code-only selections must remain structurally safe.
@@ -47,8 +48,23 @@ Deterministic tests must cover these scenarios:
 - Provider failure modes: empty response, timeout, duplicate options, invalid options, and partial valid options must be tested.
 - Full fallback matrix: every golden task must still produce a rubric-passing fallback when the provider returns unusable output.
 - Multi-option fallback matrix: every rewrite task that requests multiple options must return the requested count of distinct, rubric-passing options when the provider returns unusable output.
+- Multi-option provider path: rewrite options should request an alternatives set first, parse and validate each candidate, then fall back to one-at-a-time option repair. Short malformed phrase regressions must verify that the coordinator publishes three ready suggestions instead of silently collapsing to one.
 - Stale selection behavior: generated suggestions must not apply if the underlying selected text changed before acceptance.
 - App request flow: the editor selection path must use the same request coordinator exercised by tests, and suggestions must stay visible when validated suggestions are ready.
+
+## Quality Pipeline
+
+The selected-text intelligence path must stay provider-agnostic and defensive:
+
+- Classify the selected text and requested action before generation.
+- For `Proofread`, run local native proofread issue detection before accepting provider output. The detector may use system spell checking and Lineform's conservative grammar/typo rules, but it must not turn unrecognizable text into guessed prose.
+- For `Rewrite`, `Summarize`, and `Make Shorter`, use Apple candidate generation, then validate output through the Lineform rubric.
+- For `Clean Markdown`, prefer deterministic Markdown normalization and structure preservation.
+- Validate every candidate against the same rubric before showing it.
+- Rank and dedupe multi-option results before publishing suggestions.
+- Fail cleanly when no candidate or deterministic fallback is safe enough to show.
+
+This pipeline is intentionally not a UX feature. It must not add live underlines, background lint panels, settings, or a second review flow without a separate product decision.
 
 ## Scoring
 
@@ -90,9 +106,11 @@ Run live evals with:
 Run repeated live evals with:
 
 ```sh
-LINEFORM_LIVE_INTELLIGENCE_REPEAT_COUNT=2 \
-LINEFORM_RUN_REPEATED_LIVE_INTELLIGENCE_EVALS=1 \
-xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -only-testing:LineformTests/IntelligentEditingEvaluationTests/testRepeatedLiveFoundationModelsEvalIsOptIn
+(
+  touch /private/tmp/lineform-run-repeated-live-intelligence-evals
+  trap 'rm -f /private/tmp/lineform-run-repeated-live-intelligence-evals' EXIT
+  xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -only-testing:LineformTests/IntelligentEditingEvaluationTests/testRepeatedLiveFoundationModelsEvalIsOptIn
+)
 ```
 
 Every prompt or validation change must compare the new reports against the previous run. A failed task should become a better prompt, deterministic fallback, stricter validator, or new benchmark case.

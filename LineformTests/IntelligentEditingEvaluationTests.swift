@@ -724,6 +724,30 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertTrue(result.failures.contains(.lowQualityReplacement))
     }
 
+    func testRubricRejectsUnchangedProofreadWithSystemDetectedMisspellings() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "ordinary-spelling-proofread" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: task.selectedText,
+            task: task
+        )
+
+        XCTAssertFalse(result.passed)
+        XCTAssertTrue(result.failures.contains(.unchangedTransformOutput))
+        XCTAssertTrue(result.failures.contains(.lowQualityReplacement))
+    }
+
+    func testRubricPassesProofreadThatRepairsDetectedSpellingAndGrammarIssues() throws {
+        let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "short-grammar-spelling-proofread" })
+
+        let result = IntelligentEditingEvaluationRubric.evaluate(
+            replacement: "I have spelling errors.",
+            task: task
+        )
+
+        XCTAssertTrue(result.passed, result.failureSummary)
+    }
+
     func testRubricRejectsProofreadThatReordersParagraphs() throws {
         let task = try XCTUnwrap(IntelligentEditingEvaluationSuite.goldenTasks.first { $0.id == "multiple-paragraph-proofread" })
 

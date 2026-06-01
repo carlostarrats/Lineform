@@ -66,8 +66,11 @@
 		1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000100 /* IntelligentEditingService.swift */; };
 		1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000101 /* IntelligentEditingRunner.swift */; };
 		1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */; };
+		1F0000010000000000000150 /* LineformProofreadingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000150 /* LineformProofreadingSupport.swift */; };
+		1F0000010000000000000160 /* IntelligentEditingQualityPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000160 /* IntelligentEditingQualityPipeline.swift */; };
 		1F0000010000000000000123 /* IntelligentEditingEvaluation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */; };
 		1F0000010000000000000125 /* IntelligentEditingRequestCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000125 /* IntelligentEditingRequestCoordinator.swift */; };
+		1F0000010000000000000161 /* IntelligentEditingQualityPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000161 /* IntelligentEditingQualityPipelineTests.swift */; };
 		1F0000010000000000000103 /* LineformHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000103 /* LineformHelp.swift */; };
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
@@ -171,8 +174,11 @@
 		1F0000020000000000000100 /* IntelligentEditingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000101 /* IntelligentEditingRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunner.swift; sourceTree = "<group>"; };
 		1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingSuggestionBar.swift; sourceTree = "<group>"; };
+		1F0000020000000000000150 /* LineformProofreadingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformProofreadingSupport.swift; sourceTree = "<group>"; };
+		1F0000020000000000000160 /* IntelligentEditingQualityPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingQualityPipeline.swift; sourceTree = "<group>"; };
 		1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingEvaluation.swift; sourceTree = "<group>"; };
 		1F0000020000000000000125 /* IntelligentEditingRequestCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRequestCoordinator.swift; sourceTree = "<group>"; };
+		1F0000020000000000000161 /* IntelligentEditingQualityPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingQualityPipelineTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000103 /* LineformHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformHelp.swift; sourceTree = "<group>"; };
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
@@ -331,6 +337,8 @@
 				1F0000020000000000000100 /* IntelligentEditingService.swift */,
 				1F0000020000000000000101 /* IntelligentEditingRunner.swift */,
 				1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */,
+				1F0000020000000000000150 /* LineformProofreadingSupport.swift */,
+				1F0000020000000000000160 /* IntelligentEditingQualityPipeline.swift */,
 				1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */,
 				1F0000020000000000000125 /* IntelligentEditingRequestCoordinator.swift */,
 			);
@@ -379,6 +387,7 @@
 				1F0000020000000000000092 /* IntelligentEditingPromptBuilderTests.swift */,
 				1F0000020000000000000093 /* MarkdownDiffTests.swift */,
 				1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */,
+				1F0000020000000000000161 /* IntelligentEditingQualityPipelineTests.swift */,
 				1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */,
 				1F0000020000000000000126 /* IntelligentEditingCursorTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
@@ -549,6 +558,8 @@
 				1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */,
 				1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */,
 				1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */,
+				1F0000010000000000000150 /* LineformProofreadingSupport.swift in Sources */,
+				1F0000010000000000000160 /* IntelligentEditingQualityPipeline.swift in Sources */,
 				1F0000010000000000000123 /* IntelligentEditingEvaluation.swift in Sources */,
 				1F0000010000000000000125 /* IntelligentEditingRequestCoordinator.swift in Sources */,
 			);
@@ -580,6 +591,7 @@
 				1F0000010000000000000092 /* IntelligentEditingPromptBuilderTests.swift in Sources */,
 				1F0000010000000000000093 /* MarkdownDiffTests.swift in Sources */,
 				1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */,
+				1F0000010000000000000161 /* IntelligentEditingQualityPipelineTests.swift in Sources */,
 				1F0000010000000000000124 /* IntelligentEditingEvaluationTests.swift in Sources */,
 				1F0000010000000000000126 /* IntelligentEditingCursorTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,

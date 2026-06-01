@@ -118,6 +118,22 @@ final class IntelligentEditingPromptBuilderTests: XCTestCase {
         XCTAssertFalse(prompt.contains(">>>"))
     }
 
+    func testOptionSetPromptRequestsDistinctNumberedAlternativesWithoutInternalTags() {
+        let prompt = IntelligentEditingPromptBuilder().optionSetPrompt(
+            for: .rewrite,
+            selectedText: "The handoff is kind of unclear.",
+            documentContext: "The handoff is kind of unclear.",
+            optionCount: 3
+        )
+
+        XCTAssertTrue(prompt.contains("Return exactly 3 distinct replacement options"))
+        XCTAssertTrue(prompt.contains("Return a numbered list with exactly 3 items"))
+        XCTAssertTrue(prompt.contains("Every option must be meaningfully different"))
+        XCTAssertFalse(prompt.contains("LINEFORM_OPTION"))
+        XCTAssertFalse(prompt.contains("<<<"))
+        XCTAssertFalse(prompt.contains(">>>"))
+    }
+
     func testPromptForbidsInternalMarkersAndActionDrift() {
         let proofreadPrompt = IntelligentEditingPromptBuilder().prompt(
             for: .proofread,

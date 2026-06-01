@@ -146,6 +146,14 @@ enum IntelligentEditingEvaluationRubric {
             failures.append(.proofreadChangedMeaningOrStyle)
         }
 
+        if
+            task.action == .proofread,
+            hasUnresolvedProofreadIssues(trimmedReplacement, selectedText: trimmedSelection),
+            !failures.contains(.lowQualityReplacement)
+        {
+            failures.append(.lowQualityReplacement)
+        }
+
         if task.requiresMarkdownPreservation && !preservesRequiredMarkdownStructure(trimmedReplacement, selectedText: trimmedSelection) {
             failures.append(.markdownStructureNotPreserved)
         }
@@ -211,6 +219,10 @@ enum IntelligentEditingEvaluationRubric {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .split { $0.isWhitespace || $0.isNewline }
             .count
+    }
+
+    static func hasLikelyProofreadIssue(_ text: String) -> Bool {
+        LineformProofreadingSupport.hasLikelyIssue(text)
     }
 
     private static func containsLowQualityReplacement(_ replacement: String, task: IntelligentEditingEvaluationTask) -> Bool {
@@ -357,6 +369,10 @@ enum IntelligentEditingEvaluationRubric {
             return false
         }
 
+        if shortProofreadRepairsDetectedIssues(replacement: replacement, selectedText: selectedText) {
+            return false
+        }
+
         if wordCount(in: replacement) > selectedWordCount + 4 {
             return true
         }
@@ -374,6 +390,28 @@ enum IntelligentEditingEvaluationRubric {
         }
 
         return !shortProofreadKeepsEnoughOriginalWords(replacement: replacement, selectedText: selectedText)
+    }
+
+    private static func shortProofreadRepairsDetectedIssues(replacement: String, selectedText: String) -> Bool {
+        let selectedIssues = LineformProofreadingSupport.issues(in: selectedText)
+        guard !selectedIssues.isEmpty else {
+            return false
+        }
+
+        let selectedWords = normalizedWords(in: selectedText)
+        let replacementWords = normalizedWords(in: replacement)
+        guard selectedWords.count == replacementWords.count, (2...12).contains(selectedWords.count) else {
+            return false
+        }
+
+        let changedWords = zip(selectedWords, replacementWords).filter { selectedWord, replacementWord in
+            selectedWord != replacementWord
+        }.count
+        guard changedWords > 0, changedWords <= max(2, selectedIssues.count) else {
+            return false
+        }
+
+        return !hasUnresolvedProofreadIssues(replacement, selectedText: selectedText)
     }
 
     private static func shortProofreadKeepsEnoughOriginalWords(replacement: String, selectedText: String) -> Bool {
@@ -421,36 +459,11 @@ enum IntelligentEditingEvaluationRubric {
     }
 
     private static func knownOneWordProofreadCorrection(for selectedText: String) -> String? {
-        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let corrections = [
-            "teh": "the",
-            "dont": "don't",
-            "doesnt": "doesn't",
-            "wont": "won't",
-            "cant": "can't",
-            "tommorow": "tomorrow",
-            "tomorow": "tomorrow",
-            "recieve": "receive",
-            "seperate": "separate",
-            "adress": "address",
-            "occured": "occurred",
-            "definately": "definitely",
-            "consistant": "consistent",
-            "consistatnt": "consistent",
-            "recoginze": "recognize",
-            "consern": "concern",
-            "ableo": "able to",
-            "foer": "for"
-        ]
-        guard var correction = corrections[trimmed.lowercased()] else {
-            return nil
-        }
+        LineformProofreadingSupport.knownOneWordCorrection(for: selectedText)
+    }
 
-        if trimmed.first?.isUppercase == true {
-            correction.replaceSubrange(correction.startIndex...correction.startIndex, with: correction.prefix(1).uppercased())
-        }
-
-        return correction
+    private static func hasUnresolvedProofreadIssues(_ replacement: String, selectedText: String) -> Bool {
+        LineformProofreadingSupport.hasUnresolvedIssues(in: replacement, selectedText: selectedText)
     }
 
     private static func cleanMarkdownChangesContent(_ replacement: String, selectedText: String) -> Bool {
@@ -1044,6 +1057,8 @@ enum IntelligentEditingEvaluationSuite {
         "input:custom-active-voice",
         "input:custom-heading-rename",
         "input:custom-markdown-safe",
+        "proofread:ordinary-spelling",
+        "proofread:short-grammar-spelling",
         "user-visible:selected-list-item",
         "generic:sentence-rewrite"
     ]
@@ -1237,6 +1252,26 @@ enum IntelligentEditingEvaluationSuite {
             action: .proofread,
             selectedText: "The editor keep the file local and dont upload drafts.",
             documentContext: "The editor keep the file local and dont upload drafts.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "ordinary-spelling-proofread",
+            action: .proofread,
+            selectedText: "this sentnce has speling erors.",
+            documentContext: "this sentnce has speling erors.",
+            length: .sentence,
+            requiresTransformation: true,
+            requiresCompression: false,
+            requiresMarkdownPreservation: false
+        ),
+        IntelligentEditingEvaluationTask(
+            id: "short-grammar-spelling-proofread",
+            action: .proofread,
+            selectedText: "i has speling erors.",
+            documentContext: "i has speling erors.",
             length: .sentence,
             requiresTransformation: true,
             requiresCompression: false,
@@ -1606,6 +1641,14 @@ enum IntelligentEditingEvaluationSuite {
             scenarios.insert("generic:sentence-rewrite")
         }
 
+        if task.id == "ordinary-spelling-proofread" {
+            scenarios.insert("proofread:ordinary-spelling")
+        }
+
+        if task.id == "short-grammar-spelling-proofread" {
+            scenarios.insert("proofread:short-grammar-spelling")
+        }
+
         if let userInstruction = task.userInstruction {
             scenarios.insert("input:user-instruction")
             let normalizedInstruction = userInstruction.lowercased()
@@ -1656,44 +1699,10 @@ extension IntelligentEditingAction {
         case .rewrite, .summarize, .shorten:
             return true
         case .proofread:
-            return Self.hasKnownProofreadIssue(selectedText)
+            return IntelligentEditingEvaluationRubric.hasLikelyProofreadIssue(selectedText)
         case .cleanMarkdown:
             return Self.hasMessyMarkdownFormatting(selectedText)
         }
-    }
-
-    private static func hasKnownProofreadIssue(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalized = trimmed.lowercased()
-
-        if ["teh", "dont", "doesnt", "wont", "cant"].contains(normalized) {
-            return true
-        }
-
-        let fragments = [
-            "tommorow",
-            "tomorow",
-            "recieve",
-            "seperate",
-            "adress",
-            "occured",
-            "definately",
-            "consistant",
-            "consistatnt",
-            "recoginze",
-            "consern",
-            "ableo",
-            "foer",
-            "can i ds it ",
-            "exportingg",
-            "the editor keep drafts local and dont change ",
-            "the editor keep the file local and dont upload ",
-            "lineform también guarda borradores markdown localmente y dont upload drafts.",
-            "writers dont ",
-            " dont "
-        ]
-
-        return fragments.contains { normalized.contains($0) }
     }
 
     private static func hasMessyMarkdownFormatting(_ text: String) -> Bool {

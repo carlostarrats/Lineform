@@ -153,6 +153,93 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(replacement, "Can I do it tomorrow?")
     }
 
+    func testFoundationModelsServiceRepairsShortProofreadWhenIssueDetectorRejectsUnchangedOutput() async throws {
+        let selectedText = "Cat im the hat"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: [selectedText, "Cat in the hat"]
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, "Cat in the hat")
+    }
+
+    func testFoundationModelsServiceRepairsSystemDetectedMisspellingsAfterNoOp() async throws {
+        let selectedText = "this sentnce has speling erors."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: [selectedText, "this sentence has spelling errors."]
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, "this sentence has spelling errors.")
+    }
+
+    func testFoundationModelsServiceProducesSystemSpellcheckFallbackForOrdinaryMisspelling() async throws {
+        let selectedText = "this has speling."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, "this has spelling.")
+    }
+
+    func testFoundationModelsServiceRepairsPronounVerbAndSpellingWhenProviderNoOps() async throws {
+        let selectedText = "i has speling erors."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, "I have spelling errors.")
+    }
+
+    func testFoundationModelsServiceRejectsUnchangedShortProofreadWhenIssueRemains() async throws {
+        let selectedText = "Cat im the hat"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        do {
+            _ = try await service.replacement(
+                for: .proofread,
+                selectedText: selectedText,
+                documentContext: ""
+            )
+            XCTFail("Expected unchanged proofread output with unresolved issues to fail.")
+        } catch IntelligentEditingError.invalidResponse {
+        }
+    }
+
     func testFoundationModelsServiceProducesProofreadAlternativesForAmbiguousTypos() async throws {
         let selectedText = "Can I ds it tommorow?"
         let service = FoundationModelsIntelligentEditingService(
@@ -348,6 +435,68 @@ final class IntelligentEditingRunnerTests: XCTestCase {
             )
             return IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task).passed
         })
+    }
+
+    func testFoundationModelsServiceUsesBatchRewriteOptionsForShortMalformedPhrase() async throws {
+        let selectedText = "cat im the hat"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: [
+                    """
+                    1. Cat in the hat.
+                    2. A cat in the hat.
+                    3. Cat wearing the hat.
+                    """
+                ]
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: selectedText,
+            count: 3
+        )
+
+        XCTAssertEqual(replacements, [
+            "Cat in the hat.",
+            "A cat in the hat.",
+            "Cat wearing the hat."
+        ])
+    }
+
+    func testRequestCoordinatorReturnsThreeRewriteOptionsForShortMalformedPhrase() async throws {
+        let selectedText = "cat im the hat"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: [
+                    """
+                    1. Cat in the hat.
+                    2. A cat in the hat.
+                    3. Cat wearing the hat.
+                    """
+                ]
+            )
+        )
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            action: .rewrite,
+            documentText: selectedText,
+            currentDocumentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        guard case .ready(let suggestions, let status) = result else {
+            return XCTFail("Expected ready suggestions, got \(result)")
+        }
+
+        XCTAssertEqual(status, "3 options ready.")
+        XCTAssertEqual(suggestions.map(\.replacementText), [
+            "Cat in the hat.",
+            "A cat in the hat.",
+            "Cat wearing the hat."
+        ])
     }
 
     func testFoundationModelsServiceProducesGenericSentenceRewriteFallbacks() async throws {
@@ -1089,7 +1238,7 @@ private final class StubFoundationModelsResponseProvider: FoundationModelsRespon
     }
 
     func responseContent(for prompt: String) async throws -> String {
-        responses.isEmpty ? "" : responses.removeFirst()
+        return responses.isEmpty ? "" : responses.removeFirst()
     }
 }
 
