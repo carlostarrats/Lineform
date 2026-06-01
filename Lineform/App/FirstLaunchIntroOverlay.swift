@@ -6,10 +6,23 @@ import WebKit
 final class LineformAppDelegate: NSObject, NSApplicationDelegate {
     private let firstLaunchIntroPresenter = FirstLaunchIntroPresenter()
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        firstLaunchIntroPresenter.showIfNeeded()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         DispatchQueue.main.async { [firstLaunchIntroPresenter] in
             firstLaunchIntroPresenter.showIfNeeded()
         }
+    }
+
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        if firstLaunchIntroPresenter.shouldAllowUntitledDocumentOpen() {
+            return true
+        }
+
+        firstLaunchIntroPresenter.openUntitledDocumentAfterDismiss()
+        return false
     }
 }
 
@@ -22,12 +35,31 @@ final class FirstLaunchIntroPresenter {
 
     private var window: NSWindow?
     private var hiddenAppWindows: [NSWindow] = []
+    private var shouldOpenUntitledDocumentAfterDismiss = false
+    private var shouldAllowNextUntitledDocumentOpen = false
 
-    func showIfNeeded() {
+    static var shouldShowIntro: Bool {
         let defaults = UserDefaults.standard
         let environmentForcesIntro = ProcessInfo.processInfo.environment["LINEFORM_SHOW_FIRST_LAUNCH_INTRO"] == "1"
         let defaultsForceIntro = defaults.bool(forKey: Defaults.alwaysShowKey)
-        guard environmentForcesIntro || defaultsForceIntro || !defaults.bool(forKey: Defaults.completedKey) else {
+        return environmentForcesIntro || defaultsForceIntro || !defaults.bool(forKey: Defaults.completedKey)
+    }
+
+    func openUntitledDocumentAfterDismiss() {
+        shouldOpenUntitledDocumentAfterDismiss = true
+    }
+
+    func shouldAllowUntitledDocumentOpen() -> Bool {
+        if shouldAllowNextUntitledDocumentOpen {
+            shouldAllowNextUntitledDocumentOpen = false
+            return true
+        }
+
+        return !Self.shouldShowIntro
+    }
+
+    func showIfNeeded() {
+        guard Self.shouldShowIntro else {
             return
         }
 
@@ -57,7 +89,7 @@ final class FirstLaunchIntroPresenter {
         overlay.titleVisibility = .hidden
 
         let hostingView = NSHostingView(rootView:
-            FirstLaunchIntroWebView { [weak self] in
+            FirstLaunchIntroOverlayView { [weak self] in
                 self?.dismiss()
             }
         )
@@ -73,7 +105,9 @@ final class FirstLaunchIntroPresenter {
 
     private func dismiss() {
         UserDefaults.standard.set(true, forKey: Defaults.completedKey)
+        shouldOpenUntitledDocumentAfterDismiss = true
         guard let window else {
+            openInitialUntitledDocumentIfNeeded()
             return
         }
 
@@ -86,6 +120,7 @@ final class FirstLaunchIntroPresenter {
                 window.orderOut(nil)
                 self?.window = nil
                 self?.restoreHiddenAppWindows()
+                self?.openInitialUntitledDocumentIfNeeded()
             }
         }
     }
@@ -106,6 +141,180 @@ final class FirstLaunchIntroPresenter {
             appWindow.makeKeyAndOrderFront(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func openInitialUntitledDocumentIfNeeded() {
+        guard shouldOpenUntitledDocumentAfterDismiss else {
+            return
+        }
+
+        shouldOpenUntitledDocumentAfterDismiss = false
+        shouldAllowNextUntitledDocumentOpen = true
+        do {
+            let document = try NSDocumentController.shared.openUntitledDocumentAndDisplay(false)
+            if document.windowControllers.isEmpty {
+                document.makeWindowControllers()
+            }
+            for windowController in document.windowControllers {
+                windowController.window?.animationBehavior = .none
+                windowController.showWindow(nil)
+                windowController.window?.makeKeyAndOrderFront(nil)
+            }
+        } catch {
+            NSDocumentController.shared.newDocument(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+struct FirstLaunchIntroOverlayView: View {
+    let dismiss: () -> Void
+    @State private var isButtonVisible = false
+
+    var body: some View {
+        ZStack {
+            FirstLaunchIntroWebView(dismiss: dismiss)
+                .ignoresSafeArea()
+
+            GeometryReader { proxy in
+                FirstLaunchIntroStartButton(dismiss: dismiss)
+                    .frame(width: 214, height: 62)
+                    .opacity(isButtonVisible ? 1 : 0)
+                    .animation(.easeOut(duration: 0.28), value: isButtonVisible)
+                    .position(x: proxy.size.width / 2, y: proxy.size.height * 0.755)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(1000))
+            isButtonVisible = true
+        }
+    }
+}
+
+struct FirstLaunchIntroStartButton: NSViewRepresentable {
+    let dismiss: () -> Void
+
+    func makeNSView(context: Context) -> FirstLaunchIntroStartButtonView {
+        FirstLaunchIntroStartButtonView(dismiss: dismiss)
+    }
+
+    func updateNSView(_ nsView: FirstLaunchIntroStartButtonView, context: Context) {}
+}
+
+final class FirstLaunchIntroStartButtonView: NSView {
+    private let dismiss: () -> Void
+    private let label = NSTextField(labelWithString: "Get Started")
+    private let arrowLayer = CAShapeLayer()
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet {
+            updateAppearance(animated: true)
+        }
+    }
+
+    init(dismiss: @escaping () -> Void) {
+        self.dismiss = dismiss
+        super.init(frame: NSRect(x: 0, y: 0, width: 214, height: 62))
+        wantsLayer = true
+        layer?.cornerRadius = 31
+        layer?.masksToBounds = false
+
+        label.font = .systemFont(ofSize: 18, weight: .semibold)
+        label.textColor = NSColor(calibratedWhite: 0.06, alpha: 1)
+        label.alignment = .center
+
+        addSubview(label)
+        arrowLayer.fillColor = nil
+        arrowLayer.strokeColor = label.textColor?.cgColor
+        arrowLayer.lineWidth = 2.2
+        arrowLayer.lineCap = .round
+        arrowLayer.lineJoin = .round
+        layer?.addSublayer(arrowLayer)
+        updateAppearance(animated: false)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        label.frame = NSRect(x: 30, y: 18, width: 112, height: 24)
+        arrowLayer.frame = CGRect(x: bounds.width - 54, y: 22, width: 28, height: 18)
+        arrowLayer.path = Self.makeArrowPath().cgPath
+        layer?.cornerRadius = bounds.height / 2
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways, .inVisibleRect, .cursorUpdate]
+        let area = NSTrackingArea(rect: bounds, options: options, owner: self)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.pointingHand.set()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        NSCursor.pointingHand.set()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        NSCursor.arrow.set()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        dismiss()
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    private static func makeArrowPath() -> NSBezierPath {
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: 18.2, y: 1.3))
+        path.line(to: NSPoint(x: 26, y: 9))
+        path.line(to: NSPoint(x: 18.2, y: 16.7))
+        path.move(to: NSPoint(x: 25, y: 9))
+        path.line(to: NSPoint(x: 1.5, y: 9))
+        return path
+    }
+
+    private func updateAppearance(animated: Bool) {
+        let changes = {
+            self.layer?.backgroundColor = self.isHovered
+                ? NSColor(calibratedWhite: 0.86, alpha: 0.96).cgColor
+                : NSColor(calibratedWhite: 0.98, alpha: 0.9).cgColor
+            self.layer?.borderColor = self.isHovered
+                ? NSColor(calibratedWhite: 0, alpha: 0.22).cgColor
+                : NSColor(calibratedWhite: 0, alpha: 0.1).cgColor
+            self.layer?.borderWidth = 1
+            self.layer?.shadowColor = NSColor(calibratedRed: 0.17, green: 0.13, blue: 0.07, alpha: self.isHovered ? 0.3 : 0.22).cgColor
+            self.layer?.shadowOpacity = 1
+            self.layer?.shadowRadius = self.isHovered ? 30 : 25
+            self.layer?.shadowOffset = CGSize(width: 0, height: self.isHovered ? -26 : -22)
+        }
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.14
+                changes()
+            }
+        } else {
+            changes()
+        }
     }
 }
 

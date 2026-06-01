@@ -4435,6 +4435,7 @@ private struct WindowChromeReader: NSViewRepresentable {
 
     private func applyChrome(to window: NSWindow?) {
         windowNumber = window?.windowNumber
+        window?.animationBehavior = .none
         window?.appearance = EditorWindowChrome.appearance(usesDarkChrome: usesDarkChrome)
     }
 }

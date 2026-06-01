@@ -9,7 +9,7 @@
   --bg-dim: 0;
   --pointer-x: 0;
   --pointer-y: 0;
-  --tagline-x: 67.6%;
+  --tagline-x: 64.5%;
   --tagline-y: 57.6%;
   color-scheme: light;
 }
@@ -194,7 +194,8 @@ body {
   font-size: 18px;
   font-weight: 650;
   letter-spacing: 0;
-  cursor: pointer;
+  visibility: hidden;
+  pointer-events: none;
   opacity: 0;
   transform: translateY(16px) scale(0.985);
   transition: opacity 480ms ease, transform 520ms cubic-bezier(.2, .85, .22, 1), box-shadow 220ms ease;
@@ -207,17 +208,6 @@ body {
 
 .intro-shell.is-exiting {
   pointer-events: none;
-}
-
-.start-button:hover {
-  box-shadow:
-    0 26px 58px rgba(44, 34, 18, 0.26),
-    0 3px 12px rgba(255, 255, 255, 0.76) inset,
-    0 -10px 22px rgba(0, 0, 0, 0.05) inset;
-}
-
-.start-button:active {
-  transform: translateY(1px) scale(0.992);
 }
 
 .tuning-panel {
