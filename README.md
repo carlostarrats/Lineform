@@ -14,7 +14,7 @@ It is built around ordinary UTF-8 Markdown and text files, so documents stay por
 - Markdown formatting commands for headings, emphasis, inline code, lists, and links.
 - Format conversion between Markdown and plain text.
 - Save and Save As support for Markdown, plain text, and PDF export.
-- Reading Experience controls for font, size, line height, block spacing, column width, themes, and reading aids.
+- Reading Experience controls for font, size, line height, block spacing, column width, themes, reading ruler, and typewriter mode.
 - Reader themes and accessibility-focused font options, including Atkinson Hyperlegible and OpenDyslexic.
 - Selected-text AI instruction flow when Apple Intelligence is available: select text, toggle AI in Write mode, describe the edit, then review before accepting.
 - Defensive intelligent editing validation to avoid prompt artifacts, stale selections, empty suggestions, and unsafe Markdown changes.
