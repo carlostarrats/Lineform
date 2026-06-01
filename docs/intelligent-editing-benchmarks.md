@@ -51,6 +51,8 @@ Deterministic tests must cover these scenarios:
 - Multi-option provider path: rewrite options should request an alternatives set first, parse and validate each candidate, then fall back to one-at-a-time option repair. Short malformed phrase regressions must verify that the coordinator publishes three ready suggestions instead of silently collapsing to one.
 - Stale selection behavior: generated suggestions must not apply if the underlying selected text changed before acceptance.
 - App request flow: the editor selection path must use the same request coordinator exercised by tests, and suggestions must stay visible when validated suggestions are ready.
+- Messy writing corpus: broad, realistic examples must run through the validated service path from `LineformTests/Fixtures/IntelligentEditingMessyWritingCorpus.json`, not only through narrow named regression tests.
+- Dictionary and dialect seams: proofreading must have internal coverage for ignored words and English dialect language routing before any user-facing personal dictionary feature is considered.
 
 ## Quality Pipeline
 
@@ -115,6 +117,33 @@ Run repeated live evals with:
 
 Every prompt or validation change must compare the new reports against the previous run. A failed task should become a better prompt, deterministic fallback, stricter validator, or new benchmark case.
 
+Live report summaries must make provider instability inspectable. In addition to pass rate, score, and critical failures, reports include counts for empty outputs, provider failures, option-count mismatches, and duplicate-option failures. Repeated live reports also aggregate duplicate option text across option records.
+
+## Messy Writing Corpus
+
+The messy writing corpus is the broad deterministic quality layer for examples that are realistic but sanitized. It should grow when dogfood or user-reported failures reveal a new class of issue. It must stay focused on behavior classes, not one-off phrase memorization.
+
+Required corpus tags include:
+
+- `proofread:messy-spelling`
+- `proofread:short-grammar-spelling`
+- `proofread:unrecognizable`
+- `proofread:already-clean`
+- `rewrite:short-phrase`
+- `rewrite:awkward-paragraph`
+- `summarize:multi-paragraph`
+- `shorten:preserve-meaning`
+- `markdown:structure-preservation`
+- `dictionary:false-positive-risk`
+- `input:user-instruction`
+- `provider:no-op-repair`
+- `provider:fallback-usage`
+- `provider:fail-clean`
+- `provider:multi-option-stability`
+- `writing-risk:local-first`
+
+Corpus cases should declare selected text, document context, provider responses, required/forbidden fragments, expected failure behavior, and option count expectations where relevant. The app must still validate replacements through the normal rubric before accepting them.
+
 ## Release Gate
 
 Before calling intelligent editing quality acceptable, run:
@@ -128,5 +157,6 @@ Before calling intelligent editing quality acceptable, run:
 - Opt-in live single and option evals on a machine with Apple Intelligence available.
 - Opt-in repeated live evals with at least two runs.
 - Manual inspection of attached live reports for awkward-but-passing output.
+- Manual dogfood notes for realistic documents when editing quality changes affect prompts, validation, or fallback behavior.
 
 Any user-reported bad output must be added as a deterministic regression case before fixing it.

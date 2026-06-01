@@ -112,6 +112,25 @@ final class IntelligentEditingQualityPipelineTests: XCTestCase {
         } catch IntelligentEditingError.unrecognizedLanguage {
         }
     }
+
+    func testProofreadingConfigurationCanIgnorePersonalDictionaryTermsWithoutUI() {
+        let configuration = LineformProofreadingConfiguration(ignoredWords: ["speling"])
+
+        XCTAssertTrue(LineformProofreadingSupport.hasLikelyIssue("speling"))
+        XCTAssertFalse(LineformProofreadingSupport.hasLikelyIssue("speling", configuration: configuration))
+        XCTAssertEqual(
+            LineformProofreadingSupport.deterministicFallback(for: "speling", variant: 0, configuration: configuration),
+            "speling"
+        )
+    }
+
+    func testProofreadingConfigurationMapsDialectToSystemSpellcheckLanguage() {
+        XCTAssertEqual(LineformProofreadingConfiguration(dialect: .system).dialect.spellCheckerLanguage, "en")
+        XCTAssertEqual(LineformProofreadingConfiguration(dialect: .american).dialect.spellCheckerLanguage, "en_US")
+        XCTAssertEqual(LineformProofreadingConfiguration(dialect: .british).dialect.spellCheckerLanguage, "en_GB")
+        XCTAssertEqual(LineformProofreadingConfiguration(dialect: .canadian).dialect.spellCheckerLanguage, "en_CA")
+        XCTAssertEqual(LineformProofreadingConfiguration(dialect: .australian).dialect.spellCheckerLanguage, "en_AU")
+    }
 }
 
 private struct ShortProofreadFixture {

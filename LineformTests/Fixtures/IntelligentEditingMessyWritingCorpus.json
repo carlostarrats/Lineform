@@ -1,0 +1,152 @@
+[
+  {
+    "id": "proofread-messy-spelling",
+    "action": "proofread",
+    "selectedText": "this sentnce has speling erors.",
+    "documentContext": "this sentnce has speling erors.",
+    "providerResponses": [
+      "this sentnce has speling erors.",
+      "this sentnce has speling erors.",
+      "this sentnce has speling erors.",
+      "this sentnce has speling erors."
+    ],
+    "expectedReplacement": "this sentence has spelling errors.",
+    "forbiddenFragments": ["sentnce", "speling", "erors"],
+    "scenarioTags": ["proofread:messy-spelling", "provider:no-op-repair"]
+  },
+  {
+    "id": "proofread-pronoun-verb-spelling",
+    "action": "proofread",
+    "selectedText": "i has speling erors.",
+    "documentContext": "i has speling erors.",
+    "providerResponses": [
+      "i has speling erors.",
+      "i has speling erors.",
+      "i has speling erors.",
+      "i has speling erors."
+    ],
+    "expectedReplacement": "I have spelling errors.",
+    "forbiddenFragments": ["i has", "speling", "erors"],
+    "scenarioTags": ["proofread:short-grammar-spelling", "provider:fallback-usage"]
+  },
+  {
+    "id": "proofread-keyboard-mash",
+    "action": "proofread",
+    "selectedText": "slkj sl;jf sl;jf s;afjs fsjfslfjsk",
+    "documentContext": "slkj sl;jf sl;jf s;afjs fsjfslfjsk",
+    "providerResponses": [
+      "slkj sl;jf sl;jf s;afjs fsjfslfjsk"
+    ],
+    "expectedFailure": "unrecognizedLanguage",
+    "scenarioTags": ["proofread:unrecognizable", "provider:fail-clean"]
+  },
+  {
+    "id": "rewrite-short-malformed-options",
+    "action": "rewrite",
+    "selectedText": "cat im the hat",
+    "documentContext": "cat im the hat",
+    "optionCount": 3,
+    "providerResponses": [
+      "1. Cat in the hat.\n2. A cat in the hat.\n3. Cat wearing the hat.",
+      "Cat in the hat.",
+      "A cat in the hat.",
+      "Cat wearing the hat."
+    ],
+    "expectedReplacements": [
+      "Cat in the hat.",
+      "A cat in the hat.",
+      "Cat wearing the hat."
+    ],
+    "forbiddenFragments": ["cat im the hat"],
+    "scenarioTags": ["rewrite:short-phrase", "provider:multi-option-stability"]
+  },
+  {
+    "id": "rewrite-awkward-paragraph",
+    "action": "rewrite",
+    "selectedText": "The launch plan is mostly clear but the last part is kind of confusing because nobody knows who owns the handoff.",
+    "documentContext": "Draft note:\n\nThe launch plan is mostly clear but the last part is kind of confusing because nobody knows who owns the handoff.",
+    "providerResponses": [
+      "The launch plan is mostly clear, but the final handoff needs a named owner.",
+      "The launch plan is mostly clear, but the final handoff needs a named owner.",
+      "The launch plan is mostly clear, but the final handoff needs a named owner.",
+      "The launch plan is mostly clear, but the final handoff needs a named owner."
+    ],
+    "requiredFragments": ["launch plan", "handoff", "owner"],
+    "forbiddenFragments": ["kind of confusing"],
+    "scenarioTags": ["rewrite:awkward-paragraph"]
+  },
+  {
+    "id": "summarize-multi-paragraph",
+    "action": "summarize",
+    "selectedText": "The editor stores Markdown as plain files on disk. Writers can keep those files in Finder, iCloud Drive, or Git without converting them into a private database.\n\nThe review flow should stay selected-text scoped. Suggestions must never include nearby context or hidden protocol markers.",
+    "documentContext": "The editor stores Markdown as plain files on disk. Writers can keep those files in Finder, iCloud Drive, or Git without converting them into a private database.\n\nThe review flow should stay selected-text scoped. Suggestions must never include nearby context or hidden protocol markers.",
+    "providerResponses": [
+      "The editor stores Markdown as portable plain files, and selected-text suggestions must avoid nearby context and hidden protocol markers.",
+      "The editor stores Markdown as portable plain files, and selected-text suggestions must avoid nearby context and hidden protocol markers.",
+      "The editor stores Markdown as portable plain files, and selected-text suggestions must avoid nearby context and hidden protocol markers.",
+      "The editor stores Markdown as portable plain files, and selected-text suggestions must avoid nearby context and hidden protocol markers."
+    ],
+    "requiredFragments": ["Markdown", "plain files", "selected-text"],
+    "forbiddenFragments": ["database upload", "account"],
+    "scenarioTags": ["summarize:multi-paragraph", "writing-risk:local-first"]
+  },
+  {
+    "id": "shorten-preserve-meaning",
+    "action": "shorten",
+    "selectedText": "Lineform keeps documents as plain local Markdown files so writers can use Finder, iCloud Drive, Git, or other editors without losing portability.",
+    "documentContext": "Lineform keeps documents as plain local Markdown files so writers can use Finder, iCloud Drive, Git, or other editors without losing portability.",
+    "providerResponses": [
+      "Lineform keeps documents as portable local Markdown files for Finder, iCloud Drive, Git, and other editors.",
+      "Lineform keeps documents as portable local Markdown files for Finder, iCloud Drive, Git, and other editors.",
+      "Lineform keeps documents as portable local Markdown files for Finder, iCloud Drive, Git, and other editors.",
+      "Lineform keeps documents as portable local Markdown files for Finder, iCloud Drive, Git, and other editors."
+    ],
+    "requiredFragments": ["Lineform", "local Markdown", "portable"],
+    "forbiddenFragments": ["uploads"],
+    "scenarioTags": ["shorten:preserve-meaning", "writing-risk:local-first"]
+  },
+  {
+    "id": "clean-markdown-structure",
+    "action": "cleanMarkdown",
+    "selectedText": "#Title\n\n-  first item\n-  second item",
+    "documentContext": "#Title\n\n-  first item\n-  second item",
+    "providerResponses": [
+      "#Title\n\n-  first item\n-  second item",
+      "#Title\n\n-  first item\n-  second item",
+      "#Title\n\n-  first item\n-  second item",
+      "#Title\n\n-  first item\n-  second item"
+    ],
+    "expectedReplacement": "# Title\n\n- first item\n- second item",
+    "scenarioTags": ["markdown:structure-preservation", "provider:fallback-usage"]
+  },
+  {
+    "id": "custom-word-swap",
+    "userInstruction": "Replace robust with simple.",
+    "selectedText": "Lineform has a robust local file workflow.",
+    "documentContext": "Lineform has a robust local file workflow.",
+    "providerResponses": [
+      "Lineform has a simple local file workflow.",
+      "Lineform has a simple local file workflow.",
+      "Lineform has a simple local file workflow.",
+      "Lineform has a simple local file workflow."
+    ],
+    "requiredFragments": ["simple", "local file workflow"],
+    "forbiddenFragments": ["robust"],
+    "scenarioTags": ["input:user-instruction", "input:custom-word-swap"]
+  },
+  {
+    "id": "proofread-dictionary-false-positive-risk",
+    "action": "proofread",
+    "selectedText": "Lineform saves Markdown locally.",
+    "documentContext": "Lineform saves Markdown locally.",
+    "providerResponses": [
+      "Lineform saves Markdown locally.",
+      "Lineform saves Markdown locally.",
+      "Lineform saves Markdown locally.",
+      "Lineform saves Markdown locally."
+    ],
+    "expectedReplacement": "Lineform saves Markdown locally.",
+    "allowUnchanged": true,
+    "scenarioTags": ["dictionary:false-positive-risk", "proofread:already-clean"]
+  }
+]

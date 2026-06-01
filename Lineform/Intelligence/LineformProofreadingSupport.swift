@@ -3,24 +3,63 @@ import Foundation
 import AppKit
 #endif
 
+struct LineformProofreadingConfiguration: Equatable {
+    enum EnglishDialect: String, Equatable, CaseIterable {
+        case system
+        case american
+        case british
+        case canadian
+        case australian
+
+        var spellCheckerLanguage: String {
+            switch self {
+            case .system:
+                return "en"
+            case .american:
+                return "en_US"
+            case .british:
+                return "en_GB"
+            case .canadian:
+                return "en_CA"
+            case .australian:
+                return "en_AU"
+            }
+        }
+    }
+
+    var dialect: EnglishDialect
+    var ignoredWords: Set<String>
+
+    static let lineformDefault = LineformProofreadingConfiguration()
+
+    init(dialect: EnglishDialect = .system, ignoredWords: Set<String> = []) {
+        self.dialect = dialect
+        self.ignoredWords = Set(ignoredWords.map { $0.lowercased() })
+    }
+
+    func ignores(_ word: String) -> Bool {
+        ignoredWords.contains(word.lowercased())
+    }
+}
+
 enum LineformProofreadingSupport {
-    static func issues(in text: String) -> Set<String> {
+    static func issues(in text: String, configuration: LineformProofreadingConfiguration = .lineformDefault) -> Set<String> {
         let normalizedText = text.lowercased()
         var issues: Set<String> = []
 
-        for misspelling in knownMisspellings where containsWord(misspelling, in: normalizedText) {
+        for misspelling in knownMisspellings where !configuration.ignores(misspelling) && containsWord(misspelling, in: normalizedText) {
             issues.insert("word:\(misspelling)")
         }
 
         #if canImport(AppKit)
-        issues.formUnion(systemSpellingIssues(in: text))
+        issues.formUnion(systemSpellingIssues(in: text, configuration: configuration))
         #endif
 
-        if text.range(of: #"\b[Ii]m\b"#, options: .regularExpression) != nil {
+        if !configuration.ignores("im"), text.range(of: #"\b[Ii]m\b"#, options: .regularExpression) != nil {
             issues.insert("word:im")
         }
 
-        if text.range(of: #"\bi\b"#, options: .regularExpression) != nil {
+        if !configuration.ignores("i"), text.range(of: #"\bi\b"#, options: .regularExpression) != nil {
             issues.insert("pronoun:i")
         }
 
@@ -28,7 +67,7 @@ enum LineformProofreadingSupport {
             issues.insert("spacing:multiple")
         }
 
-        if text.range(of: #"\b[Ii]\s+has\b"#, options: .regularExpression) != nil {
+        if !configuration.ignores("i"), text.range(of: #"\b[Ii]\s+has\b"#, options: .regularExpression) != nil {
             issues.insert("grammar:i-has")
         }
 
@@ -39,36 +78,44 @@ enum LineformProofreadingSupport {
         return issues
     }
 
-    static func hasLikelyIssue(_ text: String) -> Bool {
-        !issues(in: text).isEmpty
+    static func hasLikelyIssue(_ text: String, configuration: LineformProofreadingConfiguration = .lineformDefault) -> Bool {
+        !issues(in: text, configuration: configuration).isEmpty
     }
 
-    static func hasUnresolvedIssues(in replacement: String, selectedText: String) -> Bool {
-        let selectedIssues = issues(in: selectedText)
+    static func hasUnresolvedIssues(
+        in replacement: String,
+        selectedText: String,
+        configuration: LineformProofreadingConfiguration = .lineformDefault
+    ) -> Bool {
+        let selectedIssues = issues(in: selectedText, configuration: configuration)
         guard !selectedIssues.isEmpty else {
             return false
         }
 
-        let replacementIssues = issues(in: replacement)
+        let replacementIssues = issues(in: replacement, configuration: configuration)
         return !selectedIssues.intersection(replacementIssues).isEmpty
     }
 
-    static func deterministicFallback(for selectedText: String, variant: Int) -> String? {
+    static func deterministicFallback(
+        for selectedText: String,
+        variant: Int,
+        configuration: LineformProofreadingConfiguration = .lineformDefault
+    ) -> String? {
         let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
         if let fallback = ambiguousProofreadFallback(for: trimmed, variant: variant) {
             return fallback
         }
 
-        if let correction = knownOneWordCorrections[trimmed.lowercased()] {
+        if !configuration.ignores(trimmed), let correction = knownOneWordCorrections[trimmed.lowercased()] {
             return correction
         }
 
-        let corrected = applyingKnownCorrections(to: trimmed)
+        let corrected = applyingKnownCorrections(to: trimmed, configuration: configuration)
         if corrected != trimmed {
             return corrected
         }
 
-        return systemSpellcheckProofreadFallback(for: trimmed) ?? trimmed
+        return systemSpellcheckProofreadFallback(for: trimmed, configuration: configuration) ?? trimmed
     }
 
     static func knownOneWordCorrection(for text: String) -> String? {
@@ -89,7 +136,10 @@ enum LineformProofreadingSupport {
         return correction + trailingPunctuation
     }
 
-    static func applyingKnownCorrections(to text: String) -> String {
+    static func applyingKnownCorrections(
+        to text: String,
+        configuration: LineformProofreadingConfiguration = .lineformDefault
+    ) -> String {
         let phraseCorrected = text
             .replacingOccurrences(of: "exportingg", with: "exporting")
             .replacingOccurrences(of: "The editor keep drafts local and dont change ", with: "The editor keeps drafts local and doesn't change ")
@@ -107,12 +157,15 @@ enum LineformProofreadingSupport {
             .replacingOccurrences(of: #"\bi\b"#, with: "I", options: .regularExpression)
 
         return knownOneWordCorrections.reduce(phraseCorrected) { partial, pair in
-            replacingWord(pair.key, with: pair.value, in: partial)
+            guard !configuration.ignores(pair.key) else {
+                return partial
+            }
+            return replacingWord(pair.key, with: pair.value, in: partial)
         }
     }
 
     #if canImport(AppKit)
-    private static func systemSpellingIssues(in text: String) -> Set<String> {
+    private static func systemSpellingIssues(in text: String, configuration: LineformProofreadingConfiguration) -> Set<String> {
         guard text.unicodeScalars.allSatisfy({ $0.isASCII }) else {
             return []
         }
@@ -126,7 +179,7 @@ enum LineformProofreadingSupport {
             let misspelledRange = checker.checkSpelling(
                 of: text,
                 startingAt: searchRange.location,
-                language: "en",
+                language: configuration.dialect.spellCheckerLanguage,
                 wrap: false,
                 inSpellDocumentWithTag: 0,
                 wordCount: nil
@@ -139,10 +192,10 @@ enum LineformProofreadingSupport {
             let guesses = checker.guesses(
                 forWordRange: misspelledRange,
                 in: text,
-                language: "en",
+                language: configuration.dialect.spellCheckerLanguage,
                 inSpellDocumentWithTag: 0
             ) ?? []
-            if shouldTrackSystemMisspelling(word, guesses: guesses) {
+            if shouldTrackSystemMisspelling(word, guesses: guesses, configuration: configuration) {
                 issues.insert("spell:\(word.lowercased())")
             }
 
@@ -156,9 +209,13 @@ enum LineformProofreadingSupport {
         return issues
     }
 
-    private static func shouldTrackSystemMisspelling(_ word: String, guesses: [String]) -> Bool {
+    private static func shouldTrackSystemMisspelling(
+        _ word: String,
+        guesses: [String],
+        configuration: LineformProofreadingConfiguration
+    ) -> Bool {
         let normalizedWord = word.lowercased()
-        guard !ignoredSystemSpellcheckWords.contains(normalizedWord) else {
+        guard !ignoredSystemSpellcheckWords.contains(normalizedWord), !configuration.ignores(normalizedWord) else {
             return false
         }
 
@@ -264,7 +321,10 @@ enum LineformProofreadingSupport {
         ][variant % 3]
     }
 
-    private static func systemSpellcheckProofreadFallback(for text: String) -> String? {
+    private static func systemSpellcheckProofreadFallback(
+        for text: String,
+        configuration: LineformProofreadingConfiguration
+    ) -> String? {
         #if canImport(AppKit)
         guard text.unicodeScalars.allSatisfy({ $0.isASCII }) else {
             return nil
@@ -279,7 +339,7 @@ enum LineformProofreadingSupport {
             let misspelledRange = checker.checkSpelling(
                 of: text,
                 startingAt: searchRange.location,
-                language: "en",
+                language: configuration.dialect.spellCheckerLanguage,
                 wrap: false,
                 inSpellDocumentWithTag: 0,
                 wordCount: nil
@@ -292,10 +352,10 @@ enum LineformProofreadingSupport {
             let guesses = checker.guesses(
                 forWordRange: misspelledRange,
                 in: text,
-                language: "en",
+                language: configuration.dialect.spellCheckerLanguage,
                 inSpellDocumentWithTag: 0
             ) ?? []
-            if shouldApplySystemSpellingCorrection(to: word, guesses: guesses),
+            if shouldApplySystemSpellingCorrection(to: word, guesses: guesses, configuration: configuration),
                let correction = conservativeSystemSpellingCorrection(for: word, guesses: guesses) {
                 replacements.append((misspelledRange, correction))
             }
@@ -329,9 +389,13 @@ enum LineformProofreadingSupport {
         #endif
     }
 
-    private static func shouldApplySystemSpellingCorrection(to word: String, guesses: [String]) -> Bool {
+    private static func shouldApplySystemSpellingCorrection(
+        to word: String,
+        guesses: [String],
+        configuration: LineformProofreadingConfiguration
+    ) -> Bool {
         #if canImport(AppKit)
-        shouldTrackSystemMisspelling(word, guesses: guesses)
+        shouldTrackSystemMisspelling(word, guesses: guesses, configuration: configuration)
         #else
         false
         #endif

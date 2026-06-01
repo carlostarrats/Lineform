@@ -141,6 +141,10 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertEqual(report.summary.passedRecordCount, 1)
         XCTAssertEqual(report.summary.failedRecordCount, 1)
         XCTAssertEqual(report.summary.criticalFailureCount, 1)
+        XCTAssertEqual(report.summary.emptyOutputCount, 0)
+        XCTAssertEqual(report.summary.providerFailureCount, 0)
+        XCTAssertEqual(report.summary.optionCountMismatchCount, 0)
+        XCTAssertEqual(report.summary.duplicateOptionFailureCount, 0)
         XCTAssertEqual(report.summary.passRate, 0.5)
         XCTAssertEqual(report.summary.averageScore, 50)
         XCTAssertEqual(failingEvaluation.score, 0)
@@ -178,6 +182,9 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
         XCTAssertEqual(repeatedReport.summary.criticalFailureCount, 1)
         XCTAssertEqual(repeatedReport.summary.emptyOutputCount, 0)
         XCTAssertEqual(repeatedReport.summary.duplicateOptionCount, 1)
+        XCTAssertEqual(repeatedReport.summary.duplicateOptionFailureCount, 0)
+        XCTAssertEqual(repeatedReport.summary.providerFailureCount, 0)
+        XCTAssertEqual(repeatedReport.summary.optionCountMismatchCount, 0)
         XCTAssertFalse(repeatedReport.summary.passed)
     }
 
@@ -1068,6 +1075,9 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
             criticalFailureCount=\(repeatedReport.summary.criticalFailureCount)
             emptyOutputCount=\(repeatedReport.summary.emptyOutputCount)
             duplicateOptionCount=\(repeatedReport.summary.duplicateOptionCount)
+            providerFailureCount=\(repeatedReport.summary.providerFailureCount)
+            optionCountMismatchCount=\(repeatedReport.summary.optionCountMismatchCount)
+            duplicateOptionFailureCount=\(repeatedReport.summary.duplicateOptionFailureCount)
             averageScore=\(repeatedReport.summary.averageScore)
             \(failures.joined(separator: "\n"))
             """
@@ -1082,7 +1092,13 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
             let documentText = Self.documentText(for: task)
             let selectedRange = (documentText as NSString).range(of: task.selectedText)
             guard selectedRange.location != NSNotFound else {
-                records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: "selected text was not present in live eval document"))
+                records.append(LiveIntelligenceEvalRecord(
+                    task: task,
+                    mode: mode,
+                    optionIndex: nil,
+                    failure: "selected text was not present in live eval document",
+                    failureKind: "evalSetup"
+                ))
                 continue
             }
 
@@ -1110,20 +1126,50 @@ final class IntelligentEditingEvaluationTests: XCTestCase {
                 let replacements = suggestions.map(\.replacementText)
 
                 if replacements.count != optionCount {
-                    records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: "expected \(optionCount) options, received \(replacements.count)"))
+                    records.append(LiveIntelligenceEvalRecord(
+                        task: task,
+                        mode: mode,
+                        optionIndex: nil,
+                        failure: "expected \(optionCount) options, received \(replacements.count)",
+                        failureKind: "optionCountMismatch",
+                        expectedOptionCount: optionCount,
+                        actualOptionCount: replacements.count
+                    ))
                 }
 
                 let uniqueReplacements = Set(replacements.map(Self.normalized))
                 if mode == "options", uniqueReplacements.count != replacements.count {
-                    records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: "duplicate option text"))
+                    records.append(LiveIntelligenceEvalRecord(
+                        task: task,
+                        mode: mode,
+                        optionIndex: nil,
+                        failure: "duplicate option text",
+                        failureKind: "duplicateOption",
+                        expectedOptionCount: optionCount,
+                        actualOptionCount: replacements.count
+                    ))
                 }
 
                 for (index, replacement) in replacements.enumerated() {
                     let result = IntelligentEditingEvaluationRubric.evaluate(replacement: replacement, task: task)
-                    records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: mode == "options" ? index + 1 : nil, replacement: replacement, evaluation: result))
+                    records.append(LiveIntelligenceEvalRecord(
+                        task: task,
+                        mode: mode,
+                        optionIndex: mode == "options" ? index + 1 : nil,
+                        replacement: replacement,
+                        evaluation: result,
+                        expectedOptionCount: optionCount,
+                        actualOptionCount: replacements.count
+                    ))
                 }
             } catch {
-                records.append(LiveIntelligenceEvalRecord(task: task, mode: mode, optionIndex: nil, failure: error.localizedDescription))
+                records.append(LiveIntelligenceEvalRecord(
+                    task: task,
+                    mode: mode,
+                    optionIndex: nil,
+                    failure: error.localizedDescription,
+                    failureKind: "providerFailure"
+                ))
             }
         }
 
@@ -1216,6 +1262,10 @@ private struct LiveIntelligenceEvalSummary: Codable {
     let passedRecordCount: Int
     let failedRecordCount: Int
     let criticalFailureCount: Int
+    let emptyOutputCount: Int
+    let providerFailureCount: Int
+    let optionCountMismatchCount: Int
+    let duplicateOptionFailureCount: Int
     let passRate: Double
     let averageScore: Double
 
@@ -1224,6 +1274,10 @@ private struct LiveIntelligenceEvalSummary: Codable {
         passedRecordCount = records.filter(\.passed).count
         failedRecordCount = totalRecordCount - passedRecordCount
         criticalFailureCount = records.reduce(0) { $0 + $1.criticalFailureCount }
+        emptyOutputCount = records.filter { $0.replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        providerFailureCount = records.filter { $0.failureKind == "providerFailure" }.count
+        optionCountMismatchCount = records.filter { $0.failureKind == "optionCountMismatch" }.count
+        duplicateOptionFailureCount = records.filter { $0.failureKind == "duplicateOption" }.count
 
         if totalRecordCount == 0 {
             passRate = 0
@@ -1268,6 +1322,9 @@ private struct RepeatedLiveIntelligenceEvalSummary: Codable {
     let criticalFailureCount: Int
     let emptyOutputCount: Int
     let duplicateOptionCount: Int
+    let providerFailureCount: Int
+    let optionCountMismatchCount: Int
+    let duplicateOptionFailureCount: Int
     let averageScore: Double
 
     var passed: Bool {
@@ -1276,6 +1333,9 @@ private struct RepeatedLiveIntelligenceEvalSummary: Codable {
             && criticalFailureCount == 0
             && emptyOutputCount == 0
             && duplicateOptionCount == 0
+            && providerFailureCount == 0
+            && optionCountMismatchCount == 0
+            && duplicateOptionFailureCount == 0
             && averageScore == 100
     }
 
@@ -1286,9 +1346,12 @@ private struct RepeatedLiveIntelligenceEvalSummary: Codable {
         failedRecordCount = reports.reduce(0) { $0 + $1.summary.failedRecordCount }
         criticalFailureCount = reports.reduce(0) { $0 + $1.summary.criticalFailureCount }
         emptyOutputCount = reports.reduce(0) { partial, report in
-            partial + report.records.filter { $0.replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+            partial + report.summary.emptyOutputCount
         }
         duplicateOptionCount = reports.reduce(0) { $0 + Self.duplicateOptionCount(in: $1.records) }
+        providerFailureCount = reports.reduce(0) { $0 + $1.summary.providerFailureCount }
+        optionCountMismatchCount = reports.reduce(0) { $0 + $1.summary.optionCountMismatchCount }
+        duplicateOptionFailureCount = reports.reduce(0) { $0 + $1.summary.duplicateOptionFailureCount }
 
         if reports.isEmpty {
             averageScore = 0
@@ -1324,13 +1387,18 @@ private struct LiveIntelligenceEvalRecord: Codable {
     let score: Int
     let qualityBand: String
     let criticalFailureCount: Int
+    let failureKind: String?
+    let expectedOptionCount: Int?
+    let actualOptionCount: Int?
 
     init(
         task: IntelligentEditingEvaluationTask,
         mode: String,
         optionIndex: Int?,
         replacement: String,
-        evaluation: IntelligentEditingEvaluationResult
+        evaluation: IntelligentEditingEvaluationResult,
+        expectedOptionCount: Int? = nil,
+        actualOptionCount: Int? = nil
     ) {
         self.taskID = task.id
         self.action = task.action.rawValue
@@ -1346,9 +1414,20 @@ private struct LiveIntelligenceEvalRecord: Codable {
         self.score = evaluation.score
         self.qualityBand = evaluation.qualityBand
         self.criticalFailureCount = evaluation.criticalFailureCount
+        self.failureKind = nil
+        self.expectedOptionCount = expectedOptionCount
+        self.actualOptionCount = actualOptionCount
     }
 
-    init(task: IntelligentEditingEvaluationTask, mode: String, optionIndex: Int?, failure: String) {
+    init(
+        task: IntelligentEditingEvaluationTask,
+        mode: String,
+        optionIndex: Int?,
+        failure: String,
+        failureKind: String,
+        expectedOptionCount: Int? = nil,
+        actualOptionCount: Int? = nil
+    ) {
         self.taskID = task.id
         self.action = task.action.rawValue
         self.userInstruction = task.userInstruction
@@ -1363,6 +1442,9 @@ private struct LiveIntelligenceEvalRecord: Codable {
         self.score = 0
         self.qualityBand = "fail"
         self.criticalFailureCount = 1
+        self.failureKind = failureKind
+        self.expectedOptionCount = expectedOptionCount
+        self.actualOptionCount = actualOptionCount
     }
 
     var replacementPreview: String {
