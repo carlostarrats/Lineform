@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lineform Intro Prototype</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="intro-shell" aria-label="Lineform first launch intro prototype">
+    <canvas id="glass-canvas" aria-hidden="true"></canvas>
+
+    <section class="wordmark-stage" aria-live="polite">
+      <div class="wordmark-wrap">
+        <img class="wordmark wordmark-shadow" src="./assets/Lineform.svg" alt="">
+        <svg class="wordmark wordmark-write" viewBox="0 0 639 255" aria-hidden="true">
+          <defs>
+            <mask id="lineform-write-mask" maskUnits="userSpaceOnUse">
+              <rect width="639" height="255" fill="black"/>
+              <path class="write-stroke" d="M146 2 C95 17 72 58 92 73 C111 91 167 85 194 51 C212 27 191 17 156 30 C121 44 105 80 121 108 C139 134 190 127 228 98 C275 62 260 34 216 54 C181 74 145 123 92 172 C63 186 26 194 8 181 C-10 168 18 153 62 164 C101 174 143 190 180 188 C218 187 217 158 179 158 C144 158 123 172 122 194 C121 213 139 225 168 224"/>
+              <path class="write-stroke" d="M219 181 C228 164 241 151 252 138"/>
+              <path class="write-stroke" d="M252 137 C257 131 263 132 260 137 C257 143 250 143 252 137"/>
+              <path class="write-stroke" d="M263 182 C287 158 310 146 318 153 C324 158 300 173 299 181 C297 190 321 179 332 168"/>
+              <path class="write-stroke" d="M335 177 C348 162 370 148 372 151 C374 156 349 168 337 169 C329 179 337 185 355 180 C363 177 371 172 377 168"/>
+              <path class="write-stroke" d="M315 250 C329 218 374 175 386 154 C413 127 469 75 482 80 C488 86 414 146 379 169 C372 188 349 226 326 247"/>
+              <path class="write-stroke" d="M418 179 C422 158 452 144 457 154 C462 166 435 188 421 184 C412 181 418 169 430 160"/>
+              <path class="write-stroke" d="M492 154 C503 157 512 156 509 161 C505 169 487 178 489 184 C491 192 517 178 530 168"/>
+              <path class="write-stroke" d="M537 181 C556 159 563 151 560 151 C554 151 541 162 529 170 C555 154 590 145 592 153 C593 160 571 181 571 183 C596 159 623 149 625 154 C627 160 601 176 603 182 C606 190 628 176 639 168"/>
+            </mask>
+          </defs>
+          <image href="./assets/Lineform.svg" width="639" height="255" mask="url(#lineform-write-mask)"/>
+        </svg>
+        <img class="wordmark wordmark-clean" src="./assets/Lineform.svg" alt="Lineform">
+      </div>
+      <p class="intro-tagline">Simple markdown editing</p>
+      <button class="start-button" type="button">
+        <span>Get Started</span>
+        <svg width="28" height="18" viewBox="0 0 28 18" aria-hidden="true">
+          <path d="M18.2 1.3 26 9l-7.8 7.7M25 9H1.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </section>
+
+    <aside class="tuning-panel" aria-label="Visual tuning controls" hidden>
+      <label>
+        <span>dispersion</span>
+        <input id="dispersion" type="range" min="0" max="3.5" value="3.5" step="0.01">
+        <output for="dispersion">3.50</output>
+      </label>
+      <label>
+        <span>refraction</span>
+        <input id="refraction" type="range" min="0" max="3.5" value="3.5" step="0.01">
+        <output for="refraction">3.50</output>
+      </label>
+      <label>
+        <span>glass</span>
+        <input id="glass" type="range" min="0" max="2.75" value="0" step="0.01">
+        <output for="glass">0.00</output>
+      </label>
+      <label>
+        <span>background</span>
+        <input id="brightness" type="range" min="0" max="1" value="0" step="0.01">
+        <output for="brightness">0.00</output>
+      </label>
+      <label>
+        <span>tagline x</span>
+        <input id="taglineX" type="range" min="0" max="100" value="67.6" step="0.1">
+        <output for="taglineX">67.6</output>
+      </label>
+      <label>
+        <span>tagline y</span>
+        <input id="taglineY" type="range" min="0" max="100" value="57.6" step="0.1">
+        <output for="taglineY">57.6</output>
+      </label>
+      <label>
+        <span>write time</span>
+        <input id="writeTime" type="range" min="0.25" max="1.6" value="1" step="0.01">
+        <output for="writeTime">1.00</output>
+      </label>
+      <label>
+        <span>final delay</span>
+        <input id="finalDelay" type="range" min="0" max="1.2" value="1.1" step="0.01">
+        <output for="finalDelay">1.10</output>
+      </label>
+      <label>
+        <span>final fade</span>
+        <input id="finalFade" type="range" min="0.05" max="0.6" value="0.3" step="0.01">
+        <output for="finalFade">0.30</output>
+      </label>
+      <label>
+        <span>shader fade</span>
+        <input id="effectFade" type="range" min="0.15" max="1.4" value="0.7" step="0.01">
+        <output for="effectFade">0.70</output>
+      </label>
+      <button id="replay" type="button">Replay</button>
+    </aside>
+  </main>
+
+  <script src="./intro.js"></script>
+</body>
+</html>
