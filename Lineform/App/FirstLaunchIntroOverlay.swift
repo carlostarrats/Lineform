@@ -110,7 +110,7 @@ final class FirstLaunchIntroPresenter {
         }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.32
+            context.duration = FirstLaunchIntroOverlayMetrics.dismissAnimationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             window.animator().alphaValue = 0
         } completionHandler: { [weak self] in
@@ -165,6 +165,14 @@ final class FirstLaunchIntroPresenter {
     }
 }
 
+private enum FirstLaunchIntroOverlayMetrics {
+    static let dismissAnimationDuration: TimeInterval = 0.32
+    static let startButtonSize = CGSize(width: 214, height: 62)
+    static let startButtonVerticalPosition: CGFloat = 0.755
+    static let startButtonRevealDelay: Duration = .milliseconds(1000)
+    static let startButtonRevealAnimationDuration: TimeInterval = 0.28
+}
+
 struct FirstLaunchIntroOverlayView: View {
     let dismiss: () -> Void
     @State private var isButtonVisible = false
@@ -176,14 +184,23 @@ struct FirstLaunchIntroOverlayView: View {
 
             GeometryReader { proxy in
                 FirstLaunchIntroStartButton(dismiss: dismiss)
-                    .frame(width: 214, height: 62)
+                    .frame(
+                        width: FirstLaunchIntroOverlayMetrics.startButtonSize.width,
+                        height: FirstLaunchIntroOverlayMetrics.startButtonSize.height
+                    )
                     .opacity(isButtonVisible ? 1 : 0)
-                    .animation(.easeOut(duration: 0.28), value: isButtonVisible)
-                    .position(x: proxy.size.width / 2, y: proxy.size.height * 0.755)
+                    .animation(
+                        .easeOut(duration: FirstLaunchIntroOverlayMetrics.startButtonRevealAnimationDuration),
+                        value: isButtonVisible
+                    )
+                    .position(
+                        x: proxy.size.width / 2,
+                        y: proxy.size.height * FirstLaunchIntroOverlayMetrics.startButtonVerticalPosition
+                    )
             }
         }
         .task {
-            try? await Task.sleep(for: .milliseconds(1000))
+            try? await Task.sleep(for: FirstLaunchIntroOverlayMetrics.startButtonRevealDelay)
             isButtonVisible = true
         }
     }
@@ -212,7 +229,7 @@ final class FirstLaunchIntroStartButtonView: NSView {
 
     init(dismiss: @escaping () -> Void) {
         self.dismiss = dismiss
-        super.init(frame: NSRect(x: 0, y: 0, width: 214, height: 62))
+        super.init(frame: NSRect(origin: .zero, size: FirstLaunchIntroOverlayMetrics.startButtonSize))
         wantsLayer = true
         layer?.cornerRadius = 31
         layer?.masksToBounds = false

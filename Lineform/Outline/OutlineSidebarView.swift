@@ -29,6 +29,11 @@ struct OutlineSidebarView: View {
     static let emptyStatePossibilityMessage = "No sections. No hierarchy. Just possibilities."
     static let emptyStateInstruction = "Add # Title or ## Section to build an outline."
     static let emptyStateTopPadding: CGFloat = 10
+    static let emptyStateHorizontalPadding: CGFloat = 16
+    static let emptyStateTitleBodySpacing: CGFloat = 7
+    static let emptyStateMessageInstructionSpacing: CGFloat = 24
+    static let emptyStateTitleFontSize: CGFloat = 13
+    static let emptyStateBodyFontSize: CGFloat = 12
     static let titleShowsIcon = false
     static let usesSubtleGradientBackground = false
     static let usesThemeIndependentLightChrome = false
@@ -158,23 +163,23 @@ struct OutlineSidebarView: View {
     @ViewBuilder
     private var outlineContent: some View {
         if items.isEmpty {
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: Self.emptyStateTitleBodySpacing) {
                 Text(Self.emptyStateTitle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: Self.emptyStateTitleFontSize, weight: .semibold))
                     .foregroundStyle(Self.primaryTextColor(usesDarkChrome: usesDarkChrome))
 
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: Self.emptyStateMessageInstructionSpacing) {
                     Text(Self.emptyStatePossibilityMessage)
                         .foregroundStyle(Self.primaryTextColor(usesDarkChrome: usesDarkChrome))
 
                     Text(Self.emptyStateInstruction)
                         .foregroundStyle(Self.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                 }
-                .font(.system(size: 12))
+                .font(.system(size: Self.emptyStateBodyFontSize))
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Self.emptyStateHorizontalPadding)
             .padding(.top, Self.emptyStateTopPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
