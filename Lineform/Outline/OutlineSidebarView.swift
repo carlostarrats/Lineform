@@ -26,7 +26,8 @@ struct OutlineSidebarView: View {
     }
 
     static let emptyStateTitle = "No headings yet"
-    static let emptyStateMessage = "Add # Title or ## Section to build an outline."
+    static let emptyStatePossibilityMessage = "No sections. No hierarchy. Just possibilities."
+    static let emptyStateInstruction = "Add # Title or ## Section to build an outline."
     static let emptyStateTopPadding: CGFloat = 10
     static let titleShowsIcon = false
     static let usesSubtleGradientBackground = false
@@ -157,16 +158,21 @@ struct OutlineSidebarView: View {
     @ViewBuilder
     private var outlineContent: some View {
         if items.isEmpty {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text(Self.emptyStateTitle)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Self.primaryTextColor(usesDarkChrome: usesDarkChrome))
 
-                Text(Self.emptyStateMessage)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Self.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 24) {
+                    Text(Self.emptyStatePossibilityMessage)
+                        .foregroundStyle(Self.primaryTextColor(usesDarkChrome: usesDarkChrome))
+
+                    Text(Self.emptyStateInstruction)
+                        .foregroundStyle(Self.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                }
+                .font(.system(size: 12))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 16)
             .padding(.top, Self.emptyStateTopPadding)

@@ -5,7 +5,8 @@ final class OutlineSidebarViewTests: XCTestCase {
     @MainActor
     func testEmptyOutlineMessageExplainsHowToPopulateSidebar() {
         XCTAssertEqual(OutlineSidebarView.emptyStateTitle, "No headings yet")
-        XCTAssertEqual(OutlineSidebarView.emptyStateMessage, "Add # Title or ## Section to build an outline.")
+        XCTAssertEqual(OutlineSidebarView.emptyStatePossibilityMessage, "No sections. No hierarchy. Just possibilities.")
+        XCTAssertEqual(OutlineSidebarView.emptyStateInstruction, "Add # Title or ## Section to build an outline.")
         XCTAssertEqual(OutlineSidebarView.emptyStateTopPadding, 10)
     }
 
