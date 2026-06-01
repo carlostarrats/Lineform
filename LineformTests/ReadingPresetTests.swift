@@ -34,12 +34,12 @@ final class ReadingPresetTests: XCTestCase {
 
         XCTAssertEqual(ReadingPreset.calm.profile.fontID, .atkinsonHyperlegible)
         XCTAssertEqual(ReadingPreset.calm.profile.themeID, .calm)
-        XCTAssertTrue(ReadingPreset.calm.profile.reduceMarkdownNoise)
+        XCTAssertFalse(ReadingPreset.calm.profile.reduceMarkdownNoise)
 
         XCTAssertEqual(ReadingPreset.focus.profile.fontID, .atkinsonHyperlegible)
         XCTAssertEqual(ReadingPreset.focus.profile.focusMode, .off)
         XCTAssertTrue(ReadingPreset.focus.profile.readingRulerEnabled)
-        XCTAssertTrue(ReadingPreset.focus.profile.reduceMarkdownNoise)
+        XCTAssertFalse(ReadingPreset.focus.profile.reduceMarkdownNoise)
         XCTAssertTrue(ReadingPreset.focus.profile.typewriterModeEnabled)
         XCTAssertEqual(ReadingPreset.focus.profile.insertionPointWidth, ReadingPreset.original.profile.insertionPointWidth)
     }
@@ -101,7 +101,7 @@ final class ReadingPresetTests: XCTestCase {
             letterSpacing: 0.5,
             columnWidth: 820,
             caretWidth: 2,
-            reduceMarkdownNoise: true,
+            reduceMarkdownNoise: false,
             readingRuler: false,
             typewriterMode: false
         )
@@ -113,7 +113,7 @@ final class ReadingPresetTests: XCTestCase {
             letterSpacing: 0.5,
             columnWidth: 820,
             caretWidth: 2,
-            reduceMarkdownNoise: true,
+            reduceMarkdownNoise: false,
             readingRuler: true,
             typewriterMode: true
         )

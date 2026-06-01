@@ -84,7 +84,7 @@ struct ReadingPreset: Equatable, Identifiable {
         focusMode: .off,
         typewriterModeEnabled: false,
         readingRulerEnabled: false,
-        reduceMarkdownNoise: true,
+        reduceMarkdownNoise: false,
         highContrastEnabled: false,
         reduceMotionEnabled: false,
         adaptiveReadabilityEnabled: false
@@ -105,7 +105,7 @@ struct ReadingPreset: Equatable, Identifiable {
         focusMode: .off,
         typewriterModeEnabled: true,
         readingRulerEnabled: true,
-        reduceMarkdownNoise: true,
+        reduceMarkdownNoise: false,
         highContrastEnabled: false,
         reduceMotionEnabled: false,
         adaptiveReadabilityEnabled: false
@@ -126,7 +126,7 @@ struct ReadingPreset: Equatable, Identifiable {
         focusMode: .off,
         typewriterModeEnabled: false,
         readingRulerEnabled: false,
-        reduceMarkdownNoise: true,
+        reduceMarkdownNoise: false,
         highContrastEnabled: false,
         reduceMotionEnabled: false,
         adaptiveReadabilityEnabled: false
@@ -147,7 +147,7 @@ struct ReadingPreset: Equatable, Identifiable {
         focusMode: .off,
         typewriterModeEnabled: false,
         readingRulerEnabled: true,
-        reduceMarkdownNoise: true,
+        reduceMarkdownNoise: false,
         highContrastEnabled: false,
         reduceMotionEnabled: true,
         adaptiveReadabilityEnabled: false
@@ -168,7 +168,7 @@ struct ReadingPreset: Equatable, Identifiable {
         focusMode: .off,
         typewriterModeEnabled: false,
         readingRulerEnabled: false,
-        reduceMarkdownNoise: true,
+        reduceMarkdownNoise: false,
         highContrastEnabled: false,
         reduceMotionEnabled: false,
         adaptiveReadabilityEnabled: false
@@ -189,7 +189,7 @@ struct ReadingPreset: Equatable, Identifiable {
         focusMode: .off,
         typewriterModeEnabled: false,
         readingRulerEnabled: false,
-        reduceMarkdownNoise: true,
+        reduceMarkdownNoise: false,
         highContrastEnabled: true,
         reduceMotionEnabled: false,
         adaptiveReadabilityEnabled: false

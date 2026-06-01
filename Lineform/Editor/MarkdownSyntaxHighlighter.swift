@@ -5,8 +5,6 @@ final class MarkdownSyntaxHighlighter {
     static let darkThemeInlineCodeColor = NSColor(srgbRed: 0.60, green: 0.76, blue: 1.0, alpha: 1)
     static let lightThemeMarkdownMarkerColor = NSColor(srgbRed: 0.24, green: 0.29, blue: 0.35, alpha: 1)
     static let darkThemeMarkdownMarkerColor = NSColor(srgbRed: 0.82, green: 0.86, blue: 0.92, alpha: 1)
-    static let lightThemeReducedMarkdownMarkerColor = NSColor(srgbRed: 0.36, green: 0.39, blue: 0.44, alpha: 1)
-    static let darkThemeReducedMarkdownMarkerColor = NSColor(srgbRed: 0.76, green: 0.80, blue: 0.86, alpha: 1)
 
     static func inlineCodeColor(for profile: ReadingProfile) -> NSColor {
         inlineCodeColor(for: Theme.theme(for: profile))
@@ -17,19 +15,15 @@ final class MarkdownSyntaxHighlighter {
     }
 
     static func markdownMarkerColor(for profile: ReadingProfile) -> NSColor {
-        markdownMarkerColor(for: Theme.theme(for: profile), reduceMarkdownNoise: profile.reduceMarkdownNoise)
+        markdownMarkerColor(for: Theme.theme(for: profile))
     }
 
     static func markdownMarkerColor(for theme: Theme) -> NSColor {
-        markdownMarkerColor(for: theme, reduceMarkdownNoise: false)
-    }
-
-    static func markdownMarkerColor(for theme: Theme, reduceMarkdownNoise: Bool) -> NSColor {
         if theme.usesDarkChrome {
-            return reduceMarkdownNoise ? darkThemeReducedMarkdownMarkerColor : darkThemeMarkdownMarkerColor
+            return darkThemeMarkdownMarkerColor
         }
 
-        return reduceMarkdownNoise ? lightThemeReducedMarkdownMarkerColor : lightThemeMarkdownMarkerColor
+        return lightThemeMarkdownMarkerColor
     }
 
     static var baseAttributes: [NSAttributedString.Key: Any] {

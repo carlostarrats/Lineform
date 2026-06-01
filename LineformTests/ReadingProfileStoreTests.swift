@@ -77,12 +77,15 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertTrue(labels.contains("Block Spacing"))
         XCTAssertTrue(labels.contains("(Read / Preview)"))
         XCTAssertTrue(labels.contains("Column Width"))
-        XCTAssertTrue(labels.contains("Reduce Markdown Noise"))
         XCTAssertTrue(labels.contains("Reading Ruler"))
+        XCTAssertTrue(labels.contains(ReadingExperienceInspector.readingRulerDescription))
         XCTAssertTrue(labels.contains("Typewriter Mode"))
+        XCTAssertTrue(labels.contains(ReadingExperienceInspector.typewriterModeDescription))
 
         XCTAssertFalse(labels.contains("Paragraph Spacing"))
         XCTAssertFalse(labels.contains("Block Spacing (Read/Preview)"))
+        XCTAssertFalse(labels.contains("Reduce Markdown Noise"))
+        XCTAssertFalse(labels.contains("Reading Aids"))
         XCTAssertFalse(labels.contains("Appearance"))
         XCTAssertFalse(labels.contains("Theme"))
         XCTAssertFalse(labels.contains("Focus"))
@@ -110,10 +113,12 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertFalse(ReadingExperienceInspector.usesResetSeparator)
     }
 
-    func testReadingAidsSectionLabelUsesControlLabelStyling() {
-        XCTAssertTrue(ReadingExperienceInspector.usesReadingAidsSectionLabel)
-        XCTAssertTrue(ReadingExperienceInspector.visibleControlLabels.contains("Reading Aids"))
-        XCTAssertEqual(ReadingExperienceInspector.sectionLabelFontSize, 13)
+    func testReadingAidTogglesUseSubtitlesWithoutSectionHeader() {
+        XCTAssertFalse(ReadingExperienceInspector.usesReadingAidsSectionLabel)
+        XCTAssertTrue(ReadingExperienceInspector.aidToggleCheckboxesAlignTrailing)
+        XCTAssertFalse(ReadingExperienceInspector.visibleControlLabels.contains("Reading Aids"))
+        XCTAssertFalse(ReadingExperienceInspector.readingRulerDescription.isEmpty)
+        XCTAssertFalse(ReadingExperienceInspector.typewriterModeDescription.isEmpty)
     }
 
     func testReadingExperienceInspectorUsesNativeUIFontOutsideThemePreviews() throws {

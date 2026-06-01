@@ -8,7 +8,7 @@ final class ReadingAssistPreferenceTests: XCTestCase {
         XCTAssertEqual(profile.fontID, .atkinsonHyperlegible)
         XCTAssertEqual(profile.focusMode, .off)
         XCTAssertTrue(profile.readingRulerEnabled)
-        XCTAssertTrue(profile.reduceMarkdownNoise)
+        XCTAssertFalse(profile.reduceMarkdownNoise)
         XCTAssertTrue(profile.typewriterModeEnabled)
         XCTAssertEqual(profile.insertionPointWidth, ReadingProfile.original.insertionPointWidth)
         XCTAssertFalse(profile.reduceMotionEnabled)
@@ -19,7 +19,7 @@ final class ReadingAssistPreferenceTests: XCTestCase {
 
         XCTAssertEqual(profile.fontID, .atkinsonHyperlegible)
         XCTAssertEqual(profile.focusMode, .off)
-        XCTAssertTrue(profile.reduceMarkdownNoise)
+        XCTAssertFalse(profile.reduceMarkdownNoise)
         XCTAssertFalse(profile.readingRulerEnabled)
         XCTAssertFalse(profile.typewriterModeEnabled)
     }

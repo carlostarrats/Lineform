@@ -13,10 +13,10 @@ struct ReadingExperienceInspector: View {
         "(Read / Preview)",
         "Letter Spacing",
         "Column Width",
-        "Reading Aids",
-        "Reduce Markdown Noise",
         "Reading Ruler",
+        "Highlights the current line while you write.",
         "Typewriter Mode",
+        "Keeps the current line centered as you write.",
         "Reset to Default",
     ]
     static let resetTopSpacing: CGFloat = 20
@@ -30,8 +30,11 @@ struct ReadingExperienceInspector: View {
     static let unselectedPresetOpacity = 1.0
     static let unselectedPresetContentOpacity: Double = 1
     static let themeToFontSpacing: CGFloat = 10
-    static let usesReadingAidsSectionLabel = true
+    static let usesReadingAidsSectionLabel = false
     static let sectionLabelFontSize: CGFloat = 13
+    static let readingRulerDescription = "Highlights the current line while you write."
+    static let typewriterModeDescription = "Keeps the current line centered as you write."
+    static let aidToggleCheckboxesAlignTrailing = true
     static let usesNativeUIFontOutsideThemePreviews = true
     static let usesMonospacedInspectorValueFont = false
     static let usesNativeControlHoverOnly = true
@@ -97,15 +100,17 @@ struct ReadingExperienceInspector: View {
                     range: 460...900
                 )
 
-                if Self.usesReadingAidsSectionLabel {
-                    InspectorSectionLabel("Reading Aids")
-                }
+                InspectorToggleRow(
+                    title: "Reading Ruler",
+                    subtitle: Self.readingRulerDescription,
+                    isOn: boolBinding(\.readingRulerEnabled)
+                )
 
-                InspectorToggleRow(title: "Reduce Markdown Noise", isOn: boolBinding(\.reduceMarkdownNoise))
-
-                InspectorToggleRow(title: "Reading Ruler", isOn: boolBinding(\.readingRulerEnabled))
-
-                InspectorToggleRow(title: "Typewriter Mode", isOn: boolBinding(\.typewriterModeEnabled))
+                InspectorToggleRow(
+                    title: "Typewriter Mode",
+                    subtitle: Self.typewriterModeDescription,
+                    isOn: boolBinding(\.typewriterModeEnabled)
+                )
 
                 VStack(alignment: .leading, spacing: 12) {
                     InspectorControlRow {
@@ -403,12 +408,40 @@ private struct InspectorSliderRow: View {
 
 private struct InspectorToggleRow: View {
     var title: String
+    var subtitle: String?
     @Binding var isOn: Bool
+
+    init(title: String, subtitle: String? = nil, isOn: Binding<Bool>) {
+        self.title = title
+        self.subtitle = subtitle
+        self._isOn = isOn
+    }
 
     var body: some View {
         InspectorControlRow {
-            Toggle(title, isOn: $isOn)
-                .font(ReadingExperienceInspector.inspectorUIFont())
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(ReadingExperienceInspector.inspectorUIFont())
+                        .foregroundStyle(.primary)
+
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(ReadingExperienceInspector.inspectorUIFont(
+                                size: ReadingExperienceInspector.controlQualifierFontSize,
+                                weight: .regular
+                            ))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 12)
+
+                Toggle(title, isOn: $isOn)
+                    .labelsHidden()
+                    .accessibilityLabel(title)
+                    .accessibilityValue(isOn ? "On" : "Off")
+            }
         }
     }
 }

@@ -78,7 +78,7 @@ final class ThemeTests: XCTestCase {
     }
 
     @MainActor
-    func testMarkdownMarkersMaintainTextContrastWhenNoiseIsReduced() throws {
+    func testMarkdownMarkersMaintainTextContrastWhenLegacyNoiseSettingIsEnabled() throws {
         for preset in ReadingPreset.builtIn {
             let textView = LineformTextView()
             textView.string = "# Title"

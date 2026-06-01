@@ -23,7 +23,7 @@ Core product principles:
 - Markdown outline navigation from document headings.
 - Markdown formatting commands for common writing actions.
 - Markdown syntax highlighting and range analysis.
-- Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, themes, and Markdown noise reduction.
+- Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Apple Intelligence-backed selected-text editing when available.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.

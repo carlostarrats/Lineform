@@ -520,25 +520,26 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(caretRect.height, baseRect.height)
     }
 
-    func testReduceMarkdownNoiseChangesMarkdownMarkerStyling() throws {
+    func testLegacyReduceMarkdownNoiseSettingDoesNotChangeMarkdownMarkerStyling() throws {
         let textView = LineformTextView()
         textView.string = "# Title"
 
         var normalProfile = ReadingProfile.original
         normalProfile.reduceMarkdownNoise = false
         textView.applyTypography(normalProfile)
+        textView.refreshMarkdownHighlighting()
         let normalColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
 
         var quieterProfile = normalProfile
         quieterProfile.reduceMarkdownNoise = true
         textView.applyTypography(quieterProfile)
+        textView.refreshMarkdownHighlighting()
         let quieterColor = try XCTUnwrap(textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
 
-        XCTAssertNotEqual(normalColor, quieterColor)
-        XCTAssertFalse(colorsHaveSameRGB(normalColor, quieterColor))
+        assertSameRGB(normalColor, quieterColor)
     }
 
-    func testQuietMarkdownNoiseUsesDarkMarkerContrastColorInsteadOfSystemBlack() throws {
+    func testMarkdownMarkersUseThemeContrastColorInsteadOfSystemBlackWhenLegacyNoiseSettingIsEnabled() throws {
         let textView = LineformTextView()
         textView.string = "# Title"
 
