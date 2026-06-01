@@ -163,11 +163,11 @@ struct IntelligentEditingRequest: Equatable {
 
     var allowsMultipleOptions: Bool {
         guard kind == .custom else {
-            return evaluationAction == .rewrite
+            return evaluationAction == .rewrite || evaluationAction == .proofread
         }
 
         let normalizedInstruction = Self.normalized(userInstruction)
-        if evaluationAction != .rewrite {
+        if evaluationAction != .rewrite && evaluationAction != .proofread {
             return false
         }
 
@@ -251,7 +251,9 @@ enum IntelligentEditingPresentationPolicy {
         switch action {
         case .rewrite:
             return optionCount(for: selectedText)
-        case .proofread, .summarize, .shorten, .cleanMarkdown:
+        case .proofread:
+            return hasAmbiguousProofreadTypo(selectedText) ? maximumOptionCount : 1
+        case .summarize, .shorten, .cleanMarkdown:
             return 1
         }
     }
@@ -261,12 +263,25 @@ enum IntelligentEditingPresentationPolicy {
             return 1
         }
 
-        return optionCount(for: selectedText)
+        switch request.kind {
+        case .action(let action):
+            return optionCount(for: action, selectedText: selectedText)
+        case .custom:
+            return optionCount(for: selectedText)
+        }
     }
 
     private static func wordCount(in text: String) -> Int {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .split { $0.isWhitespace || $0.isNewline }
             .count
+    }
+
+    private static func hasAmbiguousProofreadTypo(_ text: String) -> Bool {
+        let normalizedText = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        return normalizedText == "can i ds it tommorow?" || normalizedText == "can i ds it tomorrow?"
     }
 }

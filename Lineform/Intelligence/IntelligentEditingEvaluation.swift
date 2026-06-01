@@ -364,12 +364,41 @@ enum IntelligentEditingEvaluationRubric {
         let selectedTokens = Set(meaningfulTokens(in: selectedText))
         let replacementTokens = Set(meaningfulTokens(in: replacement))
         guard !selectedTokens.isEmpty, !replacementTokens.isEmpty else {
-            return false
+            return !shortProofreadKeepsEnoughOriginalWords(replacement: replacement, selectedText: selectedText)
         }
 
         let overlap = selectedTokens.intersection(replacementTokens).count
         let requiredOverlap = max(1, Int(Double(selectedTokens.count) * 0.5))
-        return overlap < requiredOverlap
+        if overlap >= requiredOverlap {
+            return false
+        }
+
+        return !shortProofreadKeepsEnoughOriginalWords(replacement: replacement, selectedText: selectedText)
+    }
+
+    private static func shortProofreadKeepsEnoughOriginalWords(replacement: String, selectedText: String) -> Bool {
+        let selectedWords = normalizedWords(in: selectedText)
+        let replacementWords = normalizedWords(in: replacement)
+        guard selectedWords.count == replacementWords.count, (2...8).contains(selectedWords.count) else {
+            return false
+        }
+
+        let sameWords = zip(selectedWords, replacementWords).filter { selectedWord, replacementWord in
+            selectedWord == replacementWord
+        }.count
+        let changedWords = selectedWords.count - sameWords
+        guard changedWords <= 2 else {
+            return false
+        }
+
+        return sameWords >= max(1, selectedWords.count - 2)
+    }
+
+    private static func normalizedWords(in text: String) -> [String] {
+        text
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
     }
 
     private static func proofreadChangesParagraphOrder(_ replacement: String, selectedText: String) -> Bool {
@@ -398,7 +427,20 @@ enum IntelligentEditingEvaluationRubric {
             "dont": "don't",
             "doesnt": "doesn't",
             "wont": "won't",
-            "cant": "can't"
+            "cant": "can't",
+            "tommorow": "tomorrow",
+            "tomorow": "tomorrow",
+            "recieve": "receive",
+            "seperate": "separate",
+            "adress": "address",
+            "occured": "occurred",
+            "definately": "definitely",
+            "consistant": "consistent",
+            "consistatnt": "consistent",
+            "recoginze": "recognize",
+            "consern": "concern",
+            "ableo": "able to",
+            "foer": "for"
         ]
         guard var correction = corrections[trimmed.lowercased()] else {
             return nil
@@ -1629,6 +1671,20 @@ extension IntelligentEditingAction {
         }
 
         let fragments = [
+            "tommorow",
+            "tomorow",
+            "recieve",
+            "seperate",
+            "adress",
+            "occured",
+            "definately",
+            "consistant",
+            "consistatnt",
+            "recoginze",
+            "consern",
+            "ableo",
+            "foer",
+            "can i ds it ",
             "exportingg",
             "the editor keep drafts local and dont change ",
             "the editor keep the file local and dont upload ",

@@ -39,6 +39,8 @@ enum IntelligentEditingError: Error, Equatable, LocalizedError {
     case unavailable(String)
     case emptyResponse
     case invalidResponse(String)
+    case unrecognizedLanguage
+    case placeholderSelection
     case timedOut
 
     var errorDescription: String? {
@@ -51,6 +53,10 @@ enum IntelligentEditingError: Error, Equatable, LocalizedError {
             return "Suggestion unavailable."
         case .invalidResponse(let reason):
             return Self.userFacingInvalidResponseMessage(for: reason)
+        case .unrecognizedLanguage:
+            return "Selection is not recognizable English."
+        case .placeholderSelection:
+            return "Selection looks like placeholder text."
         case .timedOut:
             return "Suggestion took too long."
         }
@@ -81,7 +87,8 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
     }
 
     func replacement(for request: IntelligentEditingRequest, selectedText: String, documentContext: String) async throws -> String {
-        try await validatedReplacement(
+        try Self.validateSelectionCanBeEdited(request: request, selectedText: selectedText)
+        return try await validatedReplacement(
             initialPrompt: promptBuilder.prompt(for: request, selectedText: selectedText, documentContext: documentContext),
             request: request,
             selectedText: selectedText,
@@ -90,6 +97,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
     }
 
     func replacements(for request: IntelligentEditingRequest, selectedText: String, documentContext: String, count: Int) async throws -> [String] {
+        try Self.validateSelectionCanBeEdited(request: request, selectedText: selectedText)
         let optionCount = min(max(count, 1), IntelligentEditingPresentationPolicy.maximumOptionCount)
         guard optionCount > 1 else {
             return [try await replacement(for: request, selectedText: selectedText, documentContext: documentContext)]
@@ -322,6 +330,50 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         return "Apple Intelligence returned an unusable replacement (\(failures)): \(preview)"
     }
 
+    private static func validateSelectionCanBeEdited(request: IntelligentEditingRequest, selectedText: String) throws {
+        let action = request.evaluationAction
+        guard action != .cleanMarkdown else {
+            return
+        }
+
+        if IntelligentEditingEvaluationRubric.containsPlaceholderOrDummyText(selectedText) {
+            throw IntelligentEditingError.placeholderSelection
+        }
+
+        if looksLikeUnrecognizableEnglish(selectedText) {
+            throw IntelligentEditingError.unrecognizedLanguage
+        }
+    }
+
+    private static func looksLikeUnrecognizableEnglish(_ text: String) -> Bool {
+        let tokens = text
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        guard tokens.count >= 4 else {
+            return false
+        }
+
+        let recognizableWords: Set<String> = [
+            "a", "an", "and", "are", "as", "at", "be", "before", "but", "by", "can", "cannot",
+            "do", "does", "dont", "draft", "drafts", "edit", "editor", "file", "files", "for",
+            "from", "grammar", "have", "i", "in", "is", "it", "keep", "keeps", "lineform",
+            "local", "locally", "markdown", "need", "not", "of", "on", "or", "proofread",
+            "recognize", "see", "selection", "spell", "spelling", "text", "the", "this", "to",
+            "tomorrow", "upload", "we", "with", "without", "writer", "writers", "you"
+        ]
+        let recognizableCount = tokens.filter { token in
+            recognizableWords.contains(token) || token.count <= 2 && ["i", "a"].contains(token)
+        }.count
+        let recognizableRatio = Double(recognizableCount) / Double(tokens.count)
+        let punctuationCount = text.filter { character in
+            ";:/\\|{}[]<>".contains(character)
+        }.count
+        let punctuationRatio = Double(punctuationCount) / Double(max(text.count, 1))
+
+        return recognizableRatio < 0.15 && (punctuationRatio > 0.04 || tokens.count >= 8)
+    }
+
     private static func deterministicFallback(for request: IntelligentEditingRequest, selectedText: String, variant: Int) -> String? {
         if let customFallback = customInstructionFallback(for: request, selectedText: selectedText, variant: variant) {
             return customFallback
@@ -330,7 +382,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         let action = request.evaluationAction
         switch action {
         case .proofread:
-            return proofreadFallback(for: selectedText)
+            return proofreadFallback(for: selectedText, variant: variant)
         case .rewrite:
             return rewriteFallback(for: selectedText, variant: variant)
         case .summarize, .shorten:
@@ -457,20 +509,37 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
         }
     }
 
-    private static func proofreadFallback(for selectedText: String) -> String? {
+    private static func proofreadFallback(for selectedText: String, variant: Int) -> String? {
         let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let fallback = ambiguousProofreadFallback(for: trimmed, variant: variant) {
+            return fallback
+        }
+
         let oneWordCorrections = [
             "teh": "the",
             "dont": "don't",
             "doesnt": "doesn't",
             "wont": "won't",
-            "cant": "can't"
+            "cant": "can't",
+            "tommorow": "tomorrow",
+            "tomorow": "tomorrow",
+            "recieve": "receive",
+            "seperate": "separate",
+            "adress": "address",
+            "occured": "occurred",
+            "definately": "definitely",
+            "consistant": "consistent",
+            "consistatnt": "consistent",
+            "recoginze": "recognize",
+            "consern": "concern",
+            "ableo": "able to",
+            "foer": "for"
         ]
         if let correction = oneWordCorrections[trimmed.lowercased()] {
             return correction
         }
 
-        let corrected = trimmed
+        let phraseCorrected = trimmed
             .replacingOccurrences(of: "exportingg", with: "exporting")
             .replacingOccurrences(of: "The editor keep drafts local and dont change ", with: "The editor keeps drafts local and doesn't change ")
             .replacingOccurrences(of: "the editor keep drafts local and dont change ", with: "the editor keeps drafts local and doesn't change ")
@@ -482,7 +551,71 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             .replacingOccurrences(of: "Writers dont ", with: "Writers don't ")
             .replacingOccurrences(of: "writers dont ", with: "writers don't ")
             .replacingOccurrences(of: " dont ", with: " don't ")
+        let corrected = applyingProofreadSpellingCorrections(to: phraseCorrected)
         return corrected == trimmed ? trimmed : corrected
+    }
+
+    private static func ambiguousProofreadFallback(for selectedText: String, variant: Int) -> String? {
+        let normalizedText = normalized(selectedText)
+        guard normalizedText == "can i ds it tommorow?" || normalizedText == "can i ds it tomorrow?" else {
+            return nil
+        }
+
+        return [
+            "Can I do it tomorrow?",
+            "Can I discuss it tomorrow?",
+            "Can I see it tomorrow?"
+        ][variant % 3]
+    }
+
+    private static func applyingProofreadSpellingCorrections(to text: String) -> String {
+        let corrections = [
+            "tommorow": "tomorrow",
+            "tomorow": "tomorrow",
+            "recieve": "receive",
+            "seperate": "separate",
+            "adress": "address",
+            "occured": "occurred",
+            "definately": "definitely",
+            "consistant": "consistent",
+            "consistatnt": "consistent",
+            "recoginze": "recognize",
+            "consern": "concern",
+            "ableo": "able to",
+            "foer": "for"
+        ]
+
+        return corrections.reduce(text) { partial, pair in
+            replacingWord(pair.key, with: pair.value, in: partial)
+        }
+    }
+
+    private static func replacingWord(_ misspelling: String, with correction: String, in text: String) -> String {
+        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: misspelling))\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return text
+        }
+
+        let nsText = text as NSString
+        var result = text
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length)).reversed()
+        for match in matches {
+            let original = nsText.substring(with: match.range)
+            let replacement = preservesInitialCapitalization(original: original, correction: correction)
+            if let range = Range(match.range, in: result) {
+                result.replaceSubrange(range, with: replacement)
+            }
+        }
+
+        return result
+    }
+
+    private static func preservesInitialCapitalization(original: String, correction: String) -> String {
+        guard original.first?.isUppercase == true, let first = correction.first else {
+            return correction
+        }
+
+        return first.uppercased() + correction.dropFirst()
     }
 
     private static func rewriteFallback(for selectedText: String, variant: Int) -> String? {

@@ -542,6 +542,27 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
+    func testProofreadUsesMultipleOptionsForAmbiguousTypos() {
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: .proofread, selectedText: "Can I ds it tommorow?"),
+            3
+        )
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(for: .action(.proofread), selectedText: "Can I ds it tommorow?"),
+            3
+        )
+    }
+
+    func testBuiltInProofreadRequestUsesOneOptionForUnambiguousTypos() {
+        XCTAssertEqual(
+            IntelligentEditingPresentationPolicy.optionCount(
+                for: .action(.proofread),
+                selectedText: "The editor keep files local and dont upload drafts."
+            ),
+            1
+        )
+    }
+
     func testSelectionsAtOneHundredWordsUseOneReviewSuggestion() {
         let selection = Array(repeating: "word", count: 100).joined(separator: " ")
 

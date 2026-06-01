@@ -136,6 +136,88 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         """)
     }
 
+    func testFoundationModelsServiceProducesProofreadFallbackForCommonMisspellings() async throws {
+        let selectedText = "Can I ds it tommorow?"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: ""
+        )
+
+        XCTAssertEqual(replacement, "Can I do it tomorrow?")
+    }
+
+    func testFoundationModelsServiceProducesProofreadAlternativesForAmbiguousTypos() async throws {
+        let selectedText = "Can I ds it tommorow?"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 24)
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .proofread,
+            selectedText: selectedText,
+            documentContext: "",
+            count: 3
+        )
+
+        XCTAssertEqual(replacements, [
+            "Can I do it tomorrow?",
+            "Can I discuss it tomorrow?",
+            "Can I see it tomorrow?"
+        ])
+    }
+
+    func testFoundationModelsServiceRejectsUnrecognizableProofreadSelectionBeforeShowingNoOp() async throws {
+        let selectedText = """
+        slkj sl;jf sl;jf s;afjs
+        fsjfslfjsk jflsdjflkjsd fjslf j
+        sfsadkfjsfjsdjf;jlsdjfjsfklj sfljdsl;fjlas
+        jfksjfljs ;fd j
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        do {
+            _ = try await service.replacement(
+                for: .proofread,
+                selectedText: selectedText,
+                documentContext: ""
+            )
+            XCTFail("Expected unrecognizable text to fail before showing an unchanged suggestion.")
+        } catch IntelligentEditingError.unrecognizedLanguage {
+        }
+    }
+
+    func testRequestCoordinatorExplainsUnrecognizableProofreadSelection() async throws {
+        let selectedText = "slkj sl;jf sl;jf s;afjs"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            action: .proofread,
+            documentText: selectedText,
+            currentDocumentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        XCTAssertEqual(result, .failed("Selection is not recognizable English."))
+    }
+
     func testFoundationModelsServiceProducesListItemFallbackForSelectedMarkdownListRewrite() async throws {
         let selectedText = "- Real Markdown files that remain portable across Finder, iCloud Drive, Git, and other editors."
         let service = FoundationModelsIntelligentEditingService(
