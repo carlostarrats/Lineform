@@ -36,6 +36,6 @@ struct LineformApp: App {
 }
 
 enum LineformWindowDefaults {
-    static let defaultWidth: CGFloat = 1_120
+    static let defaultWidth: CGFloat = 1_360
     static let defaultHeight: CGFloat = 840
 }
