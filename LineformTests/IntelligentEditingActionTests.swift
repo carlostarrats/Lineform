@@ -570,13 +570,19 @@ final class IntelligentEditingActionTests: XCTestCase {
             IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: true)
                 .usingColorSpace(.sRGB)
         )
-        let lightSurface = IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: false)
+        let lightSurface = try XCTUnwrap(
+            IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: false)
+                .usingColorSpace(.sRGB)
+        )
 
         XCTAssertEqual(darkSurface.redComponent, 0x24 / 255.0, accuracy: 0.005)
         XCTAssertEqual(darkSurface.greenComponent, 0x24 / 255.0, accuracy: 0.005)
         XCTAssertEqual(darkSurface.blueComponent, 0x24 / 255.0, accuracy: 0.005)
         XCTAssertEqual(darkSurface.alphaComponent, 1, accuracy: 0.005)
-        XCTAssertEqual(lightSurface, NSColor.controlBackgroundColor)
+        XCTAssertEqual(lightSurface.redComponent, 0xF2 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(lightSurface.greenComponent, 0xF3 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(lightSurface.blueComponent, 0xF4 / 255.0, accuracy: 0.005)
+        XCTAssertEqual(lightSurface.alphaComponent, 1, accuracy: 0.005)
     }
 
     func testIntelligenceSkeletonMetricsRemainStableForLoadingSurfaces() {

@@ -85,6 +85,9 @@
 		1F0000010000000000000120 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000120 /* Fonts */; };
 		1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000121 /* BundledFontRegistrar.swift */; };
 		1F0000010000000000000131 /* FirstLaunchIntro in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000131 /* FirstLaunchIntro */; };
+		1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000140 /* EditorSearchResolver.swift */; };
+		1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000141 /* EditorStatusPresentation.swift */; };
+		1F0000010000000000000142 /* EditorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000142 /* EditorPresentation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -179,6 +182,9 @@
 		1F0000020000000000000113 /* AppStoreMetadata.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AppStoreMetadata.md; sourceTree = "<group>"; };
 		1F0000020000000000000114 /* AccessibilityNutritionLabel.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AccessibilityNutritionLabel.md; sourceTree = "<group>"; };
 		1F0000020000000000000115 /* ReleaseReadiness.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ReleaseReadiness.md; sourceTree = "<group>"; };
+		1F0000020000000000000140 /* EditorSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSearchResolver.swift; sourceTree = "<group>"; };
+		1F0000020000000000000141 /* EditorStatusPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorStatusPresentation.swift; sourceTree = "<group>"; };
+		1F0000020000000000000142 /* EditorPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPresentation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -249,6 +255,9 @@
 			children = (
 				1F0000020000000000000014 /* EditorContainerView.swift */,
 				1F0000020000000000000074 /* EditorDisplayMode.swift */,
+				1F0000020000000000000142 /* EditorPresentation.swift */,
+				1F0000020000000000000140 /* EditorSearchResolver.swift */,
+				1F0000020000000000000141 /* EditorStatusPresentation.swift */,
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
 				1F0000020000000000000016 /* LineformTextView.swift */,
 				1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */,
@@ -507,6 +516,9 @@
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
+				1F0000010000000000000142 /* EditorPresentation.swift in Sources */,
+				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
+				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
 				1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */,
 				1F0000010000000000000095 /* IntelligentEditingAction.swift in Sources */,
