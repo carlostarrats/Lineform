@@ -3,6 +3,8 @@ import AppKit
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = "Start writing..."
     static let readingRulerFillOpacity: CGFloat = 0.12
+    static let lightSelectionBackgroundAlpha: CGFloat = 0.34
+    static let darkSelectionBackgroundAlpha: CGFloat = 0.56
     private static let maximumHorizontalInsetAnimationSpeed: CGFloat = 220
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
@@ -113,10 +115,19 @@ final class LineformTextView: NSTextView {
         backgroundColor = theme.backgroundColor
         drawsBackground = true
         insertionPointColor = theme.caretColor
+        selectedTextAttributes = Self.selectedTextAttributes(usesDarkChrome: theme.usesDarkChrome)
         updateTextContainerLayout(for: profile)
         typingAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         refreshMarkdownHighlighting()
         refreshReadingAssists()
+    }
+
+    static func selectedTextAttributes(usesDarkChrome: Bool) -> [NSAttributedString.Key: Any] {
+        [
+            .backgroundColor: NSColor.controlAccentColor.withAlphaComponent(
+                usesDarkChrome ? darkSelectionBackgroundAlpha : lightSelectionBackgroundAlpha
+            )
+        ]
     }
 
     func refreshMarkdownHighlighting() {
@@ -902,6 +913,9 @@ final class LineformTextView: NSTextView {
             pendingDeferredVisualLayoutAnchor = nil
             hasScheduledDeferredVisualLayoutAnchorRestore = false
             restoreVisualLayoutAnchor(pendingAnchor)
+            DispatchQueue.main.async { [weak self] in
+                self?.restoreVisualLayoutAnchor(pendingAnchor)
+            }
         }
     }
 
@@ -925,6 +939,9 @@ final class LineformTextView: NSTextView {
             pendingDeferredVerticalScrollOrigin = nil
             hasScheduledDeferredVerticalScrollOriginRestore = false
             restoreVerticalScrollOrigin(pendingScrollOrigin)
+            DispatchQueue.main.async { [weak self] in
+                self?.restoreVerticalScrollOrigin(pendingScrollOrigin)
+            }
         }
     }
 

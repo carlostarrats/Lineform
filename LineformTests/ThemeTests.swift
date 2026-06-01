@@ -53,6 +53,19 @@ final class ThemeTests: XCTestCase {
         XCTAssertTrue(Theme.theme(for: .night).usesDarkChrome)
     }
 
+    @MainActor
+    func testEditorSelectionHighlightFollowsReaderTheme() throws {
+        let lightBackground = try XCTUnwrap(
+            LineformTextView.selectedTextAttributes(usesDarkChrome: false)[.backgroundColor] as? NSColor
+        ).usingColorSpace(.sRGB)
+        let darkBackground = try XCTUnwrap(
+            LineformTextView.selectedTextAttributes(usesDarkChrome: true)[.backgroundColor] as? NSColor
+        ).usingColorSpace(.sRGB)
+
+        XCTAssertEqual(lightBackground?.alphaComponent ?? -1, LineformTextView.lightSelectionBackgroundAlpha, accuracy: 0.005)
+        XCTAssertEqual(darkBackground?.alphaComponent ?? -1, LineformTextView.darkSelectionBackgroundAlpha, accuracy: 0.005)
+    }
+
     func testCodeAccentBlueMaintainsTextContrastAcrossReaderThemes() {
         for theme in Theme.readerThemes {
             let contrast = Self.contrastRatio(

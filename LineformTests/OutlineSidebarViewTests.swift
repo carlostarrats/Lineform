@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Lineform
 
@@ -33,6 +34,9 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files"])
         XCTAssertTrue(OutlineSidebarView.tabsFillAvailableWidth)
         XCTAssertTrue(OutlineSidebarView.tabsUseNativeEqualWidthSegments)
+        XCTAssertTrue(OutlineSidebarView.tabsUseExplicitThemeAppearance)
+        XCTAssertEqual(OutlineSidebarView.tabAppearanceName(usesDarkChrome: false), .aqua)
+        XCTAssertEqual(OutlineSidebarView.tabAppearanceName(usesDarkChrome: true), .darkAqua)
     }
 
     @MainActor

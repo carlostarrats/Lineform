@@ -470,26 +470,28 @@ struct WindowChromeReader: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
-        DispatchQueue.main.async {
+        Task { @MainActor in
             applyChrome(to: view.window)
         }
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             applyChrome(to: nsView.window)
         }
     }
 
     static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
         nsView.window?.appearance = nil
+        nsView.window?.contentView?.appearance = nil
     }
 
+    @MainActor
     private func applyChrome(to window: NSWindow?) {
         windowNumber = window?.windowNumber
         window?.animationBehavior = .none
-        window?.appearance = EditorWindowChrome.appearance(usesDarkChrome: usesDarkChrome)
+        EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome)
     }
 }
 
@@ -500,5 +502,12 @@ struct EditorWindowChrome {
 
     static func appearance(usesDarkChrome: Bool) -> NSAppearance? {
         NSAppearance(named: appearanceName(usesDarkChrome: usesDarkChrome))
+    }
+
+    @MainActor
+    static func apply(to window: NSWindow?, usesDarkChrome: Bool) {
+        let resolvedAppearance = appearance(usesDarkChrome: usesDarkChrome)
+        window?.appearance = resolvedAppearance
+        window?.contentView?.appearance = resolvedAppearance
     }
 }

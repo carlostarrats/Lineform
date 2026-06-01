@@ -18,6 +18,16 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertGreaterThan(headingFont.pointSize, bodyFont.pointSize)
     }
 
+    func testHeadingLevelsUseDistinctVisualHierarchy() throws {
+        let rendered = MarkdownPreviewRenderer().render("# Top\n## Section\nBody", profile: .original)
+        let h1Font = try XCTUnwrap(rendered.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+        let h2Font = try XCTUnwrap(rendered.attribute(.font, at: 4, effectiveRange: nil) as? NSFont)
+        let bodyFont = try XCTUnwrap(rendered.attribute(.font, at: rendered.length - 1, effectiveRange: nil) as? NSFont)
+
+        XCTAssertGreaterThanOrEqual(h1Font.pointSize - h2Font.pointSize, 7)
+        XCTAssertGreaterThanOrEqual(h2Font.pointSize - bodyFont.pointSize, 2)
+    }
+
     func testRendererUsesReadingProfileColors() throws {
         let profile = ReadingPreset.lowLight.profile
         let rendered = MarkdownPreviewRenderer().render("Body", profile: profile)
@@ -30,6 +40,12 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         let rendered = MarkdownPreviewRenderer().render("# Real\n```\n# Not a heading\n```", profile: .original)
 
         XCTAssertEqual(rendered.string, "Real\n```\n# Not a heading\n```")
+    }
+
+    func testPreviewUsesSharedHeadingRules() {
+        let rendered = MarkdownPreviewRenderer().render("### Detail ###\n####### Not a heading", profile: .original)
+
+        XCTAssertEqual(rendered.string, "Detail\n####### Not a heading")
     }
 
     func testReadModeHidesCommonInlineMarkdownMarkers() {

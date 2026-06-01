@@ -1,9 +1,23 @@
 import AppKit
 
 struct MarkdownPreviewRenderer {
+    private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
+    private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
+    private static let codeRegex = try! NSRegularExpression(pattern: #"`([^`\n]+)`"#)
+    private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
+    private static let headingSizeBoosts: [Int: CGFloat] = [
+        1: 11,
+        2: 3,
+        3: 2,
+        4: 1,
+        5: 0,
+        6: 0
+    ]
+
     func render(_ text: String, profile: ReadingProfile) -> NSAttributedString {
         let output = NSMutableAttributedString(string: "")
         let bodyAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        let codeAttributes = codeAttributes(profile: profile)
         var inFence = false
         let lines = text.components(separatedBy: "\n")
 
@@ -11,9 +25,9 @@ struct MarkdownPreviewRenderer {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 inFence.toggle()
-                output.append(NSAttributedString(string: line, attributes: codeAttributes(profile: profile)))
+                output.append(NSAttributedString(string: line, attributes: codeAttributes))
             } else if inFence {
-                output.append(NSAttributedString(string: line, attributes: codeAttributes(profile: profile)))
+                output.append(NSAttributedString(string: line, attributes: codeAttributes))
             } else if let heading = heading(in: line) {
                 output.append(NSAttributedString(string: heading.title, attributes: headingAttributes(level: heading.level, profile: profile)))
             } else {
@@ -29,13 +43,13 @@ struct MarkdownPreviewRenderer {
     }
 
     private func heading(in line: String) -> (level: Int, title: String)? {
-        MarkdownOutlineParser().items(in: line).first.map { ($0.level, $0.title) }
+        MarkdownHeadingParser.heading(in: line)
     }
 
     private func headingAttributes(level: Int, profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
         let bodyFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
-        let sizeBoost = CGFloat(max(1, 7 - level)) * 1.6
+        let sizeBoost = Self.headingSizeBoosts[level] ?? 0
         let headingFont = NSFontManager.shared.convert(bodyFont, toHaveTrait: .boldFontMask)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineHeightMultiple = CGFloat(profile.lineHeightMultiple)
@@ -61,7 +75,7 @@ struct MarkdownPreviewRenderer {
         var location = 0
 
         while location < nsLine.length {
-            if let token = nextInlineToken(in: line, from: location) {
+            if let token = nextInlineToken(in: line, nsLine: nsLine, from: location) {
                 if token.range.location > location {
                     output.append(NSAttributedString(
                         string: nsLine.substring(with: NSRange(location: location, length: token.range.location - location)),
@@ -82,23 +96,40 @@ struct MarkdownPreviewRenderer {
         return output
     }
 
-    private func nextInlineToken(in line: String, from location: Int) -> InlineToken? {
-        let candidates = [
-            inlineToken(pattern: #"\*\*([^*\n]+)\*\*"#, kind: .bold, in: line, from: location),
-            inlineToken(pattern: #"_([^_\n]+)_"#, kind: .italic, in: line, from: location),
-            inlineToken(pattern: #"`([^`\n]+)`"#, kind: .code, in: line, from: location),
-            inlineToken(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#, kind: .link, in: line, from: location)
-        ].compactMap { $0 }
+    private func nextInlineToken(in line: String, nsLine: NSString, from location: Int) -> InlineToken? {
+        var earliest: InlineToken?
 
-        return candidates.min { $0.range.location < $1.range.location }
+        consider(
+            inlineToken(regex: Self.boldRegex, kind: .bold, in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
+            inlineToken(regex: Self.italicRegex, kind: .italic, in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
+            inlineToken(regex: Self.codeRegex, kind: .code, in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
+            inlineToken(regex: Self.linkRegex, kind: .link, in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+
+        return earliest
     }
 
-    private func inlineToken(pattern: String, kind: InlineToken.Kind, in line: String, from location: Int) -> InlineToken? {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return nil
+    private func consider(_ candidate: InlineToken?, earliest: inout InlineToken?) {
+        guard let candidate else { return }
+
+        if let current = earliest, current.range.location <= candidate.range.location {
+            return
         }
 
-        let nsLine = line as NSString
+        earliest = candidate
+    }
+
+    private func inlineToken(regex: NSRegularExpression, kind: InlineToken.Kind, in line: String, nsLine: NSString, from location: Int) -> InlineToken? {
         let searchRange = NSRange(location: location, length: nsLine.length - location)
         guard let match = regex.firstMatch(in: line, range: searchRange) else {
             return nil

@@ -14,6 +14,22 @@ final class LargeDocumentPerformanceTests: XCTestCase {
         XCTAssertEqual(outlineItems.count, 20)
     }
 
+    func testLargePreviewRenderingPreservesExpectedMarkdownOutput() {
+        let text = (1...1_200)
+            .map { index in
+                index.isMultiple(of: 40)
+                    ? "## Section \(index) ##"
+                    : "Paragraph with **bold**, _emphasis_, `code`, and [link](https://example.com) \(index)."
+            }
+            .joined(separator: "\n")
+
+        let rendered = MarkdownPreviewRenderer().render(text, profile: .original)
+
+        XCTAssertTrue(rendered.string.contains("Section 40"))
+        XCTAssertFalse(rendered.string.contains("## Section 40 ##"))
+        XCTAssertTrue(rendered.string.contains("Paragraph with bold, emphasis, code, and link 1199."))
+    }
+
     @MainActor
     func testLargeDocumentHighlightingPreservesSourceText() {
         let text = (1...700)

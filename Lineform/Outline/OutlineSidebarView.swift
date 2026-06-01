@@ -49,6 +49,7 @@ struct OutlineSidebarView: View {
     static let tabTitles = OutlineSidebarTab.allCases.map(\.rawValue)
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
+    static let tabsUseExplicitThemeAppearance = true
     static let fileRootTitles = ["iCloud", "Workspace"]
     static let chooseWorkspaceButtonTitle = "Choose"
     static let replaceWorkspaceButtonTitle = "Replace"
@@ -217,6 +218,10 @@ struct OutlineSidebarView: View {
         ))
     }
 
+    static func tabAppearanceName(usesDarkChrome: Bool) -> NSAppearance.Name {
+        usesDarkChrome ? .darkAqua : .aqua
+    }
+
     fileprivate static func primaryTextColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome ? darkPrimaryTextWhiteComponent : primaryTextWhiteComponent,
@@ -344,6 +349,7 @@ private struct OutlineSidebarRow: View {
 }
 
 private struct OutlineSidebarSegmentedControl: NSViewRepresentable {
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var selection: OutlineSidebarTab
 
     func makeNSView(context: Context) -> NSSegmentedControl {
@@ -353,14 +359,17 @@ private struct OutlineSidebarSegmentedControl: NSViewRepresentable {
         control.setContentHuggingPriority(.defaultLow, for: .horizontal)
         control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         control.selectedSegment = selectedSegmentIndex
+        control.appearance = appearance
         return control
     }
 
     func updateNSView(_ nsView: NSSegmentedControl, context: Context) {
         nsView.selectedSegment = selectedSegmentIndex
+        nsView.appearance = appearance
         nsView.segmentDistribution = .fillEqually
         nsView.setWidth(0, forSegment: 0)
         nsView.setWidth(0, forSegment: 1)
+        nsView.needsDisplay = true
     }
 
     func makeCoordinator() -> Coordinator {
@@ -369,6 +378,10 @@ private struct OutlineSidebarSegmentedControl: NSViewRepresentable {
 
     private var selectedSegmentIndex: Int {
         OutlineSidebarTab.allCases.firstIndex(of: selection) ?? 0
+    }
+
+    private var appearance: NSAppearance? {
+        NSAppearance(named: OutlineSidebarView.tabAppearanceName(usesDarkChrome: colorScheme == .dark))
     }
 
     final class Coordinator: NSObject {

@@ -332,11 +332,22 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
-    func testEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens() throws {
+    func testZEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens() throws {
         let harness = try makeEditorDrawerHarness()
         let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
         let trackedRange = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
         let scrollView = try XCTUnwrap(textView.enclosingScrollView)
+        var didOpenOutline = false
+        defer {
+            if didOpenOutline {
+                LineformAppNotification.toggleOutline.post(
+                    object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+                )
+                runMainLoop(for: 0.45)
+            }
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
         let trackedYBefore = try trackedCharacterY(
             NSRange(location: trackedRange.location, length: 1),
             in: textView,
@@ -349,6 +360,7 @@ final class EditorDisplayModeTests: XCTestCase {
         LineformAppNotification.toggleOutline.post(
             object: LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
         )
+        didOpenOutline = true
         let maximumAnimatedDelta = try maximumTrackedYDelta(
             NSRange(location: trackedRange.location, length: 1),
             in: textView,
@@ -380,6 +392,10 @@ final class EditorDisplayModeTests: XCTestCase {
     @MainActor
     func testEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens() throws {
         let harness = try makeEditorDrawerHarness()
+        defer {
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
         let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
         let trackedRange = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
         let scrollView = try XCTUnwrap(textView.enclosingScrollView)
@@ -424,7 +440,7 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
-    func testScrolledEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens() throws {
+    func testZScrolledEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens() throws {
         try assertScrolledEditorVisibleTextDoesNotJumpVerticallyWhenDrawerOpens(.outline)
     }
 
@@ -434,7 +450,7 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
-    func testReflowingEditorDoesNotScrollUpWhenOutlineDrawerOpens() throws {
+    func testZReflowingEditorDoesNotScrollUpWhenOutlineDrawerOpens() throws {
         try assertScrolledEditorDoesNotScrollUpWhenDrawerOpens(.outline, text: Self.reflowingDrawerTestDocument)
     }
 
@@ -457,11 +473,22 @@ final class EditorDisplayModeTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testLightReaderThemesForceLightWindowChromeAfterDarkThemes() {
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: false), .aqua)
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: true), .darkAqua)
         XCTAssertNotNil(EditorWindowChrome.appearance(usesDarkChrome: false))
         XCTAssertNotNil(EditorWindowChrome.appearance(usesDarkChrome: true))
+
+        let window = NSWindow()
+        window.contentView = NSView(frame: .zero)
+        EditorWindowChrome.apply(to: window, usesDarkChrome: true)
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+        XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+
+        EditorWindowChrome.apply(to: window, usesDarkChrome: false)
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
+        XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
     }
 
     @MainActor
@@ -791,6 +818,10 @@ final class EditorDisplayModeTests: XCTestCase {
     @MainActor
     private func assertScrolledEditorVisibleTextDoesNotJumpVerticallyWhenDrawerOpens(_ drawer: EditorDrawerKind) throws {
         let harness = try makeEditorDrawerHarness(text: Self.longDrawerTestDocument)
+        defer {
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
         let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
         let scrollView = try XCTUnwrap(textView.enclosingScrollView)
         let startingOrigin = NSPoint(x: 0, y: 520)
@@ -835,6 +866,10 @@ final class EditorDisplayModeTests: XCTestCase {
     @MainActor
     private func assertScrolledEditorDoesNotScrollUpWhenDrawerOpens(_ drawer: EditorDrawerKind, text: String) throws {
         let harness = try makeEditorDrawerHarness(text: text)
+        defer {
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
         let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
         let scrollView = try XCTUnwrap(textView.enclosingScrollView)
         let startingOrigin = NSPoint(x: 0, y: 520)
@@ -872,6 +907,10 @@ final class EditorDisplayModeTests: XCTestCase {
         interval: TimeInterval = 0.015
     ) throws -> [CGFloat] {
         let harness = try makeEditorDrawerHarness()
+        defer {
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
         let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
         var samples = [try textColumnMinX(in: textView)]
 
@@ -900,6 +939,7 @@ final class EditorDisplayModeTests: XCTestCase {
         text: String? = nil,
         profile: ReadingProfile = .original
     ) throws -> EditorDrawerHarness {
+        runMainLoop(for: 0.3)
         var document = LineformDocument(
             text: text ?? Self.shortDrawerTestDocument
         )
@@ -915,7 +955,7 @@ final class EditorDisplayModeTests: XCTestCase {
             ),
             readingProfileStore: readingProfileStore
         )
-        let hostingView = NSHostingView(rootView: editor)
+        let hostingView = NSHostingView(rootView: AnyView(editor.id(UUID())))
         hostingView.frame = NSRect(x: 0, y: 0, width: 1_080, height: 720)
 
         let window = NSWindow(
@@ -1132,9 +1172,23 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 }
 
-private struct EditorDrawerHarness {
+@MainActor
+private final class EditorDrawerHarness {
     let window: NSWindow
-    let hostingView: NSHostingView<EditorContainerView>
+    let hostingView: NSHostingView<AnyView>
+    private var didTearDown = false
+
+    init(window: NSWindow, hostingView: NSHostingView<AnyView>) {
+        self.window = window
+        self.hostingView = hostingView
+    }
+
+    func tearDown() {
+        guard !didTearDown else { return }
+        didTearDown = true
+        window.orderOut(nil)
+        window.contentView = nil
+    }
 }
 
 private enum EditorDrawerKind {
