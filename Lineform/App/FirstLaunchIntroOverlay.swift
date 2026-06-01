@@ -30,7 +30,6 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
 final class FirstLaunchIntroPresenter {
     private enum Defaults {
         static let completedKey = "LineformFirstLaunchIntroCompleted"
-        static let alwaysShowKey = "LineformAlwaysShowFirstLaunchIntro"
     }
 
     private var window: NSWindow?
@@ -41,8 +40,7 @@ final class FirstLaunchIntroPresenter {
     static var shouldShowIntro: Bool {
         let defaults = UserDefaults.standard
         let environmentForcesIntro = ProcessInfo.processInfo.environment["LINEFORM_SHOW_FIRST_LAUNCH_INTRO"] == "1"
-        let defaultsForceIntro = defaults.bool(forKey: Defaults.alwaysShowKey)
-        return environmentForcesIntro || defaultsForceIntro || !defaults.bool(forKey: Defaults.completedKey)
+        return environmentForcesIntro || !defaults.bool(forKey: Defaults.completedKey)
     }
 
     func openUntitledDocumentAfterDismiss() {
