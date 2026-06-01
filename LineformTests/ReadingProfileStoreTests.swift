@@ -146,6 +146,13 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.columnWidth, in: profile), "760 px")
     }
 
+    func testReadingExperienceInspectorAllowsExpandedTypeAndLineHeightRanges() {
+        XCTAssertEqual(ReadingExperienceInspector.fontSizeRange.lowerBound, 12)
+        XCTAssertEqual(ReadingExperienceInspector.fontSizeRange.upperBound, 48)
+        XCTAssertEqual(ReadingExperienceInspector.lineHeightRange.lowerBound, 0.5)
+        XCTAssertEqual(ReadingExperienceInspector.lineHeightRange.upperBound, 1.8)
+    }
+
     func testReadingExperienceInspectorUsesExplicitThemeSchemeAndBackground() throws {
         XCTAssertEqual(ReadingExperienceInspector.colorScheme(usesDarkChrome: false), .light)
         XCTAssertEqual(ReadingExperienceInspector.colorScheme(usesDarkChrome: true), .dark)

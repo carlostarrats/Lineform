@@ -312,6 +312,31 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(textView.textContainer?.containerSize.width, 480)
     }
 
+    func testTightLineHeightDoesNotClipFirstLineAboveTextContainer() throws {
+        let textView = LineformTextView()
+        textView.setFrameSize(NSSize(width: 600, height: 500))
+        textView.string = "jckjxkv;jx vx\nvxvjvjxclvj xzjv;xjv\nvjcjvkxjv xlv;j;xv jxckljvj"
+        var profile = ReadingProfile.original
+        profile.fontSize = 48
+        profile.lineHeightMultiple = 0.5
+
+        textView.applyTypography(profile)
+
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let textContainer = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: textContainer)
+        let firstGlyphRange = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: 0, length: 1),
+            actualCharacterRange: nil
+        )
+        let firstGlyphRect = layoutManager.boundingRect(forGlyphRange: firstGlyphRange, in: textContainer)
+
+        XCTAssertGreaterThanOrEqual(
+            firstGlyphRect.minY + textView.textContainerOrigin.y,
+            textView.textContainerInset.height - 0.5
+        )
+    }
+
     func testTextViewCanSmoothHorizontalInsetChangesForInspectorTransition() {
         let textView = LineformTextView()
 

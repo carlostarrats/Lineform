@@ -36,6 +36,8 @@ struct ReadingExperienceInspector: View {
     static let resetButtonShowsHoverFeedback = true
     static let resetButtonHoverFillOpacity = 0.08
     static let presetCardHoverFillOpacity = 0.07
+    static let fontSizeRange: ClosedRange<Double> = 12...48
+    static let lineHeightRange: ClosedRange<Double> = 0.5...1.8
 
     var body: some View {
         ScrollView {
@@ -60,15 +62,15 @@ struct ReadingExperienceInspector: View {
                 InspectorSliderRow(
                     title: "Font Size",
                     valueText: Self.valueText(for: \.fontSize, in: store.activeProfile),
-                    value: numericBinding(\.fontSize, range: 13...28),
-                    range: 13...28
+                    value: numericBinding(\.fontSize, range: Self.fontSizeRange),
+                    range: Self.fontSizeRange
                 )
 
                 InspectorSliderRow(
                     title: "Line Height",
                     valueText: Self.valueText(for: \.lineHeightMultiple, in: store.activeProfile),
-                    value: numericBinding(\.lineHeightMultiple, range: 1.1...1.8),
-                    range: 1.1...1.8
+                    value: numericBinding(\.lineHeightMultiple, range: Self.lineHeightRange),
+                    range: Self.lineHeightRange
                 )
 
                 InspectorSliderRow(

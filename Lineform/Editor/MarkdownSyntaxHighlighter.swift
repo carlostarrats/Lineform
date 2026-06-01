@@ -39,9 +39,7 @@ final class MarkdownSyntaxHighlighter {
     static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
         let font = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineHeightMultiple = CGFloat(profile.lineHeightMultiple)
-        paragraphStyle.paragraphSpacing = CGFloat(profile.paragraphSpacing)
+        let paragraphStyle = paragraphStyle(for: profile, font: font)
 
         return [
             NSAttributedString.Key.font: font,
@@ -49,6 +47,24 @@ final class MarkdownSyntaxHighlighter {
             NSAttributedString.Key.paragraphStyle: paragraphStyle,
             NSAttributedString.Key.kern: profile.letterSpacing
         ]
+    }
+
+    static func paragraphStyle(
+        for profile: ReadingProfile,
+        font: NSFont,
+        additionalParagraphSpacing: CGFloat = 0
+    ) -> NSMutableParagraphStyle {
+        let paragraphStyle = NSMutableParagraphStyle()
+        let lineHeightMultiple = CGFloat(profile.lineHeightMultiple)
+        if lineHeightMultiple < 1 {
+            paragraphStyle.lineHeightMultiple = 1
+            let naturalLineHeight = max(font.ascender - font.descender + font.leading, font.pointSize)
+            paragraphStyle.lineSpacing = naturalLineHeight * (lineHeightMultiple - 1)
+        } else {
+            paragraphStyle.lineHeightMultiple = lineHeightMultiple
+        }
+        paragraphStyle.paragraphSpacing = CGFloat(profile.paragraphSpacing) + additionalParagraphSpacing
+        return paragraphStyle
     }
 
     private let analyzer = MarkdownRangeAnalyzer()

@@ -51,12 +51,15 @@ struct MarkdownPreviewRenderer {
         let bodyFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
         let sizeBoost = Self.headingSizeBoosts[level] ?? 0
         let headingFont = NSFontManager.shared.convert(bodyFont, toHaveTrait: .boldFontMask)
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineHeightMultiple = CGFloat(profile.lineHeightMultiple)
-        paragraphStyle.paragraphSpacing = CGFloat(profile.paragraphSpacing + 4)
+        let resolvedHeadingFont = NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost) ?? headingFont
+        let paragraphStyle = MarkdownSyntaxHighlighter.paragraphStyle(
+            for: profile,
+            font: resolvedHeadingFont,
+            additionalParagraphSpacing: 4
+        )
 
         return [
-            NSAttributedString.Key.font: NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost) ?? headingFont,
+            NSAttributedString.Key.font: resolvedHeadingFont,
             NSAttributedString.Key.foregroundColor: theme.textColor,
             NSAttributedString.Key.paragraphStyle: paragraphStyle,
             NSAttributedString.Key.kern: profile.letterSpacing
