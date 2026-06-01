@@ -119,6 +119,29 @@ final class ReadingPresetTests: XCTestCase {
         )
     }
 
+    func testPresetsUseConsistentMarginsAcrossFonts() {
+        let presets = [
+            ReadingPreset.original,
+            .quiet,
+            .paper,
+            .code,
+            .calm,
+            .focus,
+            .accessible,
+            .dyslexia,
+            .lowLight,
+            .highContrast,
+        ]
+
+        for preset in presets {
+            XCTAssertEqual(
+                preset.profile.marginWidth,
+                ReadingProfile.original.marginWidth,
+                "\(preset.profile.name) should not shift the left text edge when only the font/theme changes."
+            )
+        }
+    }
+
     func testThemeChangesPreserveReadingSettings() {
         var profile = ReadingPreset.focus.profile
 
