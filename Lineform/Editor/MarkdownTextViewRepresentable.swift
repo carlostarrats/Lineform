@@ -26,6 +26,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = LineformEditorScrollView()
+        scrollView.contentView = LineformEditorClipView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
@@ -83,6 +84,12 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 final class LineformEditorScrollView: NSScrollView {
     private var lockedVerticalScrollOriginDuringLayoutTransition: CGFloat?
 
+    func lockVerticalBoundsOriginThroughLayoutTransition(
+        duration: TimeInterval = EditorInspectorTextResponse.verticalBoundsOriginLockDuration
+    ) {
+        (contentView as? LineformEditorClipView)?.lockVerticalBoundsOrigin(duration: duration)
+    }
+
     override func layout() {
         guard let textView = documentView as? LineformTextView else {
             super.layout()
@@ -102,6 +109,10 @@ final class LineformEditorScrollView: NSScrollView {
         guard let textView = documentView as? LineformTextView else {
             super.setFrameSize(newSize)
             return
+        }
+
+        if abs(newSize.width - frame.size.width) > 0.5 {
+            lockVerticalBoundsOriginThroughLayoutTransition()
         }
 
         textView.preserveVisibleLayoutAnchorDuring(
@@ -138,6 +149,40 @@ final class LineformEditorScrollView: NSScrollView {
         }
 
         return super.hitTest(point)
+    }
+}
+
+final class LineformEditorClipView: NSClipView {
+    private var lockedVerticalBoundsOriginY: CGFloat?
+    private var verticalBoundsOriginLockID: UUID?
+
+    func lockVerticalBoundsOrigin(duration: TimeInterval) {
+        let lockID = UUID()
+        verticalBoundsOriginLockID = lockID
+        lockedVerticalBoundsOriginY = bounds.origin.y
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            guard self?.verticalBoundsOriginLockID == lockID else {
+                return
+            }
+
+            self?.verticalBoundsOriginLockID = nil
+            self?.lockedVerticalBoundsOriginY = nil
+        }
+    }
+
+    override func setBoundsOrigin(_ newOrigin: NSPoint) {
+        guard let lockedVerticalBoundsOriginY else {
+            super.setBoundsOrigin(newOrigin)
+            return
+        }
+
+        super.setBoundsOrigin(
+            NSPoint(
+                x: newOrigin.x,
+                y: lockedVerticalBoundsOriginY
+            )
+        )
     }
 }
 

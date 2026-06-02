@@ -29,6 +29,7 @@ enum EditorInspectorTextResponse {
     static let horizontalInsetAnimationDuration: TimeInterval = transitionDuration
     static let presentationOffsetAnimationDuration = transitionDuration
     static let presentationOffsetDistance: CGFloat = 0
+    static let verticalBoundsOriginLockDuration: TimeInterval = 0.45
 
     static func presentationOffset(opening: Bool, reduceMotion: Bool) -> CGFloat {
         guard usesPresentationLayerHorizontalSmoothing, !reduceMotion else {
