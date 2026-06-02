@@ -6,6 +6,7 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertEqual(AppMenuConfiguration.aboutCommandTitle, "About Lineform")
         XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.0")
         XCTAssertEqual(AppMenuConfiguration.aboutCopyright, "Copyright © 2026 Carlos Tarrats. All rights reserved.")
+        XCTAssertEqual(AppMenuConfiguration.checkForUpdatesCommandTitle, "Check for Updates...")
         XCTAssertEqual(
             AppMenuConfiguration.aboutPanelOptions()[.applicationVersion] as? String,
             "V1.0"

@@ -127,6 +127,12 @@ struct AppCommands: Commands {
             Button(AppMenuConfiguration.aboutCommandTitle) {
                 NSApp.orderFrontStandardAboutPanel(options: AppMenuConfiguration.aboutPanelOptions())
             }
+
+            Divider()
+
+            Button(AppMenuConfiguration.checkForUpdatesCommandTitle) {
+                updaterController.checkForUpdates()
+            }
         }
 
         CommandGroup(after: .saveItem) {
@@ -137,12 +143,6 @@ struct AppCommands: Commands {
                 KeyEquivalent(Character(AppMenuConfiguration.saveAsCommandKeyEquivalent)),
                 modifiers: [.command, .shift]
             )
-
-            Divider()
-
-            Button(AppMenuConfiguration.checkForUpdatesCommandTitle) {
-                updaterController.checkForUpdates()
-            }
         }
 
         CommandMenu("Format") {
