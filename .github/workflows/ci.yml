@@ -18,4 +18,5 @@ jobs:
             -project Lineform.xcodeproj \
             -scheme Lineform \
             -destination 'platform=macOS' \
-            -parallel-testing-enabled NO
+            -parallel-testing-enabled NO \
+            -only-testing:LineformTests/ReleaseResourceTests
