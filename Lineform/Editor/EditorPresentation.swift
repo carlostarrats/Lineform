@@ -46,31 +46,35 @@ enum IntelligentEditingOverlayPlacement {
         let bodyHeight: CGFloat?
     }
 
-    static func placement(anchorRect: CGRect?, containerSize: CGSize, replacementText: String) -> Placement {
+    static let canvasInset: CGFloat = 24
+    static let expandedPanelChromeHeight: CGFloat = 140
+    static let composerGap: CGFloat = 16
+    static var bottomComposerClearance: CGFloat {
+        IntelligenceActionRailPresentation.bottomInset
+            + IntelligenceInstructionComposerPresentation.height
+            + composerGap
+    }
+
+    static func placement(anchorRect _: CGRect?, containerSize: CGSize, replacementText: String) -> Placement {
         let mode = IntelligentEditingOptionsPresentation.presentation(for: replacementText)
         let maxWidth = mode == .expandedReview
             ? IntelligentEditingOptionsPresentation.expandedMaximumWidth
             : IntelligentEditingOptionsPresentation.compactMaximumWidth
-        let estimatedHeight = mode == .expandedReview
-            ? min(IntelligentEditingOptionsPresentation.expandedEstimatedHeight, max(240, containerSize.height - 80))
-            : IntelligentEditingOptionsPresentation.compactEstimatedHeight
-        let bodyHeight = mode == .expandedReview ? max(180, estimatedHeight - 140) : nil
-        let width = min(maxWidth, max(260, containerSize.width - 48))
-        let anchor = anchorRect ?? CGRect(x: containerSize.width / 2, y: 96, width: 0, height: 0)
-        let x = min(max(anchor.midX, width / 2 + 24), containerSize.width - width / 2 - 24)
-        let preferredY = anchor.maxY + 16 + estimatedHeight / 2
-        let fallbackY = anchor.minY - 16 - estimatedHeight / 2
-        let y: CGFloat
+        let availableWidth = max(0, containerSize.width - canvasInset * 2)
+        let availableHeight = max(0, containerSize.height - canvasInset - bottomComposerClearance)
+        let width = min(maxWidth, availableWidth)
+        let bodyHeight = mode == .expandedReview
+            ? max(0, availableHeight - Self.expandedPanelChromeHeight)
+            : nil
 
-        if preferredY + estimatedHeight / 2 <= containerSize.height - 24 {
-            y = preferredY
-        } else if fallbackY - estimatedHeight / 2 >= 24 {
-            y = fallbackY
-        } else {
-            y = min(max(preferredY, estimatedHeight / 2 + 24), containerSize.height - estimatedHeight / 2 - 24)
-        }
-
-        return Placement(position: CGPoint(x: x, y: y), width: width, bodyHeight: bodyHeight)
+        return Placement(
+            position: CGPoint(
+                x: containerSize.width / 2,
+                y: canvasInset + availableHeight / 2
+            ),
+            width: width,
+            bodyHeight: bodyHeight
+        )
     }
 }
 

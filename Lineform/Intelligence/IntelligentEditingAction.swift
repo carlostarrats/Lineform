@@ -183,6 +183,10 @@ struct IntelligentEditingRequest: Equatable {
         let normalizedInstruction = Self.normalized(userInstruction)
 
         if normalizedInstruction.contains("proofread")
+            || normalizedInstruction.contains("spell check")
+            || normalizedInstruction.contains("spellcheck")
+            || normalizedInstruction.contains("check spelling")
+            || normalizedInstruction.contains("check grammar")
             || normalizedInstruction.contains("grammar")
             || normalizedInstruction.contains("spelling")
             || normalizedInstruction.contains("punctuation")

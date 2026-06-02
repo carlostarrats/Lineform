@@ -124,6 +124,28 @@ final class IntelligentEditingQualityPipelineTests: XCTestCase {
         )
     }
 
+    func testNativeProofreadFallbackRepairsProductTermTypoInMarkdownSelection() {
+        let selectedText = """
+        # Lineform
+
+        Format conversion between Markdowxn and plain text.
+
+        - Real Markdown and plain text file handling.
+        """
+
+        XCTAssertTrue(LineformProofreadingSupport.hasLikelyIssue(selectedText))
+        XCTAssertEqual(
+            LineformProofreadingSupport.deterministicFallback(for: selectedText, variant: 0),
+            """
+            # Lineform
+
+            Format conversion between Markdown and plain text.
+
+            - Real Markdown and plain text file handling.
+            """
+        )
+    }
+
     func testProofreadingConfigurationMapsDialectToSystemSpellcheckLanguage() {
         XCTAssertEqual(LineformProofreadingConfiguration(dialect: .system).dialect.spellCheckerLanguage, "en")
         XCTAssertEqual(LineformProofreadingConfiguration(dialect: .american).dialect.spellCheckerLanguage, "en_US")

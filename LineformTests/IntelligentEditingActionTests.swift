@@ -542,6 +542,12 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
     }
 
+    func testCustomSpellCheckInstructionRoutesToProofread() {
+        XCTAssertEqual(IntelligentEditingRequest.custom("spell check").evaluationAction, .proofread)
+        XCTAssertEqual(IntelligentEditingRequest.custom("Check spelling only.").evaluationAction, .proofread)
+        XCTAssertEqual(IntelligentEditingRequest.custom("check grammar and punctuation").evaluationAction, .proofread)
+    }
+
     func testProofreadUsesMultipleOptionsForAmbiguousTypos() {
         XCTAssertEqual(
             IntelligentEditingPresentationPolicy.optionCount(for: .proofread, selectedText: "Can I ds it tommorow?"),
@@ -621,16 +627,22 @@ final class IntelligentEditingActionTests: XCTestCase {
         XCTAssertEqual(IntelligentEditingOptionsPresentation.presentation(for: "Short replacement."), .anchoredPopover)
     }
 
-    func testAnchoredPopoverPlacementStaysInsideViewport() {
+    func testOptionsPanelPlacementUsesStableAvailableCanvasCenterPosition() {
         let placement = IntelligentEditingOverlayPlacement.placement(
             anchorRect: CGRect(x: 10, y: 40, width: 80, height: 24),
+            containerSize: CGSize(width: 640, height: 480),
+            replacementText: "Short replacement."
+        )
+        let shiftedSelectionPlacement = IntelligentEditingOverlayPlacement.placement(
+            anchorRect: CGRect(x: 520, y: 360, width: 80, height: 24),
             containerSize: CGSize(width: 640, height: 480),
             replacementText: "Short replacement."
         )
 
         XCTAssertEqual(placement.width, 560)
         XCTAssertNil(placement.bodyHeight)
-        XCTAssertGreaterThanOrEqual(placement.position.x - placement.width / 2, 24)
+        XCTAssertEqual(placement.position, CGPoint(x: 320, y: 203))
+        XCTAssertEqual(placement, shiftedSelectionPlacement)
     }
 
     func testLongReviewPlacementUsesExpandedScrollableBody() {
@@ -642,7 +654,39 @@ final class IntelligentEditingActionTests: XCTestCase {
         )
 
         XCTAssertEqual(placement.width, 900)
-        XCTAssertEqual(placement.bodyHeight, 380)
+        XCTAssertEqual(placement.position, CGPoint(x: 500, y: 343))
+        XCTAssertEqual(placement.bodyHeight, 498)
+        XCTAssertEqual((placement.bodyHeight ?? 0) + IntelligentEditingOverlayPlacement.expandedPanelChromeHeight, 638)
+    }
+
+    func testLongReviewPlacementShrinksToFitSmallCanvas() {
+        let longSuggestion = Array(repeating: "word", count: 600).joined(separator: " ")
+        let placement = IntelligentEditingOverlayPlacement.placement(
+            anchorRect: CGRect(x: 360, y: 120, width: 240, height: 40),
+            containerSize: CGSize(width: 360, height: 360),
+            replacementText: longSuggestion
+        )
+
+        XCTAssertEqual(placement.width, 312)
+        XCTAssertEqual(placement.position, CGPoint(x: 180, y: 143))
+        XCTAssertEqual((placement.bodyHeight ?? 0) + IntelligentEditingOverlayPlacement.expandedPanelChromeHeight, 238)
+    }
+
+    func testLongReviewPlacementLeavesComposerClearance() {
+        let longSuggestion = Array(repeating: "word", count: 600).joined(separator: " ")
+        let containerSize = CGSize(width: 1_000, height: 760)
+        let placement = IntelligentEditingOverlayPlacement.placement(
+            anchorRect: CGRect(x: 360, y: 120, width: 240, height: 40),
+            containerSize: containerSize,
+            replacementText: longSuggestion
+        )
+        let panelHeight = (placement.bodyHeight ?? 0) + IntelligentEditingOverlayPlacement.expandedPanelChromeHeight
+        let panelBottom = placement.position.y + panelHeight / 2
+        let composerTop = containerSize.height
+            - IntelligenceActionRailPresentation.bottomInset
+            - IntelligenceInstructionComposerPresentation.height
+
+        XCTAssertLessThanOrEqual(panelBottom + IntelligentEditingOverlayPlacement.composerGap, composerTop)
     }
 
     private static func contrastRatio(_ foreground: NSColor, _ background: NSColor) -> CGFloat {

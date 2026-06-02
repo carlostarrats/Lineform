@@ -688,6 +688,42 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         """)
     }
 
+    func testCustomSpellCheckReturnsProofreadSuggestionWhenFoundationModelsAreUnavailable() async throws {
+        let selectedText = """
+        # Lineform
+
+        Lineform is a native macOS Markdowxn editor for calm writing, real local files, and readable long-form text.
+
+        ## Features
+
+        - Real Markdown and plain text file handling.
+        - Format conversion between Markdowxn and plain text.
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubThrowingFoundationModelsResponseProvider(
+                error: IntelligentEditingError.unavailable("Apple Intelligence is unavailable.")
+            )
+        )
+        let coordinator = IntelligentEditingRequestCoordinator(service: service)
+
+        let result = await coordinator.run(
+            request: .custom("spell check"),
+            documentText: selectedText,
+            currentDocumentText: selectedText,
+            selectedRange: NSRange(location: 0, length: (selectedText as NSString).length)
+        )
+
+        guard case .ready(let suggestions, let status) = result else {
+            return XCTFail("Expected spell check fallback suggestion, got \(result)")
+        }
+
+        XCTAssertEqual(status, "1 option ready.")
+        XCTAssertEqual(suggestions.count, 1)
+        XCTAssertFalse(suggestions[0].replacementText.contains("Markdowxn"))
+        XCTAssertTrue(suggestions[0].replacementText.contains("Markdown editor"))
+        XCTAssertTrue(suggestions[0].replacementText.contains("- Format conversion between Markdown and plain text."))
+    }
+
     func testFoundationModelsServiceTreatsUnspacedTablesAsTransformRequired() async throws {
         let selectedText = """
         |Setting|Purpose|

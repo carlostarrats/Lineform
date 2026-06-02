@@ -258,6 +258,7 @@ enum LineformProofreadingSupport {
         "ableo",
         "foer",
         "speling",
+        "markdowxn",
         "sentnce",
         "erors",
         "exportingg"
@@ -283,6 +284,7 @@ enum LineformProofreadingSupport {
         "ableo": "able to",
         "foer": "for",
         "speling": "spelling",
+        "markdowxn": "markdown",
         "sentnce": "sentence",
         "erors": "errors"
     ]
