@@ -111,7 +111,8 @@ struct MarkdownBasicsModal: View {
             rows: [
                 Row(label: "Turn on AI", detail: "Use the sparkle button in the toolbar while writing."),
                 Row(label: "Select text", detail: "Highlight the text you want Lineform to change."),
-                Row(label: "Give direction", detail: "Tell AI what to do, then review the suggestion before accepting.")
+                Row(label: "Give direction", detail: "Tell AI what to do, then review the suggestion before accepting."),
+                Row(label: "Editing only", detail: "AI follows directions for selected text. It cannot answer questions or hold a conversation.")
             ]
         )
     ]

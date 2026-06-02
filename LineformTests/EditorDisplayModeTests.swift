@@ -130,6 +130,11 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "AI Editing"])
         XCTAssertEqual(MarkdownBasicsModal.sections.first?.rows.last?.label, "Block Spacing")
         XCTAssertTrue(MarkdownBasicsModal.sections.first?.rows.last?.detail.localizedCaseInsensitiveContains("Read and Preview") == true)
+        XCTAssertEqual(MarkdownBasicsModal.sections.last?.rows.last?.label, "Editing only")
+        XCTAssertEqual(
+            MarkdownBasicsModal.sections.last?.rows.last?.detail,
+            "AI follows directions for selected text. It cannot answer questions or hold a conversation."
+        )
         XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { $0.label == "Line Height" })
         XCTAssertTrue(MarkdownBasicsModal.usesRowSeparators)
         XCTAssertFalse(MarkdownBasicsModal.usesMonospacedExampleFont)
