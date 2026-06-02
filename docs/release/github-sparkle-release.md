@@ -57,6 +57,14 @@ Local release build:
 SPARKLE_PUBLIC_ED_KEY="PUBLIC_KEY_FROM_GENERATE_KEYS" packaging/build-release.sh
 ```
 
+The release build script defaults to the Lineform Developer ID team and certificate:
+
+```text
+Developer ID Application: Carlos Tarrats (TV4QZT7A7X)
+```
+
+Override `DEVELOPMENT_TEAM` or `CODE_SIGN_IDENTITY` only if the certificate changes.
+
 If a DMG is needed before Sparkle signing is finalized, build with the placeholder key:
 
 ```sh
@@ -73,6 +81,24 @@ DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download
 ```
 
 Commit the generated `docs/appcast.xml` after each release so Sparkle can fetch the latest appcast over GitHub's HTTPS raw-content URL.
+
+## Notarization
+
+Store Apple notarization credentials once under the `lineform-notary` profile:
+
+```bash
+xcrun notarytool store-credentials "lineform-notary" \
+  --apple-id "YOUR_APPLE_ID_EMAIL" \
+  --team-id "TV4QZT7A7X"
+```
+
+Use an Apple app-specific password when prompted. Do not commit or share that password.
+
+After building a Developer ID-signed DMG, notarize and staple it:
+
+```bash
+packaging/notarize-dmg.sh dist/Lineform-1.0.dmg
+```
 
 ## DMG
 
