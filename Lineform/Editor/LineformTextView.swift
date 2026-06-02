@@ -135,6 +135,10 @@ final class LineformTextView: NSTextView {
         markdownHighlighter.highlight(textView: self, profile: activeReadingProfile)
     }
 
+    @objc func refreshMarkdownHighlightingAfterTypingDelay() {
+        refreshMarkdownHighlighting()
+    }
+
     func refreshReadingAssists() {
         needsDisplay = true
         centerSelectionForTypewriterModeIfNeeded()

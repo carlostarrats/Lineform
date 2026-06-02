@@ -194,7 +194,6 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var selectionAnchorRect: Binding<CGRect?>
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
-    private var pendingHighlightWorkItem: DispatchWorkItem?
     private var suppressSelectionUpdates = false
 
     init(
@@ -294,13 +293,8 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     }
 
     private func scheduleMarkdownHighlighting(for textView: LineformTextView) {
-        pendingHighlightWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak textView] in
-            MainActor.assumeIsolated {
-                textView?.refreshMarkdownHighlighting()
-            }
-        }
-        pendingHighlightWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)
+        let selector = #selector(LineformTextView.refreshMarkdownHighlightingAfterTypingDelay)
+        NSObject.cancelPreviousPerformRequests(withTarget: textView, selector: selector, object: nil)
+        textView.perform(selector, with: nil, afterDelay: 0.08, inModes: [.common])
     }
 }
