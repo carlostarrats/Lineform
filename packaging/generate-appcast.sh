@@ -3,7 +3,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPDATES_DIR="${1:-$REPO_ROOT/dist}"
-DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/carlostarrats/Lineform/releases/download/latest}"
+DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/carlostarrats/Lineform/releases/latest/download/}"
+if [[ "$DOWNLOAD_URL_PREFIX" != */ ]]; then
+  DOWNLOAD_URL_PREFIX="$DOWNLOAD_URL_PREFIX/"
+fi
 
 find_generate_appcast() {
   if [[ -n "${GENERATE_APPCAST:-}" && -x "$GENERATE_APPCAST" ]]; then
