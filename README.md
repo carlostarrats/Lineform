@@ -51,7 +51,7 @@ Public builds are distributed as a drag-to-Applications DMG through GitHub Relea
 Lineform uses Sparkle 2 for update checks. Release builds need a Sparkle EdDSA public key in the `SPARKLE_PUBLIC_ED_KEY` build setting, and the appcast is expected at:
 
 ```text
-https://carlostarrats.github.io/Lineform/appcast.xml
+https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml
 ```
 
 See `docs/release/github-sparkle-release.md` for the release order and packaging commands.

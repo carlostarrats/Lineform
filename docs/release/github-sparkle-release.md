@@ -9,7 +9,7 @@ Lineform's repository root is this `Lineform` app folder, not the parent `Linefo
 3. Build a signed release with `SPARKLE_PUBLIC_ED_KEY` set.
 4. Package the app as a drag-to-Applications DMG.
 5. Generate `docs/appcast.xml`.
-6. Publish the DMG on GitHub Releases and serve `docs/appcast.xml` with GitHub Pages.
+6. Publish the DMG on GitHub Releases and commit `docs/appcast.xml`.
 
 ## GitHub Repo
 
@@ -24,10 +24,10 @@ git remote add origin https://github.com/carlostarrats/Lineform.git
 git push -u origin main
 ```
 
-Enable GitHub Pages from the `main` branch using `/docs` as the Pages source. The Sparkle feed URL compiled into Lineform is:
+The Sparkle feed URL compiled into Lineform is:
 
 ```text
-https://carlostarrats.github.io/Lineform/appcast.xml
+https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml
 ```
 
 ## Sparkle Keys
@@ -51,7 +51,7 @@ DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download
   packaging/generate-appcast.sh dist
 ```
 
-Commit the generated `docs/appcast.xml` after each release so GitHub Pages serves the latest appcast.
+Commit the generated `docs/appcast.xml` after each release so Sparkle can fetch the latest appcast over GitHub's HTTPS raw-content URL.
 
 ## DMG
 
