@@ -461,7 +461,7 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(replacements, [
             "Cat in the hat.",
             "A cat in the hat.",
-            "Cat wearing the hat."
+            "The cat in the hat."
         ])
     }
 
@@ -495,7 +495,7 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         XCTAssertEqual(suggestions.map(\.replacementText), [
             "Cat in the hat.",
             "A cat in the hat.",
-            "Cat wearing the hat."
+            "The cat in the hat."
         ])
     }
 
@@ -550,6 +550,98 @@ final class IntelligentEditingRunnerTests: XCTestCase {
         )
 
         XCTAssertEqual(replacement, "Lineform focuses on local Markdown editing and strong reading controls, with future automation kept compatible with local-first privacy.")
+    }
+
+    func testFoundationModelsServiceProducesGenericMultipleParagraphCompressionFallback() async throws {
+        let selectedText = """
+        Lineform keeps documents as plain Markdown or text files on disk. Writers can keep those files in Finder, iCloud Drive, Git, or another editor without moving them into an app-owned database.
+
+        Intelligence features work on selected text and show suggestions before anything is applied. Bad output should fail cleanly instead of changing the document.
+        """
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: "Lineform keeps documents as plain Markdown or text files on disk.", count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .summarize,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertTrue(replacement.contains("Markdown"))
+        XCTAssertTrue(replacement.localizedCaseInsensitiveContains("selected text"))
+        XCTAssertLessThan(IntelligentEditingEvaluationRubric.wordCount(in: replacement), IntelligentEditingEvaluationRubric.wordCount(in: selectedText))
+    }
+
+    func testFoundationModelsServiceProducesGenericSentenceShortenFallback() async throws {
+        let selectedText = "The app should keep writing private by default, use real local files, and avoid accounts, analytics, or document upload unless the user explicitly chooses otherwise."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: selectedText, count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .shorten,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertTrue(replacement.localizedCaseInsensitiveContains("private"))
+        XCTAssertTrue(replacement.localizedCaseInsensitiveContains("local files"))
+        XCTAssertTrue(replacement.localizedCaseInsensitiveContains("document upload"))
+        XCTAssertLessThan(IntelligentEditingEvaluationRubric.wordCount(in: replacement), IntelligentEditingEvaluationRubric.wordCount(in: selectedText))
+    }
+
+    func testFoundationModelsServiceRejectsVagueRewriteThatKeepsSameWeakWording() async throws {
+        let selectedText = "The file thing is mostly working but the way it says local and portable is kind of mushy and not clear enough."
+        let weakRewrite = "The file thing is mostly working, but the way it says local and portable is kind of mushy and not clear enough."
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: Array(repeating: weakRewrite, count: 8)
+            )
+        )
+
+        let replacement = try await service.replacement(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: selectedText
+        )
+
+        XCTAssertFalse(replacement.localizedCaseInsensitiveContains("mushy"))
+        XCTAssertFalse(replacement.localizedCaseInsensitiveContains("kind of"))
+        XCTAssertTrue(replacement.localizedCaseInsensitiveContains("local"))
+        XCTAssertTrue(replacement.localizedCaseInsensitiveContains("portable"))
+    }
+
+    func testFoundationModelsServiceBackfillsShortMalformedRewriteOptionsFromProofreadFallback() async throws {
+        let selectedText = "cat im the hat"
+        let service = FoundationModelsIntelligentEditingService(
+            responseProvider: StubFoundationModelsResponseProvider(
+                responses: [
+                    """
+                    1. My name is Cat.
+                    2. I am the hat.
+                    3. Cat is the hat.
+                    """
+                ]
+            )
+        )
+
+        let replacements = try await service.replacements(
+            for: .rewrite,
+            selectedText: selectedText,
+            documentContext: selectedText,
+            count: 3
+        )
+
+        XCTAssertEqual(replacements.count, 3)
+        XCTAssertEqual(Set(replacements).count, 3)
+        XCTAssertFalse(replacements.contains(selectedText))
+        XCTAssertTrue(replacements.allSatisfy { $0.localizedCaseInsensitiveContains("in the") }, "\(replacements)")
+        XCTAssertEqual(Set(replacements.map { Self.normalizedOptionForAssertion($0) }).count, 3, "\(replacements)")
     }
 
     func testFoundationModelsServiceProducesCleanMarkdownFallbackForSelectedListWhenModelReturnsPromptText() async throws {
@@ -1242,10 +1334,19 @@ private final class StubFoundationModelsResponseProvider: FoundationModelsRespon
     }
 }
 
-private struct StubThrowingFoundationModelsResponseProvider: FoundationModelsResponseProviding {
-    let error: Error
+    private struct StubThrowingFoundationModelsResponseProvider: FoundationModelsResponseProviding {
+        let error: Error
 
-    func responseContent(for prompt: String) async throws -> String {
-        throw error
+        func responseContent(for prompt: String) async throws -> String {
+            throw error
+        }
+    }
+
+private extension IntelligentEditingRunnerTests {
+    static func normalizedOptionForAssertion(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9\s]+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
     }
 }

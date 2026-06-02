@@ -72,6 +72,7 @@
 		1F0000010000000000000125 /* IntelligentEditingRequestCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000125 /* IntelligentEditingRequestCoordinator.swift */; };
 		1F0000010000000000000161 /* IntelligentEditingQualityPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000161 /* IntelligentEditingQualityPipelineTests.swift */; };
 		1F0000010000000000000170 /* IntelligentEditingMessyWritingCorpusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000170 /* IntelligentEditingMessyWritingCorpusTests.swift */; };
+		1F0000010000000000000180 /* IntelligentEditingDogfoodTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000180 /* IntelligentEditingDogfoodTests.swift */; };
 		1F0000010000000000000103 /* LineformHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000103 /* LineformHelp.swift */; };
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
@@ -181,6 +182,7 @@
 		1F0000020000000000000125 /* IntelligentEditingRequestCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRequestCoordinator.swift; sourceTree = "<group>"; };
 		1F0000020000000000000161 /* IntelligentEditingQualityPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingQualityPipelineTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000170 /* IntelligentEditingMessyWritingCorpusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingMessyWritingCorpusTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000180 /* IntelligentEditingDogfoodTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingDogfoodTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000103 /* LineformHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformHelp.swift; sourceTree = "<group>"; };
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
@@ -391,6 +393,7 @@
 				1F0000020000000000000094 /* IntelligentEditingRunnerTests.swift */,
 				1F0000020000000000000161 /* IntelligentEditingQualityPipelineTests.swift */,
 				1F0000020000000000000170 /* IntelligentEditingMessyWritingCorpusTests.swift */,
+				1F0000020000000000000180 /* IntelligentEditingDogfoodTests.swift */,
 				1F0000020000000000000124 /* IntelligentEditingEvaluationTests.swift */,
 				1F0000020000000000000126 /* IntelligentEditingCursorTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
@@ -596,6 +599,7 @@
 				1F0000010000000000000094 /* IntelligentEditingRunnerTests.swift in Sources */,
 				1F0000010000000000000161 /* IntelligentEditingQualityPipelineTests.swift in Sources */,
 				1F0000010000000000000170 /* IntelligentEditingMessyWritingCorpusTests.swift in Sources */,
+				1F0000010000000000000180 /* IntelligentEditingDogfoodTests.swift in Sources */,
 				1F0000010000000000000124 /* IntelligentEditingEvaluationTests.swift in Sources */,
 				1F0000010000000000000126 /* IntelligentEditingCursorTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,

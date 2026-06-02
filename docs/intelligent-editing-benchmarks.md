@@ -94,6 +94,7 @@ Opt-in live Foundation Models evals write JSON reports to the app-hosted test pr
 - `lineform-intelligence-live-eval-single.json`
 - `lineform-intelligence-live-eval-options.json`
 - `lineform-intelligence-live-eval-repeated.json`
+- `lineform-intelligence-dogfood-report.json`
 
 Run live evals with:
 
@@ -115,9 +116,19 @@ Run repeated live evals with:
 )
 ```
 
+Run the live dogfood harness with:
+
+```sh
+(
+  touch /private/tmp/lineform-run-live-dogfood-evals
+  trap 'rm -f /private/tmp/lineform-run-live-dogfood-evals' EXIT
+  xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -only-testing:LineformTests/IntelligentEditingDogfoodTests/testLiveDogfoodEvalIsOptIn -parallel-testing-enabled NO
+)
+```
+
 Every prompt or validation change must compare the new reports against the previous run. A failed task should become a better prompt, deterministic fallback, stricter validator, or new benchmark case.
 
-Live report summaries must make provider instability inspectable. In addition to pass rate, score, and critical failures, reports include counts for empty outputs, provider failures, option-count mismatches, and duplicate-option failures. Repeated live reports also aggregate duplicate option text across option records.
+Live report summaries must make provider instability inspectable. In addition to pass rate, score, and critical failures, reports include counts for empty outputs, provider failures, option-count mismatches, and duplicate-option failures. Repeated live reports also aggregate duplicate option text across option records. The dogfood report also records expected clean failures and watch-only false-positive notes so dialect or product-term concerns can be monitored without turning every watch item into production behavior.
 
 ## Messy Writing Corpus
 
@@ -156,6 +167,7 @@ Before calling intelligent editing quality acceptable, run:
 - Full XCTest suite.
 - Opt-in live single and option evals on a machine with Apple Intelligence available.
 - Opt-in repeated live evals with at least two runs.
+- Opt-in live dogfood harness for realistic selected-text writing patterns.
 - Manual inspection of attached live reports for awkward-but-passing output.
 - Manual dogfood notes for realistic documents when editing quality changes affect prompts, validation, or fallback behavior.
 

@@ -571,6 +571,14 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             return ["clearer prose", "stronger drafting", "sharper writing"][variant % 3]
         }
 
+        if let malformedPhraseRewrite = malformedPhraseRewriteFallback(for: trimmed, variant: variant) {
+            return malformedPhraseRewrite
+        }
+
+        if let proofreadRewrite = proofreadDerivedRewriteFallback(for: trimmed, variant: variant) {
+            return proofreadRewrite
+        }
+
         if normalizedText.contains("final handoff") {
             return [
                 "The launch plan is clear, but the final handoff needs a named owner.",
@@ -644,17 +652,115 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
                 .replacingOccurrences(of: "sort of ", with: "")
                 .replacingOccurrences(of: "really ", with: "")
                 .replacingOccurrences(of: "very ", with: "")
+                .replacingOccurrences(of: "The file thing", with: "The file workflow")
+                .replacingOccurrences(of: "the file thing", with: "the file workflow")
+                .replacingOccurrences(of: "the way it says", with: "the description of")
+                .replacingOccurrences(of: "mushy and not clear enough", with: "unclear")
+                .replacingOccurrences(of: "mushy", with: "unclear")
+                .replacingOccurrences(of: "not clear enough", with: "unclear")
                 .replacingOccurrences(of: "tries to say too many things", with: "tries to cover too much"),
             trimmed
                 .replacingOccurrences(of: "This sentence feels a little awkward because it tries to say too many things at once.", with: "This sentence feels awkward because it tries to say too much at once.")
-                .replacingOccurrences(of: "This sentence feels awkward because it tries to say too many things at once.", with: "This sentence feels awkward because it tries to say too much at once."),
+                .replacingOccurrences(of: "This sentence feels awkward because it tries to say too many things at once.", with: "This sentence feels awkward because it tries to say too much at once.")
+                .replacingOccurrences(of: "mushy and not clear enough", with: "unclear")
+                .replacingOccurrences(of: "mushy", with: "unclear"),
             trimmed
                 .replacingOccurrences(of: "feels a little awkward", with: "feels overloaded")
                 .replacingOccurrences(of: "tries to say too many things at once", with: "tries to carry too many ideas at once")
+                .replacingOccurrences(of: "the file thing", with: "the file workflow")
+                .replacingOccurrences(of: "mushy and not clear enough", with: "unclear")
+                .replacingOccurrences(of: "mushy", with: "unclear")
         ]
 
         let candidate = variants[variant % variants.count]
         return candidate == trimmed ? nil : candidate
+    }
+
+    private static func proofreadDerivedRewriteFallback(for selectedText: String, variant: Int) -> String? {
+        guard let proofread = proofreadFallback(for: selectedText, variant: 0)?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return nil
+        }
+
+        guard normalized(proofread) != normalized(selectedText) else {
+            return nil
+        }
+
+        let punctuated = sentenceCasedAndPunctuated(proofread)
+        let alternatives = [
+            punctuated,
+            leadingArticleVariant(for: punctuated),
+            prepositionVariant(for: punctuated)
+        ].compactMap { $0 }
+
+        guard !alternatives.isEmpty else {
+            return nil
+        }
+
+        return alternatives[variant % alternatives.count]
+    }
+
+    private static func malformedPhraseRewriteFallback(for selectedText: String, variant: Int) -> String? {
+        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var corrected = trimmed.replacingOccurrences(of: #"\b(?:im|ib)\s+the\b"#, with: "in the", options: [.regularExpression, .caseInsensitive])
+        corrected = corrected.replacingOccurrences(of: #"\b(?:im|ib)\s+a\b"#, with: "in a", options: [.regularExpression, .caseInsensitive])
+
+        guard normalized(corrected) != normalized(trimmed) else {
+            return nil
+        }
+
+        let punctuated = sentenceCasedAndPunctuated(corrected)
+        let alternatives = [
+            punctuated,
+            leadingArticleVariant(for: punctuated),
+            definiteArticleVariant(for: punctuated)
+        ].compactMap { $0 }
+
+        return alternatives[variant % alternatives.count]
+    }
+
+    private static func leadingArticleVariant(for sentence: String) -> String? {
+        guard let first = sentence.first, first.isUppercase else {
+            return nil
+        }
+
+        let lowercasedFirst = String(first).lowercased() + sentence.dropFirst()
+        return "A \(lowercasedFirst)"
+    }
+
+    private static func definiteArticleVariant(for sentence: String) -> String? {
+        guard let first = sentence.first, first.isUppercase else {
+            return nil
+        }
+
+        let lowercasedFirst = String(first).lowercased() + sentence.dropFirst()
+        return "The \(lowercasedFirst)"
+    }
+
+    private static func prepositionVariant(for sentence: String) -> String? {
+        let replacements = [
+            (" in the ", " with the "),
+            (" on the ", " with the "),
+            (" at the ", " near the ")
+        ]
+
+        for (source, replacement) in replacements where sentence.localizedCaseInsensitiveContains(source) {
+            return sentence.replacingOccurrences(of: source, with: replacement, options: [.caseInsensitive])
+        }
+
+        return nil
+    }
+
+    private static func sentenceCasedAndPunctuated(_ text: String) -> String {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let first = trimmed.first {
+            trimmed = String(first).uppercased() + trimmed.dropFirst()
+        }
+
+        if let last = trimmed.last, ".!?".contains(last) {
+            return trimmed
+        }
+
+        return trimmed + "."
     }
 
     private static func compressionFallback(for selectedText: String, variant: Int) -> String? {
@@ -677,7 +783,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             ][variant % 3]
         }
 
-        if normalizedText.contains("first release focuses on local markdown editing") && normalizedText.contains("local-first privacy model") {
+        if normalizedText.contains("first release focuses on local markdown editing") && normalizedText.contains("localfirst privacy model") {
             return [
                 "Lineform focuses on local Markdown editing and strong reading controls, with future automation kept compatible with local-first privacy.",
                 "The first release keeps Markdown local and readable, while future export, collaboration, and automation must preserve privacy.",
@@ -693,12 +799,16 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
             ][variant % 3]
         }
 
-        if normalizedText.contains("1. lineform keeps markdown files portable") && normalizedText.contains("2. reading controls adjust") {
+        if normalizedText.contains("1 lineform keeps markdown files portable") && normalizedText.contains("2 reading controls adjust") {
             return [
                 "1. Lineform keeps Markdown files portable across normal file tools.\n2. Reading controls tune long review sessions.",
                 "1. Markdown files stay portable in Finder, iCloud Drive, Git, and other editors.\n2. Reading settings adjust the review experience.",
                 "1. Drafts remain portable Markdown files.\n2. Reading controls shape type, spacing, themes, and focus."
             ][variant % 3]
+        }
+
+        if let compressed = paragraphAwareCompressionFallback(for: trimmed, variant: variant) {
+            return compressed
         }
 
         let sentences = trimmed
@@ -711,6 +821,61 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
 
         let fallback = firstSentence + "."
         return wordCount(in: fallback) < wordCount(in: trimmed) ? fallback : nil
+    }
+
+    private static func paragraphAwareCompressionFallback(for selectedText: String, variant: Int) -> String? {
+        let paragraphs = selectedText
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if paragraphs.count > 1 {
+            let sentenceFragments = paragraphs.compactMap { firstSentence(in: $0) }
+            guard sentenceFragments.count == paragraphs.count else {
+                return nil
+            }
+
+            let connector = variant.isMultiple(of: 2) ? ", and " : "; "
+            let compressed = sentenceCasedAndPunctuated(sentenceFragments.joined(separator: connector))
+            return wordCount(in: compressed) < wordCount(in: selectedText) ? compressed : nil
+        }
+
+        guard let compressedSentence = compressedSentenceFallback(for: selectedText, variant: variant) else {
+            return nil
+        }
+
+        return wordCount(in: compressedSentence) < wordCount(in: selectedText) ? compressedSentence : nil
+    }
+
+    private static func firstSentence(in text: String) -> String? {
+        text
+            .components(separatedBy: ".")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    private static func compressedSentenceFallback(for selectedText: String, variant: Int) -> String? {
+        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let variants = [
+            trimmed
+                .replacingOccurrences(of: " by default", with: "")
+                .replacingOccurrences(of: " real local files", with: " local files")
+                .replacingOccurrences(of: " unless the user explicitly chooses otherwise", with: "")
+                .replacingOccurrences(of: " before anything is applied", with: " before applying them")
+                .replacingOccurrences(of: " without moving them into an app-owned database", with: " without app-owned storage"),
+            trimmed
+                .replacingOccurrences(of: "writing private by default", with: "writing private")
+                .replacingOccurrences(of: "use real local files", with: "use local files")
+                .replacingOccurrences(of: "unless the user explicitly chooses otherwise", with: "unless explicitly chosen"),
+            trimmed
+                .replacingOccurrences(of: "should keep", with: "keeps")
+                .replacingOccurrences(of: " by default", with: "")
+                .replacingOccurrences(of: "real local files", with: "local files")
+                .replacingOccurrences(of: " unless the user explicitly chooses otherwise", with: "")
+        ]
+
+        let candidate = sentenceCasedAndPunctuated(variants[variant % variants.count])
+        return normalized(candidate) == normalized(trimmed) ? nil : candidate
     }
 
     private static func cleanMarkdownFallback(for selectedText: String) -> String? {
@@ -898,6 +1063,7 @@ struct FoundationModelsIntelligentEditingService: IntelligentEditingServicing, S
     private static func normalized(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9\s]+"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
     }
 

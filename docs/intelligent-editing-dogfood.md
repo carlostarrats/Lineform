@@ -32,6 +32,38 @@ For every generated suggestion, check:
 - Bad input fails cleanly instead of showing unchanged or guessed output.
 - No protocol tags, placeholders, dummy text, apology text, or prompt artifacts appear.
 
+## Automated Dogfood Harness
+
+The opt-in dogfood harness runs sanitized real-ish writing through the same selected-text runner as the app and writes a JSON report with replacements, scores, clean failures, provider failures, duplicate options, option-count mismatches, and watch-only false-positive notes.
+
+Run it with:
+
+```sh
+(
+  touch /private/tmp/lineform-run-live-dogfood-evals
+  trap 'rm -f /private/tmp/lineform-run-live-dogfood-evals' EXIT
+  xcodebuild test \
+    -project Lineform.xcodeproj \
+    -scheme Lineform \
+    -destination 'platform=macOS' \
+    -only-testing:LineformTests/IntelligentEditingDogfoodTests/testLiveDogfoodEvalIsOptIn \
+    -parallel-testing-enabled NO
+)
+```
+
+The report is also attached to the `.xcresult` bundle as `lineform-intelligence-dogfood-report.json`.
+
+Latest recorded pass:
+
+- `docs/intelligent-editing-dogfood-report-2026-06-01.md`
+
+Use report fields this way:
+
+- `failures`: real blocking failures that should become a corpus case, focused regression, prompt/rubric adjustment, or provider handling fix.
+- `cleanFailureKind`: expected rejection of unusable input, such as unrecognizable keyboard mash or placeholder text.
+- `watchNotes`: non-blocking false-positive signals, such as dialect spelling changes, that should be promoted only if users hit them in real writing.
+- `providerFailureCount`: live Apple provider instability that needs monitoring over time.
+
 ## Outcome
 
 Record failures as one of:

@@ -55,7 +55,7 @@
     "expectedReplacements": [
       "Cat in the hat.",
       "A cat in the hat.",
-      "Cat wearing the hat."
+      "The cat in the hat."
     ],
     "forbiddenFragments": ["cat im the hat"],
     "scenarioTags": ["rewrite:short-phrase", "provider:multi-option-stability"]
@@ -76,6 +76,38 @@
     "scenarioTags": ["rewrite:awkward-paragraph"]
   },
   {
+    "id": "rewrite-vague-local-files-fallback",
+    "action": "rewrite",
+    "selectedText": "The file thing is mostly working but the way it says local and portable is kind of mushy and not clear enough.",
+    "documentContext": "The file thing is mostly working but the way it says local and portable is kind of mushy and not clear enough.",
+    "providerResponses": [
+      "The file thing is mostly working, but the way it says local and portable is kind of mushy and not clear enough.",
+      "The file thing is mostly working, but the way it says local and portable is kind of mushy and not clear enough.",
+      "The file thing is mostly working, but the way it says local and portable is kind of mushy and not clear enough.",
+      "The file thing is mostly working, but the way it says local and portable is kind of mushy and not clear enough."
+    ],
+    "requiredFragments": ["local", "portable"],
+    "forbiddenFragments": ["mushy", "kind of", "file thing"],
+    "scenarioTags": ["rewrite:awkward-paragraph", "provider:fallback-usage", "writing-risk:local-first"]
+  },
+  {
+    "id": "rewrite-short-malformed-bad-options",
+    "action": "rewrite",
+    "selectedText": "cat im the hat",
+    "documentContext": "cat im the hat",
+    "optionCount": 3,
+    "providerResponses": [
+      "1. My name is Cat.\n2. I am the hat.\n3. Cat is the hat."
+    ],
+    "expectedReplacements": [
+      "Cat in the hat.",
+      "A cat in the hat.",
+      "The cat in the hat."
+    ],
+    "forbiddenFragments": ["cat im the hat"],
+    "scenarioTags": ["rewrite:short-phrase", "provider:multi-option-stability", "provider:fallback-usage"]
+  },
+  {
     "id": "summarize-multi-paragraph",
     "action": "summarize",
     "selectedText": "The editor stores Markdown as plain files on disk. Writers can keep those files in Finder, iCloud Drive, or Git without converting them into a private database.\n\nThe review flow should stay selected-text scoped. Suggestions must never include nearby context or hidden protocol markers.",
@@ -91,6 +123,21 @@
     "scenarioTags": ["summarize:multi-paragraph", "writing-risk:local-first"]
   },
   {
+    "id": "summarize-local-first-dogfood-fallback",
+    "action": "summarize",
+    "selectedText": "Lineform keeps documents as plain Markdown or text files on disk. Writers can keep those files in Finder, iCloud Drive, Git, or another editor without moving them into an app-owned database.\n\nIntelligence features work on selected text and show suggestions before anything is applied. Bad output should fail cleanly instead of changing the document.",
+    "documentContext": "Lineform keeps documents as plain Markdown or text files on disk. Writers can keep those files in Finder, iCloud Drive, Git, or another editor without moving them into an app-owned database.\n\nIntelligence features work on selected text and show suggestions before anything is applied. Bad output should fail cleanly instead of changing the document.",
+    "providerResponses": [
+      "Lineform keeps documents as plain Markdown or text files on disk.",
+      "Lineform keeps documents as plain Markdown or text files on disk.",
+      "Lineform keeps documents as plain Markdown or text files on disk.",
+      "Lineform keeps documents as plain Markdown or text files on disk."
+    ],
+    "requiredFragments": ["Markdown", "selected text"],
+    "forbiddenFragments": ["upload account"],
+    "scenarioTags": ["summarize:multi-paragraph", "provider:fallback-usage", "writing-risk:local-first"]
+  },
+  {
     "id": "shorten-preserve-meaning",
     "action": "shorten",
     "selectedText": "Lineform keeps documents as plain local Markdown files so writers can use Finder, iCloud Drive, Git, or other editors without losing portability.",
@@ -104,6 +151,21 @@
     "requiredFragments": ["Lineform", "local Markdown", "portable"],
     "forbiddenFragments": ["uploads"],
     "scenarioTags": ["shorten:preserve-meaning", "writing-risk:local-first"]
+  },
+  {
+    "id": "shorten-privacy-dogfood-fallback",
+    "action": "shorten",
+    "selectedText": "The app should keep writing private by default, use real local files, and avoid accounts, analytics, or document upload unless the user explicitly chooses otherwise.",
+    "documentContext": "The app should keep writing private by default, use real local files, and avoid accounts, analytics, or document upload unless the user explicitly chooses otherwise.",
+    "providerResponses": [
+      "The app should keep writing private by default, use real local files, and avoid accounts, analytics, or document upload unless the user explicitly chooses otherwise.",
+      "The app should keep writing private by default, use real local files, and avoid accounts, analytics, or document upload unless the user explicitly chooses otherwise.",
+      "The app should keep writing private by default, use real local files, and avoid accounts, analytics, or document upload unless the user explicitly chooses otherwise.",
+      "The app should keep writing private by default, use real local files, and avoid accounts, analytics, or document upload unless the user explicitly chooses otherwise."
+    ],
+    "requiredFragments": ["private", "local files", "document upload"],
+    "forbiddenFragments": ["by default", "explicitly chooses otherwise"],
+    "scenarioTags": ["shorten:preserve-meaning", "provider:fallback-usage", "writing-risk:local-first"]
   },
   {
     "id": "clean-markdown-structure",

@@ -263,6 +263,14 @@ enum IntelligentEditingEvaluationRubric {
         }
 
         if task.action == .rewrite {
+            if preservesRewriteFillerOrVagueWording(replacement: replacement, selectedText: task.selectedText) {
+                return true
+            }
+
+            if leavesMalformedPrepositionUnresolved(replacement: replacement, selectedText: task.selectedText) {
+                return true
+            }
+
             let selectedWordCount = wordCount(in: task.selectedText)
             let maximumRewriteExpansion = task.userInstruction == nil ? 1.25 : 2
             if selectedWordCount > 0 && wordCount(in: replacement) > Int(Double(selectedWordCount) * maximumRewriteExpansion) {
@@ -274,6 +282,39 @@ enum IntelligentEditingEvaluationRubric {
             }
 
             return dropsCoreRewriteMeaning(replacement: replacement, selectedText: task.selectedText, length: task.length)
+        }
+
+        return false
+    }
+
+    private static func preservesRewriteFillerOrVagueWording(replacement: String, selectedText: String) -> Bool {
+        let normalizedSelection = normalized(selectedText)
+        let normalizedReplacement = normalized(replacement)
+        let weakFragments = [
+            "kind of",
+            "sort of",
+            "a little",
+            "mushy",
+            "not clear enough",
+            "the file thing",
+            "the thing"
+        ]
+
+        return weakFragments.contains { fragment in
+            normalizedSelection.contains(fragment) && normalizedReplacement.contains(fragment)
+        }
+    }
+
+    private static func leavesMalformedPrepositionUnresolved(replacement: String, selectedText: String) -> Bool {
+        let normalizedSelection = normalized(selectedText)
+        let normalizedReplacement = normalized(replacement)
+
+        if normalizedSelection.range(of: #"\b(?:im|ib)\s+the\b"#, options: .regularExpression) != nil {
+            return !normalizedReplacement.contains("in the")
+        }
+
+        if normalizedSelection.range(of: #"\b(?:im|ib)\s+a\b"#, options: .regularExpression) != nil {
+            return !normalizedReplacement.contains("in a")
         }
 
         return false
