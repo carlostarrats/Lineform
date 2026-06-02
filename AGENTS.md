@@ -4,7 +4,7 @@ This file is for AI coding agents working in the Lineform repo. Read it before m
 
 ## Product Context
 
-Lineform is a native macOS Markdown editor for calm writing, real local files, and readable long-form text. The app should feel quiet, native, file-based, and trustworthy. It is not a web editor, not a note-taking database, and not a cloud writing service.
+Lineform is a free native macOS Markdown editor for calm writing, real local files, and readable long-form text. V1.0 is the first public version of the app. The app should feel quiet, native, file-based, and trustworthy. It is not a web editor, not a note-taking database, and not a cloud writing service.
 
 Core product principles:
 
@@ -28,6 +28,7 @@ Core product principles:
 - Apple Intelligence-backed selected-text editing when available.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
+- Standard macOS About panel showing `V1.0`.
 
 ## Architecture Map
 
@@ -190,6 +191,16 @@ Apple Intelligence features should degrade gracefully:
 - Availability errors should be clear and non-destructive.
 - Suggestions should never apply to changed/stale selections.
 - Rejected or invalid model output should not reach the document.
+
+## Credits And Third-Party Materials
+
+Keep attribution accurate when changing fonts, bundled resources, README copy, app metadata, or release docs:
+
+- Atkinson Hyperlegible is bundled under the SIL Open Font License 1.1 and is credited to Braille Institute of America, Inc.
+- OpenDyslexic is bundled under the SIL Open Font License 1.1 and is credited to Abbie Gonzalez, with Reserved Font Name OpenDyslexic.
+- The bundled font license files must remain in `Lineform/Resources/Fonts`.
+- `Lineform/Resources/FontLicenseReview.md` should stay in sync with the bundled font set.
+- Harper is credited only as inspiration and comparison material for private, local-first writing assistance. It is not bundled with Lineform and is not a runtime dependency.
 
 ## Documentation Expectations
 

@@ -2,6 +2,16 @@ import XCTest
 @testable import Lineform
 
 final class AppCommandNotificationTests: XCTestCase {
+    func testAboutMenuUsesLineformVersionDisplay() {
+        XCTAssertEqual(AppMenuConfiguration.aboutCommandTitle, "About Lineform")
+        XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.0")
+        XCTAssertEqual(AppMenuConfiguration.aboutCopyright, "Copyright © 2026 Carlos Tarrats. All rights reserved.")
+        XCTAssertEqual(
+            AppMenuConfiguration.aboutPanelOptions()[.applicationVersion] as? String,
+            "V1.0"
+        )
+    }
+
     func testReadingCommandsLiveInViewMenuWhileIntelligenceDoesNotExposeShortcutMenu() {
         XCTAssertEqual(AppMenuConfiguration.readingCommandPlacement, .view)
         XCTAssertFalse(AppMenuConfiguration.keepsTopLevelIntelligenceMenu)

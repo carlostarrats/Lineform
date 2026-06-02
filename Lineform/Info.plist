@@ -21,7 +21,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 Lineform. All rights reserved.</string>
+	<string>Copyright © 2026 Carlos Tarrats. All rights reserved.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

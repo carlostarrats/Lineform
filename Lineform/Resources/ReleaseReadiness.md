@@ -20,4 +20,7 @@
 - Run a standalone build.
 - Launch the built app.
 - Run product-rule scans.
+- Confirm the About panel displays the intended release version.
+- Confirm `README.md`, `AGENTS.md`, app metadata, help, and font credits match the shipped version.
+- Confirm bundled font license files are present in `Resources/Fonts`.
 - Run Instruments smoke profiling for launch or time profiling when available.

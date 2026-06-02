@@ -6,6 +6,9 @@ enum AppMenuCommandPlacement: Equatable {
 }
 
 enum AppMenuConfiguration {
+    static let aboutCommandTitle = "About Lineform"
+    static let aboutVersionDisplay = "V1.0"
+    static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
     static let saveCommandTitle = "Save"
     static let saveAsCommandTitle = "Save As..."
     static let saveAsCommandKeyEquivalent = "S"
@@ -45,6 +48,21 @@ enum AppMenuConfiguration {
         case .plainText:
             return "Convert to Markdown"
         }
+    }
+
+    static func aboutPanelOptions(bundle: Bundle = .main) -> [NSApplication.AboutPanelOptionKey: Any] {
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [
+            .applicationVersion: aboutVersionDisplay
+        ]
+
+        if
+            let iconURL = bundle.url(forResource: "AppIcon", withExtension: "icns"),
+            let icon = NSImage(contentsOf: iconURL)
+        {
+            options[.applicationIcon] = icon
+        }
+
+        return options
     }
 }
 
@@ -101,6 +119,12 @@ struct AppCommands: Commands {
     }
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button(AppMenuConfiguration.aboutCommandTitle) {
+                NSApp.orderFrontStandardAboutPanel(options: AppMenuConfiguration.aboutPanelOptions())
+            }
+        }
+
         CommandGroup(after: .saveItem) {
             Button(AppMenuConfiguration.saveAsCommandTitle) {
                 NSApp.sendAction(AppMenuConfiguration.saveAsCommandSelector, to: nil, from: nil)

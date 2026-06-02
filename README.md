@@ -1,24 +1,27 @@
 # Lineform
 
-Lineform is a native macOS Markdown editor for calm writing, real local files, and readable long-form text.
+Lineform is a free native macOS Markdown editor for calm writing, real local files, and readable long-form text.
 
-It is built around ordinary UTF-8 Markdown and text files, so documents stay portable across Finder, iCloud Drive, Git, and other editors.
+It is built around ordinary UTF-8 Markdown and plain text files, so documents stay portable across Finder, iCloud Drive, Git, and other editors.
 
 ## Features
 
 - Native macOS document app built with SwiftUI, AppKit, and TextKit.
-- Real Markdown and plain text file handling.
-- Write, Read, and Preview modes for drafting, reading, and side-by-side review.
+- Opens and saves ordinary Markdown and plain text files.
+- Write mode for editing source Markdown.
+- Read mode for a calmer rendered reading view.
+- Preview mode for side-by-side Markdown editing and rendered preview.
 - Markdown outline navigation from document headings.
 - Native toolbar search with match highlighting and next/previous navigation.
 - Markdown formatting commands for headings, emphasis, inline code, lists, and links.
 - Format conversion between Markdown and plain text.
-- Save and Save As support for Markdown, plain text, and PDF export.
+- Save, Save As, and PDF export support.
 - Reading Experience controls for font, size, line height, block spacing, column width, themes, reading ruler, and typewriter mode.
 - Reader themes and accessibility-focused font options, including Atkinson Hyperlegible and OpenDyslexic.
-- Selected-text AI instruction flow when Apple Intelligence is available: select text, toggle AI in Write mode, describe the edit, then review before accepting.
+- Basic selected-text AI editing when Apple Intelligence is available: select text, toggle AI in Write mode, describe the edit, then review before accepting.
 - Defensive intelligent editing validation to avoid prompt artifacts, stale selections, empty suggestions, and unsafe Markdown changes.
 - Local-first privacy with no account system, analytics, or document upload.
+- Standard macOS About panel showing the V1.0 app version.
 
 ## Requirements
 
@@ -82,7 +85,18 @@ Lineform is local-first.
 
 ## Project Status
 
-Lineform is early software. The current app version is `0.1.0`.
+Lineform V1.0 is the first public version of the app.
+
+## Credits
+
+Lineform bundles accessibility-focused reader fonts under the SIL Open Font License 1.1:
+
+- Atkinson Hyperlegible, copyright 2020 Braille Institute of America, Inc.
+- OpenDyslexic, copyright Abbie Gonzalez, with Reserved Font Name OpenDyslexic.
+
+The bundled license files live in `Lineform/Resources/Fonts`.
+
+Harper, an Automattic open-source project, is credited as inspiration and comparison material for private, local-first writing assistance. Harper is not bundled with Lineform and is not a runtime dependency.
 
 ## License
 

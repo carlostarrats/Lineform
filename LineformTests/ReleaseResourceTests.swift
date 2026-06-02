@@ -41,6 +41,19 @@ final class ReleaseResourceTests: XCTestCase {
         }
     }
 
+    func testAboutPanelMetadataUsesCarlosCopyrightAndAppIcon() throws {
+        let info = try XCTUnwrap(Bundle.main.infoDictionary)
+
+        XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
+        XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0")
+        XCTAssertEqual(
+            info["NSHumanReadableCopyright"] as? String,
+            AppMenuConfiguration.aboutCopyright
+        )
+        XCTAssertNotNil(Bundle.main.url(forResource: "AppIcon", withExtension: "icns"))
+    }
+
     func testMarkdownGuideDocumentsRealMarkdownEditing() throws {
         let url = try XCTUnwrap(Bundle.main.url(forResource: "MarkdownGuide", withExtension: "md"))
         let guide = try String(contentsOf: url, encoding: .utf8)
