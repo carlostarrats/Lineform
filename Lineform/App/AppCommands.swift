@@ -245,12 +245,6 @@ struct AppCommands: Commands {
                 }
             }
         }
-
-        CommandGroup(replacing: .help) {
-            Button("Lineform Markdown Guide") {
-                LineformHelp.openMarkdownGuide()
-            }
-        }
     }
 
     private var activeTextFormat: LineformTextFormat {
