@@ -312,6 +312,42 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(textView.textContainer?.containerSize.width, 480)
     }
 
+    func testColdOpenEmptyEditorUsesFinalCenteredColumnBeforeTyping() {
+        let scrollView = LineformEditorScrollView(frame: NSRect(x: 0, y: 0, width: 1_400, height: 720))
+        let textView = LineformTextView()
+        var profile = ReadingProfile.original
+        profile.columnWidth = 820
+        profile.marginWidth = 40
+
+        textView.string = ""
+        textView.correctsEmptyInsertionPointToFinalColumn = true
+        textView.applyTypography(profile)
+        scrollView.documentView = textView
+        scrollView.layoutSubtreeIfNeeded()
+        textView.textContainerInset = NSSize(width: CGFloat(profile.marginWidth), height: textView.textContainerInset.height)
+        textView.textContainer?.containerSize = NSSize(
+            width: scrollView.contentView.bounds.width - (CGFloat(profile.marginWidth) * 2),
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        let staleCaretRect = NSRect(x: CGFloat(profile.marginWidth), y: 32, width: 2, height: 20)
+        let correctedCaretRect = textView.insertionPointRectForDrawing(staleCaretRect)
+
+        let expectedInset = EditorReadingLayout.horizontalInset(
+            forContainerWidth: scrollView.contentView.bounds.width,
+            profile: profile
+        )
+        XCTAssertEqual(textView.frame.width, scrollView.contentView.bounds.width, accuracy: 0.5)
+        XCTAssertEqual(correctedCaretRect.origin.x, expectedInset, accuracy: 0.5)
+
+        textView.string = "s"
+        scrollView.layoutSubtreeIfNeeded()
+        let typedCaretRect = textView.insertionPointRectForDrawing(staleCaretRect)
+
+        XCTAssertEqual(textView.frame.width, scrollView.contentView.bounds.width, accuracy: 0.5)
+        XCTAssertEqual(textView.textContainerInset.width, expectedInset, accuracy: 0.5)
+        XCTAssertEqual(typedCaretRect.origin.x, staleCaretRect.origin.x, accuracy: 0.5)
+    }
+
     func testTightLineHeightDoesNotClipFirstLineAboveTextContainer() throws {
         let textView = LineformTextView()
         textView.setFrameSize(NSSize(width: 600, height: 500))

@@ -34,6 +34,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
         let textView = LineformTextView()
         textView.string = text
+        textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
         textView.delegate = context.coordinator
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         context.coordinator.configure(textView)
@@ -53,6 +54,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
 
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
+        textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
         textView.applyTypography(profile)
         context.coordinator.configure(textView)
 

@@ -32,6 +32,7 @@ final class LineformTextView: NSTextView {
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
     var smoothsHorizontalInsetChanges = false
+    var correctsEmptyInsertionPointToFinalColumn = false
     var horizontalInsetAnimationDuration: TimeInterval {
         EditorInspectorTextResponse.horizontalInsetAnimationDuration
     }
@@ -272,7 +273,21 @@ final class LineformTextView: NSTextView {
     }
 
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
-        super.drawInsertionPoint(in: Self.insertionPointRect(for: rect, profile: activeReadingProfile), color: color, turnedOn: flag)
+        super.drawInsertionPoint(in: insertionPointRectForDrawing(rect), color: color, turnedOn: flag)
+    }
+
+    func insertionPointRectForDrawing(_ rect: NSRect) -> NSRect {
+        var insertionPointRect = Self.insertionPointRect(for: rect, profile: activeReadingProfile)
+
+        guard correctsEmptyInsertionPointToFinalColumn, string.isEmpty, bounds.width > 0 else {
+            return insertionPointRect
+        }
+
+        insertionPointRect.origin.x = EditorReadingLayout.horizontalInset(
+            forContainerWidth: bounds.width,
+            profile: activeReadingProfile
+        )
+        return insertionPointRect
     }
 
     static func insertionPointRect(for rect: NSRect, profile: ReadingProfile) -> NSRect {
