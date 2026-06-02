@@ -42,6 +42,20 @@ xcodebuild build \
   -destination 'platform=macOS'
 ```
 
+## Download and Updates
+
+Public builds are distributed as a drag-to-Applications DMG through GitHub Releases:
+
+<https://github.com/carlostarrats/Lineform/releases>
+
+Lineform uses Sparkle 2 for update checks. Release builds need a Sparkle EdDSA public key in the `SPARKLE_PUBLIC_ED_KEY` build setting, and the appcast is expected at:
+
+```text
+https://carlostarrats.github.io/Lineform/appcast.xml
+```
+
+See `docs/release/github-sparkle-release.md` for the release order and packaging commands.
+
 ## Test
 
 Run the deterministic test suite serially:
@@ -100,4 +114,4 @@ Harper, an Automattic open-source project, is credited as inspiration and compar
 
 ## License
 
-No open-source license has been selected yet. Until a license is added, all rights are reserved.
+Lineform is source-available under the PolyForm Shield License 1.0.0. See `LICENSE` and `NOTICE`.

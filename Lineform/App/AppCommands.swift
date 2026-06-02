@@ -13,6 +13,7 @@ enum AppMenuConfiguration {
     static let saveAsCommandTitle = "Save As..."
     static let saveAsCommandKeyEquivalent = "S"
     static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
+    static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
     static let findCommandKeyEquivalent = "f"
@@ -109,13 +110,16 @@ final class LineformDisplayModeMenuState: ObservableObject {
 struct AppCommands: Commands {
     @ObservedObject private var textFormatMenuState: LineformTextFormatMenuState
     @ObservedObject private var displayModeMenuState: LineformDisplayModeMenuState
+    private let updaterController: LineformUpdaterController
 
     init(
         textFormatMenuState: LineformTextFormatMenuState = .shared,
-        displayModeMenuState: LineformDisplayModeMenuState = .shared
+        displayModeMenuState: LineformDisplayModeMenuState = .shared,
+        updaterController: LineformUpdaterController = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
         _displayModeMenuState = ObservedObject(wrappedValue: displayModeMenuState)
+        self.updaterController = updaterController
     }
 
     var body: some Commands {
@@ -133,6 +137,12 @@ struct AppCommands: Commands {
                 KeyEquivalent(Character(AppMenuConfiguration.saveAsCommandKeyEquivalent)),
                 modifiers: [.command, .shift]
             )
+
+            Divider()
+
+            Button(AppMenuConfiguration.checkForUpdatesCommandTitle) {
+                updaterController.checkForUpdates()
+            }
         }
 
         CommandMenu("Format") {

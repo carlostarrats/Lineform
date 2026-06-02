@@ -1,0 +1,26 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag to attach the DMG to, for example v1.0.0
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build DMG
+        env:
+          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+        run: packaging/build-release.sh
+      - name: Upload GitHub release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ inputs.tag }}" >/dev/null 2>&1 || \
+            gh release create "${{ inputs.tag }}" --title "Lineform ${{ inputs.tag }}" --notes "Lineform ${{ inputs.tag }}"
+          gh release upload "${{ inputs.tag }}" dist/*.dmg --clobber

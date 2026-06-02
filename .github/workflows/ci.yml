@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project Lineform.xcodeproj -scheme Lineform
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Lineform.xcodeproj \
+            -scheme Lineform \
+            -destination 'platform=macOS' \
+            -parallel-testing-enabled NO

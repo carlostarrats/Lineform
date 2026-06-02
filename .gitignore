@@ -1,6 +1,7 @@
 .DS_Store
 .superpowers/
 DerivedData/
+dist/
 *.xcuserstate
 xcuserdata/
 Lineform_Build_Plan.md

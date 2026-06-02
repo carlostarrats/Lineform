@@ -4,6 +4,7 @@ import SwiftUI
 struct LineformApp: App {
     @NSApplicationDelegateAdaptor(LineformAppDelegate.self) private var appDelegate
     @StateObject private var textFormatMenuState = LineformTextFormatMenuState.shared
+    private let updaterController = LineformUpdaterController.shared
 
     init() {
         BundledFontRegistrar.registerFonts()
@@ -19,7 +20,10 @@ struct LineformApp: App {
             height: LineformWindowDefaults.defaultHeight
         )
         .commands {
-            AppCommands(textFormatMenuState: textFormatMenuState)
+            AppCommands(
+                textFormatMenuState: textFormatMenuState,
+                updaterController: updaterController
+            )
         }
     }
 

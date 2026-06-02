@@ -99,6 +99,8 @@
 		1F0000010000000000000146 /* IntelligenceInstructionComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000146 /* IntelligenceInstructionComposer.swift */; };
 		1F0000010000000000000147 /* IntelligenceActionRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000147 /* IntelligenceActionRail.swift */; };
 		1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000148 /* EditorFloatingControlSupport.swift */; };
+		1F0000010000000000000201 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000201 /* AppUpdater.swift */; };
+		1F0000010000000000000202 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000001 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -207,6 +209,7 @@
 		1F0000020000000000000146 /* IntelligenceInstructionComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceInstructionComposer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000147 /* IntelligenceActionRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceActionRail.swift; sourceTree = "<group>"; };
 		1F0000020000000000000148 /* EditorFloatingControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFloatingControlSupport.swift; sourceTree = "<group>"; };
+		1F0000020000000000000201 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -214,6 +217,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1F0000010000000000000202 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,6 +262,7 @@
 				1F0000020000000000000011 /* LineformApp.swift */,
 				1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */,
 				1F0000020000000000000036 /* AppCommands.swift */,
+				1F0000020000000000000201 /* AppUpdater.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
 				1F0000020000000000000103 /* LineformHelp.swift */,
 			);
@@ -432,6 +437,9 @@
 			dependencies = (
 			);
 			name = Lineform;
+			packageProductDependencies = (
+				1F0000130000000000000001 /* Sparkle */,
+			);
 			productName = Lineform;
 			productReference = 1F0000020000000000000004 /* Lineform.app */;
 			productType = "com.apple.product-type.application";
@@ -482,6 +490,9 @@
 				Base,
 			);
 			mainGroup = 1F0000070000000000000001;
+			packageReferences = (
+				1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			productRefGroup = 1F0000070000000000000004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -534,6 +545,7 @@
 				1F0000010000000000000034 /* DocumentStatistics.swift in Sources */,
 				1F0000010000000000000035 /* SelectionContext.swift in Sources */,
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
+				1F0000010000000000000201 /* AppUpdater.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
 				1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */,
 				1F0000010000000000000051 /* FontOption.swift in Sources */,
@@ -759,6 +771,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
@@ -781,6 +794,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -844,6 +858,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1F0000130000000000000001 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1F0000040000000000000001 /* Project object */;
 }
