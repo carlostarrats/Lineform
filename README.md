@@ -1,35 +1,69 @@
 # Lineform
 
-Lineform is a free native macOS Markdown editor for calm writing, real local files, and readable long-form text.
+**A free, local-first Markdown editor for macOS.**
 
-It is built around ordinary UTF-8 Markdown and plain text files, so documents stay portable across Finder, iCloud Drive, Git, and other editors.
+[![Download Lineform for macOS](https://img.shields.io/badge/Download-Lineform%20for%20macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.dmg)
+[![Visit the website](https://img.shields.io/badge/Website-lineform--site.vercel.app-f2f2f2?style=for-the-badge)](https://lineform-site.vercel.app)
 
-## Features
+Lineform is a native Mac Markdown editor for calm writing, readable long-form text, and real local files. It opens ordinary `.md`, `.markdown`, and `.txt` files so your documents stay portable across Finder, iCloud Drive, Git, and other editors.
 
-- Native macOS document app built with SwiftUI, AppKit, and TextKit.
-- Opens and saves ordinary Markdown and plain text files.
-- Write mode for editing source Markdown.
-- Read mode for a calmer rendered reading view.
-- Preview mode for side-by-side Markdown editing and rendered preview.
-- Markdown outline navigation from document headings.
-- Native toolbar search with match highlighting and next/previous navigation.
-- Markdown formatting commands for headings, emphasis, inline code, lists, and links.
-- Format conversion between Markdown and plain text.
-- Save, Save As, and PDF export support.
-- Reading Experience controls for font, size, line height, block spacing, column width, themes, reading ruler, and typewriter mode.
-- Reader themes and accessibility-focused font options, including Atkinson Hyperlegible and OpenDyslexic.
-- Basic selected-text AI editing when Apple Intelligence is available: select text, toggle AI in Write mode, describe the edit, then review before accepting.
-- Defensive intelligent editing validation to avoid prompt artifacts, stale selections, empty suggestions, and unsafe Markdown changes.
-- Local-first privacy with no account system, analytics, or document upload.
-- Standard macOS About panel showing the V1.0 app version.
+## Download
+
+Download the latest DMG from GitHub Releases:
+
+**[Download Lineform for macOS](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.dmg)**
+
+More release files and notes are available on the [Lineform Releases page](https://github.com/carlostarrats/Lineform/releases). The product website is at [lineform-site.vercel.app](https://lineform-site.vercel.app).
+
+## What It Does
+
+- Write Markdown and plain text in a native macOS document app.
+- Switch between Write, Read, and Preview modes.
+- Preview Markdown beside the source in split view.
+- Navigate documents from their headings.
+- Search inside the current file with match navigation.
+- Format headings, lists, links, emphasis, and inline code.
+- Save Markdown, save plain text, or export PDF.
+- Adjust reading font, size, line height, spacing, width, theme, reading ruler, and typewriter mode.
+- Use selected-text AI editing when Apple Intelligence is available, then review suggestions before accepting.
+
+## Privacy
+
+Lineform is local-first.
+
+- No account system.
+- No analytics collection by default.
+- No document upload.
+- Documents stay wherever you save them.
+- Files remain ordinary Markdown or text files.
+- Intelligent editing uses Apple system capabilities when available, and the editor remains usable without them.
+
+## Updates
+
+Lineform includes a **Check for Updates...** menu item in the app menu.
+
+Release builds use [Sparkle](https://sparkle-project.org) for update checks once a Sparkle EdDSA public key and published appcast are configured. Development or unsigned test builds may show an "Updates are not configured for this build" message.
 
 ## Requirements
 
 - macOS 15.0 or later
-- Xcode with macOS SDK support
-- Swift 6
 
-## Build
+## About
+
+Lineform V1.0 is the first public version of the app. It is built as a native macOS document app with SwiftUI, AppKit, and TextKit.
+
+## Credits
+
+Lineform uses [Sparkle](https://sparkle-project.org) for macOS update checking.
+
+Lineform bundles accessibility-focused reader fonts under the SIL Open Font License 1.1:
+
+- Atkinson Hyperlegible, copyright 2020 Braille Institute of America, Inc.
+- OpenDyslexic, copyright Abbie Gonzalez, with Reserved Font Name OpenDyslexic.
+
+Harper, an Automattic open-source project, is credited as inspiration and comparison material for private, local-first writing assistance. Harper is not bundled with Lineform and is not a runtime dependency.
+
+## Build From Source
 
 Open `Lineform.xcodeproj` in Xcode and run the `Lineform` scheme.
 
@@ -42,22 +76,6 @@ xcodebuild build \
   -destination 'platform=macOS'
 ```
 
-## Download and Updates
-
-Public builds are distributed as a drag-to-Applications DMG through GitHub Releases:
-
-<https://github.com/carlostarrats/Lineform/releases>
-
-Lineform uses Sparkle 2 for update checks. Release builds need a Sparkle EdDSA public key in the `SPARKLE_PUBLIC_ED_KEY` build setting, and the appcast is expected at:
-
-```text
-https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml
-```
-
-See `docs/release/github-sparkle-release.md` for the release order and packaging commands.
-
-## Test
-
 Run the deterministic test suite serially:
 
 ```sh
@@ -68,50 +86,8 @@ xcodebuild test \
   -parallel-testing-enabled NO
 ```
 
-Run live Apple Intelligence evals only on machines where Apple Intelligence is available:
-
-```sh
-(
-  touch /private/tmp/lineform-run-live-intelligence-evals
-  trap 'rm -f /private/tmp/lineform-run-live-intelligence-evals' EXIT
-  xcodebuild test \
-    -project Lineform.xcodeproj \
-    -scheme Lineform \
-    -destination 'platform=macOS' \
-    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn \
-    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
-)
-```
-
-See `docs/intelligent-editing-benchmarks.md` for the full intelligence benchmark and release gate.
-
-## Privacy
-
-Lineform is local-first.
-
-- Documents are ordinary Markdown or text files.
-- Files stay local unless you put them in iCloud Drive or another synced folder.
-- There is no account system.
-- There is no analytics collection by default.
-- There is no document upload.
-- Intelligent editing uses Apple system capabilities where available.
-- The editor remains fully usable when intelligent editing is unavailable.
-
-## Project Status
-
-Lineform V1.0 is the first public version of the app.
-
-## Credits
-
-Lineform bundles accessibility-focused reader fonts under the SIL Open Font License 1.1:
-
-- Atkinson Hyperlegible, copyright 2020 Braille Institute of America, Inc.
-- OpenDyslexic, copyright Abbie Gonzalez, with Reserved Font Name OpenDyslexic.
-
-The bundled license files live in `Lineform/Resources/Fonts`.
-
-Harper, an Automattic open-source project, is credited as inspiration and comparison material for private, local-first writing assistance. Harper is not bundled with Lineform and is not a runtime dependency.
+Release packaging notes live in [docs/release/github-sparkle-release.md](docs/release/github-sparkle-release.md).
 
 ## License
 
-Lineform is source-available under the PolyForm Shield License 1.0.0. See `LICENSE` and `NOTICE`.
+Lineform is source-available under the PolyForm Shield License 1.0.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

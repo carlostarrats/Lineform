@@ -10,6 +10,7 @@ Lineform's repository root is this `Lineform` app folder, not the parent `Linefo
 4. Package the app as a drag-to-Applications DMG.
 5. Generate `docs/appcast.xml`.
 6. Publish the DMG on GitHub Releases and commit `docs/appcast.xml`.
+7. Confirm the public README and website download link point at the current release.
 
 ## GitHub Repo
 
@@ -30,6 +31,18 @@ The Sparkle feed URL compiled into Lineform is:
 https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml
 ```
 
+The product website is:
+
+```text
+https://lineform-site.vercel.app
+```
+
+The public direct-download URL used by the website and README is:
+
+```text
+https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.dmg
+```
+
 ## Sparkle Keys
 
 Use Sparkle's `generate_keys` tool once. Save the public key as the `SPARKLE_PUBLIC_ED_KEY` build setting and keep the private key in the macOS Keychain for `generate_appcast`.
@@ -43,6 +56,14 @@ Local release build:
 ```sh
 SPARKLE_PUBLIC_ED_KEY="PUBLIC_KEY_FROM_GENERATE_KEYS" packaging/build-release.sh
 ```
+
+If a DMG is needed before Sparkle signing is finalized, build with the placeholder key:
+
+```sh
+SPARKLE_PUBLIC_ED_KEY="SPARKLE_PUBLIC_ED_KEY" packaging/build-release.sh
+```
+
+That DMG is suitable for manual download testing, but **Check for Updates...** will show that updates are not configured until a real Sparkle public key and signed appcast are published.
 
 Generate the appcast after the DMG exists:
 

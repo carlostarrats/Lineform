@@ -41,6 +41,8 @@ trap cleanup EXIT
 mkdir -p "$STAGING_DIR" "$OUTPUT_DIR"
 cp -R "$APP_PATH" "$STAGING_DIR/$APP_NAME.app"
 ln -s /Applications "$STAGING_DIR/Applications"
+mkdir -p "$STAGING_DIR/.background"
+cp "$BACKGROUND_IMAGE" "$STAGING_DIR/.background/download-background.jpg"
 
 hdiutil create \
   -volname "$VOLUME_NAME" \
@@ -49,11 +51,8 @@ hdiutil create \
   -format UDRW \
   -ov "$RW_DMG"
 
-DEVICE="$(hdiutil attach -readwrite -noverify -noautoopen "$RW_DMG" | awk '/Apple_HFS/ {print $1; exit}')"
+DEVICE="$(hdiutil attach -readwrite -owners on -noverify -noautoopen "$RW_DMG" | awk '/Apple_HFS/ {print $1; exit}')"
 VOLUME_PATH="/Volumes/$VOLUME_NAME"
-
-mkdir -p "$VOLUME_PATH/.background"
-cp "$BACKGROUND_IMAGE" "$VOLUME_PATH/.background/download-background.jpg"
 
 osascript <<APPLESCRIPT
 tell application "Finder"

@@ -6,6 +6,12 @@ This file is for AI coding agents working in the Lineform repo. Read it before m
 
 Lineform is a free native macOS Markdown editor for calm writing, real local files, and readable long-form text. V1.0 is the first public version of the app. The app should feel quiet, native, file-based, and trustworthy. It is not a web editor, not a note-taking database, and not a cloud writing service.
 
+Public-facing links:
+
+- Product website: `https://lineform-site.vercel.app`
+- GitHub repo: `https://github.com/carlostarrats/Lineform`
+- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.dmg`
+
 Core product principles:
 
 - Real files: documents are plain UTF-8 Markdown or text files that remain portable across Finder, iCloud Drive, Git, and other editors.
@@ -28,13 +34,14 @@ Core product principles:
 - Apple Intelligence-backed selected-text editing when available.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
+- Sparkle-backed update checks in release builds when a real EdDSA public key and appcast are configured.
 - Standard macOS About panel showing `V1.0`.
 
 ## Architecture Map
 
 Important directories:
 
-- `Lineform/App`: app entry point, menu commands, notifications, help.
+- `Lineform/App`: app entry point, menu commands, notifications, and update-check wiring.
 - `Lineform/Documents`: document model, UTF-8 Markdown/text file read/write, save status.
 - `Lineform/Editor`: editing container, TextKit bridge, selection context, syntax highlighting, formatting commands, writing tools protections.
 - `Lineform/Preview`: Markdown preview rendering and preview view bridge.
@@ -201,14 +208,16 @@ Keep attribution accurate when changing fonts, bundled resources, README copy, a
 - The bundled font license files must remain in `Lineform/Resources/Fonts`.
 - `Lineform/Resources/FontLicenseReview.md` should stay in sync with the bundled font set.
 - Harper is credited only as inspiration and comparison material for private, local-first writing assistance. It is not bundled with Lineform and is not a runtime dependency.
+- Sparkle is bundled for macOS update checking and must be credited in public docs/notices when release or dependency documentation changes.
 
 ## Documentation Expectations
 
 Update docs when behavior, workflows, or quality gates change:
 
-- Use `README.md` for public project basics.
+- Keep `README.md` user-facing: prominent download, website, privacy, about, credits, and only a compact source-build section.
 - Use this `AGENTS.md` for AI coding agent context and repo operating rules.
 - Use `docs/intelligent-editing-benchmarks.md` for intelligence eval coverage and commands.
+- Use `docs/release/github-sparkle-release.md` for GitHub Releases, DMG packaging, and Sparkle appcast steps.
 - Use `Lineform/Resources/*.md` for user-facing bundled app/help/release docs.
 
 Keep this file current when major features, architecture, or verification gates change.

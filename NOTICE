@@ -1,1 +1,7 @@
 Required Notice: Copyright Carlos Tarrats.
+
+Lineform uses Sparkle for macOS software update checking.
+Sparkle is copyright Sparkle Project contributors and is licensed under the MIT License.
+See https://sparkle-project.org and https://github.com/sparkle-project/Sparkle.
+
+Lineform bundles Atkinson Hyperlegible and OpenDyslexic under the SIL Open Font License 1.1.

@@ -22,5 +22,7 @@
 - Run product-rule scans.
 - Confirm the About panel displays the intended release version.
 - Confirm `README.md`, `AGENTS.md`, app metadata, help, and font credits match the shipped version.
+- Confirm the website and README download links point at the current GitHub release DMG.
+- Confirm Sparkle update checks are either fully configured with a real EdDSA key/appcast or intentionally documented as unavailable for the build.
 - Confirm bundled font license files are present in `Resources/Fonts`.
 - Run Instruments smoke profiling for launch or time profiling when available.
