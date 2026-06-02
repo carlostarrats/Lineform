@@ -499,6 +499,12 @@ final class IntelligentEditingActionTests: XCTestCase {
             "Reject",
             "Accept"
         ])
+        XCTAssertEqual(IntelligentEditingReviewControls.proofreadReviewButtonTitles, [
+            "Try Again",
+            "Reject",
+            "Accept All",
+            "Accept"
+        ])
         XCTAssertTrue(IntelligentEditingReviewControls.usesPointingHandCursor)
         XCTAssertTrue(IntelligentEditingReviewControls.usesAppKitCursorRect)
         XCTAssertTrue(IntelligentEditingReviewControls.reassertsPointingHandCursorWhileHovered)
@@ -687,6 +693,175 @@ final class IntelligentEditingActionTests: XCTestCase {
             - IntelligenceInstructionComposerPresentation.height
 
         XCTAssertLessThanOrEqual(panelBottom + IntelligentEditingOverlayPlacement.composerGap, composerTop)
+    }
+
+    func testProofreadChangeReviewShowsWordLevelTypoForLongMarkdownLine() {
+        let original = "# Lineform\n\nLineform is a native macOS Markdowxn editor for calm writing, real local files, and readable long-form text."
+        let replacement = "# Lineform\n\nLineform is a native macOS Markdown editor for calm writing, real local files, and readable long-form text."
+        let suggestion = IntelligentEditingSuggestion(
+            action: .proofread,
+            selectedRange: NSRange(location: 0, length: (original as NSString).length),
+            originalText: original,
+            replacementText: replacement,
+            diff: MarkdownDiff.make(original: original, replacement: replacement)
+        )
+
+        let items = IntelligentEditingProofreadChangeReview.items(for: suggestion)
+
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items[0].previewText, "Markdowxn -> Markdown")
+        XCTAssertEqual(
+            IntelligentEditingOptionsPresentation.presentation(for: items[0].previewText),
+            .anchoredPopover
+        )
+    }
+
+    func testProofreadChangeReviewShowsShortGrammarLine() {
+        let original = "cat on the hat"
+        let replacement = "cat in the hat"
+        let suggestion = IntelligentEditingSuggestion(
+            action: .proofread,
+            selectedRange: NSRange(location: 0, length: (original as NSString).length),
+            originalText: original,
+            replacementText: replacement,
+            diff: MarkdownDiff.make(original: original, replacement: replacement)
+        )
+
+        XCTAssertEqual(
+            IntelligentEditingProofreadChangeReview.previewText(for: suggestion, changeIndex: 0),
+            "cat on the hat -> cat in the hat"
+        )
+    }
+
+    func testProofreadChangeReviewBuildsNavigableItemsForMultipleFixes() {
+        let original = """
+        this has speling.
+        Format conversion between Markdowxn and plain text.
+        """
+        let replacement = """
+        this has spelling.
+        Format conversion between Markdown and plain text.
+        """
+        let suggestion = IntelligentEditingSuggestion(
+            action: .proofread,
+            selectedRange: NSRange(location: 0, length: (original as NSString).length),
+            originalText: original,
+            replacementText: replacement,
+            diff: MarkdownDiff.make(original: original, replacement: replacement)
+        )
+
+        let items = IntelligentEditingProofreadChangeReview.items(for: suggestion)
+
+        XCTAssertEqual(items.map(\.previewText), [
+            "this has speling. -> this has spelling.",
+            "Format conversion between Markdowxn and plain text. -> Format conversion between Markdown and plain text."
+        ])
+        XCTAssertEqual(IntelligentEditingProofreadChangeReview.previewText(for: suggestion, changeIndex: 1), items[1].previewText)
+    }
+
+    func testProofreadChangeReviewAcceptsOnlyCurrentChangeAndKeepsRemainingFixes() {
+        let original = """
+        this has speling.
+        Format conversion between Markdowxn and plain text.
+        """
+        let replacement = """
+        this has spelling.
+        Format conversion between Markdown and plain text.
+        """
+        let documentText = "Before\n\(original)\nAfter"
+        let selectedRange = (documentText as NSString).range(of: original)
+        let suggestion = IntelligentEditingSuggestion(
+            action: .proofread,
+            selectedRange: selectedRange,
+            originalText: original,
+            replacementText: replacement,
+            diff: MarkdownDiff.make(original: original, replacement: replacement)
+        )
+
+        let acceptance = IntelligentEditingProofreadChangeReview.acceptChange(
+            in: documentText,
+            suggestion: suggestion,
+            changeIndex: 0
+        )
+
+        XCTAssertEqual(
+            acceptance?.documentText,
+            "Before\nthis has spelling.\nFormat conversion between Markdowxn and plain text.\nAfter"
+        )
+        XCTAssertEqual(acceptance?.remainingSuggestion?.originalText, """
+        this has spelling.
+        Format conversion between Markdowxn and plain text.
+        """)
+        XCTAssertEqual(acceptance?.remainingSuggestion?.replacementText, replacement)
+        XCTAssertEqual(
+            acceptance?.remainingSuggestion.map {
+                IntelligentEditingProofreadChangeReview.previewText(for: $0, changeIndex: 0)
+            },
+            "Format conversion between Markdowxn and plain text. -> Format conversion between Markdown and plain text."
+        )
+    }
+
+    func testProofreadChangeReviewAcceptingFinalChangeClearsRemainingSuggestion() {
+        let original = "cat on the hat"
+        let replacement = "cat in the hat"
+        let documentText = "Draft: \(original)"
+        let selectedRange = (documentText as NSString).range(of: original)
+        let suggestion = IntelligentEditingSuggestion(
+            action: .proofread,
+            selectedRange: selectedRange,
+            originalText: original,
+            replacementText: replacement,
+            diff: MarkdownDiff.make(original: original, replacement: replacement)
+        )
+
+        let acceptance = IntelligentEditingProofreadChangeReview.acceptChange(
+            in: documentText,
+            suggestion: suggestion,
+            changeIndex: 0
+        )
+
+        XCTAssertEqual(acceptance?.documentText, "Draft: cat in the hat")
+        XCTAssertNil(acceptance?.remainingSuggestion)
+    }
+
+    func testProofreadChangeReviewDoesNotAcceptStaleDocumentText() {
+        let original = "teh release note"
+        let replacement = "the release note"
+        let suggestion = IntelligentEditingSuggestion(
+            action: .proofread,
+            selectedRange: NSRange(location: 0, length: (original as NSString).length),
+            originalText: original,
+            replacementText: replacement,
+            diff: MarkdownDiff.make(original: original, replacement: replacement)
+        )
+
+        XCTAssertNil(
+            IntelligentEditingProofreadChangeReview.acceptChange(
+                in: "the release note",
+                suggestion: suggestion,
+                changeIndex: 0
+            )
+        )
+    }
+
+    func testProofreadChangeReviewDoesNotPartiallyAcceptRewriteSuggestions() {
+        let original = "rough text"
+        let replacement = "cleaner text"
+        let suggestion = IntelligentEditingSuggestion(
+            action: .rewrite,
+            selectedRange: NSRange(location: 0, length: (original as NSString).length),
+            originalText: original,
+            replacementText: replacement,
+            diff: MarkdownDiff.make(original: original, replacement: replacement)
+        )
+
+        XCTAssertNil(
+            IntelligentEditingProofreadChangeReview.acceptChange(
+                in: original,
+                suggestion: suggestion,
+                changeIndex: 0
+            )
+        )
     }
 
     private static func contrastRatio(_ foreground: NSColor, _ background: NSColor) -> CGFloat {

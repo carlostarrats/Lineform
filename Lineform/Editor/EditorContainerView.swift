@@ -283,19 +283,28 @@ struct EditorContainerView: View {
             if shouldShowIntelligentOptionsPanel {
                 GeometryReader { proxy in
                     let panelReferenceText = activeIntelligentSuggestion?.originalText ?? ""
+                    let panelPlacementText = activeIntelligentSuggestion.map {
+                        IntelligentEditingProofreadChangeReview.previewText(
+                            for: $0,
+                            changeIndex: currentIntelligentChangeIndex
+                        )
+                    } ?? ""
                     let placement = IntelligentEditingOverlayPlacement.placement(
                         anchorRect: selectionAnchorRect,
                         containerSize: proxy.size,
-                        replacementText: activeIntelligentSuggestion?.replacementText ?? ""
+                        replacementText: panelPlacementText
                     )
 
                     IntelligentEditingOptionsPanel(
                         suggestions: intelligentOptions,
                         selectedIndex: $selectedIntelligentOptionIndex,
+                        currentChangeIndex: $currentIntelligentChangeIndex,
                         loadingPreviewText: panelReferenceText,
                         maximumBodyHeight: placement.bodyHeight,
                         usesDarkChrome: currentTheme.usesDarkChrome,
+                        navigateToChange: navigateToSuggestedChange,
                         retry: retryIntelligentSuggestion,
+                        acceptAll: acceptAllIntelligentSuggestion,
                         accept: acceptIntelligentSuggestion,
                         reject: rejectIntelligentSuggestion
                     )
@@ -596,6 +605,14 @@ struct EditorContainerView: View {
     }
 
     private func acceptIntelligentSuggestion() {
+        if acceptCurrentProofreadChange() {
+            return
+        }
+
+        acceptAllIntelligentSuggestion()
+    }
+
+    private func acceptAllIntelligentSuggestion() {
         guard let intelligentSuggestion = activeIntelligentSuggestion else {
             return
         }
@@ -611,6 +628,46 @@ struct EditorContainerView: View {
         retainedIntelligenceSelection = nil
         clearIntelligentSuggestions()
         intelligentEditingStatus = "Suggestion accepted."
+    }
+
+    private func acceptCurrentProofreadChange() -> Bool {
+        guard let intelligentSuggestion = activeIntelligentSuggestion,
+              intelligentOptions.count == 1,
+              !IntelligentEditingProofreadChangeReview.items(for: intelligentSuggestion).isEmpty
+        else {
+            return false
+        }
+
+        guard let acceptance = IntelligentEditingProofreadChangeReview.acceptChange(
+            in: document.text,
+            suggestion: intelligentSuggestion,
+            changeIndex: currentIntelligentChangeIndex
+        ) else {
+            clearIntelligentSuggestions()
+            intelligentEditingStatus = "Suggestion expired after edits."
+            return true
+        }
+
+        document.text = acceptance.documentText
+
+        guard let remainingSuggestion = acceptance.remainingSuggestion else {
+            requestedSelection = IntelligentEditingSelectionDismissal.acceptedCaretSelection(for: intelligentSuggestion)
+            retainedIntelligenceSelection = nil
+            clearIntelligentSuggestions()
+            intelligentEditingStatus = "Suggestion accepted."
+            return true
+        }
+
+        intelligentOptions = [remainingSuggestion]
+        selectedIntelligentOptionIndex = 0
+        currentIntelligentChangeIndex = min(currentIntelligentChangeIndex, remainingSuggestion.diff.changes.count - 1)
+        let nextChange = remainingSuggestion.diff.changes[currentIntelligentChangeIndex]
+        requestedSelection = NSRange(
+            location: remainingSuggestion.selectedRange.location + nextChange.replacementRange.location,
+            length: max(nextChange.replacementRange.length, 1)
+        )
+        intelligentEditingStatus = "Change accepted."
+        return true
     }
 
     private func retryIntelligentSuggestion() {

@@ -66,6 +66,7 @@
 		1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000100 /* IntelligentEditingService.swift */; };
 		1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000101 /* IntelligentEditingRunner.swift */; };
 		1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */; };
+		1F000001000000000000010A /* IntelligentEditingProofreadChangeReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000010A /* IntelligentEditingProofreadChangeReview.swift */; };
 		1F0000010000000000000150 /* LineformProofreadingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000150 /* LineformProofreadingSupport.swift */; };
 		1F0000010000000000000160 /* IntelligentEditingQualityPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000160 /* IntelligentEditingQualityPipeline.swift */; };
 		1F0000010000000000000123 /* IntelligentEditingEvaluation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */; };
@@ -176,6 +177,7 @@
 		1F0000020000000000000100 /* IntelligentEditingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000101 /* IntelligentEditingRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingRunner.swift; sourceTree = "<group>"; };
 		1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingSuggestionBar.swift; sourceTree = "<group>"; };
+		1F000002000000000000010A /* IntelligentEditingProofreadChangeReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingProofreadChangeReview.swift; sourceTree = "<group>"; };
 		1F0000020000000000000150 /* LineformProofreadingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformProofreadingSupport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000160 /* IntelligentEditingQualityPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingQualityPipeline.swift; sourceTree = "<group>"; };
 		1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentEditingEvaluation.swift; sourceTree = "<group>"; };
@@ -341,6 +343,7 @@
 				1F0000020000000000000100 /* IntelligentEditingService.swift */,
 				1F0000020000000000000101 /* IntelligentEditingRunner.swift */,
 				1F0000020000000000000102 /* IntelligentEditingSuggestionBar.swift */,
+				1F000002000000000000010A /* IntelligentEditingProofreadChangeReview.swift */,
 				1F0000020000000000000150 /* LineformProofreadingSupport.swift */,
 				1F0000020000000000000160 /* IntelligentEditingQualityPipeline.swift */,
 				1F0000020000000000000123 /* IntelligentEditingEvaluation.swift */,
@@ -564,6 +567,7 @@
 				1F0000010000000000000100 /* IntelligentEditingService.swift in Sources */,
 				1F0000010000000000000101 /* IntelligentEditingRunner.swift in Sources */,
 				1F0000010000000000000102 /* IntelligentEditingSuggestionBar.swift in Sources */,
+				1F000001000000000000010A /* IntelligentEditingProofreadChangeReview.swift in Sources */,
 				1F0000010000000000000150 /* LineformProofreadingSupport.swift in Sources */,
 				1F0000010000000000000160 /* IntelligentEditingQualityPipeline.swift in Sources */,
 				1F0000010000000000000123 /* IntelligentEditingEvaluation.swift in Sources */,

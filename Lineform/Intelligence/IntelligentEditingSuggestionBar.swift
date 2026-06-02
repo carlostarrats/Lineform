@@ -99,6 +99,7 @@ struct IntelligentEditingSuggestionBar: View {
 
 enum IntelligentEditingReviewControls {
     static let buttonTitles = ["Try Again", "Reject", "Accept"]
+    static let proofreadReviewButtonTitles = ["Try Again", "Reject", "Accept All", "Accept"]
     static let usesPointingHandCursor = true
     static let usesAppKitCursorRect = true
     static let reassertsPointingHandCursorWhileHovered = true
@@ -177,11 +178,14 @@ enum IntelligentEditingOptionsPresentation {
 struct IntelligentEditingOptionsPanel: View {
     let suggestions: [IntelligentEditingSuggestion]
     @Binding var selectedIndex: Int
+    @Binding var currentChangeIndex: Int
     var loadingActionTitle: String?
     var loadingPreviewText = ""
     var maximumBodyHeight: CGFloat?
     var usesDarkChrome = false
+    var navigateToChange: (MarkdownDiff.Change) -> Void = { _ in }
     var retry: () -> Void
+    var acceptAll: () -> Void
     var accept: () -> Void
     var reject: () -> Void
 
@@ -196,6 +200,8 @@ struct IntelligentEditingOptionsPanel: View {
 
                 if isLoading {
                     IntelligentEditingLoadingSpinnerSlot()
+                } else if usesProofreadChangeReview {
+                    proofreadChangeNavigation
                 } else if suggestions.count > 1 {
                     HStack(spacing: 8) {
                         ForEach(suggestions.indices, id: \.self) { index in
@@ -227,6 +233,10 @@ struct IntelligentEditingOptionsPanel: View {
                 IntelligentEditingActionButton(title: "Reject", style: .secondary, action: reject)
                     .keyboardShortcut(.cancelAction)
 
+                if usesProofreadChangeReview {
+                    IntelligentEditingActionButton(title: "Accept All", style: .secondary, isDisabled: isLoading, action: acceptAll)
+                }
+
                 IntelligentEditingActionButton(title: "Accept", style: .primary, isDisabled: isLoading, action: accept)
                     .keyboardShortcut(.defaultAction)
             }
@@ -245,6 +255,32 @@ struct IntelligentEditingOptionsPanel: View {
         .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isLoading ? "\(panelTitle) is generating" : "Lineform options")
+    }
+
+    private var proofreadChangeNavigation: some View {
+        HStack(spacing: 8) {
+            IntelligentEditingChangeNavigationButton(
+                title: "Previous Change",
+                systemImage: "chevron.left",
+                isDisabled: currentProofreadChangeIndex <= 0
+            ) {
+                moveProofreadChange(by: -1)
+            }
+
+            Text(proofreadChangePositionText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color(nsColor: IntelligentEditingOptionsPresentation.primaryTextColor(usesDarkAppearance: usesDarkChrome)).opacity(0.68))
+                .frame(minWidth: 48)
+                .accessibilityLabel(proofreadChangeAccessibilityLabel)
+
+            IntelligentEditingChangeNavigationButton(
+                title: "Next Change",
+                systemImage: "chevron.right",
+                isDisabled: currentProofreadChangeIndex >= proofreadReviewItems.count - 1
+            ) {
+                moveProofreadChange(by: 1)
+            }
+        }
     }
 
     @ViewBuilder
@@ -330,7 +366,14 @@ struct IntelligentEditingOptionsPanel: View {
     }
 
     private var previewText: String {
-        activeSuggestion?.replacementText.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let activeSuggestion, usesProofreadChangeReview {
+            return IntelligentEditingProofreadChangeReview.previewText(
+                for: activeSuggestion,
+                changeIndex: currentChangeIndex
+            )
+        }
+
+        return activeSuggestion?.replacementText.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private var presentationMode: IntelligentEditingOptionsPresentation.Mode {
@@ -376,6 +419,44 @@ struct IntelligentEditingOptionsPanel: View {
         let estimatedHeight = estimatedLines * lineHeight + 24
         let maximumHeight = presentationMode == .expandedReview ? maximumBodyHeight ?? 380 : 300
         return min(maximumHeight, max(IntelligentEditingOptionsPresentation.loadingAnswerSurfaceMinimumHeight, estimatedHeight))
+    }
+
+    private var usesProofreadChangeReview: Bool {
+        !isLoading && suggestions.count == 1 && !proofreadReviewItems.isEmpty
+    }
+
+    private var proofreadReviewItems: [IntelligentEditingProofreadChangeReview.Item] {
+        guard let activeSuggestion else {
+            return []
+        }
+
+        return IntelligentEditingProofreadChangeReview.items(for: activeSuggestion)
+    }
+
+    private var currentProofreadChangeIndex: Int {
+        guard !proofreadReviewItems.isEmpty else {
+            return 0
+        }
+
+        return min(max(currentChangeIndex, 0), proofreadReviewItems.count - 1)
+    }
+
+    private var proofreadChangePositionText: String {
+        "\(currentProofreadChangeIndex + 1) of \(proofreadReviewItems.count)"
+    }
+
+    private var proofreadChangeAccessibilityLabel: String {
+        "Proofread change \(currentProofreadChangeIndex + 1) of \(proofreadReviewItems.count)"
+    }
+
+    private func moveProofreadChange(by offset: Int) {
+        guard !proofreadReviewItems.isEmpty else {
+            return
+        }
+
+        let nextIndex = min(max(currentChangeIndex + offset, 0), proofreadReviewItems.count - 1)
+        currentChangeIndex = nextIndex
+        navigateToChange(proofreadReviewItems[nextIndex].change)
     }
 
     private var isVeryShortPreview: Bool {
@@ -464,6 +545,34 @@ private struct IntelligentEditingSkeletonBlock: View {
                     }
                 }
             }
+    }
+}
+
+private struct IntelligentEditingChangeNavigationButton: View {
+    let title: String
+    let systemImage: String
+    var isDisabled = false
+    var action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 30, height: 30)
+                .foregroundStyle(Color.primary.opacity(isDisabled ? 0.34 : 0.72))
+                .background(
+                    Color.primary.opacity(isDisabled ? 0.04 : (isHovered ? 0.14 : 0.075)),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .help(title)
+        .intelligentEditingPointingHandCursor(isEnabled: !isDisabled) { hovering in
+            isHovered = hovering
+        }
+        .accessibilityLabel(title)
     }
 }
 

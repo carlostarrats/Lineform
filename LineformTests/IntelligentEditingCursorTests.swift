@@ -101,7 +101,9 @@ final class IntelligentEditingCursorTests: XCTestCase {
                 get: { selectedIndex },
                 set: { selectedIndex = $0 }
             ),
+            currentChangeIndex: .constant(0),
             retry: {},
+            acceptAll: {},
             accept: {},
             reject: {}
         )
