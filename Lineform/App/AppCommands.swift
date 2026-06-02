@@ -14,6 +14,7 @@ enum AppMenuConfiguration {
     static let saveAsCommandKeyEquivalent = "S"
     static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
     static let checkForUpdatesCommandTitle = "Check for Updates..."
+    static let suppressesDefaultHelpMenu = true
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
     static let findCommandKeyEquivalent = "f"
@@ -230,6 +231,10 @@ struct AppCommands: Commands {
                 LineformAppNotification.focusSearch.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut(KeyEquivalent(Character(AppMenuConfiguration.findCommandKeyEquivalent)), modifiers: .command)
+        }
+
+        CommandGroup(replacing: .help) {
+            EmptyView()
         }
 
         if AppMenuConfiguration.keepsTopLevelIntelligenceMenu {
