@@ -13,6 +13,8 @@ Download the latest DMG from GitHub Releases:
 
 **[Download Lineform for macOS](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.dmg)**
 
+Lineform 1.0 is built for Apple Silicon Macs.
+
 More release files and notes are available on the [Lineform Releases page](https://github.com/carlostarrats/Lineform/releases). The product website is at [lineform-site.vercel.app](https://lineform-site.vercel.app).
 
 ## What It Does
@@ -47,6 +49,7 @@ Release builds use [Sparkle](https://sparkle-project.org) for update checks once
 ## Requirements
 
 - macOS 15.0 or later
+- Apple Silicon Mac
 
 ## About
 
