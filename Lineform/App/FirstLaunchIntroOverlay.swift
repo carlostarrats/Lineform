@@ -3,10 +3,76 @@ import SwiftUI
 import WebKit
 
 @MainActor
+enum LineformLaunchDefaults {
+    static let firstPublicReleaseDefaultsInitializedKey = "LineformPublicReleaseDefaultsInitialized"
+    static let firstLaunchIntroCompletedKey = "LineformFirstLaunchIntroCompleted.v1_0"
+    static let legacyFirstLaunchIntroCompletedKey = "LineformFirstLaunchIntroCompleted"
+
+    private static let staleFirstPublicReleaseKeys = [
+        legacyFirstLaunchIntroCompletedKey,
+        "Lineform.outline.workspaceBookmark",
+        "Lineform.outline.workspaceSnapshot"
+    ]
+
+    private static var restoresApplicationStateForCurrentLaunch: Bool?
+
+    static func prepareForLaunch(defaults: UserDefaults = .standard) {
+        #if DEBUG
+        restoresApplicationStateForCurrentLaunch = true
+        #else
+        let shouldRestoreApplicationState = defaults.bool(forKey: firstPublicReleaseDefaultsInitializedKey)
+        restoresApplicationStateForCurrentLaunch = shouldRestoreApplicationState
+
+        _ = migrateFirstPublicReleaseDefaultsIfNeeded(defaults: defaults) {
+            NSDocumentController.shared.clearRecentDocuments(nil)
+        }
+        #endif
+    }
+
+    static func shouldRestoreApplicationState(defaults: UserDefaults = .standard) -> Bool {
+        #if DEBUG
+        return true
+        #else
+        if let restoresApplicationStateForCurrentLaunch {
+            return restoresApplicationStateForCurrentLaunch
+        }
+
+        return defaults.bool(forKey: firstPublicReleaseDefaultsInitializedKey)
+        #endif
+    }
+
+    @discardableResult
+    static func migrateFirstPublicReleaseDefaultsIfNeeded(
+        defaults: UserDefaults,
+        clearRecentDocuments: () -> Void
+    ) -> Bool {
+        guard !defaults.bool(forKey: firstPublicReleaseDefaultsInitializedKey) else {
+            return false
+        }
+
+        for key in staleFirstPublicReleaseKeys {
+            defaults.removeObject(forKey: key)
+        }
+        clearRecentDocuments()
+        defaults.set(true, forKey: firstPublicReleaseDefaultsInitializedKey)
+        return true
+    }
+
+    static func hasCompletedFirstLaunchIntro(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: firstLaunchIntroCompletedKey)
+    }
+
+    static func markFirstLaunchIntroCompleted(defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: firstLaunchIntroCompletedKey)
+    }
+}
+
+@MainActor
 final class LineformAppDelegate: NSObject, NSApplicationDelegate {
     private let firstLaunchIntroPresenter = FirstLaunchIntroPresenter()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        LineformLaunchDefaults.prepareForLaunch()
         firstLaunchIntroPresenter.showIfNeeded()
     }
 
@@ -24,23 +90,22 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
         firstLaunchIntroPresenter.openUntitledDocumentAfterDismiss()
         return false
     }
+
+    func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
+        LineformLaunchDefaults.shouldRestoreApplicationState()
+    }
 }
 
 @MainActor
 final class FirstLaunchIntroPresenter {
-    private enum Defaults {
-        static let completedKey = "LineformFirstLaunchIntroCompleted"
-    }
-
     private var window: NSWindow?
     private var hiddenAppWindows: [NSWindow] = []
     private var shouldOpenUntitledDocumentAfterDismiss = false
     private var shouldAllowNextUntitledDocumentOpen = false
 
     static var shouldShowIntro: Bool {
-        let defaults = UserDefaults.standard
         let environmentForcesIntro = ProcessInfo.processInfo.environment["LINEFORM_SHOW_FIRST_LAUNCH_INTRO"] == "1"
-        return environmentForcesIntro || !defaults.bool(forKey: Defaults.completedKey)
+        return environmentForcesIntro || !LineformLaunchDefaults.hasCompletedFirstLaunchIntro()
     }
 
     func openUntitledDocumentAfterDismiss() {
@@ -102,7 +167,7 @@ final class FirstLaunchIntroPresenter {
     }
 
     private func dismiss() {
-        UserDefaults.standard.set(true, forKey: Defaults.completedKey)
+        LineformLaunchDefaults.markFirstLaunchIntroCompleted()
         shouldOpenUntitledDocumentAfterDismiss = true
         guard let window else {
             openInitialUntitledDocumentIfNeeded()

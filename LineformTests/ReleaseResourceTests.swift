@@ -74,4 +74,70 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertNil(Bundle.main.url(forResource: "OFL-Lexend", withExtension: "txt", subdirectory: "Fonts"))
     }
+
+    @MainActor
+    func testFirstPublicReleaseMigrationClearsLegacyTestingState() {
+        let suiteName = "LineformFirstPublicReleaseMigrationTests"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(true, forKey: LineformLaunchDefaults.legacyFirstLaunchIntroCompletedKey)
+        defaults.set(Data([0x01]), forKey: "Lineform.outline.workspaceBookmark")
+        defaults.set(Data([0x02]), forKey: "Lineform.outline.workspaceSnapshot")
+        var recentDocumentsClearCount = 0
+
+        let didMigrate = LineformLaunchDefaults.migrateFirstPublicReleaseDefaultsIfNeeded(defaults: defaults) {
+            recentDocumentsClearCount += 1
+        }
+
+        XCTAssertTrue(didMigrate)
+        XCTAssertNil(defaults.object(forKey: LineformLaunchDefaults.legacyFirstLaunchIntroCompletedKey))
+        XCTAssertNil(defaults.object(forKey: "Lineform.outline.workspaceBookmark"))
+        XCTAssertNil(defaults.object(forKey: "Lineform.outline.workspaceSnapshot"))
+        XCTAssertTrue(defaults.bool(forKey: LineformLaunchDefaults.firstPublicReleaseDefaultsInitializedKey))
+        XCTAssertEqual(recentDocumentsClearCount, 1)
+    }
+
+    @MainActor
+    func testFirstPublicReleaseMigrationIsIdempotentAfterMarkerIsSet() {
+        let suiteName = "LineformFirstPublicReleaseMigrationIdempotentTests"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(true, forKey: LineformLaunchDefaults.firstPublicReleaseDefaultsInitializedKey)
+        defaults.set(Data([0x01]), forKey: "Lineform.outline.workspaceBookmark")
+        var recentDocumentsClearCount = 0
+
+        let didMigrate = LineformLaunchDefaults.migrateFirstPublicReleaseDefaultsIfNeeded(defaults: defaults) {
+            recentDocumentsClearCount += 1
+        }
+
+        XCTAssertFalse(didMigrate)
+        XCTAssertNotNil(defaults.object(forKey: "Lineform.outline.workspaceBookmark"))
+        XCTAssertEqual(recentDocumentsClearCount, 0)
+    }
+
+    @MainActor
+    func testFirstLaunchIntroCompletionIgnoresLegacyDebugKey() {
+        let suiteName = "LineformFirstLaunchIntroCompletionTests"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(true, forKey: LineformLaunchDefaults.legacyFirstLaunchIntroCompletedKey)
+
+        XCTAssertFalse(LineformLaunchDefaults.hasCompletedFirstLaunchIntro(defaults: defaults))
+
+        LineformLaunchDefaults.markFirstLaunchIntroCompleted(defaults: defaults)
+
+        XCTAssertTrue(LineformLaunchDefaults.hasCompletedFirstLaunchIntro(defaults: defaults))
+    }
+
+    func testDebugAndReleaseBuildsUseSeparateDefaultsDomains() throws {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let projectURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Lineform.xcodeproj/project.pbxproj")
+        let project = try String(contentsOf: projectURL, encoding: .utf8)
+
+        XCTAssertTrue(project.contains("PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug;"))
+        XCTAssertTrue(project.contains("PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app;"))
+    }
 }

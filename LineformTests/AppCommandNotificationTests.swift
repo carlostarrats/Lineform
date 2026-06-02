@@ -101,7 +101,7 @@ final class AppCommandNotificationTests: XCTestCase {
     }
 
     func testAppDeclaresImportedMarkdownType() throws {
-        let bundle = try XCTUnwrap(Bundle(identifier: "com.lineform.app"))
+        let bundle = Bundle(for: LineformAppDelegate.self)
         let declarations = try XCTUnwrap(
             bundle.infoDictionary?["UTImportedTypeDeclarations"] as? [[String: Any]]
         )
