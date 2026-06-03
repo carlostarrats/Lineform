@@ -13,6 +13,10 @@
 		<string>com.lineform.app-spki</string>
 		<string>com.lineform.app-spks</string>
 	</array>
+	<key>com.apple.application-identifier</key>
+	<string>TV4QZT7A7X.com.lineform.app</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>TV4QZT7A7X</string>
 	<key>com.apple.developer.icloud-container-environment</key>
 	<string>Production</string>
 	<key>com.apple.developer.icloud-container-identifiers</key>

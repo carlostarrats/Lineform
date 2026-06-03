@@ -40,7 +40,7 @@ https://lineform-site.vercel.app
 The public direct-download URL used by the website and README is:
 
 ```text
-https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.5.dmg
+https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.6.dmg
 ```
 
 ## Sparkle Keys
@@ -74,6 +74,13 @@ include iCloud container environment support. The Xcode-managed development
 profile is enough to verify iCloud Documents locally, but it is not a public
 release signing profile.
 
+Release signing must keep `Lineform/Lineform.entitlements` aligned with that
+Direct profile, including `com.apple.application-identifier` set to
+`TV4QZT7A7X.com.lineform.app` and `com.apple.developer.team-identifier` set to
+`TV4QZT7A7X`. After installing a release candidate, check the launch log for
+taskgated allowing `Mac Team Direct Provisioning Profile: com.lineform.app` and
+for no iCloud Drive `application-identifier` entitlement warning.
+
 Override `DEVELOPMENT_TEAM` or `CODE_SIGN_IDENTITY` only if the certificate changes.
 
 If a DMG is needed before Sparkle signing is finalized, build with the placeholder key:
@@ -87,7 +94,7 @@ That DMG is suitable for manual download testing, but **Check for Updates...** w
 Generate the appcast after the signed DMG exists:
 
 ```sh
-DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.5" \
+DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.6" \
   packaging/generate-appcast.sh dist
 ```
 
@@ -113,7 +120,7 @@ will not be publicly released.
 After building a Developer ID-signed DMG, notarize and staple it:
 
 ```bash
-packaging/notarize-dmg.sh dist/Lineform-1.0.5.dmg
+packaging/notarize-dmg.sh dist/Lineform-1.0.6.dmg
 ```
 
 ## DMG

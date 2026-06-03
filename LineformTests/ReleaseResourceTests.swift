@@ -41,6 +41,8 @@ final class ReleaseResourceTests: XCTestCase {
             entitlements["com.apple.security.temporary-exception.mach-lookup.global-name"] as? [String],
             ["com.lineform.app-spki", "com.lineform.app-spks"]
         )
+        XCTAssertEqual(entitlements["com.apple.application-identifier"] as? String, "TV4QZT7A7X.com.lineform.app")
+        XCTAssertEqual(entitlements["com.apple.developer.team-identifier"] as? String, "TV4QZT7A7X")
         XCTAssertEqual(entitlements["com.apple.developer.icloud-container-environment"] as? String, "Production")
         XCTAssertEqual(entitlements["com.apple.developer.icloud-services"] as? [String], ["CloudDocuments"])
         XCTAssertEqual(
@@ -68,7 +70,7 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
-        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.5")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.6")
         XCTAssertEqual(info["SUFeedURL"] as? String, "https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml")
         XCTAssertNotNil(info["SUPublicEDKey"] as? String)
         XCTAssertEqual(info["SUEnableInstallerLauncherService"] as? Bool, true)
@@ -191,6 +193,8 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertTrue(script.contains("CODE_SIGN_STYLE=\"${CODE_SIGN_STYLE:-Automatic}\""))
         XCTAssertTrue(script.contains("CODE_SIGN_STYLE=\"$CODE_SIGN_STYLE\""))
         XCTAssertTrue(script.contains("-allowProvisioningUpdates"))
+        XCTAssertTrue(script.contains("DEVELOPER_ID_PROFILE_PATH"))
+        XCTAssertTrue(script.contains("embedded.provisionprofile"))
     }
 
     func testDMGScriptSignsCompressedDiskImageContainer() throws {
