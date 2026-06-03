@@ -8,7 +8,6 @@ struct LineformApp: App {
 
     init() {
         BundledFontRegistrar.registerFonts()
-        LineformApp.configureDockIcon()
     }
 
     var body: some Scene {
@@ -25,17 +24,6 @@ struct LineformApp: App {
                 updaterController: updaterController
             )
         }
-    }
-
-    private static func configureDockIcon() {
-        guard
-            let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
-            let icon = NSImage(contentsOf: iconURL)
-        else {
-            return
-        }
-
-        NSApplication.shared.applicationIconImage = icon
     }
 }
 

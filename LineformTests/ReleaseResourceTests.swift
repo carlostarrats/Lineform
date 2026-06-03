@@ -68,7 +68,7 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
-        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.4")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.5")
         XCTAssertEqual(info["SUFeedURL"] as? String, "https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml")
         XCTAssertNotNil(info["SUPublicEDKey"] as? String)
         XCTAssertEqual(info["SUEnableInstallerLauncherService"] as? Bool, true)

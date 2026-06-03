@@ -10,7 +10,7 @@ Public-facing links:
 
 - Product website: `https://lineform-site.vercel.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
-- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.4.dmg`
+- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.5.dmg`
 
 Core product principles:
 
@@ -35,7 +35,8 @@ Core product principles:
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
 - Sparkle-backed update checks in release builds when a real EdDSA public key and appcast are configured.
-- Standard macOS About panel showing `V1.0.4`.
+- Standard macOS About panel showing `V1.0.5`.
+- App icon presentation is driven by `AppIcon.appiconset` and generated bundle metadata. Do not set `NSApplication.shared.applicationIconImage` at runtime unless there is a proven platform bug and a regression test/release note covers it.
 
 ## Architecture Map
 
@@ -184,6 +185,7 @@ For intelligent editing, acceptable means:
 - Prefer structured parsing/helpers over ad hoc string manipulation when reasonable.
 - Keep Markdown handling structure-preserving.
 - Keep UI native, restrained, and task-focused.
+- Keep app identity surfaces consistent: Finder, Dock, Cmd-Tab, About, DMG, README download links, Sparkle appcast, and release docs should all point to the same versioned build.
 - Avoid unrelated refactors and metadata churn.
 - Preserve user work in the git tree. Do not revert changes you did not make.
 - Use focused tests for narrow changes and broader tests for shared behavior.
