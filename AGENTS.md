@@ -10,7 +10,7 @@ Public-facing links:
 
 - Product website: `https://lineform-site.vercel.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
-- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.6.dmg`
+- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.7.dmg`
 
 Core product principles:
 
@@ -35,7 +35,7 @@ Core product principles:
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
 - Sparkle-backed update checks in release builds when a real EdDSA public key and appcast are configured.
-- Standard macOS About panel showing `V1.0.6`.
+- Standard macOS About panel showing `V1.0.7`.
 - App icon presentation is driven by `AppIcon.appiconset` and generated bundle metadata. Do not set `NSApplication.shared.applicationIconImage` at runtime unless there is a proven platform bug and a regression test/release note covers it.
 
 ## Architecture Map

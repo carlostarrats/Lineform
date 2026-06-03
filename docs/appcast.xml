@@ -3,13 +3,20 @@
     <channel>
         <title>Lineform</title>
         <item>
-            <title>1.0.6</title>
-            <pubDate>Tue, 02 Jun 2026 22:57:40 -0700</pubDate>
-            <sparkle:version>8</sparkle:version>
-            <sparkle:shortVersionString>1.0.6</sparkle:shortVersionString>
+            <title>1.0.7</title>
+            <pubDate>Wed, 03 Jun 2026 09:07:04 -0700</pubDate>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>1.0.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.0.6/Lineform-1.0.6.dmg" length="9929061" type="application/octet-stream" sparkle:edSignature="njS2swnzhD/MOkSgoa9/5Vts2l5wXScQqhqkqVTZlb4zHG0+k5Yobqmc6As7/m5Xvq7/rg2myENCosJLbu5qDg=="/>
+            <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.0.7/Lineform-1.0.7.dmg" length="9940057" type="application/octet-stream" sparkle:edSignature="5Uz3mPiF4scwxa0WAw7jvt2agRhZt1uZcujWKC0bIvuwHGS8aJMiN7UrPkyBUHRjQpAvHQs1oy4swF4FVbUmDQ=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.0.7/Lineform9-8.delta" sparkle:deltaFrom="8" length="185470" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="mqZiHoppdgFzBfb/fo2wAguA2uVQQzoc7BKRCm2SvbQpRU8gXOlCeATxMSfTd5Pl1vvwZAjvT3fEaNSQDqM4AA=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.0.7/Lineform9-7.delta" sparkle:deltaFrom="7" length="190438" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="8ogm8qFUFzD2091NQqcMKhWbv5+UBfBJk8YAMKTOsrfT+kgPhyms+4EYkT8I3/lx2DVVVYzUuGhrkVUfWACbAQ=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.0.7/Lineform9-6.delta" sparkle:deltaFrom="6" length="6372482" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="1hn7LTgoLeJXIV3Fup7JYRqjxeXtBrirGfWj8hfHMtdLMiBYmx81fCaN21J1gc0MDOhuuM4LeoH2EHkhK0bEBg=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.0.7/Lineform9-5.delta" sparkle:deltaFrom="5" length="6372930" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="dhOOPqMIDRaVj6X4EkMo7++dcsPjxjINBgH8eF2zbNqBQJWwCpKBLeXpyUpHDv5fLQSQMLXvon8to6GZ/uZ3Aw=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.0.7/Lineform9-4.delta" sparkle:deltaFrom="4" length="6371474" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="t1VMec6f7F0UDXXqkeBroBCFvYgJP5M25PZz4qbTZ60OnNjnpodNS6w8YG4KfmMxqMy1W9PQW19R5ImI9golBQ=="/>
+            </sparkle:deltas>
         </item>
     </channel>
 </rss>
