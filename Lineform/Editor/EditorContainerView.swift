@@ -463,7 +463,20 @@ struct EditorContainerView: View {
     }
 
     private func openSidebarFile(_ url: URL) {
-        LineformSidebarFileOpener.open(url, replacing: activeWindow)
+        LineformSidebarFileOpener.open(
+            url,
+            replacing: activeWindow,
+            updateEditorDocument: replaceDocumentFromSidebar
+        )
+    }
+
+    private func replaceDocumentFromSidebar(_ replacement: LineformDocument) -> UUID {
+        let documentID = document.id
+        resetTransientDocumentState()
+        document.text = replacement.text
+        document.textFormat = replacement.textFormat
+        document.plainTextConversion = replacement.plainTextConversion
+        return documentID
     }
 
     private var activeWindow: NSWindow? {
@@ -472,6 +485,26 @@ struct EditorContainerView: View {
         }
 
         return NSApp.windows.first { $0.windowNumber == windowNumber }
+    }
+
+    private func resetTransientDocumentState() {
+        intelligentEditingTask?.cancel()
+        intelligentEditingTask = nil
+        isRunningIntelligentEdit = false
+        pendingIntelligentRequest = nil
+        activeIntelligentEditingRequestID = nil
+        intelligentEditingStatus = nil
+        intelligentOptions = []
+        selectedIntelligentOptionIndex = 0
+        currentIntelligentChangeIndex = 0
+        intelligenceInstruction = ""
+        retainedIntelligenceSelection = nil
+        selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
+        requestedSelection = NSRange(location: 0, length: 0)
+        selectionAnchorRect = nil
+        searchQuery = ""
+        searchMatches = []
+        activeSearchIndex = nil
     }
 
     private func refreshSearchMatches(selectFirstWhenNeeded: Bool, navigatesToActiveMatch: Bool = true) {

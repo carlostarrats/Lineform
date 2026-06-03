@@ -1025,6 +1025,8 @@ protocol LineformDocumentOpening: AnyObject {
         display displayDocument: Bool,
         completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void
     )
+
+    func noteNewRecentDocumentURL(_ url: URL)
 }
 
 extension NSDocumentController: LineformDocumentOpening {}
@@ -1034,6 +1036,7 @@ enum LineformSidebarFileOpener {
     static func open(
         _ url: URL,
         replacing window: NSWindow?,
+        updateEditorDocument: @escaping (LineformDocument) -> UUID? = { _ in nil },
         documentController: LineformDocumentOpening = NSDocumentController.shared
     ) {
         guard let window else {
@@ -1044,6 +1047,7 @@ enum LineformSidebarFileOpener {
         let session = LineformSidebarFileReplacementSession(
             url: url,
             window: window,
+            updateEditorDocument: updateEditorDocument,
             documentController: documentController
         )
         session.begin()
@@ -1056,22 +1060,50 @@ enum LineformSidebarFileOpener {
     ) {
         documentController.openDocument(withContentsOf: url, display: true) { _, _, _ in }
     }
+
+    @MainActor
+    static func replaceCurrentDocument(
+        with url: URL,
+        backingDocument: NSDocument,
+        window: NSWindow? = nil,
+        updateEditorDocument: (LineformDocument) -> UUID?,
+        documentController: LineformDocumentOpening = NSDocumentController.shared
+    ) throws {
+        let loadedDocument = try LineformDocument(contentsOf: url)
+        let activeDocumentID = updateEditorDocument(loadedDocument) ?? loadedDocument.id
+
+        backingDocument.fileURL = url
+        backingDocument.fileType = LineformDocument.contentType(for: url).identifier
+        backingDocument.fileModificationDate = LineformDocument.modificationDate(at: url)
+        backingDocument.undoManager?.removeAllActions()
+        backingDocument.updateChangeCount(.changeCleared)
+
+        let targetWindow = window ?? backingDocument.windowControllers.first?.window
+        targetWindow?.representedURL = url
+        targetWindow?.setTitleWithRepresentedFilename(url.path)
+        targetWindow?.isDocumentEdited = false
+        documentController.noteNewRecentDocumentURL(url)
+        DocumentSaveStatus.shared.markSaved(documentID: activeDocumentID, at: LineformDocument.modificationDate(at: url) ?? Date())
+    }
 }
 
 @MainActor
 private final class LineformSidebarFileReplacementSession: NSObject {
     private let url: URL
     private weak var window: NSWindow?
+    private let updateEditorDocument: (LineformDocument) -> UUID?
     private let documentController: LineformDocumentOpening
     private var retainedSession: LineformSidebarFileReplacementSession?
 
     init(
         url: URL,
         window: NSWindow,
+        updateEditorDocument: @escaping (LineformDocument) -> UUID?,
         documentController: LineformDocumentOpening
     ) {
         self.url = url
         self.window = window
+        self.updateEditorDocument = updateEditorDocument
         self.documentController = documentController
     }
 
@@ -1079,13 +1111,13 @@ private final class LineformSidebarFileReplacementSession: NSObject {
         retainedSession = self
 
         guard let document = window?.windowController?.document else {
-            window?.close()
-            finish(shouldOpenReplacement: true)
+            LineformSidebarFileOpener.open(url, documentController: documentController)
+            finish()
             return
         }
 
         if document.fileURL?.standardizedFileURL == url.standardizedFileURL {
-            finish(shouldOpenReplacement: false)
+            finish()
             return
         }
 
@@ -1102,19 +1134,26 @@ private final class LineformSidebarFileReplacementSession: NSObject {
         contextInfo: UnsafeMutableRawPointer?
     ) {
         guard shouldClose else {
-            finish(shouldOpenReplacement: false)
+            finish()
             return
         }
 
-        document.close()
-        finish(shouldOpenReplacement: true)
-    }
-
-    private func finish(shouldOpenReplacement: Bool) {
-        if shouldOpenReplacement {
-            LineformSidebarFileOpener.open(url, documentController: documentController)
+        do {
+            try LineformSidebarFileOpener.replaceCurrentDocument(
+                with: url,
+                backingDocument: document,
+                window: window,
+                updateEditorDocument: updateEditorDocument,
+                documentController: documentController
+            )
+        } catch {
+            document.presentError(error)
         }
 
+        finish()
+    }
+
+    private func finish() {
         retainedSession = nil
     }
 }

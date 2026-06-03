@@ -44,6 +44,22 @@ struct LineformDocument: FileDocument, Equatable {
         plainTextConversion = nil
     }
 
+    init(contentsOf url: URL, id: UUID = UUID()) throws {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let contentType = Self.contentType(for: url)
+        try self.init(
+            markdownData: Data(contentsOf: url),
+            id: id,
+            textFormat: contentType == .plainText ? .plainText : .markdown
+        )
+    }
+
     init(fileWrapper: FileWrapper, contentType: UTType, id: UUID = UUID()) throws {
         guard fileWrapper.isRegularFile, let data = fileWrapper.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
@@ -201,6 +217,18 @@ struct LineformDocument: FileDocument, Equatable {
 
     static func modificationDate(from fileWrapper: FileWrapper) -> Date? {
         fileWrapper.fileAttributes[FileAttributeKey.modificationDate.rawValue] as? Date
+    }
+
+    static func contentType(for url: URL) -> UTType {
+        if url.pathExtension.localizedCaseInsensitiveCompare("txt") == .orderedSame {
+            return .plainText
+        }
+
+        return .markdownText
+    }
+
+    static func modificationDate(at url: URL) -> Date? {
+        try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {

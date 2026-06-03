@@ -76,18 +76,122 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testSidebarFileOpenerDoesNotReopenCurrentDocument() throws {
+    func testSidebarFileOpenerDoesNotPromptOrReloadCurrentDocument() throws {
         let controller = RecordingDocumentController()
         let url = URL(fileURLWithPath: "/tmp/LineformTests/Current.md")
         let document = TestDocument()
         document.setValue(url, forKey: "fileURL")
         let windowController = NSWindowController(window: NSWindow())
         document.addWindowController(windowController)
+        var replacement: LineformDocument?
 
-        LineformSidebarFileOpener.open(url, replacing: try XCTUnwrap(windowController.window), documentController: controller)
+        LineformSidebarFileOpener.open(
+            url,
+            replacing: try XCTUnwrap(windowController.window),
+            updateEditorDocument: { loadedDocument in
+                replacement = loadedDocument
+                return loadedDocument.id
+            },
+            documentController: controller
+        )
 
         XCTAssertEqual(controller.openedURLs, [])
+        XCTAssertNil(replacement)
         XCTAssertEqual(document.canCloseCallCount, 0)
+    }
+
+    @MainActor
+    func testSidebarFileReplacementLoadsSelectedFileIntoCurrentDocumentSession() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        let url = folder.appendingPathComponent("Next.md")
+        try "# Next\n\nSame window.".write(to: url, atomically: true, encoding: .utf8)
+
+        let controller = RecordingDocumentController()
+        let backingDocument = TestDocument()
+        let previousURL = folder.appendingPathComponent("Previous.md")
+        backingDocument.setValue(previousURL, forKey: "fileURL")
+        backingDocument.updateChangeCount(.changeDone)
+        var replacement: LineformDocument?
+        let activeDocumentID = UUID()
+
+        try LineformSidebarFileOpener.replaceCurrentDocument(
+            with: url,
+            backingDocument: backingDocument,
+            updateEditorDocument: { loadedDocument in
+                replacement = loadedDocument
+                return activeDocumentID
+            },
+            documentController: controller
+        )
+
+        XCTAssertEqual(replacement?.text, "# Next\n\nSame window.")
+        XCTAssertEqual(replacement?.textFormat, .markdown)
+        XCTAssertEqual(backingDocument.fileURL?.standardizedFileURL, url.standardizedFileURL)
+        XCTAssertEqual(backingDocument.fileType, LineformDocument.contentType(for: url).identifier)
+        XCTAssertFalse(backingDocument.isDocumentEdited)
+        XCTAssertEqual(controller.recentDocumentURLs, [url])
+        XCTAssertEqual(controller.openedURLs, [])
+        XCTAssertNotNil(DocumentSaveStatus.shared.savedAt(for: activeDocumentID))
+    }
+
+    @MainActor
+    func testSidebarFileReplacementOnlyRetargetsChosenWindowWhenMultipleDocumentsAreOpen() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        let firstOriginalURL = folder.appendingPathComponent("First.md")
+        let firstReplacementURL = folder.appendingPathComponent("First Replacement.md")
+        let secondURL = folder.appendingPathComponent("Second.md")
+        try "# First".write(to: firstOriginalURL, atomically: true, encoding: .utf8)
+        try "# First Replacement".write(to: firstReplacementURL, atomically: true, encoding: .utf8)
+        try "# Second".write(to: secondURL, atomically: true, encoding: .utf8)
+
+        let controller = RecordingDocumentController()
+        let firstDocument = TestDocument()
+        let secondDocument = TestDocument()
+        firstDocument.setValue(firstOriginalURL, forKey: "fileURL")
+        secondDocument.setValue(secondURL, forKey: "fileURL")
+        secondDocument.updateChangeCount(.changeDone)
+
+        let firstWindowController = NSWindowController(window: NSWindow())
+        let secondWindowController = NSWindowController(window: NSWindow())
+        firstDocument.addWindowController(firstWindowController)
+        secondDocument.addWindowController(secondWindowController)
+        var firstReplacement: LineformDocument?
+        let firstDocumentID = UUID()
+        let secondReplacement: LineformDocument? = nil
+
+        try LineformSidebarFileOpener.replaceCurrentDocument(
+            with: firstReplacementURL,
+            backingDocument: firstDocument,
+            window: try XCTUnwrap(firstWindowController.window),
+            updateEditorDocument: { loadedDocument in
+                firstReplacement = loadedDocument
+                return firstDocumentID
+            },
+            documentController: controller
+        )
+
+        XCTAssertEqual(firstReplacement?.text, "# First Replacement")
+        XCTAssertNil(secondReplacement)
+        XCTAssertEqual(firstDocument.fileURL?.standardizedFileURL, firstReplacementURL.standardizedFileURL)
+        XCTAssertFalse(firstDocument.isDocumentEdited)
+        XCTAssertEqual(firstWindowController.window?.representedURL?.standardizedFileURL, firstReplacementURL.standardizedFileURL)
+        XCTAssertEqual(secondDocument.fileURL?.standardizedFileURL, secondURL.standardizedFileURL)
+        XCTAssertTrue(secondDocument.isDocumentEdited)
+        XCTAssertEqual(secondWindowController.window?.representedURL?.standardizedFileURL, secondURL.standardizedFileURL)
+        XCTAssertEqual(controller.recentDocumentURLs, [firstReplacementURL])
+        XCTAssertEqual(controller.openedURLs, [])
     }
 
     @MainActor
@@ -222,6 +326,7 @@ final class OutlineSidebarViewTests: XCTestCase {
 @MainActor
 private final class RecordingDocumentController: LineformDocumentOpening {
     private(set) var openedURLs: [URL] = []
+    private(set) var recentDocumentURLs: [URL] = []
 
     func openDocument(
         withContentsOf url: URL,
@@ -230,6 +335,10 @@ private final class RecordingDocumentController: LineformDocumentOpening {
     ) {
         openedURLs.append(url)
         completionHandler(nil, false, nil)
+    }
+
+    func noteNewRecentDocumentURL(_ url: URL) {
+        recentDocumentURLs.append(url)
     }
 }
 
