@@ -50,7 +50,7 @@ struct OutlineSidebarView: View {
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
     static let tabsUseExplicitThemeAppearance = true
-    static let fileRootTitles = ["iCloud", "Workspace"]
+    static let fileRootTitles = ["Lineform iCloud", "Workspace"]
     static let chooseWorkspaceButtonTitle = "Choose"
     static let replaceWorkspaceButtonTitle = "Replace"
     static let iCloudUnavailableShowsLabel = true
@@ -402,14 +402,14 @@ private struct OutlineSidebarSegmentedControl: NSViewRepresentable {
     }
 }
 
-private enum OutlineFileRootState: Equatable {
+enum OutlineFileRootState: Equatable {
     case available
     case unavailable
     case unassigned
     case disconnected
 }
 
-private struct OutlineFileRoot: Identifiable, Equatable {
+struct OutlineFileRoot: Identifiable, Equatable {
     var id: String
     var title: String
     var systemImage: String
@@ -421,7 +421,9 @@ private struct OutlineFileRoot: Identifiable, Equatable {
     }
 }
 
-private final class OutlineFileBrowserStore: ObservableObject {
+final class OutlineFileBrowserStore: ObservableObject {
+    static let iCloudContainerIdentifier = "iCloud.com.lineform.app"
+    static let iCloudSnapshotDefaultsKey = "Lineform.outline.iCloudSnapshot"
     static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
     static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"
     static let maximumTreeDepth = 4
@@ -430,7 +432,7 @@ private final class OutlineFileBrowserStore: ObservableObject {
 
     @Published var iCloudRoot = OutlineFileRoot(
         id: "icloud",
-        title: "iCloud",
+        title: "Lineform iCloud",
         systemImage: "icloud",
         state: .unavailable,
         items: []
@@ -445,12 +447,20 @@ private final class OutlineFileBrowserStore: ObservableObject {
 
     private let defaults: UserDefaults
     private let fileManager: FileManager
+    private let iCloudDocumentsURLProvider: (FileManager) -> URL?
+    private var lastICloudItems: [OutlineFileTreeItem] = []
     private var workspaceURL: URL?
     private var lastWorkspaceItems: [OutlineFileTreeItem] = []
 
-    init(defaults: UserDefaults = .standard, fileManager: FileManager = .default) {
+    init(
+        defaults: UserDefaults = .standard,
+        fileManager: FileManager = .default,
+        iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL
+    ) {
         self.defaults = defaults
         self.fileManager = fileManager
+        self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
+        loadICloudSnapshot()
         loadWorkspaceSnapshot()
         loadWorkspaceBookmark()
         refresh()
@@ -463,12 +473,7 @@ private final class OutlineFileBrowserStore: ObservableObject {
 
     @MainActor
     func chooseWorkspaceFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.prompt = "Choose"
+        let panel = folderSelectionPanel(prompt: "Choose")
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
@@ -494,16 +499,27 @@ private final class OutlineFileBrowserStore: ObservableObject {
         NSDocumentController.shared.openDocument(withContentsOf: item.url, display: true) { _, _, _ in }
     }
 
+    @MainActor
+    private func folderSelectionPanel(prompt: String) -> NSOpenPanel {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = prompt
+        return panel
+    }
+
     private func loadWorkspaceBookmark() {
         guard let data = defaults.data(forKey: Self.workspaceBookmarkDefaultsKey) else {
             workspaceURL = nil
             return
         }
 
-        workspaceURL = resolveWorkspaceBookmark(from: data)
+        workspaceURL = resolveBookmark(from: data, defaultsKey: Self.workspaceBookmarkDefaultsKey)
     }
 
-    private func resolveWorkspaceBookmark(from data: Data) -> URL? {
+    private func resolveBookmark(from data: Data, defaultsKey: String) -> URL? {
         do {
             var isStale = false
             let url = try URL(
@@ -514,7 +530,7 @@ private final class OutlineFileBrowserStore: ObservableObject {
             )
 
             if isStale {
-                saveWorkspaceBookmark(for: url)
+                saveBookmark(for: url, defaultsKey: defaultsKey)
             }
 
             return url
@@ -523,48 +539,56 @@ private final class OutlineFileBrowserStore: ObservableObject {
         }
     }
 
-    private func loadWorkspaceSnapshot() {
-        guard let data = defaults.data(forKey: Self.workspaceSnapshotDefaultsKey),
-              let items = try? JSONDecoder().decode([OutlineFileTreeItem].self, from: data)
-        else {
-            return
-        }
-
-        lastWorkspaceItems = items
+    private func loadICloudSnapshot() {
+        lastICloudItems = loadSnapshot(defaultsKey: Self.iCloudSnapshotDefaultsKey)
     }
 
-    private func saveWorkspaceSnapshot(_ items: [OutlineFileTreeItem]) {
+    private func loadWorkspaceSnapshot() {
+        lastWorkspaceItems = loadSnapshot(defaultsKey: Self.workspaceSnapshotDefaultsKey)
+    }
+
+    private func loadSnapshot(defaultsKey: String) -> [OutlineFileTreeItem] {
+        guard let data = defaults.data(forKey: defaultsKey),
+              let items = try? JSONDecoder().decode([OutlineFileTreeItem].self, from: data)
+        else {
+            return []
+        }
+
+        return items
+    }
+
+    private func saveSnapshot(_ items: [OutlineFileTreeItem], defaultsKey: String) {
         guard let data = try? JSONEncoder().encode(items) else {
             return
         }
 
-        defaults.set(data, forKey: Self.workspaceSnapshotDefaultsKey)
+        defaults.set(data, forKey: defaultsKey)
     }
 
     private func setWorkspaceURL(_ url: URL) {
         workspaceURL = url
-        saveWorkspaceBookmark(for: url)
+        saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
         refreshWorkspaceRoot()
     }
 
-    private func saveWorkspaceBookmark(for url: URL) {
+    private func saveBookmark(for url: URL, defaultsKey: String) {
         do {
             let bookmark = try url.bookmarkData(
                 options: [.withSecurityScope],
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
-            defaults.set(bookmark, forKey: Self.workspaceBookmarkDefaultsKey)
+            defaults.set(bookmark, forKey: defaultsKey)
         } catch {
-            defaults.removeObject(forKey: Self.workspaceBookmarkDefaultsKey)
+            defaults.removeObject(forKey: defaultsKey)
         }
     }
 
     private func refreshICloudRoot() {
-        guard let url = Self.iCloudDriveURL(fileManager: fileManager) else {
+        guard let url = iCloudDocumentsURLProvider(fileManager) else {
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
-                title: "iCloud",
+                title: "Lineform iCloud",
                 systemImage: "icloud",
                 state: .unavailable,
                 items: []
@@ -572,12 +596,33 @@ private final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
+        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+
+        var isDirectory: ObjCBool = false
+        guard
+            fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory),
+            isDirectory.boolValue
+        else {
+            iCloudRoot = OutlineFileRoot(
+                id: "icloud",
+                title: "Lineform iCloud",
+                systemImage: "icloud",
+                state: .unavailable,
+                items: []
+            )
+            return
+        }
+
+        let items = Self.items(in: url, fileManager: fileManager)
+        lastICloudItems = items
+        saveSnapshot(items, defaultsKey: Self.iCloudSnapshotDefaultsKey)
+
         iCloudRoot = OutlineFileRoot(
             id: "icloud",
-            title: "iCloud",
+            title: "Lineform iCloud",
             systemImage: "icloud",
             state: .available,
-            items: Self.items(in: url, fileManager: fileManager)
+            items: items
         )
     }
 
@@ -594,7 +639,7 @@ private final class OutlineFileBrowserStore: ObservableObject {
         }
 
         if let data = defaults.data(forKey: Self.workspaceBookmarkDefaultsKey),
-           let resolvedURL = resolveWorkspaceBookmark(from: data),
+           let resolvedURL = resolveBookmark(from: data, defaultsKey: Self.workspaceBookmarkDefaultsKey),
            resolvedURL != workspaceURL {
             self.workspaceURL = resolvedURL
             refreshWorkspaceRoot()
@@ -625,7 +670,7 @@ private final class OutlineFileBrowserStore: ObservableObject {
 
         let items = Self.items(in: workspaceURL, fileManager: fileManager)
         lastWorkspaceItems = items
-        saveWorkspaceSnapshot(items)
+        saveSnapshot(items, defaultsKey: Self.workspaceSnapshotDefaultsKey)
 
         workspaceRoot = OutlineFileRoot(
             id: "workspace",
@@ -636,24 +681,10 @@ private final class OutlineFileBrowserStore: ObservableObject {
         )
     }
 
-    private static func iCloudDriveURL(fileManager: FileManager) -> URL? {
-        if let ubiquityURL = fileManager.url(forUbiquityContainerIdentifier: nil) {
-            return ubiquityURL.appendingPathComponent("Documents", isDirectory: true)
-        }
-
-        let cloudDocsURL = fileManager
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
-        var isDirectory: ObjCBool = false
-
-        guard
-            fileManager.fileExists(atPath: cloudDocsURL.path, isDirectory: &isDirectory),
-            isDirectory.boolValue
-        else {
-            return nil
-        }
-
-        return cloudDocsURL
+    private static func lineformICloudDocumentsURL(fileManager: FileManager) -> URL? {
+        fileManager
+            .url(forUbiquityContainerIdentifier: iCloudContainerIdentifier)?
+            .appendingPathComponent("Documents", isDirectory: true)
     }
 
     private static func items(
@@ -841,9 +872,9 @@ private struct OutlineFileRootRow: View {
                 .buttonStyle(.plain)
                 .background {
                     Capsule()
-                        .fill(workspaceActionBackgroundColor)
+                        .fill(fileActionBackgroundColor)
                 }
-                .foregroundStyle(workspaceActionTextColor)
+                .foregroundStyle(fileActionTextColor)
                 .onHover { hovering in
                     withAnimation(.easeOut(duration: 0.12)) {
                         isWorkspaceActionHovered = hovering
@@ -875,7 +906,7 @@ private struct OutlineFileRootRow: View {
             : OutlineSidebarView.replaceWorkspaceButtonTitle
     }
 
-    private var workspaceActionBackgroundColor: Color {
+    private var fileActionBackgroundColor: Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome
                 ? (isWorkspaceActionHovered ? 1.0 : 0.92)
@@ -884,7 +915,7 @@ private struct OutlineFileRootRow: View {
         ))
     }
 
-    private var workspaceActionTextColor: Color {
+    private var fileActionTextColor: Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome ? 0.10 : 1.0,
             alpha: 1

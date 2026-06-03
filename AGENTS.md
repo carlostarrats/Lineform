@@ -10,7 +10,7 @@ Public-facing links:
 
 - Product website: `https://lineform-site.vercel.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
-- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.dmg`
+- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.1.dmg`
 
 Core product principles:
 
@@ -35,7 +35,7 @@ Core product principles:
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
 - Sparkle-backed update checks in release builds when a real EdDSA public key and appcast are configured.
-- Standard macOS About panel showing `V1.0`.
+- Standard macOS About panel showing `V1.0.1`.
 
 ## Architecture Map
 

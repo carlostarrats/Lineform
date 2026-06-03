@@ -31,6 +31,24 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertEqual(entitlements["com.apple.security.network.client"] as? Bool, true)
     }
 
+    func testReleaseEntitlementsDeclareLineformICloudDocumentsContainer() throws {
+        let entitlements = try releaseEntitlements()
+
+        XCTAssertEqual(entitlements["com.apple.security.app-sandbox"] as? Bool, true)
+        XCTAssertEqual(entitlements["com.apple.security.files.user-selected.read-write"] as? Bool, true)
+        XCTAssertEqual(entitlements["com.apple.security.network.client"] as? Bool, true)
+        XCTAssertEqual(entitlements["com.apple.developer.icloud-container-environment"] as? String, "Production")
+        XCTAssertEqual(entitlements["com.apple.developer.icloud-services"] as? [String], ["CloudDocuments"])
+        XCTAssertEqual(
+            entitlements["com.apple.developer.icloud-container-identifiers"] as? [String],
+            ["iCloud.com.lineform.app"]
+        )
+        let ubiquityContainers = try XCTUnwrap(
+            entitlements["com.apple.developer.ubiquity-container-identifiers"] as? [String]
+        )
+        XCTAssertEqual(ubiquityContainers, ["iCloud.com.lineform.app"])
+    }
+
     func testReleaseMarkdownResourcesAreBundled() throws {
         for resource in ["MarkdownGuide", "Help", "Privacy", "AccessibilityNutritionLabel"] {
             XCTAssertNotNil(Bundle.main.url(forResource: resource, withExtension: "md"), "\(resource).md should be bundled.")
@@ -46,7 +64,7 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
-        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.1")
         XCTAssertEqual(info["SUFeedURL"] as? String, "https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml")
         XCTAssertNotNil(info["SUPublicEDKey"] as? String)
         XCTAssertEqual(
@@ -54,6 +72,16 @@ final class ReleaseResourceTests: XCTestCase {
             AppMenuConfiguration.aboutCopyright
         )
         XCTAssertNotNil(Bundle.main.url(forResource: "AppIcon", withExtension: "icns"))
+    }
+
+    func testInfoPlistDeclaresLineformICloudDocumentsContainer() throws {
+        let info = try XCTUnwrap(Bundle.main.infoDictionary)
+        let containers = try XCTUnwrap(info["NSUbiquitousContainers"] as? [String: [String: Any]])
+        let lineformContainer = try XCTUnwrap(containers["iCloud.com.lineform.app"])
+
+        XCTAssertEqual(lineformContainer["NSUbiquitousContainerName"] as? String, "Lineform")
+        XCTAssertEqual(lineformContainer["NSUbiquitousContainerIsDocumentScopePublic"] as? Bool, true)
+        XCTAssertEqual(lineformContainer["NSUbiquitousContainerSupportedFolderLevels"] as? String, "Any")
     }
 
     func testMarkdownGuideDocumentsRealMarkdownEditing() throws {
@@ -139,5 +167,33 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertTrue(project.contains("PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug;"))
         XCTAssertTrue(project.contains("PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app;"))
+        XCTAssertTrue(project.contains("CODE_SIGN_ENTITLEMENTS = Lineform/LineformDebug.entitlements;"))
+        XCTAssertTrue(project.contains("CODE_SIGN_ENTITLEMENTS = Lineform/Lineform.entitlements;"))
+        XCTAssertTrue(project.contains("com.apple.iCloud = {"))
+        XCTAssertTrue(project.contains("enabled = 1;"))
+    }
+
+    func testReleaseScriptAllowsXcodeToProvisionICloudProfile() throws {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let scriptURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("packaging/build-release.sh")
+        let script = try String(contentsOf: scriptURL, encoding: .utf8)
+
+        XCTAssertTrue(script.contains("CODE_SIGN_STYLE=\"${CODE_SIGN_STYLE:-Automatic}\""))
+        XCTAssertTrue(script.contains("CODE_SIGN_STYLE=\"$CODE_SIGN_STYLE\""))
+        XCTAssertTrue(script.contains("-allowProvisioningUpdates"))
+    }
+
+    private func releaseEntitlements() throws -> [String: Any] {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let entitlementsURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Lineform/Lineform.entitlements")
+        let data = try Data(contentsOf: entitlementsURL)
+        let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        return try XCTUnwrap(plist as? [String: Any])
     }
 }

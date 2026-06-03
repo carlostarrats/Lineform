@@ -40,7 +40,7 @@ https://lineform-site.vercel.app
 The public direct-download URL used by the website and README is:
 
 ```text
-https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.dmg
+https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.1.dmg
 ```
 
 ## Sparkle Keys
@@ -63,6 +63,17 @@ The release build script defaults to the Lineform Developer ID team and certific
 Developer ID Application: Carlos Tarrats (TV4QZT7A7X)
 ```
 
+Before building an iCloud-enabled release, confirm the Apple Developer App ID for
+`com.lineform.app` has iCloud enabled in **Include CloudKit support (requires
+Xcode 6)** mode and that the iCloud container `iCloud.com.lineform.app` is
+selected. Lineform uses the CloudDocuments service in that app-owned container.
+
+For public distribution, Xcode export also needs a Developer ID/Direct
+distribution provisioning profile for `com.lineform.app` whose entitlements
+include iCloud container environment support. The Xcode-managed development
+profile is enough to verify iCloud Documents locally, but it is not a public
+release signing profile.
+
 Override `DEVELOPMENT_TEAM` or `CODE_SIGN_IDENTITY` only if the certificate changes.
 
 If a DMG is needed before Sparkle signing is finalized, build with the placeholder key:
@@ -76,7 +87,7 @@ That DMG is suitable for manual download testing, but **Check for Updates...** w
 Generate the appcast after the DMG exists:
 
 ```sh
-DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.0" \
+DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.1" \
   packaging/generate-appcast.sh dist
 ```
 
@@ -97,7 +108,7 @@ Use an Apple app-specific password when prompted. Do not commit or share that pa
 After building a Developer ID-signed DMG, notarize and staple it:
 
 ```bash
-packaging/notarize-dmg.sh dist/Lineform-1.0.dmg
+packaging/notarize-dmg.sh dist/Lineform-1.0.1.dmg
 ```
 
 ## DMG

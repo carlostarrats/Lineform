@@ -41,7 +41,7 @@ final class OutlineSidebarViewTests: XCTestCase {
 
     @MainActor
     func testFilesTabUsesICloudAndReplaceableWorkspaceRoots() {
-        XCTAssertEqual(OutlineSidebarView.fileRootTitles, ["iCloud", "Workspace"])
+        XCTAssertEqual(OutlineSidebarView.fileRootTitles, ["Lineform iCloud", "Workspace"])
         XCTAssertEqual(OutlineSidebarView.chooseWorkspaceButtonTitle, "Choose")
         XCTAssertEqual(OutlineSidebarView.replaceWorkspaceButtonTitle, "Replace")
         XCTAssertTrue(OutlineSidebarView.iCloudUnavailableShowsLabel)
@@ -61,6 +61,80 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertTrue(OutlineSidebarView.filesRootDisclosureIsVisualOnly)
         XCTAssertTrue(OutlineSidebarView.filesRootTextTogglesCollapse)
         XCTAssertEqual(OutlineSidebarView.workspaceDisconnectedSystemImage, "exclamationmark.triangle.fill")
+    }
+
+    @MainActor
+    func testFilesTabReportsLineformICloudUnavailableWhenContainerCannotResolve() {
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in nil }
+        )
+
+        XCTAssertEqual(store.iCloudRoot.title, "Lineform iCloud")
+        XCTAssertEqual(store.iCloudRoot.state, .unavailable)
+        XCTAssertEqual(store.iCloudRoot.items, [])
+    }
+
+    @MainActor
+    func testFilesTabListsLineformICloudContainerWhenAccessible() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        try "# Draft".write(to: folder.appendingPathComponent("Draft.md"), atomically: true, encoding: .utf8)
+        try "not shown".write(to: folder.appendingPathComponent("Image.png"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder }
+        )
+
+        XCTAssertEqual(store.iCloudRoot.title, "Lineform iCloud")
+        XCTAssertEqual(store.iCloudRoot.state, .available)
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["Draft.md"])
+    }
+
+    @MainActor
+    func testFilesTabCreatesLineformICloudDocumentsFolderWhenContainerIsMaterialized() {
+        let missingFolder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: missingFolder)
+        }
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in missingFolder }
+        )
+
+        XCTAssertEqual(store.iCloudRoot.state, .available)
+        XCTAssertEqual(store.iCloudRoot.items, [])
+        var isDirectory: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: missingFolder.path, isDirectory: &isDirectory))
+        XCTAssertTrue(isDirectory.boolValue)
     }
 
     @MainActor
@@ -115,4 +189,5 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertEqual(tree.first?.children.first?.children.map(\.item.title), ["First Detail"])
         XCTAssertEqual(tree.last?.children.map(\.item.title), ["Second Section"])
     }
+
 }
