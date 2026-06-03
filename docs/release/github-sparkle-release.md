@@ -40,7 +40,7 @@ https://lineform-site.vercel.app
 The public direct-download URL used by the website and README is:
 
 ```text
-https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.2.dmg
+https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.3.dmg
 ```
 
 ## Sparkle Keys
@@ -87,7 +87,7 @@ That DMG is suitable for manual download testing, but **Check for Updates...** w
 Generate the appcast after the signed DMG exists:
 
 ```sh
-DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.2" \
+DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.3" \
   packaging/generate-appcast.sh dist
 ```
 
@@ -113,7 +113,7 @@ will not be publicly released.
 After building a Developer ID-signed DMG, notarize and staple it:
 
 ```bash
-packaging/notarize-dmg.sh dist/Lineform-1.0.2.dmg
+packaging/notarize-dmg.sh dist/Lineform-1.0.3.dmg
 ```
 
 ## DMG
