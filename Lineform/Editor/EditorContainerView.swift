@@ -47,7 +47,11 @@ struct EditorContainerView: View {
         let theme = currentTheme
 
         NavigationSplitView(columnVisibility: outlineVisibility) {
-            OutlineSidebarView(items: outlineItems, jumpToHeading: jumpToHeading)
+            OutlineSidebarView(
+                items: outlineItems,
+                jumpToHeading: jumpToHeading,
+                openFile: openSidebarFile
+            )
                 .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
                 .navigationSplitViewColumnWidth(
                     min: OutlineSidebarView.minimumColumnWidth,
@@ -456,6 +460,18 @@ struct EditorContainerView: View {
         if displayMode == .read {
             displayMode = .write
         }
+    }
+
+    private func openSidebarFile(_ url: URL) {
+        LineformSidebarFileOpener.open(url, replacing: activeWindow)
+    }
+
+    private var activeWindow: NSWindow? {
+        guard let windowNumber else {
+            return nil
+        }
+
+        return NSApp.windows.first { $0.windowNumber == windowNumber }
     }
 
     private func refreshSearchMatches(selectFirstWhenNeeded: Bool, navigatesToActiveMatch: Bool = true) {

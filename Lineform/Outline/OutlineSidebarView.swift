@@ -69,6 +69,8 @@ struct OutlineSidebarView: View {
     static let filesRootTextFollowsDisclosureDirectly = true
     static let filesRootDisclosureIsVisualOnly = true
     static let filesRootTextTogglesCollapse = true
+    static let fileSelectionReplacesCurrentWindow = true
+    static let fileSelectionUsesNativeSavePrompt = true
     static let workspaceDisconnectedSystemImage = "exclamationmark.triangle.fill"
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
@@ -132,6 +134,9 @@ struct OutlineSidebarView: View {
 
     var items: [MarkdownOutlineItem]
     var jumpToHeading: (MarkdownOutlineItem) -> Void
+    var openFile: (URL) -> Void = { url in
+        LineformSidebarFileOpener.open(url, replacing: nil)
+    }
 
     var body: some View {
         ZStack {
@@ -144,7 +149,7 @@ struct OutlineSidebarView: View {
                 if selectedTab == .outline {
                     outlineContent
                 } else {
-                    OutlineFileBrowserView(store: fileBrowserStore)
+                    OutlineFileBrowserView(store: fileBrowserStore, openFile: openFile)
                 }
             }
         }
@@ -491,15 +496,6 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     @MainActor
-    func openFile(_ item: OutlineFileTreeItem) {
-        guard !item.isDirectory else {
-            return
-        }
-
-        NSDocumentController.shared.openDocument(withContentsOf: item.url, display: true) { _, _, _ in }
-    }
-
-    @MainActor
     private func folderSelectionPanel(prompt: String) -> NSOpenPanel {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -739,6 +735,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 
 private struct OutlineFileBrowserView: View {
     @ObservedObject var store: OutlineFileBrowserStore
+    var openFile: (URL) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
 
@@ -782,7 +779,7 @@ private struct OutlineFileBrowserView: View {
                             item: item,
                             depth: 0,
                             collapsedIDs: $collapsedIDs,
-                            openFile: store.openFile
+                            openFile: openFile
                         )
                         .opacity(root.state == .disconnected ? 0.48 : 1)
                         .allowsHitTesting(root.state != .disconnected)
@@ -935,7 +932,7 @@ private struct OutlineFileTreeNodeView: View {
     var item: OutlineFileTreeItem
     var depth: Int
     @Binding var collapsedIDs: Set<String>
-    var openFile: (OutlineFileTreeItem) -> Void
+    var openFile: (URL) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
@@ -998,7 +995,7 @@ private struct OutlineFileTreeNodeView: View {
             if item.isDirectory {
                 toggleCollapsed()
             } else {
-                openFile(item)
+                openFile(item.url)
             }
         }
         .onHover { hovering in
@@ -1018,5 +1015,106 @@ private struct OutlineFileTreeNodeView: View {
 
     private var usesDarkChrome: Bool {
         colorScheme == .dark
+    }
+}
+
+@MainActor
+protocol LineformDocumentOpening: AnyObject {
+    func openDocument(
+        withContentsOf url: URL,
+        display displayDocument: Bool,
+        completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void
+    )
+}
+
+extension NSDocumentController: LineformDocumentOpening {}
+
+enum LineformSidebarFileOpener {
+    @MainActor
+    static func open(
+        _ url: URL,
+        replacing window: NSWindow?,
+        documentController: LineformDocumentOpening = NSDocumentController.shared
+    ) {
+        guard let window else {
+            open(url, documentController: documentController)
+            return
+        }
+
+        let session = LineformSidebarFileReplacementSession(
+            url: url,
+            window: window,
+            documentController: documentController
+        )
+        session.begin()
+    }
+
+    @MainActor
+    fileprivate static func open(
+        _ url: URL,
+        documentController: LineformDocumentOpening
+    ) {
+        documentController.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+    }
+}
+
+@MainActor
+private final class LineformSidebarFileReplacementSession: NSObject {
+    private let url: URL
+    private weak var window: NSWindow?
+    private let documentController: LineformDocumentOpening
+    private var retainedSession: LineformSidebarFileReplacementSession?
+
+    init(
+        url: URL,
+        window: NSWindow,
+        documentController: LineformDocumentOpening
+    ) {
+        self.url = url
+        self.window = window
+        self.documentController = documentController
+    }
+
+    func begin() {
+        retainedSession = self
+
+        guard let document = window?.windowController?.document else {
+            window?.close()
+            finish(shouldOpenReplacement: true)
+            return
+        }
+
+        if document.fileURL?.standardizedFileURL == url.standardizedFileURL {
+            finish(shouldOpenReplacement: false)
+            return
+        }
+
+        document.canClose(
+            withDelegate: self,
+            shouldClose: #selector(document(_:shouldClose:contextInfo:)),
+            contextInfo: nil
+        )
+    }
+
+    @objc private func document(
+        _ document: NSDocument,
+        shouldClose: Bool,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        guard shouldClose else {
+            finish(shouldOpenReplacement: false)
+            return
+        }
+
+        document.close()
+        finish(shouldOpenReplacement: true)
+    }
+
+    private func finish(shouldOpenReplacement: Bool) {
+        if shouldOpenReplacement {
+            LineformSidebarFileOpener.open(url, documentController: documentController)
+        }
+
+        retainedSession = nil
     }
 }

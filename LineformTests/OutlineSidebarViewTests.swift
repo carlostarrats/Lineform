@@ -60,7 +60,34 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertTrue(OutlineSidebarView.filesRootTextFollowsDisclosureDirectly)
         XCTAssertTrue(OutlineSidebarView.filesRootDisclosureIsVisualOnly)
         XCTAssertTrue(OutlineSidebarView.filesRootTextTogglesCollapse)
+        XCTAssertTrue(OutlineSidebarView.fileSelectionReplacesCurrentWindow)
+        XCTAssertTrue(OutlineSidebarView.fileSelectionUsesNativeSavePrompt)
         XCTAssertEqual(OutlineSidebarView.workspaceDisconnectedSystemImage, "exclamationmark.triangle.fill")
+    }
+
+    @MainActor
+    func testSidebarFileOpenerFallsBackToOpeningWhenNoCurrentWindowIsAvailable() {
+        let controller = RecordingDocumentController()
+        let url = URL(fileURLWithPath: "/tmp/LineformTests/Fallback.md")
+
+        LineformSidebarFileOpener.open(url, replacing: nil, documentController: controller)
+
+        XCTAssertEqual(controller.openedURLs, [url])
+    }
+
+    @MainActor
+    func testSidebarFileOpenerDoesNotReopenCurrentDocument() throws {
+        let controller = RecordingDocumentController()
+        let url = URL(fileURLWithPath: "/tmp/LineformTests/Current.md")
+        let document = TestDocument()
+        document.setValue(url, forKey: "fileURL")
+        let windowController = NSWindowController(window: NSWindow())
+        document.addWindowController(windowController)
+
+        LineformSidebarFileOpener.open(url, replacing: try XCTUnwrap(windowController.window), documentController: controller)
+
+        XCTAssertEqual(controller.openedURLs, [])
+        XCTAssertEqual(document.canCloseCallCount, 0)
     }
 
     @MainActor
@@ -190,4 +217,31 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertEqual(tree.last?.children.map(\.item.title), ["Second Section"])
     }
 
+}
+
+@MainActor
+private final class RecordingDocumentController: LineformDocumentOpening {
+    private(set) var openedURLs: [URL] = []
+
+    func openDocument(
+        withContentsOf url: URL,
+        display displayDocument: Bool,
+        completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void
+    ) {
+        openedURLs.append(url)
+        completionHandler(nil, false, nil)
+    }
+}
+
+@MainActor
+private final class TestDocument: NSDocument {
+    private(set) var canCloseCallCount = 0
+
+    override func canClose(
+        withDelegate delegate: Any,
+        shouldClose shouldCloseSelector: Selector?,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        canCloseCallCount += 1
+    }
 }
