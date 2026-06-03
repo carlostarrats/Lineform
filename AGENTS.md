@@ -186,6 +186,7 @@ For intelligent editing, acceptable means:
 - Keep Markdown handling structure-preserving.
 - Keep UI native, restrained, and task-focused.
 - Keep app identity surfaces consistent: Finder, Dock, Cmd-Tab, About, DMG, README download links, Sparkle appcast, and release docs should all point to the same versioned build.
+- Treat every public app update as both a manual-download release and an in-app update release. Never ship only a GitHub DMG or only a Sparkle/appcast update: version bumps, release DMGs, GitHub Release assets, README download links, `docs/appcast.xml`, Sparkle signatures, and any referenced delta assets must all describe the same current version before the release is complete.
 - Avoid unrelated refactors and metadata churn.
 - Preserve user work in the git tree. Do not revert changes you did not make.
 - Use focused tests for narrow changes and broader tests for shared behavior.
