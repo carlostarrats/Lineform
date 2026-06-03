@@ -186,6 +186,19 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertTrue(script.contains("-allowProvisioningUpdates"))
     }
 
+    func testDMGScriptSignsCompressedDiskImageContainer() throws {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let scriptURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("packaging/build-dmg.sh")
+        let script = try String(contentsOf: scriptURL, encoding: .utf8)
+
+        XCTAssertTrue(script.contains("DMG_CODE_SIGN_IDENTITY"))
+        XCTAssertTrue(script.contains("Developer ID Application: Carlos Tarrats (TV4QZT7A7X)"))
+        XCTAssertTrue(script.contains("codesign --force --sign \"$DMG_CODE_SIGN_IDENTITY\" \"$FINAL_DMG\""))
+    }
+
     private func releaseEntitlements() throws -> [String: Any] {
         let testFileURL = URL(fileURLWithPath: #filePath)
         let entitlementsURL = testFileURL

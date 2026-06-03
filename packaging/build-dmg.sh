@@ -11,6 +11,7 @@ OUTPUT_DIR="${2:-dist}"
 APP_NAME="Lineform"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKGROUND_IMAGE="${BACKGROUND_IMAGE:-$REPO_ROOT/packaging/assets/download-background.jpg}"
+DMG_CODE_SIGN_IDENTITY="${DMG_CODE_SIGN_IDENTITY-Developer ID Application: Carlos Tarrats (TV4QZT7A7X)}"
 
 if [[ ! -d "$APP_PATH" ]]; then
   echo "error: app bundle not found: $APP_PATH" >&2
@@ -86,5 +87,9 @@ hdiutil convert "$RW_DMG" \
   -imagekey zlib-level=9 \
   -ov \
   -o "$FINAL_DMG"
+
+if [[ -n "$DMG_CODE_SIGN_IDENTITY" ]]; then
+  codesign --force --sign "$DMG_CODE_SIGN_IDENTITY" "$FINAL_DMG"
+fi
 
 echo "$FINAL_DMG"

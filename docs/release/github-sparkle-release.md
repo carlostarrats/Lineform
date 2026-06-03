@@ -7,7 +7,7 @@ Lineform's repository root is this `Lineform` app folder, not the parent `Linefo
 1. Create or connect the GitHub repo from this folder.
 2. Generate Sparkle EdDSA keys and keep the private key in Keychain.
 3. Build a signed release with `SPARKLE_PUBLIC_ED_KEY` set.
-4. Package the app as a drag-to-Applications DMG.
+4. Package the app as a signed drag-to-Applications DMG.
 5. Generate `docs/appcast.xml`.
 6. Publish the DMG on GitHub Releases and commit `docs/appcast.xml`.
 7. Confirm the public README and website download link point at the current release.
@@ -84,7 +84,7 @@ SPARKLE_PUBLIC_ED_KEY="SPARKLE_PUBLIC_ED_KEY" packaging/build-release.sh
 
 That DMG is suitable for manual download testing, but **Check for Updates...** will show that updates are not configured until a real Sparkle public key and signed appcast are published.
 
-Generate the appcast after the DMG exists:
+Generate the appcast after the signed DMG exists:
 
 ```sh
 DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.1" \
@@ -104,6 +104,11 @@ xcrun notarytool store-credentials "lineform-notary" \
 ```
 
 Use an Apple app-specific password when prompted. Do not commit or share that password.
+
+The DMG build script signs the compressed disk image with the Lineform Developer
+ID Application identity by default. Set `DMG_CODE_SIGN_IDENTITY` only if the
+certificate changes, or set it to an empty string for a local unsigned DMG that
+will not be publicly released.
 
 After building a Developer ID-signed DMG, notarize and staple it:
 
