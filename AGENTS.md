@@ -15,6 +15,7 @@ Public-facing links:
 Core product principles:
 
 - Real files: documents are plain UTF-8 Markdown or text files that remain portable across Finder, iCloud Drive, Git, and other editors.
+- Native autosave: existing files use macOS document autosave and are written to their real `.md`, `.markdown`, or `.txt` file as the user writes. Untitled documents still need a user-chosen save location before they can become real files.
 - Local-first privacy: there is no account system, no analytics by default, and no document upload.
 - Native macOS behavior: prefer SwiftUI, AppKit, TextKit, document-based app patterns, system controls, and platform conventions.
 - Calm writing: UI should reduce noise and support long drafting/review sessions.
@@ -23,6 +24,8 @@ Core product principles:
 ## Main Features
 
 - Document-based macOS app for Markdown and plain text files.
+- Native macOS autosave for existing files, with Save/Save As still available and untitled files prompting for a destination when needed.
+- Files selected from the left Files sidebar switch in the current window, Apple Notes-style. Do not describe this as a guaranteed manual save prompt before navigation; existing files are usually already autosaved by the document system.
 - Write mode for editing source Markdown.
 - Read mode for rendered, calmer reading.
 - Split/Preview mode for side-by-side writing and preview.
