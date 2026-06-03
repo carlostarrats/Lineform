@@ -24,6 +24,12 @@
 	<string>Copyright © 2026 Carlos Tarrats. All rights reserved.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUEnableInstallerConnectionService</key>
+	<true/>
+	<key>SUEnableInstallerStatusService</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml</string>
 	<key>SUPublicEDKey</key>

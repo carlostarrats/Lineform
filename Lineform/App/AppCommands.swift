@@ -7,7 +7,7 @@ enum AppMenuCommandPlacement: Equatable {
 
 enum AppMenuConfiguration {
     static let aboutCommandTitle = "About Lineform"
-    static let aboutVersionDisplay = "V1.0.1"
+    static let aboutVersionDisplay = "V1.0.2"
     static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
     static let saveCommandTitle = "Save"
     static let saveAsCommandTitle = "Save As..."

@@ -37,6 +37,10 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertEqual(entitlements["com.apple.security.app-sandbox"] as? Bool, true)
         XCTAssertEqual(entitlements["com.apple.security.files.user-selected.read-write"] as? Bool, true)
         XCTAssertEqual(entitlements["com.apple.security.network.client"] as? Bool, true)
+        XCTAssertEqual(
+            entitlements["com.apple.security.temporary-exception.mach-lookup.global-name"] as? [String],
+            ["com.lineform.app-spki", "com.lineform.app-spks"]
+        )
         XCTAssertEqual(entitlements["com.apple.developer.icloud-container-environment"] as? String, "Production")
         XCTAssertEqual(entitlements["com.apple.developer.icloud-services"] as? [String], ["CloudDocuments"])
         XCTAssertEqual(
@@ -64,9 +68,12 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
-        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.1")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.2")
         XCTAssertEqual(info["SUFeedURL"] as? String, "https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml")
         XCTAssertNotNil(info["SUPublicEDKey"] as? String)
+        XCTAssertEqual(info["SUEnableInstallerLauncherService"] as? Bool, true)
+        XCTAssertEqual(info["SUEnableInstallerConnectionService"] as? Bool, true)
+        XCTAssertEqual(info["SUEnableInstallerStatusService"] as? Bool, true)
         XCTAssertEqual(
             info["NSHumanReadableCopyright"] as? String,
             AppMenuConfiguration.aboutCopyright
