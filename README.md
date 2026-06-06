@@ -2,10 +2,10 @@
 
 **A free, local-first Markdown editor for macOS.**
 
-<img width="1311" height="1060" alt="Screenshot 2026-06-01 at 7 45 56 PM" src="https://github.com/user-attachments/assets/d8acd405-a46a-411a-9620-3d9ee28cd12e" />
-
 [![Download Lineform for macOS](https://img.shields.io/badge/Download-Lineform%20for%20macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.7.dmg)
 [![Visit the website](https://img.shields.io/badge/Website-lineform--site.vercel.app-f2f2f2?style=for-the-badge)](https://lineform-site.vercel.app)
+
+<img width="1311" height="1060" alt="Screenshot 2026-06-01 at 7 45 56 PM" src="https://github.com/user-attachments/assets/d8acd405-a46a-411a-9620-3d9ee28cd12e" />
 
 Lineform is a native Mac Markdown editor for calm writing, readable long-form text, and real local files. It opens ordinary `.md`, `.markdown`, and `.txt` files so your documents stay portable across Finder, iCloud Drive, Git, and other editors. Existing files use native macOS autosave, so edits are saved to the file as you write.
 
