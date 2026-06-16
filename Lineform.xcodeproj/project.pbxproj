@@ -80,6 +80,7 @@
 		1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */; };
 		1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000116 /* OutlineSidebarViewTests.swift */; };
 		1F0000010000000000000108 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000108 /* Assets.xcassets */; };
+		1F0000030000000000000108 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000040000000000000108 /* AppIcon.icon */; };
 		1F0000010000000000000109 /* MarkdownGuide.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000109 /* MarkdownGuide.md */; };
 		1F0000010000000000000110 /* Help.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000110 /* Help.md */; };
 		1F0000010000000000000111 /* Privacy.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000111 /* Privacy.md */; };
@@ -192,6 +193,7 @@
 		1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentPerformanceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000116 /* OutlineSidebarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarViewTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1F0000040000000000000108 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		1F0000020000000000000109 /* MarkdownGuide.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MarkdownGuide.md; sourceTree = "<group>"; };
 		1F0000020000000000000110 /* Help.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Help.md; sourceTree = "<group>"; };
 		1F0000020000000000000111 /* Privacy.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Privacy.md; sourceTree = "<group>"; };
@@ -358,6 +360,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000108 /* Assets.xcassets */,
+				1F0000040000000000000108 /* AppIcon.icon */,
 				1F0000020000000000000109 /* MarkdownGuide.md */,
 				1F0000020000000000000110 /* Help.md */,
 				1F0000020000000000000111 /* Privacy.md */,
@@ -511,6 +514,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1F0000010000000000000108 /* Assets.xcassets in Resources */,
+				1F0000030000000000000108 /* AppIcon.icon in Resources */,
 				1F0000010000000000000109 /* MarkdownGuide.md in Resources */,
 				1F0000010000000000000110 /* Help.md in Resources */,
 				1F0000010000000000000111 /* Privacy.md in Resources */,
