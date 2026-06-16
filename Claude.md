@@ -10,7 +10,7 @@ Public-facing links:
 
 - Product website: `https://lineform-site.vercel.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
-- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.8.dmg`
+- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.9.dmg`
 
 Core product principles:
 
@@ -38,7 +38,7 @@ Core product principles:
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
 - Sparkle-backed update checks in release builds when a real EdDSA public key and appcast are configured.
-- Standard macOS About panel showing `V1.0.8`.
+- Standard macOS About panel showing `V1.0.9`.
 - App icon presentation is driven by the Icon Composer source `Lineform/Resources/AppIcon.icon` (built via `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`), which Xcode compiles into both the Tahoe dynamic icon in `Assets.car` and a correctly-inset legacy `AppIcon.icns` fallback for older macOS. The `.icon` art is intentionally full-bleed; Xcode bakes the standard macOS margin into the generated sizes, so do not drop full-bleed PNGs straight into an `.appiconset` (they render oversized on pre-Tahoe Macs). `Lineform/Resources/IconSource/*.png` holds flattened appearance previews of the same design for reference only. Do not set `NSApplication.shared.applicationIconImage` at runtime unless there is a proven platform bug and a regression test/release note covers it.
 
 ## Architecture Map
