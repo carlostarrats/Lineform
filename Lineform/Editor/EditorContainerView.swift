@@ -66,7 +66,7 @@ struct EditorContainerView: View {
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
         .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
         .searchable(text: $searchQuery, placement: .toolbar, prompt: "Search")
-        .searchFocused($isSearchFocused)
+        .searchFocusedCompat($isSearchFocused)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 EditorModeSegmentedControl(
@@ -855,6 +855,20 @@ struct EditorContainerView: View {
             return isIntelligenceRailEnabled ? "Hide Intelligence Actions" : "Show Intelligence Actions"
         case .markdownBasics, .readingExperience:
             return action.title
+        }
+    }
+}
+
+private extension View {
+    /// Binds the search field's focus state where supported. `searchFocused` is
+    /// macOS 15+, so on macOS 14 this is a no-op: search still works via
+    /// `.searchable`, only the programmatic focus binding is inactive.
+    @ViewBuilder
+    func searchFocusedCompat(_ binding: FocusState<Bool>.Binding) -> some View {
+        if #available(macOS 15.0, *) {
+            searchFocused(binding)
+        } else {
+            self
         }
     }
 }

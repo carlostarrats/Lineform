@@ -29,6 +29,8 @@ XCODEBUILD_ARGS=(
   ENABLE_HARDENED_RUNTIME=YES \
   CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
   SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" \
+  ARCHS="arm64 x86_64" \
+  ONLY_ACTIVE_ARCH=NO \
   -allowProvisioningUpdates \
   build
 )
@@ -38,6 +40,19 @@ if [[ "$CODE_SIGN_STYLE" != "Automatic" ]]; then
 fi
 
 xcodebuild "${XCODEBUILD_ARGS[@]}"
+
+# Guard against silently shipping a non-universal binary. Lineform must run on
+# both Apple Silicon and Intel Macs, so the app executable has to contain both
+# the arm64 and x86_64 slices. Fail loudly if a build ever regresses to a
+# single architecture.
+APP_BINARY="$APP_PATH/Contents/MacOS/Lineform"
+ACTUAL_ARCHS="$(lipo -archs "$APP_BINARY" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
+if [[ "$ACTUAL_ARCHS" != "arm64 x86_64" ]]; then
+  echo "error: release binary is not universal. Expected 'arm64 x86_64', got '$ACTUAL_ARCHS'." >&2
+  echo "       $APP_BINARY" >&2
+  exit 67
+fi
+echo "Verified universal binary: $ACTUAL_ARCHS"
 
 sign_release_item() {
   local item_path="$1"
