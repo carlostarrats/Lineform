@@ -65,7 +65,7 @@ tell application "Finder"
     set the bounds of container window to {120, 120, 720, 520}
     set viewOptions to the icon view options of container window
     set arrangement of viewOptions to not arranged
-    set icon size of viewOptions to 192
+    set icon size of viewOptions to 128
     set text size of viewOptions to 16
     set label position of viewOptions to bottom
     set background picture of viewOptions to file ".background:download-background.jpg"
