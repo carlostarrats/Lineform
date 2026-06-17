@@ -55,40 +55,17 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertEqual(ubiquityContainers, ["iCloud.com.lineform.app"])
     }
 
-    func testDebugEntitlementsDeclareSeparateICloudContainer() throws {
+    func testDebugEntitlementsOmitICloudSoUnprovisionedBuildsLaunch() throws {
+        // Debug ships no iCloud entitlement on purpose: a restricted iCloud
+        // container entitlement cannot be satisfied under ad-hoc ("Sign to Run
+        // Locally") signing, which would stop the test host from launching on CI.
+        // Absence of the entitlement is also what isolates dev/CI build churn from
+        // the production container so macOS can never treat the app as uninstalled
+        // and purge real users' files.
         let entitlements = try debugEntitlements()
-
-        // Debug builds must talk to their own iCloud container so local build
-        // churn (rebuilds, DerivedData cleans, deleted exports) can never make
-        // macOS treat the production app as uninstalled and purge users' files.
-        XCTAssertEqual(entitlements["com.apple.developer.icloud-services"] as? [String], ["CloudDocuments"])
-        XCTAssertEqual(
-            entitlements["com.apple.developer.icloud-container-identifiers"] as? [String],
-            ["iCloud.com.lineform.app.debug"]
-        )
-        XCTAssertEqual(
-            entitlements["com.apple.developer.ubiquity-container-identifiers"] as? [String],
-            ["iCloud.com.lineform.app.debug"]
-        )
-
-        // Guard the isolation: the debug container must never equal the production one.
-        let releaseContainers = try XCTUnwrap(
-            try releaseEntitlements()["com.apple.developer.ubiquity-container-identifiers"] as? [String]
-        )
-        let debugContainers = try XCTUnwrap(
-            entitlements["com.apple.developer.ubiquity-container-identifiers"] as? [String]
-        )
-        XCTAssertTrue(Set(releaseContainers).isDisjoint(with: Set(debugContainers)))
-    }
-
-    func testStoreUsesDebugICloudContainerInDebugBuilds() throws {
-        // The runtime container identifier must follow the build configuration,
-        // otherwise a debug build would still read/write the production container.
-        #if DEBUG
-        XCTAssertEqual(OutlineFileBrowserStore.iCloudContainerIdentifier, "iCloud.com.lineform.app.debug")
-        #else
-        XCTAssertEqual(OutlineFileBrowserStore.iCloudContainerIdentifier, "iCloud.com.lineform.app")
-        #endif
+        XCTAssertNil(entitlements["com.apple.developer.icloud-services"])
+        XCTAssertNil(entitlements["com.apple.developer.icloud-container-identifiers"])
+        XCTAssertNil(entitlements["com.apple.developer.ubiquity-container-identifiers"])
     }
 
     func testReleaseMarkdownResourcesAreBundled() throws {
@@ -106,7 +83,7 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
-        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.10")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.0.11")
         XCTAssertEqual(info["SUFeedURL"] as? String, "https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml")
         XCTAssertNotNil(info["SUPublicEDKey"] as? String)
         XCTAssertEqual(info["SUEnableInstallerLauncherService"] as? Bool, true)

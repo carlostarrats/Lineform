@@ -436,13 +436,11 @@ protocol UbiquitousItemDownloader {
 extension FileManager: UbiquitousItemDownloader {}
 
 final class OutlineFileBrowserStore: ObservableObject {
-    // Debug builds use a separate iCloud container so local build churn can never
-    // make macOS treat the production app as uninstalled and purge users' files.
-    #if DEBUG
-    static let iCloudContainerIdentifier = "iCloud.com.lineform.app.debug"
-    #else
+    // Production container. Debug builds intentionally ship no iCloud entitlement,
+    // so this resolves to nil there and the Files sidebar shows iCloud as
+    // unavailable — which keeps local/CI build churn from ever touching (and
+    // letting macOS purge) the real users' production container.
     static let iCloudContainerIdentifier = "iCloud.com.lineform.app"
-    #endif
     static let iCloudSnapshotDefaultsKey = "Lineform.outline.iCloudSnapshot"
     static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
     static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"

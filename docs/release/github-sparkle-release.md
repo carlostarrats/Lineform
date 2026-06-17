@@ -40,7 +40,7 @@ https://lineform-site.vercel.app
 The public direct-download URL used by the website and README is:
 
 ```text
-https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.10.dmg
+https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.11.dmg
 ```
 
 ## Sparkle Keys
@@ -68,14 +68,15 @@ Before building an iCloud-enabled release, confirm the Apple Developer App ID fo
 Xcode 6)** mode and that the iCloud container `iCloud.com.lineform.app` is
 selected. Lineform uses the CloudDocuments service in that app-owned container.
 
-Release builds use the production container `iCloud.com.lineform.app` only. Debug
-builds are deliberately isolated to a separate registered container
-`iCloud.com.lineform.app.debug` (bundle id `com.lineform.app.debug`, declared in
-`Lineform/LineformDebug.entitlements`) so local build/test churn never touches the
-production container or its real user files. Never point Debug at the production
-container, and do not run-then-delete locally built Release/Export copies of
-`com.lineform.app` while signed into the production iCloud account — that churn can
-make macOS treat the app as uninstalled and purge the production container.
+Only the Release build carries the production container `iCloud.com.lineform.app`.
+Debug builds (bundle id `com.lineform.app.debug`) intentionally ship **no** iCloud
+entitlement (`Lineform/LineformDebug.entitlements` has none), so local/CI build
+churn never touches the production container or its real user files, and the Debug
+test host still launches under ad-hoc signing on CI. Do not add an iCloud
+entitlement to Debug. Also do not run-then-delete locally built Release/Export
+copies of `com.lineform.app` while signed into the production iCloud account —
+that churn can make macOS treat the app as uninstalled and purge the production
+container.
 
 For public distribution, Xcode export also needs a Developer ID/Direct
 distribution provisioning profile for `com.lineform.app` whose entitlements
@@ -103,7 +104,7 @@ That DMG is suitable for manual download testing, but **Check for Updates...** w
 Generate the appcast after the signed DMG exists:
 
 ```sh
-DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.10" \
+DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.0.11" \
   packaging/generate-appcast.sh dist
 ```
 
@@ -129,7 +130,7 @@ will not be publicly released.
 After building a Developer ID-signed DMG, notarize and staple it:
 
 ```bash
-packaging/notarize-dmg.sh dist/Lineform-1.0.10.dmg
+packaging/notarize-dmg.sh dist/Lineform-1.0.11.dmg
 ```
 
 ## DMG
@@ -161,7 +162,7 @@ download and the marketing site then resolve to a stale DMG, because anything
 that just picks "a `.dmg` on the latest release" can land on the wrong one.
 
 ```sh
-VERSION="1.0.10"
+VERSION="1.0.11"
 gh release upload "v${VERSION}" \
   "dist/Lineform-${VERSION}.dmg" \
   dist/Lineform*-*.delta \

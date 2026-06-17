@@ -10,7 +10,7 @@ Public-facing links:
 
 - Product website: `https://lineform-site.vercel.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
-- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.10.dmg`
+- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.0.11.dmg`
 
 Core product principles:
 
@@ -38,7 +38,7 @@ Core product principles:
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
 - Sparkle-backed update checks in release builds when a real EdDSA public key and appcast are configured.
-- Standard macOS About panel showing `V1.0.10`.
+- Standard macOS About panel showing `V1.0.11`.
 - App icon presentation is driven by the Icon Composer source `Lineform/Resources/AppIcon.icon` (built via `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`), which Xcode compiles into both the Tahoe dynamic icon in `Assets.car` and a correctly-inset legacy `AppIcon.icns` fallback for older macOS. The `.icon` art is intentionally full-bleed; Xcode bakes the standard macOS margin into the generated sizes, so do not drop full-bleed PNGs straight into an `.appiconset` (they render oversized on pre-Tahoe Macs). `Lineform/Resources/IconSource/*.png` holds flattened appearance previews of the same design for reference only. Do not set `NSApplication.shared.applicationIconImage` at runtime unless there is a proven platform bug and a regression test/release note covers it.
 
 ## Architecture Map
@@ -62,7 +62,7 @@ Prefer existing module boundaries. Do not move responsibilities across directori
 
 The Files sidebar's "Lineform iCloud" root is backed by an app-owned iCloud Drive container declared in `Info.plist` (`NSUbiquitousContainers`, public document scope) and entitlements. `OutlineFileBrowserStore` (in `Lineform/Outline`) owns this behavior.
 
-- Container identity is build-config specific. Release/production uses `iCloud.com.lineform.app`; Debug uses a separate, registered `iCloud.com.lineform.app.debug` (selected via `#if DEBUG` in `OutlineFileBrowserStore.iCloudContainerIdentifier`, and declared in `LineformDebug.entitlements`). This isolation exists so local development/build churn cannot make macOS treat the production app as "uninstalled" and purge real users' files from the production container. Keep these two containers separate; do not point Debug at the production container.
+- Only the Release/production build carries an iCloud entitlement (`iCloud.com.lineform.app`, in `Lineform/Lineform.entitlements`). Debug builds intentionally ship **no** iCloud entitlement (`LineformDebug.entitlements` has none), so `iCloudContainerIdentifier` resolves to nil there and the Files sidebar shows iCloud as unavailable. This is deliberate isolation: dev/CI build churn can never touch (and let macOS purge) the real users' production container, and — critically — a restricted iCloud entitlement cannot be satisfied under ad-hoc ("Sign to Run Locally") signing, so giving Debug one would stop the test host from launching on CI. Do not add an iCloud entitlement to Debug. (A separate registered `*.debug` container was tried and rejected for exactly this CI-launch reason.)
 - The live iCloud scan (resolving the ubiquity container + enumerating the directory) is expensive and must not run on the main thread at view construction — it would block launch and perturb hosted-view layout. It is deferred to `OutlineFileBrowserStore.refreshICloud()`, invoked when the Files tab actually appears. Init only loads the cached snapshot. Preserve this laziness.
 - The store keeps the user's iCloud working set materialized via `ensureDownloaded(...)` (`FileManager.startDownloadingUbiquitousItem`), so evicted (dataless) files don't appear in search yet fail to open or drag. This is realized through the `UbiquitousItemDownloader` protocol so it is testable without real iCloud files.
 - App-owned containers are still subject to iCloud purge when macOS believes the app was uninstalled. The durable additional protections are operational, not code: ship updates via Sparkle's atomic in-place swap (never instruct users to delete the old app and drag a new one), and do not run-then-delete locally built Release/Export copies of `com.lineform.app` while signed into the production iCloud account.
@@ -121,13 +121,10 @@ xcodebuild test \
   -project Lineform.xcodeproj \
   -scheme Lineform \
   -destination 'platform=macOS' \
-  -parallel-testing-enabled NO \
-  DEVELOPMENT_TEAM=TV4QZT7A7X
+  -parallel-testing-enabled NO
 ```
 
-Use serial testing for the full suite. Some AppKit-hosted tests can contaminate each other when Xcode runs them in parallel.
-
-Debug builds use a separate, registered iCloud container (`iCloud.com.lineform.app.debug`; see Architecture / iCloud notes below), so the Debug test host must be signed. Pass `DEVELOPMENT_TEAM=TV4QZT7A7X`; add `-allowProvisioningUpdates` only the first time on a machine (or after the debug container/profile changes) so Xcode can fetch the provisioning profile. Avoid leaving `-allowProvisioningUpdates` on every run — it needlessly regenerates provisioning profiles (across all of the team's App IDs) and contributes to signing-artifact churn.
+Use serial testing for the full suite. Some AppKit-hosted tests can contaminate each other when Xcode runs them in parallel. No signing/team flags are needed: Debug ships no iCloud entitlement, so the test host signs ad-hoc ("Sign to Run Locally") and launches on unprovisioned machines and CI. Do not add an iCloud entitlement to Debug — it cannot be satisfied under ad-hoc signing and the test host will fail to launch (CI red).
 
 QUIT XCODE BEFORE RUNNING THE FULL SUITE. The hosted editor tests in `EditorDisplayModeTests` (e.g. `testEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens`) measure a sub-second animation and are load-sensitive: with Xcode left open during `xcodebuild test`, the extra resource contention intermittently makes them fail with a spurious vertical-jump delta (e.g. "13.0 > 1.0"). They pass reliably in isolation and on a quiet machine. This is harness fragility, not a product regression — do not weaken these tests to "fix" it; quit Xcode and re-run.
 
