@@ -58,6 +58,15 @@ Important directories:
 
 Prefer existing module boundaries. Do not move responsibilities across directories unless the change clearly improves maintainability and is directly needed.
 
+## iCloud Storage
+
+The Files sidebar's "Lineform iCloud" root is backed by an app-owned iCloud Drive container declared in `Info.plist` (`NSUbiquitousContainers`, public document scope) and entitlements. `OutlineFileBrowserStore` (in `Lineform/Outline`) owns this behavior.
+
+- Container identity is build-config specific. Release/production uses `iCloud.com.lineform.app`; Debug uses a separate, registered `iCloud.com.lineform.app.debug` (selected via `#if DEBUG` in `OutlineFileBrowserStore.iCloudContainerIdentifier`, and declared in `LineformDebug.entitlements`). This isolation exists so local development/build churn cannot make macOS treat the production app as "uninstalled" and purge real users' files from the production container. Keep these two containers separate; do not point Debug at the production container.
+- The live iCloud scan (resolving the ubiquity container + enumerating the directory) is expensive and must not run on the main thread at view construction — it would block launch and perturb hosted-view layout. It is deferred to `OutlineFileBrowserStore.refreshICloud()`, invoked when the Files tab actually appears. Init only loads the cached snapshot. Preserve this laziness.
+- The store keeps the user's iCloud working set materialized via `ensureDownloaded(...)` (`FileManager.startDownloadingUbiquitousItem`), so evicted (dataless) files don't appear in search yet fail to open or drag. This is realized through the `UbiquitousItemDownloader` protocol so it is testable without real iCloud files.
+- App-owned containers are still subject to iCloud purge when macOS believes the app was uninstalled. The durable additional protections are operational, not code: ship updates via Sparkle's atomic in-place swap (never instruct users to delete the old app and drag a new one), and do not run-then-delete locally built Release/Export copies of `com.lineform.app` while signed into the production iCloud account.
+
 ## Intelligent Editing
 
 The app exposes these selected-text actions:
@@ -112,10 +121,15 @@ xcodebuild test \
   -project Lineform.xcodeproj \
   -scheme Lineform \
   -destination 'platform=macOS' \
-  -parallel-testing-enabled NO
+  -parallel-testing-enabled NO \
+  DEVELOPMENT_TEAM=TV4QZT7A7X
 ```
 
 Use serial testing for the full suite. Some AppKit-hosted tests can contaminate each other when Xcode runs them in parallel.
+
+Debug builds use a separate, registered iCloud container (`iCloud.com.lineform.app.debug`; see Architecture / iCloud notes below), so the Debug test host must be signed. Pass `DEVELOPMENT_TEAM=TV4QZT7A7X`; add `-allowProvisioningUpdates` only the first time on a machine (or after the debug container/profile changes) so Xcode can fetch the provisioning profile. Avoid leaving `-allowProvisioningUpdates` on every run — it needlessly regenerates provisioning profiles (across all of the team's App IDs) and contributes to signing-artifact churn.
+
+QUIT XCODE BEFORE RUNNING THE FULL SUITE. The hosted editor tests in `EditorDisplayModeTests` (e.g. `testEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens`) measure a sub-second animation and are load-sensitive: with Xcode left open during `xcodebuild test`, the extra resource contention intermittently makes them fail with a spurious vertical-jump delta (e.g. "13.0 > 1.0"). They pass reliably in isolation and on a quiet machine. This is harness fragility, not a product regression — do not weaken these tests to "fix" it; quit Xcode and re-run.
 
 Known AppKit test-harness warning:
 

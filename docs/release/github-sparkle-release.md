@@ -68,6 +68,15 @@ Before building an iCloud-enabled release, confirm the Apple Developer App ID fo
 Xcode 6)** mode and that the iCloud container `iCloud.com.lineform.app` is
 selected. Lineform uses the CloudDocuments service in that app-owned container.
 
+Release builds use the production container `iCloud.com.lineform.app` only. Debug
+builds are deliberately isolated to a separate registered container
+`iCloud.com.lineform.app.debug` (bundle id `com.lineform.app.debug`, declared in
+`Lineform/LineformDebug.entitlements`) so local build/test churn never touches the
+production container or its real user files. Never point Debug at the production
+container, and do not run-then-delete locally built Release/Export copies of
+`com.lineform.app` while signed into the production iCloud account — that churn can
+make macOS treat the app as uninstalled and purge the production container.
+
 For public distribution, Xcode export also needs a Developer ID/Direct
 distribution provisioning profile for `com.lineform.app` whose entitlements
 include iCloud container environment support. The Xcode-managed development
