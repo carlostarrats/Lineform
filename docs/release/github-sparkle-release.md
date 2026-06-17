@@ -136,3 +136,30 @@ The output path is:
 ```text
 dist/Lineform-<version>.dmg
 ```
+
+## Publish
+
+Only upload the assets that belong to the new version. `dist/` keeps every
+historical DMG so `generate_appcast` can build deltas, but the GitHub release
+for a tag must contain only:
+
+- the current full DMG, `dist/Lineform-<version>.dmg`
+- the delta files generated for this release (`Lineform<build>-*.delta`)
+
+Do **not** run `gh release upload <tag> dist/*.dmg`. Uploading the whole glob
+staples old-version DMGs (1.0.4, 1.0.6, ...) onto the new release. The public
+download and the marketing site then resolve to a stale DMG, because anything
+that just picks "a `.dmg` on the latest release" can land on the wrong one.
+
+```sh
+VERSION="1.0.9"
+gh release upload "v${VERSION}" \
+  "dist/Lineform-${VERSION}.dmg" \
+  dist/Lineform*-*.delta \
+  --clobber
+```
+
+After publishing, the appcast's top `<item>` should be the only item whose
+enclosures point at the new tag. Sparkle only ever updates clients forward to
+the newest item, so older `<item>` entries and their full DMGs are not needed
+and should not be re-hosted under the new tag.

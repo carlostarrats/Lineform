@@ -21,6 +21,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Only the DMG for THIS tag belongs on the release. dist/ keeps every
+          # historical DMG so Sparkle can regenerate deltas, but uploading the
+          # whole glob staples old versions onto the new release (and the public
+          # download/marketing page then resolves to a stale DMG).
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
+          DMG="dist/Lineform-${VERSION}.dmg"
+          if [[ ! -f "$DMG" ]]; then
+            echo "error: expected DMG not found: $DMG" >&2
+            exit 66
+          fi
           gh release view "${{ inputs.tag }}" >/dev/null 2>&1 || \
             gh release create "${{ inputs.tag }}" --title "Lineform ${{ inputs.tag }}" --notes "Lineform ${{ inputs.tag }}"
-          gh release upload "${{ inputs.tag }}" dist/*.dmg --clobber
+          gh release upload "${{ inputs.tag }}" "$DMG" --clobber
