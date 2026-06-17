@@ -55,6 +55,42 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertEqual(ubiquityContainers, ["iCloud.com.lineform.app"])
     }
 
+    func testDebugEntitlementsDeclareSeparateICloudContainer() throws {
+        let entitlements = try debugEntitlements()
+
+        // Debug builds must talk to their own iCloud container so local build
+        // churn (rebuilds, DerivedData cleans, deleted exports) can never make
+        // macOS treat the production app as uninstalled and purge users' files.
+        XCTAssertEqual(entitlements["com.apple.developer.icloud-services"] as? [String], ["CloudDocuments"])
+        XCTAssertEqual(
+            entitlements["com.apple.developer.icloud-container-identifiers"] as? [String],
+            ["iCloud.com.lineform.app.debug"]
+        )
+        XCTAssertEqual(
+            entitlements["com.apple.developer.ubiquity-container-identifiers"] as? [String],
+            ["iCloud.com.lineform.app.debug"]
+        )
+
+        // Guard the isolation: the debug container must never equal the production one.
+        let releaseContainers = try XCTUnwrap(
+            try releaseEntitlements()["com.apple.developer.ubiquity-container-identifiers"] as? [String]
+        )
+        let debugContainers = try XCTUnwrap(
+            entitlements["com.apple.developer.ubiquity-container-identifiers"] as? [String]
+        )
+        XCTAssertTrue(Set(releaseContainers).isDisjoint(with: Set(debugContainers)))
+    }
+
+    func testStoreUsesDebugICloudContainerInDebugBuilds() throws {
+        // The runtime container identifier must follow the build configuration,
+        // otherwise a debug build would still read/write the production container.
+        #if DEBUG
+        XCTAssertEqual(OutlineFileBrowserStore.iCloudContainerIdentifier, "iCloud.com.lineform.app.debug")
+        #else
+        XCTAssertEqual(OutlineFileBrowserStore.iCloudContainerIdentifier, "iCloud.com.lineform.app")
+        #endif
+    }
+
     func testReleaseMarkdownResourcesAreBundled() throws {
         for resource in ["MarkdownGuide", "Help", "Privacy", "AccessibilityNutritionLabel"] {
             XCTAssertNotNil(Bundle.main.url(forResource: resource, withExtension: "md"), "\(resource).md should be bundled.")
@@ -216,6 +252,17 @@ final class ReleaseResourceTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Lineform/Lineform.entitlements")
+        let data = try Data(contentsOf: entitlementsURL)
+        let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        return try XCTUnwrap(plist as? [String: Any])
+    }
+
+    private func debugEntitlements() throws -> [String: Any] {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let entitlementsURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Lineform/LineformDebug.entitlements")
         let data = try Data(contentsOf: entitlementsURL)
         let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
         return try XCTUnwrap(plist as? [String: Any])

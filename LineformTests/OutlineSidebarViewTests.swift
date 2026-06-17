@@ -207,6 +207,7 @@ final class OutlineSidebarViewTests: XCTestCase {
             fileManager: .default,
             iCloudDocumentsURLProvider: { _ in nil }
         )
+        store.refreshICloud()
 
         XCTAssertEqual(store.iCloudRoot.title, "Lineform iCloud")
         XCTAssertEqual(store.iCloudRoot.state, .unavailable)
@@ -236,6 +237,7 @@ final class OutlineSidebarViewTests: XCTestCase {
             fileManager: .default,
             iCloudDocumentsURLProvider: { _ in folder }
         )
+        store.refreshICloud()
 
         XCTAssertEqual(store.iCloudRoot.title, "Lineform iCloud")
         XCTAssertEqual(store.iCloudRoot.state, .available)
@@ -260,6 +262,7 @@ final class OutlineSidebarViewTests: XCTestCase {
             fileManager: .default,
             iCloudDocumentsURLProvider: { _ in missingFolder }
         )
+        store.refreshICloud()
 
         XCTAssertEqual(store.iCloudRoot.state, .available)
         XCTAssertEqual(store.iCloudRoot.items, [])
@@ -321,6 +324,104 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertEqual(tree.last?.children.map(\.item.title), ["Second Section"])
     }
 
+    @MainActor
+    func testEnsureDownloadedRequestsEveryICloudFileRecursivelyButNotFolders() {
+        let downloader = RecordingUbiquitousDownloader()
+        let items = [
+            OutlineFileTreeItem(
+                url: URL(fileURLWithPath: "/c/Documents/a.md"),
+                name: "a.md",
+                isDirectory: false,
+                children: []
+            ),
+            OutlineFileTreeItem(
+                url: URL(fileURLWithPath: "/c/Documents/Sub"),
+                name: "Sub",
+                isDirectory: true,
+                children: [
+                    OutlineFileTreeItem(
+                        url: URL(fileURLWithPath: "/c/Documents/Sub/b.md"),
+                        name: "b.md",
+                        isDirectory: false,
+                        children: []
+                    ),
+                    OutlineFileTreeItem(
+                        url: URL(fileURLWithPath: "/c/Documents/Sub/c.txt"),
+                        name: "c.txt",
+                        isDirectory: false,
+                        children: []
+                    ),
+                ]
+            ),
+        ]
+
+        let requested = OutlineFileBrowserStore.ensureDownloaded(items, using: downloader)
+
+        // Every file (including nested) is asked to download; folders are not.
+        XCTAssertEqual(Set(downloader.requestedURLs.map(\.lastPathComponent)), ["a.md", "b.md", "c.txt"])
+        XCTAssertEqual(Set(requested.map(\.lastPathComponent)), ["a.md", "b.md", "c.txt"])
+    }
+
+    @MainActor
+    func testEnsureDownloadedSkipsItemsThatCannotBeMaterialized() {
+        let downloader = ThrowingUbiquitousDownloader()
+        let items = [
+            OutlineFileTreeItem(
+                url: URL(fileURLWithPath: "/c/Documents/a.md"),
+                name: "a.md",
+                isDirectory: false,
+                children: []
+            ),
+        ]
+
+        let requested = OutlineFileBrowserStore.ensureDownloaded(items, using: downloader)
+
+        // A throwing (non-ubiquitous/transient) item must be skipped, not crash.
+        XCTAssertTrue(requested.isEmpty)
+    }
+
+    @MainActor
+    func testFilesTabKeepsLineformICloudFilesDownloaded() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try "# Draft".write(to: folder.appendingPathComponent("Draft.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let downloader = RecordingUbiquitousDownloader()
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder },
+            iCloudDownloader: downloader
+        )
+        store.refreshICloud()
+
+        // Listing the iCloud container must proactively keep its files downloaded.
+        XCTAssertEqual(downloader.requestedURLs.map(\.lastPathComponent), ["Draft.md"])
+    }
+
+}
+
+private final class RecordingUbiquitousDownloader: UbiquitousItemDownloader {
+    private(set) var requestedURLs: [URL] = []
+
+    func startDownloadingUbiquitousItem(at url: URL) throws {
+        requestedURLs.append(url)
+    }
+}
+
+private struct ThrowingDownloadError: Error {}
+
+private final class ThrowingUbiquitousDownloader: UbiquitousItemDownloader {
+    func startDownloadingUbiquitousItem(at url: URL) throws {
+        throw ThrowingDownloadError()
+    }
 }
 
 @MainActor

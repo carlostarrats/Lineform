@@ -150,6 +150,7 @@ struct OutlineSidebarView: View {
                     outlineContent
                 } else {
                     OutlineFileBrowserView(store: fileBrowserStore, openFile: openFile)
+                        .onAppear { fileBrowserStore.refreshICloud() }
                 }
             }
         }
@@ -426,8 +427,22 @@ struct OutlineFileRoot: Identifiable, Equatable {
     }
 }
 
+/// Abstraction over `FileManager.startDownloadingUbiquitousItem(at:)` so the
+/// keep-downloaded behavior can be exercised in tests without real iCloud files.
+protocol UbiquitousItemDownloader {
+    func startDownloadingUbiquitousItem(at url: URL) throws
+}
+
+extension FileManager: UbiquitousItemDownloader {}
+
 final class OutlineFileBrowserStore: ObservableObject {
+    // Debug builds use a separate iCloud container so local build churn can never
+    // make macOS treat the production app as uninstalled and purge users' files.
+    #if DEBUG
+    static let iCloudContainerIdentifier = "iCloud.com.lineform.app.debug"
+    #else
     static let iCloudContainerIdentifier = "iCloud.com.lineform.app"
+    #endif
     static let iCloudSnapshotDefaultsKey = "Lineform.outline.iCloudSnapshot"
     static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
     static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"
@@ -453,6 +468,7 @@ final class OutlineFileBrowserStore: ObservableObject {
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let iCloudDocumentsURLProvider: (FileManager) -> URL?
+    private let iCloudDownloader: UbiquitousItemDownloader
     private var lastICloudItems: [OutlineFileTreeItem] = []
     private var workspaceURL: URL?
     private var lastWorkspaceItems: [OutlineFileTreeItem] = []
@@ -460,20 +476,27 @@ final class OutlineFileBrowserStore: ObservableObject {
     init(
         defaults: UserDefaults = .standard,
         fileManager: FileManager = .default,
-        iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL
+        iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL,
+        iCloudDownloader: UbiquitousItemDownloader? = nil
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
         self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
+        self.iCloudDownloader = iCloudDownloader ?? fileManager
         loadICloudSnapshot()
         loadWorkspaceSnapshot()
         loadWorkspaceBookmark()
-        refresh()
+        // The live iCloud scan resolves the ubiquity container and enumerates the
+        // directory, which is expensive and must not run on the main thread at
+        // construction (it blocks launch and perturbs hosted-view layout). It is
+        // deferred to refreshICloud(), called when the Files tab is actually shown.
+        refreshWorkspaceRoot()
     }
 
-    func refresh() {
+    /// Performs the live iCloud container scan. Call this when the Files tab
+    /// becomes visible (or from tests); it is intentionally not run at init.
+    func refreshICloud() {
         refreshICloudRoot()
-        refreshWorkspaceRoot()
     }
 
     @MainActor
@@ -613,6 +636,11 @@ final class OutlineFileBrowserStore: ObservableObject {
         lastICloudItems = items
         saveSnapshot(items, defaultsKey: Self.iCloudSnapshotDefaultsKey)
 
+        // Keep the user's iCloud working set materialized locally. Evicted
+        // (dataless) files otherwise show in search but fail to open or drag,
+        // which is one of the failure modes that made files feel "lost."
+        Self.ensureDownloaded(items, using: iCloudDownloader)
+
         iCloudRoot = OutlineFileRoot(
             id: "icloud",
             title: "Lineform iCloud",
@@ -681,6 +709,25 @@ final class OutlineFileBrowserStore: ObservableObject {
         fileManager
             .url(forUbiquityContainerIdentifier: iCloudContainerIdentifier)?
             .appendingPathComponent("Documents", isDirectory: true)
+    }
+
+    /// Requests that every file in the tree be downloaded/kept local. Returns the
+    /// files that were successfully requested. Folders are descended into but not
+    /// themselves requested; items that cannot be materialized are skipped.
+    @discardableResult
+    static func ensureDownloaded(
+        _ items: [OutlineFileTreeItem],
+        using downloader: UbiquitousItemDownloader
+    ) -> [URL] {
+        var requested: [URL] = []
+        for item in items {
+            if item.isDirectory {
+                requested.append(contentsOf: ensureDownloaded(item.children, using: downloader))
+            } else if (try? downloader.startDownloadingUbiquitousItem(at: item.url)) != nil {
+                requested.append(item.url)
+            }
+        }
+        return requested
     }
 
     private static func items(
