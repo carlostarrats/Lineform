@@ -1,6 +1,6 @@
 {
   "fill" : {
-    "automatic-gradient" : "srgb:0.66422,0.66424,0.66423,1.00000"
+    "automatic-gradient" : "extended-gray:1.00000,1.00000"
   },
   "groups" : [
     {
@@ -8,30 +8,26 @@
         {
           "fill-specializations" : [
             {
-              "value" : {
-                "solid" : "srgb:1.00000,1.00000,1.00000,1.00000"
-              }
-            },
-            {
               "appearance" : "dark",
               "value" : {
-                "solid" : "srgb:0.47563,0.47565,0.47564,1.00000"
+                "solid" : "srgb:0.66422,0.66424,0.66423,1.00000"
               }
             },
             {
               "appearance" : "tinted",
-              "value" : "none"
+              "value" : {
+                "solid" : "srgb:0.47563,0.47565,0.47564,1.00000"
+              }
             }
           ],
           "glass" : false,
-          "hidden" : false,
-          "image-name" : "1.svg",
-          "name" : "1",
+          "image-name" : "lineform 2.svg",
+          "name" : "lineform 2",
           "position" : {
-            "scale" : 1.31,
+            "scale" : 1,
             "translation-in-points" : [
               0,
-              0
+              67
             ]
           }
         }
