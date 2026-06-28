@@ -26,7 +26,10 @@ enum MarkdownWritingToolsProtection {
         }
 
         let nsText = text as NSString
-        let searchRange = NSRange(location: 4, length: max(0, nsText.length - 4))
+        // The opening delimiter occupies positions 0...3 ("---\n"). Search from the
+        // trailing newline (position 3) so a closing "\n---" that immediately follows
+        // the opening — i.e. empty front matter ("---\n---") — is still detected.
+        let searchRange = NSRange(location: 3, length: max(0, nsText.length - 3))
         let closingRange = nsText.range(of: "\n---", options: [], range: searchRange)
         guard closingRange.location != NSNotFound else {
             return nil

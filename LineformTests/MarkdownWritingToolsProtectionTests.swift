@@ -10,6 +10,14 @@ final class MarkdownWritingToolsProtectionTests: XCTestCase {
         XCTAssertEqual(ranges.first, NSRange(location: 0, length: 21))
     }
 
+    func testProtectsEmptyYamlFrontMatterDelimiters() {
+        let text = "---\n---\n\nBody"
+
+        let ranges = MarkdownWritingToolsProtection.ignoredRanges(in: text, enclosingRange: NSRange(location: 0, length: (text as NSString).length))
+
+        XCTAssertEqual(ranges.first, NSRange(location: 0, length: 8))
+    }
+
     func testProtectsFencedCodeBlocks() {
         let text = "Body\n```swift\nlet value = 1\n```\nMore"
 

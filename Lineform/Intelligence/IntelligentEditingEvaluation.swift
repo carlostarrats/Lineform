@@ -211,10 +211,6 @@ enum IntelligentEditingEvaluationRubric {
         ) != nil
     }
 
-    static func isUnchangedTransformOutput(_ replacement: String, selectedText: String) -> Bool {
-        normalized(replacement) == normalized(selectedText)
-    }
-
     static func wordCount(in text: String) -> Int {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
             .split { $0.isWhitespace || $0.isNewline }
