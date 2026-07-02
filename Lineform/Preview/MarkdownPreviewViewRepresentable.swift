@@ -35,6 +35,9 @@ final class MarkdownPreviewTextView: NSTextView {
     private var activeProfile = ReadingProfile.original
     private var renderedText: String?
     private var renderedProfile: ReadingProfile?
+    private let mermaidProvider = MermaidImageProvider()
+    private let diagramLog = DiagramLogStore()
+    private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -71,7 +74,16 @@ final class MarkdownPreviewTextView: NSTextView {
             return
         }
 
-        textStorage?.setAttributedString(MarkdownPreviewRenderer().render(text, profile: profile))
+        textStorage?.setAttributedString(
+            MarkdownPreviewRenderer().render(
+                text,
+                profile: profile,
+                columnWidth: EditorReadingLayout.textColumnMaxWidth(for: profile),
+                mermaidProvider: mermaidProvider,
+                diagramLog: diagramLog,
+                appVersion: appVersion
+            )
+        )
         renderedText = text
         renderedProfile = profile
     }

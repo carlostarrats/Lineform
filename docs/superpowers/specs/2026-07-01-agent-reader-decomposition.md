@@ -54,7 +54,7 @@ patching beautiful-mermaid-swift; any telemetry or automatic reporting; monetiza
 - [x] 1 — Live reload
 - [x] 2 — Hidden folders
 - [x] 3 — CLI + stdin
-- [ ] 4 — Mermaid + local log
+- [x] 4 — Mermaid + local log
 - [ ] 5 — Diagram report
 - [ ] 6 — Privacy + Terms
 - [ ] 7 — Hook recipes
