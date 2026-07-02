@@ -14,6 +14,7 @@ enum AppMenuConfiguration {
     static let saveAsCommandKeyEquivalent = "S"
     static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
     static let checkForUpdatesCommandTitle = "Check for Updates..."
+    static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let suppressesDefaultHelpMenu = true
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
@@ -130,6 +131,10 @@ struct AppCommands: Commands {
 
             Button(AppMenuConfiguration.checkForUpdatesCommandTitle) {
                 updaterController.checkForUpdates()
+            }
+
+            Button(AppMenuConfiguration.installCommandLineToolCommandTitle) {
+                CommandLineToolInstaller.presentInstaller()
             }
         }
 

@@ -80,6 +80,8 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [firstLaunchIntroPresenter] in
             firstLaunchIntroPresenter.showIfNeeded()
         }
+        // Piped-file housekeeping runs in the unsandboxed `lineform` helper (the sandboxed app
+        // cannot enumerate the helper's real Application Support directory).
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {

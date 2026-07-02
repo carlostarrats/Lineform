@@ -25,6 +25,7 @@ More release files and notes are available on the [Lineform Releases page](https
 - Keep work saved with native macOS autosave for existing files.
 - See external edits automatically: an open document reloads when its file changes on disk, so what your tools (or agents) write shows up without reopening.
 - Optionally show hidden folders in the Files sidebar (like `.claude` or `.github`) to reach Markdown that lives alongside your code.
+- Open files from the terminal with the bundled `lineform` command (`lineform notes.md`, or pipe with `some-command | lineform -`); install it from **Lineform → Install Command Line Tool…**.
 - Switch between Write, Read, and Preview modes.
 - Preview Markdown beside the source in split view.
 - Navigate documents from their headings.
