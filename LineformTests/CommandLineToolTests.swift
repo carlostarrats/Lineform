@@ -57,6 +57,14 @@ final class CommandLineToolTests: XCTestCase {
         )
     }
 
+    func testDiagramLogDirectoryUnderHome() {
+        let home = URL(fileURLWithPath: "/Users/x", isDirectory: true)
+        XCTAssertEqual(
+            LineformCLIPaths.diagramLogDirectory(home: home).path,
+            "/Users/x/Library/Application Support/Lineform/DiagramLog"
+        )
+    }
+
     func testResolveAbsoluteAndRelative() {
         let base = URL(fileURLWithPath: "/work", isDirectory: true)
         XCTAssertEqual(LineformCLIPaths.resolve("/abs/x.md", relativeTo: base).path, "/abs/x.md")

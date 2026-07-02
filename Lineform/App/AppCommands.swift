@@ -15,6 +15,8 @@ enum AppMenuConfiguration {
     static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
     static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
+    static let exportDiagramLogCommandTitle = "Export Diagram Log..."
+    static let clearDiagramLogCommandTitle = "Clear Diagram Log..."
     static let suppressesDefaultHelpMenu = true
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
@@ -135,6 +137,14 @@ struct AppCommands: Commands {
 
             Button(AppMenuConfiguration.installCommandLineToolCommandTitle) {
                 CommandLineToolInstaller.presentInstaller()
+            }
+
+            Button(AppMenuConfiguration.exportDiagramLogCommandTitle) {
+                DiagramLogMenuActions.presentExport()
+            }
+
+            Button(AppMenuConfiguration.clearDiagramLogCommandTitle) {
+                DiagramLogMenuActions.presentClear()
             }
         }
 

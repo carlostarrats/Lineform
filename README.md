@@ -26,6 +26,7 @@ More release files and notes are available on the [Lineform Releases page](https
 - See external edits automatically: an open document reloads when its file changes on disk, so what your tools (or agents) write shows up without reopening.
 - Optionally show hidden folders in the Files sidebar (like `.claude` or `.github`) to reach Markdown that lives alongside your code.
 - Open files from the terminal with the bundled `lineform` command (`lineform notes.md`, or pipe with `some-command | lineform -`); install it from **Lineform → Install Command Line Tool…**.
+- See Mermaid diagrams rendered natively in Read and Preview modes (Write mode shows the source); malformed diagrams fall back to a labeled source block.
 - Switch between Write, Read, and Preview modes.
 - Preview Markdown beside the source in split view.
 - Navigate documents from their headings.
@@ -62,6 +63,8 @@ Lineform V1.0 is the first public version of the app. It is built as a native ma
 ## Credits
 
 Lineform uses [Sparkle](https://sparkle-project.org) for macOS update checking.
+
+Lineform renders Mermaid diagrams with [BeautifulMermaid](https://github.com/lukilabs/beautiful-mermaid-swift) (MIT), a native Swift renderer.
 
 Lineform bundles accessibility-focused reader fonts under the SIL Open Font License 1.1:
 

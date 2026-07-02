@@ -14,23 +14,82 @@ struct MarkdownPreviewRenderer {
         6: 0
     ]
 
+    /// Back-compat convenience (used by tests and any caller that doesn't render mermaid): uses
+    /// a disabled mermaid provider so ```mermaid blocks fall back to a captioned source block.
     func render(_ text: String, profile: ReadingProfile) -> NSAttributedString {
+        render(
+            text,
+            profile: profile,
+            columnWidth: CGFloat(profile.columnWidth),
+            mermaidProvider: DisabledMermaidImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            appVersion: "0"
+        )
+    }
+
+    func render(
+        _ text: String,
+        profile: ReadingProfile,
+        columnWidth: CGFloat,
+        mermaidProvider: MermaidImageProviding,
+        diagramLog: DiagramFailureLogging,
+        appVersion: String
+    ) -> NSAttributedString {
         let output = NSMutableAttributedString(string: "")
         let bodyAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
         let codeAttributes = codeAttributes(profile: profile)
         let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
         let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(in: text))
+        let theme = Theme.theme(for: profile)
         var inFence = false
         let lines = text.components(separatedBy: "\n")
 
-        for (index, line) in lines.enumerated() {
+        // Mermaid block accumulation: when a ```mermaid fence opens we buffer its body and, on
+        // the closing fence, emit a rendered diagram (or a captioned-source fallback) as one unit.
+        var mermaidBody: [String]?
+
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if mermaidBody != nil {
+                if MermaidFence.isFenceDelimiter(trimmed) {
+                    // Closing fence: emit the accumulated block, then stop buffering.
+                    let source = mermaidBody!.joined(separator: "\n")
+                    appendMermaidBlock(
+                        source: source,
+                        to: output,
+                        profile: profile,
+                        theme: theme,
+                        columnWidth: columnWidth,
+                        codeAttributes: codeAttributes,
+                        mermaidProvider: mermaidProvider,
+                        diagramLog: diagramLog,
+                        appVersion: appVersion
+                    )
+                    mermaidBody = nil
+                    if index < lines.count - 1 {
+                        output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                    }
+                } else {
+                    mermaidBody!.append(line)
+                }
+                index += 1
+                continue
+            }
+
             let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
             let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
             let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
             var lineTerminatorAttributes = activeBodyAttributes
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+            if !inFence, MermaidFence.isMermaidOpening(trimmed) {
+                // Opening mermaid fence: start buffering the body (the fence line is not emitted).
+                mermaidBody = []
+                index += 1
+                continue
+            } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 inFence.toggle()
                 output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
                 lineTerminatorAttributes = activeCodeAttributes
@@ -55,9 +114,79 @@ struct MarkdownPreviewRenderer {
             if index < lines.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: lineTerminatorAttributes))
             }
+            index += 1
+        }
+
+        // Flush an unclosed mermaid block (no closing fence) so its content is never dropped.
+        if let mermaidBody {
+            appendMermaidBlock(
+                source: mermaidBody.joined(separator: "\n"),
+                to: output,
+                profile: profile,
+                theme: theme,
+                columnWidth: columnWidth,
+                codeAttributes: codeAttributes,
+                mermaidProvider: mermaidProvider,
+                diagramLog: diagramLog,
+                appVersion: appVersion
+            )
         }
 
         return output
+    }
+
+    /// Emit a mermaid block: a rendered diagram image (constrained to the column width, with a
+    /// VoiceOver description) or the captioned-source fallback, logging failures.
+    private func appendMermaidBlock(
+        source: String,
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        theme: Theme,
+        columnWidth: CGFloat,
+        codeAttributes: [NSAttributedString.Key: Any],
+        mermaidProvider: MermaidImageProviding,
+        diagramLog: DiagramFailureLogging,
+        appVersion: String
+    ) {
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let outcome = mermaidProvider.outcome(
+            source: source,
+            background: theme.backgroundColor,
+            foreground: theme.textColor,
+            scale: scale
+        )
+
+        switch outcome {
+        case .image(let image):
+            image.accessibilityDescription = "Mermaid diagram. \(source)"
+            let attachment = NSTextAttachment()
+            attachment.image = image
+            let natural = image.size
+            let width = min(natural.width, max(columnWidth, 1))
+            let height = natural.width > 0 ? natural.height * (width / natural.width) : natural.height
+            attachment.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+            output.append(NSAttributedString(attachment: attachment))
+        case .skipped:
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
+        case .failed(let error):
+            diagramLog.record(source: source, error: error, appVersion: appVersion)
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
+        }
+    }
+
+    private func appendMermaidFallback(
+        source: String,
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        codeAttributes: [NSAttributedString.Key: Any]
+    ) {
+        var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        captionAttributes[.foregroundColor] = Theme.theme(for: profile).textColor.withAlphaComponent(0.6)
+        if let font = captionAttributes[.font] as? NSFont {
+            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
+        }
+        output.append(NSAttributedString(string: "Mermaid diagram (source)\n", attributes: captionAttributes))
+        output.append(NSAttributedString(string: source, attributes: codeAttributes))
     }
 
     private func heading(in line: String) -> (level: Int, title: String)? {

@@ -38,12 +38,21 @@ enum LineformPipeValidation: Equatable {
 enum LineformCLIPaths {
     /// Location of piped files under `~/Library/Application Support/`.
     static let pipedRelativePath = "Lineform/Piped"
+    /// Location of the local diagram failure log under `~/Library/Application Support/`.
+    static let diagramLogRelativePath = "Lineform/DiagramLog"
 
     /// The real (non-sandboxed) piped-file directory under a given home directory.
     static func pipedDirectory(home: URL) -> URL {
         home
             .appendingPathComponent("Library/Application Support", isDirectory: true)
             .appendingPathComponent(pipedRelativePath, isDirectory: true)
+    }
+
+    /// The diagram-log directory under a given home directory (the app's sandbox container).
+    static func diagramLogDirectory(home: URL) -> URL {
+        home
+            .appendingPathComponent("Library/Application Support", isDirectory: true)
+            .appendingPathComponent(diagramLogRelativePath, isDirectory: true)
     }
 
     /// Filename for a piped document. `unique` disambiguates pipes that land in the same
