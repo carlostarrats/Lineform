@@ -67,6 +67,32 @@ final class MermaidRenderingTests: XCTestCase {
     }
 
     @MainActor
+    func testRenderedMermaidImageCarriesAccessibilityDescription() throws {
+        let source = "graph TD; A-->B"
+        let image = NSImage(size: NSSize(width: 10, height: 10))
+        let rendered = MarkdownPreviewRenderer().render(
+            "```mermaid\n\(source)\n```",
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: FakeProvider(.image(image)),
+            diagramLog: FakeLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "1.0"
+        )
+
+        var attachmentImage: NSImage?
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, stop in
+            if let attachment = value as? NSTextAttachment, let image = attachment.image {
+                attachmentImage = image
+                stop.pointee = true
+            }
+        }
+
+        let diagram = try XCTUnwrap(attachmentImage, "successful render should embed the diagram image as an attachment")
+        XCTAssertEqual(diagram.accessibilityDescription, "Mermaid diagram. \(source)")
+    }
+
+    @MainActor
     func testSkippedMermaidFallsBackWithoutLogging() {
         let log = FakeLog()
         let text = "```mermaid\ngraph TD; A-->B\n```"
