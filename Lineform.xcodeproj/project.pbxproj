@@ -26,6 +26,11 @@
 		1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
+		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
+		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
+		1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */; };
+		1F0000010000000000000213 /* DocumentReloadControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000213 /* DocumentReloadControllerTests.swift */; };
+		1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000214 /* LiveReloadScrollTests.swift */; };
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
 		1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */; };
 		1F0000010000000000000016 /* LineformTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000016 /* LineformTextView.swift */; };
@@ -110,6 +115,11 @@
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000011 /* LineformApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformApp.swift; sourceTree = "<group>"; };
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
+		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
+		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
+		1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicyTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000213 /* DocumentReloadControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadControllerTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000214 /* LiveReloadScrollTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReloadScrollTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000014 /* EditorContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorContainerView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTextViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000016 /* LineformTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextView.swift; sourceTree = "<group>"; };
@@ -220,6 +230,8 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000013 /* LineformDocument.swift */,
+				1F0000020000000000000210 /* DocumentReloadPolicy.swift */,
+				1F0000020000000000000211 /* DocumentReloadController.swift */,
 			);
 			path = Documents;
 			sourceTree = "<group>";
@@ -330,6 +342,9 @@
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
 				1F0000020000000000000116 /* OutlineSidebarViewTests.swift */,
+				1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */,
+				1F0000020000000000000213 /* DocumentReloadControllerTests.swift */,
+				1F0000020000000000000214 /* LiveReloadScrollTests.swift */,
 			);
 			path = LineformTests;
 			sourceTree = "<group>";
@@ -462,6 +477,8 @@
 			files = (
 				1F0000010000000000000011 /* LineformApp.swift in Sources */,
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
+				1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */,
+				1F0000010000000000000211 /* DocumentReloadController.swift in Sources */,
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
 				1F0000010000000000000016 /* LineformTextView.swift in Sources */,
@@ -523,6 +540,9 @@
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
 				1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */,
+				1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */,
+				1F0000010000000000000213 /* DocumentReloadControllerTests.swift in Sources */,
+				1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

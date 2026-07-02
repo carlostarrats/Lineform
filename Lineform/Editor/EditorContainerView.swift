@@ -17,6 +17,9 @@ struct EditorContainerView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
+    @StateObject private var reloadController = DocumentReloadController()
+    @State private var showsUpdatedIndicator = false
+    @State private var updatedIndicatorWorkItem: DispatchWorkItem?
 
     init(
         document: Binding<LineformDocument>,
@@ -122,6 +125,22 @@ struct EditorContainerView: View {
             documentStatistics = DocumentStatistics(text: newValue)
             outlineItems = MarkdownOutlineParser().items(in: newValue)
             refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil, navigatesToActiveMatch: false)
+            reloadController.currentText = newValue
+        }
+        .onChange(of: windowNumber) { _, _ in
+            registerReloadWatcher()
+        }
+        .onChange(of: reloadController.lastReload) { _, result in
+            guard let result else { return }
+            applyReload(result)
+        }
+        .onChange(of: documentSaveStatus.savedAt(for: document.id)) { _, _ in
+            // A first save on an untitled doc (or any save) can create/replace the file URL;
+            // re-point the watcher. Cheap + idempotent (no-op when the URL is unchanged).
+            registerReloadWatcher()
+        }
+        .onDisappear {
+            reloadController.stop()
         }
         .onChange(of: searchQuery) { _, _ in
             refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
@@ -196,7 +215,8 @@ struct EditorContainerView: View {
                     EditorStatusBar(
                         lastSavedDisplay: lastSavedDisplay,
                         statisticsText: statisticsText,
-                        statusAccessibilityLabel: statusAccessibilityLabel
+                        statusAccessibilityLabel: statusAccessibilityLabel,
+                        showsUpdatedIndicator: showsUpdatedIndicator
                     )
                 }
             }
@@ -286,7 +306,46 @@ struct EditorContainerView: View {
         document.text = replacement.text
         document.textFormat = replacement.textFormat
         document.plainTextConversion = replacement.plainTextConversion
+        // Re-point the watcher at the newly-swapped file. Async so it runs after the sidebar
+        // opener has retargeted the window's NSDocument.fileURL.
+        DispatchQueue.main.async { registerReloadWatcher() }
         return documentID
+    }
+
+    private func registerReloadWatcher() {
+        let window = activeWindow
+        let provider = window.map { WindowDocumentDirtyProvider(window: $0) }
+        reloadController.currentText = document.text
+        reloadController.update(url: window?.windowController?.document?.fileURL, dirtyProvider: provider)
+    }
+
+    private func applyReload(_ result: ReloadResult) {
+        // No requestedSelection is set, so MarkdownTextViewRepresentable preserves scroll.
+        document.plainTextConversion = nil
+        document.text = result.text
+        reloadController.currentText = result.text
+
+        if let backingDocument = activeWindow?.windowController?.document as? NSDocument {
+            backingDocument.fileModificationDate = result.modificationDate
+            backingDocument.updateChangeCount(.changeCleared)
+        }
+        DocumentSaveStatus.shared.markSaved(documentID: document.id, at: result.modificationDate ?? Date())
+        flashUpdatedIndicator()
+        reloadController.clearLastReload()
+    }
+
+    private func flashUpdatedIndicator() {
+        updatedIndicatorWorkItem?.cancel()
+        withAnimation(EditorMotionPolicy.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion)) {
+            showsUpdatedIndicator = true
+        }
+        let work = DispatchWorkItem {
+            withAnimation(EditorMotionPolicy.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion)) {
+                showsUpdatedIndicator = false
+            }
+        }
+        updatedIndicatorWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
     }
 
     private var activeWindow: NSWindow? {

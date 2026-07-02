@@ -1000,3 +1000,28 @@ enum LineformTextContextMenuPresentation {
         commandTitles(for: .markdown)
     }
 }
+
+extension LineformTextView {
+    /// Capture the current scroll position as a fraction (0...1) of the scrollable range,
+    /// for restoration across a wholesale text replacement (live reload).
+    func captureProportionalScrollOffset() -> CGFloat {
+        guard let scrollView = enclosingScrollView else { return 0 }
+        return ProportionalScrollMath.ratio(
+            originY: scrollView.contentView.bounds.origin.y,
+            documentHeight: bounds.height,
+            viewportHeight: scrollView.contentView.bounds.height
+        )
+    }
+
+    /// Restore a previously-captured proportional scroll offset against current metrics.
+    func restoreProportionalScrollOffset(_ ratio: CGFloat) {
+        guard let scrollView = enclosingScrollView else { return }
+        let originY = ProportionalScrollMath.originY(
+            ratio: ratio,
+            documentHeight: bounds.height,
+            viewportHeight: scrollView.contentView.bounds.height
+        )
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: originY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+}
