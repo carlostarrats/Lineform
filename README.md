@@ -24,6 +24,7 @@ More release files and notes are available on the [Lineform Releases page](https
 - Write Markdown and plain text in a native macOS document app.
 - Keep work saved with native macOS autosave for existing files.
 - See external edits automatically: an open document reloads when its file changes on disk, so what your tools (or agents) write shows up without reopening.
+- Browse your writing in the Files sidebar — your Lineform iCloud Drive folder and any workspace folder you choose — and switch files in the same window, Apple Notes-style.
 - Optionally show hidden folders in the Files sidebar (like `.claude` or `.github`) to reach Markdown that lives alongside your code.
 - Open files from the terminal with the bundled `lineform` command (`lineform notes.md`, or pipe with `some-command | lineform -`); install it from **Lineform → Install Command Line Tool…**.
 - See Mermaid diagrams rendered natively in Read and Preview modes (Write mode shows the source); malformed diagrams fall back to a labeled source block.
@@ -32,8 +33,9 @@ More release files and notes are available on the [Lineform Releases page](https
 - Navigate documents from their headings.
 - Search inside the current file with match navigation.
 - Format headings, lists, links, emphasis, and inline code.
+- Use Apple's native Writing Tools in the editor, with Markdown structure (fenced code, front matter) protected from rewrites.
 - Save Markdown, save plain text, or export PDF.
-- Adjust reading font, size, line height, spacing, width, theme, reading ruler, and typewriter mode.
+- Adjust reading font, size, line height, spacing, width, theme, reading ruler, and typewriter mode — including the bundled accessibility fonts Atkinson Hyperlegible and OpenDyslexic.
 
 ## Privacy
 
