@@ -2,23 +2,25 @@ import XCTest
 @testable import Lineform
 
 final class DocumentReloadPolicyTests: XCTestCase {
-    func testDirtyDocumentIsNeverReloaded() {
+    func testUnsavedInMemoryEditsAreNeverClobbered() {
+        // Disk changed AND memory diverged from the synced baseline: conflict — do not reload.
         XCTAssertEqual(
-            DocumentReloadPolicy.decide(isDocumentEdited: true, diskText: "new", currentText: "old"),
+            DocumentReloadPolicy.decide(diskText: "disk", currentText: "typed", lastSyncedText: "base"),
             .ignoreDirty
         )
     }
 
     func testUnchangedDiskContentIsIgnored() {
         XCTAssertEqual(
-            DocumentReloadPolicy.decide(isDocumentEdited: false, diskText: "same", currentText: "same"),
+            DocumentReloadPolicy.decide(diskText: "same", currentText: "same", lastSyncedText: "same"),
             .ignoreUnchanged
         )
     }
 
-    func testCleanChangedContentReloads() {
+    func testCleanExternalChangeReloads() {
+        // Memory still equals the synced baseline; only disk changed: reload.
         XCTAssertEqual(
-            DocumentReloadPolicy.decide(isDocumentEdited: false, diskText: "new", currentText: "old"),
+            DocumentReloadPolicy.decide(diskText: "new", currentText: "base", lastSyncedText: "base"),
             .reload
         )
     }

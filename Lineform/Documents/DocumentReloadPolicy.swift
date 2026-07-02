@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 
 /// The result of deciding whether an externally-changed file should reload the open document.
@@ -8,33 +7,25 @@ enum ReloadOutcome: Equatable {
     case ignoreUnchanged
 }
 
-/// Pure decision logic for live reload. Gated so a dirty document is never clobbered and the
-/// app's own saves (disk == memory) never trigger a pointless reload.
+/// Pure decision logic for live reload.
+///
+/// The gate is a *baseline snapshot* comparison, not the framework's
+/// `NSDocument.isDocumentEdited` flag — that flag is set asynchronously by SwiftUI's
+/// `DocumentGroup` after a keystroke, so relying on it opens a window where a freshly-typed
+/// (but not-yet-flagged-dirty) document could be clobbered by an external write. Comparing
+/// against `lastSyncedText` (the in-memory text as of the last moment memory equalled disk —
+/// open, our own save, or a prior reload) closes that window deterministically.
 enum DocumentReloadPolicy {
     /// Trailing debounce interval that coalesces burst writes into a single reload.
     static let debounceInterval: TimeInterval = 0.3
 
-    static func decide(isDocumentEdited: Bool, diskText: String, currentText: String) -> ReloadOutcome {
-        if isDocumentEdited { return .ignoreDirty }
+    static func decide(diskText: String, currentText: String, lastSyncedText: String) -> ReloadOutcome {
+        // Disk already matches memory: nothing to do (covers the app's own save write-back).
         if diskText == currentText { return .ignoreUnchanged }
+        // Memory diverged from the last synced baseline: the user has unsaved in-memory edits.
+        // Never clobber them — defer to standard document conflict behavior.
+        if currentText != lastSyncedText { return .ignoreDirty }
+        // Memory still matches the baseline but disk changed: a clean external edit. Reload.
         return .reload
-    }
-}
-
-/// Proportional (ratio-based) scroll preservation for wholesale text replacement, where
-/// character-range anchors are invalid because ranges shift.
-enum ProportionalScrollMath {
-    /// Fraction (0...1) of the scrollable range currently scrolled.
-    static func ratio(originY: CGFloat, documentHeight: CGFloat, viewportHeight: CGFloat) -> CGFloat {
-        let scrollable = documentHeight - viewportHeight
-        guard scrollable > 0 else { return 0 }
-        return min(max(originY / scrollable, 0), 1)
-    }
-
-    /// The origin Y that restores `ratio` against (possibly new) content metrics.
-    static func originY(ratio: CGFloat, documentHeight: CGFloat, viewportHeight: CGFloat) -> CGFloat {
-        let scrollable = documentHeight - viewportHeight
-        guard scrollable > 0 else { return 0 }
-        return min(max(ratio, 0), 1) * scrollable
     }
 }

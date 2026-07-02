@@ -3,78 +3,79 @@ import XCTest
 
 @MainActor
 final class DocumentReloadControllerTests: XCTestCase {
-    @MainActor
-    private final class FakeDirty: DocumentDirtyProviding {
-        var isDocumentEdited: Bool
-        init(_ v: Bool) { isDocumentEdited = v }
-    }
-
-    private final class FakeReader: DocumentDiskReading {
+    private struct FakeReader: DocumentDiskReading {
         var text: String?
         var date: Date?
-        init(text: String?, date: Date? = nil) { self.text = text; self.date = date }
         func readText(at url: URL) -> String? { text }
         func modificationDate(at url: URL) -> Date? { date }
     }
 
     private func url() -> URL { URL(fileURLWithPath: "/tmp/lineform-test.md") }
 
-    func testCleanChangedFilePublishesReload() {
-        let reader = FakeReader(text: "disk", date: Date(timeIntervalSince1970: 100))
-        let controller = DocumentReloadController(diskReader: reader, debounceInterval: 0)
-        controller.currentText = "memory"
-        controller.update(url: url(), dirtyProvider: FakeDirty(false))
-        controller.evaluate()
-        XCTAssertEqual(controller.lastReload?.text, "disk")
+    func testCleanExternalChangeReloads() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        controller.update(url: url(), syncedText: "old")
+        controller.applyDiskSnapshot(url: url(), diskText: "disk-new", modificationDate: Date(timeIntervalSince1970: 100))
+        XCTAssertEqual(controller.lastReload?.text, "disk-new")
         XCTAssertEqual(controller.lastReload?.modificationDate, Date(timeIntervalSince1970: 100))
     }
 
-    func testDirtyFileDoesNotReload() {
-        let reader = FakeReader(text: "disk")
-        let controller = DocumentReloadController(diskReader: reader, debounceInterval: 0)
-        controller.currentText = "memory"
-        controller.update(url: url(), dirtyProvider: FakeDirty(true))
-        controller.evaluate()
+    func testUnsavedInMemoryEditsAreNotClobbered() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        controller.update(url: url(), syncedText: "old")
+        controller.currentText = "user typed"   // diverged from the synced baseline
+        controller.applyDiskSnapshot(url: url(), diskText: "disk-new", modificationDate: nil)
         XCTAssertNil(controller.lastReload)
     }
 
-    func testUnchangedFileDoesNotReload() {
-        let reader = FakeReader(text: "same")
-        let controller = DocumentReloadController(diskReader: reader, debounceInterval: 0)
-        controller.currentText = "same"
-        controller.update(url: url(), dirtyProvider: FakeDirty(false))
-        controller.evaluate()
+    func testUnchangedDiskIsIgnored() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        controller.update(url: url(), syncedText: "same")
+        controller.applyDiskSnapshot(url: url(), diskText: "same", modificationDate: nil)
         XCTAssertNil(controller.lastReload)
     }
 
     func testNoURLDoesNotReload() {
-        let reader = FakeReader(text: "disk")
-        let controller = DocumentReloadController(diskReader: reader, debounceInterval: 0)
-        controller.currentText = "memory"
-        controller.update(url: nil, dirtyProvider: FakeDirty(false))
-        controller.evaluate()
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        controller.update(url: nil, syncedText: "old")
+        controller.applyDiskSnapshot(url: url(), diskText: "disk-new", modificationDate: nil)
         XCTAssertNil(controller.lastReload)
     }
 
-    func testUnreadableDiskDoesNotReload() {
-        let reader = FakeReader(text: nil)
-        let controller = DocumentReloadController(diskReader: reader, debounceInterval: 0)
-        controller.currentText = "memory"
-        controller.update(url: url(), dirtyProvider: FakeDirty(false))
-        controller.evaluate()
+    func testStaleSnapshotURLIsIgnored() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        controller.update(url: url(), syncedText: "old")
+        controller.applyDiskSnapshot(url: URL(fileURLWithPath: "/tmp/other.md"), diskText: "disk-new", modificationDate: nil)
         XCTAssertNil(controller.lastReload)
     }
 
-    func testDebouncedChangeEventuallyReloads() {
-        let reader = FakeReader(text: "disk")
-        let controller = DocumentReloadController(diskReader: reader, debounceInterval: 0.05)
-        controller.currentText = "memory"
-        controller.update(url: url(), dirtyProvider: FakeDirty(false))
+    func testNilDiskTextIsIgnored() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: nil), debounceInterval: 0)
+        controller.update(url: url(), syncedText: "old")
+        controller.applyDiskSnapshot(url: url(), diskText: nil, modificationDate: nil)
+        XCTAssertNil(controller.lastReload)
+    }
+
+    func testReloadAdvancesSyncedBaseline() {
+        // After a reload, a subsequent unchanged snapshot must not reload again.
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        controller.update(url: url(), syncedText: "old")
+        controller.applyDiskSnapshot(url: url(), diskText: "v2", modificationDate: nil)
+        XCTAssertEqual(controller.lastReload?.text, "v2")
+        controller.clearLastReload()
+        controller.currentText = "v2"   // the view applied the reload
+        controller.applyDiskSnapshot(url: url(), diskText: "v2", modificationDate: nil)
+        XCTAssertNil(controller.lastReload)
+    }
+
+    func testDebouncedReloadFromDiskReadsOffMainThenPublishes() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "disk-new"), debounceInterval: 0.05)
+        controller.update(url: url(), syncedText: "old")
         controller.fileDidChange()
         let expectation = expectation(description: "reload")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            if controller.lastReload?.text == "disk" { expectation.fulfill() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            if controller.lastReload?.text == "disk-new" { expectation.fulfill() }
         }
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [expectation], timeout: 1.5)
     }
 }

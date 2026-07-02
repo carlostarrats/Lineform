@@ -7,24 +7,9 @@ struct ReloadResult: Equatable {
     let modificationDate: Date?
 }
 
-/// Abstracts "does the open document have unsaved edits?" so the controller is testable
-/// without a real window/NSDocument. Main-actor isolated because the real implementation
-/// reads main-actor NSWindow/NSDocument state.
-@MainActor
-protocol DocumentDirtyProviding: AnyObject {
-    var isDocumentEdited: Bool { get }
-}
-
-/// Real dirty-state provider: reads the framework NSDocument reachable from the window.
-@MainActor
-final class WindowDocumentDirtyProvider: DocumentDirtyProviding {
-    private weak var window: NSWindow?
-    init(window: NSWindow?) { self.window = window }
-    var isDocumentEdited: Bool { window?.windowController?.document?.isDocumentEdited ?? false }
-}
-
 /// Abstracts the coordinated disk read so the controller is testable without real files.
-protocol DocumentDiskReading {
+/// `Sendable` so the reader can be handed to the background read queue.
+protocol DocumentDiskReading: Sendable {
     func readText(at url: URL) -> String?
     func modificationDate(at url: URL) -> Date?
 }
@@ -60,12 +45,15 @@ final class DocumentReloadController: ObservableObject {
     /// comparison that suppresses reloads from the app's own saves.
     var currentText: String = ""
 
+    /// The in-memory text as of the last moment memory equalled disk (open / our own save /
+    /// prior reload). The reload gate compares against this baseline rather than the
+    /// framework's asynchronously-updated dirty flag.
+    var lastSyncedText: String = ""
+
     private let diskReader: DocumentDiskReading
     private let debounceInterval: TimeInterval
+    private let readQueue = DispatchQueue(label: "com.lineform.document-reload-read", qos: .userInitiated)
     private var url: URL?
-    // Held strongly: the provider is created inline by the caller and nothing else retains it.
-    // No cycle — the real provider holds its NSWindow weakly.
-    private var dirtyProvider: DocumentDirtyProviding?
     private var watcher: DocumentFileWatcher?
     private var debounceWorkItem: DispatchWorkItem?
 
@@ -77,10 +65,13 @@ final class DocumentReloadController: ObservableObject {
         self.debounceInterval = debounceInterval
     }
 
-    /// Point the controller at the current document's URL + dirty provider. Re-registers the
-    /// file watcher when the URL changes. Passing a nil URL stops watching (untitled doc).
-    func update(url newURL: URL?, dirtyProvider: DocumentDirtyProviding?) {
-        self.dirtyProvider = dirtyProvider
+    /// Point the controller at the current document's URL and reset the synced baseline
+    /// (callers invoke this only at moments where memory equals disk: open, save, swap,
+    /// reload). Re-registers the file watcher when the URL changes. A nil URL stops watching
+    /// (untitled doc).
+    func update(url newURL: URL?, syncedText: String) {
+        currentText = syncedText
+        lastSyncedText = syncedText
         guard newURL != url else { return }
         stop()
         url = newURL
@@ -92,23 +83,37 @@ final class DocumentReloadController: ObservableObject {
         NSFileCoordinator.addFilePresenter(watcher)
     }
 
-    /// Presenter entry point: schedule a trailing-debounced evaluation.
+    /// Presenter entry point: schedule a trailing-debounced reload.
     func fileDidChange() {
         debounceWorkItem?.cancel()
-        guard debounceInterval > 0 else { evaluate(); return }
-        let work = DispatchWorkItem { [weak self] in self?.evaluate() }
+        guard debounceInterval > 0 else { reloadFromDisk(); return }
+        let work = DispatchWorkItem { [weak self] in self?.reloadFromDisk() }
         debounceWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: work)
     }
 
-    /// Run the reload decision and publish a result on `.reload`.
-    func evaluate() {
+    /// Read the changed file OFF the main thread, then evaluate + publish back on the main
+    /// thread. The read must not block the main runloop (large or dataless-iCloud files).
+    func reloadFromDisk() {
         guard let url else { return }
-        guard let diskText = diskReader.readText(at: url) else { return }
-        let isDirty = dirtyProvider?.isDocumentEdited ?? false
-        switch DocumentReloadPolicy.decide(isDocumentEdited: isDirty, diskText: diskText, currentText: currentText) {
+        let reader = diskReader
+        readQueue.async { [weak self] in
+            let diskText = reader.readText(at: url)
+            let modificationDate = reader.modificationDate(at: url)
+            DispatchQueue.main.async {
+                self?.applyDiskSnapshot(url: url, diskText: diskText, modificationDate: modificationDate)
+            }
+        }
+    }
+
+    /// Decide against the current baseline and publish a `ReloadResult` on `.reload`.
+    /// Main-actor and side-effect-scoped so it is unit-testable synchronously.
+    func applyDiskSnapshot(url snapshotURL: URL, diskText: String?, modificationDate: Date?) {
+        guard snapshotURL == url, let diskText else { return }
+        switch DocumentReloadPolicy.decide(diskText: diskText, currentText: currentText, lastSyncedText: lastSyncedText) {
         case .reload:
-            lastReload = ReloadResult(text: diskText, modificationDate: diskReader.modificationDate(at: url))
+            lastSyncedText = diskText
+            lastReload = ReloadResult(text: diskText, modificationDate: modificationDate)
         case .ignoreDirty, .ignoreUnchanged:
             break
         }

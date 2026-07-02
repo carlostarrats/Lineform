@@ -117,6 +117,9 @@ struct EditorContainerView: View {
             LineformDisplayModeMenuState.shared.setDisplayMode(displayMode)
             documentStatistics = DocumentStatistics(text: document.text)
             outlineItems = MarkdownOutlineParser().items(in: document.text)
+            // Registration fallback: covers a view recreated with windowNumber already set
+            // (no nil→value transition). Idempotent with the windowNumber onChange below.
+            registerReloadWatcher()
         }
         .onChange(of: document.textFormat) { _, newValue in
             LineformTextFormatMenuState.shared.setTextFormat(newValue)
@@ -313,14 +316,16 @@ struct EditorContainerView: View {
     }
 
     private func registerReloadWatcher() {
-        let window = activeWindow
-        let provider = window.map { WindowDocumentDirtyProvider(window: $0) }
-        reloadController.currentText = document.text
-        reloadController.update(url: window?.windowController?.document?.fileURL, dirtyProvider: provider)
+        // Called only at memory==disk moments (appear/open, save, sidebar swap), so the
+        // document's current text is a valid synced baseline.
+        let url = (activeWindow?.windowController?.document as? NSDocument)?.fileURL
+        reloadController.update(url: url, syncedText: document.text)
     }
 
     private func applyReload(_ result: ReloadResult) {
-        // No requestedSelection is set, so MarkdownTextViewRepresentable preserves scroll.
+        // Clear any pending selection request so MarkdownTextViewRepresentable takes the
+        // scroll-preserving branch (requestedSelection == nil) rather than jumping.
+        requestedSelection = nil
         document.plainTextConversion = nil
         document.text = result.text
         reloadController.currentText = result.text

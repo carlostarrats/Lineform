@@ -23,6 +23,7 @@ More release files and notes are available on the [Lineform Releases page](https
 
 - Write Markdown and plain text in a native macOS document app.
 - Keep work saved with native macOS autosave for existing files.
+- See external edits automatically: an open document reloads when its file changes on disk, so what your tools (or agents) write shows up without reopening.
 - Switch between Write, Read, and Preview modes.
 - Preview Markdown beside the source in split view.
 - Navigate documents from their headings.

@@ -71,12 +71,14 @@ final class LiveReloadScrollTests: XCTestCase {
         let ratioBefore = textView.captureProportionalScrollOffset()
         XCTAssertGreaterThan(ratioBefore, 0.2)
 
-        // Simulate an external reload: replace text, no requestedSelection.
-        model.text = (0..<400).map { "Reloaded line \($0)" }.joined(separator: "\n")
+        // Simulate an external reload with a *shorter* document, no requestedSelection. The
+        // shorter content changes the document height, so a stale-height restore would land
+        // wrong (clamped to the bottom) — this exercises the ensureLayout fix.
+        model.text = (0..<150).map { "Reloaded line \($0)" }.joined(separator: "\n")
         pump(0.5)
 
         let ratioAfter = textView.captureProportionalScrollOffset()
-        XCTAssertEqual(ratioAfter, ratioBefore, accuracy: 0.1, "reload should preserve scroll, not jump to top")
+        XCTAssertEqual(ratioAfter, ratioBefore, accuracy: 0.15, "reload should preserve proportional scroll despite the changed document height")
         window.close()
     }
 }

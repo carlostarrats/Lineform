@@ -62,9 +62,11 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             textView.string = text
             textView.refreshMarkdownHighlighting()
             if preservesScroll {
-                DispatchQueue.main.async {
-                    textView.restoreProportionalScrollOffset(scrollRatio)
-                }
+                // Cancel any in-flight anchor restore (it captured the pre-reload layout) and
+                // re-assert the proportional offset through the same deferred double-async the
+                // anchor machinery uses, so our restore is enqueued last and wins.
+                textView.cancelPendingDeferredScrollRestores()
+                textView.restoreProportionalScrollOffsetAfterDeferredLayout(scrollRatio)
             }
         }
 
