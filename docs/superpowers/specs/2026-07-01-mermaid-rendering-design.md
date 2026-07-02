@@ -86,6 +86,12 @@ Add **Export Diagram Log** (NSSavePanel → `DiagramLogStore.exportReadable`) an
 Log** (`DiagramLogStore.clear`, with an NSAlert confirm), mirroring the Install-CLI item. Titles
 as constants, asserted in `AppCommandNotificationTests`.
 
+> **Update 2026-07-02 (superseded):** these two menu items — and the `DiagramLogStore.exportReadable`
+> + `DiagramLog.readableReport` helpers and `DiagramLogMenuActions` that backed them (line 59 above)
+> — were **removed** as user-facing plumbing with no writer value. The local `DiagramLog` now exists
+> only as the silent "Saved locally" backing store for the diagram-report feature; it is not surfaced
+> in any menu. See `Claude.md`.
+
 ## Non-goals
 
 - No WebView/JS rendering (library is native).

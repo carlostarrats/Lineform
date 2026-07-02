@@ -56,12 +56,19 @@ anonymous.
 - Manual (final pass, Xcode): a malformed diagram → "Report this" → dialog → Report → issue
   appears in `lineform-reports` (once the token is set).
 
-## External dependency (maintainer action required)
-The Worker needs a **fine-grained GitHub PAT** (repo access: `lineform-reports`; permissions:
-Issues read/write) — creating a PAT requires interactive GitHub auth, so the maintainer must
-create it and it is stored via `wrangler secret put GITHUB_TOKEN`. Until then the Worker returns
-an error and the app shows "Couldn't send. Saved locally." (safe). The private repo and the
-Worker/KV are created by this unit; only the token is pending.
+## External dependency — DONE (went live 2026-07-02)
+The Worker needed a **fine-grained GitHub PAT** (repo access: `lineform-reports`; permissions:
+Issues read/write), created interactively and stored via `wrangler secret put GITHUB_TOKEN`.
+All setup is now complete:
+- `lineform` workers.dev subdomain registered on the account.
+- Private `carlostarrats/lineform-reports` repo created.
+- Worker deployed at `https://lineform-diagram-report.lineform.workers.dev` (KV rate-limiter bound).
+- `GITHUB_TOKEN` secret set (fine-grained PAT, `lineform-reports` Issues read/write only).
+- Verified end-to-end: valid POST → issue filed; duplicate → count-bump comment; GET→405,
+  bad shape→400, oversize→413, missing token→503.
+
+If the token is ever revoked or expires, the Worker returns an error and the app falls back to
+"Couldn't send. Saved locally." (safe) until a new secret is set.
 
 ## Risk / notes
 - Deployed Worker is safe without the token (fails closed → app falls back to local log).

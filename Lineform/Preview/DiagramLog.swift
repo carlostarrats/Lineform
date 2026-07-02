@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 import CryptoKit
 
 /// One deduped mermaid-failure record. Deliberately carries NO file names, paths, or identity —
@@ -51,23 +51,6 @@ enum DiagramLog {
             result.removeLast(result.count - maxEntries)
         }
         return result
-    }
-
-    /// A single human-readable file for the developer-user's own triage.
-    static func readableReport(_ entries: [DiagramLogEntry], now: Date = Date()) -> String {
-        guard !entries.isEmpty else { return "Lineform Diagram Log — no entries.\n" }
-        let formatter = ISO8601DateFormatter()
-        var lines = ["Lineform Diagram Log (\(entries.count) entr\(entries.count == 1 ? "y" : "ies"))", ""]
-        for entry in entries.sorted(by: { $0.lastSeen > $1.lastSeen }) {
-            lines.append("• \(entry.error)  ×\(entry.count)  (last seen \(formatter.string(from: entry.lastSeen)), app \(entry.appVersion))")
-            lines.append("  hash: \(entry.sourceHash)")
-            lines.append("  source:")
-            for sourceLine in entry.sourceSnippet.components(separatedBy: "\n") {
-                lines.append("    \(sourceLine)")
-            }
-            lines.append("")
-        }
-        return lines.joined(separator: "\n")
     }
 }
 
@@ -125,46 +108,8 @@ final class DiagramLogStore: DiagramFailureLogging {
         }
     }
 
-    func exportReadable(to destination: URL) throws {
-        try Data(DiagramLog.readableReport(entries()).utf8).write(to: destination)
-    }
-
     func clear() {
         try? fileManager.removeItem(at: fileURL)
         recordedThisSession.removeAll()
-    }
-}
-
-/// Menu-driven Export / Clear actions for the diagram log (mirrors CommandLineToolInstaller).
-enum DiagramLogMenuActions {
-    @MainActor
-    static func presentExport(store: DiagramLogStore = DiagramLogStore()) {
-        let panel = NSSavePanel()
-        panel.title = "Export Diagram Log"
-        panel.message = "Save the local mermaid diagram log for triage."
-        panel.nameFieldStringValue = "LineformDiagramLog.txt"
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let destination = panel.url else { return }
-        do {
-            try store.exportReadable(to: destination)
-        } catch {
-            let alert = NSAlert()
-            alert.messageText = "Couldn’t export the diagram log"
-            alert.informativeText = String(describing: error)
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-    }
-
-    @MainActor
-    static func presentClear(store: DiagramLogStore = DiagramLogStore()) {
-        let alert = NSAlert()
-        alert.messageText = "Clear Diagram Log?"
-        alert.informativeText = "This deletes the local mermaid diagram log. This cannot be undone."
-        alert.addButton(withTitle: "Clear")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn {
-            store.clear()
-        }
     }
 }

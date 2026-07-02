@@ -15,8 +15,6 @@ enum AppMenuConfiguration {
     static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
     static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
-    static let exportDiagramLogCommandTitle = "Export Diagram Log..."
-    static let clearDiagramLogCommandTitle = "Clear Diagram Log..."
     static let privacyPolicyCommandTitle = "Privacy Policy"
     static let termsOfUseCommandTitle = "Terms of Use"
     static let privacyPolicyURL = "https://lineform-atv.pages.dev/privacy"
@@ -185,14 +183,6 @@ struct AppCommands: Commands {
 
             Button(AppMenuConfiguration.installCommandLineToolCommandTitle) {
                 CommandLineToolInstaller.presentInstaller()
-            }
-
-            Button(AppMenuConfiguration.exportDiagramLogCommandTitle) {
-                DiagramLogMenuActions.presentExport()
-            }
-
-            Button(AppMenuConfiguration.clearDiagramLogCommandTitle) {
-                DiagramLogMenuActions.presentClear()
             }
 
             Button(AppMenuConfiguration.privacyPolicyCommandTitle) {

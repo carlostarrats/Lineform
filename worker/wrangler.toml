@@ -2,6 +2,12 @@ name = "lineform-diagram-report"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
+# The app hardcodes the stable endpoint https://lineform-diagram-report.lineform.workers.dev,
+# so serve on workers.dev but do not mint extra per-version preview URLs (keeps the public
+# intake surface to the single stable URL the shipped app posts to).
+workers_dev = true
+preview_urls = false
+
 # Transient per-IP rate limiting (IPs are keys only; never persisted elsewhere or logged).
 [[kv_namespaces]]
 binding = "RATE_LIMIT"

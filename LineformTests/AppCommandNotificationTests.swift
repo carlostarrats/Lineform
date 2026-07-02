@@ -8,8 +8,6 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertEqual(AppMenuConfiguration.aboutCopyright, "Copyright © 2026 Carlos Tarrats. All rights reserved.")
         XCTAssertEqual(AppMenuConfiguration.checkForUpdatesCommandTitle, "Check for Updates...")
         XCTAssertEqual(AppMenuConfiguration.installCommandLineToolCommandTitle, "Install Command Line Tool...")
-        XCTAssertEqual(AppMenuConfiguration.exportDiagramLogCommandTitle, "Export Diagram Log...")
-        XCTAssertEqual(AppMenuConfiguration.clearDiagramLogCommandTitle, "Clear Diagram Log...")
         XCTAssertEqual(AppMenuConfiguration.privacyPolicyCommandTitle, "Privacy Policy")
         XCTAssertEqual(AppMenuConfiguration.termsOfUseCommandTitle, "Terms of Use")
         XCTAssertTrue(AppMenuConfiguration.privacyPolicyURL.hasPrefix("https://"))

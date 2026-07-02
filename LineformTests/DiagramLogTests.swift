@@ -51,11 +51,4 @@ final class DiagramLogTests: XCTestCase {
         )
     }
 
-    func testReadableReportEmptyAndPopulated() {
-        XCTAssertTrue(DiagramLog.readableReport([]).contains("no entries"))
-        let report = DiagramLog.readableReport([entry(hash: "abc", error: "parse error", count: 3)])
-        XCTAssertTrue(report.contains("parse error"))
-        XCTAssertTrue(report.contains("×3"))
-        XCTAssertTrue(report.contains("abc"))
-    }
 }

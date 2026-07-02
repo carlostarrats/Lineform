@@ -26,9 +26,11 @@ final class DiagramReportRegistry {
 enum DiagramReportService {
     /// The Cloudflare Worker endpoint.
     ///
-    /// NOTE (maintainer): set this to the deployed Worker URL once a workers.dev subdomain is
-    /// registered — e.g. `https://lineform-diagram-report.<subdomain>.workers.dev`. Until it is a
-    /// reachable endpoint, reports fail closed and the app shows "Couldn't send. Saved locally."
+    /// Live: the `lineform-diagram-report` Worker is deployed on the account's registered
+    /// `lineform` workers.dev subdomain, with the `GITHUB_TOKEN` secret set, so reports file
+    /// issues in the private `carlostarrats/lineform-reports` repo. Keep the Worker name and
+    /// subdomain stable — this URL is baked into shipped builds. If either the Worker or its
+    /// token is ever removed, reports fail closed and the app shows "Couldn't send. Saved locally."
     static let endpoint = "https://lineform-diagram-report.lineform.workers.dev"
 
     /// The exact wire payload. Kept a pure function so a test can assert the field set.
