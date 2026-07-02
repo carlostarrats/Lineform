@@ -68,16 +68,31 @@ struct EditorStatusBar: View {
     var statusAccessibilityLabel: String
     var showsUpdatedIndicator: Bool = false
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Accessible green for the "Updated" reload flash: a dark forest green on light
+    // backgrounds and a brighter mint on dark, so it clears WCAG AA contrast against
+    // the status bar in both appearances (unlike system green, which washes out on white).
+    private var updatedIndicatorColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.40, green: 0.82, blue: 0.55)
+            : Color(red: 0.08, green: 0.47, blue: 0.24)
+    }
+
     var body: some View {
         HStack(spacing: 16) {
             Spacer(minLength: 16)
 
             if showsUpdatedIndicator {
-                Text(EditorStatusFormatter.updatedIndicatorText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .transition(.opacity)
-                    .accessibilityLabel("Document updated from disk")
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                    Text(EditorStatusFormatter.updatedIndicatorText)
+                }
+                .font(.caption)
+                .foregroundStyle(updatedIndicatorColor)
+                .transition(.opacity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Document updated from disk")
             }
 
             Text(EditorStatusFormatter.metadataText(lastSavedDisplay: lastSavedDisplay, statisticsText: statisticsText))

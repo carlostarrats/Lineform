@@ -380,7 +380,7 @@ struct EditorContainerView: View {
             }
         }
         updatedIndicatorWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0, execute: work)
     }
 
     private var activeWindow: NSWindow? {
