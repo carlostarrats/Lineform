@@ -56,6 +56,7 @@ final class MermaidRenderingTests: XCTestCase {
             columnWidth: 600,
             mermaidProvider: FakeProvider(.failed("boom")),
             diagramLog: log,
+            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         ).string
         XCTAssertTrue(output.contains("Mermaid diagram (source)"))
@@ -75,6 +76,7 @@ final class MermaidRenderingTests: XCTestCase {
             columnWidth: 600,
             mermaidProvider: FakeProvider(.skipped),
             diagramLog: log,
+            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         ).string
         XCTAssertTrue(output.contains("Mermaid diagram (source)"))
