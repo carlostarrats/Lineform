@@ -137,4 +137,11 @@ Update docs when behavior, workflows, or quality gates change:
 - Use `docs/release/github-sparkle-release.md` for GitHub Releases, DMG packaging, and Sparkle appcast steps.
 - Use `Lineform/Resources/*.md` for user-facing bundled app/help/release docs.
 
+## PR / Marketing / Positioning Reference
+
+For any PR, marketing, positioning, audience, or public-copy question ("how do I describe Lineform," "who is it for," "what's the one-liner," "is this claim safe to publish"), consult `POSITIONING_AND_MARKETING.md` at the repo root. It holds the verified positioning, target audience, plain-language feature list, differentiation vs. competitors, honesty constraints, launch-surface copy (Show HN / X / App Store / website), and a fact sheet (version, platform, license, privacy).
+
+- It is a **local, untracked** working doc (in `.gitignore`) — it does not get committed or auto-updated by release tooling, so treat its facts as a dated snapshot. Its verification stamp names the app version it was checked against; if a question turns on a specific capability and the build has moved on, re-verify against the current code before making any public claim. Never publish a capability the shipped build can't demonstrate.
+- Load-bearing rules from that doc: say "free" and "source-available" (never "open source" — PolyForm Shield 1.0.0); "No AI inside" is accurate and intentional; the CLI/stdin helper exists only in the released build after a one-time install; and only Atkinson Hyperlegible + OpenDyslexic are bundled fonts.
+
 Keep this file current when major features, architecture, or verification gates change.
