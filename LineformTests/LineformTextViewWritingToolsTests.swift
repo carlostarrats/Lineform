@@ -243,37 +243,6 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         )
     }
 
-    func testMouseSelectionDoesNotScheduleAutomaticIntelligenceMenu() {
-        let textView = LineformTextView()
-        textView.string = "Selected text."
-        textView.setSelectedRange(NSRange(location: 0, length: 8))
-
-        textView.markSelectionChangeAsKeyboardDriven()
-        XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
-        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
-
-        textView.markSelectionChangeAsMouseDriven()
-        XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
-        textView.scheduleAutomaticIntelligenceMenuIfNeeded()
-
-        XCTAssertFalse(textView.shouldOpenAutomaticIntelligenceMenuAfterMouseUp())
-        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
-    }
-
-    func testKeyboardSelectionKeepsAutomaticIntelligenceMenuCanceled() {
-        let textView = LineformTextView()
-        textView.string = "Selected text."
-        textView.setSelectedRange(NSRange(location: 0, length: 8))
-        textView.markSelectionChangeAsMouseDriven()
-        textView.scheduleAutomaticIntelligenceMenuIfNeeded()
-
-        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
-
-        textView.markSelectionChangeAsKeyboardDriven()
-
-        XCTAssertFalse(textView.hasPendingAutomaticIntelligenceMenu)
-    }
-
     func testColumnWidthCentersTextContainerInWideEditor() {
         let textView = LineformTextView()
         textView.setFrameSize(NSSize(width: 1_000, height: 500))

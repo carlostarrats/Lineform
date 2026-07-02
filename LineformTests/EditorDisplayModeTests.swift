@@ -127,14 +127,9 @@ final class EditorDisplayModeTests: XCTestCase {
             MarkdownBasicsModal.examples.map(\.syntax),
             ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "`code`", "[link](https://example.com)"]
         )
-        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "AI Editing"])
+        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics"])
         XCTAssertEqual(MarkdownBasicsModal.sections.first?.rows.last?.label, "Block Spacing")
         XCTAssertTrue(MarkdownBasicsModal.sections.first?.rows.last?.detail.localizedCaseInsensitiveContains("Read and Preview") == true)
-        XCTAssertEqual(MarkdownBasicsModal.sections.last?.rows.last?.label, "Editing only")
-        XCTAssertEqual(
-            MarkdownBasicsModal.sections.last?.rows.last?.detail,
-            "AI follows directions for selected text. It cannot answer questions or hold a conversation."
-        )
         XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { $0.label == "Line Height" })
         XCTAssertTrue(MarkdownBasicsModal.usesRowSeparators)
         XCTAssertFalse(MarkdownBasicsModal.usesMonospacedExampleFont)
@@ -175,7 +170,7 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testToolbarButtonsUseSeparateNativePresentationModels() {
-        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.intelligence, .markdownBasics, .readingExperience])
+        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.markdownBasics, .readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .read), [.readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .split), [.markdownBasics, .readingExperience])
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .nativeInspector)
@@ -186,79 +181,30 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertNil(EditorAuxiliaryPresentation.markdownBasics.idealWidth)
     }
 
-    func testIntelligenceRailIsVisuallyScopedToWriteModeButPreservesToggleState() {
-        XCTAssertTrue(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: true, displayMode: .write))
-        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: false, displayMode: .write))
-        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: true, displayMode: .read))
-        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: true, hasSelection: true, displayMode: .split))
-        XCTAssertFalse(IntelligenceActionRailPresentation.isVisible(isEnabled: false, hasSelection: true, displayMode: .write))
-    }
-
-    func testIntelligenceRailUsesBottomCenteredBlueLabeledDock() {
-        XCTAssertEqual(IntelligenceActionRailPresentation.placement, .bottomCenter)
-        XCTAssertEqual(IntelligenceActionRailPresentation.bottomInset, 30)
-        XCTAssertEqual(IntelligenceActionRailPresentation.transitionStyle, .fadeAndMoveUp)
-        XCTAssertEqual(IntelligenceActionRailPresentation.animationDuration, 0.24, accuracy: 0.01)
-        XCTAssertEqual(IntelligenceActionRailPresentation.entranceYOffset, 10)
-        XCTAssertTrue(IntelligenceActionRailPresentation.usesHorizontalLayout)
-        XCTAssertTrue(IntelligenceActionRailPresentation.showsActionLabels)
-        XCTAssertEqual(IntelligenceActionRailPresentation.buttonWidth, 88)
-        XCTAssertEqual(IntelligenceActionRailPresentation.buttonHeight, 52)
-        XCTAssertEqual(IntelligenceActionRailPresentation.backgroundAlpha, 1.0, accuracy: 0.01)
-        XCTAssertTrue(IntelligenceActionRailPresentation.supportsHoverState)
-        XCTAssertFalse(IntelligenceActionRailPresentation.hoverFeedbackRequiresEnabledAction)
-        XCTAssertLessThanOrEqual(IntelligenceActionRailPresentation.hoverBackgroundRedComponent, 0.80)
-        XCTAssertLessThan(
-            IntelligenceActionRailPresentation.hoverBackgroundRedComponent,
-            IntelligenceActionRailPresentation.backgroundRedComponent
-        )
-        XCTAssertEqual(IntelligenceActionRailPresentation.borderOpacity, 0.55, accuracy: 0.01)
-        XCTAssertGreaterThanOrEqual(IntelligenceActionRailPresentation.hoverBorderOpacity, 0.95)
+    func testEditorToolbarToggleUsesFilledNativePressedState() {
+        XCTAssertTrue(EditorToolbarTogglePresentation.usesNativeToolbarButtonShell)
+        XCTAssertNil(EditorToolbarTogglePresentation.outerButtonWidth)
+        XCTAssertEqual(EditorToolbarTogglePresentation.iconFillDiameter, 20)
+        XCTAssertEqual(EditorToolbarTogglePresentation.fillOpacityWhenOn, 1.0, accuracy: 0.01)
+        XCTAssertTrue(EditorToolbarTogglePresentation.usesWhiteIconWhenOn)
+        XCTAssertLessThan(EditorToolbarTogglePresentation.lightChromeIconWhiteComponent, 0.35)
+        XCTAssertGreaterThan(EditorToolbarTogglePresentation.darkChromeIconWhiteComponent, 0.75)
         XCTAssertGreaterThan(
-            IntelligenceActionRailPresentation.hoverBorderOpacity,
-            IntelligenceActionRailPresentation.borderOpacity
-        )
-        XCTAssertEqual(IntelligenceActionRailPresentation.shadowRadius, 5)
-        XCTAssertEqual(IntelligenceActionRailPresentation.shadowYOffset, 1)
-        XCTAssertTrue(IntelligenceActionRailPresentation.usesAccentTint)
-    }
-
-    func testIntelligenceRailButtonsTemporarilyOwnCursorOnHover() {
-        XCTAssertTrue(IntelligenceActionRailPresentation.usesRestoringHoverCursor)
-        XCTAssertTrue(IntelligenceActionRailPresentation.usesAppKitCursorRect)
-        XCTAssertTrue(IntelligenceActionRailPresentation.usesAppKitHoverTracking)
-        XCTAssertTrue(IntelligenceActionRailPresentation.reassertsHoverCursorOnEnter)
-        XCTAssertEqual(IntelligenceActionRailPresentation.hoverCursor, .pointingHand)
-        XCTAssertTrue(IntelligenceActionRailPresentation.restoresPreviousCursorOnExit)
-        XCTAssertTrue(IntelligenceActionRailPresentation.restoresPreviousCursorOnDisappear)
-    }
-
-    func testIntelligenceToolbarToggleUsesFilledNativePressedState() {
-        XCTAssertTrue(IntelligenceToolbarTogglePresentation.usesNativeToolbarButtonShell)
-        XCTAssertNil(IntelligenceToolbarTogglePresentation.outerButtonWidth)
-        XCTAssertEqual(IntelligenceToolbarTogglePresentation.iconFillDiameter, 20)
-        XCTAssertEqual(IntelligenceToolbarTogglePresentation.fillOpacityWhenOn, 1.0, accuracy: 0.01)
-        XCTAssertTrue(IntelligenceToolbarTogglePresentation.usesWhiteIconWhenOn)
-        XCTAssertLessThan(IntelligenceToolbarTogglePresentation.lightChromeIconWhiteComponent, 0.35)
-        XCTAssertGreaterThan(IntelligenceToolbarTogglePresentation.darkChromeIconWhiteComponent, 0.75)
-        XCTAssertGreaterThan(
-            IntelligenceToolbarTogglePresentation.iconOpacityWhenOn,
-            IntelligenceToolbarTogglePresentation.iconOpacityWhenOff
+            EditorToolbarTogglePresentation.iconOpacityWhenOn,
+            EditorToolbarTogglePresentation.iconOpacityWhenOff
         )
     }
 
     func testToolbarPressedStateCoversInfoAndInspectorButtons() {
         XCTAssertEqual(
             EditorToolbarPressedState.activeActions(
-                isIntelligenceRailEnabled: true,
                 isShowingMarkdownBasics: false,
                 isShowingReadingInspector: false
             ),
-            [.intelligence]
+            []
         )
         XCTAssertEqual(
             EditorToolbarPressedState.activeActions(
-                isIntelligenceRailEnabled: false,
                 isShowingMarkdownBasics: true,
                 isShowingReadingInspector: true
             ),
@@ -536,130 +482,10 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(
             EditorStatusFormatter.statusText(
                 wordCount: 304,
-                characterCount: 2345,
-                isPreparingSuggestion: true,
-                intelligentEditingStatus: nil
+                characterCount: 2345
             ),
             "304 words — 2345 characters"
         )
-    }
-
-    func testStatusBarKeepsOnlyFailureMessagesAwayFromCounts() {
-        let hiddenRoutineMessages = [
-            "Preparing suggestion",
-            "Select text to use Intelligence.",
-            "1 option ready.",
-            "3 options ready.",
-            "Suggestion expired after edits.",
-            "Suggestion accepted.",
-            "Suggestion canceled.",
-            "Suggestion rejected."
-        ]
-
-        for message in hiddenRoutineMessages {
-            XCTAssertNil(
-                EditorStatusFormatter.statusMessage(
-                    isPreparingSuggestion: message == "Preparing suggestion",
-                    intelligentEditingStatus: message == "Preparing suggestion" ? nil : message
-                ),
-                message
-            )
-        }
-
-        XCTAssertEqual(
-            EditorStatusFormatter.statisticsText(wordCount: 263, characterCount: 1874),
-            "263 words — 1874 characters"
-        )
-    }
-
-    func testIntelligentEditingDismissalCollapsesAcceptedSelectionToReplacementEnd() {
-        let suggestion = IntelligentEditingSuggestion(
-            request: .custom("make it clearer"),
-            selectedRange: NSRange(location: 8, length: 9),
-            originalText: "rough text",
-            replacementText: "clearer text",
-            diff: MarkdownDiff.make(original: "rough text", replacement: "clearer text")
-        )
-
-        XCTAssertEqual(
-            IntelligentEditingSelectionDismissal.acceptedCaretSelection(for: suggestion),
-            NSRange(location: 20, length: 0)
-        )
-    }
-
-    func testIntelligentEditingDismissalCollapsesRejectedSelectionToOriginalEnd() {
-        let suggestion = IntelligentEditingSuggestion(
-            request: .custom("make it clearer"),
-            selectedRange: NSRange(location: 8, length: 9),
-            originalText: "rough text",
-            replacementText: "clearer text",
-            diff: MarkdownDiff.make(original: "rough text", replacement: "clearer text")
-        )
-
-        XCTAssertEqual(
-            IntelligentEditingSelectionDismissal.rejectedCaretSelection(for: suggestion),
-            NSRange(location: 17, length: 0)
-        )
-    }
-
-    func testIntelligentEditingLightPresentationStaysLightUnderDarkSystemAppearance() throws {
-        let darkAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
-        var inputText: NSColor?
-        var placeholderText: NSColor?
-        var panelBackground: NSColor?
-        var answerBackground: NSColor?
-        var panelText: NSColor?
-
-        darkAppearance.performAsCurrentDrawingAppearance {
-            inputText = IntelligenceInstructionComposerPresentation.foregroundColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
-            placeholderText = IntelligenceInstructionComposerPresentation.placeholderColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
-            panelBackground = IntelligentEditingOptionsPresentation.panelBackgroundColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
-            answerBackground = IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
-            panelText = IntelligentEditingOptionsPresentation.primaryTextColor(usesDarkAppearance: false).usingColorSpace(.sRGB)
-        }
-
-        XCTAssertLessThan(try XCTUnwrap(inputText).redComponent, 0.18)
-        XCTAssertLessThan(try XCTUnwrap(placeholderText).redComponent, 0.18)
-        XCTAssertGreaterThan(try XCTUnwrap(panelBackground).redComponent, 0.95)
-        XCTAssertGreaterThan(try XCTUnwrap(answerBackground).redComponent, 0.90)
-        XCTAssertLessThan(try XCTUnwrap(panelText).redComponent, 0.18)
-    }
-
-    func testIntelligentEditingDarkPresentationStaysDark() throws {
-        let panelBackground = try XCTUnwrap(
-            IntelligentEditingOptionsPresentation.panelBackgroundColor(usesDarkAppearance: true).usingColorSpace(.sRGB)
-        )
-        let answerBackground = try XCTUnwrap(
-            IntelligentEditingOptionsPresentation.answerSurfaceBackgroundColor(usesDarkAppearance: true).usingColorSpace(.sRGB)
-        )
-        let panelText = try XCTUnwrap(
-            IntelligentEditingOptionsPresentation.primaryTextColor(usesDarkAppearance: true).usingColorSpace(.sRGB)
-        )
-
-        XCTAssertLessThan(panelBackground.redComponent, 0.16)
-        XCTAssertLessThan(answerBackground.redComponent, 0.18)
-        XCTAssertGreaterThan(panelText.redComponent, 0.80)
-    }
-
-    func testStatusBarSanitizesTechnicalIntelligenceFailureMessages() {
-        let message = EditorStatusFormatter.statusMessage(
-            isPreparingSuggestion: false,
-            intelligentEditingStatus: "Apple Intelligence returned an unusable replacement (unchangedTransformOutput; fallback rejected: none available): Lineform"
-        )
-
-        XCTAssertEqual(message, "Suggestion unavailable.")
-        XCTAssertFalse(message?.contains("unchangedTransformOutput") ?? true)
-        XCTAssertFalse(message?.contains("fallback rejected") ?? true)
-    }
-
-    func testStatusBarTruncatesLongMessagesWithEllipsis() {
-        let message = EditorStatusFormatter.statusMessage(
-            isPreparingSuggestion: false,
-            intelligentEditingStatus: "Apple Intelligence is unavailable. \(String(repeating: "Long message ", count: 20))"
-        )
-
-        XCTAssertEqual(message?.last, "…")
-        XCTAssertLessThanOrEqual(message?.count ?? 0, EditorStatusFormatter.maximumStatusMessageLength)
     }
 
     func testStatusBarWarningAmberMeetsAAContrast() throws {
@@ -670,47 +496,6 @@ final class EditorDisplayModeTests: XCTestCase {
 
         XCTAssertGreaterThanOrEqual(Self.contrastRatio(lightAmber, lightBackground), 4.5)
         XCTAssertGreaterThanOrEqual(Self.contrastRatio(darkAmber, darkBackground), 4.5)
-    }
-
-    func testStatusIndicatorShowsAvailableWhenIntelligenceIsReady() {
-        XCTAssertEqual(
-            EditorStatusFormatter.statusIndicator(
-                isPreparingSuggestion: false,
-                intelligentEditingStatus: nil,
-                intelligenceAvailability: .available
-            ),
-            EditorStatusIndicator(text: "AI available", tone: .available)
-        )
-        XCTAssertEqual(
-            EditorStatusIndicator(text: "AI available", tone: .available).accessibilityText,
-            "Status: AI available"
-        )
-    }
-
-    func testStatusIndicatorShowsWarningBeforeAvailableHealth() {
-        XCTAssertEqual(
-            EditorStatusFormatter.statusIndicator(
-                isPreparingSuggestion: false,
-                intelligentEditingStatus: "Suggestion took too long.",
-                intelligenceAvailability: .available
-            ),
-            EditorStatusIndicator(text: "Suggestion took too long.", tone: .warning)
-        )
-        XCTAssertEqual(
-            EditorStatusIndicator(text: "Suggestion took too long.", tone: .warning).accessibilityText,
-            "Warning: Suggestion took too long."
-        )
-    }
-
-    func testStatusIndicatorCollapsesAppleAvailabilityToNotEnabled() {
-        XCTAssertEqual(
-            EditorStatusFormatter.statusIndicator(
-                isPreparingSuggestion: false,
-                intelligentEditingStatus: "Apple Intelligence is turned off in System Settings.",
-                intelligenceAvailability: .unavailable("Apple Intelligence is turned off in System Settings.")
-            ),
-            EditorStatusIndicator(text: "AI not enabled", tone: .warning)
-        )
     }
 
     func testStatusMetadataCombinesLastSaveAndCountsOnRight() {

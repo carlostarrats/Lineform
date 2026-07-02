@@ -4,7 +4,6 @@ import Foundation
 enum LineformAppNotification {
     case showReadingExperience
     case focusSearch
-    case runIntelligentEditingAction
     case setDisplayMode
     case toggleOutline
     case convertTextFormat
@@ -15,8 +14,6 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.showReadingExperience")
         case .focusSearch:
             return Notification.Name("Lineform.focusSearch")
-        case .runIntelligentEditingAction:
-            return Notification.Name("Lineform.runIntelligentEditingAction")
         case .setDisplayMode:
             return Notification.Name("Lineform.setDisplayMode")
         case .toggleOutline:

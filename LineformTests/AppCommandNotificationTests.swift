@@ -14,15 +14,12 @@ final class AppCommandNotificationTests: XCTestCase {
         )
     }
 
-    func testReadingCommandsLiveInViewMenuWhileIntelligenceDoesNotExposeShortcutMenu() {
+    func testReadingCommandsLiveInViewMenu() {
         XCTAssertEqual(AppMenuConfiguration.readingCommandPlacement, .view)
-        XCTAssertFalse(AppMenuConfiguration.keepsTopLevelIntelligenceMenu)
         XCTAssertFalse(AppMenuConfiguration.usesTopLevelReadingMenu)
     }
 
-    func testIntelligenceMenuDoesNotExposeFixedShortcutActions() {
-        XCTAssertNil(AppMenuConfiguration.intelligencePrimaryCommandTitle)
-        XCTAssertTrue(AppMenuConfiguration.lineformIntelligenceCommandTitles.isEmpty)
+    func testWritingToolsStayOutOfTheEditMenu() {
         XCTAssertFalse(AppMenuConfiguration.addsWritingToolsToEditMenu)
         XCTAssertFalse(AppMenuConfiguration.exposesAppleWritingTools)
     }

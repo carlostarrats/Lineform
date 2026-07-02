@@ -105,15 +105,6 @@ struct MarkdownBasicsModal: View {
             rows: examples.map { Row(label: $0.syntax, detail: $0.label) } + [
                 Row(label: "Block Spacing", detail: "In Read and Preview modes, adds space around Markdown block breaks.")
             ]
-        ),
-        Section(
-            title: "AI Editing",
-            rows: [
-                Row(label: "Turn on AI", detail: "Use the sparkle button in the toolbar while writing."),
-                Row(label: "Select text", detail: "Highlight the text you want Lineform to change."),
-                Row(label: "Give direction", detail: "Tell AI what to do, then review the suggestion before accepting."),
-                Row(label: "Editing only", detail: "AI follows directions for selected text. It cannot answer questions or hold a conversation.")
-            ]
         )
     ]
 

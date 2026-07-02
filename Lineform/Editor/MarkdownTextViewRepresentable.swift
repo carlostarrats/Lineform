@@ -10,7 +10,6 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var selectionAnchorRect: CGRect?
     var profile: ReadingProfile
     var smoothsHorizontalInsetChanges = false
-    var intelligentSuggestionRange: NSRange?
     var searchRanges: [NSRange] = []
     var activeSearchRange: NSRange?
 
@@ -64,7 +63,6 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             textView.refreshMarkdownHighlighting()
         }
 
-        textView.setIntelligentSuggestionRange(intelligentSuggestionRange)
         textView.setSearchHighlights(searchRanges, activeRange: activeSearchRange)
 
         if let range = requestedSelection {

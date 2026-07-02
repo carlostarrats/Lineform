@@ -1,8 +1,6 @@
 import SwiftUI
 
 enum EditorStatusFormatter {
-    static let maximumStatusMessageLength = 72
-
     struct LastSavedDisplay: Equatable {
         var label: String
         var detail: String?
@@ -20,65 +18,8 @@ enum EditorStatusFormatter {
         "\(wordCount) words — \(characterCount) characters"
     }
 
-    static func statusText(
-        wordCount: Int,
-        characterCount: Int,
-        isPreparingSuggestion: Bool,
-        intelligentEditingStatus: String?
-    ) -> String {
-        let statistics = statisticsText(wordCount: wordCount, characterCount: characterCount)
-
-        if isPreparingSuggestion {
-            return statistics
-        }
-
-        if let message = statusMessage(
-            isPreparingSuggestion: false,
-            intelligentEditingStatus: intelligentEditingStatus
-        ) {
-            return "\(message) — \(statistics)"
-        }
-
-        return statistics
-    }
-
-    static func statusMessage(
-        isPreparingSuggestion: Bool,
-        intelligentEditingStatus: String?
-    ) -> String? {
-        if isPreparingSuggestion {
-            return nil
-        }
-
-        guard let intelligentEditingStatus else {
-            return nil
-        }
-
-        let message = userFacingMessage(from: intelligentEditingStatus)
-        guard !message.isEmpty else {
-            return nil
-        }
-
-        return truncatedStatusMessage(message)
-    }
-
-    static func statusIndicator(
-        isPreparingSuggestion: Bool,
-        intelligentEditingStatus: String?,
-        intelligenceAvailability: IntelligenceAvailabilityStatus
-    ) -> EditorStatusIndicator {
-        guard intelligenceAvailability.isAvailable else {
-            return EditorStatusIndicator(text: "AI not enabled", tone: .warning)
-        }
-
-        if let message = statusMessage(
-            isPreparingSuggestion: isPreparingSuggestion,
-            intelligentEditingStatus: intelligentEditingStatus
-        ) {
-            return EditorStatusIndicator(text: message, tone: .warning)
-        }
-
-        return EditorStatusIndicator(text: "AI available", tone: .available)
+    static func statusText(wordCount: Int, characterCount: Int) -> String {
+        statisticsText(wordCount: wordCount, characterCount: characterCount)
     }
 
     static func metadataText(lastSavedDisplay: LastSavedDisplay, statisticsText: String) -> String {
@@ -87,53 +28,6 @@ enum EditorStatusFormatter {
         }
 
         return "\(lastSavedDisplay.label)  |  \(statisticsText)"
-    }
-
-    private static func userFacingMessage(from status: String) -> String {
-        let trimmedStatus = status.trimmingCharacters(in: .whitespacesAndNewlines)
-        if
-            trimmedStatus.contains("Apple Intelligence returned an unusable replacement")
-                || trimmedStatus.contains("unchangedTransformOutput")
-                || trimmedStatus.contains("fallback rejected")
-                || trimmedStatus == "Intelligence could not make a useful suggestion."
-                || trimmedStatus == "No replacement was suggested."
-        {
-            return "Suggestion unavailable."
-        }
-
-        let visibleMessages = [
-            "Suggestion unavailable.",
-            "Suggestion took too long.",
-            "Apple Intelligence is not available on this Mac.",
-            "Apple Intelligence is turned off in System Settings.",
-            "Apple Intelligence is not ready yet.",
-            "Apple Intelligence is unavailable.",
-            "Apple Intelligence editing requires macOS 26 or later.",
-            "Apple Intelligence editing requires Foundation Models."
-        ]
-
-        if visibleMessages.contains(trimmedStatus) {
-            return trimmedStatus
-        }
-
-        let visibleAppleAvailabilityPrefixes = [
-            "Apple Intelligence is not available on this Mac.",
-            "Apple Intelligence is turned off in System Settings.",
-            "Apple Intelligence is not ready yet.",
-            "Apple Intelligence is unavailable.",
-            "Apple Intelligence editing requires macOS 26 or later.",
-            "Apple Intelligence editing requires Foundation Models."
-        ]
-
-        return visibleAppleAvailabilityPrefixes.contains { trimmedStatus.hasPrefix($0) } ? trimmedStatus : ""
-    }
-
-    private static func truncatedStatusMessage(_ message: String) -> String {
-        guard message.count > maximumStatusMessageLength else {
-            return message
-        }
-
-        return "\(message.prefix(maximumStatusMessageLength - 1))…"
     }
 
     static func lastSavedText(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String {
@@ -193,10 +87,8 @@ struct EditorStatusBar: View {
     }
 
     var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay
-    var statusIndicator: EditorStatusIndicator
     var statisticsText: String
     var statusAccessibilityLabel: String
-    var usesDarkChrome: Bool
 
     nonisolated static func warningAmberColor(usesDarkChrome: Bool) -> NSColor {
         usesDarkChrome
@@ -212,21 +104,6 @@ struct EditorStatusBar: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(Color(nsColor: statusIndicatorColor))
-                    .frame(width: Self.statusDotDiameter, height: Self.statusDotDiameter)
-
-                Text(statusIndicator.text)
-                    .font(.caption)
-                    .foregroundStyle(Color(nsColor: statusIndicatorColor))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: Self.statusMessageMaximumWidth, alignment: .leading)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(statusIndicator.accessibilityText)
-
             Spacer(minLength: 16)
 
             Text(EditorStatusFormatter.metadataText(lastSavedDisplay: lastSavedDisplay, statisticsText: statisticsText))
@@ -237,14 +114,5 @@ struct EditorStatusBar: View {
         }
         .padding(.horizontal, Self.horizontalInset)
         .padding(.vertical, 6)
-    }
-
-    private var statusIndicatorColor: NSColor {
-        switch statusIndicator.tone {
-        case .available:
-            return Self.availableGreenColor(usesDarkChrome: usesDarkChrome)
-        case .warning:
-            return Self.warningAmberColor(usesDarkChrome: usesDarkChrome)
-        }
     }
 }

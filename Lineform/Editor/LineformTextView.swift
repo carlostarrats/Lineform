@@ -11,7 +11,6 @@ final class LineformTextView: NSTextView {
     private var hasAppliedTypography = false
     private var hasAppliedTextContainerLayout = false
     private(set) var isLineformWritingToolsSessionActive = false
-    private var activeIntelligentSuggestionRange: NSRange?
     private var searchHighlightRanges: [NSRange] = []
     private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
@@ -220,7 +219,6 @@ final class LineformTextView: NSTextView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        cancelPendingAutomaticIntelligenceMenu()
         let contextMenuTextFormat = LineformTextFormatMenuState.shared.textFormat
         textFormat = contextMenuTextFormat
         let menu = NSMenu()
@@ -268,14 +266,6 @@ final class LineformTextView: NSTextView {
     func markSelectionChangeAsKeyboardDriven() {
     }
 
-    func shouldOpenAutomaticIntelligenceMenuAfterMouseUp() -> Bool {
-        false
-    }
-
-    var hasPendingAutomaticIntelligenceMenu: Bool {
-        false
-    }
-
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
         super.drawInsertionPoint(in: insertionPointRectForDrawing(rect), color: color, turnedOn: flag)
     }
@@ -302,13 +292,7 @@ final class LineformTextView: NSTextView {
         super.drawBackground(in: rect)
         drawEmptyStatePlaceholderIfNeeded()
         drawSearchHighlightsIfNeeded()
-        drawIntelligentSuggestionHighlightIfNeeded()
         drawReadingRulerIfNeeded()
-    }
-
-    func setIntelligentSuggestionRange(_ range: NSRange?) {
-        activeIntelligentSuggestionRange = range
-        needsDisplay = true
     }
 
     func setSearchHighlights(_ ranges: [NSRange], activeRange: NSRange?) {
@@ -440,39 +424,6 @@ final class LineformTextView: NSTextView {
         MarkdownWritingToolsProtection
             .ignoredRanges(in: string, enclosingRange: enclosingRange)
             .map { NSValue(range: $0) }
-    }
-
-    @objc func runIntelligentEditingAction(_ sender: NSMenuItem) {
-        guard let rawValue = sender.representedObject as? String else {
-            return
-        }
-
-        LineformAppNotification.runIntelligentEditingAction.post(
-            object: LineformAppNotification.Payload(
-                windowNumber: window?.windowNumber,
-                value: rawValue,
-                selectedRange: selectedRange()
-            )
-        )
-    }
-
-    func scheduleAutomaticIntelligenceMenuIfNeeded() {
-    }
-
-    func cancelPendingAutomaticIntelligenceMenu() {
-    }
-
-    private func drawIntelligentSuggestionHighlightIfNeeded() {
-        guard let activeIntelligentSuggestionRange else {
-            return
-        }
-
-        guard let rect = rectForCharacterRange(activeIntelligentSuggestionRange) else {
-            return
-        }
-
-        NSColor.controlAccentColor.withAlphaComponent(0.10).setFill()
-        rect.insetBy(dx: -8, dy: -4).fill()
     }
 
     private func drawSearchHighlightsIfNeeded() {

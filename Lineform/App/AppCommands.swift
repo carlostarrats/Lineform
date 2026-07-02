@@ -18,10 +18,7 @@ enum AppMenuConfiguration {
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
     static let findCommandKeyEquivalent = "f"
-    static let keepsTopLevelIntelligenceMenu = false
     static let usesTopLevelReadingMenu = false
-    static let intelligencePrimaryCommandTitle: String? = nil
-    static let lineformIntelligenceCommandTitles = IntelligentEditingAction.menuBarActions.map(\.title)
     static let addsWritingToolsToEditMenu = false
     static let exposesAppleWritingTools = false
     static let markdownFormattingCommandTitles = [
@@ -236,20 +233,6 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .help) {
             EmptyView()
         }
-
-        if AppMenuConfiguration.keepsTopLevelIntelligenceMenu {
-            CommandMenu("Intelligence") {
-                ForEach(IntelligentEditingAction.menuBarActions) { action in
-                    Button(action.title) {
-                        LineformAppNotification.runIntelligentEditingAction.post(
-                            object: LineformAppNotification.activeWindowPayload(value: action.rawValue)
-                        )
-                    }
-                    .keyboardShortcut(KeyEquivalent(Character(action.keyEquivalent)), modifiers: [.command, .option])
-                    .disabled(!intelligenceAvailable)
-                }
-            }
-        }
     }
 
     private var activeTextFormat: LineformTextFormat {
@@ -266,9 +249,5 @@ struct AppCommands: Commands {
                 )
             }
         )
-    }
-
-    private var intelligenceAvailable: Bool {
-        IntelligenceAvailabilityService().currentStatus().isAvailable
     }
 }
