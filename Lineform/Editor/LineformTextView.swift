@@ -301,18 +301,6 @@ final class LineformTextView: NSTextView {
         needsDisplay = true
     }
 
-    func selectionAnchorRectInEnclosingScrollView() -> CGRect? {
-        guard let enclosingScrollView else {
-            return nil
-        }
-
-        guard let rect = rectForCharacterRange(selectedRange()) else {
-            return nil
-        }
-
-        return convert(rect, to: enclosingScrollView)
-    }
-
     func visibleCharacterRangeForLayoutPreservation() -> NSRange? {
         guard
             let layoutManager,

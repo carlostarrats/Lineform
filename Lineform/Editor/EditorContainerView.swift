@@ -5,14 +5,12 @@ struct EditorContainerView: View {
     @StateObject private var readingProfileStore: ReadingProfileStore
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
     @State private var isShowingReadingInspector = false
     @State private var isShowingMarkdownBasics = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline = false
     @State private var outlineItems: [MarkdownOutlineItem] = []
     @State private var requestedSelection: NSRange?
-    @State private var selectionAnchorRect: CGRect?
     @State private var searchQuery = ""
     @State private var searchMatches: [NSRange] = []
     @State private var activeSearchIndex: Int?
@@ -242,9 +240,7 @@ struct EditorContainerView: View {
             text: $document.text,
             textFormat: $document.textFormat,
             plainTextConversion: $document.plainTextConversion,
-            selectionContext: $selectionContext,
             requestedSelection: $requestedSelection,
-            selectionAnchorRect: $selectionAnchorRect,
             profile: readingProfileStore.activeProfile,
             smoothsHorizontalInsetChanges: false,
             searchRanges: searchMatches,
@@ -302,9 +298,7 @@ struct EditorContainerView: View {
     }
 
     private func resetTransientDocumentState() {
-        selectionContext = SelectionContext(text: "", selectedRange: NSRange(location: 0, length: 0))
         requestedSelection = NSRange(location: 0, length: 0)
-        selectionAnchorRect = nil
         searchQuery = ""
         searchMatches = []
         activeSearchIndex = nil

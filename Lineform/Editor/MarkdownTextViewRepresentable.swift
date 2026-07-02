@@ -5,9 +5,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String
     @Binding var textFormat: LineformTextFormat
     @Binding var plainTextConversion: MarkdownPlainTextConversion?
-    @Binding var selectionContext: SelectionContext
     @Binding var requestedSelection: NSRange?
-    @Binding var selectionAnchorRect: CGRect?
     var profile: ReadingProfile
     var smoothsHorizontalInsetChanges = false
     var searchRanges: [NSRange] = []
@@ -17,9 +15,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         Coordinator(
             text: $text,
             textFormat: $textFormat,
-            plainTextConversion: $plainTextConversion,
-            selectionContext: $selectionContext,
-            selectionAnchorRect: $selectionAnchorRect
+            plainTextConversion: $plainTextConversion
         )
     }
 
@@ -42,7 +38,6 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             textView.applyTypography(profile)
             textView.refreshMarkdownHighlighting()
         }
-        context.coordinator.updateSelection(from: textView, asynchronously: true)
 
         scrollView.documentView = textView
         return scrollView
@@ -70,7 +65,6 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             context.coordinator.performWithoutSelectionUpdates {
                 textView.setSelectedRange(safeRange)
             }
-            context.coordinator.updateSelection(from: textView, asynchronously: true)
             textView.scrollRangeToVisible(safeRange)
             DispatchQueue.main.async {
                 requestedSelection = nil
@@ -188,8 +182,6 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var text: Binding<String>
     private var textFormat: Binding<LineformTextFormat>
     private var plainTextConversion: Binding<MarkdownPlainTextConversion?>
-    private var selectionContext: Binding<SelectionContext>
-    private var selectionAnchorRect: Binding<CGRect?>
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
     private var suppressSelectionUpdates = false
@@ -197,15 +189,11 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     init(
         text: Binding<String>,
         textFormat: Binding<LineformTextFormat>,
-        plainTextConversion: Binding<MarkdownPlainTextConversion?>,
-        selectionContext: Binding<SelectionContext>,
-        selectionAnchorRect: Binding<CGRect?>
+        plainTextConversion: Binding<MarkdownPlainTextConversion?>
     ) {
         self.text = text
         self.textFormat = textFormat
         self.plainTextConversion = plainTextConversion
-        self.selectionContext = selectionContext
-        self.selectionAnchorRect = selectionAnchorRect
     }
 
     @MainActor
@@ -240,7 +228,6 @@ final class Coordinator: NSObject, NSTextViewDelegate {
             scheduleMarkdownHighlighting(for: lineformTextView)
             lineformTextView.refreshReadingAssists()
         }
-        updateSelection(from: textView)
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
@@ -249,7 +236,6 @@ final class Coordinator: NSObject, NSTextViewDelegate {
             return
         }
 
-        updateSelection(from: textView)
         if let lineformTextView = textView as? LineformTextView {
             lineformTextView.refreshReadingAssists()
         }
@@ -270,24 +256,6 @@ final class Coordinator: NSObject, NSTextViewDelegate {
 
     func textView(_ textView: NSTextView, writingToolsIgnoredRangesInEnclosingRange enclosingRange: NSRange) -> [NSValue] {
         (textView as? LineformTextView)?.writingToolsIgnoredRanges(in: enclosingRange) ?? []
-    }
-
-    @MainActor
-    func updateSelection(from textView: NSTextView, asynchronously: Bool = false) {
-        let nextSelectionContext = SelectionContext(text: textView.string, selectedRange: textView.selectedRange())
-        let nextAnchorRect = (textView as? LineformTextView)?.selectionAnchorRectInEnclosingScrollView()
-        let selectionContext = selectionContext
-        let selectionAnchorRect = selectionAnchorRect
-
-        if asynchronously {
-            DispatchQueue.main.async {
-                selectionContext.wrappedValue = nextSelectionContext
-                selectionAnchorRect.wrappedValue = nextAnchorRect
-            }
-        } else {
-            selectionContext.wrappedValue = nextSelectionContext
-            selectionAnchorRect.wrappedValue = nextAnchorRect
-        }
     }
 
     private func scheduleMarkdownHighlighting(for textView: LineformTextView) {
