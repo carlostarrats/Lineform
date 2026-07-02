@@ -511,10 +511,23 @@ final class OutlineFileBrowserStore: ObservableObject {
         didSet {
             guard oldValue != showsHiddenFolders else { return }
             defaults.set(showsHiddenFolders, forKey: Self.showsHiddenFoldersDefaultsKey)
-            // Hidden entries were never enumerated, so a re-scan is required. This runs the
-            // same refresh path used when the Files tab appears (main-actor, user-initiated).
-            refreshICloudRoot()
-            refreshWorkspaceRoot()
+            if showsHiddenFolders {
+                // Hidden entries were never enumerated, so a re-scan is required. This runs
+                // the same refresh path used when the Files tab appears (main-actor,
+                // user-initiated).
+                refreshICloudRoot()
+                refreshWorkspaceRoot()
+            } else {
+                // Toggling OFF: the last scans are supersets of the visible tree, so filter
+                // in memory instead of re-walking the disk and re-resolving the iCloud
+                // container on the main thread just to hide rows we already have.
+                if iCloudRoot.showsTree {
+                    iCloudRoot.items = filteredForDisplay(lastICloudItems)
+                }
+                if workspaceRoot.showsTree {
+                    workspaceRoot.items = filteredForDisplay(lastWorkspaceItems)
+                }
+            }
         }
     }
 
@@ -1272,7 +1285,11 @@ enum LineformSidebarFileOpener {
         targetWindow?.setTitleWithRepresentedFilename(url.path)
         targetWindow?.isDocumentEdited = false
         documentController.noteNewRecentDocumentURL(url)
-        DocumentSaveStatus.shared.markSaved(documentID: activeDocumentID, at: LineformDocument.modificationDate(at: url) ?? Date())
+        DocumentSaveStatus.shared.markSaved(
+            documentID: activeDocumentID,
+            at: LineformDocument.modificationDate(at: url) ?? Date(),
+            text: loadedDocument.text
+        )
     }
 }
 

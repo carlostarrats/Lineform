@@ -14,11 +14,26 @@ struct DiagramLogEntry: Codable, Equatable {
 
 /// Pure diagram-log operations (dedup + readable export), independent of the filesystem.
 enum DiagramLog {
+    /// Cap on retained entries: intermediate keystroke states of a diagram being edited each
+    /// hash differently, so without a cap the log grows without bound. Oldest-seen drop first.
+    static let maxEntries = 200
+
+    /// Location of the local diagram failure log under `~/Library/Application Support/`
+    /// (the app's sandbox container).
+    static let relativePath = "Lineform/DiagramLog"
+
+    static func directory(home: URL) -> URL {
+        home
+            .appendingPathComponent("Library/Application Support", isDirectory: true)
+            .appendingPathComponent(relativePath, isDirectory: true)
+    }
+
     static func sourceHash(_ source: String) -> String {
         SHA256.hash(data: Data(source.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// Upsert by source hash: bump count + last-seen if present, else append.
+    /// Upsert by source hash: bump count + last-seen if present, else append (dropping the
+    /// oldest-seen entries beyond `maxEntries`).
     static func merge(_ existing: [DiagramLogEntry], adding entry: DiagramLogEntry, now: Date) -> [DiagramLogEntry] {
         var result = existing
         if let index = result.firstIndex(where: { $0.sourceHash == entry.sourceHash }) {
@@ -30,6 +45,10 @@ enum DiagramLog {
             var appended = entry
             appended.lastSeen = now
             result.append(appended)
+        }
+        if result.count > maxEntries {
+            result.sort { $0.lastSeen > $1.lastSeen }
+            result.removeLast(result.count - maxEntries)
         }
         return result
     }
@@ -66,10 +85,13 @@ final class NullDiagramFailureLog: DiagramFailureLogging {
 final class DiagramLogStore: DiagramFailureLogging {
     private let directory: URL
     private let fileManager: FileManager
+    /// Hash+error pairs already written this session: repeated failures of the same source
+    /// (every preview pass over an unchanged broken diagram) skip the read-merge-write cycle.
+    private var recordedThisSession: Set<String> = []
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        self.directory = LineformCLIPaths.diagramLogDirectory(home: fileManager.homeDirectoryForCurrentUser)
+        self.directory = DiagramLog.directory(home: fileManager.homeDirectoryForCurrentUser)
     }
 
     private var fileURL: URL { directory.appendingPathComponent("log.json") }
@@ -84,10 +106,12 @@ final class DiagramLogStore: DiagramFailureLogging {
 
     func record(source: String, error: String, appVersion: String) {
         let now = Date()
-        let snippet = String(source.prefix(2_000))
+        let hash = DiagramLog.sourceHash(source)
+        let sessionKey = "\(hash)\n\(error)"
+        guard !recordedThisSession.contains(sessionKey) else { return }
         let entry = DiagramLogEntry(
-            sourceHash: DiagramLog.sourceHash(source),
-            sourceSnippet: snippet,
+            sourceHash: hash,
+            sourceSnippet: String(source.prefix(2_000)),
             error: error,
             appVersion: appVersion,
             count: 1,
@@ -97,6 +121,7 @@ final class DiagramLogStore: DiagramFailureLogging {
         try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         if let data = try? JSONEncoder().encode(merged) {
             try? data.write(to: fileURL)
+            recordedThisSession.insert(sessionKey)
         }
     }
 
@@ -106,6 +131,7 @@ final class DiagramLogStore: DiagramFailureLogging {
 
     func clear() {
         try? fileManager.removeItem(at: fileURL)
+        recordedThisSession.removeAll()
     }
 }
 

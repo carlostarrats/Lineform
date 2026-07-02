@@ -484,6 +484,32 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testTogglingHiddenFoldersOffFiltersInMemory() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try "# Draft".write(to: folder.appendingPathComponent("Draft.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent(".claude"), withIntermediateDirectories: true)
+        try "# Notes".write(to: folder.appendingPathComponent(".claude/notes.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
+        store.showsHiddenFolders = true
+        store.refreshICloud()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), [".claude", "Draft.md"])
+
+        // Toggling OFF filters the already-scanned tree; hidden rows disappear even though
+        // no fresh scan ran (the fast path republishes the cached superset, filtered).
+        store.showsHiddenFolders = false
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["Draft.md"])
+    }
+
+    @MainActor
     func testShowHiddenFoldersPreferencePersists() throws {
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

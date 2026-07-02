@@ -144,8 +144,8 @@ struct EditorContainerView: View {
         }
         .onChange(of: documentSaveStatus.savedAt(for: document.id)) { _, _ in
             // A first save on an untitled doc (or any save) can create/replace the file URL;
-            // re-point the watcher. Cheap + idempotent (no-op when the URL is unchanged).
-            registerReloadWatcher()
+            // re-point the watcher and refresh the synced baseline with the saved text.
+            noteSavedToReloadWatcher()
         }
         .onDisappear {
             reloadController.stop()
@@ -272,7 +272,13 @@ struct EditorContainerView: View {
             profile: readingProfileStore.activeProfile,
             smoothsHorizontalInsetChanges: false,
             searchRanges: searchMatches,
-            activeSearchRange: activeSearchRange
+            activeSearchRange: activeSearchRange,
+            onWritingToolsSessionChange: { active in
+                // Binding writes are deferred during a Writing Tools session, so the reload
+                // dirty gate can't see the in-progress edits; suspend external reloads until
+                // the session ends (the controller reconciles once on resume).
+                reloadController.isWritingToolsSessionActive = active
+            }
         )
         .accessibilityLabel("Markdown editor")
         .accessibilityValue(searchAccessibilitySummary ?? "")
@@ -320,17 +326,36 @@ struct EditorContainerView: View {
         return documentID
     }
 
+    private var reloadWatcherURL: URL? {
+        (activeWindow?.windowController?.document as? NSDocument)?.fileURL
+    }
+
     private func registerReloadWatcher() {
-        // Called only at memory==disk moments (appear/open, save, sidebar swap), so the
-        // document's current text is a valid synced baseline.
-        let url = (activeWindow?.windowController?.document as? NSDocument)?.fileURL
-        reloadController.update(url: url, syncedText: document.text)
+        // Appear/open/sidebar-swap registration. `register` resets the baseline only for a
+        // NEW url (a memory==disk moment); re-appearing at the same url preserves baselines
+        // so unsaved edits are never blessed as synced. Saves go through noteSavedToReloadWatcher.
+        reloadController.register(url: reloadWatcherURL, syncedText: document.text)
+    }
+
+    private func noteSavedToReloadWatcher() {
+        // Deferred one runloop turn so AppKit has retargeted NSDocument.fileURL (first save of
+        // an untitled document, Save As) before we re-point the watcher — the same ordering
+        // heuristic replaceDocumentFromSidebar uses. (SwiftUI's DocumentGroup exposes no
+        // fileURL-change hook to close this deterministically; a late retarget self-heals at
+        // the next save.) The baseline is the exact text the save wrote, not the live text,
+        // which may already have newer keystrokes.
+        DispatchQueue.main.async {
+            reloadController.noteSaved(
+                url: reloadWatcherURL,
+                savedText: documentSaveStatus.savedText(for: document.id) ?? document.text
+            )
+        }
     }
 
     private func applyReload(_ result: ReloadResult) {
-        // Clear any pending selection request so MarkdownTextViewRepresentable takes the
-        // scroll-preserving branch (requestedSelection == nil) rather than jumping.
-        requestedSelection = nil
+        // No selection request is pending in the common case, so the text replacement takes
+        // MarkdownTextViewRepresentable's scroll-preserving branch (requestedSelection == nil).
+        // A pending outline/search jump is deliberately left alone — the user's navigation wins.
         document.plainTextConversion = nil
         document.text = result.text
         reloadController.currentText = result.text
@@ -339,7 +364,7 @@ struct EditorContainerView: View {
             backingDocument.fileModificationDate = result.modificationDate
             backingDocument.updateChangeCount(.changeCleared)
         }
-        DocumentSaveStatus.shared.markSaved(documentID: document.id, at: result.modificationDate ?? Date())
+        DocumentSaveStatus.shared.markSaved(documentID: document.id, at: result.modificationDate ?? Date(), text: result.text)
         flashUpdatedIndicator()
         reloadController.clearLastReload()
     }

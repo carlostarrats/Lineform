@@ -36,7 +36,8 @@ So the call is: `let image = try? MermaidRenderer.renderImage(source: src, theme
   (`EditorPresentation.swift:12-14`).
 - **App is sandboxed** → `FileManager.homeDirectoryForCurrentUser` is the container; the diagram
   log lives at `~/Library/Application Support/Lineform/DiagramLog/` (container path, no extra
-  entitlement). Follow the `LineformCLIPaths` pattern (add `diagramLogDirectory(home:)`).
+  entitlement), resolved by `DiagramLog.directory(home:)` in `Lineform/Preview/DiagramLog.swift`
+  (kept out of `LineformCLIPaths`, which is compiled standalone into the CLI helper).
 - **Menu surface**: `AppCommands.swift` app-info group (already hosts "Install Command Line
   Tool..."). Export/Clear Diagram Log go here.
 
@@ -55,10 +56,10 @@ pattern + `Package.resolved`. (elk-swift resolves transitively; it also gets a p
 ### New file `Lineform/Preview/DiagramLog.swift` (pure dedup + IO)
 - `struct DiagramLogEntry: Codable, Equatable { let sourceHash: String; var sourceSnippet: String; var error: String; var appVersion: String; var count: Int; var lastSeen: Date }` — no file names/paths/identity.
 - `enum DiagramLog { static func merge(_ existing: [DiagramLogEntry], adding: DiagramLogEntry, now: Date) -> [DiagramLogEntry] }` — dedup by `sourceHash`: bump `count` + `lastSeen` if present, else append (pure, tested).
-- `final class DiagramLogStore` — reads/writes `DiagramLog/log.json` (Codable array) under `LineformCLIPaths.diagramLogDirectory`; `record(source:error:appVersion:)`, `exportReadable(to: URL)`, `clear()`. IO failure-tolerant.
+- `final class DiagramLogStore` — reads/writes `DiagramLog/log.json` (Codable array) under `DiagramLog.directory(home:)`; `record(source:error:appVersion:)`, `exportReadable(to: URL)`, `clear()`. IO failure-tolerant; entries capped (`DiagramLog.maxEntries`, oldest-seen dropped) and repeat failures of the same source+error skip the rewrite within a session.
 
-### `LineformCLIPaths` (extend)
-Add `diagramLogRelativePath = "Lineform/DiagramLog"` + `diagramLogDirectory(home:)` mirroring `pipedDirectory`.
+### Paths
+`DiagramLog.relativePath = "Lineform/DiagramLog"` + `DiagramLog.directory(home:)` live in `DiagramLog.swift`, mirroring `LineformCLIPaths.pipedDirectory` (but deliberately not on `LineformCLIPaths` — that file is compiled standalone into the CLI helper, which never touches the diagram log).
 
 ### Preview renderer integration (`MarkdownPreviewRenderer`)
 Restructure the fence handling: when an opening fence's info string is `mermaid`, collect the

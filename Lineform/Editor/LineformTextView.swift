@@ -250,20 +250,8 @@ final class LineformTextView: NSTextView {
             return
         }
 
-        markSelectionChangeAsMouseDriven()
         window?.makeFirstResponder(self)
         super.mouseDown(with: event)
-    }
-
-    override func keyDown(with event: NSEvent) {
-        markSelectionChangeAsKeyboardDriven()
-        super.keyDown(with: event)
-    }
-
-    func markSelectionChangeAsMouseDriven() {
-    }
-
-    func markSelectionChangeAsKeyboardDriven() {
     }
 
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {

@@ -35,8 +35,11 @@ or `some-agent | lineform -`. This is the terminal on-ramp for the Agent-Reader 
   chosen location (the save panel grants the sandbox write access to that one path). On
   failure, show the manual one-liner in a copyable field:
   `ln -s "/Applications/Lineform.app/Contents/Helpers/lineform" /usr/local/bin/lineform`.
-- Housekeeping: after launch/state restoration, delete files in `Piped/` older than 7 days
-  that have no open document. Disclosed in privacy docs (local-only piped content).
+- Housekeeping: on each helper invocation, delete files in `Piped/` whose last activity (the
+  later of modification and access time) is older than 7 days. Age-only: the helper is a
+  separate process and cannot know the app's open documents; an open, actively-edited file
+  keeps its modification date fresh via autosave. Disclosed in privacy docs (local-only piped
+  content).
 
 ## Architecture decision (important — build integration)
 
@@ -76,7 +79,7 @@ release-distributed feature, and its logic is unit-tested independently of the p
 
 - `LineformCLICommand` — `enum Command { case open([String]); case readStdin; case version; case help; case invalid(String) }` and `static func parse(_ args: [String]) -> Command` (args excluding argv[0]). Empty args → `.help` (or a usage error — choose `.help`).
 - `LineformPipedInput` — `enum PipeValidation { case ok; case empty; case tooLarge; case notText }` and `static func validate(_ data: Data, maxBytes: Int = 10_000_000) -> PipeValidation` (empty → `.empty`; contains `0x00` → `.notText`; `> maxBytes` → `.tooLarge`; else `.ok`). Also `static func pipedFileName(timestamp: String) -> String` = `"piped-\(timestamp).md"`.
-- `PipedFileHousekeeping` — pure `static func stale(entries: [(url: URL, modified: Date)], now: Date, olderThan: TimeInterval = 7 * 24 * 60 * 60, openDocumentURLs: Set<URL>) -> [URL]` returning the URLs to delete (older than cutoff AND not currently open).
+- `PipedFileHousekeeping` — pure `static func stale(entries: [(url: URL, lastActivity: Date)], now: Date, olderThan: TimeInterval) -> [URL]` returning the URLs to delete (last activity older than the cutoff; age-only — see Housekeeping above).
 - `CLIPathResolver` — pure `static func resolve(_ path: String, relativeTo base: URL) -> URL` (absolute passes through; relative resolves against `base`).
 - Shared constants: the Application Support subpath (`"Lineform/Piped"`), error message strings (so tests can assert exact wording), and exit codes.
 

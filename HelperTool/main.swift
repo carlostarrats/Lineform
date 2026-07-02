@@ -42,25 +42,27 @@ var pipedDirectory: URL {
     LineformCLIPaths.pipedDirectory(home: FileManager.default.homeDirectoryForCurrentUser)
 }
 
-/// Delete piped files older than 7 days. Runs opportunistically on each invocation because the
-/// sandboxed app cannot enumerate this (real, out-of-container) directory. Age-only: a 7-day-old
-/// piped file being actively open is not a realistic concern. Best-effort; never fatal.
+/// Delete piped files whose last activity is older than 7 days. Runs opportunistically on each
+/// invocation because the sandboxed app cannot enumerate this (real, out-of-container) directory.
+/// Uses the later of modification and access time, so a file that is open in the app (autosave
+/// refreshes mtime) or was recently read is kept. Best-effort; never fatal.
 func cleanUpStalePipedFiles() {
     let fm = FileManager.default
+    let keys: Set<URLResourceKey> = [.contentModificationDateKey, .contentAccessDateKey]
     guard let contents = try? fm.contentsOfDirectory(
         at: pipedDirectory,
-        includingPropertiesForKeys: [.contentModificationDateKey],
+        includingPropertiesForKeys: Array(keys),
         options: [.skipsHiddenFiles]
     ) else { return }
-    let entries: [(url: URL, modified: Date)] = contents.compactMap { url in
-        guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else { return nil }
-        return (url, modified)
+    let entries: [(url: URL, lastActivity: Date)] = contents.compactMap { url in
+        guard let values = try? url.resourceValues(forKeys: keys),
+              let modified = values.contentModificationDate else { return nil }
+        return (url, max(modified, values.contentAccessDate ?? modified))
     }
     let stale = LineformPipedHousekeeping.stale(
         entries: entries,
         now: Date(),
-        olderThan: 7 * 24 * 60 * 60,
-        openDocumentURLs: []
+        olderThan: 7 * 24 * 60 * 60
     )
     for url in stale { try? fm.removeItem(at: url) }
 }
@@ -119,7 +121,7 @@ case .open(let paths):
     }
     openInApp(urls)
 case .readStdin:
-    let maxBytes = 10_000_000
+    let maxBytes = LineformPipeValidation.maxPipedBytes
     let data = readStdinBounded(limit: maxBytes)
     switch LineformPipeValidation.validate(data, maxBytes: maxBytes) {
     case .empty: fail(LineformCLIMessages.emptyInput)

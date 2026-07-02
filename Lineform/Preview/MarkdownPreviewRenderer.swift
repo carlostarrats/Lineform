@@ -93,7 +93,7 @@ struct MarkdownPreviewRenderer {
                 mermaidBody = []
                 index += 1
                 continue
-            } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+            } else if MermaidFence.isFenceDelimiter(trimmed) {
                 inFence.toggle()
                 output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
                 lineTerminatorAttributes = activeCodeAttributes

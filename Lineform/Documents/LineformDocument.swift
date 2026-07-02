@@ -73,8 +73,9 @@ struct LineformDocument: FileDocument, Equatable {
         try self.init(fileWrapper: configuration.file, contentType: configuration.contentType, id: documentID)
 
         if let modificationDate = Self.modificationDate(from: configuration.file) {
+            let loadedText = text
             Task { @MainActor in
-                DocumentSaveStatus.shared.markSaved(documentID: documentID, at: modificationDate)
+                DocumentSaveStatus.shared.markSaved(documentID: documentID, at: modificationDate, text: loadedText)
             }
         }
     }
@@ -235,8 +236,9 @@ struct LineformDocument: FileDocument, Equatable {
         let data = try data(for: configuration.contentType)
         if recordsSourceSave(for: configuration.contentType) {
             let documentID = id
+            let savedText = text
             Task { @MainActor in
-                DocumentSaveStatus.shared.markSaved(documentID: documentID)
+                DocumentSaveStatus.shared.markSaved(documentID: documentID, text: savedText)
             }
         }
 
@@ -253,6 +255,7 @@ final class DocumentSaveStatus: ObservableObject {
     static let shared = DocumentSaveStatus()
 
     @Published private var savedAtByDocumentID: [UUID: Date] = [:]
+    private var savedTextByDocumentID: [UUID: String] = [:]
 
     private init() {}
 
@@ -260,7 +263,33 @@ final class DocumentSaveStatus: ObservableObject {
         savedAtByDocumentID[documentID]
     }
 
-    func markSaved(documentID: UUID, at date: Date = Date()) {
+    /// The exact text that was written by the save this `savedAt` describes. The live reload
+    /// baseline uses this instead of the live document text, which may already contain
+    /// keystrokes typed after the save snapshot was taken.
+    func savedText(for documentID: UUID) -> String? {
+        savedTextByDocumentID[documentID]
+    }
+
+    func markSaved(documentID: UUID, at date: Date = Date(), text: String? = nil) {
+        if let text {
+            savedTextByDocumentID[documentID] = text
+        }
         savedAtByDocumentID[documentID] = date
+        pruneSavedTexts(keeping: documentID)
+    }
+
+    /// Saved texts are full document contents; don't retain them for every document ever
+    /// touched in the session. Keep the most recently saved few — enough for every open
+    /// window in normal use — and let a fallback (the live text) cover the rest.
+    private func pruneSavedTexts(keeping documentID: UUID) {
+        let cap = 8
+        guard savedTextByDocumentID.count > cap else { return }
+        let byAge = savedTextByDocumentID.keys.sorted {
+            (savedAtByDocumentID[$0] ?? .distantPast) < (savedAtByDocumentID[$1] ?? .distantPast)
+        }
+        for staleID in byAge where staleID != documentID {
+            guard savedTextByDocumentID.count > cap else { break }
+            savedTextByDocumentID.removeValue(forKey: staleID)
+        }
     }
 }

@@ -74,6 +74,14 @@ final class DisabledMermaidImageProvider: MermaidImageProviding {
 /// library failure degrades to `.failed` → the captioned-source fallback.
 final class MermaidImageProvider: MermaidImageProviding {
     private let cache = NSCache<NSString, NSImage>()
+    /// Failed sources are remembered too (key → error), so a broken diagram isn't re-parsed
+    /// on every preview pass while the user types elsewhere in the document.
+    private let failureCache = NSCache<NSString, NSString>()
+
+    init() {
+        cache.countLimit = 50
+        failureCache.countLimit = 200
+    }
 
     func outcome(source: String, background: NSColor, foreground: NSColor, scale: CGFloat) -> MermaidRenderOutcome {
         guard MermaidBlockPolicy.shouldAttemptRender(source: source) else { return .skipped }
@@ -85,6 +93,7 @@ final class MermaidImageProvider: MermaidImageProviding {
             scale: scale
         ) as NSString
         if let cached = cache.object(forKey: key) { return .image(cached) }
+        if let failure = failureCache.object(forKey: key) { return .failed(failure as String) }
 
         do {
             let theme = DiagramTheme(background: background, foreground: foreground)
@@ -92,9 +101,15 @@ final class MermaidImageProvider: MermaidImageProviding {
                 cache.setObject(image, forKey: key)
                 return .image(image)
             }
+            // Not negatively cached: producing no image without an error may be transient
+            // (resource pressure), so a later pass should retry.
             return .failed("Mermaid render produced no image")
         } catch {
-            return .failed(String(describing: error))
+            // Thrown errors are deterministic parse/render failures for this exact source;
+            // cache them so a broken diagram isn't re-parsed on every preview pass.
+            let message = String(describing: error)
+            failureCache.setObject(message as NSString, forKey: key)
+            return .failed(message)
         }
     }
 }
