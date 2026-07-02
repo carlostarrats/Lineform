@@ -30,6 +30,7 @@
 		1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000221 /* CommandLineToolTests.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
 		1F0000010000000000000233 /* DiagramLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000233 /* DiagramLogTests.swift */; };
+		1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000235 /* DiagramReportServiceTests.swift */; };
 		1F0000010000000000000222 /* CommandLineToolInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000222 /* CommandLineToolInstaller.swift */; };
 		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
 		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
@@ -63,6 +64,7 @@
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000230 /* MermaidRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000230 /* MermaidRendering.swift */; };
 		1F0000010000000000000231 /* DiagramLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000231 /* DiagramLog.swift */; };
+		1F0000010000000000000234 /* DiagramReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000234 /* DiagramReportService.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
 		1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */; };
 		1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */; };
@@ -127,6 +129,7 @@
 		1F0000020000000000000221 /* CommandLineToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000233 /* DiagramLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLogTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000235 /* DiagramReportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportServiceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000222 /* CommandLineToolInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolInstaller.swift; sourceTree = "<group>"; };
 		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
 		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
@@ -163,6 +166,7 @@
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000230 /* MermaidRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRendering.swift; sourceTree = "<group>"; };
 		1F0000020000000000000231 /* DiagramLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLog.swift; sourceTree = "<group>"; };
+		1F0000020000000000000234 /* DiagramReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewEmptyStateTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentPerformanceTests.swift; sourceTree = "<group>"; };
@@ -307,6 +311,7 @@
 				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
 				1F0000020000000000000230 /* MermaidRendering.swift */,
 				1F0000020000000000000231 /* DiagramLog.swift */,
+				1F0000020000000000000234 /* DiagramReportService.swift */,
 			);
 			path = Preview;
 			sourceTree = "<group>";
@@ -376,6 +381,7 @@
 				1F0000020000000000000221 /* CommandLineToolTests.swift */,
 				1F0000020000000000000232 /* MermaidRenderingTests.swift */,
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
+				1F0000020000000000000235 /* DiagramReportServiceTests.swift */,
 			);
 			path = LineformTests;
 			sourceTree = "<group>";
@@ -542,6 +548,7 @@
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
 				1F0000010000000000000230 /* MermaidRendering.swift in Sources */,
 				1F0000010000000000000231 /* DiagramLog.swift in Sources */,
+				1F0000010000000000000234 /* DiagramReportService.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
 				1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */,
 				1F0000010000000000000142 /* EditorPresentation.swift in Sources */,
@@ -583,6 +590,7 @@
 				1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */,
 				1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */,
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
+				1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

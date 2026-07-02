@@ -55,6 +55,6 @@ patching beautiful-mermaid-swift; any telemetry or automatic reporting; monetiza
 - [x] 2 — Hidden folders
 - [x] 3 — CLI + stdin
 - [x] 4 — Mermaid + local log
-- [ ] 5 — Diagram report
+- [x] 5 — Diagram report
 - [x] 6 — Privacy + Terms
 - [ ] 7 — Hook recipes

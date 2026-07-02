@@ -1,0 +1,12 @@
+name = "lineform-diagram-report"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Transient per-IP rate limiting (IPs are keys only; never persisted elsewhere or logged).
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "516127481ae04fc89548fb7197a7322b"
+
+# GITHUB_TOKEN is set out-of-band as a secret:
+#   wrangler secret put GITHUB_TOKEN
+# (a fine-grained PAT with Issues read/write on carlostarrats/lineform-reports)

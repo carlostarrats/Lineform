@@ -31,12 +31,13 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     }
 }
 
-final class MarkdownPreviewTextView: NSTextView {
+final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private var activeProfile = ReadingProfile.original
     private var renderedText: String?
     private var renderedProfile: ReadingProfile?
     private let mermaidProvider = MermaidImageProvider()
     private let diagramLog = DiagramLogStore()
+    private let reportRegistry = DiagramReportRegistry()
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
 
     convenience init() {
@@ -81,6 +82,7 @@ final class MarkdownPreviewTextView: NSTextView {
                 columnWidth: EditorReadingLayout.textColumnMaxWidth(for: profile),
                 mermaidProvider: mermaidProvider,
                 diagramLog: diagramLog,
+                reportRegistry: reportRegistry,
                 appVersion: appVersion
             )
         )
@@ -88,9 +90,49 @@ final class MarkdownPreviewTextView: NSTextView {
         renderedProfile = profile
     }
 
+    // MARK: - "Report this" link handling
+
+    func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+        let url: URL?
+        if let asURL = link as? URL { url = asURL }
+        else if let asString = link as? String { url = URL(string: asString) }
+        else { url = nil }
+        guard let url, let hash = DiagramReportLink.hash(from: url),
+              let pending = reportRegistry.report(for: hash) else {
+            return false
+        }
+        presentReportDialog(source: pending.source, error: pending.error)
+        return true
+    }
+
+    private func presentReportDialog(source: String, error: String) {
+        let alert = NSAlert()
+        alert.messageText = "Report rendering issue?"
+        alert.informativeText = "The diagram text and error will be sent to the developer to improve rendering."
+        alert.addButton(withTitle: "Report")
+        alert.addButton(withTitle: "Not Now")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let version = appVersion
+        Task { @MainActor in
+            let result = await DiagramReportService.send(source: source, error: error, appVersion: version)
+            let done = NSAlert()
+            switch result {
+            case .sent:
+                done.messageText = "Thanks — sent."
+            case .failed:
+                done.messageText = "Couldn’t send. Saved locally."
+                done.informativeText = "The diagram is still recorded in your local diagram log."
+            }
+            done.addButton(withTitle: "OK")
+            done.runModal()
+        }
+    }
+
     private func configure() {
         isEditable = false
         isSelectable = true
+        delegate = self
         isRichText = false
         drawsBackground = true
         isVerticallyResizable = true

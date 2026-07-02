@@ -23,6 +23,7 @@ struct MarkdownPreviewRenderer {
             columnWidth: CGFloat(profile.columnWidth),
             mermaidProvider: DisabledMermaidImageProvider(),
             diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
             appVersion: "0"
         )
     }
@@ -33,8 +34,10 @@ struct MarkdownPreviewRenderer {
         columnWidth: CGFloat,
         mermaidProvider: MermaidImageProviding,
         diagramLog: DiagramFailureLogging,
+        reportRegistry: DiagramReportRegistry,
         appVersion: String
     ) -> NSAttributedString {
+        reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
         let bodyAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
@@ -67,6 +70,7 @@ struct MarkdownPreviewRenderer {
                         codeAttributes: codeAttributes,
                         mermaidProvider: mermaidProvider,
                         diagramLog: diagramLog,
+                        reportRegistry: reportRegistry,
                         appVersion: appVersion
                     )
                     mermaidBody = nil
@@ -128,6 +132,7 @@ struct MarkdownPreviewRenderer {
                 codeAttributes: codeAttributes,
                 mermaidProvider: mermaidProvider,
                 diagramLog: diagramLog,
+                reportRegistry: reportRegistry,
                 appVersion: appVersion
             )
         }
@@ -146,6 +151,7 @@ struct MarkdownPreviewRenderer {
         codeAttributes: [NSAttributedString.Key: Any],
         mermaidProvider: MermaidImageProviding,
         diagramLog: DiagramFailureLogging,
+        reportRegistry: DiagramReportRegistry,
         appVersion: String
     ) {
         let scale = NSScreen.main?.backingScaleFactor ?? 2
@@ -167,10 +173,13 @@ struct MarkdownPreviewRenderer {
             attachment.bounds = CGRect(x: 0, y: 0, width: width, height: height)
             output.append(NSAttributedString(attachment: attachment))
         case .skipped:
-            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
+            // Size-guard skip: not a render failure, so no report affordance.
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
         case .failed(let error):
             diagramLog.record(source: source, error: error, appVersion: appVersion)
-            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
+            let hash = DiagramLog.sourceHash(source)
+            reportRegistry.register(hash: hash, source: source, error: error)
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: hash)
         }
     }
 
@@ -178,14 +187,23 @@ struct MarkdownPreviewRenderer {
         source: String,
         to output: NSMutableAttributedString,
         profile: ReadingProfile,
-        codeAttributes: [NSAttributedString.Key: Any]
+        codeAttributes: [NSAttributedString.Key: Any],
+        reportHash: String?
     ) {
         var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         captionAttributes[.foregroundColor] = Theme.theme(for: profile).textColor.withAlphaComponent(0.6)
         if let font = captionAttributes[.font] as? NSFont {
             captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
-        output.append(NSAttributedString(string: "Mermaid diagram (source)\n", attributes: captionAttributes))
+        output.append(NSAttributedString(string: "Mermaid diagram (source)", attributes: captionAttributes))
+        if let reportHash, let url = DiagramReportLink.url(hash: reportHash) {
+            var linkAttributes = captionAttributes
+            linkAttributes[.link] = url
+            linkAttributes[.foregroundColor] = NSColor.linkColor
+            output.append(NSAttributedString(string: "  ", attributes: captionAttributes))
+            output.append(NSAttributedString(string: "Report this", attributes: linkAttributes))
+        }
+        output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
         output.append(NSAttributedString(string: source, attributes: codeAttributes))
     }
 
