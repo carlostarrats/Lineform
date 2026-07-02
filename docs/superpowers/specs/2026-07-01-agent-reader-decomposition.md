@@ -57,4 +57,4 @@ patching beautiful-mermaid-swift; any telemetry or automatic reporting; monetiza
 - [x] 4 — Mermaid + local log
 - [x] 5 — Diagram report
 - [x] 6 — Privacy + Terms
-- [ ] 7 — Hook recipes
+- [x] 7 — Hook recipes
