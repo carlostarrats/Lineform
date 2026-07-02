@@ -7,5 +7,3 @@ Lineform is local-first.
 - There is no account system.
 - There is no analytics collection by default.
 - There is no document upload.
-- Intelligent editing uses Apple system capabilities where available.
-- The editor remains fully usable when intelligent editing is unavailable.

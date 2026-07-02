@@ -30,7 +30,6 @@ More release files and notes are available on the [Lineform Releases page](https
 - Format headings, lists, links, emphasis, and inline code.
 - Save Markdown, save plain text, or export PDF.
 - Adjust reading font, size, line height, spacing, width, theme, reading ruler, and typewriter mode.
-- Use selected-text AI editing when Apple Intelligence is available, then review suggestions before accepting.
 
 ## Privacy
 
@@ -41,7 +40,6 @@ Lineform is local-first.
 - No document upload.
 - Documents stay wherever you save them.
 - Files remain ordinary Markdown or text files.
-- Intelligent editing uses Apple system capabilities when available, and the editor remains usable without them.
 
 ## Updates
 

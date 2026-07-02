@@ -12,11 +12,11 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 - Convert between Markdown and plain text.
 - Export to PDF.
 - Use Reading Experience to adjust type, spacing, themes, reading ruler, and typewriter mode.
-- Use native Writing Tools or toggle AI in Write mode, select text, type an instruction in the AI bar, and review before accepting when available.
+- Use native macOS Writing Tools on selected text where the system provides them.
 
 ## Local-First Privacy
 
-Documents stay wherever the user saves them. Lineform does not add accounts, analytics, document upload, or external AI services.
+Documents stay wherever the user saves them. Lineform does not add accounts, analytics, or document upload.
 
 ## Credits
 

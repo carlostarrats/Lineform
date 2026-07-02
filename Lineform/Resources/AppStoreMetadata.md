@@ -18,7 +18,7 @@ Markdown, writing, editor, accessibility, reading, notes, focus, read, outline
 
 ## Privacy Summary
 
-Lineform stores documents as local files and does not require an account. Intelligent editing uses Apple system capabilities where available.
+Lineform stores documents as local files and does not require an account.
 
 ## Credits
 
