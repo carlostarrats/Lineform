@@ -721,12 +721,17 @@ final class EditorDisplayModeTests: XCTestCase {
         defaults.removePersistentDomain(forName: defaultsName)
         let readingProfileStore = ReadingProfileStore(defaults: defaults)
         readingProfileStore.apply(profile)
+        // Inject a file-browser store on the same isolated defaults suite with no iCloud, so the
+        // hosted editor never resolves the user's real workspace bookmark (which would touch
+        // ~/Documents and trigger a TCC prompt during headless test runs).
+        let fileBrowserStore = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in nil })
         let editor = EditorContainerView(
             document: Binding(
                 get: { document },
                 set: { document = $0 }
             ),
-            readingProfileStore: readingProfileStore
+            readingProfileStore: readingProfileStore,
+            fileBrowserStore: fileBrowserStore
         )
         let hostingView = NSHostingView(rootView: AnyView(editor.id(UUID())))
         hostingView.frame = NSRect(x: 0, y: 0, width: 1_080, height: 720)
