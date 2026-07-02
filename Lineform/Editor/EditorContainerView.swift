@@ -21,12 +21,16 @@ struct EditorContainerView: View {
     @State private var showsUpdatedIndicator = false
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
 
+    private let injectedFileBrowserStore: OutlineFileBrowserStore?
+
     init(
         document: Binding<LineformDocument>,
-        readingProfileStore: ReadingProfileStore = ReadingProfileStore()
+        readingProfileStore: ReadingProfileStore = ReadingProfileStore(),
+        fileBrowserStore: OutlineFileBrowserStore? = nil
     ) {
         _document = document
         _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
+        injectedFileBrowserStore = fileBrowserStore
     }
 
     var body: some View {
@@ -36,7 +40,8 @@ struct EditorContainerView: View {
             OutlineSidebarView(
                 items: outlineItems,
                 jumpToHeading: jumpToHeading,
-                openFile: openSidebarFile
+                openFile: openSidebarFile,
+                fileBrowserStore: injectedFileBrowserStore
             )
                 .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
                 .navigationSplitViewColumnWidth(

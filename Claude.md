@@ -26,6 +26,7 @@ Core product principles:
 - Native macOS autosave for existing files, with Save/Save As still available and untitled files prompting for a destination when needed.
 - Files selected from the left Files sidebar switch in the current window, Apple Notes-style. Do not describe this as a guaranteed manual save prompt before navigation; existing files are usually already autosaved by the document system.
 - Live reload: an open document refreshes from disk when its file changes externally (e.g. an agent rewrites the `.md`), on clean documents only, debounced, preserving scroll and mode, with a quiet "Updated" status. Implemented as a dedicated `NSFilePresenter` (`Lineform/Documents/DocumentReloadController`), not on the value-type `FileDocument`. Documents with unsaved edits defer to standard behavior — never clobbered.
+- Show hidden folders: a per-app Files-sidebar toggle (default off, persisted) that reveals dot-directories (`.claude/`, `.agents/`, `.github/`, …) and their Markdown/text files, de-emphasized. `node_modules` and `.git` stay excluded regardless (`excludedDirectoryNames` in `OutlineFileBrowserStore`). Toggling re-scans; hidden files open/watch/render like any other.
 - Write mode for editing source Markdown.
 - Read mode for rendered, calmer reading.
 - Split/Preview mode for side-by-side writing and preview.

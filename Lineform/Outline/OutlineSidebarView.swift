@@ -13,8 +13,31 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
     var name: String
     var isDirectory: Bool
     var children: [OutlineFileTreeItem]
+    var isHidden: Bool = false
 
     var id: String { url.path }
+
+    init(url: URL, name: String, isDirectory: Bool, children: [OutlineFileTreeItem], isHidden: Bool = false) {
+        self.url = url
+        self.name = name
+        self.isDirectory = isDirectory
+        self.children = children
+        self.isHidden = isHidden
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case url, name, isDirectory, children, isHidden
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        url = try container.decode(URL.self, forKey: .url)
+        name = try container.decode(String.self, forKey: .name)
+        isDirectory = try container.decode(Bool.self, forKey: .isDirectory)
+        children = try container.decode([OutlineFileTreeItem].self, forKey: .children)
+        // Tolerate snapshots written before isHidden existed (they only held visible items).
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+    }
 }
 
 struct OutlineSidebarView: View {
@@ -53,6 +76,7 @@ struct OutlineSidebarView: View {
     static let fileRootTitles = ["Lineform iCloud", "Workspace"]
     static let chooseWorkspaceButtonTitle = "Choose"
     static let replaceWorkspaceButtonTitle = "Replace"
+    static let showHiddenFoldersToggleTitle = "Show hidden folders"
     static let iCloudUnavailableShowsLabel = true
     static let iCloudUnavailableStatusTitle = "Unavailable"
     static let filesRowsFillAvailableWidth = true
@@ -79,7 +103,7 @@ struct OutlineSidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedNodeIDs: Set<String> = []
     @State private var selectedTab = OutlineSidebarTab.outline
-    @StateObject private var fileBrowserStore = OutlineFileBrowserStore()
+    @StateObject private var fileBrowserStore: OutlineFileBrowserStore
 
     static func showsTitle(for items: [MarkdownOutlineItem]) -> Bool {
         false
@@ -136,6 +160,23 @@ struct OutlineSidebarView: View {
     var jumpToHeading: (MarkdownOutlineItem) -> Void
     var openFile: (URL) -> Void = { url in
         LineformSidebarFileOpener.open(url, replacing: nil)
+    }
+
+    init(
+        items: [MarkdownOutlineItem],
+        jumpToHeading: @escaping (MarkdownOutlineItem) -> Void,
+        openFile: @escaping (URL) -> Void = { url in
+            LineformSidebarFileOpener.open(url, replacing: nil)
+        },
+        fileBrowserStore: OutlineFileBrowserStore? = nil
+    ) {
+        self.items = items
+        self.jumpToHeading = jumpToHeading
+        self.openFile = openFile
+        // Production passes nil → a real store is created lazily on first render. Tests inject
+        // a store on an isolated defaults suite so they never resolve the user's real workspace
+        // bookmark (which would touch ~/Documents and prompt for access).
+        _fileBrowserStore = StateObject(wrappedValue: fileBrowserStore ?? OutlineFileBrowserStore())
     }
 
     var body: some View {
@@ -444,9 +485,13 @@ final class OutlineFileBrowserStore: ObservableObject {
     static let iCloudSnapshotDefaultsKey = "Lineform.outline.iCloudSnapshot"
     static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
     static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"
+    static let showsHiddenFoldersDefaultsKey = "Lineform.outline.showsHiddenFolders"
     static let maximumTreeDepth = 4
     static let maximumChildrenPerFolder = 80
     static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
+    /// Directory names always hidden from the tree, even with "Show hidden folders" on —
+    /// build/vcs noise that is never useful reading material.
+    static let excludedDirectoryNames: Set<String> = ["node_modules", ".git"]
 
     @Published var iCloudRoot = OutlineFileRoot(
         id: "icloud",
@@ -462,6 +507,16 @@ final class OutlineFileBrowserStore: ObservableObject {
         state: .unassigned,
         items: []
     )
+    @Published var showsHiddenFolders = false {
+        didSet {
+            guard oldValue != showsHiddenFolders else { return }
+            defaults.set(showsHiddenFolders, forKey: Self.showsHiddenFoldersDefaultsKey)
+            // Hidden entries were never enumerated, so a re-scan is required. This runs the
+            // same refresh path used when the Files tab appears (main-actor, user-initiated).
+            refreshICloudRoot()
+            refreshWorkspaceRoot()
+        }
+    }
 
     private let defaults: UserDefaults
     private let fileManager: FileManager
@@ -481,6 +536,9 @@ final class OutlineFileBrowserStore: ObservableObject {
         self.fileManager = fileManager
         self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
         self.iCloudDownloader = iCloudDownloader ?? fileManager
+        // Set before any refresh; `didSet` does not fire during initialization, so this does
+        // not trigger an (init-forbidden) iCloud scan.
+        showsHiddenFolders = defaults.bool(forKey: Self.showsHiddenFoldersDefaultsKey)
         loadICloudSnapshot()
         loadWorkspaceSnapshot()
         loadWorkspaceBookmark()
@@ -582,6 +640,19 @@ final class OutlineFileBrowserStore: ObservableObject {
         defaults.set(data, forKey: defaultsKey)
     }
 
+    /// Filter a cached tree for display against the current toggle. Live scans already honor
+    /// `showsHiddenFolders`, but a snapshot may have been saved under a different toggle value;
+    /// this keeps a stale cache (e.g. the disconnected-workspace fallback) consistent.
+    private func filteredForDisplay(_ items: [OutlineFileTreeItem]) -> [OutlineFileTreeItem] {
+        guard !showsHiddenFolders else { return items }
+        return items.compactMap { item in
+            guard !item.isHidden else { return nil }
+            var visible = item
+            visible.children = filteredForDisplay(item.children)
+            return visible
+        }
+    }
+
     private func setWorkspaceURL(_ url: URL) {
         workspaceURL = url
         saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
@@ -630,7 +701,7 @@ final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
-        let items = Self.items(in: url, fileManager: fileManager)
+        let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders)
         lastICloudItems = items
         saveSnapshot(items, defaultsKey: Self.iCloudSnapshotDefaultsKey)
 
@@ -678,7 +749,9 @@ final class OutlineFileBrowserStore: ObservableObject {
                 title: "Workspace",
                 systemImage: "folder.badge.questionmark",
                 state: .disconnected,
-                items: lastWorkspaceItems
+                // Cached snapshot may have been saved while the toggle was ON; re-filter it so
+                // hidden items don't leak into a toggle-OFF view while disconnected.
+                items: filteredForDisplay(lastWorkspaceItems)
             )
             return
         }
@@ -690,7 +763,7 @@ final class OutlineFileBrowserStore: ObservableObject {
             }
         }
 
-        let items = Self.items(in: workspaceURL, fileManager: fileManager)
+        let items = Self.items(in: workspaceURL, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders)
         lastWorkspaceItems = items
         saveSnapshot(items, defaultsKey: Self.workspaceSnapshotDefaultsKey)
 
@@ -731,25 +804,42 @@ final class OutlineFileBrowserStore: ObservableObject {
     private static func items(
         in url: URL,
         fileManager: FileManager,
-        depth: Int = 0
+        depth: Int = 0,
+        showsHiddenFolders: Bool,
+        inheritedHidden: Bool = false
     ) -> [OutlineFileTreeItem] {
         guard depth < maximumTreeDepth else {
             return []
         }
 
-        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey]
+        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isHiddenKey]
+        let options: FileManager.DirectoryEnumerationOptions = showsHiddenFolders ? [] : [.skipsHiddenFiles]
         let urls = (try? fileManager.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: Array(resourceKeys),
-            options: [.skipsHiddenFiles]
+            options: options
         )) ?? []
 
-        return urls.compactMap { childURL in
+        return urls.compactMap { childURL -> OutlineFileTreeItem? in
             guard let values = try? childURL.resourceValues(forKeys: resourceKeys) else {
                 return nil
             }
 
+            let name = childURL.lastPathComponent
             let isDirectory = values.isDirectory == true
+
+            // Always exclude build/vcs noise directories, regardless of the toggle.
+            if isDirectory, excludedDirectoryNames.contains(name) {
+                return nil
+            }
+
+            // With hidden folders shown, .skipsHiddenFiles is dropped — so also drop genuinely
+            // OS-hidden items that are NOT dot-prefixed (system junk), while keeping dotfiles.
+            let isDotPrefixed = name.hasPrefix(".")
+            if showsHiddenFolders, values.isHidden == true, !isDotPrefixed {
+                return nil
+            }
+
             let isSupportedFile = values.isRegularFile == true
                 && supportedFileExtensions.contains(childURL.pathExtension.lowercased())
 
@@ -757,13 +847,22 @@ final class OutlineFileBrowserStore: ObservableObject {
                 return nil
             }
 
+            let itemHidden = inheritedHidden || isDotPrefixed
+
             return OutlineFileTreeItem(
                 url: childURL,
-                name: childURL.lastPathComponent,
+                name: name,
                 isDirectory: isDirectory,
                 children: isDirectory
-                    ? items(in: childURL, fileManager: fileManager, depth: depth + 1)
-                    : []
+                    ? items(
+                        in: childURL,
+                        fileManager: fileManager,
+                        depth: depth + 1,
+                        showsHiddenFolders: showsHiddenFolders,
+                        inheritedHidden: itemHidden
+                    )
+                    : [],
+                isHidden: itemHidden
             )
         }
         .sorted { first, second in
@@ -785,17 +884,25 @@ private struct OutlineFileBrowserView: View {
     @State private var collapsedIDs: Set<String> = []
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
-                rootView(store.iCloudRoot)
-                rootView(store.workspaceRoot)
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Spacer(minLength: 0)
+                OutlineHiddenFoldersToggle(isOn: $store.showsHiddenFolders, usesDarkChrome: usesDarkChrome)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
-            .padding(.top, 4)
-            .padding(.bottom, 14)
+            .padding(.vertical, 4)
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    rootView(store.iCloudRoot)
+                    rootView(store.workspaceRoot)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
+                .padding(.bottom, 14)
+            }
+            .scrollContentBackground(.hidden)
         }
-        .scrollContentBackground(.hidden)
     }
 
     @ViewBuilder
@@ -846,6 +953,37 @@ private struct OutlineFileBrowserView: View {
 
     private var usesDarkChrome: Bool {
         colorScheme == .dark
+    }
+}
+
+private struct OutlineHiddenFoldersToggle: View {
+    @Binding var isOn: Bool
+    var usesDarkChrome: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            isOn.toggle()
+        } label: {
+            Image(systemName: isOn ? "eye" : "eye.slash")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                .frame(width: 22, height: 18)
+                .background {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
+                            .opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
+                }
+        }
+        .buttonStyle(.plain)
+        .help(OutlineSidebarView.showHiddenFoldersToggleTitle)
+        .accessibilityLabel(OutlineSidebarView.showHiddenFoldersToggleTitle)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 
@@ -1018,12 +1156,12 @@ private struct OutlineFileTreeNodeView: View {
 
             Image(systemName: item.isDirectory ? "folder" : "doc.text")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                .foregroundStyle(rowForegroundColor)
                 .frame(width: 18)
 
             Text(item.name)
                 .font(.system(size: 13))
-                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                .foregroundStyle(rowForegroundColor)
                 .lineLimit(1)
 
             Spacer(minLength: 0)
@@ -1056,6 +1194,12 @@ private struct OutlineFileTreeNodeView: View {
         } else {
             collapsedIDs.insert(item.id)
         }
+    }
+
+    private var rowForegroundColor: Color {
+        item.isHidden
+            ? OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome)
+            : OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
     }
 
     private var usesDarkChrome: Bool {

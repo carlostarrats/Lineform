@@ -406,6 +406,96 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertEqual(downloader.requestedURLs.map(\.lastPathComponent), ["Draft.md"])
     }
 
+    // MARK: - Hidden folders
+
+    func testShowHiddenFoldersToggleTitleConstant() {
+        XCTAssertEqual(OutlineSidebarView.showHiddenFoldersToggleTitle, "Show hidden folders")
+    }
+
+    func testLegacyTreeItemSnapshotDecodesWithHiddenFalse() throws {
+        let legacyJSON = """
+        [{"url":"file:///tmp/Draft.md","name":"Draft.md","isDirectory":false,"children":[]}]
+        """.data(using: .utf8)!
+        let items = try JSONDecoder().decode([OutlineFileTreeItem].self, from: legacyJSON)
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.name, "Draft.md")
+        XCTAssertEqual(items.first?.isHidden, false)
+    }
+
+    func testTreeItemRoundTripsHiddenFlag() throws {
+        let item = OutlineFileTreeItem(url: URL(fileURLWithPath: "/tmp/.claude"), name: ".claude", isDirectory: true, children: [], isHidden: true)
+        let data = try JSONEncoder().encode([item])
+        let decoded = try JSONDecoder().decode([OutlineFileTreeItem].self, from: data)
+        XCTAssertEqual(decoded.first?.isHidden, true)
+    }
+
+    @MainActor
+    func testHiddenFoldersExcludedByDefault() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try "# Draft".write(to: folder.appendingPathComponent("Draft.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent(".claude"), withIntermediateDirectories: true)
+        try "# Notes".write(to: folder.appendingPathComponent(".claude/notes.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("node_modules"), withIntermediateDirectories: true)
+        try "# Readme".write(to: folder.appendingPathComponent("node_modules/readme.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
+        store.refreshICloud()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["Draft.md"])
+    }
+
+    @MainActor
+    func testShowHiddenFoldersRevealsDotFoldersButNotBlocklist() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try "# Draft".write(to: folder.appendingPathComponent("Draft.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent(".claude"), withIntermediateDirectories: true)
+        try "# Notes".write(to: folder.appendingPathComponent(".claude/notes.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("node_modules"), withIntermediateDirectories: true)
+        try "# Readme".write(to: folder.appendingPathComponent("node_modules/readme.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try "# Git".write(to: folder.appendingPathComponent(".git/config.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
+        store.showsHiddenFolders = true
+        store.refreshICloud()
+
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), [".claude", "Draft.md"])
+        let claude = try XCTUnwrap(store.iCloudRoot.items.first { $0.name == ".claude" })
+        XCTAssertTrue(claude.isHidden)
+        XCTAssertEqual(claude.children.map(\.name), ["notes.md"])
+        XCTAssertEqual(claude.children.first?.isHidden, true)
+        let draft = try XCTUnwrap(store.iCloudRoot.items.first { $0.name == "Draft.md" })
+        XCTAssertFalse(draft.isHidden)
+    }
+
+    @MainActor
+    func testShowHiddenFoldersPreferencePersists() throws {
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let first = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in nil })
+        first.showsHiddenFolders = true
+
+        let second = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in nil })
+        XCTAssertTrue(second.showsHiddenFolders)
+    }
+
 }
 
 private final class RecordingUbiquitousDownloader: UbiquitousItemDownloader {
