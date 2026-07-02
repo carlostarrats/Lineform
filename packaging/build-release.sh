@@ -41,6 +41,25 @@ fi
 
 xcodebuild "${XCODEBUILD_ARGS[@]}"
 
+# Build the bundled `lineform` command-line helper (universal) into Contents/Helpers.
+# The helper is a standalone Foundation tool (HelperTool/main.swift) that reuses the same
+# pure logic the app compiles for tests (Lineform/CommandLineTool/LineformCommandLine.swift).
+# It ships WITHOUT the App Sandbox entitlement and is signed with the app below.
+HELPER_DIR="$APP_PATH/Contents/Helpers"
+HELPER_SRC=("$REPO_ROOT/Lineform/CommandLineTool/LineformCommandLine.swift" "$REPO_ROOT/HelperTool/main.swift")
+mkdir -p "$HELPER_DIR"
+swiftc -O -target arm64-apple-macos14.0  -o "$HELPER_DIR/lineform-arm64"  "${HELPER_SRC[@]}"
+swiftc -O -target x86_64-apple-macos14.0 -o "$HELPER_DIR/lineform-x86_64" "${HELPER_SRC[@]}"
+lipo -create -output "$HELPER_DIR/lineform" "$HELPER_DIR/lineform-arm64" "$HELPER_DIR/lineform-x86_64"
+rm -f "$HELPER_DIR/lineform-arm64" "$HELPER_DIR/lineform-x86_64"
+
+HELPER_ARCHS="$(lipo -archs "$HELPER_DIR/lineform" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
+if [[ "$HELPER_ARCHS" != "arm64 x86_64" ]]; then
+  echo "error: lineform helper is not universal. Expected 'arm64 x86_64', got '$HELPER_ARCHS'." >&2
+  exit 67
+fi
+echo "Verified universal helper: $HELPER_ARCHS"
+
 # Guard against silently shipping a non-universal binary. Lineform must run on
 # both Apple Silicon and Intel Macs, so the app executable has to contain both
 # the arm64 and x86_64 slices. Fail loudly if a build ever regresses to a
@@ -74,6 +93,7 @@ if [[ "$RESIGN_WITH_DEVELOPER_ID" == "YES" ]]; then
 
   cp "$DEVELOPER_ID_PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 
+  sign_release_item "$APP_PATH/Contents/Helpers/lineform"
   sign_release_item "$SPARKLE_VERSION_PATH/Autoupdate"
   sign_release_item "$SPARKLE_VERSION_PATH/XPCServices/Downloader.xpc"
   sign_release_item "$SPARKLE_VERSION_PATH/XPCServices/Installer.xpc"

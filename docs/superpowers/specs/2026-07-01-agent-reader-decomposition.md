@@ -53,7 +53,7 @@ patching beautiful-mermaid-swift; any telemetry or automatic reporting; monetiza
 - [x] 0 — Remove AI features
 - [x] 1 — Live reload
 - [x] 2 — Hidden folders
-- [ ] 3 — CLI + stdin
+- [x] 3 — CLI + stdin
 - [ ] 4 — Mermaid + local log
 - [ ] 5 — Diagram report
 - [ ] 6 — Privacy + Terms

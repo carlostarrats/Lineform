@@ -110,6 +110,24 @@ DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download
 
 Commit the generated `docs/appcast.xml` after each release so Sparkle can fetch the latest appcast over GitHub's HTTPS raw-content URL.
 
+## Bundled `lineform` command-line helper
+
+`packaging/build-release.sh` builds the `lineform` CLI helper into the app after `xcodebuild`
+and before signing, so it ships inside the DMG and is notarized with the app:
+
+- It compiles `HelperTool/main.swift` + the shared `Lineform/CommandLineTool/LineformCommandLine.swift`
+  with `swiftc` for `arm64` and `x86_64`, then `lipo`s them into `Contents/Helpers/lineform`
+  (guarded by a universal-arch check, same as the app binary).
+- The helper is signed (hardened runtime, timestamp) as the first item in the inside-out
+  re-sign list, **without** any App Sandbox entitlement — it runs as an ordinary user process
+  from the terminal and hands files to the app via `open`.
+- No separate notarization step is needed: it is nested signed code inside the app, covered by
+  the app's notarization submission.
+
+The helper is only produced by this release script (not by plain `xcodebuild` Debug builds).
+Users install it via **Lineform → Install Command Line Tool...** (symlink to
+`/usr/local/bin/lineform`).
+
 ## Notarization
 
 Store Apple notarization credentials once under the `lineform-notary` profile:
