@@ -49,6 +49,41 @@ enum MermaidCacheKey {
     }
 }
 
+/// Corrects the orientation of a diagram raster produced by BeautifulMermaid on macOS.
+///
+/// BeautifulMermaid 1.0.4's AppKit path (`MermaidImageRenderer._renderPrepared`) draws into a
+/// raw `CGContext` bitmap, which has a bottom-left origin (y-up), while the library's drawing
+/// code is written for a top-left origin (y-down, the UIKit/`UIGraphicsImageRenderer` convention
+/// it also targets). No compensating y-flip is inserted, so on macOS every rendered diagram comes
+/// back vertically mirrored — layout upside down and text mirrored. The library is a pinned remote
+/// dependency and this is the single seam that touches it, so we flip the finished raster upright
+/// here rather than forking the package.
+enum MermaidImageOrientation {
+    static func uprightForMacOS(_ image: NSImage) -> NSImage {
+        var proposed = CGRect(origin: .zero, size: image.size)
+        guard let cgImage = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) else {
+            return image
+        }
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0, height > 0,
+              let ctx = CGContext(
+                  data: nil, width: width, height: height,
+                  bitsPerComponent: 8, bytesPerRow: 0,
+                  space: CGColorSpaceCreateDeviceRGB(),
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+              ) else { return image }
+
+        ctx.translateBy(x: 0, y: CGFloat(height))
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        guard let flipped = ctx.makeImage() else { return image }
+        // Preserve the point size so Retina scale (pixels-per-point) is retained.
+        return NSImage(cgImage: flipped, size: image.size)
+    }
+}
+
 /// The result of attempting to render a mermaid block.
 enum MermaidRenderOutcome {
     case image(NSImage)
@@ -98,8 +133,9 @@ final class MermaidImageProvider: MermaidImageProviding {
         do {
             let theme = DiagramTheme(background: background, foreground: foreground)
             if let image = try MermaidRenderer.renderImage(source: source, theme: theme, scale: scale) {
-                cache.setObject(image, forKey: key)
-                return .image(image)
+                let upright = MermaidImageOrientation.uprightForMacOS(image)
+                cache.setObject(upright, forKey: key)
+                return .image(upright)
             }
             // Not negatively cached: producing no image without an error may be transient
             // (resource pressure), so a later pass should retry.
