@@ -17,6 +17,10 @@ enum AppMenuConfiguration {
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let exportDiagramLogCommandTitle = "Export Diagram Log..."
     static let clearDiagramLogCommandTitle = "Clear Diagram Log..."
+    static let privacyPolicyCommandTitle = "Privacy Policy"
+    static let termsOfUseCommandTitle = "Terms of Use"
+    static let privacyPolicyURL = "https://lineform-atv.pages.dev/privacy"
+    static let termsOfUseURL = "https://lineform-atv.pages.dev/terms"
     static let suppressesDefaultHelpMenu = true
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let findCommandTitle = "Find"
@@ -145,6 +149,18 @@ struct AppCommands: Commands {
 
             Button(AppMenuConfiguration.clearDiagramLogCommandTitle) {
                 DiagramLogMenuActions.presentClear()
+            }
+
+            Button(AppMenuConfiguration.privacyPolicyCommandTitle) {
+                if let url = URL(string: AppMenuConfiguration.privacyPolicyURL) {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+
+            Button(AppMenuConfiguration.termsOfUseCommandTitle) {
+                if let url = URL(string: AppMenuConfiguration.termsOfUseURL) {
+                    NSWorkspace.shared.open(url)
+                }
             }
         }
 

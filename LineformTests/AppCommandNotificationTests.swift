@@ -10,6 +10,10 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertEqual(AppMenuConfiguration.installCommandLineToolCommandTitle, "Install Command Line Tool...")
         XCTAssertEqual(AppMenuConfiguration.exportDiagramLogCommandTitle, "Export Diagram Log...")
         XCTAssertEqual(AppMenuConfiguration.clearDiagramLogCommandTitle, "Clear Diagram Log...")
+        XCTAssertEqual(AppMenuConfiguration.privacyPolicyCommandTitle, "Privacy Policy")
+        XCTAssertEqual(AppMenuConfiguration.termsOfUseCommandTitle, "Terms of Use")
+        XCTAssertTrue(AppMenuConfiguration.privacyPolicyURL.hasPrefix("https://"))
+        XCTAssertTrue(AppMenuConfiguration.termsOfUseURL.hasPrefix("https://"))
         XCTAssertTrue(AppMenuConfiguration.suppressesDefaultHelpMenu)
         XCTAssertEqual(
             AppMenuConfiguration.aboutPanelOptions()[.applicationVersion] as? String,
