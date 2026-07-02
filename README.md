@@ -49,6 +49,15 @@ Lineform contacts the network in only two cases: Sparkle update checks, and — 
 
 Full [Privacy](https://lineform-atv.pages.dev/privacy) and [Terms of Use](https://lineform-atv.pages.dev/terms) are published online and linked from the app's menu.
 
+## Agent workflow
+
+Lineform is a good place to read and review what your coding agent writes. With the bundled
+`lineform` command line tool, a [Claude Code](https://code.claude.com) hook can open every
+Markdown file your agent writes or edits — see the copy-paste recipe at
+[lineform-atv.pages.dev/hooks](https://lineform-atv.pages.dev/hooks) (also in
+[`docs/agent-hooks.md`](docs/agent-hooks.md), verified against Claude Code v2.1.198). Combined
+with live reload, the file refreshes in place as the agent works.
+
 ## Updates
 
 Lineform includes a **Check for Updates...** menu item in the app menu.

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lineform — Agent Hooks</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: #1c1c1e; background: #fbfbfa; -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-color-scheme: dark) { body { color: #e6e6ea; background: #17171a; } pre { background: #1f1f24 !important; } }
+  main { max-width: 44rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.01em; margin: 0 0 0.25rem; }
+  .updated { color: #8a8a8e; font-size: 0.9rem; margin: 0 0 2.25rem; }
+  h2 { font-size: 1.2rem; margin: 2.5rem 0 0.5rem; }
+  p, li { margin: 0.5rem 0; }
+  ol { padding-left: 1.25rem; }
+  a { color: #2f6df0; text-decoration: none; } a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.88em; }
+  pre { background: #f0f0ee; border-radius: 10px; padding: 1rem 1.1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.5; }
+  nav { margin-top: 3rem; font-size: 0.95rem; color: #8a8a8e; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Open agent-written Markdown in Lineform</h1>
+  <p class="updated">Claude Code hook · verified against Claude Code v2.1.198</p>
+
+  <p>This hook opens any Markdown or text file your agent writes or edits in Lineform, so you read
+    and review it in a real window (with live reload) instead of scrolling the terminal.</p>
+
+  <h2>Setup</h2>
+  <ol>
+    <li>Install the <code>lineform</code> command line tool: in Lineform, choose
+      <strong>Lineform → Install Command Line Tool…</strong>. (The recipe also works without it,
+      via <code>open</code>.)</li>
+    <li>Add the hook to your Claude Code settings — <code>~/.claude/settings.json</code> (all
+      projects), <code>.claude/settings.json</code> (this project), or
+      <code>.claude/settings.local.json</code> (this project, local only).</li>
+  </ol>
+
+<pre>{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.md|*.markdown|*.txt) command -v lineform >/dev/null 2>&amp;1 &amp;&amp; lineform \"$f\" || open -b com.lineform.app \"$f\";; esac"
+          }
+        ]
+      }
+    ]
+  }
+}</pre>
+
+  <p><strong>What it does:</strong> after Claude Code’s <code>Write</code> or <code>Edit</code>
+    tool runs, the hook reads the event JSON on stdin, extracts <code>tool_input.file_path</code>
+    with <code>jq</code>, and — only for <code>.md</code>, <code>.markdown</code>, or
+    <code>.txt</code> files — opens it in Lineform (using the <code>lineform</code> CLI if
+    installed, otherwise <code>open -b com.lineform.app</code>). It exits silently for anything
+    else. Because Lineform live-reloads, repeated edits refresh the open window rather than piling
+    up new ones. Requires <code>jq</code>.</p>
+
+  <h2>Why there is no “open approved plans” recipe (yet)</h2>
+  <p>Verified against Claude Code v2.1.198, <code>ExitPlanMode</code> does not emit a
+    <code>PostToolUse</code> file-path event — it triggers a permission request, and the plan is
+    passed as text, not a file — so there is no reliable path for a hook to open. Rather than
+    publish a recipe that doesn’t work, it is omitted until a verified mechanism exists. (If you
+    write plans to a file yourself, the recipe above already opens them.) Recipes for other agents
+    will be added only after the same end-to-end verification.</p>
+
+  <nav>
+    <a href="./privacy.html">Privacy</a> · <a href="./terms.html">Terms</a> ·
+    <a href="https://github.com/carlostarrats/Lineform">Source on GitHub</a>
+  </nav>
+</main>
+</body>
+</html>
