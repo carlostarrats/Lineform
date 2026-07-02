@@ -50,7 +50,7 @@ patching beautiful-mermaid-swift; any telemetry or automatic reporting; monetiza
 
 ## Status
 
-- [ ] 0 — Remove AI features (spec written)
+- [x] 0 — Remove AI features
 - [ ] 1 — Live reload
 - [ ] 2 — Hidden folders
 - [ ] 3 — CLI + stdin
