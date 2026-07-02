@@ -76,7 +76,6 @@ struct OutlineSidebarView: View {
     static let fileRootTitles = ["Lineform iCloud", "Workspace"]
     static let chooseWorkspaceButtonTitle = "Choose"
     static let replaceWorkspaceButtonTitle = "Replace"
-    static let showHiddenFoldersToggleTitle = "Show hidden folders"
     static let iCloudUnavailableShowsLabel = true
     static let iCloudUnavailableStatusTitle = "Unavailable"
     static let filesRowsFillAvailableWidth = true
@@ -191,7 +190,30 @@ struct OutlineSidebarView: View {
                     outlineContent
                 } else {
                     OutlineFileBrowserView(store: fileBrowserStore, openFile: openFile)
-                        .onAppear { fileBrowserStore.refreshICloud() }
+                        .onAppear {
+                            // Reconcile the app-wide "Show Hidden Folders" preference (driven from
+                            // the View menu) each time the Files tab becomes visible, then run the
+                            // deferred iCloud scan exactly once. Only an OFF→ON change scans iCloud
+                            // via the store's `didSet` (it must enumerate previously-skipped hidden
+                            // entries); every other path — unchanged, or a change toward OFF whose
+                            // `didSet` only filters cached items — still needs the sanctioned
+                            // `refreshICloud()` here. The scan stays deferred to this point, so it
+                            // never runs for windows whose Files tab isn't shown.
+                            let desired = HiddenFoldersMenuState.shared.isOn
+                            let turnedOn = desired && !fileBrowserStore.showsHiddenFolders
+                            fileBrowserStore.showsHiddenFolders = desired
+                            if !turnedOn {
+                                fileBrowserStore.refreshICloud()
+                            }
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleHiddenFolders.name)) { _ in
+                            // Live update while the Files tab is visible (its iCloud container is
+                            // already resolved, so the store's re-scan matches the old in-sidebar
+                            // toggle's cost). Windows on the Outline tab or with the sidebar collapsed
+                            // don't observe this, preserving the deferred-scan invariant; they
+                            // reconcile via .onAppear when the Files tab next appears.
+                            fileBrowserStore.showsHiddenFolders = HiddenFoldersMenuState.shared.isOn
+                        }
                 }
             }
         }
@@ -897,25 +919,19 @@ private struct OutlineFileBrowserView: View {
     @State private var collapsedIDs: Set<String> = []
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Spacer(minLength: 0)
-                OutlineHiddenFoldersToggle(isOn: $store.showsHiddenFolders, usesDarkChrome: usesDarkChrome)
+        // "Show Hidden Folders" now lives in the View menu (⌘⇧.), so the Files tab is just
+        // the file tree — no in-sidebar toggle chrome.
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 8) {
+                rootView(store.iCloudRoot)
+                rootView(store.workspaceRoot)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
-            .padding(.vertical, 4)
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    rootView(store.iCloudRoot)
-                    rootView(store.workspaceRoot)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
-                .padding(.bottom, 14)
-            }
-            .scrollContentBackground(.hidden)
+            .padding(.top, 4)
+            .padding(.bottom, 14)
         }
+        .scrollContentBackground(.hidden)
     }
 
     @ViewBuilder
@@ -966,37 +982,6 @@ private struct OutlineFileBrowserView: View {
 
     private var usesDarkChrome: Bool {
         colorScheme == .dark
-    }
-}
-
-private struct OutlineHiddenFoldersToggle: View {
-    @Binding var isOn: Bool
-    var usesDarkChrome: Bool
-    @State private var isHovered = false
-
-    var body: some View {
-        Button {
-            isOn.toggle()
-        } label: {
-            Image(systemName: isOn ? "eye" : "eye.slash")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                .frame(width: 22, height: 18)
-                .background {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
-                            .opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
-                }
-        }
-        .buttonStyle(.plain)
-        .help(OutlineSidebarView.showHiddenFoldersToggleTitle)
-        .accessibilityLabel(OutlineSidebarView.showHiddenFoldersToggleTitle)
-        .accessibilityAddTraits(isOn ? [.isSelected] : [])
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovered = hovering
-            }
-        }
     }
 }
 

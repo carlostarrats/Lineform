@@ -6,6 +6,7 @@ enum LineformAppNotification {
     case focusSearch
     case setDisplayMode
     case toggleOutline
+    case toggleHiddenFolders
     case convertTextFormat
 
     var name: Notification.Name {
@@ -18,6 +19,8 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.setDisplayMode")
         case .toggleOutline:
             return Notification.Name("Lineform.toggleOutline")
+        case .toggleHiddenFolders:
+            return Notification.Name("Lineform.toggleHiddenFolders")
         case .convertTextFormat:
             return Notification.Name("Lineform.convertTextFormat")
         }

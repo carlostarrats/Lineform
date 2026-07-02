@@ -23,6 +23,8 @@ enum AppMenuConfiguration {
     static let termsOfUseURL = "https://lineform-atv.pages.dev/terms"
     static let suppressesDefaultHelpMenu = true
     static let readingCommandPlacement = AppMenuCommandPlacement.view
+    static let showHiddenFoldersCommandTitle = "Show Hidden Folders"
+    static let showHiddenFoldersCommandKeyEquivalent = "."
     static let findCommandTitle = "Find"
     static let findCommandKeyEquivalent = "f"
     static let usesTopLevelReadingMenu = false
@@ -112,18 +114,60 @@ final class LineformDisplayModeMenuState: ObservableObject {
     }
 }
 
+/// Shared source of truth for the "Show Hidden Folders" View-menu toggle and its checkmark.
+///
+/// The Files sidebar's `OutlineFileBrowserStore` is a per-window `@StateObject`, so a menu
+/// command cannot mutate "the one store". This holds the app-wide preference (backed by the
+/// same `UserDefaults` key the store reads at init) so the menu checkmark stays live, and
+/// broadcasts `toggleHiddenFolders`. A window applies it to its store only while its Files tab
+/// is visible, and otherwise reconciles when that tab next appears — keeping the store's
+/// expensive iCloud scan deferred to that sanctioned point. The store's own `didSet` also
+/// persists the key; both write it, and they agree because the menu is the sole toggle entry.
+@MainActor
+final class HiddenFoldersMenuState: ObservableObject {
+    static let shared = HiddenFoldersMenuState()
+
+    @Published private(set) var isOn: Bool
+
+    private let defaults: UserDefaults
+    private let defaultsKey: String
+
+    init(
+        defaults: UserDefaults = .standard,
+        defaultsKey: String = OutlineFileBrowserStore.showsHiddenFoldersDefaultsKey
+    ) {
+        self.defaults = defaults
+        self.defaultsKey = defaultsKey
+        self.isOn = defaults.bool(forKey: defaultsKey)
+    }
+
+    func setShowsHiddenFolders(_ on: Bool) {
+        guard on != isOn else {
+            return
+        }
+
+        isOn = on
+        defaults.set(on, forKey: defaultsKey)
+        NSApp.mainMenu?.update()
+        LineformAppNotification.toggleHiddenFolders.post()
+    }
+}
+
 struct AppCommands: Commands {
     @ObservedObject private var textFormatMenuState: LineformTextFormatMenuState
     @ObservedObject private var displayModeMenuState: LineformDisplayModeMenuState
+    @ObservedObject private var hiddenFoldersMenuState: HiddenFoldersMenuState
     private let updaterController: LineformUpdaterController
 
     init(
         textFormatMenuState: LineformTextFormatMenuState = .shared,
         displayModeMenuState: LineformDisplayModeMenuState = .shared,
+        hiddenFoldersMenuState: HiddenFoldersMenuState = .shared,
         updaterController: LineformUpdaterController = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
         _displayModeMenuState = ObservedObject(wrappedValue: displayModeMenuState)
+        _hiddenFoldersMenuState = ObservedObject(wrappedValue: hiddenFoldersMenuState)
         self.updaterController = updaterController
     }
 
@@ -246,6 +290,12 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("0", modifiers: [.command, .option])
 
+            Toggle(AppMenuConfiguration.showHiddenFoldersCommandTitle, isOn: hiddenFoldersSelection)
+                .keyboardShortcut(
+                    KeyEquivalent(Character(AppMenuConfiguration.showHiddenFoldersCommandKeyEquivalent)),
+                    modifiers: [.command, .shift]
+                )
+
             Button("Reading Experience") {
                 LineformAppNotification.showReadingExperience.post(object: LineformAppNotification.activeWindowPayload())
             }
@@ -279,6 +329,13 @@ struct AppCommands: Commands {
                     object: LineformAppNotification.activeWindowPayload(value: mode.rawValue)
                 )
             }
+        )
+    }
+
+    private var hiddenFoldersSelection: Binding<Bool> {
+        Binding(
+            get: { hiddenFoldersMenuState.isOn },
+            set: { hiddenFoldersMenuState.setShowsHiddenFolders($0) }
         )
     }
 }
