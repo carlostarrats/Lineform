@@ -1000,3 +1000,76 @@ enum LineformTextContextMenuPresentation {
         commandTitles(for: .markdown)
     }
 }
+
+extension LineformTextView {
+    /// Capture the current scroll position as a fraction (0...1) of the scrollable range,
+    /// for restoration across a wholesale text replacement (live reload).
+    func captureProportionalScrollOffset() -> CGFloat {
+        guard let scrollView = enclosingScrollView else { return 0 }
+        return ProportionalScrollMath.ratio(
+            originY: scrollView.contentView.bounds.origin.y,
+            documentHeight: bounds.height,
+            viewportHeight: scrollView.contentView.bounds.height
+        )
+    }
+
+    /// Restore a previously-captured proportional scroll offset against current metrics.
+    func restoreProportionalScrollOffset(_ ratio: CGFloat) {
+        guard let scrollView = enclosingScrollView else { return }
+        let originY = ProportionalScrollMath.originY(
+            ratio: ratio,
+            documentHeight: laidOutContentHeight(),
+            viewportHeight: scrollView.contentView.bounds.height
+        )
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: originY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    /// The document height of the *currently laid-out* content. Uses the layout manager's
+    /// used rect (available synchronously after `ensureLayout`) rather than `bounds.height`,
+    /// because the text view frame resizes asynchronously after a wholesale text replacement —
+    /// so `bounds.height` still reflects the old (pre-replacement) content when restore runs.
+    private func laidOutContentHeight() -> CGFloat {
+        guard let layoutManager, let textContainer else { return bounds.height }
+        layoutManager.ensureLayout(for: textContainer)
+        return layoutManager.usedRect(for: textContainer).height + textContainerInset.height * 2
+    }
+
+    /// Neutralize any pending deferred anchor/scroll-origin restore captured before a reload —
+    /// its target (the pre-replacement layout) is invalid once the content is replaced.
+    func cancelPendingDeferredScrollRestores() {
+        pendingDeferredVisualLayoutAnchor = nil
+        pendingDeferredVerticalScrollOrigin = nil
+    }
+
+    /// Restore a proportional scroll offset now and again across the deferred layout passes,
+    /// mirroring the anchor machinery's double-async so the final scroll position is this one.
+    func restoreProportionalScrollOffsetAfterDeferredLayout(_ ratio: CGFloat) {
+        restoreProportionalScrollOffset(ratio)
+        DispatchQueue.main.async { [weak self] in
+            self?.restoreProportionalScrollOffset(ratio)
+            DispatchQueue.main.async { [weak self] in
+                self?.restoreProportionalScrollOffset(ratio)
+            }
+        }
+    }
+}
+
+/// Proportional (ratio-based) scroll preservation for wholesale text replacement, where
+/// character-range anchors are invalid because ranges shift. Lives in the Editor module
+/// because it is scroll/viewport geometry consumed only by the text view.
+enum ProportionalScrollMath {
+    /// Fraction (0...1) of the scrollable range currently scrolled.
+    static func ratio(originY: CGFloat, documentHeight: CGFloat, viewportHeight: CGFloat) -> CGFloat {
+        let scrollable = documentHeight - viewportHeight
+        guard scrollable > 0 else { return 0 }
+        return min(max(originY / scrollable, 0), 1)
+    }
+
+    /// The origin Y that restores `ratio` against (possibly new) content metrics.
+    static func originY(ratio: CGFloat, documentHeight: CGFloat, viewportHeight: CGFloat) -> CGFloat {
+        let scrollable = documentHeight - viewportHeight
+        guard scrollable > 0 else { return 0 }
+        return min(max(ratio, 0), 1) * scrollable
+    }
+}

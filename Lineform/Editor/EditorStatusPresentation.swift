@@ -14,6 +14,8 @@ enum EditorStatusFormatter {
         }
     }
 
+    static let updatedIndicatorText = "Updated"
+
     static func statisticsText(wordCount: Int, characterCount: Int) -> String {
         "\(wordCount) words — \(characterCount) characters"
     }
@@ -64,10 +66,19 @@ struct EditorStatusBar: View {
     var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay
     var statisticsText: String
     var statusAccessibilityLabel: String
+    var showsUpdatedIndicator: Bool = false
 
     var body: some View {
         HStack(spacing: 16) {
             Spacer(minLength: 16)
+
+            if showsUpdatedIndicator {
+                Text(EditorStatusFormatter.updatedIndicatorText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .transition(.opacity)
+                    .accessibilityLabel("Document updated from disk")
+            }
 
             Text(EditorStatusFormatter.metadataText(lastSavedDisplay: lastSavedDisplay, statisticsText: statisticsText))
                 .font(.caption)

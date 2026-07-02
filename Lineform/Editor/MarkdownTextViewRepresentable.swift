@@ -54,8 +54,20 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         context.coordinator.configure(textView)
 
         if textView.string != text {
+            // A programmatic full-text replacement. When no explicit selection/scroll target
+            // is requested (live reload), preserve the reader's place proportionally; the
+            // sidebar swap requests (0,0) instead and is handled below.
+            let preservesScroll = requestedSelection == nil
+            let scrollRatio = preservesScroll ? textView.captureProportionalScrollOffset() : 0
             textView.string = text
             textView.refreshMarkdownHighlighting()
+            if preservesScroll {
+                // Cancel any in-flight anchor restore (it captured the pre-reload layout) and
+                // re-assert the proportional offset through the same deferred double-async the
+                // anchor machinery uses, so our restore is enqueued last and wins.
+                textView.cancelPendingDeferredScrollRestores()
+                textView.restoreProportionalScrollOffsetAfterDeferredLayout(scrollRatio)
+            }
         }
 
         textView.setSearchHighlights(searchRanges, activeRange: activeSearchRange)
