@@ -45,7 +45,7 @@ Important directories:
 
 - `Lineform/App`: app entry point, menu commands, notifications, and update-check wiring.
 - `Lineform/Documents`: document model, UTF-8 Markdown/text file read/write, save status.
-- `Lineform/Editor`: editing container, TextKit bridge, selection context, syntax highlighting, formatting commands, writing tools protections.
+- `Lineform/Editor`: editing container, TextKit bridge, syntax highlighting, formatting commands, writing tools protections.
 - `Lineform/Preview`: Markdown preview rendering and preview view bridge.
 - `Lineform/Outline`: Markdown heading parser and outline sidebar UI.
 - `Lineform/ReadingExperience`: reading profiles, presets, themes, fonts, and reading experience controls.
