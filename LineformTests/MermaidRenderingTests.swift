@@ -26,6 +26,53 @@ final class MermaidRenderingTests: XCTestCase {
         XCTAssertNotEqual(a, differentScale)
     }
 
+    func testUprightCorrectionVerticallyFlipsRaster() throws {
+        // Synthetic 2x4 image with two distinct solid bands. BeautifulMermaid's macOS
+        // path renders diagrams into a bottom-left-origin context while its drawing code
+        // assumes top-left, so every diagram comes back vertically mirrored. The upright
+        // correction must flip the raster so the top and bottom bands swap.
+        let width = 2, height = 4
+        guard let source = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else { return XCTFail("could not create source context") }
+        // Core Graphics origin is bottom-left, so "upper" rows are the high-y rows.
+        source.setFillColor(NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1).cgColor)   // band A on the visual top
+        source.fill(CGRect(x: 0, y: height / 2, width: width, height: height / 2))
+        source.setFillColor(NSColor(srgbRed: 0, green: 0, blue: 1, alpha: 1).cgColor)   // band B on the visual bottom
+        source.fill(CGRect(x: 0, y: 0, width: width, height: height / 2))
+        let cgSource = try XCTUnwrap(source.makeImage())
+        let input = NSImage(cgImage: cgSource, size: NSSize(width: width, height: height))
+
+        let upright = MermaidImageOrientation.uprightForMacOS(input)
+
+        // Read the raw bytes of a single pixel (CGImage row 0 is the visual top row).
+        // Compare pixels rather than assuming a channel order, so the assertion is
+        // independent of the pixel format macOS hands back through NSImage.
+        func pixel(_ image: NSImage, atRow row: Int) throws -> [UInt8] {
+            var rect = CGRect(origin: .zero, size: image.size)
+            let cg = try XCTUnwrap(image.cgImage(forProposedRect: &rect, context: nil, hints: nil))
+            XCTAssertEqual(cg.width, width)
+            XCTAssertEqual(cg.height, height)
+            let data = try XCTUnwrap(cg.dataProvider?.data)
+            let ptr = try XCTUnwrap(CFDataGetBytePtr(data))
+            let bytesPerPixel = cg.bitsPerPixel / 8
+            let offset = row * cg.bytesPerRow
+            return (0..<bytesPerPixel).map { ptr[offset + $0] }
+        }
+
+        let inputTop = try pixel(input, atRow: 0)
+        let inputBottom = try pixel(input, atRow: height - 1)
+        let uprightTop = try pixel(upright, atRow: 0)
+        let uprightBottom = try pixel(upright, atRow: height - 1)
+
+        XCTAssertNotEqual(inputTop, inputBottom, "the two bands must be distinguishable")
+        XCTAssertEqual(uprightTop, inputBottom, "upright correction must move the original bottom band to the top")
+        XCTAssertEqual(uprightBottom, inputTop, "upright correction must move the original top band to the bottom")
+    }
+
     func testMermaidFenceDetection() {
         XCTAssertTrue(MermaidFence.isMermaidOpening("```mermaid"))
         XCTAssertTrue(MermaidFence.isMermaidOpening("``` mermaid"))
