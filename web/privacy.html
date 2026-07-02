@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index,follow">
+<title>Lineform — Privacy</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: #1c1c1e; background: #fbfbfa;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-color-scheme: dark) { body { color: #e6e6ea; background: #17171a; } }
+  main { max-width: 40rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.01em; margin: 0 0 0.25rem; }
+  .updated { color: #8a8a8e; font-size: 0.9rem; margin: 0 0 2.25rem; }
+  h2 { font-size: 1.15rem; margin: 2.25rem 0 0.5rem; }
+  p, li { margin: 0.5rem 0; }
+  ul { padding-left: 1.25rem; }
+  a { color: #2f6df0; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  nav { margin-top: 3rem; font-size: 0.95rem; color: #8a8a8e; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy</h1>
+  <p class="updated">Lineform for macOS</p>
+
+  <p>Lineform is local-first. Your writing stays on your device.</p>
+
+  <ul>
+    <li>No account system.</li>
+    <li>No analytics collection by default.</li>
+    <li>No document upload.</li>
+  </ul>
+
+  <h2>What leaves your device</h2>
+  <p>Your documents never leave your Mac except in these two cases:</p>
+  <ul>
+    <li><strong>Update checks.</strong> Release builds check for a newer version using Sparkle.
+      This sends only the information needed to check for an update — never your document content.</li>
+    <li><strong>Diagram reports — only when you choose to send one.</strong> If a Mermaid diagram
+      fails to render, you can tap <em>Report this</em>. That sends only the diagram’s source
+      text, the error message, and the app version, filed as a private GitHub issue for the
+      developer. It contains no file names, no file paths, and no identifiers.</li>
+  </ul>
+
+  <h2>Local files</h2>
+  <p>Text you pipe into the <code>lineform</code> command line tool is written to a local file in
+    <code>~/Library/Application&nbsp;Support/Lineform/Piped/</code> and opened as a normal
+    document. These files stay on your device and are automatically deleted after 7 days if they
+    are not open.</p>
+  <p>If a diagram fails to render, a local diagram log is kept on your device to help with
+    triage. It never leaves your Mac unless you send a diagram report as described above.</p>
+
+  <h2>Your documents</h2>
+  <p>Documents are ordinary Markdown or text files. They stay wherever you save them, and remain
+    portable across Finder, iCloud Drive, Git, and other editors.</p>
+
+  <nav>
+    <a href="./terms.html">Terms of Use</a> ·
+    <a href="https://github.com/carlostarrats/Lineform">Source on GitHub</a>
+  </nav>
+</main>
+</body>
+</html>

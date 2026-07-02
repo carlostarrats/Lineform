@@ -45,6 +45,8 @@ Lineform is local-first.
 - Documents stay wherever you save them.
 - Files remain ordinary Markdown or text files.
 
+Full [Privacy](https://lineform-atv.pages.dev/privacy) and [Terms of Use](https://lineform-atv.pages.dev/terms) are published online and linked from the app's menu.
+
 ## Updates
 
 Lineform includes a **Check for Updates...** menu item in the app menu.
