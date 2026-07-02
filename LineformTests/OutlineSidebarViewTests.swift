@@ -299,6 +299,49 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectedFileRowUsesSoftTranslucentAccentTint() {
+        // A translucent tint (native source-list selection), never a solid fill, and clearly
+        // stronger than the hover feedback so the current file reads as selected.
+        XCTAssertGreaterThan(OutlineSidebarView.rowSelectionFillOpacity, OutlineSidebarView.rowHoverFillOpacity)
+        XCTAssertLessThan(OutlineSidebarView.rowSelectionFillOpacity, 0.4)
+    }
+
+    @MainActor
+    func testFileRowIsSelectedOnlyForTheCurrentlyShownFile() {
+        let current = URL(fileURLWithPath: "/Users/writer/Documents/notes/today.md")
+
+        // The shown file matches; a different file does not.
+        XCTAssertTrue(OutlineSidebarView.fileRowIsSelected(itemURL: current, isDirectory: false, currentFileURL: current))
+        XCTAssertFalse(OutlineSidebarView.fileRowIsSelected(
+            itemURL: URL(fileURLWithPath: "/Users/writer/Documents/notes/other.md"),
+            isDirectory: false,
+            currentFileURL: current
+        ))
+    }
+
+    @MainActor
+    func testFileRowIsSelectedNeverMatchesFoldersOrUntitledDocuments() {
+        let current = URL(fileURLWithPath: "/Users/writer/Documents/notes/today.md")
+
+        // A folder whose URL equals the current file's is still never selectable.
+        XCTAssertFalse(OutlineSidebarView.fileRowIsSelected(itemURL: current, isDirectory: true, currentFileURL: current))
+        // An untitled document (no on-disk URL) selects nothing.
+        XCTAssertFalse(OutlineSidebarView.fileRowIsSelected(itemURL: current, isDirectory: false, currentFileURL: nil))
+    }
+
+    @MainActor
+    func testFileRowIsSelectedStandardizesRelativePathComponents() {
+        // The match survives non-canonical `.`/`..` components — the same standardization the
+        // sidebar file opener uses (OutlineSidebarView line ~1356) so a file opened from the
+        // sidebar reliably matches its own row.
+        XCTAssertTrue(OutlineSidebarView.fileRowIsSelected(
+            itemURL: URL(fileURLWithPath: "/Users/writer/Documents/notes/today.md"),
+            isDirectory: false,
+            currentFileURL: URL(fileURLWithPath: "/Users/writer/Documents/drafts/../notes/today.md")
+        ))
+    }
+
+    @MainActor
     func testHeadingLevelsUseDistinctSidebarIcons() {
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 1), "textformat.size")
         XCTAssertEqual(OutlineSidebarView.iconName(forHeadingLevel: 2), "list.bullet.indent")

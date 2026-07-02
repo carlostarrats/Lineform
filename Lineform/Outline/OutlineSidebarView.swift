@@ -69,6 +69,9 @@ struct OutlineSidebarView: View {
     static let darkSecondaryTextWhiteComponent: CGFloat = 0.68
     static let rowsShowHoverFeedback = true
     static let rowHoverFillOpacity = 0.08
+    // Soft translucent accent tint for the selected (currently-shown) file row — the native
+    // macOS source-list selection look, paired with accent-colored label/icon.
+    static let rowSelectionFillOpacity = 0.15
     static let tabTitles = OutlineSidebarTab.allCases.map(\.rawValue)
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
@@ -119,6 +122,17 @@ struct OutlineSidebarView: View {
         }
     }
 
+    /// Whether a Files-tab row represents the document currently shown in the window. Folders
+    /// are never selectable. Both URLs are standardized before comparison — the same normalization
+    /// the sidebar file opener uses (see `replaceCurrentDocument`), so a file opened from the
+    /// sidebar reliably matches its own row.
+    static func fileRowIsSelected(itemURL: URL, isDirectory: Bool, currentFileURL: URL?) -> Bool {
+        guard !isDirectory, let currentFileURL else {
+            return false
+        }
+        return itemURL.standardizedFileURL == currentFileURL.standardizedFileURL
+    }
+
     static func outlineTree(from items: [MarkdownOutlineItem]) -> [OutlineNode] {
         final class MutableNode {
             var item: MarkdownOutlineItem
@@ -160,6 +174,9 @@ struct OutlineSidebarView: View {
     var openFile: (URL) -> Void = { url in
         LineformSidebarFileOpener.open(url, replacing: nil)
     }
+    /// The file currently shown in this window, so its Files-tab row can render the native
+    /// selection highlight. `nil` for untitled documents (no on-disk URL to match).
+    var currentFileURL: URL?
 
     init(
         items: [MarkdownOutlineItem],
@@ -167,11 +184,13 @@ struct OutlineSidebarView: View {
         openFile: @escaping (URL) -> Void = { url in
             LineformSidebarFileOpener.open(url, replacing: nil)
         },
+        currentFileURL: URL? = nil,
         fileBrowserStore: OutlineFileBrowserStore? = nil
     ) {
         self.items = items
         self.jumpToHeading = jumpToHeading
         self.openFile = openFile
+        self.currentFileURL = currentFileURL
         // Production passes nil → a real store is created lazily on first render. Tests inject
         // a store on an isolated defaults suite so they never resolve the user's real workspace
         // bookmark (which would touch ~/Documents and prompt for access).
@@ -189,7 +208,7 @@ struct OutlineSidebarView: View {
                 if selectedTab == .outline {
                     outlineContent
                 } else {
-                    OutlineFileBrowserView(store: fileBrowserStore, openFile: openFile)
+                    OutlineFileBrowserView(store: fileBrowserStore, openFile: openFile, currentFileURL: currentFileURL)
                         .onAppear {
                             // Reconcile the app-wide "Show Hidden Folders" preference (driven from
                             // the View menu) each time the Files tab becomes visible, then run the
@@ -915,6 +934,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 private struct OutlineFileBrowserView: View {
     @ObservedObject var store: OutlineFileBrowserStore
     var openFile: (URL) -> Void
+    var currentFileURL: URL?
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
 
@@ -960,7 +980,8 @@ private struct OutlineFileBrowserView: View {
                             item: item,
                             depth: 0,
                             collapsedIDs: $collapsedIDs,
-                            openFile: openFile
+                            openFile: openFile,
+                            currentFileURL: currentFileURL
                         )
                         .opacity(root.state == .disconnected ? 0.48 : 1)
                         .allowsHitTesting(root.state != .disconnected)
@@ -1114,11 +1135,20 @@ private struct OutlineFileTreeNodeView: View {
     var depth: Int
     @Binding var collapsedIDs: Set<String>
     var openFile: (URL) -> Void
+    var currentFileURL: URL?
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     private var isCollapsed: Bool {
         collapsedIDs.contains(item.id)
+    }
+
+    private var isSelected: Bool {
+        OutlineSidebarView.fileRowIsSelected(
+            itemURL: item.url,
+            isDirectory: item.isDirectory,
+            currentFileURL: currentFileURL
+        )
     }
 
     var body: some View {
@@ -1131,7 +1161,8 @@ private struct OutlineFileTreeNodeView: View {
                         item: child,
                         depth: depth + 1,
                         collapsedIDs: $collapsedIDs,
-                        openFile: openFile
+                        openFile: openFile,
+                        currentFileURL: currentFileURL
                     )
                 }
             }
@@ -1169,7 +1200,7 @@ private struct OutlineFileTreeNodeView: View {
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
+                .fill(rowBackgroundStyle)
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -1184,6 +1215,7 @@ private struct OutlineFileTreeNodeView: View {
                 isHovered = hovering
             }
         }
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private func toggleCollapsed() {
@@ -1194,8 +1226,23 @@ private struct OutlineFileTreeNodeView: View {
         }
     }
 
+    /// The row fill: the modern macOS sidebar selection — a soft, translucent accent tint on the
+    /// currently-shown file (like Finder/Notes source lists), a fainter text-colored tint on hover
+    /// otherwise. Selection wins over hover.
+    private var rowBackgroundStyle: Color {
+        if isSelected {
+            return Color.accentColor.opacity(OutlineSidebarView.rowSelectionFillOpacity)
+        }
+        return OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
+            .opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0)
+    }
+
     private var rowForegroundColor: Color {
-        item.isHidden
+        if isSelected {
+            // Accent-colored label + icon over the soft tint, matching the native sidebar look.
+            return Color.accentColor
+        }
+        return item.isHidden
             ? OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome)
             : OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
     }

@@ -17,6 +17,7 @@ struct EditorContainerView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
+    @State private var currentFileURL: URL?
     @StateObject private var reloadController = DocumentReloadController()
     @State private var showsUpdatedIndicator = false
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
@@ -41,6 +42,7 @@ struct EditorContainerView: View {
                 items: outlineItems,
                 jumpToHeading: jumpToHeading,
                 openFile: openSidebarFile,
+                currentFileURL: currentFileURL,
                 fileBrowserStore: injectedFileBrowserStore
             )
                 .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
@@ -335,6 +337,10 @@ struct EditorContainerView: View {
         // NEW url (a memory==disk moment); re-appearing at the same url preserves baselines
         // so unsaved edits are never blessed as synced. Saves go through noteSavedToReloadWatcher.
         reloadController.register(url: reloadWatcherURL, syncedText: document.text)
+        // Same source of truth drives the Files-tab selection highlight; keep it in step with
+        // every watcher retarget (appear, window bind, sidebar swap) so the blue row follows
+        // the document actually on screen.
+        currentFileURL = reloadWatcherURL
     }
 
     private func noteSavedToReloadWatcher() {
@@ -349,6 +355,9 @@ struct EditorContainerView: View {
                 url: reloadWatcherURL,
                 savedText: documentSaveStatus.savedText(for: document.id) ?? document.text
             )
+            // A first save on an untitled doc (or Save As) mints/retargets the file URL — refresh
+            // the highlight so the newly-real file shows as selected in the Files tab.
+            currentFileURL = reloadWatcherURL
         }
     }
 
