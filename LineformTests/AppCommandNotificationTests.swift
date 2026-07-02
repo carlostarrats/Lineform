@@ -26,6 +26,35 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertFalse(AppMenuConfiguration.usesTopLevelReadingMenu)
     }
 
+    func testHiddenFoldersCommandLivesInViewMenuWithStableTitleAndShortcut() {
+        XCTAssertEqual(AppMenuConfiguration.showHiddenFoldersCommandTitle, "Show Hidden Folders")
+        XCTAssertEqual(AppMenuConfiguration.showHiddenFoldersCommandKeyEquivalent, ".")
+        XCTAssertEqual(
+            LineformAppNotification.toggleHiddenFolders.name.rawValue,
+            "Lineform.toggleHiddenFolders"
+        )
+    }
+
+    @MainActor
+    func testHiddenFoldersMenuStateTracksAndPersistsState() {
+        let suiteName = "HiddenFoldersMenuStateTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let key = OutlineFileBrowserStore.showsHiddenFoldersDefaultsKey
+        let state = HiddenFoldersMenuState(defaults: defaults, defaultsKey: key)
+        XCTAssertFalse(state.isOn)
+
+        state.setShowsHiddenFolders(true)
+        XCTAssertTrue(state.isOn)
+        XCTAssertTrue(defaults.bool(forKey: key))
+
+        // A fresh state reading the same suite reflects the persisted value —
+        // the menu-state and the sidebar store share one source of truth.
+        let reloaded = HiddenFoldersMenuState(defaults: defaults, defaultsKey: key)
+        XCTAssertTrue(reloaded.isOn)
+    }
+
     func testWritingToolsStayOutOfTheEditMenu() {
         XCTAssertFalse(AppMenuConfiguration.addsWritingToolsToEditMenu)
         XCTAssertFalse(AppMenuConfiguration.exposesAppleWritingTools)

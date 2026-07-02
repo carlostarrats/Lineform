@@ -407,10 +407,9 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     // MARK: - Hidden folders
-
-    func testShowHiddenFoldersToggleTitleConstant() {
-        XCTAssertEqual(OutlineSidebarView.showHiddenFoldersToggleTitle, "Show hidden folders")
-    }
+    // The user-facing "Show Hidden Folders" control now lives in the View menu; its title
+    // and shortcut are asserted in AppCommandNotificationTests. The store behavior below is
+    // unchanged.
 
     func testLegacyTreeItemSnapshotDecodesWithHiddenFalse() throws {
         let legacyJSON = """
