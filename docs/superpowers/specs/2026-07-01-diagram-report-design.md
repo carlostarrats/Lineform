@@ -20,10 +20,12 @@ anonymous.
 - Rate-limit per client IP (~10/hour) via a KV counter; IPs are used transiently for limiting
   and are **not stored, not logged, never written into issues**.
 - Computes `hash = sha256(source)`. Dedup: if an **open** issue in the private
-  `carlostarrats/lineform-reports` repo carries the label `hash:<hash>`, POST a count-bump
-  comment; else create a new issue with that label. GitHub API token is a **Worker secret**
-  (`GITHUB_TOKEN`), never in the app or the repo.
-- Issue body: fenced diagram source, error, app version, hash. Nothing else.
+  `carlostarrats/lineform-reports` repo carries the label `hash:<first 40 hex chars of hash>`
+  (GitHub label names cap at 50 characters, so the label uses a 160-bit prefix), POST a
+  count-bump comment; else create a new issue with that label. GitHub API token is a
+  **Worker secret** (`GITHUB_TOKEN`), never in the app or the repo.
+- Issue body: fenced diagram source (fence sized past any backtick run in the source), error
+  and app version neutralized into inline code, full hash. Nothing else.
 - Returns 200 on success, 4xx/5xx otherwise.
 
 ### App

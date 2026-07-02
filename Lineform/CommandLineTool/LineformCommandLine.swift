@@ -26,7 +26,11 @@ enum LineformCLICommand: Equatable {
 enum LineformPipeValidation: Equatable {
     case ok, empty, tooLarge, notText
 
-    static func validate(_ data: Data, maxBytes: Int = 10_000_000) -> LineformPipeValidation {
+    /// Single source of truth for the pipe size limit (the read bound in the helper and
+    /// the user-facing message are both derived from it).
+    static let maxPipedBytes = 10_000_000
+
+    static func validate(_ data: Data, maxBytes: Int = LineformPipeValidation.maxPipedBytes) -> LineformPipeValidation {
         if data.isEmpty { return .empty }
         if data.count > maxBytes { return .tooLarge }
         if data.contains(0x00) { return .notText }
@@ -38,21 +42,12 @@ enum LineformPipeValidation: Equatable {
 enum LineformCLIPaths {
     /// Location of piped files under `~/Library/Application Support/`.
     static let pipedRelativePath = "Lineform/Piped"
-    /// Location of the local diagram failure log under `~/Library/Application Support/`.
-    static let diagramLogRelativePath = "Lineform/DiagramLog"
 
     /// The real (non-sandboxed) piped-file directory under a given home directory.
     static func pipedDirectory(home: URL) -> URL {
         home
             .appendingPathComponent("Library/Application Support", isDirectory: true)
             .appendingPathComponent(pipedRelativePath, isDirectory: true)
-    }
-
-    /// The diagram-log directory under a given home directory (the app's sandbox container).
-    static func diagramLogDirectory(home: URL) -> URL {
-        home
-            .appendingPathComponent("Library/Application Support", isDirectory: true)
-            .appendingPathComponent(diagramLogRelativePath, isDirectory: true)
     }
 
     /// Filename for a piped document. `unique` disambiguates pipes that land in the same
@@ -75,18 +70,18 @@ enum LineformCLIPaths {
     }
 }
 
-/// Pure 7-day housekeeping decision for the Piped folder: return files older than the cutoff
-/// that are not currently open in a document window.
+/// Pure 7-day housekeeping decision for the Piped folder: return files whose last activity
+/// (the later of modification and access) is older than the cutoff. Age-only: the helper is a
+/// separate short-lived process and cannot know the app's open documents, but a document that
+/// is open and being edited keeps its modification date fresh via autosave.
 enum LineformPipedHousekeeping {
     static func stale(
-        entries: [(url: URL, modified: Date)],
+        entries: [(url: URL, lastActivity: Date)],
         now: Date,
-        olderThan: TimeInterval,
-        openDocumentURLs: Set<URL>
+        olderThan: TimeInterval
     ) -> [URL] {
         entries.compactMap { entry in
-            guard now.timeIntervalSince(entry.modified) > olderThan else { return nil }
-            guard !openDocumentURLs.contains(entry.url) else { return nil }
+            guard now.timeIntervalSince(entry.lastActivity) > olderThan else { return nil }
             return entry.url
         }
     }
@@ -98,7 +93,7 @@ enum LineformCLIMessages {
     static func isDirectory(_ path: String) -> String { "lineform: \(path) is a directory (not supported yet)" }
     static let emptyInput = "lineform: empty input"
     static let notText = "lineform: input is not text"
-    static let tooLarge = "lineform: input too large (limit 10 MB)"
+    static let tooLarge = "lineform: input too large (limit \(LineformPipeValidation.maxPipedBytes / 1_000_000) MB)"
     static let usage = """
     lineform — open Markdown/text files in Lineform.
 

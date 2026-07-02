@@ -57,21 +57,13 @@ final class CommandLineToolTests: XCTestCase {
         )
     }
 
-    func testDiagramLogDirectoryUnderHome() {
-        let home = URL(fileURLWithPath: "/Users/x", isDirectory: true)
-        XCTAssertEqual(
-            LineformCLIPaths.diagramLogDirectory(home: home).path,
-            "/Users/x/Library/Application Support/Lineform/DiagramLog"
-        )
-    }
-
     func testResolveAbsoluteAndRelative() {
         let base = URL(fileURLWithPath: "/work", isDirectory: true)
         XCTAssertEqual(LineformCLIPaths.resolve("/abs/x.md", relativeTo: base).path, "/abs/x.md")
         XCTAssertEqual(LineformCLIPaths.resolve("sub/x.md", relativeTo: base).path, "/work/sub/x.md")
     }
 
-    func testStaleReturnsOldUnopenedOnly() {
+    func testStaleReturnsOldEntriesOnly() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let old = now.addingTimeInterval(-8 * 24 * 3600)
         let recent = now.addingTimeInterval(-1 * 24 * 3600)
@@ -79,10 +71,9 @@ final class CommandLineToolTests: XCTestCase {
         let result = LineformPipedHousekeeping.stale(
             entries: [(a, old), (b, recent), (c, old)],
             now: now,
-            olderThan: 7 * 24 * 3600,
-            openDocumentURLs: [c]
+            olderThan: 7 * 24 * 3600
         )
-        XCTAssertEqual(result, [a])
+        XCTAssertEqual(result, [a, c])
     }
 
     func testMessages() {
@@ -90,5 +81,6 @@ final class CommandLineToolTests: XCTestCase {
         XCTAssertEqual(LineformCLIMessages.isDirectory("d"), "lineform: d is a directory (not supported yet)")
         XCTAssertEqual(LineformCLIMessages.emptyInput, "lineform: empty input")
         XCTAssertEqual(LineformCLIMessages.notText, "lineform: input is not text")
+        XCTAssertEqual(LineformCLIMessages.tooLarge, "lineform: input too large (limit 10 MB)")
     }
 }

@@ -228,7 +228,6 @@
 				1F0000070000000000000014 /* ReadingExperience */,
 				1F0000070000000000000015 /* Preview */,
 				1F0000070000000000000016 /* Outline */,
-				1F0000070000000000000017 /* Intelligence */,
 				1F0000070000000000000018 /* Resources */,
 				1F0000020000000000000003 /* Info.plist */,
 			);
@@ -324,13 +323,6 @@
 				1F0000020000000000000078 /* OutlineSidebarView.swift */,
 			);
 			path = Outline;
-			sourceTree = "<group>";
-		};
-		1F0000070000000000000017 /* Intelligence */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Intelligence;
 			sourceTree = "<group>";
 		};
 		1F0000070000000000000018 /* Resources */ = {

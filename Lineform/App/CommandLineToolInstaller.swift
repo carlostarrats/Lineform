@@ -19,7 +19,7 @@ enum CommandLineToolInstaller {
 
     static func manualCommand(destination: String) -> String {
         let helper = bundledHelperURL?.path ?? "/Applications/Lineform.app/\(bundledHelperSubpath)"
-        return "ln -s \"\(helper)\" \"\(destination)\""
+        return "ln -sf \"\(helper)\" \"\(destination)\""
     }
 
     @MainActor
@@ -40,9 +40,9 @@ enum CommandLineToolInstaller {
         guard panel.runModal() == .OK, let destination = panel.url else { return }
 
         do {
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
-            }
+            // removeItem uses lstat semantics, so this also clears a dangling symlink
+            // (fileExists(atPath:) follows links and would miss it).
+            try? FileManager.default.removeItem(at: destination)
             try FileManager.default.createSymbolicLink(at: destination, withDestinationURL: helper)
         } catch {
             showManualFallback(destination: destination.path,

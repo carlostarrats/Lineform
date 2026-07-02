@@ -10,6 +10,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     var smoothsHorizontalInsetChanges = false
     var searchRanges: [NSRange] = []
     var activeSearchRange: NSRange?
+    var onWritingToolsSessionChange: ((Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -33,6 +34,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
         textView.delegate = context.coordinator
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
+        context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
         context.coordinator.performWithoutSelectionUpdates {
             textView.applyTypography(profile)
@@ -51,6 +53,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
         textView.applyTypography(profile)
+        context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
 
         if textView.string != text {
@@ -82,6 +85,13 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
                 requestedSelection = nil
             }
         }
+    }
+
+    static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+        // AppKit doesn't guarantee textViewWritingToolsDidEnd if the view is torn down
+        // mid-session (mode switch, document swap); end the session explicitly so observers
+        // (the live-reload suspension) aren't left suspended forever.
+        coordinator.endWritingToolsSessionIfNeeded()
     }
 }
 
@@ -208,6 +218,8 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         self.plainTextConversion = plainTextConversion
     }
 
+    var writingToolsSessionChangeHandler: ((Bool) -> Void)?
+
     @MainActor
     func configure(_ textView: LineformTextView) {
         textView.textFormat = textFormat.wrappedValue
@@ -223,6 +235,15 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         suppressSelectionUpdates = true
         body()
         suppressSelectionUpdates = false
+    }
+
+    /// Teardown path: if the view is dismantled mid-Writing-Tools-session, release the
+    /// deferred text (it was never committed) and notify observers the session is over.
+    func endWritingToolsSessionIfNeeded() {
+        guard writingToolsSessionActive else { return }
+        writingToolsSessionActive = false
+        pendingWritingToolsText = nil
+        writingToolsSessionChangeHandler?(false)
     }
 
     func textDidChange(_ notification: Notification) {
@@ -257,6 +278,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         writingToolsSessionActive = true
         pendingWritingToolsText = nil
         (textView as? LineformTextView)?.writingToolsWillBegin()
+        writingToolsSessionChangeHandler?(true)
     }
 
     func textViewWritingToolsDidEnd(_ textView: NSTextView) {
@@ -264,6 +286,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         text.wrappedValue = pendingWritingToolsText ?? textView.string
         pendingWritingToolsText = nil
         (textView as? LineformTextView)?.writingToolsDidEnd()
+        writingToolsSessionChangeHandler?(false)
     }
 
     func textView(_ textView: NSTextView, writingToolsIgnoredRangesInEnclosingRange enclosingRange: NSRange) -> [NSValue] {

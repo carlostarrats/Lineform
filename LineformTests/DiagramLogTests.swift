@@ -28,6 +28,29 @@ final class DiagramLogTests: XCTestCase {
         XCTAssertNotEqual(DiagramLog.sourceHash("graph TD; A-->B"), DiagramLog.sourceHash("graph TD; A-->C"))
     }
 
+    func testMergeCapsEntriesDroppingOldestSeen() {
+        var entries: [DiagramLogEntry] = []
+        for i in 0..<DiagramLog.maxEntries {
+            entries.append(DiagramLogEntry(
+                sourceHash: "h\(i)", sourceSnippet: "src", error: "err", appVersion: "1.0",
+                count: 1, lastSeen: Date(timeIntervalSince1970: TimeInterval(i))
+            ))
+        }
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let merged = DiagramLog.merge(entries, adding: entry(hash: "new"), now: now)
+        XCTAssertEqual(merged.count, DiagramLog.maxEntries)
+        XCTAssertTrue(merged.contains { $0.sourceHash == "new" })
+        XCTAssertFalse(merged.contains { $0.sourceHash == "h0" }, "oldest-seen entry should be dropped")
+    }
+
+    func testDirectoryUnderHome() {
+        let home = URL(fileURLWithPath: "/Users/x", isDirectory: true)
+        XCTAssertEqual(
+            DiagramLog.directory(home: home).path,
+            "/Users/x/Library/Application Support/Lineform/DiagramLog"
+        )
+    }
+
     func testReadableReportEmptyAndPopulated() {
         XCTAssertTrue(DiagramLog.readableReport([]).contains("no entries"))
         let report = DiagramLog.readableReport([entry(hash: "abc", error: "parse error", count: 3)])
