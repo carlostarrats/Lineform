@@ -478,24 +478,6 @@ final class EditorDisplayModeTests: XCTestCase {
             EditorStatusFormatter.statisticsText(wordCount: 304, characterCount: 2345),
             "304 words — 2345 characters"
         )
-
-        XCTAssertEqual(
-            EditorStatusFormatter.statusText(
-                wordCount: 304,
-                characterCount: 2345
-            ),
-            "304 words — 2345 characters"
-        )
-    }
-
-    func testStatusBarWarningAmberMeetsAAContrast() throws {
-        let lightAmber = try XCTUnwrap(EditorStatusBar.warningAmberColor(usesDarkChrome: false).usingColorSpace(.sRGB))
-        let darkAmber = try XCTUnwrap(EditorStatusBar.warningAmberColor(usesDarkChrome: true).usingColorSpace(.sRGB))
-        let lightBackground = try XCTUnwrap(LineformColors.originalBackground.usingColorSpace(.sRGB))
-        let darkBackground = try XCTUnwrap(LineformColors.darkControlBackground.usingColorSpace(.sRGB))
-
-        XCTAssertGreaterThanOrEqual(Self.contrastRatio(lightAmber, lightBackground), 4.5)
-        XCTAssertGreaterThanOrEqual(Self.contrastRatio(darkAmber, darkBackground), 4.5)
     }
 
     func testStatusMetadataCombinesLastSaveAndCountsOnRight() {
@@ -559,8 +541,6 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertFalse(EditorStatusBar.showsTopSeparator)
         XCTAssertFalse(EditorStatusBar.lastSavedDetailUsesPrimaryForeground)
         XCTAssertEqual(EditorStatusBar.horizontalInset, 28)
-        XCTAssertEqual(EditorStatusBar.statusMessageMaximumWidth, 520)
-        XCTAssertEqual(EditorStatusBar.statusDotDiameter, 7)
     }
 
     @MainActor

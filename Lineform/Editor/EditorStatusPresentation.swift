@@ -18,10 +18,6 @@ enum EditorStatusFormatter {
         "\(wordCount) words — \(characterCount) characters"
     }
 
-    static func statusText(wordCount: Int, characterCount: Int) -> String {
-        statisticsText(wordCount: wordCount, characterCount: characterCount)
-    }
-
     static func metadataText(lastSavedDisplay: LastSavedDisplay, statisticsText: String) -> String {
         if let detail = lastSavedDisplay.detail {
             return "\(lastSavedDisplay.label): \(detail)  |  \(statisticsText)"
@@ -56,31 +52,10 @@ enum EditorStatusFormatter {
     }
 }
 
-struct EditorStatusIndicator: Equatable {
-    enum Tone: Equatable {
-        case available
-        case warning
-    }
-
-    var text: String
-    var tone: Tone
-
-    var accessibilityText: String {
-        switch tone {
-        case .available:
-            return "Status: \(text)"
-        case .warning:
-            return "Warning: \(text)"
-        }
-    }
-}
-
 struct EditorStatusBar: View {
     static let showsTopSeparator = false
     static let lastSavedDetailUsesPrimaryForeground = false
     static let horizontalInset: CGFloat = 28
-    static let statusMessageMaximumWidth: CGFloat = 520
-    static let statusDotDiameter: CGFloat = 7
 
     static func isVisible(in mode: EditorDisplayMode) -> Bool {
         mode != .read
@@ -89,18 +64,6 @@ struct EditorStatusBar: View {
     var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay
     var statisticsText: String
     var statusAccessibilityLabel: String
-
-    nonisolated static func warningAmberColor(usesDarkChrome: Bool) -> NSColor {
-        usesDarkChrome
-            ? NSColor(srgbRed: 0.97, green: 0.73, blue: 0.33, alpha: 1)
-            : NSColor(srgbRed: 0.48, green: 0.29, blue: 0.0, alpha: 1)
-    }
-
-    nonisolated static func availableGreenColor(usesDarkChrome: Bool) -> NSColor {
-        usesDarkChrome
-            ? NSColor(srgbRed: 0.47, green: 0.84, blue: 0.50, alpha: 1)
-            : NSColor(srgbRed: 0.0, green: 0.39, blue: 0.16, alpha: 1)
-    }
 
     var body: some View {
         HStack(spacing: 16) {
