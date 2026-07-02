@@ -19,7 +19,6 @@ Core product principles:
 - Local-first privacy: there is no account system, no analytics by default, and no document upload.
 - Native macOS behavior: prefer SwiftUI, AppKit, TextKit, document-based app patterns, system controls, and platform conventions.
 - Calm writing: UI should reduce noise and support long drafting/review sessions.
-- Trustworthy intelligence: AI suggestions must be useful, selected-text scoped, structurally safe for Markdown, and never show protocol tags, placeholders, dummy text, or prompt artifacts.
 
 ## Main Features
 
@@ -34,7 +33,6 @@ Core product principles:
 - Markdown syntax highlighting and range analysis.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
-- Apple Intelligence-backed selected-text editing when available.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
 - Sparkle-backed update checks in release builds when a real EdDSA public key and appcast are configured.
@@ -51,10 +49,9 @@ Important directories:
 - `Lineform/Preview`: Markdown preview rendering and preview view bridge.
 - `Lineform/Outline`: Markdown heading parser and outline sidebar UI.
 - `Lineform/ReadingExperience`: reading profiles, presets, themes, fonts, and reading experience controls.
-- `Lineform/Intelligence`: selected-text AI actions, prompts, runner, validation, suggestions, diffing, request coordination, and eval rubric.
 - `Lineform/Resources`: bundled privacy/help/release/accessibility docs.
-- `LineformTests`: XCTest coverage for app behavior, editor behavior, reading experience, Markdown handling, and intelligence quality.
-- `docs`: deeper project docs, including AI benchmark docs and implementation specs/plans.
+- `LineformTests`: XCTest coverage for app behavior, editor behavior, reading experience, and Markdown handling.
+- `docs`: deeper project docs, including implementation specs and plans.
 
 Prefer existing module boundaries. Do not move responsibilities across directories unless the change clearly improves maintainability and is directly needed.
 
@@ -66,51 +63,6 @@ The Files sidebar's "Lineform iCloud" root is backed by an app-owned iCloud Driv
 - The live iCloud scan (resolving the ubiquity container + enumerating the directory) is expensive and must not run on the main thread at view construction — it would block launch and perturb hosted-view layout. It is deferred to `OutlineFileBrowserStore.refreshICloud()`, invoked when the Files tab actually appears. Init only loads the cached snapshot. Preserve this laziness.
 - The store keeps the user's iCloud working set materialized via `ensureDownloaded(...)` (`FileManager.startDownloadingUbiquitousItem`), so evicted (dataless) files don't appear in search yet fail to open or drag. This is realized through the `UbiquitousItemDownloader` protocol so it is testable without real iCloud files.
 - App-owned containers are still subject to iCloud purge when macOS believes the app was uninstalled. The durable additional protections are operational, not code: ship updates via Sparkle's atomic in-place swap (never instruct users to delete the old app and drag a new one), and do not run-then-delete locally built Release/Export copies of `com.lineform.app` while signed into the production iCloud account.
-
-## Intelligent Editing
-
-The app exposes these selected-text actions:
-
-- `Proofread`: fix grammar, spelling, punctuation, and obvious typos only.
-- `Rewrite`: improve flow while preserving meaning and tone.
-- `Summarize`: concise summary preserving essential points.
-- `Make Shorter`: shorter text preserving essential meaning.
-- `Clean Markdown`: normalize Markdown formatting while preserving content and structure.
-
-The selected-text AI path is intentionally defensive:
-
-- `IntelligentEditingPromptBuilder` builds action-specific prompts.
-- `FoundationModelsIntelligentEditingService` talks to Apple Foundation Models when available and validates responses.
-- `IntelligentEditingRunner` scopes requests to the selected range, validates replacements, and creates suggestions.
-- `IntelligentEditingRequestCoordinator` coordinates async selected-text requests and prevents stale suggestions from applying after document changes.
-- `IntelligentEditingEvaluationRubric` scores output quality and blocks bad classes of responses.
-- Deterministic fallbacks are allowed only when they pass the same rubric.
-
-Never allow these to reach users:
-
-- `<<<LINEFORM_OPTION_1>>>` or any Lineform protocol/control tag.
-- Placeholder text, dummy text, lorem ipsum, TODO text, or prompt explanations.
-- Empty suggestions after a loading state.
-- Unchanged output for transform actions such as rewrite, shorten, summarize, or messy Markdown cleanup.
-- Suggestions that include unselected nearby context.
-- Suggestions that damage Markdown structures such as lists, blockquotes, tables, links, front matter, or fenced code.
-- Suggestions that invent or reverse local/privacy/storage facts.
-- Duplicate rewrite options.
-
-Any user-reported bad AI output must become a deterministic regression case before or alongside the fix.
-
-## AI Benchmark Docs
-
-The primary benchmark doc is:
-
-- `docs/intelligent-editing-benchmarks.md`
-
-Use it when changing prompts, fallback behavior, validation, Apple Intelligence integration, selected-text flow, or Markdown intelligence behavior.
-
-Supporting design/plan docs:
-
-- `docs/superpowers/specs/2026-05-27-comprehensive-intelligent-editing-quality-design.md`
-- `docs/superpowers/plans/2026-05-27-comprehensive-intelligent-editing-quality.md`
 
 ## Verification Commands
 
@@ -132,46 +84,8 @@ Known AppKit test-harness warning:
 
 - `EditorDisplayModeTests/testEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens` may log `[WarnOnce] It's not legal to call -layoutSubtreeIfNeeded on a view which is already being laid out`.
 - This warning was investigated in an isolated worktree on May 28, 2026. It appears when the test constructs the full `NSHostingView`/`NSWindow` editor harness via `makeEditorDrawerHarness()`.
-- Sandbox checks ruled out the drawer notification, the tuned text-canvas drawer motion code, the AI composer `layoutSubtreeIfNeeded()` call, Lineform's SwiftUI toolbar/search modifiers, and `makeKeyAndOrderFront` as direct causes.
+- Sandbox checks ruled out the drawer notification, the tuned text-canvas drawer motion code, Lineform's SwiftUI toolbar/search modifiers, and `makeKeyAndOrderFront` as direct causes.
 - Do not weaken or replace the full hosted drawer-motion harness just to silence this warning. The harness protects real UI motion regressions. Revisit only if the warning appears during normal app use, becomes a CI failure, or has a proven user-visible layout symptom.
-
-Live Apple Intelligence single/options eval:
-
-```sh
-(
-  touch /private/tmp/lineform-run-live-intelligence-evals
-  trap 'rm -f /private/tmp/lineform-run-live-intelligence-evals' EXIT
-  xcodebuild test \
-    -project Lineform.xcodeproj \
-    -scheme Lineform \
-    -destination 'platform=macOS' \
-    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsEvalIsOptIn \
-    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testLiveFoundationModelsOptionEvalIsOptIn
-)
-```
-
-Repeated live Apple Intelligence stability eval:
-
-```sh
-(
-  touch /private/tmp/lineform-run-repeated-live-intelligence-evals
-  trap 'rm -f /private/tmp/lineform-run-repeated-live-intelligence-evals' EXIT
-  xcodebuild test \
-    -project Lineform.xcodeproj \
-    -scheme Lineform \
-    -destination 'platform=macOS' \
-    -only-testing:LineformTests/IntelligentEditingEvaluationTests/testRepeatedLiveFoundationModelsEvalIsOptIn
-)
-```
-
-For prompt, validation, fallback, or intelligence UI changes, run:
-
-- focused tests for the changed code
-- full deterministic suite
-- live single/options eval when Apple Intelligence is available
-- repeated live eval before calling quality acceptable
-
-Live eval reports are attached to `.xcresult` bundles and include JSON records for selected text, document context, replacements, failures, scores, quality bands, empty outputs, duplicate options, and repeated-run stability.
 
 ## Quality Bar
 
@@ -179,18 +93,7 @@ Before claiming a change is complete:
 
 - Run the commands that prove the claim.
 - Read the output and report exact pass/fail counts.
-- Do not rely on a green deterministic test when a live provider path is part of the requirement.
-- Do not call AI output quality acceptable without checking the generated eval records.
 - Do not hide residual risk. If a manual UI state was not exercised, say so.
-
-For intelligent editing, acceptable means:
-
-- 100% pass rate in the relevant eval report.
-- Average score is 100.
-- Critical failure count is 0.
-- Empty output count is 0.
-- Duplicate option count is 0 for repeated live option runs.
-- Actual replacement text is inspectable and appropriate for Lineform's writing context.
 
 ## Coding Guidelines
 
@@ -209,13 +112,6 @@ For intelligent editing, acceptable means:
 
 Lineform is local-first. Do not add behavior that uploads document contents, requires an account, collects analytics by default, or converts user documents into an app-owned database without an explicit product decision.
 
-Apple Intelligence features should degrade gracefully:
-
-- The editor remains usable when intelligence is unavailable.
-- Availability errors should be clear and non-destructive.
-- Suggestions should never apply to changed/stale selections.
-- Rejected or invalid model output should not reach the document.
-
 ## Credits And Third-Party Materials
 
 Keep attribution accurate when changing fonts, bundled resources, README copy, app metadata, or release docs:
@@ -233,7 +129,6 @@ Update docs when behavior, workflows, or quality gates change:
 
 - Keep `README.md` user-facing: prominent download, website, privacy, about, credits, and only a compact source-build section.
 - Use this `AGENTS.md` for AI coding agent context and repo operating rules.
-- Use `docs/intelligent-editing-benchmarks.md` for intelligence eval coverage and commands.
 - Use `docs/release/github-sparkle-release.md` for GitHub Releases, DMG packaging, and Sparkle appcast steps.
 - Use `Lineform/Resources/*.md` for user-facing bundled app/help/release docs.
 
