@@ -23,6 +23,7 @@ struct EditorContainerView: View {
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
     @State private var pendingRename: SidebarRenameRequest?
     @State private var pendingDelete: URL?
+    @State private var renameText = ""
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
 
@@ -60,30 +61,29 @@ struct EditorContainerView: View {
             editorShell
         }
         .navigationSplitViewStyle(.balanced)
-        .overlay {
-            // Custom Muse-style modals over the whole window (no app icon, readable
-            // buttons). Themed to match the current reader chrome.
-            if let request = pendingRename {
-                SidebarRenameDialog(
-                    url: request.url,
-                    isDirectory: request.isDirectory,
-                    onCommit: { performSidebarRename(request, to: $0) },
-                    onCancel: { pendingRename = nil }
-                )
-                .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
-                .transition(.opacity)
-            } else if let url = pendingDelete {
-                SidebarDeleteDialog(
-                    url: url,
-                    onConfirm: { performSidebarDelete(url) },
-                    onCancel: { pendingDelete = nil }
-                )
-                .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
-                .transition(.opacity)
+        // Native SwiftUI alerts (title + message + text field + buttons) — the standard
+        // macOS confirmation look, no app icon, exactly like the reference.
+        .alert(renameAlertTitle, isPresented: renameAlertPresented, presenting: pendingRename) { request in
+            TextField("Name", text: $renameText)
+            Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
+                pendingRename = nil
             }
+            Button(SidebarFileActionPresenter.renameButtonTitle) {
+                commitPendingRename(request)
+            }
+        } message: { request in
+            Text(request.isDirectory ? SidebarFileActionPresenter.renameFolderMessage : SidebarFileActionPresenter.renameFileMessage)
         }
-        .animation(.easeOut(duration: 0.15), value: pendingRename)
-        .animation(.easeOut(duration: 0.15), value: pendingDelete)
+        .alert(deleteAlertTitle, isPresented: deleteAlertPresented, presenting: pendingDelete) { url in
+            Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
+                pendingDelete = nil
+            }
+            Button(SidebarFileActionPresenter.deleteButtonTitle, role: .destructive) {
+                performSidebarDelete(url)
+            }
+        } message: { _ in
+            Text(SidebarFileActionPresenter.deleteMessage)
+        }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
         .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
@@ -428,11 +428,43 @@ struct EditorContainerView: View {
     }
 
     private func renameSidebarItem(at url: URL, isDirectory: Bool) {
+        renameText = SidebarFileRenaming.displayName(for: url, isDirectory: isDirectory)
         pendingRename = SidebarRenameRequest(url: url, isDirectory: isDirectory)
     }
 
     private func deleteSidebarItem(at url: URL) {
         pendingDelete = url
+    }
+
+    private var renameAlertPresented: Binding<Bool> {
+        Binding(get: { pendingRename != nil }, set: { if !$0 { pendingRename = nil } })
+    }
+
+    private var deleteAlertPresented: Binding<Bool> {
+        Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
+    }
+
+    private var renameAlertTitle: String {
+        (pendingRename?.isDirectory ?? false)
+            ? SidebarFileActionPresenter.renameFolderTitle
+            : SidebarFileActionPresenter.renameFileTitle
+    }
+
+    private var deleteAlertTitle: String {
+        pendingDelete.map(SidebarFileActionPresenter.deleteTitle(for:)) ?? ""
+    }
+
+    private func commitPendingRename(_ request: SidebarRenameRequest) {
+        guard let destination = SidebarFileRenaming.validatedDestination(
+            for: request.url,
+            isDirectory: request.isDirectory,
+            newDisplayName: renameText
+        ) else {
+            // Empty / unchanged / invalid name — dismiss without touching disk.
+            pendingRename = nil
+            return
+        }
+        performSidebarRename(request, to: destination)
     }
 
     private func performSidebarRename(_ request: SidebarRenameRequest, to destination: URL) {
