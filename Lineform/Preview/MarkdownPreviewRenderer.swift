@@ -22,6 +22,7 @@ struct MarkdownPreviewRenderer {
             profile: profile,
             columnWidth: CGFloat(profile.columnWidth),
             mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
             reportRegistry: DiagramReportRegistry(),
             appVersion: "0"
@@ -33,6 +34,7 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         columnWidth: CGFloat,
         mermaidProvider: MermaidImageProviding,
+        mathProvider: MathImageProviding,
         diagramLog: DiagramFailureLogging,
         reportRegistry: DiagramReportRegistry,
         appVersion: String
@@ -51,11 +53,36 @@ struct MarkdownPreviewRenderer {
         // Mermaid block accumulation: when a ```mermaid fence opens we buffer its body and, on
         // the closing fence, emit a rendered diagram (or a captioned-source fallback) as one unit.
         var mermaidBody: [String]?
+        // Display-math block accumulation: same pattern, delimited by lines that are exactly `$$`.
+        var mathBody: [String]?
 
         var index = 0
         while index < lines.count {
             let line = lines[index]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if mathBody != nil {
+                if MathBlockFence.blockDelimiterOnly(trimmed) {
+                    // Closing `$$`: emit the accumulated equation, then stop buffering.
+                    appendMathBlock(
+                        latex: mathBody!.joined(separator: "\n"),
+                        to: output,
+                        profile: profile,
+                        theme: theme,
+                        columnWidth: columnWidth,
+                        codeAttributes: codeAttributes,
+                        mathProvider: mathProvider
+                    )
+                    mathBody = nil
+                    if index < lines.count - 1 {
+                        output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                    }
+                } else {
+                    mathBody!.append(line)
+                }
+                index += 1
+                continue
+            }
 
             if mermaidBody != nil {
                 if MermaidFence.isFenceDelimiter(trimmed) {
@@ -88,7 +115,28 @@ struct MarkdownPreviewRenderer {
             let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
             let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
             var lineTerminatorAttributes = activeBodyAttributes
-            if !inFence, MermaidFence.isMermaidOpening(trimmed) {
+            if !inFence, let inner = MathBlockFence.singleLineBlock(trimmed) {
+                // Single-line display block `$$…$$`: emit the equation as one unit.
+                appendMathBlock(
+                    latex: inner,
+                    to: output,
+                    profile: profile,
+                    theme: theme,
+                    columnWidth: columnWidth,
+                    codeAttributes: codeAttributes,
+                    mathProvider: mathProvider
+                )
+                if index < lines.count - 1 {
+                    output.append(NSAttributedString(string: "\n", attributes: activeBodyAttributes))
+                }
+                index += 1
+                continue
+            } else if !inFence, MathBlockFence.blockDelimiterOnly(trimmed) {
+                // Opening `$$` fence: start buffering the display-math body (delimiter not emitted).
+                mathBody = []
+                index += 1
+                continue
+            } else if !inFence, MermaidFence.isMermaidOpening(trimmed) {
                 // Opening mermaid fence: start buffering the body (the fence line is not emitted).
                 mermaidBody = []
                 index += 1
@@ -112,7 +160,13 @@ struct MarkdownPreviewRenderer {
                 ))
                 lineTerminatorAttributes = activeHeadingAttributes
             } else {
-                output.append(inlineMarkdown(in: line, baseAttributes: activeBodyAttributes, profile: profile))
+                output.append(inlineWithMath(
+                    in: line,
+                    baseAttributes: activeBodyAttributes,
+                    profile: profile,
+                    theme: theme,
+                    mathProvider: mathProvider
+                ))
             }
 
             if index < lines.count - 1 {
@@ -134,6 +188,19 @@ struct MarkdownPreviewRenderer {
                 diagramLog: diagramLog,
                 reportRegistry: reportRegistry,
                 appVersion: appVersion
+            )
+        }
+
+        // Flush an unclosed display-math block (no closing `$$`) so its content is never dropped.
+        if let mathBody {
+            appendMathBlock(
+                latex: mathBody.joined(separator: "\n"),
+                to: output,
+                profile: profile,
+                theme: theme,
+                columnWidth: columnWidth,
+                codeAttributes: codeAttributes,
+                mathProvider: mathProvider
             )
         }
 
@@ -205,6 +272,114 @@ struct MarkdownPreviewRenderer {
         }
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
         output.append(NSAttributedString(string: source, attributes: codeAttributes))
+    }
+
+    /// Emit a display-math block: a centered rendered equation (constrained to the column width,
+    /// with a VoiceOver description) or the captioned-source fallback. Math failures are the
+    /// user's own LaTeX, so — unlike Mermaid — nothing is logged or offered for reporting.
+    private func appendMathBlock(
+        latex: String,
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        theme: Theme,
+        columnWidth: CGFloat,
+        codeAttributes: [NSAttributedString.Key: Any],
+        mathProvider: MathImageProviding
+    ) {
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let pointSize = CGFloat(profile.fontSize)
+        let outcome = mathProvider.outcome(
+            latex: latex,
+            style: .display,
+            foreground: theme.textColor,
+            pointSize: pointSize,
+            scale: scale
+        )
+
+        switch outcome {
+        case .image(let image, _):
+            image.accessibilityDescription = "Math. \(latex)"
+            let attachment = NSTextAttachment()
+            attachment.image = image
+            let natural = image.size
+            let width = min(natural.width, max(columnWidth, 1))
+            let height = natural.width > 0 ? natural.height * (width / natural.width) : natural.height
+            attachment.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+            output.append(NSAttributedString(attachment: attachment))
+        case .skipped, .failed:
+            appendMathFallback(latex: latex, to: output, profile: profile, codeAttributes: codeAttributes)
+        }
+    }
+
+    private func appendMathFallback(
+        latex: String,
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        codeAttributes: [NSAttributedString.Key: Any]
+    ) {
+        var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        captionAttributes[.foregroundColor] = Theme.theme(for: profile).textColor.withAlphaComponent(0.6)
+        if let font = captionAttributes[.font] as? NSFont {
+            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
+        }
+        output.append(NSAttributedString(string: "Math (source)", attributes: captionAttributes))
+        output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
+        output.append(NSAttributedString(string: latex, attributes: codeAttributes))
+    }
+
+    /// Split a body line into inline-math and non-math segments: math renders as a baseline-aligned
+    /// attachment; everything else runs through the normal inline-markdown path. Lines with no
+    /// inline math take the fast path and behave exactly as before.
+    private func inlineWithMath(
+        in line: String,
+        baseAttributes: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) -> NSAttributedString {
+        let segments = MathDelimiters.segments(in: line)
+        guard segments.contains(where: { $0.kind == .math }) else {
+            return inlineMarkdown(in: line, baseAttributes: baseAttributes, profile: profile)
+        }
+
+        let output = NSMutableAttributedString()
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let pointSize = CGFloat(profile.fontSize)
+        let baseFont = (baseAttributes[.font] as? NSFont) ?? .systemFont(ofSize: pointSize)
+
+        for segment in segments {
+            switch segment.kind {
+            case .text:
+                // Unescape \$ for display, then run the normal inline-markdown pass.
+                let unescaped = segment.value.replacingOccurrences(of: "\\$", with: "$")
+                output.append(inlineMarkdown(in: unescaped, baseAttributes: baseAttributes, profile: profile))
+            case .math:
+                let outcome = mathProvider.outcome(
+                    latex: segment.value,
+                    style: .inline,
+                    foreground: theme.textColor,
+                    pointSize: pointSize,
+                    scale: scale
+                )
+                if case .image(let image, let descent) = outcome {
+                    image.accessibilityDescription = "Math. \(segment.value)"
+                    let attachment = NSTextAttachment()
+                    attachment.image = image
+                    let size = image.size
+                    // Sit the equation's own baseline on the surrounding text baseline: the image
+                    // extends `descent` points below its baseline, so offset the attachment down by
+                    // that much (a negative y in text-attachment coordinates).
+                    attachment.bounds = CGRect(x: 0, y: -descent, width: size.width, height: size.height)
+                    output.append(NSAttributedString(attachment: attachment))
+                } else {
+                    // Fallback: show the raw LaTeX in inline-code style rather than dropping it.
+                    var codeAttrs = baseAttributes
+                    codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
+                    output.append(NSAttributedString(string: segment.value, attributes: codeAttrs))
+                }
+            }
+        }
+        return output
     }
 
     private func heading(in line: String) -> (level: Int, title: String)? {

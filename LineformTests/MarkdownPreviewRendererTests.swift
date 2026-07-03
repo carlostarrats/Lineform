@@ -161,3 +161,80 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         return try XCTUnwrap(rendered.attribute(.paragraphStyle, at: location, effectiveRange: nil) as? NSParagraphStyle)
     }
 }
+
+// MARK: - Math rendering
+
+private final class FakeMathProvider: MathImageProviding {
+    let result: MathRenderOutcome
+    init(_ result: MathRenderOutcome) { self.result = result }
+    func outcome(latex: String, style: MathStyle, foreground: NSColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome { result }
+}
+
+final class MarkdownPreviewRendererMathTests: XCTestCase {
+    private func render(_ text: String, math: MathRenderOutcome) -> NSAttributedString {
+        MarkdownPreviewRenderer().render(
+            text,
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: FakeMathProvider(math),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "1.0"
+        )
+    }
+
+    private func firstAttachment(_ s: NSAttributedString) -> NSTextAttachment? {
+        var found: NSTextAttachment?
+        s.enumerateAttribute(.attachment, in: NSRange(location: 0, length: s.length)) { v, _, stop in
+            if let a = v as? NSTextAttachment { found = a; stop.pointee = true }
+        }
+        return found
+    }
+
+    // Block $$…$$
+
+    func testBlockMathRendersAttachmentWithAccessibility() throws {
+        let image = NSImage(size: NSSize(width: 20, height: 12))
+        let rendered = render("$$\nx^2+y^2\n$$", math: .image(image, descent: 0))
+        let a = try XCTUnwrap(firstAttachment(rendered))
+        XCTAssertEqual(a.image?.accessibilityDescription, "Math. x^2+y^2")
+    }
+
+    func testSingleLineBlockMathRenders() throws {
+        let image = NSImage(size: NSSize(width: 20, height: 12))
+        let rendered = render("$$E=mc^2$$", math: .image(image, descent: 0))
+        let a = try XCTUnwrap(firstAttachment(rendered))
+        XCTAssertEqual(a.image?.accessibilityDescription, "Math. E=mc^2")
+    }
+
+    func testBlockMathFailureFallsBackToSource() {
+        let out = render("$$\n\\frac{\n$$", math: .failed("boom")).string
+        XCTAssertTrue(out.contains("Math (source)"))
+        XCTAssertTrue(out.contains("\\frac{"))
+        XCTAssertFalse(out.contains("$$"))
+    }
+
+    // Inline $…$
+
+    func testInlineMathRendersBaselineAlignedAttachment() throws {
+        let image = NSImage(size: NSSize(width: 10, height: 8))
+        let rendered = render("the value $x^2$ is fixed", math: .image(image, descent: 3))
+        XCTAssertTrue(rendered.string.contains("the value "))
+        XCTAssertTrue(rendered.string.contains(" is fixed"))
+        let a = try XCTUnwrap(firstAttachment(rendered))
+        XCTAssertEqual(a.image?.accessibilityDescription, "Math. x^2")
+        XCTAssertEqual(a.bounds.origin.y, -3, accuracy: 0.001)  // sits on the baseline via -descent
+    }
+
+    func testInlineMathFailureFallsBackToRawSource() {
+        let out = render("bad $\\frac{$ here", math: .failed("boom")).string
+        XCTAssertTrue(out.contains("\\frac{"))
+    }
+
+    func testProseDollarsAreNotTreatedAsMath() {
+        // The provider would fail if ever called; a clean pass proves "$5/$10" stayed literal.
+        let out = render("it costs $5 to $10 today", math: .failed("should not be called")).string
+        XCTAssertEqual(out, "it costs $5 to $10 today")
+    }
+}

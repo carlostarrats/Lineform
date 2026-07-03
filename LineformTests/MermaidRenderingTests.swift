@@ -102,6 +102,7 @@ final class MermaidRenderingTests: XCTestCase {
             profile: .original,
             columnWidth: 600,
             mermaidProvider: FakeProvider(.failed("boom")),
+            mathProvider: DisabledMathImageProvider(),
             diagramLog: log,
             reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
@@ -122,6 +123,7 @@ final class MermaidRenderingTests: XCTestCase {
             profile: .original,
             columnWidth: 600,
             mermaidProvider: FakeProvider(.image(image)),
+            mathProvider: DisabledMathImageProvider(),
             diagramLog: FakeLog(),
             reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
@@ -148,6 +150,7 @@ final class MermaidRenderingTests: XCTestCase {
             profile: .original,
             columnWidth: 600,
             mermaidProvider: FakeProvider(.skipped),
+            mathProvider: DisabledMathImageProvider(),
             diagramLog: log,
             reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"

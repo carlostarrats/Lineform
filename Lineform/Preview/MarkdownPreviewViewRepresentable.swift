@@ -36,6 +36,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private var renderedText: String?
     private var renderedProfile: ReadingProfile?
     private let mermaidProvider = MermaidImageProvider()
+    private let mathProvider = MathImageProvider()
     private let diagramLog = DiagramLogStore()
     private let reportRegistry = DiagramReportRegistry()
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
@@ -81,6 +82,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
                 profile: profile,
                 columnWidth: EditorReadingLayout.textColumnMaxWidth(for: profile),
                 mermaidProvider: mermaidProvider,
+                mathProvider: mathProvider,
                 diagramLog: diagramLog,
                 reportRegistry: reportRegistry,
                 appVersion: appVersion
