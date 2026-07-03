@@ -11,12 +11,15 @@ enum MathBlockFence {
         trimmedLine.trimmingCharacters(in: .whitespaces) == "$$"
     }
 
-    /// For a single-line block `$$…$$`, return the inner LaTeX; else nil.
+    /// For a whole line that is a single display block `$$…$$`, return the inner LaTeX; else nil.
+    /// Returns nil when the inner content itself contains `$$` (e.g. `$$a$$ and $$b$$`), so lines
+    /// with multiple display spans fall through to the inline path instead of being swallowed whole.
     static func singleLineBlock(_ trimmedLine: String) -> String? {
         let t = trimmedLine.trimmingCharacters(in: .whitespaces)
         guard t.count >= 5, t.hasPrefix("$$"), t.hasSuffix("$$") else { return nil }
-        let inner = t.dropFirst(2).dropLast(2)
-        return inner.isEmpty ? nil : String(inner)
+        let inner = String(t.dropFirst(2).dropLast(2))
+        guard !inner.isEmpty, !inner.contains("$$") else { return nil }
+        return inner
     }
 }
 

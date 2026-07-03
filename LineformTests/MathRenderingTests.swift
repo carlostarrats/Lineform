@@ -17,6 +17,8 @@ final class MathRenderingTests: XCTestCase {
         XCTAssertEqual(MathBlockFence.singleLineBlock("$$ E=mc^2 $$"), " E=mc^2 ")
         XCTAssertNil(MathBlockFence.singleLineBlock("$$"))
         XCTAssertNil(MathBlockFence.singleLineBlock("$x$"))
+        // Two display spans with prose between must NOT be treated as one block (would swallow "and").
+        XCTAssertNil(MathBlockFence.singleLineBlock("$$a$$ and $$b$$"))
     }
 
     // MARK: - Inline delimiter rules
