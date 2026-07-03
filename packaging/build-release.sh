@@ -10,7 +10,12 @@ CODE_SIGN_STYLE="${CODE_SIGN_STYLE:-Automatic}"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Developer ID Application: Carlos Tarrats (TV4QZT7A7X)}"
 RESIGN_WITH_DEVELOPER_ID="${RESIGN_WITH_DEVELOPER_ID:-NO}"
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/Release/Lineform.app"
-DEVELOPER_ID_PROFILE_PATH="${DEVELOPER_ID_PROFILE_PATH:-$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/68f81f6e-70bc-441b-8a57-6cef465bbe5b.provisionprofile}"
+# Xcode-managed "Mac Team Direct Provisioning Profile: com.lineform.app", refreshed
+# 2026-07-02 to embed the current Developer ID cert (the older 68f81f6e… profile from
+# Jun 2 predates the cert and ships an app AMFI kills at launch — see the cert gate below).
+# Refresh when certs change: xcodebuild archive + -exportArchive (method developer-id,
+# signingStyle automatic) -allowProvisioningUpdates mints a new one into this directory.
+DEVELOPER_ID_PROFILE_PATH="${DEVELOPER_ID_PROFILE_PATH:-$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/2184be66-790e-4689-b859-3eaa2ca40f3e.provisionprofile}"
 
 if [[ -z "$SPARKLE_PUBLIC_ED_KEY" ]]; then
   echo "error: set SPARKLE_PUBLIC_ED_KEY to the public key from Sparkle's generate_keys tool." >&2
