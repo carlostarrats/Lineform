@@ -1,7 +1,16 @@
 # Search Simplification Design
 
 **Date:** 2026-07-03
-**Status:** Proposed
+**Status:** Superseded in part (2026-07-03)
+
+> **Outcome note:** After trying the overlay-free build, the user kept the
+> match-highlight overlay (all matches yellow, current match accent) — without
+> it the current match renders in the native unemphasized gray selection while
+> the search field has focus, which reads as broken. The overlay was restored
+> unchanged. What shipped from this spec: Return in the search field advances
+> to the next match (wrapping), dead `previousIndex` navigation code was
+> removed, and Help.md was corrected. The "remove the overlay" sections below
+> are historical.
 
 ## Problem
 

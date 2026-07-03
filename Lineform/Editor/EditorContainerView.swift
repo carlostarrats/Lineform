@@ -279,6 +279,8 @@ struct EditorContainerView: View {
             requestedSelection: $requestedSelection,
             profile: readingProfileStore.activeProfile,
             smoothsHorizontalInsetChanges: false,
+            searchRanges: searchMatches,
+            activeSearchRange: activeSearchRange,
             onWritingToolsSessionChange: { active in
                 // Binding writes are deferred during a Writing Tools session, so the reload
                 // dirty gate can't see the in-progress edits; suspend external reloads until
@@ -288,6 +290,13 @@ struct EditorContainerView: View {
         )
         .accessibilityLabel("Markdown editor")
         .accessibilityValue(searchAccessibilitySummary ?? "")
+    }
+
+    private var activeSearchRange: NSRange? {
+        guard let activeSearchIndex, searchMatches.indices.contains(activeSearchIndex) else {
+            return nil
+        }
+        return searchMatches[activeSearchIndex]
     }
 
     private var searchAccessibilitySummary: String? {

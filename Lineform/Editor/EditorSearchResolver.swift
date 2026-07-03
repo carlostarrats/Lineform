@@ -69,6 +69,21 @@ enum EditorSearchResolver {
         return RefreshState(activeIndex: activeIndex, requestedSelection: matches[activeIndex])
     }
 
+    static func visibleMatches(_ ranges: [NSRange], activeRange: NSRange?, visibleCharacterRange: NSRange?) -> [NSRange] {
+        guard let visibleCharacterRange else {
+            return ranges
+        }
+
+        var visibleRanges: [NSRange] = []
+        for range in ranges {
+            let intersectsVisibleRange = NSIntersectionRange(range, visibleCharacterRange).length > 0
+            if intersectsVisibleRange || range == activeRange {
+                visibleRanges.append(range)
+            }
+        }
+        return visibleRanges
+    }
+
     static func nextIndex(after index: Int?, matchCount: Int) -> Int? {
         guard matchCount > 0 else {
             return nil

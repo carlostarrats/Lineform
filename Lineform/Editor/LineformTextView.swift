@@ -11,6 +11,8 @@ final class LineformTextView: NSTextView {
     private var hasAppliedTypography = false
     private var hasAppliedTextContainerLayout = false
     private(set) var isLineformWritingToolsSessionActive = false
+    private var searchHighlightRanges: [NSRange] = []
+    private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
     private var pendingDeferredVisualLayoutAnchor: VisualLayoutAnchor?
     private var pendingDeferredVerticalScrollOrigin: CGFloat?
@@ -277,7 +279,14 @@ final class LineformTextView: NSTextView {
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
         drawEmptyStatePlaceholderIfNeeded()
+        drawSearchHighlightsIfNeeded()
         drawReadingRulerIfNeeded()
+    }
+
+    func setSearchHighlights(_ ranges: [NSRange], activeRange: NSRange?) {
+        searchHighlightRanges = ranges
+        activeSearchHighlightRange = activeRange
+        needsDisplay = true
     }
 
     func visibleCharacterRangeForLayoutPreservation() -> NSRange? {
@@ -391,6 +400,30 @@ final class LineformTextView: NSTextView {
         MarkdownWritingToolsProtection
             .ignoredRanges(in: string, enclosingRange: enclosingRange)
             .map { NSValue(range: $0) }
+    }
+
+    private func drawSearchHighlightsIfNeeded() {
+        guard !searchHighlightRanges.isEmpty else {
+            return
+        }
+
+        let rangesToDraw = EditorSearchResolver.visibleMatches(
+            searchHighlightRanges,
+            activeRange: activeSearchHighlightRange,
+            visibleCharacterRange: visibleCharacterRangeForLayoutPreservation()
+        )
+
+        for range in rangesToDraw {
+            let isActive = range == activeSearchHighlightRange
+            let color = isActive
+                ? NSColor.controlAccentColor.withAlphaComponent(0.22)
+                : NSColor.systemYellow.withAlphaComponent(0.28)
+            color.setFill()
+
+            for rect in rectsForCharacterRange(range) {
+                rect.insetBy(dx: -2, dy: -1).fill()
+            }
+        }
     }
 
     private func isEventInsideFloatingControl(_ event: NSEvent) -> Bool {

@@ -8,6 +8,8 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var requestedSelection: NSRange?
     var profile: ReadingProfile
     var smoothsHorizontalInsetChanges = false
+    var searchRanges: [NSRange] = []
+    var activeSearchRange: NSRange?
     var onWritingToolsSessionChange: ((Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -70,6 +72,8 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
                 textView.restoreProportionalScrollOffsetAfterDeferredLayout(scrollRatio)
             }
         }
+
+        textView.setSearchHighlights(searchRanges, activeRange: activeSearchRange)
 
         if let range = requestedSelection {
             let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))
