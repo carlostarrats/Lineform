@@ -99,6 +99,13 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testFilesSectionsGetAMuseStyleSortRowWithoutManualOption() {
+        XCTAssertEqual(OutlineSidebarView.filesSortMenuLabelPrefix, "Sort: ")
+        XCTAssertTrue(OutlineSidebarView.filesSortRowShowsForAvailableRootsOnly)
+        XCTAssertEqual(OutlineFileSortOrder.allCases.count, 3)
+    }
+
+    @MainActor
     func testFilesTreeIndentStepIsGenerousEnoughToCarryNestingWithoutGuideLines() {
         // Nesting is conveyed by indentation + chevrons alone (native macOS source-list
         // convention, no vertical guide lines), so the per-level step must be non-trivial.

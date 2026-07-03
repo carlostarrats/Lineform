@@ -109,6 +109,10 @@ struct OutlineSidebarView: View {
     static let fileSelectionReplacesCurrentWindow = true
     static let fileSelectionUsesNativeSavePrompt = true
     static let workspaceDisconnectedSystemImage = "exclamationmark.triangle.fill"
+    static let filesSortMenuLabelPrefix = "Sort: "
+    /// The sort row renders only under an expanded, connected, non-empty section — a
+    /// disconnected/dimmed/empty section has nothing meaningful to reorder.
+    static let filesSortRowShowsForAvailableRootsOnly = true
 
     /// Per-level horizontal indent for Files-tab tree rows. Nesting is carried by indentation +
     /// disclosure chevrons alone (the native macOS source-list convention — Finder, Notes, Mail —
@@ -1134,6 +1138,12 @@ private struct OutlineFileBrowserView: View {
 
             // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
             // expandable tree, no empty-state line — just the quiet header.
+            if root.state == .available, !collapsedIDs.contains(root.id), !rootIsDimmed(root), !root.items.isEmpty {
+                OutlineFileSortRow(rootTitle: root.title, sortOrder: sortBinding(for: root))
+                    .padding(.leading, 28)
+                    .padding(.bottom, 2)
+            }
+
             if root.showsTree, !collapsedIDs.contains(root.id), !rootIsDimmed(root) {
                 if root.items.isEmpty {
                     // Only a connected (.available) empty folder is genuinely "no Markdown." A
@@ -1165,6 +1175,10 @@ private struct OutlineFileBrowserView: View {
         }
         .opacity(rootIsDimmed(root) ? OutlineSidebarView.filesUnavailableRootOpacity : 1)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sortBinding(for root: OutlineFileRoot) -> Binding<OutlineFileSortOrder> {
+        root.id == "icloud" ? $store.iCloudSortOrder : $store.workspaceSortOrder
     }
 
     private func rootIsDimmed(_ root: OutlineFileRoot) -> Bool {
@@ -1318,6 +1332,38 @@ private struct OutlineFileRootRow: View {
 
     private var usesDarkChrome: Bool {
         colorScheme == .dark
+    }
+}
+
+/// Muse-style quiet sort control above a section's contents: "Sort: Name ▾" opening a
+/// three-option picker (no Manual — see OutlineFileSortOrder).
+private struct OutlineFileSortRow: View {
+    var rootTitle: String
+    @Binding var sortOrder: OutlineFileSortOrder
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Menu {
+            Picker("Sort", selection: $sortOrder) {
+                ForEach(OutlineFileSortOrder.allCases) { order in
+                    Text(order.title).tag(order)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                Text(OutlineSidebarView.filesSortMenuLabelPrefix + sortOrder.title)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: colorScheme == .dark))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .fixedSize()
+        .accessibilityLabel("Sort \(rootTitle) files")
+        .accessibilityValue(sortOrder.title)
     }
 }
 
