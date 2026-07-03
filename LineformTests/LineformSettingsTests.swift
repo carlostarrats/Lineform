@@ -180,4 +180,15 @@ extension LineformSettingsTests {
         XCTAssertTrue(SettingsView.iCloudDisabledNote.lowercased().contains("does not delete"))
         XCTAssertEqual(SettingsView.iCloudCheckingNote, "Checking…")
     }
+
+    func testICloudToggleDisableGuardOnlyBlocksTurningOff() {
+        // Shown + folder not empty → can't turn off (disabled).
+        XCTAssertTrue(SettingsView.iCloudToggleDisabled(currentlyShown: true, canToggleOff: false))
+        // Shown + folder empty → can turn off (enabled).
+        XCTAssertFalse(SettingsView.iCloudToggleDisabled(currentlyShown: true, canToggleOff: true))
+        // Hidden + folder not empty → re-showing is always allowed (enabled), never stuck.
+        XCTAssertFalse(SettingsView.iCloudToggleDisabled(currentlyShown: false, canToggleOff: false))
+        // Hidden + folder empty → enabled.
+        XCTAssertFalse(SettingsView.iCloudToggleDisabled(currentlyShown: false, canToggleOff: true))
+    }
 }

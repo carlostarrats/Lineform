@@ -13,6 +13,14 @@ struct SettingsView: View {
     static let iCloudCheckingNote = "Checking…"
     static let iCloudDisabledNote = "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive."
 
+    /// The emptiness guard only blocks turning iCloud OFF. Re-showing a hidden root is
+    /// always safe, so when the setting is already off the toggle stays operable even
+    /// if the folder has since become non-empty (otherwise the user could get stuck
+    /// unable to bring iCloud back).
+    static func iCloudToggleDisabled(currentlyShown: Bool, canToggleOff: Bool) -> Bool {
+        currentlyShown && !canToggleOff
+    }
+
     init(
         settings: LineformSettingsStore,
         iCloudViewModel: ICloudSettingViewModel = ICloudSettingViewModel()
@@ -33,14 +41,18 @@ struct SettingsView: View {
             }
 
             if iCloud.isControlVisible {
+                let toggleDisabled = Self.iCloudToggleDisabled(
+                    currentlyShown: settings.showICloudInSidebar,
+                    canToggleOff: iCloud.isToggleEnabled
+                )
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle(Self.showICloudTitle, isOn: $settings.showICloudInSidebar)
-                        .disabled(!iCloud.isToggleEnabled)
+                        .disabled(toggleDisabled)
                     if iCloud.isChecking {
                         Text(Self.iCloudCheckingNote)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else if !iCloud.isToggleEnabled {
+                    } else if toggleDisabled {
                         Text(Self.iCloudDisabledNote)
                             .font(.caption)
                             .foregroundStyle(.secondary)

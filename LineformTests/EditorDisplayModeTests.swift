@@ -734,13 +734,19 @@ final class EditorDisplayModeTests: XCTestCase {
         // hosted editor never resolves the user's real workspace bookmark (which would touch
         // ~/Documents and trigger a TCC prompt during headless test runs).
         let fileBrowserStore = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in nil })
+        // Pin the outline drawer closed at construction so these sub-second motion tests
+        // measure the open transition they post below — independent of the app-wide
+        // "Show sidebar on launch" default (which is on).
+        let settings = LineformSettingsStore(defaults: defaults)
+        settings.showSidebarOnLaunch = false
         let editor = EditorContainerView(
             document: Binding(
                 get: { document },
                 set: { document = $0 }
             ),
             readingProfileStore: readingProfileStore,
-            fileBrowserStore: fileBrowserStore
+            fileBrowserStore: fileBrowserStore,
+            settings: settings
         )
         let hostingView = NSHostingView(rootView: AnyView(editor.id(UUID())))
         hostingView.frame = NSRect(x: 0, y: 0, width: 1_080, height: 720)
