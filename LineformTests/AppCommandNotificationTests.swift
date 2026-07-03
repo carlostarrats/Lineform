@@ -15,7 +15,7 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertTrue(AppMenuConfiguration.suppressesDefaultHelpMenu)
         XCTAssertEqual(
             AppMenuConfiguration.aboutPanelOptions()[.applicationVersion] as? String,
-            "V1.1.0"
+            "V1.1.1"
         )
     }
 
