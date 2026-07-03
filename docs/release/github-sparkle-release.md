@@ -109,6 +109,24 @@ for no iCloud Drive `application-identifier` entitlement warning.
 
 Override `DEVELOPMENT_TEAM` or `CODE_SIGN_IDENTITY` only if the certificate changes.
 
+**If the Developer ID certificate ever changes (renewal, dedupe, new Mac), the Direct
+profile must be regenerated before the next release.** The profile embeds the specific
+certificates it authorizes; an app whose restricted iCloud entitlements are signed by a
+cert missing from `embedded.provisionprofile` passes `codesign --verify`, notarization,
+and Gatekeeper, but is killed by AMFI at launch on every machine ("Lineform can't be
+opened"). This shipped as 1.1.0 build 14. Refresh the profile headlessly with
+`xcodebuild archive` + `-exportArchive` (method `developer-id`, signingStyle `automatic`,
+`-allowProvisioningUpdates`) — it mints a new
+`Mac Team Direct Provisioning Profile: com.lineform.app` under
+`~/Library/Developer/Xcode/UserData/Provisioning Profiles/` — then update
+`DEVELOPER_ID_PROFILE_PATH` in `packaging/build-release.sh`.
+
+`packaging/build-release.sh` enforces two hard gates for this failure class: it fails
+(exit 68) if the signing cert is not among the profile's `DeveloperCertificates`, and it
+launches the packaged app once after signing (exit 69 if launchd refuses to spawn it),
+before any DMG is built. Do not skip or remove these gates; `SKIP_LAUNCH_SMOKE_TEST=YES`
+exists only for headless environments where the DMG will still be launch-tested manually.
+
 If a DMG is needed before Sparkle signing is finalized, build with the placeholder key:
 
 ```sh
