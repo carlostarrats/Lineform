@@ -105,10 +105,15 @@ bold/italic (which only set text attributes), an inline-math token emits an
 **inline `NSTextAttachment` (the equation image) baseline-aligned** so it sits
 correctly on the text baseline within running prose.
 
+This is the part with no Mermaid precedent (Mermaid only ever replaces a whole
+block, never places an image inside a line), so it is the newest code here — but
+it is not difficult: baseline-offsetting an `NSTextAttachment` is a standard,
+documented technique, and SwiftMath reports the metrics needed to compute the
+offset. Expect empirical tuning, not risk.
+
 - Set the attachment's `bounds` so the image's math axis aligns to the font
   baseline (SwiftMath exposes the label's baseline/descent; use it to compute the
-  `bounds.origin.y` offset). This baseline alignment is the primary new
-  engineering problem — everything else reuses proven attachment code.
+  `bounds.origin.y` offset).
 - Render with `.inline` (text) math style at the profile's body point size.
 - On failure/skip, the token falls back to the literal source styled as inline
   code (reuse the existing inline-code attributes), so a bad `$…$` reads as
