@@ -69,21 +69,6 @@ enum EditorSearchResolver {
         return RefreshState(activeIndex: activeIndex, requestedSelection: matches[activeIndex])
     }
 
-    static func visibleMatches(_ ranges: [NSRange], activeRange: NSRange?, visibleCharacterRange: NSRange?) -> [NSRange] {
-        guard let visibleCharacterRange else {
-            return ranges
-        }
-
-        var visibleRanges: [NSRange] = []
-        for range in ranges {
-            let intersectsVisibleRange = NSIntersectionRange(range, visibleCharacterRange).length > 0
-            if intersectsVisibleRange || range == activeRange {
-                visibleRanges.append(range)
-            }
-        }
-        return visibleRanges
-    }
-
     static func nextIndex(after index: Int?, matchCount: Int) -> Int? {
         guard matchCount > 0 else {
             return nil
@@ -94,18 +79,6 @@ enum EditorSearchResolver {
         }
 
         return (index + 1) % matchCount
-    }
-
-    static func previousIndex(before index: Int?, matchCount: Int) -> Int? {
-        guard matchCount > 0 else {
-            return nil
-        }
-
-        guard let index else {
-            return matchCount - 1
-        }
-
-        return (index - 1 + matchCount) % matchCount
     }
 
     static func accessibilitySummary(query: String, matchCount: Int, activeIndex: Int?) -> String? {

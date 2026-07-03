@@ -155,6 +155,9 @@ struct EditorContainerView: View {
         .onChange(of: searchQuery) { _, _ in
             refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
         }
+        .onSubmit(of: .search) {
+            advanceToNextSearchMatch()
+        }
     }
 
     private var outlineVisibility: Binding<NavigationSplitViewVisibility> {
@@ -276,8 +279,6 @@ struct EditorContainerView: View {
             requestedSelection: $requestedSelection,
             profile: readingProfileStore.activeProfile,
             smoothsHorizontalInsetChanges: false,
-            searchRanges: searchMatches,
-            activeSearchRange: activeSearchRange,
             onWritingToolsSessionChange: { active in
                 // Binding writes are deferred during a Writing Tools session, so the reload
                 // dirty gate can't see the in-progress edits; suspend external reloads until
@@ -287,13 +288,6 @@ struct EditorContainerView: View {
         )
         .accessibilityLabel("Markdown editor")
         .accessibilityValue(searchAccessibilitySummary ?? "")
-    }
-
-    private var activeSearchRange: NSRange? {
-        guard let activeSearchIndex, searchMatches.indices.contains(activeSearchIndex) else {
-            return nil
-        }
-        return searchMatches[activeSearchIndex]
     }
 
     private var searchAccessibilitySummary: String? {
@@ -428,6 +422,18 @@ struct EditorContainerView: View {
             }
             self.requestedSelection = requestedSelection
         }
+    }
+
+    private func advanceToNextSearchMatch() {
+        guard
+            let next = EditorSearchResolver.nextIndex(
+                after: activeSearchIndex,
+                matchCount: searchMatches.count
+            )
+        else {
+            return
+        }
+        selectSearchMatch(at: next)
     }
 
     private func selectSearchMatch(at index: Int) {

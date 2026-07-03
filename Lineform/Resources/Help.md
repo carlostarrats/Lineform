@@ -7,7 +7,7 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 - Open and save `.md`, `.markdown`, and `.txt` files.
 - Switch between Write, Read, and Preview modes.
 - Toggle the outline when headings are useful.
-- Search with match highlighting and next/previous navigation.
+- Search the document from the toolbar; press Return to jump to the next match.
 - Format Markdown headings, emphasis, inline code, lists, and links.
 - Convert between Markdown and plain text.
 - Export to PDF.
