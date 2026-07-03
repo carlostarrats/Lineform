@@ -191,21 +191,24 @@ struct EditorContainerView: View {
                     transaction.animation = nil
                 }
 
-                MarkdownBasicsModal {
-                    isShowingMarkdownBasics = false
-                }
-                .transition(
-                    .asymmetric(
-                        insertion: EditorMotionPolicy.fadeAndMoveTransition(
-                            y: MarkdownBasicsModal.entranceYOffset,
-                            reduceMotion: reduceMotion
-                        ),
-                        removal: EditorMotionPolicy.fadeAndMoveTransition(
-                            y: MarkdownBasicsModal.entranceYOffset / 2,
-                            reduceMotion: reduceMotion
+                GeometryReader { geometry in
+                    MarkdownBasicsModal(availableHeight: geometry.size.height) {
+                        isShowingMarkdownBasics = false
+                    }
+                    .transition(
+                        .asymmetric(
+                            insertion: EditorMotionPolicy.fadeAndMoveTransition(
+                                y: MarkdownBasicsModal.entranceYOffset,
+                                reduceMotion: reduceMotion
+                            ),
+                            removal: EditorMotionPolicy.fadeAndMoveTransition(
+                                y: MarkdownBasicsModal.entranceYOffset / 2,
+                                reduceMotion: reduceMotion
+                            )
                         )
                     )
-                )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                }
                 .zIndex(2)
             }
         }

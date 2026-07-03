@@ -52,6 +52,13 @@ enum EditorAuxiliaryTransitionStyle: Equatable {
     case slideAndFade
 }
 
+private struct MarkdownGuideHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct MarkdownBasicsModal: View {
     struct Example: Identifiable, Equatable {
         var label: String
@@ -105,11 +112,40 @@ struct MarkdownBasicsModal: View {
             rows: examples.map { Row(label: $0.syntax, detail: $0.label) } + [
                 Row(label: "Block Spacing", detail: "In Read and Preview modes, adds space around Markdown block breaks.")
             ]
+        ),
+        Section(
+            title: "Diagrams",
+            rows: [
+                Row(label: "```mermaid", detail: "Fence a code block tagged “mermaid” to render a diagram in Read and Preview. Write shows the source; a diagram that can’t be parsed falls back to a labelled source block.")
+            ]
+        ),
+        Section(
+            title: "Math",
+            rows: [
+                Row(label: "$x^2 + y^2$", detail: "Inline LaTeX math between single dollar signs, rendered in the line."),
+                Row(label: "$$…$$", detail: "A centered equation block between double dollar signs (put them on their own lines, or wrap a single line)."),
+                Row(label: "\\frac{a}{b}", detail: "Standard LaTeX math is supported — fractions, roots, Greek letters, sums, integrals. Renders in Read and Preview; Write shows the source, and invalid math falls back to its source."),
+                Row(label: "it costs $5", detail: "Ordinary dollar amounts stay as text — they are not treated as math.")
+            ]
         )
     ]
 
+    /// Height the window actually offers (injected by the container's GeometryReader). The section
+    /// list is capped to this so the modal fits and scrolls inside a short window instead of forcing
+    /// the window taller.
+    var availableHeight: CGFloat = 900
     var dismiss: () -> Void = {}
     @State private var isCloseHovered = false
+    @State private var measuredSectionsHeight: CGFloat = 0
+
+    /// Room left for the title, paddings, and top/bottom breathing space around the card.
+    private static let verticalChromeAllowance: CGFloat = 180
+
+    /// The scrollable section list is capped to the available window height; when the content is
+    /// shorter than the cap the frame hugs it exactly (no empty slack, no scrolling).
+    private var maxSectionsHeight: CGFloat {
+        max(160, availableHeight - Self.verticalChromeAllowance)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -142,11 +178,22 @@ struct MarkdownBasicsModal: View {
                 .animation(.easeOut(duration: 0.12), value: isCloseHovered)
             }
 
-            VStack(alignment: .leading, spacing: 18) {
-                ForEach(Self.sections) { section in
-                    guideSection(section)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(Self.sections) { section in
+                        guideSection(section)
+                    }
                 }
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: MarkdownGuideHeightKey.self, value: proxy.size.height)
+                    }
+                )
             }
+            // Hug the content, but cap the height so a taller guide scrolls instead of clipping
+            // off the top/bottom on a short window.
+            .frame(height: min(measuredSectionsHeight == 0 ? maxSectionsHeight : measuredSectionsHeight, maxSectionsHeight))
+            .onPreferenceChange(MarkdownGuideHeightKey.self) { measuredSectionsHeight = $0 }
         }
         .padding(24)
         .frame(width: Self.contentWidth, alignment: .leading)
