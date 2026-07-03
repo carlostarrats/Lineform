@@ -4,7 +4,7 @@ import XCTest
 final class AppCommandNotificationTests: XCTestCase {
     func testAboutMenuUsesLineformVersionDisplay() {
         XCTAssertEqual(AppMenuConfiguration.aboutCommandTitle, "About Lineform")
-        XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.1.0")
+        XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.1.1")
         XCTAssertEqual(AppMenuConfiguration.aboutCopyright, "Copyright © 2026 Carlos Tarrats. All rights reserved.")
         XCTAssertEqual(AppMenuConfiguration.checkForUpdatesCommandTitle, "Check for Updates...")
         XCTAssertEqual(AppMenuConfiguration.installCommandLineToolCommandTitle, "Install Command Line Tool...")
