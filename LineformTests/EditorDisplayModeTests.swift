@@ -125,7 +125,7 @@ final class EditorDisplayModeTests: XCTestCase {
             MarkdownBasicsModal.examples.map(\.syntax),
             ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "`code`", "[link](https://example.com)"]
         )
-        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "Diagrams", "Math"])
+        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "Diagrams", "Math", "Search"])
         XCTAssertEqual(MarkdownBasicsModal.sections.first?.rows.last?.label, "Block Spacing")
         XCTAssertTrue(MarkdownBasicsModal.sections.first?.rows.last?.detail.localizedCaseInsensitiveContains("Read and Preview") == true)
 

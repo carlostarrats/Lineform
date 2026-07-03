@@ -129,6 +129,12 @@ struct MarkdownBasicsModal: View {
                 Row(label: "\\frac{a}{b}", detail: "Standard LaTeX math is supported — fractions, roots, Greek letters, sums, integrals. Renders in Read and Preview; Write shows the source, and invalid math falls back to its source."),
                 Row(label: "it costs $5", detail: "Ordinary dollar amounts stay as text — they are not treated as math.")
             ]
+        ),
+        Section(
+            title: "Search",
+            rows: [
+                Row(label: "Return", detail: "While searching, press Return to jump to the next match. It wraps back to the first.")
+            ]
         )
     ]
 
