@@ -817,3 +817,95 @@ extension OutlineSidebarViewTests {
         XCTAssertEqual(second.iCloudRoot.items.map(\.name), ["B.md", "A.md"])
     }
 }
+
+private final class FakeDirectoryMonitor: DirectoryChangeMonitoring {
+    let url: URL
+    let onChange: () -> Void
+    private(set) var stopped = false
+
+    init(url: URL, onChange: @escaping () -> Void) {
+        self.url = url
+        self.onChange = onChange
+    }
+
+    func stop() { stopped = true }
+}
+
+extension OutlineSidebarViewTests {
+    @MainActor
+    func testWatcherRescansRootsWhenDirectoryEventsFireAndStopsOnEnd() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var monitors: [FakeDirectoryMonitor] = []
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder },
+            directoryMonitorFactory: { url, onChange in
+                let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
+                monitors.append(monitor)
+                return monitor
+            }
+        )
+        store.refreshICloud()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["A.md"])
+        XCTAssertTrue(monitors.isEmpty, "watching must not start before beginWatchingForExternalChanges()")
+
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.map(\.url), [folder])
+
+        // A file appears externally; the event callback must re-scan and publish it.
+        try "# B".write(to: folder.appendingPathComponent("B.md"), atomically: true, encoding: .utf8)
+        monitors[0].onChange()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["A.md", "B.md"])
+
+        // Re-begin is idempotent (no duplicate monitors for the same root).
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.count, 1)
+
+        store.endWatchingForExternalChanges()
+        XCTAssertTrue(monitors[0].stopped)
+
+        // After ending, a new begin creates a fresh monitor.
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.count, 2)
+    }
+
+    @MainActor
+    func testWatcherCoversWorkspaceRootViaHeldBookmark() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        try "# W".write(to: workspace.appendingPathComponent("W.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = try makeWorkspaceBookmarkDefaults(suiteName: suiteName, workspaceDirectory: workspace)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var monitors: [FakeDirectoryMonitor] = []
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            iCloudDocumentsURLProvider: { _ in nil },
+            directoryMonitorFactory: { url, onChange in
+                let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
+                monitors.append(monitor)
+                return monitor
+            }
+        )
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.map(\.url.standardizedFileURL), [workspace.standardizedFileURL])
+
+        try "# X".write(to: workspace.appendingPathComponent("X.md"), atomically: true, encoding: .utf8)
+        monitors[0].onChange()
+        XCTAssertEqual(store.workspaceRoot.items.map(\.name), ["W.md", "X.md"])
+    }
+}

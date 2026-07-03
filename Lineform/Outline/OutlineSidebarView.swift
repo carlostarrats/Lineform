@@ -263,6 +263,16 @@ struct OutlineSidebarView: View {
                             if !turnedOn {
                                 fileBrowserStore.refreshICloud()
                             }
+                            // Reconcile BOTH roots on every appearance (previously only iCloud
+                            // refreshed here, so workspace changes made while the tab was hidden
+                            // never showed), then start live watching for external changes. The
+                            // watcher starts after the iCloud refresh above so the resolved
+                            // container URL is available to watch.
+                            fileBrowserStore.refreshWorkspace()
+                            fileBrowserStore.beginWatchingForExternalChanges()
+                        }
+                        .onDisappear {
+                            fileBrowserStore.endWatchingForExternalChanges()
                         }
                         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleHiddenFolders.name)) { _ in
                             // Live update while the Files tab is visible (its iCloud container is
@@ -658,6 +668,12 @@ final class OutlineFileBrowserStore: ObservableObject {
     private let iCloudDocumentsURLProvider: (FileManager) -> URL?
     private let iCloudDownloader: UbiquitousItemDownloader
     private let scopeAccessor: SecurityScopedResourceAccessing
+    private let directoryMonitorFactory: DirectoryChangeMonitorFactory
+    private var workspaceMonitor: DirectoryChangeMonitoring?
+    private var iCloudMonitor: DirectoryChangeMonitoring?
+    /// The resolved iCloud Documents URL from the last successful refresh; nil until the
+    /// deferred first scan has run (so watching can never resolve the container itself).
+    private var resolvedICloudDocumentsURL: URL?
     private var lastICloudItems: [OutlineFileTreeItem] = []
     private var workspaceURL: URL?
     private var lastWorkspaceItems: [OutlineFileTreeItem] = []
@@ -671,13 +687,17 @@ final class OutlineFileBrowserStore: ObservableObject {
         fileManager: FileManager = .default,
         iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL,
         iCloudDownloader: UbiquitousItemDownloader? = nil,
-        scopeAccessor: SecurityScopedResourceAccessing = URLSecurityScopedResourceAccessor()
+        scopeAccessor: SecurityScopedResourceAccessing = URLSecurityScopedResourceAccessor(),
+        directoryMonitorFactory: DirectoryChangeMonitorFactory? = nil
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
         self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
         self.iCloudDownloader = iCloudDownloader ?? fileManager
         self.scopeAccessor = scopeAccessor
+        self.directoryMonitorFactory = directoryMonitorFactory ?? { url, onChange in
+            DirectoryEventMonitor(url: url, onChange: onChange)
+        }
         // Set before any refresh; `didSet` does not fire during initialization, so this does
         // not trigger an (init-forbidden) iCloud scan.
         showsHiddenFolders = defaults.bool(forKey: Self.showsHiddenFoldersDefaultsKey)
@@ -703,6 +723,31 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// assert the held security scope survives re-scans.
     func refreshWorkspace() {
         refreshWorkspaceRoot()
+    }
+
+    /// Starts watching both roots for external file-system changes. Called when the
+    /// Files tab becomes visible, AFTER refreshICloud() has resolved the container —
+    /// this never resolves or scans anything itself, preserving the deferred-scan
+    /// invariant. Idempotent while watching.
+    func beginWatchingForExternalChanges() {
+        if workspaceMonitor == nil, let workspaceURL {
+            workspaceMonitor = directoryMonitorFactory(workspaceURL) { [weak self] in
+                self?.refreshWorkspaceRoot()
+            }
+        }
+        if iCloudMonitor == nil, let url = resolvedICloudDocumentsURL {
+            iCloudMonitor = directoryMonitorFactory(url) { [weak self] in
+                self?.refreshICloudRoot()
+            }
+        }
+    }
+
+    /// Stops watching (Files tab hidden / view gone). Cheap to call repeatedly.
+    func endWatchingForExternalChanges() {
+        workspaceMonitor?.stop()
+        workspaceMonitor = nil
+        iCloudMonitor?.stop()
+        iCloudMonitor = nil
     }
 
     @MainActor
@@ -781,6 +826,8 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     deinit {
+        workspaceMonitor?.stop()
+        iCloudMonitor?.stop()
         releaseWorkspaceScope()
     }
 
@@ -832,6 +879,12 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     private func setWorkspaceURL(_ url: URL) {
+        // Retarget a live watcher at the newly chosen folder (stop now, restart after
+        // the refresh below re-resolves everything).
+        let wasWatching = workspaceMonitor != nil
+        workspaceMonitor?.stop()
+        workspaceMonitor = nil
+
         workspaceURL = url
         saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
         // A same-session NSOpenPanel URL carries an implicit grant (beginAccess returns
@@ -851,6 +904,9 @@ final class OutlineFileBrowserStore: ObservableObject {
             releaseWorkspaceScope()
         }
         refreshWorkspaceRoot()
+        if wasWatching {
+            beginWatchingForExternalChanges()
+        }
     }
 
     private func saveBookmark(for url: URL, defaultsKey: String) {
@@ -868,6 +924,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 
     private func refreshICloudRoot() {
         guard let url = iCloudDocumentsURLProvider(fileManager) else {
+            resolvedICloudDocumentsURL = nil
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
                 title: "Lineform",
@@ -885,6 +942,7 @@ final class OutlineFileBrowserStore: ObservableObject {
             fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory),
             isDirectory.boolValue
         else {
+            resolvedICloudDocumentsURL = nil
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
                 title: "Lineform",
@@ -895,6 +953,7 @@ final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
+        resolvedICloudDocumentsURL = url
         let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: iCloudSortOrder)
         lastICloudItems = items
         saveSnapshot(items, defaultsKey: Self.iCloudSnapshotDefaultsKey)
