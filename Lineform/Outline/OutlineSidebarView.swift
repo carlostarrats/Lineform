@@ -1660,6 +1660,16 @@ enum LineformSidebarFileOpener {
         targetWindow?.representedURL = url
         targetWindow?.setTitleWithRepresentedFilename(url.path)
         targetWindow?.isDocumentEdited = false
+        // SwiftUI's DocumentGroup registers the binding writes made by updateEditorDocument
+        // with this NSDocument's undo/change machinery asynchronously — after the
+        // synchronous clears above. Without this deferred re-clear the swapped-in document
+        // reads as edited though the user typed nothing, and the NEXT sidebar switch shows
+        // a spurious unsaved-changes sheet for a file the user never touched.
+        DispatchQueue.main.async { [weak backingDocument, weak targetWindow] in
+            backingDocument?.undoManager?.removeAllActions()
+            backingDocument?.updateChangeCount(.changeCleared)
+            targetWindow?.isDocumentEdited = false
+        }
         documentController.noteNewRecentDocumentURL(url)
         DocumentSaveStatus.shared.markSaved(
             documentID: activeDocumentID,

@@ -908,4 +908,42 @@ extension OutlineSidebarViewTests {
         monitors[0].onChange()
         XCTAssertEqual(store.workspaceRoot.items.map(\.name), ["W.md", "X.md"])
     }
+
+    @MainActor
+    func testSidebarSwapClearsDeferredSpuriousChangeCount() throws {
+        // SwiftUI's DocumentGroup registers @Binding document writes with the host
+        // NSDocument's change machinery asynchronously — after replaceCurrentDocument has
+        // already cleared the change count synchronously. Simulate that deferred dirtying
+        // and assert the swap's own deferred clear wins; otherwise the NEXT sidebar click
+        // shows a spurious unsaved-changes sheet for a file the user never touched.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let url = folder.appendingPathComponent("Next.md")
+        try "# Next".write(to: url, atomically: true, encoding: .utf8)
+
+        let controller = RecordingDocumentController()
+        let backingDocument = TestDocument()
+        backingDocument.setValue(folder.appendingPathComponent("Previous.md"), forKey: "fileURL")
+
+        try LineformSidebarFileOpener.replaceCurrentDocument(
+            with: url,
+            backingDocument: backingDocument,
+            updateEditorDocument: { _ in
+                // SwiftUI enqueues its change registration during the binding writes,
+                // i.e. before the swap finishes; model that exact ordering.
+                DispatchQueue.main.async { backingDocument.updateChangeCount(.changeDone) }
+                return UUID()
+            },
+            documentController: controller
+        )
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertFalse(
+            backingDocument.isDocumentEdited,
+            "a sidebar swap must never leave the freshly loaded document marked edited"
+        )
+    }
 }
