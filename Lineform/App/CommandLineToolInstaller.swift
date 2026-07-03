@@ -44,10 +44,35 @@ enum CommandLineToolInstaller {
             // (fileExists(atPath:) follows links and would miss it).
             try? FileManager.default.removeItem(at: destination)
             try FileManager.default.createSymbolicLink(at: destination, withDestinationURL: helper)
+            showSuccess(destination: destination.path)
         } catch {
             showManualFallback(destination: destination.path,
                                reason: "Couldn’t create the link at \(destination.path).")
         }
+    }
+
+    @MainActor
+    private static func showSuccess(destination: String) {
+        // The symlink is silent otherwise; close the loop so the user knows it worked and how to
+        // use it. It's a Terminal command, and a shell that was already open won't have the new
+        // PATH entry — hence "open a new Terminal window". Use the destination's actual basename
+        // as the command name: the save panel pre-fills "lineform" but lets the user rename it.
+        let command = (destination as NSString).lastPathComponent
+        let alert = NSAlert()
+        alert.messageText = "Command line tool installed"
+        alert.informativeText = """
+        \(command) was linked to \(destination).
+
+        Open a new Terminal window, then run:
+
+        \(command) yourfile.md
+
+        Or pipe input into it:
+
+        some-command | \(command) -
+        """
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     @MainActor
