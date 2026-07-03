@@ -531,6 +531,23 @@ struct OutlineFileRoot: Identifiable, Equatable {
 
 /// Abstraction over `FileManager.startDownloadingUbiquitousItem(at:)` so the
 /// keep-downloaded behavior can be exercised in tests without real iCloud files.
+/// Abstraction over security-scoped URL access so tests can observe the scope lifecycle.
+/// The workspace folder's scope must be HELD while the workspace is set — not flashed on
+/// transiently around a directory scan — or file reads (document open, live reload) fail
+/// with "you don't have permission" after every relaunch.
+protocol SecurityScopedResourceAccessing {
+    /// Begins security-scoped access. Returns false when the URL carries no scope
+    /// (e.g. a plain path or a same-session NSOpenPanel URL, which needs none).
+    func beginAccess(to url: URL) -> Bool
+    /// Ends access previously begun with `beginAccess(to:)`. Only call after a `true` return.
+    func endAccess(to url: URL)
+}
+
+struct URLSecurityScopedResourceAccessor: SecurityScopedResourceAccessing {
+    func beginAccess(to url: URL) -> Bool { url.startAccessingSecurityScopedResource() }
+    func endAccess(to url: URL) { url.stopAccessingSecurityScopedResource() }
+}
+
 protocol UbiquitousItemDownloader {
     func startDownloadingUbiquitousItem(at url: URL) throws
 }
@@ -596,20 +613,27 @@ final class OutlineFileBrowserStore: ObservableObject {
     private let fileManager: FileManager
     private let iCloudDocumentsURLProvider: (FileManager) -> URL?
     private let iCloudDownloader: UbiquitousItemDownloader
+    private let scopeAccessor: SecurityScopedResourceAccessing
     private var lastICloudItems: [OutlineFileTreeItem] = []
     private var workspaceURL: URL?
     private var lastWorkspaceItems: [OutlineFileTreeItem] = []
+    /// The workspace URL whose security scope is currently held (nil when none is active).
+    /// Held for the store's lifetime so every read under the workspace — opening a document
+    /// from the sidebar, live reload, the directory scan — happens under a live grant.
+    private var heldWorkspaceScopeURL: URL?
 
     init(
         defaults: UserDefaults = .standard,
         fileManager: FileManager = .default,
         iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL,
-        iCloudDownloader: UbiquitousItemDownloader? = nil
+        iCloudDownloader: UbiquitousItemDownloader? = nil,
+        scopeAccessor: SecurityScopedResourceAccessing = URLSecurityScopedResourceAccessor()
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
         self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
         self.iCloudDownloader = iCloudDownloader ?? fileManager
+        self.scopeAccessor = scopeAccessor
         // Set before any refresh; `didSet` does not fire during initialization, so this does
         // not trigger an (init-forbidden) iCloud scan.
         showsHiddenFolders = defaults.bool(forKey: Self.showsHiddenFoldersDefaultsKey)
@@ -627,6 +651,12 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// becomes visible (or from tests); it is intentionally not run at init.
     func refreshICloud() {
         refreshICloudRoot()
+    }
+
+    /// Re-scans the workspace folder (same path init uses). Exposed for tests that
+    /// assert the held security scope survives re-scans.
+    func refreshWorkspace() {
+        refreshWorkspaceRoot()
     }
 
     @MainActor
@@ -674,10 +704,38 @@ final class OutlineFileBrowserStore: ObservableObject {
                 saveBookmark(for: url, defaultsKey: defaultsKey)
             }
 
+            // Hold the resolved workspace's scope for the store's lifetime. A transient
+            // start/stop around the directory scan is NOT enough: the moment the scope is
+            // stopped, file reads under the workspace (opening a document from the sidebar,
+            // live reload) fail with "you don't have permission" — which is exactly what
+            // users hit on every launch after a relaunch, since only this bookmark carries
+            // the sandbox grant across launches.
+            holdWorkspaceScope(for: url)
+
             return url
         } catch {
             return nil
         }
+    }
+
+    /// Begins (and keeps) security-scoped access to `url`, releasing any previously held
+    /// workspace scope first. No-ops when `url` is already the held workspace.
+    private func holdWorkspaceScope(for url: URL) {
+        guard heldWorkspaceScopeURL != url else { return }
+        releaseWorkspaceScope()
+        if scopeAccessor.beginAccess(to: url) {
+            heldWorkspaceScopeURL = url
+        }
+    }
+
+    private func releaseWorkspaceScope() {
+        guard let held = heldWorkspaceScopeURL else { return }
+        scopeAccessor.endAccess(to: held)
+        heldWorkspaceScopeURL = nil
+    }
+
+    deinit {
+        releaseWorkspaceScope()
     }
 
     private func loadICloudSnapshot() {
@@ -722,6 +780,22 @@ final class OutlineFileBrowserStore: ObservableObject {
     private func setWorkspaceURL(_ url: URL) {
         workspaceURL = url
         saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
+        // A same-session NSOpenPanel URL carries an implicit grant (beginAccess returns
+        // false and nothing is held), but re-resolving our own saved bookmark yields a
+        // scoped URL whose grant outlives this session. Swap the held scope to the new
+        // workspace either way so the old folder's grant is released.
+        var isStale = false
+        if let bookmarkData = defaults.data(forKey: Self.workspaceBookmarkDefaultsKey),
+           let scopedURL = try? URL(
+               resolvingBookmarkData: bookmarkData,
+               options: [.withSecurityScope],
+               relativeTo: nil,
+               bookmarkDataIsStale: &isStale
+           ) {
+            holdWorkspaceScope(for: scopedURL)
+        } else {
+            releaseWorkspaceScope()
+        }
         refreshWorkspaceRoot()
     }
 
@@ -827,13 +901,10 @@ final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
-        let didAccess = workspaceURL.startAccessingSecurityScopedResource()
-        defer {
-            if didAccess {
-                workspaceURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
+        // No transient start/stop here: the workspace scope is held for the store's
+        // lifetime (see holdWorkspaceScope), which is what keeps file OPENS working —
+        // a scope that ends when this scan returns leaves NSDocumentController reading
+        // the user's files with no grant at all.
         let items = Self.items(in: workspaceURL, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders)
         lastWorkspaceItems = items
         saveSnapshot(items, defaultsKey: Self.workspaceSnapshotDefaultsKey)

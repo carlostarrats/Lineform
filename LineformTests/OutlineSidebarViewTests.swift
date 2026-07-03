@@ -653,3 +653,98 @@ private final class TestDocument: NSDocument {
         canCloseCallCount += 1
     }
 }
+
+// MARK: - Workspace security scope lifecycle
+
+/// Records scope begin/end calls so tests can assert the workspace grant is HELD while the
+/// workspace is set — the regression behind "you don't have permission to view it" on every
+/// file open after a relaunch (the scope used to be flashed on only around the directory scan).
+private final class ScopeAccessorSpy: SecurityScopedResourceAccessing {
+    private(set) var beganURLs: [URL] = []
+    private(set) var endedURLs: [URL] = []
+
+    func beginAccess(to url: URL) -> Bool {
+        beganURLs.append(url)
+        return true
+    }
+
+    func endAccess(to url: URL) {
+        endedURLs.append(url)
+    }
+}
+
+extension OutlineSidebarViewTests {
+    private func makeWorkspaceBookmarkDefaults(
+        suiteName: String,
+        workspaceDirectory: URL
+    ) throws -> UserDefaults {
+        let bookmark = try workspaceDirectory.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(bookmark, forKey: OutlineFileBrowserStore.workspaceBookmarkDefaultsKey)
+        return defaults
+    }
+
+    @MainActor
+    func testWorkspaceBookmarkScopeIsHeldAfterInitNotStoppedAfterScan() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformScopeHeldTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let suiteName = "LineformScopeHeldTest-\(UUID().uuidString)"
+        let defaults = try makeWorkspaceBookmarkDefaults(suiteName: suiteName, workspaceDirectory: workspace)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let spy = ScopeAccessorSpy()
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            iCloudDocumentsURLProvider: { _ in nil },
+            scopeAccessor: spy
+        )
+
+        // The resolved workspace's scope must be begun exactly once and still be active
+        // after init (which includes the initial directory scan). If it has been ended,
+        // opening any file from the sidebar fails with a permission error.
+        XCTAssertEqual(spy.beganURLs.map(\.standardizedFileURL), [workspace.standardizedFileURL])
+        XCTAssertTrue(spy.endedURLs.isEmpty, "workspace scope must be held, not stopped after the scan")
+
+        // Subsequent re-scans must not re-begin or end the held scope.
+        store.refreshWorkspace()
+        XCTAssertEqual(spy.beganURLs.count, 1)
+        XCTAssertTrue(spy.endedURLs.isEmpty)
+    }
+
+    @MainActor
+    func testWorkspaceScopeIsReleasedOnDeinit() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformScopeDeinitTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let suiteName = "LineformScopeDeinitTest-\(UUID().uuidString)"
+        let defaults = try makeWorkspaceBookmarkDefaults(suiteName: suiteName, workspaceDirectory: workspace)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let spy = ScopeAccessorSpy()
+        var store: OutlineFileBrowserStore? = OutlineFileBrowserStore(
+            defaults: defaults,
+            iCloudDocumentsURLProvider: { _ in nil },
+            scopeAccessor: spy
+        )
+        XCTAssertEqual(spy.beganURLs.count, 1)
+
+        _ = store
+        store = nil
+
+        XCTAssertEqual(
+            spy.endedURLs.map(\.standardizedFileURL),
+            spy.beganURLs.map(\.standardizedFileURL),
+            "every begun scope must be balanced by an end when the store goes away"
+        )
+    }
+}
