@@ -81,10 +81,17 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testICloudRootDimmedWhenUnavailableOrConnectedEmpty() {
-        XCTAssertTrue(OutlineSidebarView.iCloudRootIsDimmed(state: .unavailable, isEmpty: true))
+    func testICloudRootDimmedWhenConnectedButEmpty() {
         XCTAssertTrue(OutlineSidebarView.iCloudRootIsDimmed(state: .available, isEmpty: true))
         XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .available, isEmpty: false))
+    }
+
+    @MainActor
+    func testICloudRootHiddenEntirelyWhenUnavailableButWorkspaceAlwaysShows() {
+        XCTAssertFalse(OutlineSidebarView.rootIsVisible(id: "icloud", state: .unavailable))
+        XCTAssertTrue(OutlineSidebarView.rootIsVisible(id: "icloud", state: .available))
+        XCTAssertTrue(OutlineSidebarView.rootIsVisible(id: "workspace", state: .unassigned))
+        XCTAssertTrue(OutlineSidebarView.rootIsVisible(id: "workspace", state: .unavailable))
     }
 
     @MainActor

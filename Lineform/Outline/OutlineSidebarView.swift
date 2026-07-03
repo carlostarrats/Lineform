@@ -115,10 +115,16 @@ struct OutlineSidebarView: View {
         (state == .available || state == .disconnected) && !isEmpty
     }
 
-    /// The iCloud root reads as "inactive" (dimmed) both when the container is unavailable and
-    /// when it is connected but empty.
+    /// The iCloud root reads as "inactive" (dimmed) when it is connected but has no files.
     static func iCloudRootIsDimmed(state: OutlineFileRootState, isEmpty: Bool) -> Bool {
-        state == .unavailable || (state == .available && isEmpty)
+        state == .available && isEmpty
+    }
+
+    /// The iCloud root is hidden entirely when its container can't resolve — i.e. the user has no
+    /// iCloud / isn't signed in (in Debug there is no iCloud entitlement, so it is always hidden).
+    /// Showing a dead root to someone without iCloud is just noise. Every other root/state shows.
+    static func rootIsVisible(id: String, state: OutlineFileRootState) -> Bool {
+        !(id == "icloud" && state == .unavailable)
     }
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
@@ -962,7 +968,9 @@ private struct OutlineFileBrowserView: View {
         // the file tree — no in-sidebar toggle chrome.
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                rootView(store.iCloudRoot)
+                if OutlineSidebarView.rootIsVisible(id: store.iCloudRoot.id, state: store.iCloudRoot.state) {
+                    rootView(store.iCloudRoot)
+                }
                 rootView(store.workspaceRoot)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
