@@ -95,16 +95,11 @@ struct OutlineSidebarView: View {
     static let fileSelectionUsesNativeSavePrompt = true
     static let workspaceDisconnectedSystemImage = "exclamationmark.triangle.fill"
 
-    /// Per-level horizontal indent for Files-tab tree rows. Kept gentle because the vertical
-    /// guide line (one per open folder) carries most of the "this is nested" signal.
-    static let filesTreeIndentStep: CGFloat = 12
-    /// x of the guide line for a depth-0 parent's children: row-content leading (6) + chevron (10)
-    /// + gap (8) + half icon (9) = the parent icon's horizontal center. Deeper parents shift by one step.
-    static let filesGuideLineDepthZeroInset: CGFloat = 33
-
-    static func filesGuideLineInset(forParentDepth depth: Int) -> CGFloat {
-        filesGuideLineDepthZeroInset + CGFloat(depth) * filesTreeIndentStep
-    }
+    /// Per-level horizontal indent for Files-tab tree rows. Nesting is carried by indentation +
+    /// disclosure chevrons alone (the native macOS source-list convention — Finder, Notes, Mail —
+    /// no vertical guide lines), so the step is generous enough for the eye to track structure by
+    /// row x-position.
+    static let filesTreeIndentStep: CGFloat = 14
 
     /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
     /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
@@ -1250,7 +1245,6 @@ private struct OutlineFileTreeNodeView: View {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(rowBackgroundStyle)
         }
-        .overlay(alignment: .topLeading) { guideLine }
         .contentShape(Rectangle())
         .onTapGesture {
             if item.isDirectory {
@@ -1265,22 +1259,6 @@ private struct OutlineFileTreeNodeView: View {
             }
         }
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-    }
-
-    /// A single faint vertical line in this row's left gutter, aligned under the parent's icon,
-    /// connecting the row to its parent. Contiguous siblings form one continuous line; a folder's
-    /// expanded children sit at a deeper inset, so the parent's line naturally breaks across them
-    /// (one line per open folder, no stacked ladder). Height overshoots the row slightly to bridge
-    /// the inter-row spacing.
-    @ViewBuilder
-    private var guideLine: some View {
-        if depth >= 1 {
-            Rectangle()
-                .fill(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome).opacity(0.22))
-                .frame(width: 1, height: OutlineSidebarView.filesChildRowHeight + 2)
-                .padding(.leading, OutlineSidebarView.filesGuideLineInset(forParentDepth: depth - 1))
-                .allowsHitTesting(false)
-        }
     }
 
     private func toggleCollapsed() {

@@ -28,6 +28,8 @@ Non-goals: no change to `maximumTreeDepth`, scanning, iCloud entitlement/lazines
 
 ### 1. One consistent indent grid with a per-open-folder guide line
 
+> **Superseded 2026-07-02 (same day):** the vertical guide lines described below were shipped, then removed. In use they fragmented into short disconnected segments at each depth and read as noise against the app's calm/native grain. The tree now conveys nesting with **indentation + disclosure chevrons alone** — the native macOS source-list convention (Finder, Notes, Mail) — at a **14pt** indent step (not the 10–12pt below, which only worked because the lines carried the signal). `filesTreeIndentStep` is the sole geometry constant; the `guideLine` view and the `filesGuideLineInset` helpers no longer exist.
+
 Treat each root as the top folder of a single grid. Indent one gentle step per nesting level; a **single faint vertical guide line** runs down the direct children of each *open* folder (root or subfolder), connecting them to their parent. This is the "one line per open folder" model, not a stacked per-level ladder.
 
 - **Indent step:** ~10–12pt per level (down from 14). The guide line carries most of the "this is nested" signal, so the horizontal step can be gentler.

@@ -99,10 +99,10 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testGuideLineInsetTracksIndentStep() {
-        XCTAssertEqual(OutlineSidebarView.filesTreeIndentStep, 12)
-        XCTAssertEqual(OutlineSidebarView.filesGuideLineInset(forParentDepth: 0), 33)
-        XCTAssertEqual(OutlineSidebarView.filesGuideLineInset(forParentDepth: 1), 45)
+    func testFilesTreeIndentStepIsGenerousEnoughToCarryNestingWithoutGuideLines() {
+        // Nesting is conveyed by indentation + chevrons alone (native macOS source-list
+        // convention, no vertical guide lines), so the per-level step must be non-trivial.
+        XCTAssertEqual(OutlineSidebarView.filesTreeIndentStep, 14)
     }
 
     @MainActor
