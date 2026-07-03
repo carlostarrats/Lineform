@@ -21,6 +21,8 @@ struct EditorContainerView: View {
     @StateObject private var reloadController = DocumentReloadController()
     @State private var showsUpdatedIndicator = false
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
+    @State private var pendingRename: SidebarRenameRequest?
+    @State private var pendingDelete: URL?
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
 
@@ -58,6 +60,30 @@ struct EditorContainerView: View {
             editorShell
         }
         .navigationSplitViewStyle(.balanced)
+        .overlay {
+            // Custom Muse-style modals over the whole window (no app icon, readable
+            // buttons). Themed to match the current reader chrome.
+            if let request = pendingRename {
+                SidebarRenameDialog(
+                    url: request.url,
+                    isDirectory: request.isDirectory,
+                    onCommit: { performSidebarRename(request, to: $0) },
+                    onCancel: { pendingRename = nil }
+                )
+                .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
+                .transition(.opacity)
+            } else if let url = pendingDelete {
+                SidebarDeleteDialog(
+                    url: url,
+                    onConfirm: { performSidebarDelete(url) },
+                    onCancel: { pendingDelete = nil }
+                )
+                .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: pendingRename)
+        .animation(.easeOut(duration: 0.15), value: pendingDelete)
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
         .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
@@ -402,24 +428,46 @@ struct EditorContainerView: View {
     }
 
     private func renameSidebarItem(at url: URL, isDirectory: Bool) {
-        guard let destination = SidebarFileActionPresenter.promptRename(of: url, isDirectory: isDirectory) else {
+        pendingRename = SidebarRenameRequest(url: url, isDirectory: isDirectory)
+    }
+
+    private func deleteSidebarItem(at url: URL) {
+        pendingDelete = url
+    }
+
+    private func performSidebarRename(_ request: SidebarRenameRequest, to destination: URL) {
+        pendingRename = nil
+        do {
+            try SidebarFileOperations().rename(request.url, to: destination)
+        } catch {
+            presentSidebarOperationError(error)
             return
         }
         // Every window (including this one) retargets via the rename broadcast; every
         // visible Files tab re-scans via the refresh broadcast (FSEvents deliberately
         // ignores our own process's events).
         LineformAppNotification.sidebarItemRenamed.post(
-            object: LineformAppNotification.RenamePayload(from: url, to: destination, isDirectory: isDirectory)
+            object: LineformAppNotification.RenamePayload(from: request.url, to: destination, isDirectory: request.isDirectory)
         )
         LineformAppNotification.refreshSidebarFiles.post(object: destination)
     }
 
-    private func deleteSidebarItem(at url: URL) {
-        guard SidebarFileActionPresenter.promptDelete(of: url) else {
+    private func performSidebarDelete(_ url: URL) {
+        pendingDelete = nil
+        do {
+            try SidebarFileOperations().trash(url)
+        } catch {
+            presentSidebarOperationError(error)
             return
         }
         LineformAppNotification.sidebarFileDeleted.post(object: url)
         LineformAppNotification.refreshSidebarFiles.post(object: url)
+    }
+
+    /// The rare failure path (name collision, no permission). A system error alert is
+    /// fine here — it's an error, not the primary Muse-style action dialog.
+    private func presentSidebarOperationError(_ error: Error) {
+        NSAlert(error: error).runModal()
     }
 
     private func replaceDocumentFromSidebar(_ replacement: LineformDocument) -> UUID {

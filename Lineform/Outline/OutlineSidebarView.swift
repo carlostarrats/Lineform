@@ -1501,22 +1501,30 @@ private struct OutlineFileSortRow: View {
 
     var body: some View {
         Menu {
-            Picker("Sort", selection: $sortOrder) {
-                ForEach(OutlineFileSortOrder.allCases) { order in
-                    Text(order.title).tag(order)
+            // Plain buttons (not a Picker) so the menu shows only the options with an
+            // inline checkmark on the active one — no greyed "Sort" section header.
+            ForEach(OutlineFileSortOrder.allCases) { order in
+                Button {
+                    sortOrder = order
+                } label: {
+                    if order == sortOrder {
+                        Label(order.title, systemImage: "checkmark")
+                    } else {
+                        Text(order.title)
+                    }
                 }
             }
-            .pickerStyle(.inline)
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                 Text(OutlineSidebarView.filesSortMenuLabelPrefix + sortOrder.title)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: colorScheme == .dark))
         }
         .menuStyle(.button)
+        .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .fixedSize()
         .accessibilityLabel("Sort \(rootTitle) files")
