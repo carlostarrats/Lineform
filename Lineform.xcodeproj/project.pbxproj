@@ -29,6 +29,7 @@
 		1F0000010000000000000220 /* LineformCommandLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000220 /* LineformCommandLine.swift */; };
 		1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000221 /* CommandLineToolTests.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
+		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F0000010000000000000233 /* DiagramLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000233 /* DiagramLogTests.swift */; };
 		1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000235 /* DiagramReportServiceTests.swift */; };
 		1F0000010000000000000222 /* CommandLineToolInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000222 /* CommandLineToolInstaller.swift */; };
@@ -63,6 +64,7 @@
 		1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */; };
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000230 /* MermaidRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000230 /* MermaidRendering.swift */; };
+		1F00000100000000000002B0 /* MathRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B0 /* MathRendering.swift */; };
 		1F0000010000000000000231 /* DiagramLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000231 /* DiagramLog.swift */; };
 		1F0000010000000000000234 /* DiagramReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000234 /* DiagramReportService.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
@@ -90,6 +92,7 @@
 		1F0000010000000000000201 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000201 /* AppUpdater.swift */; };
 		1F0000010000000000000202 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000001 /* Sparkle */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
+		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -128,6 +131,7 @@
 		1F0000020000000000000220 /* LineformCommandLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformCommandLine.swift; sourceTree = "<group>"; };
 		1F0000020000000000000221 /* CommandLineToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000233 /* DiagramLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLogTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000235 /* DiagramReportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportServiceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000222 /* CommandLineToolInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolInstaller.swift; sourceTree = "<group>"; };
@@ -165,6 +169,7 @@
 		1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtection.swift; sourceTree = "<group>"; };
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000230 /* MermaidRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRendering.swift; sourceTree = "<group>"; };
+		1F00000200000000000002B0 /* MathRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRendering.swift; sourceTree = "<group>"; };
 		1F0000020000000000000231 /* DiagramLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLog.swift; sourceTree = "<group>"; };
 		1F0000020000000000000234 /* DiagramReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
@@ -196,6 +201,7 @@
 			files = (
 				1F0000010000000000000202 /* Sparkle in Frameworks */,
 				1F0000010000000000000203 /* BeautifulMermaid in Frameworks */,
+				1F00000100000000000002A1 /* SwiftMath in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,6 +315,7 @@
 				1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */,
 				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
 				1F0000020000000000000230 /* MermaidRendering.swift */,
+				1F00000200000000000002B0 /* MathRendering.swift */,
 				1F0000020000000000000231 /* DiagramLog.swift */,
 				1F0000020000000000000234 /* DiagramReportService.swift */,
 			);
@@ -372,6 +379,7 @@
 				1F0000020000000000000214 /* LiveReloadScrollTests.swift */,
 				1F0000020000000000000221 /* CommandLineToolTests.swift */,
 				1F0000020000000000000232 /* MermaidRenderingTests.swift */,
+				1F00000200000000000002B2 /* MathRenderingTests.swift */,
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
 				1F0000020000000000000235 /* DiagramReportServiceTests.swift */,
 			);
@@ -406,6 +414,7 @@
 			packageProductDependencies = (
 				1F0000130000000000000001 /* Sparkle */,
 				1F0000130000000000000002 /* BeautifulMermaid */,
+				1F00001300000000000002A2 /* SwiftMath */,
 			);
 			productName = Lineform;
 			productReference = 1F0000020000000000000004 /* Lineform.app */;
@@ -465,6 +474,7 @@
 			packageReferences = (
 				1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */,
+				1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */,
 			);
 			productRefGroup = 1F0000070000000000000004 /* Products */;
 			projectDirPath = "";
@@ -539,6 +549,7 @@
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
 				1F0000010000000000000230 /* MermaidRendering.swift in Sources */,
+				1F00000100000000000002B0 /* MathRendering.swift in Sources */,
 				1F0000010000000000000231 /* DiagramLog.swift in Sources */,
 				1F0000010000000000000234 /* DiagramReportService.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
@@ -581,6 +592,7 @@
 				1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */,
 				1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */,
 				1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */,
+				1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */,
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
 				1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */,
 			);
@@ -837,6 +849,14 @@
 				version = 1.0.4;
 			};
 		};
+		1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mgriebling/SwiftMath";
+			requirement = {
+				kind = exactVersion;
+				version = 1.7.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -849,6 +869,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */;
 			productName = BeautifulMermaid;
+		};
+		1F00001300000000000002A2 /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

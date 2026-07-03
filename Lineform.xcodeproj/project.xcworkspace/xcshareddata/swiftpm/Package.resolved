@@ -1,5 +1,5 @@
 {
-  "originHash" : "1db0fc0f61093be29ee6301fa3165d3fa5fe887d26568568526f5accfafefc70",
+  "originHash" : "901db371ecfa5888435bb3d27073ca6cf4f48927a9b8890db8fc73f8a22039f7",
   "pins" : [
     {
       "identity" : "beautiful-mermaid-swift",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "6276ba2b404829d139c45ff98427cf90e2efc59b",
         "version" : "2.9.2"
+      }
+    },
+    {
+      "identity" : "swiftmath",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mgriebling/SwiftMath",
+      "state" : {
+        "revision" : "fa8244ed032f4a1ade4cb0571bf87d2f1a9fd2d7",
+        "version" : "1.7.3"
       }
     }
   ],
