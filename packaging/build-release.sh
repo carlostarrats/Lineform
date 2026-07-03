@@ -91,6 +91,44 @@ if [[ "$RESIGN_WITH_DEVELOPER_ID" == "YES" ]]; then
     exit 66
   fi
 
+  # HARD GATE: the signing cert must be embedded in the provisioning profile.
+  # The app carries restricted iCloud entitlements, which AMFI only honors when the
+  # cert that signed the app appears in the profile's DeveloperCertificates. A
+  # mismatch still passes codesign --verify, notarization, and Gatekeeper, but the
+  # kernel SIGKILLs the app at launch on every machine ("Lineform can't be opened").
+  # This exact failure shipped as 1.1.0 build 14 — do not remove this check.
+  if [[ "$CODE_SIGN_IDENTITY" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+    SIGNING_CERT_SHA1="$(echo "$CODE_SIGN_IDENTITY" | tr '[:lower:]' '[:upper:]')"
+  else
+    SIGNING_CERT_SHA1="$(security find-certificate -c "$CODE_SIGN_IDENTITY" -Z 2>/dev/null \
+      | awk -F': ' '/^SHA-1 hash:/{print $2}' | head -1)"
+  fi
+  if [[ -z "$SIGNING_CERT_SHA1" ]]; then
+    echo "error: could not resolve signing cert SHA-1 for identity: $CODE_SIGN_IDENTITY" >&2
+    exit 68
+  fi
+  PROFILE_PLIST="$(mktemp)"
+  security cms -D -i "$DEVELOPER_ID_PROFILE_PATH" > "$PROFILE_PLIST"
+  PROFILE_CERT_SHA1S=""
+  cert_index=0
+  while /usr/libexec/PlistBuddy -c "Print :DeveloperCertificates:$cert_index" "$PROFILE_PLIST" \
+      > "$PROFILE_PLIST.cert" 2>/dev/null; do
+    PROFILE_CERT_SHA1S+=" $(openssl x509 -inform der -in "$PROFILE_PLIST.cert" -noout -fingerprint -sha1 \
+      | sed 's/.*=//' | tr -d ':')"
+    cert_index=$((cert_index + 1))
+  done
+  rm -f "$PROFILE_PLIST" "$PROFILE_PLIST.cert"
+  if [[ " $PROFILE_CERT_SHA1S " != *" $SIGNING_CERT_SHA1 "* ]]; then
+    echo "error: signing cert $SIGNING_CERT_SHA1 is NOT in the provisioning profile's DeveloperCertificates." >&2
+    echo "       Profile: $DEVELOPER_ID_PROFILE_PATH" >&2
+    echo "       Profile certs:$PROFILE_CERT_SHA1S" >&2
+    echo "       An app signed this way is killed by AMFI at launch. Regenerate the Developer ID" >&2
+    echo "       profile (Xcode: archive + Direct Distribution, or developer.apple.com) so it includes" >&2
+    echo "       the current cert, then point DEVELOPER_ID_PROFILE_PATH at it." >&2
+    exit 68
+  fi
+  echo "Verified signing cert $SIGNING_CERT_SHA1 is embedded in the provisioning profile."
+
   cp "$DEVELOPER_ID_PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 
   sign_release_item "$APP_PATH/Contents/Helpers/lineform"
@@ -108,6 +146,37 @@ if [[ "$RESIGN_WITH_DEVELOPER_ID" == "YES" ]]; then
     "$APP_PATH"
 else
   echo "warning: built with Xcode-managed signing; set RESIGN_WITH_DEVELOPER_ID=YES only with a matching Developer ID iCloud profile." >&2
+fi
+
+# HARD GATE: launch the packaged app once before building the DMG. Signing defects
+# that AMFI enforces only at spawn (e.g. a cert/profile mismatch on the restricted
+# iCloud entitlements) pass every static check — codesign --verify, notarization,
+# Gatekeeper — and only show up as the app being SIGKILLed at launch. Catch that
+# here instead of shipping it (as happened with 1.1.0 build 14).
+if [[ "${SKIP_LAUNCH_SMOKE_TEST:-NO}" != "YES" ]]; then
+  echo "Launch smoke test: opening packaged app..."
+  SMOKE_APP_DIR="$(mktemp -d)"
+  ditto "$APP_PATH" "$SMOKE_APP_DIR/Lineform.app"
+  if ! open "$SMOKE_APP_DIR/Lineform.app" 2>/dev/null; then
+    echo "error: packaged app FAILED TO LAUNCH (launchd refused to spawn it)." >&2
+    echo "       This is the AMFI kill signature: check that the signing cert is in the" >&2
+    echo "       embedded provisioning profile and the entitlements are authorized." >&2
+    rm -rf "$SMOKE_APP_DIR"
+    exit 69
+  fi
+  sleep 3
+  if ! pgrep -qf "$SMOKE_APP_DIR/Lineform.app/Contents/MacOS/Lineform"; then
+    echo "error: packaged app spawned but is not running after 3s (crashed at startup?)." >&2
+    rm -rf "$SMOKE_APP_DIR"
+    exit 69
+  fi
+  osascript -e "tell application \"$SMOKE_APP_DIR/Lineform.app\" to quit" >/dev/null 2>&1 || \
+    pkill -f "$SMOKE_APP_DIR/Lineform.app/Contents/MacOS/Lineform" || true
+  sleep 1
+  rm -rf "$SMOKE_APP_DIR"
+  echo "Launch smoke test passed: packaged app spawns and stays running."
+else
+  echo "warning: SKIP_LAUNCH_SMOKE_TEST=YES — packaged app was NOT launch-tested." >&2
 fi
 
 "$REPO_ROOT/packaging/build-dmg.sh" \
