@@ -21,6 +21,8 @@ struct EditorContainerView: View {
     @StateObject private var reloadController = DocumentReloadController()
     @State private var showsUpdatedIndicator = false
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
+    @State private var sidebarDialog: SidebarFileDialog?
+    @State private var renameText = ""
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
 
@@ -58,6 +60,38 @@ struct EditorContainerView: View {
             editorShell
         }
         .navigationSplitViewStyle(.balanced)
+        // A single native SwiftUI alert (title + message + text field + buttons) — the
+        // standard macOS confirmation look, no app icon. One `.alert` driven by one enum
+        // state so rename and delete can never compete for the view's alert slot.
+        .alert(sidebarDialogTitle, isPresented: sidebarDialogPresented, presenting: sidebarDialog) { dialog in
+            switch dialog {
+            case .rename(let request):
+                TextField("Name", text: $renameText)
+                Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
+                    sidebarDialog = nil
+                }
+                Button(SidebarFileActionPresenter.renameButtonTitle) {
+                    commitPendingRename(request)
+                }
+                .keyboardShortcut(.defaultAction)
+            case .delete(let url):
+                // Cancel is the Return default; deleting is deliberate and takes a click.
+                Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
+                    sidebarDialog = nil
+                }
+                .keyboardShortcut(.defaultAction)
+                Button(SidebarFileActionPresenter.deleteButtonTitle, role: .destructive) {
+                    performSidebarDelete(url)
+                }
+            }
+        } message: { dialog in
+            switch dialog {
+            case .rename(let request):
+                Text(request.isDirectory ? SidebarFileActionPresenter.renameFolderMessage : SidebarFileActionPresenter.renameFileMessage)
+            case .delete:
+                Text(SidebarFileActionPresenter.deleteMessage)
+            }
+        }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
         .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
@@ -402,24 +436,77 @@ struct EditorContainerView: View {
     }
 
     private func renameSidebarItem(at url: URL, isDirectory: Bool) {
-        guard let destination = SidebarFileActionPresenter.promptRename(of: url, isDirectory: isDirectory) else {
+        renameText = SidebarFileRenaming.displayName(for: url, isDirectory: isDirectory)
+        sidebarDialog = .rename(SidebarRenameRequest(url: url, isDirectory: isDirectory))
+    }
+
+    private func deleteSidebarItem(at url: URL) {
+        sidebarDialog = .delete(url)
+    }
+
+    private var sidebarDialogPresented: Binding<Bool> {
+        Binding(get: { sidebarDialog != nil }, set: { if !$0 { sidebarDialog = nil } })
+    }
+
+    private var sidebarDialogTitle: String {
+        switch sidebarDialog {
+        case .rename(let request):
+            return request.isDirectory
+                ? SidebarFileActionPresenter.renameFolderTitle
+                : SidebarFileActionPresenter.renameFileTitle
+        case .delete(let url):
+            return SidebarFileActionPresenter.deleteTitle(for: url)
+        case nil:
+            return ""
+        }
+    }
+
+    private func commitPendingRename(_ request: SidebarRenameRequest) {
+        guard let destination = SidebarFileRenaming.validatedDestination(
+            for: request.url,
+            isDirectory: request.isDirectory,
+            newDisplayName: renameText
+        ) else {
+            // Empty / unchanged / invalid name — dismiss without touching disk.
+            sidebarDialog = nil
+            return
+        }
+        performSidebarRename(request, to: destination)
+    }
+
+    private func performSidebarRename(_ request: SidebarRenameRequest, to destination: URL) {
+        sidebarDialog = nil
+        do {
+            try SidebarFileOperations().rename(request.url, to: destination)
+        } catch {
+            presentSidebarOperationError(error)
             return
         }
         // Every window (including this one) retargets via the rename broadcast; every
         // visible Files tab re-scans via the refresh broadcast (FSEvents deliberately
         // ignores our own process's events).
         LineformAppNotification.sidebarItemRenamed.post(
-            object: LineformAppNotification.RenamePayload(from: url, to: destination, isDirectory: isDirectory)
+            object: LineformAppNotification.RenamePayload(from: request.url, to: destination, isDirectory: request.isDirectory)
         )
         LineformAppNotification.refreshSidebarFiles.post(object: destination)
     }
 
-    private func deleteSidebarItem(at url: URL) {
-        guard SidebarFileActionPresenter.promptDelete(of: url) else {
+    private func performSidebarDelete(_ url: URL) {
+        sidebarDialog = nil
+        do {
+            try SidebarFileOperations().trash(url)
+        } catch {
+            presentSidebarOperationError(error)
             return
         }
         LineformAppNotification.sidebarFileDeleted.post(object: url)
         LineformAppNotification.refreshSidebarFiles.post(object: url)
+    }
+
+    /// The rare failure path (name collision, no permission). A system error alert is
+    /// fine here — it's an error, not the primary Muse-style action dialog.
+    private func presentSidebarOperationError(_ error: Error) {
+        NSAlert(error: error).runModal()
     }
 
     private func replaceDocumentFromSidebar(_ replacement: LineformDocument) -> UUID {
