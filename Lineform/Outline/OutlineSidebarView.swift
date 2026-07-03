@@ -137,6 +137,25 @@ struct OutlineSidebarView: View {
     static func rootIsVisible(id: String, state: OutlineFileRootState) -> Bool {
         !(id == "icloud" && state == .unavailable)
     }
+
+    /// The iCloud root shows only when its container resolves AND the user hasn't
+    /// hidden it in Settings. Workspace visibility is unaffected by this setting.
+    static func iCloudRootVisible(state: OutlineFileRootState, showICloudInSidebar: Bool) -> Bool {
+        rootIsVisible(id: "icloud", state: state) && showICloudInSidebar
+    }
+
+    /// A root's collapse chevron is suppressed entirely when the user has locked
+    /// roots expanded (Settings › Keep root folders expanded).
+    static func rootDisclosureVisible(state: OutlineFileRootState, isEmpty: Bool, lockExpanded: Bool) -> Bool {
+        rootShowsDisclosure(state: state, isEmpty: isEmpty) && !lockExpanded
+    }
+
+    /// When roots are locked expanded, a root is never treated as collapsed even if
+    /// its id lingers in the in-memory collapsed set (so toggling the setting back
+    /// off restores the prior in-session state).
+    static func rootIsCollapsed(isInCollapsedSet: Bool, lockExpanded: Bool) -> Bool {
+        !lockExpanded && isInCollapsedSet
+    }
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
     static let maximumColumnWidth: CGFloat = 300
@@ -1168,6 +1187,15 @@ final class OutlineFileBrowserStore: ObservableObject {
         return requested
     }
 
+    /// Whether a documents folder has no display-worthy content — used by the
+    /// Settings iCloud toggle to decide if the user may hide the iCloud root.
+    /// Reuses the same scan the sidebar tree uses (hidden files excluded, default
+    /// name sort) so "empty" here matches exactly what the sidebar would render.
+    /// Read-only; never writes to the folder.
+    static func documentsFolderIsEmpty(at url: URL, fileManager: FileManager) -> Bool {
+        items(in: url, fileManager: fileManager, showsHiddenFolders: false).isEmpty
+    }
+
     private static func items(
         in url: URL,
         fileManager: FileManager,
@@ -1260,13 +1288,14 @@ private struct OutlineFileBrowserView: View {
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
+    @ObservedObject private var settings = LineformSettingsStore.shared
 
     var body: some View {
         // "Show Hidden Folders" now lives in the View menu (⌘⇧.), so the Files tab is just
         // the file tree — no in-sidebar toggle chrome.
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
-                if OutlineSidebarView.rootIsVisible(id: store.iCloudRoot.id, state: store.iCloudRoot.state) {
+                if OutlineSidebarView.iCloudRootVisible(state: store.iCloudRoot.state, showICloudInSidebar: settings.showICloudInSidebar) {
                     rootView(store.iCloudRoot)
                 }
                 rootView(store.workspaceRoot)
@@ -1284,7 +1313,8 @@ private struct OutlineFileBrowserView: View {
         VStack(alignment: .leading, spacing: 2) {
             OutlineFileRootRow(
                 root: root,
-                isCollapsed: collapsedIDs.contains(root.id),
+                isCollapsed: isRootCollapsed(root.id),
+                lockExpanded: settings.keepRootFoldersExpanded,
                 toggleCollapsed: { toggle(root.id) },
                 chooseWorkspaceFolder: store.chooseWorkspaceFolder
             )
@@ -1292,13 +1322,13 @@ private struct OutlineFileBrowserView: View {
 
             // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
             // expandable tree, no empty-state line — just the quiet header.
-            if root.state == .available, !collapsedIDs.contains(root.id), !rootIsDimmed(root), !root.items.isEmpty {
+            if root.state == .available, !isRootCollapsed(root.id), !rootIsDimmed(root), !root.items.isEmpty {
                 OutlineFileSortRow(rootTitle: root.title, sortOrder: sortBinding(for: root))
                     .padding(.leading, 28)
                     .padding(.bottom, 2)
             }
 
-            if root.showsTree, !collapsedIDs.contains(root.id), !rootIsDimmed(root) {
+            if root.showsTree, !isRootCollapsed(root.id), !rootIsDimmed(root) {
                 if root.items.isEmpty {
                     // Only a connected (.available) empty folder is genuinely "no Markdown." A
                     // disconnected folder's emptiness just means the cached snapshot is empty — the
@@ -1345,6 +1375,13 @@ private struct OutlineFileBrowserView: View {
         return root.state == .unavailable
     }
 
+    private func isRootCollapsed(_ id: String) -> Bool {
+        OutlineSidebarView.rootIsCollapsed(
+            isInCollapsedSet: collapsedIDs.contains(id),
+            lockExpanded: settings.keepRootFoldersExpanded
+        )
+    }
+
     private func toggle(_ id: String) {
         if collapsedIDs.contains(id) {
             collapsedIDs.remove(id)
@@ -1361,6 +1398,7 @@ private struct OutlineFileBrowserView: View {
 private struct OutlineFileRootRow: View {
     var root: OutlineFileRoot
     var isCollapsed: Bool
+    var lockExpanded: Bool = false
     var toggleCollapsed: () -> Void
     var chooseWorkspaceFolder: () -> Void
     @Environment(\.colorScheme) private var colorScheme
@@ -1458,7 +1496,11 @@ private struct OutlineFileRootRow: View {
     }
 
     private var showsDisclosure: Bool {
-        OutlineSidebarView.rootShowsDisclosure(state: root.state, isEmpty: root.items.isEmpty)
+        OutlineSidebarView.rootDisclosureVisible(
+            state: root.state,
+            isEmpty: root.items.isEmpty,
+            lockExpanded: lockExpanded
+        )
     }
 
     private var chevronSystemImage: String {

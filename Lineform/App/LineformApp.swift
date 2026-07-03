@@ -24,6 +24,10 @@ struct LineformApp: App {
                 updaterController: updaterController
             )
         }
+
+        Settings {
+            SettingsView(settings: LineformSettingsStore.shared)
+        }
     }
 }
 

@@ -8,7 +8,7 @@ struct EditorContainerView: View {
     @State private var isShowingReadingInspector = false
     @State private var isShowingMarkdownBasics = false
     @State private var displayMode = EditorDisplayMode.write
-    @State private var isShowingOutline = false
+    @State private var isShowingOutline: Bool
     @State private var outlineItems: [MarkdownOutlineItem] = []
     @State private var requestedSelection: NSRange?
     @State private var searchQuery = ""
@@ -26,14 +26,23 @@ struct EditorContainerView: View {
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
 
+    /// New windows open with the sidebar in the user's preferred launch state
+    /// (Settings › Show sidebar on launch, default on). This governs the initial
+    /// value only; once open, the user's ⌥⌘0 toggle takes over.
+    static func initialOutlineVisible(settings: LineformSettingsStore) -> Bool {
+        settings.showSidebarOnLaunch
+    }
+
     init(
         document: Binding<LineformDocument>,
         readingProfileStore: ReadingProfileStore = ReadingProfileStore(),
-        fileBrowserStore: OutlineFileBrowserStore? = nil
+        fileBrowserStore: OutlineFileBrowserStore? = nil,
+        settings: LineformSettingsStore = .shared
     ) {
         _document = document
         _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
         injectedFileBrowserStore = fileBrowserStore
+        _isShowingOutline = State(initialValue: Self.initialOutlineVisible(settings: settings))
     }
 
     var body: some View {
