@@ -161,6 +161,17 @@ struct OutlineSidebarView: View {
         }
     }
 
+    /// VoiceOver label for a Files-tab row. Rows previously exposed only text + selection
+    /// trait; folders and de-emphasized hidden items need to say what they are.
+    static func fileRowAccessibilityLabel(name: String, isDirectory: Bool, isHidden: Bool) -> String {
+        switch (isDirectory, isHidden) {
+        case (true, true): return "\(name), hidden folder"
+        case (true, false): return "\(name), folder"
+        case (false, true): return "\(name), hidden"
+        case (false, false): return name
+        }
+    }
+
     /// Whether a Files-tab row represents the document currently shown in the window. Folders
     /// are never selectable. Both URLs are standardized before comparison — the same normalization
     /// the sidebar file opener uses (see `replaceCurrentDocument`), so a file opened from the
@@ -1559,7 +1570,26 @@ private struct OutlineFileTreeNodeView: View {
             Divider()
             Button("Show in Finder") { revealItem(item) }
         }
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(OutlineSidebarView.fileRowAccessibilityLabel(name: item.name, isDirectory: item.isDirectory, isHidden: item.isHidden))
+        .accessibilityHint(item.isDirectory ? (isCollapsed ? "Expands the folder" : "Collapses the folder") : "Opens the file")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
+        .accessibilityAction {
+            if item.isDirectory {
+                toggleCollapsed()
+            } else {
+                openFile(item.url)
+            }
+        }
+        // Right-click must not be the only path to these; VoiceOver users get them
+        // from the actions rotor.
+        .accessibilityActions {
+            Button("Rename") { renameItem(item) }
+            if !item.isDirectory {
+                Button("Delete") { deleteItem(item) }
+            }
+            Button("Show in Finder") { revealItem(item) }
+        }
     }
 
     private func toggleCollapsed() {

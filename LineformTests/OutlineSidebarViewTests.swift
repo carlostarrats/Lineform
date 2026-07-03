@@ -99,6 +99,14 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testFileRowsGetRealAccessibilityLabels() {
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: "Notes.md", isDirectory: false, isHidden: false), "Notes.md")
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: "Drafts", isDirectory: true, isHidden: false), "Drafts, folder")
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: ".claude", isDirectory: true, isHidden: true), ".claude, hidden folder")
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: ".env.md", isDirectory: false, isHidden: true), ".env.md, hidden")
+    }
+
+    @MainActor
     func testFilesSectionsGetAMuseStyleSortRowWithoutManualOption() {
         XCTAssertEqual(OutlineSidebarView.filesSortMenuLabelPrefix, "Sort: ")
         XCTAssertTrue(OutlineSidebarView.filesSortRowShowsForAvailableRootsOnly)
