@@ -141,11 +141,14 @@ enum MathBlockPolicy {
     static func shouldAttemptRender(source: String) -> Bool { source.count <= maxSourceLength }
 }
 
-/// Stable, compact cache key for a rendered equation, keyed by latex + style + color + scale.
+/// Stable, compact cache key for a rendered equation, keyed by latex + style + color + scale +
+/// point size. `pointSize` must be part of the key: the image is rendered at `fontSize: pointSize`
+/// (and its baseline `descent` scales with it), so omitting it collides equations that differ only
+/// in reader font size and returns a stale wrong-size raster after a font-size change.
 enum MathCacheKey {
-    static func key(latex: String, style: MathStyle, foregroundHex: String, scale: CGFloat) -> String {
+    static func key(latex: String, style: MathStyle, foregroundHex: String, scale: CGFloat, pointSize: CGFloat) -> String {
         let styleTag = style == .inline ? "i" : "d"
-        let material = "\(styleTag)\n\(scale)\n\(foregroundHex)\n\(latex)"
+        let material = "\(styleTag)\n\(scale)\n\(pointSize)\n\(foregroundHex)\n\(latex)"
         let digest = SHA256.hash(data: Data(material.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }
@@ -198,7 +201,8 @@ final class MathImageProvider: MathImageProviding {
             latex: latex,
             style: style,
             foregroundHex: MermaidHexColor.string(from: foreground),
-            scale: scale
+            scale: scale,
+            pointSize: pointSize
         ) as NSString
         if let cached = cache.object(forKey: key) { return .image(cached.image, descent: cached.descent) }
         if let failure = failureCache.object(forKey: key) { return .failed(failure as String) }

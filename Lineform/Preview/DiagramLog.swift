@@ -71,6 +71,8 @@ final class DiagramLogStore: DiagramFailureLogging {
     /// Hash+error pairs already written this session: repeated failures of the same source
     /// (every preview pass over an unchanged broken diagram) skip the read-merge-write cycle.
     private var recordedThisSession: Set<String> = []
+    /// Cap on the in-memory dedup set so a long editing session can't grow it without bound.
+    private let maxRecordedThisSession = 500
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -92,6 +94,10 @@ final class DiagramLogStore: DiagramFailureLogging {
         let hash = DiagramLog.sourceHash(source)
         let sessionKey = "\(hash)\n\(error)"
         guard !recordedThisSession.contains(sessionKey) else { return }
+        // Bound the in-memory dedup set: editing a broken diagram produces a fresh hash per
+        // keystroke, so without a cap this grows all session. Drop the whole set past the cap —
+        // the on-disk log is the source of truth, so re-recording a few entries is harmless.
+        if recordedThisSession.count >= maxRecordedThisSession { recordedThisSession.removeAll() }
         let entry = DiagramLogEntry(
             sourceHash: hash,
             sourceSnippet: String(source.prefix(2_000)),
@@ -103,7 +109,8 @@ final class DiagramLogStore: DiagramFailureLogging {
         let merged = DiagramLog.merge(entries(), adding: entry, now: now)
         try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         if let data = try? JSONEncoder().encode(merged) {
-            try? data.write(to: fileURL)
+            // Atomic: a crash mid-write can't leave log.json truncated.
+            try? data.write(to: fileURL, options: .atomic)
             recordedThisSession.insert(sessionKey)
         }
     }

@@ -891,7 +891,19 @@ final class OutlineFileBrowserStore: ObservableObject {
             options: options
         )) ?? []
 
-        return urls.compactMap { childURL -> OutlineFileTreeItem? in
+        // Resolve each child's shallow attributes first (no recursion yet), then sort and cap.
+        // Recursing only into the retained children keeps the per-folder cap from being defeated
+        // by folders with thousands of subdirectories: we build subtrees for the ~80 we keep, not
+        // for every sibling we're about to discard. Output is identical to sort-then-recurse
+        // because the sort order depends only on `isDirectory` and `name`, both known here.
+        struct Shallow {
+            let url: URL
+            let name: String
+            let isDirectory: Bool
+            let itemHidden: Bool
+        }
+
+        let shallow = urls.compactMap { childURL -> Shallow? in
             guard let values = try? childURL.resourceValues(forKeys: resourceKeys) else {
                 return nil
             }
@@ -918,22 +930,11 @@ final class OutlineFileBrowserStore: ObservableObject {
                 return nil
             }
 
-            let itemHidden = inheritedHidden || isDotPrefixed
-
-            return OutlineFileTreeItem(
+            return Shallow(
                 url: childURL,
                 name: name,
                 isDirectory: isDirectory,
-                children: isDirectory
-                    ? items(
-                        in: childURL,
-                        fileManager: fileManager,
-                        depth: depth + 1,
-                        showsHiddenFolders: showsHiddenFolders,
-                        inheritedHidden: itemHidden
-                    )
-                    : [],
-                isHidden: itemHidden
+                itemHidden: inheritedHidden || isDotPrefixed
             )
         }
         .sorted { first, second in
@@ -944,7 +945,24 @@ final class OutlineFileBrowserStore: ObservableObject {
             return first.name.localizedStandardCompare(second.name) == .orderedAscending
         }
         .prefix(maximumChildrenPerFolder)
-        .map { $0 }
+
+        return shallow.map { item in
+            OutlineFileTreeItem(
+                url: item.url,
+                name: item.name,
+                isDirectory: item.isDirectory,
+                children: item.isDirectory
+                    ? items(
+                        in: item.url,
+                        fileManager: fileManager,
+                        depth: depth + 1,
+                        showsHiddenFolders: showsHiddenFolders,
+                        inheritedHidden: item.itemHidden
+                    )
+                    : [],
+                isHidden: item.itemHidden
+            )
+        }
     }
 }
 
