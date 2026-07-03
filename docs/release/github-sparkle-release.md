@@ -144,6 +144,28 @@ DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download
 
 Commit the generated `docs/appcast.xml` after each release so Sparkle can fetch the latest appcast over GitHub's HTTPS raw-content URL.
 
+### Verify the update path before publishing
+
+A fresh download launching is **not** proof that existing users can *update* — the update
+mechanism is what bricked users in the 1.1.0 build 14 incident, and it has release-specific
+failure modes a download test misses (a mismatched Sparkle EdDSA key pair → every update
+rejected as "improperly signed"; a bad delta → failed/partial update). After generating the
+appcast and before publishing, run:
+
+```sh
+LAUNCH_TEST=YES packaging/verify-update.sh          # interactive Mac
+LAUNCH_TEST=NO  packaging/verify-update.sh           # headless CI (no window server)
+```
+
+It checks, for the top appcast entry: (1) the app's `SUPublicEDKey` matches the private
+signing key, (2) the appcast `edSignature` is correct for the exact DMG bytes (so it must be
+regenerated *after* `stapler staple`), and (3) every delta reconstructs the new build from the
+real old build's DMG in `dist/` — verifying the resulting app's build number, code signature,
+and (with `LAUNCH_TEST=YES`) that it launches. A delta whose old build has no DMG in `dist/`
+is reported as `[skip]`, not silently passed. This is the closest headless proxy for the
+Sparkle runtime flow; the runtime click-through itself (menu → download → install → relaunch)
+still warrants one manual spot-check per release, since it can't be driven without UI/TCC.
+
 ## Bundled `lineform` command-line helper
 
 `packaging/build-release.sh` builds the `lineform` CLI helper into the app after `xcodebuild`
