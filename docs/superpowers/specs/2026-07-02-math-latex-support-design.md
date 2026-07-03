@@ -57,6 +57,17 @@ already: (a) accumulates fenced blocks and hands them to an isolated image
 provider, and (b) tokenizes inline spans (bold/italic/code/link) per line. Math
 plugs into **both** paths.
 
+### Rendering approach: cached raster image, matching Mermaid (decided 2026-07-02)
+
+Render each equation to a cached raster `NSImage` embedded via `NSTextAttachment`,
+exactly as `MermaidImageProvider` does. The considered alternative — embedding
+SwiftMath's live `MTMathUILabel` `NSView` as a view-based attachment (crisper at
+extreme zoom, re-themes without re-rasterizing) — was rejected: it is heavier in
+TextKit (view-attachment sizing/scrolling), has no precedent in the codebase, and
+costs more on every preview re-render during typing. The crispness gain is
+negligible at reading sizes. Raster is proven, cache-friendly, and consistent with
+the diagram code sitting right beside it.
+
 ### The isolated seam — `MathImageProvider` (new `Lineform/Preview/MathRendering.swift`)
 
 A direct parallel to `MermaidImageProvider` (`Lineform/Preview/MermaidRendering.swift`).
@@ -151,11 +162,24 @@ These rules live in a small, unit-testable parser (`MathDelimiters` /
 
 ## Accessibility
 
-- **Known limitation:** VoiceOver reads the **raw LaTeX source** attached as the
-  image's `accessibilityDescription`, not spoken math ("x caret 2", not "x
-  squared"). A raster image cannot carry MathML/ARIA the way web MathJax/KaTeX
-  can. State this plainly in any user-facing help copy; do not imply the math is
-  semantically accessible. Same trade-off Mermaid already makes.
+- **V1 behavior (the floor):** VoiceOver reads the **raw LaTeX source** attached as
+  the image's `accessibilityDescription`, not spoken math ("x caret 2", not "x
+  squared"). A raster image cannot carry a MathML/ARIA semantic tree the way web
+  MathJax/KaTeX can, and AppKit has no supported way to hang one off an image
+  attachment. State this plainly in any user-facing help copy; do not imply the
+  math is semantically accessible. Same trade-off Mermaid already makes.
+- **Not a dead end — concrete native future path (out of V1 scope).** SwiftMath
+  parses LaTeX into a structured in-memory model (`MTMathList` / `MTMathAtom` —
+  it *knows* what is a fraction, a superscript, an operator). So the meaning of the
+  formula is available in-process; it is simply not exported today. A future
+  enhancement can **walk `MTMathList` to generate a spoken-math description** ("x
+  squared") and use that as the `accessibilityDescription` instead of raw LaTeX —
+  **no WebView, no MathML, no network**, working within the accessibility model we
+  actually have. This is real work (a tree-walker plus pronunciation rules) and
+  imperfect, but it means the raw-LaTeX alt-text is a floor, not a permanent limit.
+  MathML itself stays rejected: there is no mature native Swift LaTeX→MathML
+  converter (the real ones are Perl/JS/Haskell — a JS one would require a WebView),
+  and even a MathML string would not help VoiceOver on native AppKit.
 - **Dyslexia fonts:** equations render in a math typeface regardless of an
   OpenDyslexic/Atkinson body-font choice — inherent to math typesetting, not
   fixable. No action beyond awareness.
