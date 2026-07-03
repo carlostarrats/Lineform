@@ -122,6 +122,30 @@ struct EditorContainerView: View {
             }
             isShowingOutline.toggle()
         }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.renameCurrentFile.name)) { notification in
+            guard notificationMatchesActiveWindow(notification), let url = currentFileURL else {
+                return
+            }
+            renameSidebarItem(at: url, isDirectory: false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.deleteCurrentFile.name)) { notification in
+            guard notificationMatchesActiveWindow(notification), let url = currentFileURL else {
+                return
+            }
+            deleteSidebarItem(at: url)
+        }
+        .onChange(of: currentFileURL) { _, newValue in
+            // Keep the File-menu Rename…/Delete… enabled state tracking the key window.
+            if activeWindow?.isKeyWindow == true {
+                LineformCurrentFileMenuState.shared.setCurrentFileURL(newValue)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+            guard (notification.object as? NSWindow)?.windowNumber == windowNumber else {
+                return
+            }
+            LineformCurrentFileMenuState.shared.setCurrentFileURL(currentFileURL)
+        }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.sidebarItemRenamed.name)) { notification in
             guard
                 let payload = notification.object as? LineformAppNotification.RenamePayload,

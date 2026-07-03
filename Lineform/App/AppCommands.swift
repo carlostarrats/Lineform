@@ -13,6 +13,8 @@ enum AppMenuConfiguration {
     static let saveAsCommandTitle = "Save As..."
     static let saveAsCommandKeyEquivalent = "S"
     static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
+    static let renameFileCommandTitle = "Rename…"
+    static let deleteFileCommandTitle = "Delete…"
     static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let privacyPolicyCommandTitle = "Privacy Policy"
@@ -151,21 +153,44 @@ final class HiddenFoldersMenuState: ObservableObject {
     }
 }
 
+/// Tracks the key window's current on-disk file so the File-menu Rename…/Delete…
+/// commands can enable/disable correctly (untitled documents have no file to act on).
+/// Same shared-state pattern as the other menu states: each window's editor container
+/// updates it when it becomes key or its file URL changes.
+@MainActor
+final class LineformCurrentFileMenuState: ObservableObject {
+    static let shared = LineformCurrentFileMenuState()
+
+    @Published private(set) var currentFileURL: URL?
+
+    func setCurrentFileURL(_ url: URL?) {
+        guard url != currentFileURL else {
+            return
+        }
+
+        currentFileURL = url
+        NSApp.mainMenu?.update()
+    }
+}
+
 struct AppCommands: Commands {
     @ObservedObject private var textFormatMenuState: LineformTextFormatMenuState
     @ObservedObject private var displayModeMenuState: LineformDisplayModeMenuState
     @ObservedObject private var hiddenFoldersMenuState: HiddenFoldersMenuState
+    @ObservedObject private var currentFileMenuState: LineformCurrentFileMenuState
     private let updaterController: LineformUpdaterController
 
     init(
         textFormatMenuState: LineformTextFormatMenuState = .shared,
         displayModeMenuState: LineformDisplayModeMenuState = .shared,
         hiddenFoldersMenuState: HiddenFoldersMenuState = .shared,
+        currentFileMenuState: LineformCurrentFileMenuState = .shared,
         updaterController: LineformUpdaterController = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
         _displayModeMenuState = ObservedObject(wrappedValue: displayModeMenuState)
         _hiddenFoldersMenuState = ObservedObject(wrappedValue: hiddenFoldersMenuState)
+        _currentFileMenuState = ObservedObject(wrappedValue: currentFileMenuState)
         self.updaterController = updaterController
     }
 
@@ -206,6 +231,21 @@ struct AppCommands: Commands {
                 KeyEquivalent(Character(AppMenuConfiguration.saveAsCommandKeyEquivalent)),
                 modifiers: [.command, .shift]
             )
+
+            Divider()
+
+            // Same dialogs and behavior as the sidebar's right-click actions, targeting
+            // the key window's current file. Deliberately no keyboard shortcuts: Delete
+            // must never be one accidental keystroke away.
+            Button(AppMenuConfiguration.renameFileCommandTitle) {
+                LineformAppNotification.renameCurrentFile.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .disabled(currentFileMenuState.currentFileURL == nil)
+
+            Button(AppMenuConfiguration.deleteFileCommandTitle) {
+                LineformAppNotification.deleteCurrentFile.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .disabled(currentFileMenuState.currentFileURL == nil)
         }
 
         CommandMenu("Format") {
