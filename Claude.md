@@ -126,7 +126,6 @@ Keep attribution accurate when changing fonts, bundled resources, README copy, a
 - OpenDyslexic is bundled under the SIL Open Font License 1.1 and is credited to Abbie Gonzalez, with Reserved Font Name OpenDyslexic.
 - The bundled font license files must remain in `Lineform/Resources/Fonts`.
 - `Lineform/Resources/FontLicenseReview.md` should stay in sync with the bundled font set.
-- Harper is credited only as inspiration and comparison material for private, local-first writing assistance. It is not bundled with Lineform and is not a runtime dependency.
 - Sparkle is bundled for macOS update checking and must be credited in public docs/notices when release or dependency documentation changes.
 
 ## Documentation Expectations

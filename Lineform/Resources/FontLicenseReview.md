@@ -34,7 +34,3 @@ SwiftMath library is MIT-licensed and its bundled math fonts are covered by the 
 Open Font License 1.1 and the GUST Font License — all free to bundle and
 redistribute. New York, SF Pro, Monospaced, and Comic Sans MS remain system font
 choices and are not bundled.
-
-## Non-Bundled Inspiration
-
-Harper, an Automattic open-source project, is credited as inspiration and comparison material for private, local-first writing assistance. Harper is not bundled with Lineform and is not a runtime dependency.

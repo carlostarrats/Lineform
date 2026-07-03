@@ -89,8 +89,6 @@ Lineform bundles accessibility-focused reader fonts under the SIL Open Font Lice
 - Atkinson Hyperlegible, copyright 2020 Braille Institute of America, Inc.
 - OpenDyslexic, copyright Abbie Gonzalez, with Reserved Font Name OpenDyslexic.
 
-Harper, an Automattic open-source project, is credited as inspiration and comparison material for private, local-first writing assistance. Harper is not bundled with Lineform and is not a runtime dependency.
-
 ## Build From Source
 
 Open `Lineform.xcodeproj` in Xcode and run the `Lineform` scheme.
