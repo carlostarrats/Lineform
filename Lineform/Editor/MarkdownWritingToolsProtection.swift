@@ -29,11 +29,24 @@ enum MarkdownWritingToolsProtection {
         var ranges: [NSRange] = []
         var offset = 0
         var blockStart: Int?
+        var inCodeFence = false
 
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let hasNewline = index < lines.count - 1
             let storedLineLength = (line as NSString).length + (hasNewline ? 1 : 0)
+
+            // Never interpret `$`/`$$` inside a fenced code block (it is protected separately).
+            // Toggle on fence delimiters only when not mid math-block.
+            if blockStart == nil, trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                inCodeFence.toggle()
+                offset += storedLineLength
+                continue
+            }
+            if inCodeFence {
+                offset += storedLineLength
+                continue
+            }
 
             if let start = blockStart {
                 if MathBlockFence.blockDelimiterOnly(trimmed) {

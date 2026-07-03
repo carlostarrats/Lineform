@@ -327,9 +327,11 @@ struct MarkdownPreviewRenderer {
         output.append(NSAttributedString(string: latex, attributes: codeAttributes))
     }
 
-    /// Split a body line into inline-math and non-math segments: math renders as a baseline-aligned
-    /// attachment; everything else runs through the normal inline-markdown path. Lines with no
-    /// inline math take the fast path and behave exactly as before.
+    /// Render a body line, treating inline `$…$` / `$$…$$` math as a first-class inline token that
+    /// competes with bold/italic/code/link by position. Math loses to an earlier code span or
+    /// emphasis run (so `` `$x$` `` stays literal code and math is never detected inside another
+    /// inline token), and wins when it starts first. Lines with no math take the existing fast path
+    /// and behave exactly as before.
     private func inlineWithMath(
         in line: String,
         baseAttributes: [NSAttributedString.Key: Any],
@@ -337,49 +339,82 @@ struct MarkdownPreviewRenderer {
         theme: Theme,
         mathProvider: MathImageProviding
     ) -> NSAttributedString {
-        let segments = MathDelimiters.segments(in: line)
-        guard segments.contains(where: { $0.kind == .math }) else {
+        let mathSpans = MathDelimiters.inlineSpans(in: line)
+        guard !mathSpans.isEmpty else {
             return inlineMarkdown(in: line, baseAttributes: baseAttributes, profile: profile)
         }
 
         let output = NSMutableAttributedString()
-        let scale = NSScreen.main?.backingScaleFactor ?? 2
-        let pointSize = CGFloat(profile.fontSize)
-        let baseFont = (baseAttributes[.font] as? NSFont) ?? .systemFont(ofSize: pointSize)
+        let nsLine = line as NSString
+        var location = 0
 
-        for segment in segments {
-            switch segment.kind {
-            case .text:
-                // Unescape \$ for display, then run the normal inline-markdown pass.
-                let unescaped = segment.value.replacingOccurrences(of: "\\$", with: "$")
-                output.append(inlineMarkdown(in: unescaped, baseAttributes: baseAttributes, profile: profile))
-            case .math:
-                let outcome = mathProvider.outcome(
-                    latex: segment.value,
-                    style: .inline,
-                    foreground: theme.textColor,
-                    pointSize: pointSize,
-                    scale: scale
-                )
-                if case .image(let image, let descent) = outcome {
-                    image.accessibilityDescription = "Math. \(segment.value)"
-                    let attachment = NSTextAttachment()
-                    attachment.image = image
-                    let size = image.size
-                    // Sit the equation's own baseline on the surrounding text baseline: the image
-                    // extends `descent` points below its baseline, so offset the attachment down by
-                    // that much (a negative y in text-attachment coordinates).
-                    attachment.bounds = CGRect(x: 0, y: -descent, width: size.width, height: size.height)
-                    output.append(NSAttributedString(attachment: attachment))
-                } else {
-                    // Fallback: show the raw LaTeX in inline-code style rather than dropping it.
-                    var codeAttrs = baseAttributes
-                    codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
-                    output.append(NSAttributedString(string: segment.value, attributes: codeAttrs))
-                }
+        while location < nsLine.length {
+            let regexToken = nextInlineToken(in: line, nsLine: nsLine, from: location)
+            let mathSpan = mathSpans.first { $0.range.location >= location }
+
+            // Choose whichever inline element starts first. `$`, `*`, `_`, backtick and `[` are
+            // distinct characters, so a math span and a regex token never start at the same index.
+            let useMath: Bool
+            switch (regexToken, mathSpan) {
+            case (nil, nil):
+                output.append(NSAttributedString(string: nsLine.substring(from: location), attributes: baseAttributes))
+                return output
+            case (_, nil): useMath = false
+            case (nil, _): useMath = true
+            case let (.some(token), .some(span)): useMath = span.range.location < token.range.location
             }
+
+            let elementRange = useMath ? mathSpan!.range : regexToken!.range
+            if elementRange.location > location {
+                output.append(NSAttributedString(
+                    string: nsLine.substring(with: NSRange(location: location, length: elementRange.location - location)),
+                    attributes: baseAttributes
+                ))
+            }
+            if useMath {
+                appendInlineMath(mathSpan!, to: output, baseAttributes: baseAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+            } else {
+                let token = regexToken!
+                output.append(NSAttributedString(string: token.text, attributes: token.attributes(baseAttributes, profile)))
+            }
+            location = NSMaxRange(elementRange)
         }
         return output
+    }
+
+    /// Append one inline-math span as a baseline-aligned attachment, or its raw LaTeX in
+    /// inline-code style if rendering fails.
+    private func appendInlineMath(
+        _ span: MathSpan,
+        to output: NSMutableAttributedString,
+        baseAttributes: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) {
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let pointSize = CGFloat(profile.fontSize)
+        let outcome = mathProvider.outcome(
+            latex: span.latex,
+            style: span.style,
+            foreground: theme.textColor,
+            pointSize: pointSize,
+            scale: scale
+        )
+        if case .image(let image, let descent) = outcome {
+            image.accessibilityDescription = "Math. \(span.latex)"
+            let attachment = NSTextAttachment()
+            attachment.image = image
+            let size = image.size
+            // Sit the equation's own baseline on the surrounding text baseline: the image extends
+            // `descent` points below its baseline, so offset the attachment down by that much.
+            attachment.bounds = CGRect(x: 0, y: -descent, width: size.width, height: size.height)
+            output.append(NSAttributedString(attachment: attachment))
+        } else {
+            var codeAttrs = baseAttributes
+            codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
+            output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
+        }
     }
 
     private func heading(in line: String) -> (level: Int, title: String)? {

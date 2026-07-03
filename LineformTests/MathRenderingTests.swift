@@ -21,20 +21,24 @@ final class MathRenderingTests: XCTestCase {
 
     // MARK: - Inline delimiter rules
 
-    private func kinds(_ line: String) -> [MathInlineSegment.Kind] {
-        MathDelimiters.segments(in: line).map(\.kind)
-    }
     private func mathValues(_ line: String) -> [String] {
-        MathDelimiters.segments(in: line).filter { $0.kind == .math }.map(\.value)
+        MathDelimiters.inlineSpans(in: line).map(\.latex)
+    }
+    private func styles(_ line: String) -> [MathStyle] {
+        MathDelimiters.inlineSpans(in: line).map(\.style)
     }
 
     func testSimpleInlineMath() {
         XCTAssertEqual(mathValues("the value $x^2$ here"), ["x^2"])
-        XCTAssertEqual(kinds("the value $x^2$ here"), [.text, .math, .text])
     }
-    func testDigitAdjacentDollarsAreProse() {
+    func testDigitLeadingMathRenders() {
+        // The opener may precede a digit; only the closing side guards against prose.
+        XCTAssertEqual(mathValues("the value $2\\pi r$ here"), ["2\\pi r"])
+        XCTAssertEqual(mathValues("so $1+1=2$ holds"), ["1+1=2"])
+    }
+    func testProseDigitDollarsAreLiteral() {
         XCTAssertEqual(mathValues("it costs $5 to $10 today"), [])
-        XCTAssertEqual(kinds("it costs $5 to $10 today"), [.text])
+        XCTAssertEqual(mathValues("$5+$6 total"), [])            // closer followed by digit → literal
     }
     func testOpeningDollarFollowedBySpaceIsProse() {
         XCTAssertEqual(mathValues("give me $ 5 and $ 6"), [])
@@ -48,13 +52,22 @@ final class MathRenderingTests: XCTestCase {
     }
     func testEscapedDollarIsLiteral() {
         XCTAssertEqual(mathValues(#"a \$5 and \$6 b"#), [])
-        XCTAssertEqual(kinds(#"a \$5 and \$6 b"#), [.text])
     }
     func testUnbalancedDollarStaysLiteral() {
         XCTAssertEqual(mathValues("a single $ here"), [])
     }
     func testTwoInlineExpressions() {
         XCTAssertEqual(mathValues("$a+b$ and $c-d$"), ["a+b", "c-d"])
+    }
+    func testMidLineDisplayMathIsOneSpan() {
+        // `$$…$$` embedded in prose is a single display span — no stray `$` left over.
+        XCTAssertEqual(mathValues("the famous $$E=mc^2$$ equation"), ["E=mc^2"])
+        XCTAssertEqual(styles("the famous $$E=mc^2$$ equation"), [.display])
+    }
+    func testInlineSpanRangeCoversDelimiters() {
+        let spans = MathDelimiters.inlineSpans(in: "ab $x$ cd")
+        XCTAssertEqual(spans.count, 1)
+        XCTAssertEqual(spans.first?.range, NSRange(location: 3, length: 3))   // "$x$"
     }
 
     // MARK: - Provider policy / cache

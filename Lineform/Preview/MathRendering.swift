@@ -20,96 +20,111 @@ enum MathBlockFence {
     }
 }
 
-/// One ordered piece of a line: literal text or an inline-math expression.
-struct MathInlineSegment: Equatable {
-    enum Kind { case text, math }
-    let kind: Kind
-    let value: String
+/// One inline-math span found in a line: its `NSRange` (UTF-16, including the `$`/`$$`
+/// delimiters), the LaTeX between the delimiters, and whether it is inline (`$…$`) or
+/// display (`$$…$$`) math.
+struct MathSpan: Equatable {
+    let range: NSRange
+    let latex: String
+    let style: MathStyle
 }
 
-/// Splits a line into text/inline-math segments using GitHub/CommonMark `$` rules so that
-/// ordinary prose dollar signs ("$5") are never treated as math.
+/// Finds inline math spans in a single line using pandoc/GitHub `$` rules so that ordinary
+/// prose dollar signs ("$5 to $10") are never treated as math.
 ///
-/// Rules: an opening `$` must not be followed by whitespace; a closing `$` must not be
-/// preceded by whitespace; a `$` adjacent to a digit does not delimit math; `\$` is a
-/// literal dollar; anything that does not cleanly open-and-close stays literal text.
+/// Rules: an opening `$` must be followed by a non-whitespace character; a closing `$` must be
+/// preceded by a non-whitespace character and not immediately followed by a digit (this is what
+/// keeps "$20 and $30" literal — the opener may precede a digit, but no valid closer exists);
+/// `\$` and `\\` are escapes; `$$…$$` is a display span. Spans are ordered and non-overlapping.
 enum MathDelimiters {
-    static func segments(in line: String) -> [MathInlineSegment] {
+    static func inlineSpans(in line: String) -> [MathSpan] {
         let chars = Array(line)
-        var segments: [MathInlineSegment] = []
-        var text = ""
-        var i = 0
+        let n = chars.count
 
-        func flushText() {
-            if !text.isEmpty {
-                segments.append(MathInlineSegment(kind: .text, value: text))
-                text = ""
-            }
+        // Precompute the UTF-16 offset of each character index so ranges are correct for
+        // multi-unichar characters (emoji, surrogate pairs).
+        var utf16At: [Int] = []
+        utf16At.reserveCapacity(n + 1)
+        var acc = 0
+        for c in chars { utf16At.append(acc); acc += String(c).utf16.count }
+        utf16At.append(acc)
+        func range(_ start: Int, _ endExclusive: Int) -> NSRange {
+            NSRange(location: utf16At[start], length: utf16At[endExclusive] - utf16At[start])
         }
 
-        while i < chars.count {
+        var spans: [MathSpan] = []
+        var i = 0
+        while i < n {
             let c = chars[i]
-            // \$ is a literal dollar.
-            if c == "\\", i + 1 < chars.count, chars[i + 1] == "$" {
-                text.append("\\")
-                text.append("$")
+            if c == "\\", i + 1 < n {   // escape: skip the escaped char (handles \$ and \\)
                 i += 2
                 continue
             }
-            if c == "$", let close = closingIndex(chars, openAt: i) {
-                flushText()
-                let latex = String(chars[(i + 1)..<close])
-                segments.append(MathInlineSegment(kind: .math, value: latex))
-                i = close + 1
-                continue
+            if c == "$" {
+                if i + 1 < n, chars[i + 1] == "$" {
+                    // Display `$$…$$`. Whether or not it closes, the `$$` pair is consumed so a
+                    // stray second `$` can't start inline math.
+                    if let close = displayClose(chars, from: i + 2) {
+                        spans.append(MathSpan(range: range(i, close + 2),
+                                              latex: String(chars[(i + 2)..<close]),
+                                              style: .display))
+                        i = close + 2
+                        continue
+                    }
+                    i += 2
+                    continue
+                } else if let close = inlineClose(chars, openAt: i) {
+                    spans.append(MathSpan(range: range(i, close + 1),
+                                          latex: String(chars[(i + 1)..<close]),
+                                          style: .inline))
+                    i = close + 1
+                    continue
+                }
             }
-            text.append(c)
             i += 1
         }
-        flushText()
-        return segments
+        return spans
     }
 
-    /// Given an opening `$` at `open`, return the index of a valid closing `$`, or nil.
-    private static func closingIndex(_ chars: [Character], openAt open: Int) -> Int? {
-        // Opening `$` must be followed by a non-whitespace, non-`$` character.
+    /// Given a single opening `$` at `open`, return the index of a valid closing `$`, or nil.
+    private static func inlineClose(_ chars: [Character], openAt open: Int) -> Int? {
         let next = open + 1
         guard next < chars.count, !chars[next].isWhitespace else { return nil }
-        if chars[next] == "$" { return nil }
-        // A `$` adjacent to a digit does not open math ("$5", "10$").
-        if open > 0, chars[open - 1].isNumber { return nil }
-        if chars[next].isNumber { return nil }
 
         var j = next
         while j < chars.count {
             if chars[j] == "\\", j + 1 < chars.count { j += 2; continue }   // skip escapes inside math
             if chars[j] == "$" {
-                // Closing `$` must not be preceded by whitespace, nor followed by a digit.
-                if chars[j - 1].isWhitespace { return nil }
-                if j + 1 < chars.count, chars[j + 1].isNumber { return nil }
-                return j
+                let precededByWhitespace = chars[j - 1].isWhitespace
+                let followedByDigit = j + 1 < chars.count && chars[j + 1].isNumber
+                if !precededByWhitespace && !followedByDigit { return j }
+                // Not a valid closer — keep scanning for a later one (pandoc behavior).
             }
             j += 1
         }
         return nil   // unbalanced → not math
     }
 
-    /// Absolute `NSRange`s (including the `$` delimiters) of inline math within a single line,
-    /// given the line's start offset in the enclosing text. Used to protect math from Writing Tools.
-    static func inlineMathRanges(in line: String, lineOffset: Int) -> [NSRange] {
-        var ranges: [NSRange] = []
-        var offset = lineOffset
-        for segment in segments(in: line) {
-            switch segment.kind {
-            case .text:
-                offset += (segment.value as NSString).length
-            case .math:
-                let length = (segment.value as NSString).length + 2   // + the two `$` delimiters
-                ranges.append(NSRange(location: offset, length: length))
-                offset += length
+    /// Given a display opener `$$` whose inner text starts at `start`, return the index of the
+    /// first `$` of a closing `$$` with non-empty inner content, or nil.
+    private static func displayClose(_ chars: [Character], from start: Int) -> Int? {
+        var j = start
+        while j + 1 < chars.count {
+            if chars[j] == "\\", j + 1 < chars.count { j += 2; continue }
+            if chars[j] == "$", chars[j + 1] == "$" {
+                return j > start ? j : nil   // require non-empty inner
             }
+            j += 1
         }
-        return ranges
+        return nil
+    }
+
+    /// Absolute `NSRange`s (including delimiters) of inline math within a line, offset into the
+    /// enclosing text. Used to protect math from Writing Tools.
+    static func inlineMathRanges(in line: String, lineOffset: Int) -> [NSRange] {
+        inlineSpans(in: line).map {
+            NSRange(location: $0.range.location + lineOffset, length: $0.range.length)
+        }
     }
 }
 

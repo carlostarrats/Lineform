@@ -237,4 +237,32 @@ final class MarkdownPreviewRendererMathTests: XCTestCase {
         let out = render("it costs $5 to $10 today", math: .failed("should not be called")).string
         XCTAssertEqual(out, "it costs $5 to $10 today")
     }
+
+    func testMathInsideInlineCodeIsNotRendered() {
+        // `$x$` inside a code span must stay literal code — no math attachment, backticks not orphaned.
+        let image = NSImage(size: NSSize(width: 10, height: 8))
+        let rendered = render("Set `$x$` to 5", math: .image(image, descent: 2))
+        XCTAssertNil(firstAttachment(rendered), "no math attachment inside a code span")
+        XCTAssertTrue(rendered.string.contains("$x$"), "the code span keeps its literal $x$")
+    }
+
+    func testEmphasisWrappingMathKeepsBoldAndDoesNotRenderMathInside() {
+        // Bold starts before the math and wins; math inside stays literal (consistent with how
+        // code inside bold already behaves). The point is no corruption and bold is preserved.
+        let image = NSImage(size: NSSize(width: 10, height: 8))
+        let rendered = render("**energy $E=mc^2$ total**", math: .image(image, descent: 2))
+        XCTAssertNil(firstAttachment(rendered))
+        XCTAssertTrue(rendered.string.contains("energy $E=mc^2$ total"))
+        XCTAssertFalse(rendered.string.contains("**"), "bold markers are consumed")
+    }
+
+    func testMidLineDisplayMathRendersWithoutStrayDollars() throws {
+        let image = NSImage(size: NSSize(width: 20, height: 12))
+        let rendered = render("the famous $$E=mc^2$$ equation", math: .image(image, descent: 0))
+        let a = try XCTUnwrap(firstAttachment(rendered))
+        XCTAssertEqual(a.image?.accessibilityDescription, "Math. E=mc^2")
+        XCTAssertFalse(rendered.string.contains("$"), "no stray dollar signs around inline display math")
+        XCTAssertTrue(rendered.string.contains("the famous "))
+        XCTAssertTrue(rendered.string.contains(" equation"))
+    }
 }

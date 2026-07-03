@@ -59,4 +59,15 @@ final class MarkdownWritingToolsProtectionTests: XCTestCase {
     func testProseDollarsAreNotProtected() {
         XCTAssertFalse(protects("it costs $5 to $10", substring: "$5 to $10"))
     }
+
+    func testDollarInsideCodeFenceDoesNotOverProtectTrailingText() {
+        // A bare `$$` inside a code fence must not open a phantom math block that swallows the
+        // rest of the document. The trailing prose must remain editable by Writing Tools.
+        let text = "```\n$$\n```\nplain prose after the fence"
+        let full = NSRange(location: 0, length: (text as NSString).length)
+        let ranges = MarkdownWritingToolsProtection.ignoredRanges(in: text, enclosingRange: full)
+        let prose = (text as NSString).range(of: "plain prose after the fence")
+        XCTAssertFalse(ranges.contains { NSIntersectionRange($0, prose).length > 0 },
+                       "trailing prose must not be protected by a phantom math block")
+    }
 }
