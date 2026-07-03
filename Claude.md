@@ -70,6 +70,32 @@ The Files sidebar's iCloud root (shown as **"Lineform"** with a cloud icon) is b
 - The store keeps the user's iCloud working set materialized via `ensureDownloaded(...)` (`FileManager.startDownloadingUbiquitousItem`), so evicted (dataless) files don't appear in search yet fail to open or drag. This is realized through the `UbiquitousItemDownloader` protocol so it is testable without real iCloud files.
 - App-owned containers are still subject to iCloud purge when macOS believes the app was uninstalled. The durable additional protections are operational, not code: ship updates via Sparkle's atomic in-place swap (never instruct users to delete the old app and drag a new one), and do not run-then-delete locally built Release/Export copies of `com.lineform.app` while signed into the production iCloud account.
 
+## Release Verification Gates (do not weaken)
+
+Two production incidents on 2026-07-02 shipped despite green tests, valid codesign,
+notarization, and Gatekeeper — see `docs/postmortems/2026-07-02-launch-brick-and-file-access.md`
+before touching signing, certificates, provisioning profiles, or sandbox/bookmark code.
+The short rules:
+
+- The signing cert MUST be embedded in the app's provisioning profile. A mismatch passes
+  every static check but AMFI SIGKILLs the app at launch on every machine (this shipped
+  as 1.1.0 build 14). `packaging/build-release.sh` hard-fails on this (exit 68) and also
+  launch-tests the packaged app (exit 69) — never remove these gates. After any cert
+  change, regenerate the Direct profile (headless: `xcodebuild archive` + `-exportArchive`,
+  method `developer-id`, `-allowProvisioningUpdates`) before releasing.
+- Run `packaging/verify-update.sh` after generating the appcast and before publishing:
+  it verifies the Sparkle EdDSA key pair, the appcast signature against the exact stapled
+  DMG bytes, and that every delta reconstructs a launchable new build. Regenerate the
+  appcast AFTER `stapler staple` (stapling changes the DMG bytes).
+- `generate_appcast` rewrites every entry's URL with one prefix; hand-merge only the new
+  top item into `docs/appcast.xml` so old versions keep their per-tag URLs.
+- "It launches" is not "it works": before calling a release done, open a real document
+  from a workspace folder after a relaunch (the sandbox-bookmark path; a same-session
+  NSOpenPanel grant hides bookmark bugs). The workspace security scope is HELD by
+  `OutlineFileBrowserStore` for its lifetime — never revert to transient
+  start/stopAccessingSecurityScopedResource around the directory scan (that was the
+  1.1.1 file-access bug).
+
 ## Verification Commands
 
 General deterministic test gate:
@@ -83,6 +109,12 @@ xcodebuild test \
 ```
 
 Use serial testing for the full suite. Some AppKit-hosted tests can contaminate each other when Xcode runs them in parallel. No signing/team flags are needed: Debug ships no iCloud entitlement, so the test host signs ad-hoc ("Sign to Run Locally") and launches on unprovisioned machines and CI. Do not add an iCloud entitlement to Debug — it cannot be satisfied under ad-hoc signing and the test host will fail to launch (CI red).
+
+CLI test runs on the user's machine trigger a macOS prompt: "'Lineform' would like to
+access files in your Documents folder" (usually near the end of the suite). This is the
+ad-hoc-re-signed test host looking like a new app to TCC on every build — expected,
+dev-only, harmless; warn the user beforehand and have them click Allow. It blocks the
+suite until answered, so never run the full suite unattended and assume it finished.
 
 QUIT XCODE BEFORE RUNNING THE FULL SUITE. The hosted editor tests in `EditorDisplayModeTests` (e.g. `testEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens`) measure a sub-second animation and are load-sensitive: with Xcode left open during `xcodebuild test`, the extra resource contention intermittently makes them fail with a spurious vertical-jump delta (e.g. "13.0 > 1.0"). They pass reliably in isolation and on a quiet machine. This is harness fragility, not a product regression — do not weaken these tests to "fix" it; quit Xcode and re-run.
 
