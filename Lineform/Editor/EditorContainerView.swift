@@ -21,8 +21,7 @@ struct EditorContainerView: View {
     @StateObject private var reloadController = DocumentReloadController()
     @State private var showsUpdatedIndicator = false
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
-    @State private var pendingRename: SidebarRenameRequest?
-    @State private var pendingDelete: URL?
+    @State private var sidebarDialog: SidebarFileDialog?
     @State private var renameText = ""
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
@@ -61,28 +60,37 @@ struct EditorContainerView: View {
             editorShell
         }
         .navigationSplitViewStyle(.balanced)
-        // Native SwiftUI alerts (title + message + text field + buttons) — the standard
-        // macOS confirmation look, no app icon, exactly like the reference.
-        .alert(renameAlertTitle, isPresented: renameAlertPresented, presenting: pendingRename) { request in
-            TextField("Name", text: $renameText)
-            Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
-                pendingRename = nil
+        // A single native SwiftUI alert (title + message + text field + buttons) — the
+        // standard macOS confirmation look, no app icon. One `.alert` driven by one enum
+        // state so rename and delete can never compete for the view's alert slot.
+        .alert(sidebarDialogTitle, isPresented: sidebarDialogPresented, presenting: sidebarDialog) { dialog in
+            switch dialog {
+            case .rename(let request):
+                TextField("Name", text: $renameText)
+                Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
+                    sidebarDialog = nil
+                }
+                Button(SidebarFileActionPresenter.renameButtonTitle) {
+                    commitPendingRename(request)
+                }
+                .keyboardShortcut(.defaultAction)
+            case .delete(let url):
+                // Cancel is the Return default; deleting is deliberate and takes a click.
+                Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
+                    sidebarDialog = nil
+                }
+                .keyboardShortcut(.defaultAction)
+                Button(SidebarFileActionPresenter.deleteButtonTitle, role: .destructive) {
+                    performSidebarDelete(url)
+                }
             }
-            Button(SidebarFileActionPresenter.renameButtonTitle) {
-                commitPendingRename(request)
+        } message: { dialog in
+            switch dialog {
+            case .rename(let request):
+                Text(request.isDirectory ? SidebarFileActionPresenter.renameFolderMessage : SidebarFileActionPresenter.renameFileMessage)
+            case .delete:
+                Text(SidebarFileActionPresenter.deleteMessage)
             }
-        } message: { request in
-            Text(request.isDirectory ? SidebarFileActionPresenter.renameFolderMessage : SidebarFileActionPresenter.renameFileMessage)
-        }
-        .alert(deleteAlertTitle, isPresented: deleteAlertPresented, presenting: pendingDelete) { url in
-            Button(SidebarFileActionPresenter.cancelButtonTitle, role: .cancel) {
-                pendingDelete = nil
-            }
-            Button(SidebarFileActionPresenter.deleteButtonTitle, role: .destructive) {
-                performSidebarDelete(url)
-            }
-        } message: { _ in
-            Text(SidebarFileActionPresenter.deleteMessage)
         }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
@@ -429,29 +437,28 @@ struct EditorContainerView: View {
 
     private func renameSidebarItem(at url: URL, isDirectory: Bool) {
         renameText = SidebarFileRenaming.displayName(for: url, isDirectory: isDirectory)
-        pendingRename = SidebarRenameRequest(url: url, isDirectory: isDirectory)
+        sidebarDialog = .rename(SidebarRenameRequest(url: url, isDirectory: isDirectory))
     }
 
     private func deleteSidebarItem(at url: URL) {
-        pendingDelete = url
+        sidebarDialog = .delete(url)
     }
 
-    private var renameAlertPresented: Binding<Bool> {
-        Binding(get: { pendingRename != nil }, set: { if !$0 { pendingRename = nil } })
+    private var sidebarDialogPresented: Binding<Bool> {
+        Binding(get: { sidebarDialog != nil }, set: { if !$0 { sidebarDialog = nil } })
     }
 
-    private var deleteAlertPresented: Binding<Bool> {
-        Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
-    }
-
-    private var renameAlertTitle: String {
-        (pendingRename?.isDirectory ?? false)
-            ? SidebarFileActionPresenter.renameFolderTitle
-            : SidebarFileActionPresenter.renameFileTitle
-    }
-
-    private var deleteAlertTitle: String {
-        pendingDelete.map(SidebarFileActionPresenter.deleteTitle(for:)) ?? ""
+    private var sidebarDialogTitle: String {
+        switch sidebarDialog {
+        case .rename(let request):
+            return request.isDirectory
+                ? SidebarFileActionPresenter.renameFolderTitle
+                : SidebarFileActionPresenter.renameFileTitle
+        case .delete(let url):
+            return SidebarFileActionPresenter.deleteTitle(for: url)
+        case nil:
+            return ""
+        }
     }
 
     private func commitPendingRename(_ request: SidebarRenameRequest) {
@@ -461,14 +468,14 @@ struct EditorContainerView: View {
             newDisplayName: renameText
         ) else {
             // Empty / unchanged / invalid name — dismiss without touching disk.
-            pendingRename = nil
+            sidebarDialog = nil
             return
         }
         performSidebarRename(request, to: destination)
     }
 
     private func performSidebarRename(_ request: SidebarRenameRequest, to destination: URL) {
-        pendingRename = nil
+        sidebarDialog = nil
         do {
             try SidebarFileOperations().rename(request.url, to: destination)
         } catch {
@@ -485,7 +492,7 @@ struct EditorContainerView: View {
     }
 
     private func performSidebarDelete(_ url: URL) {
-        pendingDelete = nil
+        sidebarDialog = nil
         do {
             try SidebarFileOperations().trash(url)
         } catch {

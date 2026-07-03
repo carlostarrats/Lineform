@@ -1513,6 +1513,9 @@ private struct OutlineFileSortRow: View {
                         Text(order.title)
                     }
                 }
+                // Convey the active option to VoiceOver in the open menu (the checkmark
+                // alone is only a visual cue).
+                .accessibilityAddTraits(order == sortOrder ? [.isSelected] : [])
             }
         } label: {
             HStack(spacing: 5) {

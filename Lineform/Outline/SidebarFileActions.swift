@@ -42,9 +42,9 @@ enum SidebarFileRenaming {
     }
 }
 
-/// Copy + the Show-in-Finder action for the sidebar's file dialogs. The dialogs
-/// themselves are custom SwiftUI (see below) — NOT `NSAlert`, which forces the app
-/// icon and standard-alert chrome and cannot match the clean Muse-style modal.
+/// Copy + the Show-in-Finder action for the sidebar's file dialogs. The dialogs themselves
+/// are native SwiftUI `.alert`s presented from `EditorContainerView` — NOT `NSAlert`, which
+/// forces the app icon and standard-alert chrome. Only the rare error path uses `NSAlert`.
 enum SidebarFileActionPresenter {
     static let renameFileTitle = "Rename File"
     static let renameFolderTitle = "Rename Folder"
@@ -88,10 +88,18 @@ struct SidebarFileOperations {
     }
 }
 
-/// A pending rename, carried as the presenting view's `.alert` state (url + whether it's a
-/// folder, so the alert can title/word itself correctly).
+/// A pending rename, carried inside `SidebarFileDialog` (url + whether it's a folder, so the
+/// alert can title/word itself correctly).
 struct SidebarRenameRequest: Identifiable, Equatable {
     let id = UUID()
     let url: URL
     let isDirectory: Bool
+}
+
+/// The single piece of sidebar dialog state. One enum (not two optionals) so exactly one
+/// `.alert` drives both cases: stacking two `.alert` modifiers on one view is unreliable in
+/// SwiftUI (one can suppress the other, or both bindings can wedge true at once).
+enum SidebarFileDialog: Equatable {
+    case rename(SidebarRenameRequest)
+    case delete(URL)
 }
