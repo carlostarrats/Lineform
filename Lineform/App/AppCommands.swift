@@ -13,8 +13,9 @@ enum AppMenuConfiguration {
     static let saveAsCommandTitle = "Save As..."
     static let saveAsCommandKeyEquivalent = "S"
     static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
-    static let renameFileCommandTitle = "Rename…"
-    static let deleteFileCommandTitle = "Delete…"
+    // Three-period ellipsis matches the surrounding File-menu titles ("Save As...").
+    static let renameFileCommandTitle = "Rename..."
+    static let deleteFileCommandTitle = "Delete..."
     static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let privacyPolicyCommandTitle = "Privacy Policy"

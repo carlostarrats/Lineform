@@ -7,7 +7,6 @@ import Foundation
 protocol SidebarFileManaging {
     func moveItem(at srcURL: URL, to dstURL: URL) throws
     func trashItem(at url: URL) throws
-    func fileExists(atPath path: String) -> Bool
 }
 
 extension FileManager: SidebarFileManaging {
@@ -134,46 +133,26 @@ enum SidebarFileActionPresenter {
     }
 }
 
+/// Plain, deliberately UNcoordinated file operations.
+///
+/// No `NSFileCoordinator` here: coordinating a write on the main thread against a file the
+/// same process's `NSDocument` presents (renaming/deleting the open document — the primary
+/// use) can deadlock, and letting presenters observe the move makes `NSDocument` follow a
+/// trashed file into the Trash, where the next autosave would resurrect it. In-app windows
+/// are retargeted explicitly instead via `LineformAppNotification.sidebarItemRenamed` /
+/// `sidebarFileDeleted`, and sidebars refresh via `refreshSidebarFiles`.
 struct SidebarFileOperations {
     var fileManager: SidebarFileManaging = FileManager.default
 
-    /// Coordinated move so other file presenters (open documents' reload watchers,
-    /// other apps) observe the rename, matching what a Finder rename does.
+    /// Errors (destination exists, no permission) surface as the system-localized
+    /// `moveItem` error — no pre-flight, so case-only renames work on case-insensitive
+    /// volumes ("notes.md" → "Notes.md", which a naive exists-check would reject).
     func rename(_ url: URL, to destination: URL) throws {
-        guard !fileManager.fileExists(atPath: destination.path) else {
-            throw CocoaError(.fileWriteFileExists, userInfo: [
-                NSLocalizedDescriptionKey: "A file named “\(destination.lastPathComponent)” already exists."
-            ])
-        }
-
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var operationError: Error?
-        coordinator.coordinate(writingItemAt: url, options: .forMoving, error: &coordinationError) { coordinatedURL in
-            do {
-                try fileManager.moveItem(at: coordinatedURL, to: destination)
-                coordinator.item(at: coordinatedURL, didMoveTo: destination)
-            } catch {
-                operationError = error
-            }
-        }
-        if let coordinationError { throw coordinationError }
-        if let operationError { throw operationError }
+        try fileManager.moveItem(at: url, to: destination)
     }
 
-    /// Coordinated move to the Trash. Never `removeItem` — always recoverable.
+    /// Never `removeItem` — always the Trash, always recoverable.
     func trash(_ url: URL) throws {
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var operationError: Error?
-        coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &coordinationError) { coordinatedURL in
-            do {
-                try fileManager.trashItem(at: coordinatedURL)
-            } catch {
-                operationError = error
-            }
-        }
-        if let coordinationError { throw coordinationError }
-        if let operationError { throw operationError }
+        try fileManager.trashItem(at: url)
     }
 }

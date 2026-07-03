@@ -146,6 +146,20 @@ struct EditorContainerView: View {
             }
             LineformCurrentFileMenuState.shared.setCurrentFileURL(currentFileURL)
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+            guard
+                let closingWindow = notification.object as? NSWindow,
+                closingWindow.windowNumber == windowNumber,
+                closingWindow.isKeyWindow || LineformCurrentFileMenuState.shared.currentFileURL == currentFileURL
+            else {
+                return
+            }
+            // Without this, closing the last window leaves File > Rename.../Delete...
+            // enabled against a dead URL (a no-op menu command). Guarded so a background
+            // window closing can't wipe the key window's state; if another window becomes
+            // key next, its didBecomeKey update immediately repopulates it.
+            LineformCurrentFileMenuState.shared.setCurrentFileURL(nil)
+        }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.sidebarItemRenamed.name)) { notification in
             guard
                 let payload = notification.object as? LineformAppNotification.RenamePayload,
@@ -156,12 +170,16 @@ struct EditorContainerView: View {
             }
             // This window's document just moved on disk (file rename, or an ancestor
             // folder rename). Follow it so the title bar, autosave target, selection
-            // highlight, and reload watcher all track the new location.
+            // highlight, and reload watcher all track the new location. The reload watcher
+            // is re-pointed with noteMoved — NOT registerReloadWatcher/register, whose
+            // new-URL path resets the synced baseline to the live text and would bless
+            // unsaved edits as synced (letting a later external write clobber them).
             backingDocument.fileURL = newURL
             backingDocument.fileModificationDate = LineformDocument.modificationDate(at: newURL)
             activeWindow?.representedURL = newURL
             activeWindow?.setTitleWithRepresentedFilename(newURL.path)
-            registerReloadWatcher()
+            reloadController.noteMoved(to: newURL)
+            currentFileURL = newURL
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.sidebarFileDeleted.name)) { notification in
             guard
@@ -393,7 +411,7 @@ struct EditorContainerView: View {
         LineformAppNotification.sidebarItemRenamed.post(
             object: LineformAppNotification.RenamePayload(from: url, to: destination, isDirectory: isDirectory)
         )
-        LineformAppNotification.refreshSidebarFiles.post()
+        LineformAppNotification.refreshSidebarFiles.post(object: destination)
     }
 
     private func deleteSidebarItem(at url: URL) {
@@ -401,7 +419,7 @@ struct EditorContainerView: View {
             return
         }
         LineformAppNotification.sidebarFileDeleted.post(object: url)
-        LineformAppNotification.refreshSidebarFiles.post()
+        LineformAppNotification.refreshSidebarFiles.post(object: url)
     }
 
     private func replaceDocumentFromSidebar(_ replacement: LineformDocument) -> UUID {

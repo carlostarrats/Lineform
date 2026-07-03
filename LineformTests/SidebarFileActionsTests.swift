@@ -5,7 +5,6 @@ final class SidebarFileActionsTests: XCTestCase {
     private final class RecordingFileManager: SidebarFileManaging {
         var moved: [(URL, URL)] = []
         var trashed: [URL] = []
-        var existingPaths: Set<String> = []
         var errorToThrow: Error?
 
         func moveItem(at srcURL: URL, to dstURL: URL) throws {
@@ -17,8 +16,6 @@ final class SidebarFileActionsTests: XCTestCase {
             if let errorToThrow { throw errorToThrow }
             trashed.append(url)
         }
-
-        func fileExists(atPath path: String) -> Bool { existingPaths.contains(path) }
     }
 
     func testDisplayNameStripsExtensionForFilesButNotFolders() {
@@ -46,7 +43,7 @@ final class SidebarFileActionsTests: XCTestCase {
         XCTAssertNil(SidebarFileRenaming.validatedDestination(for: url, isDirectory: false, newDisplayName: "Notes"))
     }
 
-    func testRenameMovesFileOnDiskViaCoordinatedMove() throws {
+    func testRenameMovesFileOnDisk() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -61,12 +58,36 @@ final class SidebarFileActionsTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
     }
 
-    func testRenameRefusesToClobberAnExistingFile() {
-        let recorder = RecordingFileManager()
-        recorder.existingPaths = ["/tmp/B.md"]
-        let operations = SidebarFileOperations(fileManager: recorder)
-        XCTAssertThrowsError(try operations.rename(URL(fileURLWithPath: "/tmp/A.md"), to: URL(fileURLWithPath: "/tmp/B.md")))
-        XCTAssertTrue(recorder.moved.isEmpty)
+    func testCaseOnlyRenameSucceedsOnCaseInsensitiveVolume() throws {
+        // A naive fileExists pre-check would see "Notes.md" as already existing (it matches
+        // notes.md case-insensitively) and block the most common rename there is.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = folder.appendingPathComponent("notes.md")
+        try "# Notes".write(to: source, atomically: true, encoding: .utf8)
+
+        try SidebarFileOperations().rename(source, to: folder.appendingPathComponent("Notes.md"))
+
+        let names = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        XCTAssertEqual(names, ["Notes.md"])
+    }
+
+    func testRenameOntoAnExistingFileThrowsAndLeavesBothFilesIntact() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = folder.appendingPathComponent("A.md")
+        let destination = folder.appendingPathComponent("B.md")
+        try "# A".write(to: source, atomically: true, encoding: .utf8)
+        try "# B".write(to: destination, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(try SidebarFileOperations().rename(source, to: destination))
+
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "# A")
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "# B")
     }
 
     func testTrashUsesTrashItemNeverRemoveItem() throws {

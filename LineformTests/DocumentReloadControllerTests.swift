@@ -32,6 +32,26 @@ final class DocumentReloadControllerTests: XCTestCase {
         wait(for: [expectation], timeout: timeout + 0.5)
     }
 
+    func testNoteMovedRepointsWatcherWithoutBlessingUnsavedEditsAsSynced() {
+        // An in-app rename retargets the watcher via noteMoved. Unlike register/update,
+        // it must preserve the synced baseline: unsaved edits at rename time are still
+        // unsaved, and blessing them would let a later external write clobber them.
+        let controller = DocumentReloadController(diskReader: FakeReader(text: nil), debounceInterval: 0)
+        controller.update(url: url(), syncedText: "saved text")
+        controller.currentText = "saved text plus unsaved edits"
+
+        let movedURL = URL(fileURLWithPath: "/tmp/lineform-test-renamed.md")
+        controller.noteMoved(to: movedURL)
+
+        XCTAssertEqual(controller.lastSyncedText, "saved text")
+        XCTAssertEqual(controller.currentText, "saved text plus unsaved edits")
+
+        // The dirty gate must still hold at the new URL: an external write there may not
+        // overwrite the unsaved edits.
+        controller.applyDiskSnapshot(url: movedURL, diskText: "external overwrite", modificationDate: Date())
+        XCTAssertNil(controller.lastReload)
+    }
+
     func testCleanExternalChangeReloads() {
         let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
         controller.update(url: url(), syncedText: "old")

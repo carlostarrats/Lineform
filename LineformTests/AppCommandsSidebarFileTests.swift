@@ -4,8 +4,9 @@ import XCTest
 final class AppCommandsSidebarFileTests: XCTestCase {
     @MainActor
     func testFileMenuGetsRenameAndDeleteCommandsWithEllipsisTitles() {
-        XCTAssertEqual(AppMenuConfiguration.renameFileCommandTitle, "Rename…")
-        XCTAssertEqual(AppMenuConfiguration.deleteFileCommandTitle, "Delete…")
+        // Three-period ellipsis matches the pre-existing File-menu convention ("Save As...").
+        XCTAssertEqual(AppMenuConfiguration.renameFileCommandTitle, "Rename...")
+        XCTAssertEqual(AppMenuConfiguration.deleteFileCommandTitle, "Delete...")
     }
 
     @MainActor

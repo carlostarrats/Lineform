@@ -918,6 +918,33 @@ extension OutlineSidebarViewTests {
     }
 
     @MainActor
+    func testInitNeverRunsTheICloudScanEvenWithPersistedPreferences() {
+        // @Published didSet observers DO fire for assignments made in init (they go
+        // through the wrapper's setter), so persisted prefs must be loaded via direct
+        // backing-storage initialization. With showsHiddenFolders=true persisted, a
+        // setter-based load would run the init-forbidden main-thread iCloud scan.
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: OutlineFileBrowserStore.showsHiddenFoldersDefaultsKey)
+        defaults.set(OutlineFileSortOrder.dateModified.rawValue, forKey: OutlineFileBrowserStore.iCloudSortOrderDefaultsKey)
+
+        var providerCalls = 0
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in
+                providerCalls += 1
+                return nil
+            }
+        )
+
+        XCTAssertEqual(providerCalls, 0, "init must never resolve the iCloud container")
+        XCTAssertTrue(store.showsHiddenFolders)
+        XCTAssertEqual(store.iCloudSortOrder, .dateModified)
+    }
+
+    @MainActor
     func testSidebarSwapClearsDeferredSpuriousChangeCount() throws {
         // SwiftUI's DocumentGroup registers @Binding document writes with the host
         // NSDocument's change machinery asynchronously — after replaceCurrentDocument has

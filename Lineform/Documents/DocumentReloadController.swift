@@ -101,6 +101,14 @@ final class DocumentReloadController: ObservableObject {
         }
     }
 
+    /// Re-point the watcher after an in-app rename/move of the watched file. Baselines are
+    /// deliberately preserved — a rename is not a memory==disk moment, and unsaved edits
+    /// must never be blessed as synced (the same rule the presenter's own move handling
+    /// follows). `register` would reset the baseline for a new URL; this must not.
+    func noteMoved(to newURL: URL?) {
+        startWatching(newURL)
+    }
+
     /// Record a completed save: the baseline becomes exactly the text that was written to
     /// disk — NOT the live text, which may already contain keystrokes typed after the save
     /// snapshot — and the watcher re-points if the save created or changed the file URL
