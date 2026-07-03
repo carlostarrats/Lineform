@@ -41,9 +41,8 @@ final class OutlineSidebarViewTests: XCTestCase {
 
     @MainActor
     func testFilesTabUsesICloudAndReplaceableWorkspaceRoots() {
-        XCTAssertEqual(OutlineSidebarView.fileRootTitles, ["Lineform iCloud", "Workspace"])
         XCTAssertEqual(OutlineSidebarView.chooseWorkspaceButtonTitle, "Choose")
-        XCTAssertEqual(OutlineSidebarView.replaceWorkspaceButtonTitle, "Replace")
+        XCTAssertEqual(OutlineSidebarView.changeWorkspaceButtonTitle, "Change")
         XCTAssertTrue(OutlineSidebarView.iCloudUnavailableShowsLabel)
         XCTAssertEqual(OutlineSidebarView.iCloudUnavailableStatusTitle, "Unavailable")
         XCTAssertTrue(OutlineSidebarView.filesRowsFillAvailableWidth)
@@ -55,7 +54,6 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertTrue(OutlineSidebarView.filesActionButtonsUseHighContrastFill)
         XCTAssertTrue(OutlineSidebarView.filesActionButtonsReverseInDarkMode)
         XCTAssertTrue(OutlineSidebarView.filesActionButtonsShowHoverState)
-        XCTAssertFalse(OutlineSidebarView.filesRootRowsShowLeadingIcons)
         XCTAssertTrue(OutlineSidebarView.filesRootRowsAlwaysShowDisclosure)
         XCTAssertTrue(OutlineSidebarView.filesRootTextFollowsDisclosureDirectly)
         XCTAssertTrue(OutlineSidebarView.filesRootDisclosureIsVisualOnly)
@@ -63,6 +61,37 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertTrue(OutlineSidebarView.fileSelectionReplacesCurrentWindow)
         XCTAssertTrue(OutlineSidebarView.fileSelectionUsesNativeSavePrompt)
         XCTAssertEqual(OutlineSidebarView.workspaceDisconnectedSystemImage, "exclamationmark.triangle.fill")
+        XCTAssertTrue(OutlineSidebarView.filesRootRowsShowLeadingIcons)
+    }
+
+    @MainActor
+    func testWorkspaceTitleDerivesFromFolderNameElseWorkspace() {
+        XCTAssertEqual(OutlineFileBrowserStore.workspaceTitle(for: nil), "Workspace")
+        let url = URL(fileURLWithPath: "/tmp/Raw Files", isDirectory: true)
+        XCTAssertEqual(OutlineFileBrowserStore.workspaceTitle(for: url), "Raw Files")
+    }
+
+    @MainActor
+    func testRootDisclosureShownOnlyWhenExpandableChildrenExist() {
+        XCTAssertTrue(OutlineSidebarView.rootShowsDisclosure(state: .available, isEmpty: false))
+        XCTAssertFalse(OutlineSidebarView.rootShowsDisclosure(state: .available, isEmpty: true))
+        XCTAssertFalse(OutlineSidebarView.rootShowsDisclosure(state: .unavailable, isEmpty: false))
+        XCTAssertFalse(OutlineSidebarView.rootShowsDisclosure(state: .unassigned, isEmpty: true))
+        XCTAssertTrue(OutlineSidebarView.rootShowsDisclosure(state: .disconnected, isEmpty: false))
+    }
+
+    @MainActor
+    func testICloudRootDimmedWhenUnavailableOrConnectedEmpty() {
+        XCTAssertTrue(OutlineSidebarView.iCloudRootIsDimmed(state: .unavailable, isEmpty: true))
+        XCTAssertTrue(OutlineSidebarView.iCloudRootIsDimmed(state: .available, isEmpty: true))
+        XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .available, isEmpty: false))
+    }
+
+    @MainActor
+    func testGuideLineInsetTracksIndentStep() {
+        XCTAssertEqual(OutlineSidebarView.filesTreeIndentStep, 12)
+        XCTAssertEqual(OutlineSidebarView.filesGuideLineInset(forParentDepth: 0), 33)
+        XCTAssertEqual(OutlineSidebarView.filesGuideLineInset(forParentDepth: 1), 45)
     }
 
     @MainActor
@@ -209,7 +238,7 @@ final class OutlineSidebarViewTests: XCTestCase {
         )
         store.refreshICloud()
 
-        XCTAssertEqual(store.iCloudRoot.title, "Lineform iCloud")
+        XCTAssertEqual(store.iCloudRoot.title, "Lineform")
         XCTAssertEqual(store.iCloudRoot.state, .unavailable)
         XCTAssertEqual(store.iCloudRoot.items, [])
     }
@@ -239,7 +268,7 @@ final class OutlineSidebarViewTests: XCTestCase {
         )
         store.refreshICloud()
 
-        XCTAssertEqual(store.iCloudRoot.title, "Lineform iCloud")
+        XCTAssertEqual(store.iCloudRoot.title, "Lineform")
         XCTAssertEqual(store.iCloudRoot.state, .available)
         XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["Draft.md"])
     }

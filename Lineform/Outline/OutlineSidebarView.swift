@@ -76,9 +76,8 @@ struct OutlineSidebarView: View {
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
     static let tabsUseExplicitThemeAppearance = true
-    static let fileRootTitles = ["Lineform iCloud", "Workspace"]
     static let chooseWorkspaceButtonTitle = "Choose"
-    static let replaceWorkspaceButtonTitle = "Replace"
+    static let changeWorkspaceButtonTitle = "Change"
     static let iCloudUnavailableShowsLabel = true
     static let iCloudUnavailableStatusTitle = "Unavailable"
     static let filesRowsFillAvailableWidth = true
@@ -90,7 +89,7 @@ struct OutlineSidebarView: View {
     static let filesActionButtonsUseHighContrastFill = true
     static let filesActionButtonsReverseInDarkMode = true
     static let filesActionButtonsShowHoverState = true
-    static let filesRootRowsShowLeadingIcons = false
+    static let filesRootRowsShowLeadingIcons = true
     static let filesRootRowsAlwaysShowDisclosure = true
     static let filesRootTextFollowsDisclosureDirectly = true
     static let filesRootDisclosureIsVisualOnly = true
@@ -98,6 +97,29 @@ struct OutlineSidebarView: View {
     static let fileSelectionReplacesCurrentWindow = true
     static let fileSelectionUsesNativeSavePrompt = true
     static let workspaceDisconnectedSystemImage = "exclamationmark.triangle.fill"
+
+    /// Per-level horizontal indent for Files-tab tree rows. Kept gentle because the vertical
+    /// guide line (one per open folder) carries most of the "this is nested" signal.
+    static let filesTreeIndentStep: CGFloat = 12
+    /// x of the guide line for a depth-0 parent's children: row-content leading (6) + chevron (10)
+    /// + gap (8) + half icon (9) = the parent icon's horizontal center. Deeper parents shift by one step.
+    static let filesGuideLineDepthZeroInset: CGFloat = 33
+
+    static func filesGuideLineInset(forParentDepth depth: Int) -> CGFloat {
+        filesGuideLineDepthZeroInset + CGFloat(depth) * filesTreeIndentStep
+    }
+
+    /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
+    /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
+    static func rootShowsDisclosure(state: OutlineFileRootState, isEmpty: Bool) -> Bool {
+        (state == .available || state == .disconnected) && !isEmpty
+    }
+
+    /// The iCloud root reads as "inactive" (dimmed) both when the container is unavailable and
+    /// when it is connected but empty.
+    static func iCloudRootIsDimmed(state: OutlineFileRootState, isEmpty: Bool) -> Bool {
+        state == .unavailable || (state == .available && isEmpty)
+    }
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
     static let maximumColumnWidth: CGFloat = 300
@@ -536,7 +558,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 
     @Published var iCloudRoot = OutlineFileRoot(
         id: "icloud",
-        title: "Lineform iCloud",
+        title: "Lineform",
         systemImage: "icloud",
         state: .unavailable,
         items: []
@@ -618,14 +640,6 @@ final class OutlineFileBrowserStore: ObservableObject {
         }
 
         setWorkspaceURL(url)
-    }
-
-    func clearWorkspaceAssignment() {
-        workspaceURL = nil
-        lastWorkspaceItems = []
-        defaults.removeObject(forKey: Self.workspaceBookmarkDefaultsKey)
-        defaults.removeObject(forKey: Self.workspaceSnapshotDefaultsKey)
-        refreshWorkspaceRoot()
     }
 
     @MainActor
@@ -730,7 +744,7 @@ final class OutlineFileBrowserStore: ObservableObject {
         guard let url = iCloudDocumentsURLProvider(fileManager) else {
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
-                title: "Lineform iCloud",
+                title: "Lineform",
                 systemImage: "icloud",
                 state: .unavailable,
                 items: []
@@ -747,7 +761,7 @@ final class OutlineFileBrowserStore: ObservableObject {
         else {
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
-                title: "Lineform iCloud",
+                title: "Lineform",
                 systemImage: "icloud",
                 state: .unavailable,
                 items: []
@@ -766,18 +780,23 @@ final class OutlineFileBrowserStore: ObservableObject {
 
         iCloudRoot = OutlineFileRoot(
             id: "icloud",
-            title: "Lineform iCloud",
+            title: "Lineform",
             systemImage: "icloud",
             state: .available,
             items: items
         )
     }
 
+    /// The workspace root's display title: the chosen folder's name, or "Workspace" when unassigned.
+    static func workspaceTitle(for url: URL?) -> String {
+        url?.lastPathComponent ?? "Workspace"
+    }
+
     private func refreshWorkspaceRoot() {
         guard let workspaceURL else {
             workspaceRoot = OutlineFileRoot(
                 id: "workspace",
-                title: "Workspace",
+                title: Self.workspaceTitle(for: nil),
                 systemImage: "folder",
                 state: .unassigned,
                 items: []
@@ -800,7 +819,7 @@ final class OutlineFileBrowserStore: ObservableObject {
         else {
             workspaceRoot = OutlineFileRoot(
                 id: "workspace",
-                title: "Workspace",
+                title: Self.workspaceTitle(for: workspaceURL),
                 systemImage: "folder.badge.questionmark",
                 state: .disconnected,
                 // Cached snapshot may have been saved while the toggle was ON; re-filter it so
@@ -823,7 +842,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 
         workspaceRoot = OutlineFileRoot(
             id: "workspace",
-            title: "Workspace",
+            title: Self.workspaceTitle(for: workspaceURL),
             systemImage: "folder",
             state: .available,
             items: items
@@ -961,12 +980,13 @@ private struct OutlineFileBrowserView: View {
                 root: root,
                 isCollapsed: collapsedIDs.contains(root.id),
                 toggleCollapsed: { toggle(root.id) },
-                chooseWorkspaceFolder: store.chooseWorkspaceFolder,
-                replaceWorkspaceFolder: store.clearWorkspaceAssignment
+                chooseWorkspaceFolder: store.chooseWorkspaceFolder
             )
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if root.showsTree, !collapsedIDs.contains(root.id) {
+            // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
+            // expandable tree, no empty-state line — just the quiet header.
+            if root.showsTree, !collapsedIDs.contains(root.id), !rootIsDimmed(root) {
                 if root.items.isEmpty {
                     Text("No Markdown files")
                         .font(.system(size: 12))
@@ -975,10 +995,12 @@ private struct OutlineFileBrowserView: View {
                         .padding(.vertical, 4)
                         .opacity(root.state == .disconnected ? 0.48 : 1)
                 } else {
+                    // Direct children start at depth 1 so they indent one step past the root's
+                    // icon; each row draws its own guide line back to its parent (see the node).
                     ForEach(root.items) { item in
                         OutlineFileTreeNodeView(
                             item: item,
-                            depth: 0,
+                            depth: 1,
                             collapsedIDs: $collapsedIDs,
                             openFile: openFile,
                             currentFileURL: currentFileURL
@@ -989,8 +1011,15 @@ private struct OutlineFileBrowserView: View {
                 }
             }
         }
-        .opacity(root.state == .unavailable ? OutlineSidebarView.filesUnavailableRootOpacity : 1)
+        .opacity(rootIsDimmed(root) ? OutlineSidebarView.filesUnavailableRootOpacity : 1)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func rootIsDimmed(_ root: OutlineFileRoot) -> Bool {
+        if root.id == "icloud" {
+            return OutlineSidebarView.iCloudRootIsDimmed(state: root.state, isEmpty: root.items.isEmpty)
+        }
+        return root.state == .unavailable
     }
 
     private func toggle(_ id: String) {
@@ -1011,20 +1040,37 @@ private struct OutlineFileRootRow: View {
     var isCollapsed: Bool
     var toggleCollapsed: () -> Void
     var chooseWorkspaceFolder: () -> Void
-    var replaceWorkspaceFolder: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
     @State private var isWorkspaceActionHovered = false
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: chevronSystemImage)
-                .font(.system(size: 10, weight: .semibold))
+            // The chevron slot is always reserved so titles align, but the glyph only shows when
+            // the root actually has an expandable child area.
+            Group {
+                if showsDisclosure {
+                    Image(systemName: chevronSystemImage)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: 10)
+            .accessibilityHidden(true)
+
+            Image(systemName: root.systemImage)
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                .frame(width: 10)
+                .frame(width: 18)
+                .opacity(root.state == .disconnected ? 0.48 : 1)
                 .accessibilityHidden(true)
 
-            Button(action: toggleCollapsed) {
+            Button {
+                // Only expandable roots respond to a header tap; others have nothing to collapse.
+                if showsDisclosure { toggleCollapsed() }
+            } label: {
                 Text(root.title)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
@@ -1057,11 +1103,9 @@ private struct OutlineFileRootRow: View {
                 }
 
                 Button {
-                    if root.state == .unassigned {
-                        chooseWorkspaceFolder()
-                    } else {
-                        replaceWorkspaceFolder()
-                    }
+                    // Both "Choose" (first assign) and "Change" (swap) open the picker; the assign
+                    // path overwrites the bookmark in place, and cancelling leaves the current folder.
+                    chooseWorkspaceFolder()
                 } label: {
                     Text(workspaceActionTitle)
                         .font(.system(size: 11, weight: .medium))
@@ -1095,6 +1139,10 @@ private struct OutlineFileRootRow: View {
         }
     }
 
+    private var showsDisclosure: Bool {
+        OutlineSidebarView.rootShowsDisclosure(state: root.state, isEmpty: root.items.isEmpty)
+    }
+
     private var chevronSystemImage: String {
         isCollapsed ? "chevron.right" : "chevron.down"
     }
@@ -1102,7 +1150,7 @@ private struct OutlineFileRootRow: View {
     private var workspaceActionTitle: String {
         root.state == .unassigned
             ? OutlineSidebarView.chooseWorkspaceButtonTitle
-            : OutlineSidebarView.replaceWorkspaceButtonTitle
+            : OutlineSidebarView.changeWorkspaceButtonTitle
     }
 
     private var fileActionBackgroundColor: Color {
@@ -1195,13 +1243,14 @@ private struct OutlineFileTreeNodeView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.leading, CGFloat(depth) * 14)
+        .padding(.leading, CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep)
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(rowBackgroundStyle)
         }
+        .overlay(alignment: .topLeading) { guideLine }
         .contentShape(Rectangle())
         .onTapGesture {
             if item.isDirectory {
@@ -1216,6 +1265,22 @@ private struct OutlineFileTreeNodeView: View {
             }
         }
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    /// A single faint vertical line in this row's left gutter, aligned under the parent's icon,
+    /// connecting the row to its parent. Contiguous siblings form one continuous line; a folder's
+    /// expanded children sit at a deeper inset, so the parent's line naturally breaks across them
+    /// (one line per open folder, no stacked ladder). Height overshoots the row slightly to bridge
+    /// the inter-row spacing.
+    @ViewBuilder
+    private var guideLine: some View {
+        if depth >= 1 {
+            Rectangle()
+                .fill(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome).opacity(0.22))
+                .frame(width: 1, height: OutlineSidebarView.filesChildRowHeight + 2)
+                .padding(.leading, OutlineSidebarView.filesGuideLineInset(forParentDepth: depth - 1))
+                .allowsHitTesting(false)
+        }
     }
 
     private func toggleCollapsed() {
