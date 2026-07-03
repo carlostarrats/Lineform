@@ -76,4 +76,38 @@ final class SidebarFileActionsTests: XCTestCase {
         try operations.trash(url)
         XCTAssertEqual(recorder.trashed, [url])
     }
+
+    @MainActor
+    func testDialogCopyMatchesMuseStyleSpec() {
+        XCTAssertEqual(SidebarFileActionPresenter.renameFileTitle, "Rename File")
+        XCTAssertEqual(SidebarFileActionPresenter.renameFolderTitle, "Rename Folder")
+        XCTAssertEqual(SidebarFileActionPresenter.renameFileMessage, "Renames the file. Its contents are kept.")
+        XCTAssertEqual(SidebarFileActionPresenter.renameFolderMessage, "Renames the folder. Its files are kept.")
+        XCTAssertEqual(SidebarFileActionPresenter.deleteTitle(for: URL(fileURLWithPath: "/tmp/Notes.md")), "Delete “Notes.md”?")
+        XCTAssertEqual(SidebarFileActionPresenter.deleteMessage, "It will be moved to the Trash.")
+        XCTAssertEqual(SidebarFileActionPresenter.deleteButtonTitle, "Delete")
+        XCTAssertEqual(SidebarFileActionPresenter.cancelButtonTitle, "Cancel")
+        XCTAssertEqual(SidebarFileActionPresenter.renameButtonTitle, "Rename")
+    }
+
+    func testRenamePayloadRebasesTheRenamedItemAndDescendants() {
+        let payload = LineformAppNotification.RenamePayload(
+            from: URL(fileURLWithPath: "/tmp/Docs", isDirectory: true),
+            to: URL(fileURLWithPath: "/tmp/Notes", isDirectory: true),
+            isDirectory: true
+        )
+        XCTAssertEqual(payload.rebased(URL(fileURLWithPath: "/tmp/Docs"))?.path, "/tmp/Notes")
+        XCTAssertEqual(payload.rebased(URL(fileURLWithPath: "/tmp/Docs/a/b.md"))?.path, "/tmp/Notes/a/b.md")
+        XCTAssertNil(payload.rebased(URL(fileURLWithPath: "/tmp/Docs-other/b.md")))
+        XCTAssertNil(payload.rebased(URL(fileURLWithPath: "/tmp/Other.md")))
+        XCTAssertNil(payload.rebased(nil))
+
+        let filePayload = LineformAppNotification.RenamePayload(
+            from: URL(fileURLWithPath: "/tmp/A.md"),
+            to: URL(fileURLWithPath: "/tmp/B.md"),
+            isDirectory: false
+        )
+        XCTAssertEqual(filePayload.rebased(URL(fileURLWithPath: "/tmp/A.md"))?.path, "/tmp/B.md")
+        XCTAssertNil(filePayload.rebased(URL(fileURLWithPath: "/tmp/C.md")))
+    }
 }

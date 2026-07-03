@@ -43,6 +43,97 @@ enum SidebarFileRenaming {
     }
 }
 
+/// Native alert-style dialogs for the sidebar's Rename/Delete actions (the Muse-style
+/// look is exactly an `NSAlert` with an accessory text field). App-modal by design:
+/// these are short, focused decisions about one file.
+@MainActor
+enum SidebarFileActionPresenter {
+    static let renameFileTitle = "Rename File"
+    static let renameFolderTitle = "Rename Folder"
+    static let renameFileMessage = "Renames the file. Its contents are kept."
+    static let renameFolderMessage = "Renames the folder. Its files are kept."
+    static let renameButtonTitle = "Rename"
+    static let cancelButtonTitle = "Cancel"
+    static let deleteButtonTitle = "Delete"
+    static let deleteMessage = "It will be moved to the Trash."
+    static let renameFieldWidth: CGFloat = 230
+
+    static func deleteTitle(for url: URL) -> String {
+        "Delete “\(url.lastPathComponent)”?"
+    }
+
+    /// Muse-style rename dialog: pre-selected name field, Cancel/Rename. Returns the new
+    /// URL on success (operation already performed), nil on cancel or invalid/unchanged
+    /// name. Failures present a standard error alert and return nil.
+    static func promptRename(
+        of url: URL,
+        isDirectory: Bool,
+        operations: SidebarFileOperations = SidebarFileOperations()
+    ) -> URL? {
+        let alert = NSAlert()
+        alert.messageText = isDirectory ? renameFolderTitle : renameFileTitle
+        alert.informativeText = isDirectory ? renameFolderMessage : renameFileMessage
+        alert.addButton(withTitle: renameButtonTitle)
+        alert.addButton(withTitle: cancelButtonTitle)
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: renameFieldWidth, height: 24))
+        field.stringValue = SidebarFileRenaming.displayName(for: url, isDirectory: isDirectory)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return nil
+        }
+        guard let destination = SidebarFileRenaming.validatedDestination(
+            for: url,
+            isDirectory: isDirectory,
+            newDisplayName: field.stringValue
+        ) else {
+            return nil
+        }
+
+        do {
+            try operations.rename(url, to: destination)
+            return destination
+        } catch {
+            NSAlert(error: error).runModal()
+            return nil
+        }
+    }
+
+    /// Delete confirmation: Cancel is the Return-key default; Delete is destructive and
+    /// never the default. Returns true when the file was moved to the Trash.
+    static func promptDelete(
+        of url: URL,
+        operations: SidebarFileOperations = SidebarFileOperations()
+    ) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = deleteTitle(for: url)
+        alert.informativeText = deleteMessage
+        let deleteButton = alert.addButton(withTitle: deleteButtonTitle)
+        let cancelButton = alert.addButton(withTitle: cancelButtonTitle)
+        deleteButton.hasDestructiveAction = true
+        deleteButton.keyEquivalent = ""
+        cancelButton.keyEquivalent = "\r"
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return false
+        }
+
+        do {
+            try operations.trash(url)
+            return true
+        } catch {
+            NSAlert(error: error).runModal()
+            return false
+        }
+    }
+
+    static func showInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+}
+
 struct SidebarFileOperations {
     var fileManager: SidebarFileManaging = FileManager.default
 

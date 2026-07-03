@@ -43,7 +43,10 @@ struct EditorContainerView: View {
                 jumpToHeading: jumpToHeading,
                 openFile: openSidebarFile,
                 currentFileURL: currentFileURL,
-                fileBrowserStore: injectedFileBrowserStore
+                fileBrowserStore: injectedFileBrowserStore,
+                renameItem: { renameSidebarItem(at: $0.url, isDirectory: $0.isDirectory) },
+                deleteItem: { deleteSidebarItem(at: $0.url) },
+                revealItem: { SidebarFileActionPresenter.showInFinder($0.url) }
             )
                 .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
                 .navigationSplitViewColumnWidth(
@@ -118,6 +121,40 @@ struct EditorContainerView: View {
                 return
             }
             isShowingOutline.toggle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.sidebarItemRenamed.name)) { notification in
+            guard
+                let payload = notification.object as? LineformAppNotification.RenamePayload,
+                let newURL = payload.rebased(currentFileURL),
+                let backingDocument = activeWindow?.windowController?.document as? NSDocument
+            else {
+                return
+            }
+            // This window's document just moved on disk (file rename, or an ancestor
+            // folder rename). Follow it so the title bar, autosave target, selection
+            // highlight, and reload watcher all track the new location.
+            backingDocument.fileURL = newURL
+            backingDocument.fileModificationDate = LineformDocument.modificationDate(at: newURL)
+            activeWindow?.representedURL = newURL
+            activeWindow?.setTitleWithRepresentedFilename(newURL.path)
+            registerReloadWatcher()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.sidebarFileDeleted.name)) { notification in
+            guard
+                let deletedURL = notification.object as? URL,
+                currentFileURL?.standardizedFileURL == deletedURL.standardizedFileURL,
+                let backingDocument = activeWindow?.windowController?.document as? NSDocument
+            else {
+                return
+            }
+            // The file is in the Trash; keep the text in the window as unsaved content
+            // (nothing is lost — the next save prompts for a location). Without this,
+            // the next autosave would silently resurrect the file the user just deleted.
+            backingDocument.fileURL = nil
+            backingDocument.updateChangeCount(.changeDone)
+            activeWindow?.representedURL = nil
+            backingDocument.windowControllers.first?.synchronizeWindowTitleWithDocumentName()
+            registerReloadWatcher()
         }
         .onAppear {
             LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
@@ -320,6 +357,27 @@ struct EditorContainerView: View {
             replacing: activeWindow,
             updateEditorDocument: replaceDocumentFromSidebar
         )
+    }
+
+    private func renameSidebarItem(at url: URL, isDirectory: Bool) {
+        guard let destination = SidebarFileActionPresenter.promptRename(of: url, isDirectory: isDirectory) else {
+            return
+        }
+        // Every window (including this one) retargets via the rename broadcast; every
+        // visible Files tab re-scans via the refresh broadcast (FSEvents deliberately
+        // ignores our own process's events).
+        LineformAppNotification.sidebarItemRenamed.post(
+            object: LineformAppNotification.RenamePayload(from: url, to: destination, isDirectory: isDirectory)
+        )
+        LineformAppNotification.refreshSidebarFiles.post()
+    }
+
+    private func deleteSidebarItem(at url: URL) {
+        guard SidebarFileActionPresenter.promptDelete(of: url) else {
+            return
+        }
+        LineformAppNotification.sidebarFileDeleted.post(object: url)
+        LineformAppNotification.refreshSidebarFiles.post()
     }
 
     private func replaceDocumentFromSidebar(_ replacement: LineformDocument) -> UUID {

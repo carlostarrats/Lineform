@@ -216,6 +216,12 @@ struct OutlineSidebarView: View {
     /// The file currently shown in this window, so its Files-tab row can render the native
     /// selection highlight. `nil` for untitled documents (no on-disk URL to match).
     var currentFileURL: URL?
+    /// Context-menu actions on Files-tab rows. The sidebar stays dumb: the window's
+    /// editor container supplies these (it presents the dialogs, performs the file
+    /// operation, and broadcasts the app-wide refresh/retarget notifications).
+    var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
 
     init(
         items: [MarkdownOutlineItem],
@@ -224,12 +230,18 @@ struct OutlineSidebarView: View {
             LineformSidebarFileOpener.open(url, replacing: nil)
         },
         currentFileURL: URL? = nil,
-        fileBrowserStore: OutlineFileBrowserStore? = nil
+        fileBrowserStore: OutlineFileBrowserStore? = nil,
+        renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
+        deleteItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
+        revealItem: @escaping (OutlineFileTreeItem) -> Void = { _ in }
     ) {
         self.items = items
         self.jumpToHeading = jumpToHeading
         self.openFile = openFile
         self.currentFileURL = currentFileURL
+        self.renameItem = renameItem
+        self.deleteItem = deleteItem
+        self.revealItem = revealItem
         // Production passes nil → a real store is created lazily on first render. Tests inject
         // a store on an isolated defaults suite so they never resolve the user's real workspace
         // bookmark (which would touch ~/Documents and prompt for access).
@@ -247,7 +259,14 @@ struct OutlineSidebarView: View {
                 if selectedTab == .outline {
                     outlineContent
                 } else {
-                    OutlineFileBrowserView(store: fileBrowserStore, openFile: openFile, currentFileURL: currentFileURL)
+                    OutlineFileBrowserView(
+                        store: fileBrowserStore,
+                        openFile: openFile,
+                        currentFileURL: currentFileURL,
+                        renameItem: renameItem,
+                        deleteItem: deleteItem,
+                        revealItem: revealItem
+                    )
                         .onAppear {
                             // Reconcile the app-wide "Show Hidden Folders" preference (driven from
                             // the View menu) each time the Files tab becomes visible, then run the
@@ -281,6 +300,13 @@ struct OutlineSidebarView: View {
                             // don't observe this, preserving the deferred-scan invariant; they
                             // reconcile via .onAppear when the Files tab next appears.
                             fileBrowserStore.showsHiddenFolders = HiddenFoldersMenuState.shared.isOn
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.refreshSidebarFiles.name)) { _ in
+                            // An in-app rename/delete happened (any window). FSEvents ignores
+                            // own-process events, so refresh explicitly. Only visible Files
+                            // tabs observe this, preserving the deferred-scan invariant.
+                            fileBrowserStore.refreshWorkspace()
+                            fileBrowserStore.refreshICloud()
                         }
                 }
             }
@@ -1163,6 +1189,9 @@ private struct OutlineFileBrowserView: View {
     @ObservedObject var store: OutlineFileBrowserStore
     var openFile: (URL) -> Void
     var currentFileURL: URL?
+    var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
 
@@ -1224,7 +1253,10 @@ private struct OutlineFileBrowserView: View {
                             depth: 1,
                             collapsedIDs: $collapsedIDs,
                             openFile: openFile,
-                            currentFileURL: currentFileURL
+                            currentFileURL: currentFileURL,
+                            renameItem: renameItem,
+                            deleteItem: deleteItem,
+                            revealItem: revealItem
                         )
                         .opacity(root.state == .disconnected ? 0.48 : 1)
                         .allowsHitTesting(root.state != .disconnected)
@@ -1432,6 +1464,9 @@ private struct OutlineFileTreeNodeView: View {
     @Binding var collapsedIDs: Set<String>
     var openFile: (URL) -> Void
     var currentFileURL: URL?
+    var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
@@ -1458,7 +1493,10 @@ private struct OutlineFileTreeNodeView: View {
                         depth: depth + 1,
                         collapsedIDs: $collapsedIDs,
                         openFile: openFile,
-                        currentFileURL: currentFileURL
+                        currentFileURL: currentFileURL,
+                        renameItem: renameItem,
+                        deleteItem: deleteItem,
+                        revealItem: revealItem
                     )
                 }
             }
@@ -1510,6 +1548,16 @@ private struct OutlineFileTreeNodeView: View {
             withAnimation(.easeOut(duration: 0.12)) {
                 isHovered = hovering
             }
+        }
+        .contextMenu {
+            Button("Rename…") { renameItem(item) }
+            if !item.isDirectory {
+                // No folder delete (spec): a folder's files are too much to trash from a
+                // quiet sidebar menu. Files go to the Trash, behind a confirmation.
+                Button("Delete…", role: .destructive) { deleteItem(item) }
+            }
+            Divider()
+            Button("Show in Finder") { revealItem(item) }
         }
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
