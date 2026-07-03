@@ -36,8 +36,11 @@ less code, not more.
   behavior of a search field. (No visible next/previous arrows.)
 - The stray yellow highlighting of all other matches is gone. There is no
   half-state implying navigation that isn't there.
-- Works the same in Write, Read, and Split/Preview, since all three are backed by
-  real `NSTextView`s.
+- Works directly in Write and the Split editor pane. In Read mode, searching
+  reveals the match by switching to Write and selecting it — this is the existing
+  behavior and is unchanged. (Making the read-only preview independently
+  searchable in place is a larger change and is intentionally out of scope here;
+  it would add code, not remove it.)
 
 ## What changes in code
 
