@@ -3,11 +3,11 @@ import XCTest
 
 final class DiagramReportServiceTests: XCTestCase {
     func testPayloadContainsExactlyThreeFields() {
-        let payload = DiagramReportService.payload(source: "graph TD; A-->B", error: "boom", appVersion: "1.0.11")
+        let payload = DiagramReportService.payload(source: "graph TD; A-->B", error: "boom", appVersion: "1.1.0")
         XCTAssertEqual(Set(payload.keys), ["source", "error", "appVersion"])
         XCTAssertEqual(payload["source"], "graph TD; A-->B")
         XCTAssertEqual(payload["error"], "boom")
-        XCTAssertEqual(payload["appVersion"], "1.0.11")
+        XCTAssertEqual(payload["appVersion"], "1.1.0")
     }
 
     func testReportLinkRoundTrips() {
