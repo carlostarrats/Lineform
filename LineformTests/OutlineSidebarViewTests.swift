@@ -748,3 +748,65 @@ extension OutlineSidebarViewTests {
         )
     }
 }
+
+extension OutlineSidebarViewTests {
+    @MainActor
+    func testScanCapturesDatesAndAppliesPerRootSortOrder() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try "# Old".write(to: folder.appendingPathComponent("Old.md"), atomically: true, encoding: .utf8)
+        try "# New".write(to: folder.appendingPathComponent("New.md"), atomically: true, encoding: .utf8)
+        // Push Old.md's dates well into the past so the order is deterministic.
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3_600), .creationDate: Date(timeIntervalSinceNow: -3_600)],
+            ofItemAtPath: folder.appendingPathComponent("Old.md").path
+        )
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
+        store.refreshICloud()
+
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["New.md", "Old.md"])
+        XCTAssertNotNil(store.iCloudRoot.items.first?.modifiedAt)
+
+        store.iCloudSortOrder = .dateModified
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["New.md", "Old.md"])
+        XCTAssertEqual(defaults.string(forKey: OutlineFileBrowserStore.iCloudSortOrderDefaultsKey), OutlineFileSortOrder.dateModified.rawValue)
+    }
+
+    @MainActor
+    func testSortPreferenceIsPersistedPerRootAndAppliedToLoadedSnapshots() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# B".write(to: folder.appendingPathComponent("B.md"), atomically: true, encoding: .utf8)
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3_600)],
+            ofItemAtPath: folder.appendingPathComponent("A.md").path
+        )
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let first = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
+        first.refreshICloud()
+        first.iCloudSortOrder = .dateModified
+        XCTAssertEqual(first.iCloudRoot.items.map(\.name), ["B.md", "A.md"])
+
+        // A second store on the same defaults must come up with the persisted order,
+        // and apply it to the cached snapshot at init.
+        let second = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
+        XCTAssertEqual(second.iCloudSortOrder, .dateModified)
+        second.refreshICloud()
+        XCTAssertEqual(second.iCloudRoot.items.map(\.name), ["B.md", "A.md"])
+    }
+}

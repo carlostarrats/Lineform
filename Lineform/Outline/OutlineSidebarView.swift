@@ -14,19 +14,31 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
     var isDirectory: Bool
     var children: [OutlineFileTreeItem]
     var isHidden: Bool = false
+    var createdAt: Date?
+    var modifiedAt: Date?
 
     var id: String { url.path }
 
-    init(url: URL, name: String, isDirectory: Bool, children: [OutlineFileTreeItem], isHidden: Bool = false) {
+    init(
+        url: URL,
+        name: String,
+        isDirectory: Bool,
+        children: [OutlineFileTreeItem],
+        isHidden: Bool = false,
+        createdAt: Date? = nil,
+        modifiedAt: Date? = nil
+    ) {
         self.url = url
         self.name = name
         self.isDirectory = isDirectory
         self.children = children
         self.isHidden = isHidden
+        self.createdAt = createdAt
+        self.modifiedAt = modifiedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case url, name, isDirectory, children, isHidden
+        case url, name, isDirectory, children, isHidden, createdAt, modifiedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +49,9 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
         children = try container.decode([OutlineFileTreeItem].self, forKey: .children)
         // Tolerate snapshots written before isHidden existed (they only held visible items).
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+        // Tolerate snapshots written before the date-sort keys existed.
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt)
     }
 }
 
@@ -564,6 +579,8 @@ final class OutlineFileBrowserStore: ObservableObject {
     static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
     static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"
     static let showsHiddenFoldersDefaultsKey = "Lineform.outline.showsHiddenFolders"
+    static let iCloudSortOrderDefaultsKey = "Lineform.outline.sortOrder.icloud"
+    static let workspaceSortOrderDefaultsKey = "Lineform.outline.sortOrder.workspace"
     static let maximumTreeDepth = 4
     static let maximumChildrenPerFolder = 80
     static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
@@ -609,6 +626,29 @@ final class OutlineFileBrowserStore: ObservableObject {
         }
     }
 
+    /// Per-section sort preferences (spec: independent for iCloud and workspace, like Muse).
+    /// Changing one re-sorts the cached trees in memory — no disk re-scan needed.
+    @Published var iCloudSortOrder = OutlineFileSortOrder.name {
+        didSet {
+            guard oldValue != iCloudSortOrder else { return }
+            defaults.set(iCloudSortOrder.rawValue, forKey: Self.iCloudSortOrderDefaultsKey)
+            lastICloudItems = OutlineFileSortOrder.sorted(lastICloudItems, by: iCloudSortOrder)
+            if iCloudRoot.showsTree {
+                iCloudRoot.items = filteredForDisplay(lastICloudItems)
+            }
+        }
+    }
+    @Published var workspaceSortOrder = OutlineFileSortOrder.name {
+        didSet {
+            guard oldValue != workspaceSortOrder else { return }
+            defaults.set(workspaceSortOrder.rawValue, forKey: Self.workspaceSortOrderDefaultsKey)
+            lastWorkspaceItems = OutlineFileSortOrder.sorted(lastWorkspaceItems, by: workspaceSortOrder)
+            if workspaceRoot.showsTree {
+                workspaceRoot.items = filteredForDisplay(lastWorkspaceItems)
+            }
+        }
+    }
+
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let iCloudDocumentsURLProvider: (FileManager) -> URL?
@@ -637,6 +677,8 @@ final class OutlineFileBrowserStore: ObservableObject {
         // Set before any refresh; `didSet` does not fire during initialization, so this does
         // not trigger an (init-forbidden) iCloud scan.
         showsHiddenFolders = defaults.bool(forKey: Self.showsHiddenFoldersDefaultsKey)
+        iCloudSortOrder = OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.iCloudSortOrderDefaultsKey) ?? "") ?? .name
+        workspaceSortOrder = OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.workspaceSortOrderDefaultsKey) ?? "") ?? .name
         loadICloudSnapshot()
         loadWorkspaceSnapshot()
         loadWorkspaceBookmark()
@@ -739,11 +781,19 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     private func loadICloudSnapshot() {
-        lastICloudItems = loadSnapshot(defaultsKey: Self.iCloudSnapshotDefaultsKey)
+        // Snapshots were saved under whatever sort order was active then; re-sort so a
+        // changed preference applies to the cached tree before any live scan runs.
+        lastICloudItems = OutlineFileSortOrder.sorted(
+            loadSnapshot(defaultsKey: Self.iCloudSnapshotDefaultsKey),
+            by: iCloudSortOrder
+        )
     }
 
     private func loadWorkspaceSnapshot() {
-        lastWorkspaceItems = loadSnapshot(defaultsKey: Self.workspaceSnapshotDefaultsKey)
+        lastWorkspaceItems = OutlineFileSortOrder.sorted(
+            loadSnapshot(defaultsKey: Self.workspaceSnapshotDefaultsKey),
+            by: workspaceSortOrder
+        )
     }
 
     private func loadSnapshot(defaultsKey: String) -> [OutlineFileTreeItem] {
@@ -841,7 +891,7 @@ final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
-        let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders)
+        let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: iCloudSortOrder)
         lastICloudItems = items
         saveSnapshot(items, defaultsKey: Self.iCloudSnapshotDefaultsKey)
 
@@ -905,7 +955,7 @@ final class OutlineFileBrowserStore: ObservableObject {
         // lifetime (see holdWorkspaceScope), which is what keeps file OPENS working —
         // a scope that ends when this scan returns leaves NSDocumentController reading
         // the user's files with no grant at all.
-        let items = Self.items(in: workspaceURL, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders)
+        let items = Self.items(in: workspaceURL, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: workspaceSortOrder)
         lastWorkspaceItems = items
         saveSnapshot(items, defaultsKey: Self.workspaceSnapshotDefaultsKey)
 
@@ -948,13 +998,14 @@ final class OutlineFileBrowserStore: ObservableObject {
         fileManager: FileManager,
         depth: Int = 0,
         showsHiddenFolders: Bool,
-        inheritedHidden: Bool = false
+        inheritedHidden: Bool = false,
+        sortOrder: OutlineFileSortOrder = .name
     ) -> [OutlineFileTreeItem] {
         guard depth < maximumTreeDepth else {
             return []
         }
 
-        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isHiddenKey]
+        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isHiddenKey, .creationDateKey, .contentModificationDateKey]
         let options: FileManager.DirectoryEnumerationOptions = showsHiddenFolders ? [] : [.skipsHiddenFiles]
         let urls = (try? fileManager.contentsOfDirectory(
             at: url,
@@ -966,12 +1017,15 @@ final class OutlineFileBrowserStore: ObservableObject {
         // Recursing only into the retained children keeps the per-folder cap from being defeated
         // by folders with thousands of subdirectories: we build subtrees for the ~80 we keep, not
         // for every sibling we're about to discard. Output is identical to sort-then-recurse
-        // because the sort order depends only on `isDirectory` and `name`, both known here.
+        // because the sort order depends only on `isDirectory`, `name`, and the item's own
+        // creation/modification dates, all shallow attributes known here.
         struct Shallow {
             let url: URL
             let name: String
             let isDirectory: Bool
             let itemHidden: Bool
+            let createdAt: Date?
+            let modifiedAt: Date?
         }
 
         let shallow = urls.compactMap { childURL -> Shallow? in
@@ -1005,15 +1059,17 @@ final class OutlineFileBrowserStore: ObservableObject {
                 url: childURL,
                 name: name,
                 isDirectory: isDirectory,
-                itemHidden: inheritedHidden || isDotPrefixed
+                itemHidden: inheritedHidden || isDotPrefixed,
+                createdAt: values.creationDate,
+                modifiedAt: values.contentModificationDate
             )
         }
         .sorted { first, second in
-            if first.isDirectory != second.isDirectory {
-                return first.isDirectory
-            }
-
-            return first.name.localizedStandardCompare(second.name) == .orderedAscending
+            OutlineFileSortOrder.areInIncreasingOrder(
+                OutlineFileTreeItem(url: first.url, name: first.name, isDirectory: first.isDirectory, children: [], createdAt: first.createdAt, modifiedAt: first.modifiedAt),
+                OutlineFileTreeItem(url: second.url, name: second.name, isDirectory: second.isDirectory, children: [], createdAt: second.createdAt, modifiedAt: second.modifiedAt),
+                order: sortOrder
+            )
         }
         .prefix(maximumChildrenPerFolder)
 
@@ -1028,10 +1084,13 @@ final class OutlineFileBrowserStore: ObservableObject {
                         fileManager: fileManager,
                         depth: depth + 1,
                         showsHiddenFolders: showsHiddenFolders,
-                        inheritedHidden: item.itemHidden
+                        inheritedHidden: item.itemHidden,
+                        sortOrder: sortOrder
                     )
                     : [],
-                isHidden: item.itemHidden
+                isHidden: item.itemHidden,
+                createdAt: item.createdAt,
+                modifiedAt: item.modifiedAt
             )
         }
     }

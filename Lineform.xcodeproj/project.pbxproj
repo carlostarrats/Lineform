@@ -35,6 +35,12 @@
 		1F0000010000000000000222 /* CommandLineToolInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000222 /* CommandLineToolInstaller.swift */; };
 		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
 		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
+		1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000301 /* OutlineFileSortOrder.swift */; };
+		1F0000010000000000000302 /* DirectoryEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000302 /* DirectoryEventMonitor.swift */; };
+		1F0000010000000000000303 /* SidebarFileActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000303 /* SidebarFileActions.swift */; };
+		1F0000010000000000000311 /* OutlineFileSortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */; };
+		1F0000010000000000000312 /* SidebarFileActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000312 /* SidebarFileActionsTests.swift */; };
+		1F0000010000000000000313 /* AppCommandsSidebarFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */; };
 		1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */; };
 		1F0000010000000000000213 /* DocumentReloadControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000213 /* DocumentReloadControllerTests.swift */; };
 		1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000214 /* LiveReloadScrollTests.swift */; };
@@ -137,6 +143,12 @@
 		1F0000020000000000000222 /* CommandLineToolInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolInstaller.swift; sourceTree = "<group>"; };
 		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
 		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
+		1F0000020000000000000301 /* OutlineFileSortOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileSortOrder.swift; sourceTree = "<group>"; };
+		1F0000020000000000000302 /* DirectoryEventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryEventMonitor.swift; sourceTree = "<group>"; };
+		1F0000020000000000000303 /* SidebarFileActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFileActions.swift; sourceTree = "<group>"; };
+		1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileSortOrderTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000312 /* SidebarFileActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFileActionsTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommandsSidebarFileTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicyTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000213 /* DocumentReloadControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadControllerTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000214 /* LiveReloadScrollTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReloadScrollTests.swift; sourceTree = "<group>"; };
@@ -325,9 +337,12 @@
 		1F0000070000000000000016 /* Outline */ = {
 			isa = PBXGroup;
 			children = (
+				1F0000020000000000000302 /* DirectoryEventMonitor.swift */,
 				1F0000020000000000000144 /* MarkdownHeadingParser.swift */,
 				1F0000020000000000000075 /* MarkdownOutlineParser.swift */,
+				1F0000020000000000000301 /* OutlineFileSortOrder.swift */,
 				1F0000020000000000000078 /* OutlineSidebarView.swift */,
+				1F0000020000000000000303 /* SidebarFileActions.swift */,
 			);
 			path = Outline;
 			sourceTree = "<group>";
@@ -374,6 +389,9 @@
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
 				1F0000020000000000000116 /* OutlineSidebarViewTests.swift */,
+				1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */,
+				1F0000020000000000000312 /* SidebarFileActionsTests.swift */,
+				1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */,
 				1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */,
 				1F0000020000000000000213 /* DocumentReloadControllerTests.swift */,
 				1F0000020000000000000214 /* LiveReloadScrollTests.swift */,
@@ -558,6 +576,9 @@
 				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
 				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
+				1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */,
+				1F0000010000000000000302 /* DirectoryEventMonitor.swift in Sources */,
+				1F0000010000000000000303 /* SidebarFileActions.swift in Sources */,
 				1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -587,6 +608,9 @@
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
 				1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */,
+				1F0000010000000000000311 /* OutlineFileSortOrderTests.swift in Sources */,
+				1F0000010000000000000312 /* SidebarFileActionsTests.swift in Sources */,
+				1F0000010000000000000313 /* AppCommandsSidebarFileTests.swift in Sources */,
 				1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */,
 				1F0000010000000000000213 /* DocumentReloadControllerTests.swift in Sources */,
 				1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */,
