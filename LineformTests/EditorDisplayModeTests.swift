@@ -127,9 +127,18 @@ final class EditorDisplayModeTests: XCTestCase {
             MarkdownBasicsModal.examples.map(\.syntax),
             ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "`code`", "[link](https://example.com)"]
         )
-        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics"])
+        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "Diagrams", "Math"])
         XCTAssertEqual(MarkdownBasicsModal.sections.first?.rows.last?.label, "Block Spacing")
         XCTAssertTrue(MarkdownBasicsModal.sections.first?.rows.last?.detail.localizedCaseInsensitiveContains("Read and Preview") == true)
+
+        // The Diagrams and Math sections document the native rendering features.
+        let diagrams = MarkdownBasicsModal.sections.first { $0.title == "Diagrams" }
+        XCTAssertTrue(diagrams?.rows.contains { $0.label == "```mermaid" } == true)
+        let math = MarkdownBasicsModal.sections.first { $0.title == "Math" }
+        XCTAssertTrue(math?.rows.contains { $0.label == "$$…$$" } == true)
+        XCTAssertTrue(math?.rows.contains { $0.label.contains("$x^2") } == true)
+        // The prose-dollar caveat is spelled out so writers aren't surprised.
+        XCTAssertTrue(math?.rows.contains { $0.detail.localizedCaseInsensitiveContains("not treated as math") } == true)
         XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { $0.label == "Line Height" })
         XCTAssertTrue(MarkdownBasicsModal.usesRowSeparators)
         XCTAssertFalse(MarkdownBasicsModal.usesMonospacedExampleFont)
