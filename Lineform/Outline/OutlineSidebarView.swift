@@ -78,8 +78,6 @@ struct OutlineSidebarView: View {
     static let tabsUseExplicitThemeAppearance = true
     static let chooseWorkspaceButtonTitle = "Choose"
     static let changeWorkspaceButtonTitle = "Change"
-    static let iCloudUnavailableShowsLabel = true
-    static let iCloudUnavailableStatusTitle = "Unavailable"
     static let filesRowsFillAvailableWidth = true
     static let filesContentHorizontalPadding: CGFloat = 10
     static let filesRootRowHeight: CGFloat = 28
@@ -90,7 +88,6 @@ struct OutlineSidebarView: View {
     static let filesActionButtonsReverseInDarkMode = true
     static let filesActionButtonsShowHoverState = true
     static let filesRootRowsShowLeadingIcons = true
-    static let filesRootRowsAlwaysShowDisclosure = true
     static let filesRootTextFollowsDisclosureDirectly = true
     static let filesRootDisclosureIsVisualOnly = true
     static let filesRootTextTogglesCollapse = true
@@ -996,12 +993,16 @@ private struct OutlineFileBrowserView: View {
             // expandable tree, no empty-state line — just the quiet header.
             if root.showsTree, !collapsedIDs.contains(root.id), !rootIsDimmed(root) {
                 if root.items.isEmpty {
-                    Text("No Markdown files")
-                        .font(.system(size: 12))
-                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                        .padding(.leading, 28)
-                        .padding(.vertical, 4)
-                        .opacity(root.state == .disconnected ? 0.48 : 1)
+                    // Only a connected (.available) empty folder is genuinely "no Markdown." A
+                    // disconnected folder's emptiness just means the cached snapshot is empty — the
+                    // header's disconnected icon already signals that, so don't claim it's empty.
+                    if root.state == .available {
+                        Text("No Markdown files")
+                            .font(.system(size: 12))
+                            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                            .padding(.leading, 28)
+                            .padding(.vertical, 4)
+                    }
                 } else {
                     // Direct children start at depth 1 so they indent one step past the root's
                     // icon; each row draws its own guide line back to its parent (see the node).
@@ -1075,33 +1076,20 @@ private struct OutlineFileRootRow: View {
                 .opacity(root.state == .disconnected ? 0.48 : 1)
                 .accessibilityHidden(true)
 
-            Button {
-                // Only expandable roots respond to a header tap; others have nothing to collapse.
-                if showsDisclosure { toggleCollapsed() }
-            } label: {
-                Text(root.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                    .lineLimit(1)
+            // Only an expandable root is a real disclosure control. A non-expandable header
+            // renders as plain text so VoiceOver doesn't announce an "Expand/Collapse" affordance
+            // it can't honor.
+            if showsDisclosure {
+                Button(action: toggleCollapsed) {
+                    titleLabel
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isCollapsed ? "Expand \(root.title)" : "Collapse \(root.title)")
+            } else {
+                titleLabel
             }
-            .buttonStyle(.plain)
-            .opacity(root.state == .disconnected ? 0.48 : 1)
-            .accessibilityLabel(isCollapsed ? "Expand \(root.title)" : "Collapse \(root.title)")
 
             Spacer(minLength: 0)
-
-            if root.id == "icloud", root.state == .unavailable {
-                Text(Self.unavailableStatusTitle)
-                    .font(.system(size: 11, weight: .medium))
-                    .padding(.horizontal, 10)
-                    .frame(height: 22)
-                    .background {
-                        Capsule()
-                            .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(usesDarkChrome ? 0.16 : 0.08))
-                    }
-                    .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                    .allowsHitTesting(false)
-            }
 
             if root.id == "workspace", root.state != .unavailable {
                 if root.state == .disconnected {
@@ -1147,6 +1135,14 @@ private struct OutlineFileRootRow: View {
         }
     }
 
+    private var titleLabel: some View {
+        Text(root.title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+            .lineLimit(1)
+            .opacity(root.state == .disconnected ? 0.48 : 1)
+    }
+
     private var showsDisclosure: Bool {
         OutlineSidebarView.rootShowsDisclosure(state: root.state, isEmpty: root.items.isEmpty)
     }
@@ -1175,10 +1171,6 @@ private struct OutlineFileRootRow: View {
             calibratedWhite: usesDarkChrome ? 0.10 : 1.0,
             alpha: 1
         ))
-    }
-
-    private static var unavailableStatusTitle: String {
-        OutlineSidebarView.iCloudUnavailableStatusTitle
     }
 
     private var usesDarkChrome: Bool {

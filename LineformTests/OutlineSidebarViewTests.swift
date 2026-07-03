@@ -43,8 +43,6 @@ final class OutlineSidebarViewTests: XCTestCase {
     func testFilesTabUsesICloudAndReplaceableWorkspaceRoots() {
         XCTAssertEqual(OutlineSidebarView.chooseWorkspaceButtonTitle, "Choose")
         XCTAssertEqual(OutlineSidebarView.changeWorkspaceButtonTitle, "Change")
-        XCTAssertTrue(OutlineSidebarView.iCloudUnavailableShowsLabel)
-        XCTAssertEqual(OutlineSidebarView.iCloudUnavailableStatusTitle, "Unavailable")
         XCTAssertTrue(OutlineSidebarView.filesRowsFillAvailableWidth)
         XCTAssertEqual(OutlineSidebarView.filesContentHorizontalPadding, 10)
         XCTAssertEqual(OutlineSidebarView.filesRootRowHeight, 28)
@@ -54,7 +52,6 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertTrue(OutlineSidebarView.filesActionButtonsUseHighContrastFill)
         XCTAssertTrue(OutlineSidebarView.filesActionButtonsReverseInDarkMode)
         XCTAssertTrue(OutlineSidebarView.filesActionButtonsShowHoverState)
-        XCTAssertTrue(OutlineSidebarView.filesRootRowsAlwaysShowDisclosure)
         XCTAssertTrue(OutlineSidebarView.filesRootTextFollowsDisclosureDirectly)
         XCTAssertTrue(OutlineSidebarView.filesRootDisclosureIsVisualOnly)
         XCTAssertTrue(OutlineSidebarView.filesRootTextTogglesCollapse)
@@ -78,12 +75,19 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertFalse(OutlineSidebarView.rootShowsDisclosure(state: .unavailable, isEmpty: false))
         XCTAssertFalse(OutlineSidebarView.rootShowsDisclosure(state: .unassigned, isEmpty: true))
         XCTAssertTrue(OutlineSidebarView.rootShowsDisclosure(state: .disconnected, isEmpty: false))
+        // A disconnected root with an empty cached snapshot has nothing to expand → no chevron.
+        XCTAssertFalse(OutlineSidebarView.rootShowsDisclosure(state: .disconnected, isEmpty: true))
     }
 
     @MainActor
     func testICloudRootDimmedWhenConnectedButEmpty() {
         XCTAssertTrue(OutlineSidebarView.iCloudRootIsDimmed(state: .available, isEmpty: true))
         XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .available, isEmpty: false))
+        // Non-available states are never "dimmed": unavailable is hidden entirely (rootIsVisible),
+        // and unassigned/disconnected are not iCloud states. Pin it so the coupling can't regress.
+        XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .unavailable, isEmpty: true))
+        XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .unassigned, isEmpty: true))
+        XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .disconnected, isEmpty: true))
     }
 
     @MainActor
