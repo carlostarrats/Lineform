@@ -99,6 +99,21 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testFileRowsGetRealAccessibilityLabels() {
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: "Notes.md", isDirectory: false, isHidden: false), "Notes.md")
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: "Drafts", isDirectory: true, isHidden: false), "Drafts, folder")
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: ".claude", isDirectory: true, isHidden: true), ".claude, hidden folder")
+        XCTAssertEqual(OutlineSidebarView.fileRowAccessibilityLabel(name: ".env.md", isDirectory: false, isHidden: true), ".env.md, hidden")
+    }
+
+    @MainActor
+    func testFilesSectionsGetAMuseStyleSortRowWithoutManualOption() {
+        XCTAssertEqual(OutlineSidebarView.filesSortMenuLabelPrefix, "Sort: ")
+        XCTAssertTrue(OutlineSidebarView.filesSortRowShowsForAvailableRootsOnly)
+        XCTAssertEqual(OutlineFileSortOrder.allCases.count, 3)
+    }
+
+    @MainActor
     func testFilesTreeIndentStepIsGenerousEnoughToCarryNestingWithoutGuideLines() {
         // Nesting is conveyed by indentation + chevrons alone (native macOS source-list
         // convention, no vertical guide lines), so the per-level step must be non-trivial.
@@ -745,6 +760,225 @@ extension OutlineSidebarViewTests {
             spy.endedURLs.map(\.standardizedFileURL),
             spy.beganURLs.map(\.standardizedFileURL),
             "every begun scope must be balanced by an end when the store goes away"
+        )
+    }
+}
+
+extension OutlineSidebarViewTests {
+    @MainActor
+    func testScanCapturesDatesAndAppliesPerRootSortOrder() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        try "# Old".write(to: folder.appendingPathComponent("Old.md"), atomically: true, encoding: .utf8)
+        try "# New".write(to: folder.appendingPathComponent("New.md"), atomically: true, encoding: .utf8)
+        // Push Old.md's dates well into the past so the order is deterministic.
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3_600), .creationDate: Date(timeIntervalSinceNow: -3_600)],
+            ofItemAtPath: folder.appendingPathComponent("Old.md").path
+        )
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
+        store.refreshICloud()
+
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["New.md", "Old.md"])
+        XCTAssertNotNil(store.iCloudRoot.items.first?.modifiedAt)
+
+        store.iCloudSortOrder = .dateModified
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["New.md", "Old.md"])
+        XCTAssertEqual(defaults.string(forKey: OutlineFileBrowserStore.iCloudSortOrderDefaultsKey), OutlineFileSortOrder.dateModified.rawValue)
+    }
+
+    @MainActor
+    func testSortPreferenceIsPersistedPerRootAndAppliedToLoadedSnapshots() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# B".write(to: folder.appendingPathComponent("B.md"), atomically: true, encoding: .utf8)
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3_600)],
+            ofItemAtPath: folder.appendingPathComponent("A.md").path
+        )
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let first = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
+        first.refreshICloud()
+        first.iCloudSortOrder = .dateModified
+        XCTAssertEqual(first.iCloudRoot.items.map(\.name), ["B.md", "A.md"])
+
+        // A second store on the same defaults must come up with the persisted order,
+        // and apply it to the cached snapshot at init.
+        let second = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
+        XCTAssertEqual(second.iCloudSortOrder, .dateModified)
+        second.refreshICloud()
+        XCTAssertEqual(second.iCloudRoot.items.map(\.name), ["B.md", "A.md"])
+    }
+}
+
+private final class FakeDirectoryMonitor: DirectoryChangeMonitoring {
+    let url: URL
+    let onChange: () -> Void
+    private(set) var stopped = false
+
+    init(url: URL, onChange: @escaping () -> Void) {
+        self.url = url
+        self.onChange = onChange
+    }
+
+    func stop() { stopped = true }
+}
+
+extension OutlineSidebarViewTests {
+    @MainActor
+    func testWatcherRescansRootsWhenDirectoryEventsFireAndStopsOnEnd() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var monitors: [FakeDirectoryMonitor] = []
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder },
+            directoryMonitorFactory: { url, onChange in
+                let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
+                monitors.append(monitor)
+                return monitor
+            }
+        )
+        store.refreshICloud()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["A.md"])
+        XCTAssertTrue(monitors.isEmpty, "watching must not start before beginWatchingForExternalChanges()")
+
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.map(\.url), [folder])
+
+        // A file appears externally; the event callback must re-scan and publish it.
+        try "# B".write(to: folder.appendingPathComponent("B.md"), atomically: true, encoding: .utf8)
+        monitors[0].onChange()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["A.md", "B.md"])
+
+        // Re-begin is idempotent (no duplicate monitors for the same root).
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.count, 1)
+
+        store.endWatchingForExternalChanges()
+        XCTAssertTrue(monitors[0].stopped)
+
+        // After ending, a new begin creates a fresh monitor.
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.count, 2)
+    }
+
+    @MainActor
+    func testWatcherCoversWorkspaceRootViaHeldBookmark() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        try "# W".write(to: workspace.appendingPathComponent("W.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = try makeWorkspaceBookmarkDefaults(suiteName: suiteName, workspaceDirectory: workspace)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var monitors: [FakeDirectoryMonitor] = []
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            iCloudDocumentsURLProvider: { _ in nil },
+            directoryMonitorFactory: { url, onChange in
+                let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
+                monitors.append(monitor)
+                return monitor
+            }
+        )
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(monitors.map(\.url.standardizedFileURL), [workspace.standardizedFileURL])
+
+        try "# X".write(to: workspace.appendingPathComponent("X.md"), atomically: true, encoding: .utf8)
+        monitors[0].onChange()
+        XCTAssertEqual(store.workspaceRoot.items.map(\.name), ["W.md", "X.md"])
+    }
+
+    @MainActor
+    func testInitNeverRunsTheICloudScanEvenWithPersistedPreferences() {
+        // @Published didSet observers DO fire for assignments made in init (they go
+        // through the wrapper's setter), so persisted prefs must be loaded via direct
+        // backing-storage initialization. With showsHiddenFolders=true persisted, a
+        // setter-based load would run the init-forbidden main-thread iCloud scan.
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: OutlineFileBrowserStore.showsHiddenFoldersDefaultsKey)
+        defaults.set(OutlineFileSortOrder.dateModified.rawValue, forKey: OutlineFileBrowserStore.iCloudSortOrderDefaultsKey)
+
+        var providerCalls = 0
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in
+                providerCalls += 1
+                return nil
+            }
+        )
+
+        XCTAssertEqual(providerCalls, 0, "init must never resolve the iCloud container")
+        XCTAssertTrue(store.showsHiddenFolders)
+        XCTAssertEqual(store.iCloudSortOrder, .dateModified)
+    }
+
+    @MainActor
+    func testSidebarSwapClearsDeferredSpuriousChangeCount() throws {
+        // SwiftUI's DocumentGroup registers @Binding document writes with the host
+        // NSDocument's change machinery asynchronously — after replaceCurrentDocument has
+        // already cleared the change count synchronously. Simulate that deferred dirtying
+        // and assert the swap's own deferred clear wins; otherwise the NEXT sidebar click
+        // shows a spurious unsaved-changes sheet for a file the user never touched.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let url = folder.appendingPathComponent("Next.md")
+        try "# Next".write(to: url, atomically: true, encoding: .utf8)
+
+        let controller = RecordingDocumentController()
+        let backingDocument = TestDocument()
+        backingDocument.setValue(folder.appendingPathComponent("Previous.md"), forKey: "fileURL")
+
+        try LineformSidebarFileOpener.replaceCurrentDocument(
+            with: url,
+            backingDocument: backingDocument,
+            updateEditorDocument: { _ in
+                // SwiftUI enqueues its change registration during the binding writes,
+                // i.e. before the swap finishes; model that exact ordering.
+                DispatchQueue.main.async { backingDocument.updateChangeCount(.changeDone) }
+                return UUID()
+            },
+            documentController: controller
+        )
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertFalse(
+            backingDocument.isDocumentEdited,
+            "a sidebar swap must never leave the freshly loaded document marked edited"
         )
     }
 }

@@ -8,6 +8,11 @@ enum LineformAppNotification {
     case toggleOutline
     case toggleHiddenFolders
     case convertTextFormat
+    case refreshSidebarFiles
+    case sidebarItemRenamed
+    case sidebarFileDeleted
+    case renameCurrentFile
+    case deleteCurrentFile
 
     var name: Notification.Name {
         switch self {
@@ -23,6 +28,16 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.toggleHiddenFolders")
         case .convertTextFormat:
             return Notification.Name("Lineform.convertTextFormat")
+        case .refreshSidebarFiles:
+            return Notification.Name("Lineform.refreshSidebarFiles")
+        case .sidebarItemRenamed:
+            return Notification.Name("Lineform.sidebarItemRenamed")
+        case .sidebarFileDeleted:
+            return Notification.Name("Lineform.sidebarFileDeleted")
+        case .renameCurrentFile:
+            return Notification.Name("Lineform.renameCurrentFile")
+        case .deleteCurrentFile:
+            return Notification.Name("Lineform.deleteCurrentFile")
         }
     }
 
@@ -44,5 +59,29 @@ enum LineformAppNotification {
     static func activeWindowPayload(value: String? = nil) -> Payload {
         let selectedRange = (NSApp.keyWindow?.firstResponder as? NSTextView)?.selectedRange()
         return Payload(windowNumber: NSApp.keyWindow?.windowNumber, value: value, selectedRange: selectedRange)
+    }
+
+    /// Object of `sidebarItemRenamed`. Not window-scoped: every window checks whether its
+    /// own document lives at (or under) the renamed path and retargets itself.
+    struct RenamePayload {
+        var from: URL
+        var to: URL
+        var isDirectory: Bool
+
+        /// The new location of `url` after this rename: the destination itself for an
+        /// exact match, a re-prefixed path for descendants of a renamed folder, nil if
+        /// the rename does not affect `url`.
+        func rebased(_ url: URL?) -> URL? {
+            guard let url else { return nil }
+            let target = url.standardizedFileURL.path
+            let source = from.standardizedFileURL.path
+            if target == source {
+                return to
+            }
+            guard isDirectory, target.hasPrefix(source + "/") else {
+                return nil
+            }
+            return URL(fileURLWithPath: to.standardizedFileURL.path + String(target.dropFirst(source.count)))
+        }
     }
 }

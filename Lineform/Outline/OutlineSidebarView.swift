@@ -14,19 +14,31 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
     var isDirectory: Bool
     var children: [OutlineFileTreeItem]
     var isHidden: Bool = false
+    var createdAt: Date?
+    var modifiedAt: Date?
 
     var id: String { url.path }
 
-    init(url: URL, name: String, isDirectory: Bool, children: [OutlineFileTreeItem], isHidden: Bool = false) {
+    init(
+        url: URL,
+        name: String,
+        isDirectory: Bool,
+        children: [OutlineFileTreeItem],
+        isHidden: Bool = false,
+        createdAt: Date? = nil,
+        modifiedAt: Date? = nil
+    ) {
         self.url = url
         self.name = name
         self.isDirectory = isDirectory
         self.children = children
         self.isHidden = isHidden
+        self.createdAt = createdAt
+        self.modifiedAt = modifiedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case url, name, isDirectory, children, isHidden
+        case url, name, isDirectory, children, isHidden, createdAt, modifiedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +49,9 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
         children = try container.decode([OutlineFileTreeItem].self, forKey: .children)
         // Tolerate snapshots written before isHidden existed (they only held visible items).
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+        // Tolerate snapshots written before the date-sort keys existed.
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt)
     }
 }
 
@@ -94,6 +109,10 @@ struct OutlineSidebarView: View {
     static let fileSelectionReplacesCurrentWindow = true
     static let fileSelectionUsesNativeSavePrompt = true
     static let workspaceDisconnectedSystemImage = "exclamationmark.triangle.fill"
+    static let filesSortMenuLabelPrefix = "Sort: "
+    /// The sort row renders only under an expanded, connected, non-empty section — a
+    /// disconnected/dimmed/empty section has nothing meaningful to reorder.
+    static let filesSortRowShowsForAvailableRootsOnly = true
 
     /// Per-level horizontal indent for Files-tab tree rows. Nesting is carried by indentation +
     /// disclosure chevrons alone (the native macOS source-list convention — Finder, Notes, Mail —
@@ -139,6 +158,17 @@ struct OutlineSidebarView: View {
             return "list.bullet.indent"
         default:
             return "text.alignleft"
+        }
+    }
+
+    /// VoiceOver label for a Files-tab row. Rows previously exposed only text + selection
+    /// trait; folders and de-emphasized hidden items need to say what they are.
+    static func fileRowAccessibilityLabel(name: String, isDirectory: Bool, isHidden: Bool) -> String {
+        switch (isDirectory, isHidden) {
+        case (true, true): return "\(name), hidden folder"
+        case (true, false): return "\(name), folder"
+        case (false, true): return "\(name), hidden"
+        case (false, false): return name
         }
     }
 
@@ -197,6 +227,12 @@ struct OutlineSidebarView: View {
     /// The file currently shown in this window, so its Files-tab row can render the native
     /// selection highlight. `nil` for untitled documents (no on-disk URL to match).
     var currentFileURL: URL?
+    /// Context-menu actions on Files-tab rows. The sidebar stays dumb: the window's
+    /// editor container supplies these (it presents the dialogs, performs the file
+    /// operation, and broadcasts the app-wide refresh/retarget notifications).
+    var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
 
     init(
         items: [MarkdownOutlineItem],
@@ -205,12 +241,18 @@ struct OutlineSidebarView: View {
             LineformSidebarFileOpener.open(url, replacing: nil)
         },
         currentFileURL: URL? = nil,
-        fileBrowserStore: OutlineFileBrowserStore? = nil
+        fileBrowserStore: OutlineFileBrowserStore? = nil,
+        renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
+        deleteItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
+        revealItem: @escaping (OutlineFileTreeItem) -> Void = { _ in }
     ) {
         self.items = items
         self.jumpToHeading = jumpToHeading
         self.openFile = openFile
         self.currentFileURL = currentFileURL
+        self.renameItem = renameItem
+        self.deleteItem = deleteItem
+        self.revealItem = revealItem
         // Production passes nil → a real store is created lazily on first render. Tests inject
         // a store on an isolated defaults suite so they never resolve the user's real workspace
         // bookmark (which would touch ~/Documents and prompt for access).
@@ -228,7 +270,14 @@ struct OutlineSidebarView: View {
                 if selectedTab == .outline {
                     outlineContent
                 } else {
-                    OutlineFileBrowserView(store: fileBrowserStore, openFile: openFile, currentFileURL: currentFileURL)
+                    OutlineFileBrowserView(
+                        store: fileBrowserStore,
+                        openFile: openFile,
+                        currentFileURL: currentFileURL,
+                        renameItem: renameItem,
+                        deleteItem: deleteItem,
+                        revealItem: revealItem
+                    )
                         .onAppear {
                             // Reconcile the app-wide "Show Hidden Folders" preference (driven from
                             // the View menu) each time the Files tab becomes visible, then run the
@@ -241,9 +290,20 @@ struct OutlineSidebarView: View {
                             let desired = HiddenFoldersMenuState.shared.isOn
                             let turnedOn = desired && !fileBrowserStore.showsHiddenFolders
                             fileBrowserStore.showsHiddenFolders = desired
+                            // Reconcile BOTH roots on every appearance (previously only iCloud
+                            // refreshed here, so workspace changes made while the tab was hidden
+                            // never showed). When the toggle just turned ON, its didSet already
+                            // re-scanned both roots — don't walk them twice in one appearance.
                             if !turnedOn {
                                 fileBrowserStore.refreshICloud()
+                                fileBrowserStore.refreshWorkspace()
                             }
+                            // Start live watching after the refresh above so the resolved
+                            // iCloud container URL is available to watch.
+                            fileBrowserStore.beginWatchingForExternalChanges()
+                        }
+                        .onDisappear {
+                            fileBrowserStore.endWatchingForExternalChanges()
                         }
                         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleHiddenFolders.name)) { _ in
                             // Live update while the Files tab is visible (its iCloud container is
@@ -252,6 +312,14 @@ struct OutlineSidebarView: View {
                             // don't observe this, preserving the deferred-scan invariant; they
                             // reconcile via .onAppear when the Files tab next appears.
                             fileBrowserStore.showsHiddenFolders = HiddenFoldersMenuState.shared.isOn
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.refreshSidebarFiles.name)) { notification in
+                            // An in-app rename/delete happened (any window). Refresh
+                            // immediately — the FSEvents path would also catch it, but only
+                            // after its coalescing latency. Scoped to the root containing the
+                            // affected URL; only visible Files tabs observe this, preserving
+                            // the deferred-scan invariant.
+                            fileBrowserStore.refreshRoots(affecting: notification.object as? URL)
                         }
                 }
             }
@@ -564,6 +632,8 @@ final class OutlineFileBrowserStore: ObservableObject {
     static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
     static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"
     static let showsHiddenFoldersDefaultsKey = "Lineform.outline.showsHiddenFolders"
+    static let iCloudSortOrderDefaultsKey = "Lineform.outline.sortOrder.icloud"
+    static let workspaceSortOrderDefaultsKey = "Lineform.outline.sortOrder.workspace"
     static let maximumTreeDepth = 4
     static let maximumChildrenPerFolder = 80
     static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
@@ -609,11 +679,65 @@ final class OutlineFileBrowserStore: ObservableObject {
         }
     }
 
+    /// Per-section sort preferences (spec: independent for iCloud and workspace, like Muse).
+    @Published var iCloudSortOrder = OutlineFileSortOrder.name {
+        didSet {
+            guard oldValue != iCloudSortOrder else { return }
+            defaults.set(iCloudSortOrder.rawValue, forKey: Self.iCloudSortOrderDefaultsKey)
+            applySortOrderChange(toICloudRoot: true)
+        }
+    }
+    @Published var workspaceSortOrder = OutlineFileSortOrder.name {
+        didSet {
+            guard oldValue != workspaceSortOrder else { return }
+            defaults.set(workspaceSortOrder.rawValue, forKey: Self.workspaceSortOrderDefaultsKey)
+            applySortOrderChange(toICloudRoot: false)
+        }
+    }
+
+    /// A sort change re-SCANS a live root rather than re-sorting the cached tree: the
+    /// 80-per-folder cap is applied in display order, so the order decides WHICH children
+    /// are retained, not just their arrangement (re-sorting 80 name-first files can never
+    /// surface the recently-modified ones the old cap discarded). Only cached/disconnected
+    /// trees fall back to an in-memory re-sort. Sort changes originate from the visible
+    /// Files tab's sort row, so the scan is as sanctioned as the tab-appear refresh.
+    private func applySortOrderChange(toICloudRoot: Bool) {
+        if toICloudRoot {
+            if resolvedICloudDocumentsURL != nil {
+                refreshICloudRoot()
+            } else {
+                lastICloudItems = OutlineFileSortOrder.sorted(lastICloudItems, by: iCloudSortOrder)
+                if iCloudRoot.showsTree {
+                    iCloudRoot.items = filteredForDisplay(lastICloudItems)
+                }
+            }
+        } else {
+            if workspaceURL != nil, workspaceRoot.state == .available {
+                refreshWorkspaceRoot()
+            } else {
+                lastWorkspaceItems = OutlineFileSortOrder.sorted(lastWorkspaceItems, by: workspaceSortOrder)
+                if workspaceRoot.showsTree {
+                    workspaceRoot.items = filteredForDisplay(lastWorkspaceItems)
+                }
+            }
+        }
+    }
+
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let iCloudDocumentsURLProvider: (FileManager) -> URL?
     private let iCloudDownloader: UbiquitousItemDownloader
     private let scopeAccessor: SecurityScopedResourceAccessing
+    private let directoryMonitorFactory: DirectoryChangeMonitorFactory
+    private var workspaceMonitor: DirectoryChangeMonitoring?
+    private var iCloudMonitor: DirectoryChangeMonitoring?
+    /// Whether the Files tab wants live watching right now. Tracked separately from the
+    /// monitors because a root can be watchable-but-unassigned (no workspace chosen yet):
+    /// choosing one mid-session must start its monitor even though none existed before.
+    private var isWatchingForExternalChanges = false
+    /// The resolved iCloud Documents URL from the last successful refresh; nil until the
+    /// deferred first scan has run (so watching can never resolve the container itself).
+    private var resolvedICloudDocumentsURL: URL?
     private var lastICloudItems: [OutlineFileTreeItem] = []
     private var workspaceURL: URL?
     private var lastWorkspaceItems: [OutlineFileTreeItem] = []
@@ -627,16 +751,29 @@ final class OutlineFileBrowserStore: ObservableObject {
         fileManager: FileManager = .default,
         iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL,
         iCloudDownloader: UbiquitousItemDownloader? = nil,
-        scopeAccessor: SecurityScopedResourceAccessing = URLSecurityScopedResourceAccessor()
+        scopeAccessor: SecurityScopedResourceAccessing = URLSecurityScopedResourceAccessor(),
+        directoryMonitorFactory: DirectoryChangeMonitorFactory? = nil
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
         self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
         self.iCloudDownloader = iCloudDownloader ?? fileManager
         self.scopeAccessor = scopeAccessor
-        // Set before any refresh; `didSet` does not fire during initialization, so this does
-        // not trigger an (init-forbidden) iCloud scan.
-        showsHiddenFolders = defaults.bool(forKey: Self.showsHiddenFoldersDefaultsKey)
+        self.directoryMonitorFactory = directoryMonitorFactory ?? { url, onChange in
+            DirectoryEventMonitor(url: url, onChange: onChange)
+        }
+        // Set before any refresh. IMPORTANT: `didSet` observers on @Published properties DO
+        // fire for plain assignments made in init (the assignment goes through the wrapper's
+        // setter — unlike plain stored properties), so initialize the backing storage
+        // directly. A persisted showsHiddenFolders=true would otherwise trigger the
+        // init-forbidden main-thread iCloud scan via its didSet.
+        _showsHiddenFolders = Published(initialValue: defaults.bool(forKey: Self.showsHiddenFoldersDefaultsKey))
+        _iCloudSortOrder = Published(
+            initialValue: OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.iCloudSortOrderDefaultsKey) ?? "") ?? .name
+        )
+        _workspaceSortOrder = Published(
+            initialValue: OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.workspaceSortOrderDefaultsKey) ?? "") ?? .name
+        )
         loadICloudSnapshot()
         loadWorkspaceSnapshot()
         loadWorkspaceBookmark()
@@ -657,6 +794,54 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// assert the held security scope survives re-scans.
     func refreshWorkspace() {
         refreshWorkspaceRoot()
+    }
+
+    /// Starts watching both roots for external file-system changes. Called when the
+    /// Files tab becomes visible, AFTER refreshICloud() has resolved the container —
+    /// this never resolves or scans anything itself, preserving the deferred-scan
+    /// invariant. Idempotent while watching.
+    func beginWatchingForExternalChanges() {
+        isWatchingForExternalChanges = true
+        if workspaceMonitor == nil, let workspaceURL {
+            workspaceMonitor = directoryMonitorFactory(workspaceURL) { [weak self] in
+                self?.refreshWorkspaceRoot()
+            }
+        }
+        if iCloudMonitor == nil, let url = resolvedICloudDocumentsURL {
+            iCloudMonitor = directoryMonitorFactory(url) { [weak self] in
+                self?.refreshICloudRoot()
+            }
+        }
+    }
+
+    /// Stops watching (Files tab hidden / view gone). Cheap to call repeatedly.
+    func endWatchingForExternalChanges() {
+        isWatchingForExternalChanges = false
+        workspaceMonitor?.stop()
+        workspaceMonitor = nil
+        iCloudMonitor?.stop()
+        iCloudMonitor = nil
+    }
+
+    /// Targeted refresh after an in-app rename/delete: re-scan only the root containing
+    /// `url` (nil or unmatched → both), keeping the app-wide broadcast cheap when several
+    /// windows show Files tabs. Only called from visible Files tabs, so the iCloud
+    /// resolution stays as sanctioned as the tab-appear refresh.
+    func refreshRoots(affecting url: URL?) {
+        func rootContains(_ root: URL?) -> Bool {
+            guard let root, let path = url?.standardizedFileURL.path else { return false }
+            let rootPath = root.standardizedFileURL.path
+            return path == rootPath || path.hasPrefix(rootPath + "/")
+        }
+
+        let inWorkspace = rootContains(workspaceURL)
+        let inICloud = rootContains(resolvedICloudDocumentsURL)
+        if inWorkspace || !inICloud {
+            refreshWorkspaceRoot()
+        }
+        if inICloud || !inWorkspace {
+            refreshICloudRoot()
+        }
     }
 
     @MainActor
@@ -735,15 +920,25 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     deinit {
+        workspaceMonitor?.stop()
+        iCloudMonitor?.stop()
         releaseWorkspaceScope()
     }
 
     private func loadICloudSnapshot() {
-        lastICloudItems = loadSnapshot(defaultsKey: Self.iCloudSnapshotDefaultsKey)
+        // Snapshots were saved under whatever sort order was active then; re-sort so a
+        // changed preference applies to the cached tree before any live scan runs.
+        lastICloudItems = OutlineFileSortOrder.sorted(
+            loadSnapshot(defaultsKey: Self.iCloudSnapshotDefaultsKey),
+            by: iCloudSortOrder
+        )
     }
 
     private func loadWorkspaceSnapshot() {
-        lastWorkspaceItems = loadSnapshot(defaultsKey: Self.workspaceSnapshotDefaultsKey)
+        lastWorkspaceItems = OutlineFileSortOrder.sorted(
+            loadSnapshot(defaultsKey: Self.workspaceSnapshotDefaultsKey),
+            by: workspaceSortOrder
+        )
     }
 
     private func loadSnapshot(defaultsKey: String) -> [OutlineFileTreeItem] {
@@ -778,6 +973,13 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     private func setWorkspaceURL(_ url: URL) {
+        // Retarget a live watcher at the newly chosen folder (stop now, restart after the
+        // refresh below re-resolves everything). Keyed off isWatchingForExternalChanges,
+        // not monitor existence — a first-ever workspace choice has no monitor yet but
+        // still needs one if the Files tab is watching.
+        workspaceMonitor?.stop()
+        workspaceMonitor = nil
+
         workspaceURL = url
         saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
         // A same-session NSOpenPanel URL carries an implicit grant (beginAccess returns
@@ -797,6 +999,9 @@ final class OutlineFileBrowserStore: ObservableObject {
             releaseWorkspaceScope()
         }
         refreshWorkspaceRoot()
+        if isWatchingForExternalChanges {
+            beginWatchingForExternalChanges()
+        }
     }
 
     private func saveBookmark(for url: URL, defaultsKey: String) {
@@ -813,6 +1018,10 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     private func refreshICloudRoot() {
+        // Cleared up front so every early return leaves it nil; only a successful scan
+        // (re)establishes the resolved URL the watcher is allowed to use.
+        resolvedICloudDocumentsURL = nil
+
         guard let url = iCloudDocumentsURLProvider(fileManager) else {
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
@@ -841,22 +1050,31 @@ final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
-        let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders)
+        resolvedICloudDocumentsURL = url
+        let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: iCloudSortOrder)
+        let itemsChanged = items != lastICloudItems
         lastICloudItems = items
-        saveSnapshot(items, defaultsKey: Self.iCloudSnapshotDefaultsKey)
+        if itemsChanged {
+            saveSnapshot(items, defaultsKey: Self.iCloudSnapshotDefaultsKey)
+            // Keep the user's iCloud working set materialized locally. Evicted
+            // (dataless) files otherwise show in search but fail to open or drag,
+            // which is one of the failure modes that made files feel "lost."
+            Self.ensureDownloaded(items, using: iCloudDownloader)
+        }
 
-        // Keep the user's iCloud working set materialized locally. Evicted
-        // (dataless) files otherwise show in search but fail to open or drag,
-        // which is one of the failure modes that made files feel "lost."
-        Self.ensureDownloaded(items, using: iCloudDownloader)
-
-        iCloudRoot = OutlineFileRoot(
+        let newRoot = OutlineFileRoot(
             id: "icloud",
             title: "Lineform",
             systemImage: "icloud",
             state: .available,
             items: items
         )
+        // FSEvents ticks fire for any churn under the tree (temp files, non-Markdown
+        // writes); skip the publish when the visible tree is identical so SwiftUI
+        // doesn't re-diff it for nothing.
+        if newRoot != iCloudRoot {
+            iCloudRoot = newRoot
+        }
     }
 
     /// The workspace root's display title: the chosen folder's name, or "Workspace" when unassigned.
@@ -905,17 +1123,24 @@ final class OutlineFileBrowserStore: ObservableObject {
         // lifetime (see holdWorkspaceScope), which is what keeps file OPENS working —
         // a scope that ends when this scan returns leaves NSDocumentController reading
         // the user's files with no grant at all.
-        let items = Self.items(in: workspaceURL, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders)
+        let items = Self.items(in: workspaceURL, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: workspaceSortOrder)
+        if items != lastWorkspaceItems {
+            saveSnapshot(items, defaultsKey: Self.workspaceSnapshotDefaultsKey)
+        }
         lastWorkspaceItems = items
-        saveSnapshot(items, defaultsKey: Self.workspaceSnapshotDefaultsKey)
 
-        workspaceRoot = OutlineFileRoot(
+        let newRoot = OutlineFileRoot(
             id: "workspace",
             title: Self.workspaceTitle(for: workspaceURL),
             systemImage: "folder",
             state: .available,
             items: items
         )
+        // Same publish guard as the iCloud root: don't re-diff an identical tree on
+        // every coalesced FSEvents tick.
+        if newRoot != workspaceRoot {
+            workspaceRoot = newRoot
+        }
     }
 
     private static func lineformICloudDocumentsURL(fileManager: FileManager) -> URL? {
@@ -948,13 +1173,14 @@ final class OutlineFileBrowserStore: ObservableObject {
         fileManager: FileManager,
         depth: Int = 0,
         showsHiddenFolders: Bool,
-        inheritedHidden: Bool = false
+        inheritedHidden: Bool = false,
+        sortOrder: OutlineFileSortOrder = .name
     ) -> [OutlineFileTreeItem] {
         guard depth < maximumTreeDepth else {
             return []
         }
 
-        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isHiddenKey]
+        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isHiddenKey, .creationDateKey, .contentModificationDateKey]
         let options: FileManager.DirectoryEnumerationOptions = showsHiddenFolders ? [] : [.skipsHiddenFiles]
         let urls = (try? fileManager.contentsOfDirectory(
             at: url,
@@ -962,19 +1188,14 @@ final class OutlineFileBrowserStore: ObservableObject {
             options: options
         )) ?? []
 
-        // Resolve each child's shallow attributes first (no recursion yet), then sort and cap.
-        // Recursing only into the retained children keeps the per-folder cap from being defeated
-        // by folders with thousands of subdirectories: we build subtrees for the ~80 we keep, not
-        // for every sibling we're about to discard. Output is identical to sort-then-recurse
-        // because the sort order depends only on `isDirectory` and `name`, both known here.
-        struct Shallow {
-            let url: URL
-            let name: String
-            let isDirectory: Bool
-            let itemHidden: Bool
-        }
-
-        let shallow = urls.compactMap { childURL -> Shallow? in
+        // Resolve each child's shallow attributes first (children left empty — no recursion
+        // yet), then sort and cap. Recursing only into the retained children keeps the
+        // per-folder cap from being defeated by folders with thousands of subdirectories:
+        // we build subtrees for the ~80 we keep, not for every sibling we're about to
+        // discard. Output is identical to sort-then-recurse because the sort order depends
+        // only on `isDirectory`, `name`, and the item's own creation/modification dates,
+        // all shallow attributes known here (and never on `children`).
+        let shallow = urls.compactMap { childURL -> OutlineFileTreeItem? in
             guard let values = try? childURL.resourceValues(forKeys: resourceKeys) else {
                 return nil
             }
@@ -1001,38 +1222,31 @@ final class OutlineFileBrowserStore: ObservableObject {
                 return nil
             }
 
-            return Shallow(
+            return OutlineFileTreeItem(
                 url: childURL,
                 name: name,
                 isDirectory: isDirectory,
-                itemHidden: inheritedHidden || isDotPrefixed
+                children: [],
+                isHidden: inheritedHidden || isDotPrefixed,
+                createdAt: values.creationDate,
+                modifiedAt: values.contentModificationDate
             )
         }
-        .sorted { first, second in
-            if first.isDirectory != second.isDirectory {
-                return first.isDirectory
-            }
-
-            return first.name.localizedStandardCompare(second.name) == .orderedAscending
-        }
+        .sorted { OutlineFileSortOrder.areInIncreasingOrder($0, $1, order: sortOrder) }
         .prefix(maximumChildrenPerFolder)
 
         return shallow.map { item in
-            OutlineFileTreeItem(
-                url: item.url,
-                name: item.name,
-                isDirectory: item.isDirectory,
-                children: item.isDirectory
-                    ? items(
-                        in: item.url,
-                        fileManager: fileManager,
-                        depth: depth + 1,
-                        showsHiddenFolders: showsHiddenFolders,
-                        inheritedHidden: item.itemHidden
-                    )
-                    : [],
-                isHidden: item.itemHidden
+            guard item.isDirectory else { return item }
+            var populated = item
+            populated.children = items(
+                in: item.url,
+                fileManager: fileManager,
+                depth: depth + 1,
+                showsHiddenFolders: showsHiddenFolders,
+                inheritedHidden: item.isHidden,
+                sortOrder: sortOrder
             )
+            return populated
         }
     }
 }
@@ -1041,6 +1255,9 @@ private struct OutlineFileBrowserView: View {
     @ObservedObject var store: OutlineFileBrowserStore
     var openFile: (URL) -> Void
     var currentFileURL: URL?
+    var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
 
@@ -1075,6 +1292,12 @@ private struct OutlineFileBrowserView: View {
 
             // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
             // expandable tree, no empty-state line — just the quiet header.
+            if root.state == .available, !collapsedIDs.contains(root.id), !rootIsDimmed(root), !root.items.isEmpty {
+                OutlineFileSortRow(rootTitle: root.title, sortOrder: sortBinding(for: root))
+                    .padding(.leading, 28)
+                    .padding(.bottom, 2)
+            }
+
             if root.showsTree, !collapsedIDs.contains(root.id), !rootIsDimmed(root) {
                 if root.items.isEmpty {
                     // Only a connected (.available) empty folder is genuinely "no Markdown." A
@@ -1096,7 +1319,10 @@ private struct OutlineFileBrowserView: View {
                             depth: 1,
                             collapsedIDs: $collapsedIDs,
                             openFile: openFile,
-                            currentFileURL: currentFileURL
+                            currentFileURL: currentFileURL,
+                            renameItem: renameItem,
+                            deleteItem: deleteItem,
+                            revealItem: revealItem
                         )
                         .opacity(root.state == .disconnected ? 0.48 : 1)
                         .allowsHitTesting(root.state != .disconnected)
@@ -1106,6 +1332,10 @@ private struct OutlineFileBrowserView: View {
         }
         .opacity(rootIsDimmed(root) ? OutlineSidebarView.filesUnavailableRootOpacity : 1)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sortBinding(for root: OutlineFileRoot) -> Binding<OutlineFileSortOrder> {
+        root.id == "icloud" ? $store.iCloudSortOrder : $store.workspaceSortOrder
     }
 
     private func rootIsDimmed(_ root: OutlineFileRoot) -> Bool {
@@ -1262,12 +1492,47 @@ private struct OutlineFileRootRow: View {
     }
 }
 
+/// Muse-style quiet sort control above a section's contents: "Sort: Name ▾" opening a
+/// three-option picker (no Manual — see OutlineFileSortOrder).
+private struct OutlineFileSortRow: View {
+    var rootTitle: String
+    @Binding var sortOrder: OutlineFileSortOrder
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Menu {
+            Picker("Sort", selection: $sortOrder) {
+                ForEach(OutlineFileSortOrder.allCases) { order in
+                    Text(order.title).tag(order)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                Text(OutlineSidebarView.filesSortMenuLabelPrefix + sortOrder.title)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: colorScheme == .dark))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .fixedSize()
+        .accessibilityLabel("Sort \(rootTitle) files")
+        .accessibilityValue(sortOrder.title)
+    }
+}
+
 private struct OutlineFileTreeNodeView: View {
     var item: OutlineFileTreeItem
     var depth: Int
     @Binding var collapsedIDs: Set<String>
     var openFile: (URL) -> Void
     var currentFileURL: URL?
+    var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
@@ -1294,7 +1559,10 @@ private struct OutlineFileTreeNodeView: View {
                         depth: depth + 1,
                         collapsedIDs: $collapsedIDs,
                         openFile: openFile,
-                        currentFileURL: currentFileURL
+                        currentFileURL: currentFileURL,
+                        renameItem: renameItem,
+                        deleteItem: deleteItem,
+                        revealItem: revealItem
                     )
                 }
             }
@@ -1347,7 +1615,39 @@ private struct OutlineFileTreeNodeView: View {
                 isHovered = hovering
             }
         }
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .contextMenu {
+            rowActionButtons(ellipsized: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(OutlineSidebarView.fileRowAccessibilityLabel(name: item.name, isDirectory: item.isDirectory, isHidden: item.isHidden))
+        .accessibilityHint(item.isDirectory ? (isCollapsed ? "Expands the folder" : "Collapses the folder") : "Opens the file")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
+        .accessibilityAction {
+            if item.isDirectory {
+                toggleCollapsed()
+            } else {
+                openFile(item.url)
+            }
+        }
+        // Right-click must not be the only path to these; VoiceOver users get the same
+        // action set (un-ellipsized) from the actions rotor.
+        .accessibilityActions {
+            rowActionButtons(ellipsized: false)
+        }
+    }
+
+    /// The single source of truth for a row's actions — used by both the context menu
+    /// (ellipsized, matching the File menu's "..." convention) and the VoiceOver rotor,
+    /// so the two can't drift apart.
+    @ViewBuilder
+    private func rowActionButtons(ellipsized: Bool) -> some View {
+        Button(ellipsized ? "Rename..." : "Rename") { renameItem(item) }
+        if !item.isDirectory {
+            // No folder delete (spec): a folder's files are too much to trash from a
+            // quiet sidebar menu. Files go to the Trash, behind a confirmation.
+            Button(ellipsized ? "Delete..." : "Delete", role: .destructive) { deleteItem(item) }
+        }
+        Button("Show in Finder") { revealItem(item) }
     }
 
     private func toggleCollapsed() {
@@ -1448,6 +1748,16 @@ enum LineformSidebarFileOpener {
         targetWindow?.representedURL = url
         targetWindow?.setTitleWithRepresentedFilename(url.path)
         targetWindow?.isDocumentEdited = false
+        // SwiftUI's DocumentGroup registers the binding writes made by updateEditorDocument
+        // with this NSDocument's undo/change machinery asynchronously — after the
+        // synchronous clears above. Without this deferred re-clear the swapped-in document
+        // reads as edited though the user typed nothing, and the NEXT sidebar switch shows
+        // a spurious unsaved-changes sheet for a file the user never touched.
+        DispatchQueue.main.async { [weak backingDocument, weak targetWindow] in
+            backingDocument?.undoManager?.removeAllActions()
+            backingDocument?.updateChangeCount(.changeCleared)
+            targetWindow?.isDocumentEdited = false
+        }
         documentController.noteNewRecentDocumentURL(url)
         DocumentSaveStatus.shared.markSaved(
             documentID: activeDocumentID,
