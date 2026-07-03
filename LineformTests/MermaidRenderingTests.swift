@@ -141,6 +141,38 @@ final class MermaidRenderingTests: XCTestCase {
         XCTAssertEqual(diagram.accessibilityDescription, "Mermaid diagram. \(source)")
     }
 
+    // The "Report this" affordance is a `.link` inside the selectable read view, so it is already
+    // reachable (VoiceOver reads it as a link; Full Keyboard Access can focus it). It must also
+    // carry a `.toolTip` explaining what the terse "Report this" does — shown on hover, and bridged
+    // to assistive tech as help where the text system supports it.
+    @MainActor
+    func testReportThisLinkCarriesLinkAndAccessibilityToolTip() throws {
+        let rendered = MarkdownPreviewRenderer().render(
+            "```mermaid\ngraph TD; A-->B\n```",
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: FakeProvider(.failed("boom")),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: FakeLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "1.0"
+        )
+
+        let reportRange = (rendered.string as NSString).range(of: "Report this")
+        XCTAssertNotEqual(reportRange.location, NSNotFound, "failed render must emit the Report this link")
+
+        XCTAssertNotNil(
+            rendered.attribute(.link, at: reportRange.location, effectiveRange: nil),
+            "Report this must be a link so it is activatable and in the accessibility tree"
+        )
+        let toolTip = rendered.attribute(.toolTip, at: reportRange.location, effectiveRange: nil) as? String
+        XCTAssertEqual(
+            toolTip,
+            "Send the diagram source and error to the developer to improve rendering.",
+            "Report this must carry a tooltip that VoiceOver surfaces as the link's help text"
+        )
+    }
+
     @MainActor
     func testSkippedMermaidFallsBackWithoutLogging() {
         let log = FakeLog()

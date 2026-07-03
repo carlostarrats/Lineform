@@ -30,7 +30,9 @@ struct EditorAuxiliaryPresentation: Equatable {
     static let markdownBasics = EditorAuxiliaryPresentation(
         kind: .centeredModal,
         presenter: .customOverlay,
-        accessibilityLabel: "Markdown Basics",
+        // Announced by VoiceOver as the modal's name; must match the visible "Info" title, which
+        // now spans Markdown Basics + Diagrams + Math (not just the original Markdown Basics).
+        accessibilityLabel: "Info",
         minimumWidth: nil,
         idealWidth: nil,
         maximumWidth: nil,

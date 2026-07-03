@@ -185,7 +185,9 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .nativeInspector)
         XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.kind, .centeredModal)
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel, "Reading Experience Inspector")
-        XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel, "Markdown Basics")
+        // VoiceOver label must match the modal's visible "Info" title, which now covers Markdown
+        // Basics + Diagrams + Math — not just the original Markdown Basics section.
+        XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel, "Info")
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.idealWidth, 320)
         XCTAssertNil(EditorAuxiliaryPresentation.markdownBasics.idealWidth)
     }

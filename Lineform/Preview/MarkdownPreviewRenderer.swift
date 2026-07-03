@@ -267,6 +267,11 @@ struct MarkdownPreviewRenderer {
             var linkAttributes = captionAttributes
             linkAttributes[.link] = url
             linkAttributes[.foregroundColor] = NSColor.linkColor
+            // The read view is selectable, so this link is already reachable (VoiceOver reads it as
+            // a link; Full Keyboard Access can focus it). The tooltip explains what the terse
+            // "Report this" does — shown on hover, and bridged to assistive tech as help where the
+            // text system supports it.
+            linkAttributes[.toolTip] = "Send the diagram source and error to the developer to improve rendering."
             output.append(NSAttributedString(string: "  ", attributes: captionAttributes))
             output.append(NSAttributedString(string: "Report this", attributes: linkAttributes))
         }
