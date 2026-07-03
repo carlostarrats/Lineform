@@ -93,6 +93,24 @@ enum MathDelimiters {
         }
         return nil   // unbalanced → not math
     }
+
+    /// Absolute `NSRange`s (including the `$` delimiters) of inline math within a single line,
+    /// given the line's start offset in the enclosing text. Used to protect math from Writing Tools.
+    static func inlineMathRanges(in line: String, lineOffset: Int) -> [NSRange] {
+        var ranges: [NSRange] = []
+        var offset = lineOffset
+        for segment in segments(in: line) {
+            switch segment.kind {
+            case .text:
+                offset += (segment.value as NSString).length
+            case .math:
+                let length = (segment.value as NSString).length + 2   // + the two `$` delimiters
+                ranges.append(NSRange(location: offset, length: length))
+                offset += length
+            }
+        }
+        return ranges
+    }
 }
 
 // MARK: - Rendering seam (wraps SwiftMath)

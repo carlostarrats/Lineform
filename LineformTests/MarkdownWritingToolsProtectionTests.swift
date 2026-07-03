@@ -33,4 +33,30 @@ final class MarkdownWritingToolsProtectionTests: XCTestCase {
 
         XCTAssertEqual(ranges, [NSRange(location: 10, length: 10)])
     }
+
+    // MARK: - Math regions
+
+    private func protects(_ text: String, substring: String) -> Bool {
+        let full = NSRange(location: 0, length: (text as NSString).length)
+        let ranges = MarkdownWritingToolsProtection.ignoredRanges(in: text, enclosingRange: full)
+        let target = (text as NSString).range(of: substring)
+        guard target.location != NSNotFound else { return false }
+        return ranges.contains { NSIntersectionRange($0, target).length == target.length }
+    }
+
+    func testInlineMathIsProtected() {
+        XCTAssertTrue(protects("the value $x^2$ here", substring: "$x^2$"))
+    }
+
+    func testBlockMathIsProtected() {
+        XCTAssertTrue(protects("intro\n$$\nx^2\n$$\nend", substring: "$$\nx^2\n$$"))
+    }
+
+    func testSingleLineBlockMathIsProtected() {
+        XCTAssertTrue(protects("a\n$$E=mc^2$$\nb", substring: "$$E=mc^2$$"))
+    }
+
+    func testProseDollarsAreNotProtected() {
+        XCTAssertFalse(protects("it costs $5 to $10", substring: "$5 to $10"))
+    }
 }

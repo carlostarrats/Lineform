@@ -17,6 +17,47 @@ enum MarkdownWritingToolsProtection {
         var ranges: [NSRange] = []
         ranges.append(contentsOf: frontMatterRange(in: text).map { [$0] } ?? [])
         ranges.append(contentsOf: fencedCodeRanges(in: text))
+        ranges.append(contentsOf: mathRanges(in: text))
+        return ranges
+    }
+
+    /// Ranges of LaTeX math regions — inline `$…$` and display `$$…$$` blocks — so Writing Tools
+    /// does not rewrite the source, exactly as it leaves fenced code alone. Uses the same `$`
+    /// rules as the renderer, so prose dollar signs ("$5") are never protected.
+    private static func mathRanges(in text: String) -> [NSRange] {
+        let lines = text.components(separatedBy: "\n")
+        var ranges: [NSRange] = []
+        var offset = 0
+        var blockStart: Int?
+
+        for (index, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let hasNewline = index < lines.count - 1
+            let storedLineLength = (line as NSString).length + (hasNewline ? 1 : 0)
+
+            if let start = blockStart {
+                if MathBlockFence.blockDelimiterOnly(trimmed) {
+                    // Closing `$$`: protect from the opening delimiter through this line.
+                    ranges.append(NSRange(location: start, length: offset + storedLineLength - start))
+                    blockStart = nil
+                }
+                // Body lines inside a block are already covered by the enclosing range.
+            } else if MathBlockFence.blockDelimiterOnly(trimmed) {
+                blockStart = offset
+            } else if MathBlockFence.singleLineBlock(trimmed) != nil {
+                ranges.append(NSRange(location: offset, length: (line as NSString).length))
+            } else {
+                ranges.append(contentsOf: MathDelimiters.inlineMathRanges(in: line, lineOffset: offset))
+            }
+
+            offset += storedLineLength
+        }
+
+        // An unclosed `$$` block protects through end of text.
+        if let start = blockStart {
+            ranges.append(NSRange(location: start, length: max(0, (text as NSString).length - start)))
+        }
+
         return ranges
     }
 
