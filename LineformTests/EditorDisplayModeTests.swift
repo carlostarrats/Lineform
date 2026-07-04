@@ -231,7 +231,7 @@ final class EditorDisplayModeTests: XCTestCase {
             XCTAssertNotEqual(action.systemImage, "xmark")
         }
         XCTAssertEqual(EditorToolbarAction.markdownBasics.systemImage, "info.circle")
-        XCTAssertEqual(EditorToolbarAction.readingExperience.systemImage, "textformat.size")
+        XCTAssertEqual(EditorToolbarAction.readingExperience.systemImage, "textformat.alt")
     }
 
     @MainActor
