@@ -311,7 +311,11 @@ struct EditorContainerView: View {
         return ZStack {
             editorPrimaryShell
                 .inspector(isPresented: $isShowingReadingInspector) {
-                    ReadingExperienceInspector(store: readingProfileStore, usesDarkChrome: theme.usesDarkChrome)
+                    ReadingExperienceInspector(
+                        store: readingProfileStore,
+                        usesDarkChrome: theme.usesDarkChrome,
+                        onClose: { setReadingInspectorVisible(false) }
+                    )
                         .inspectorColumnWidth(
                             min: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
                             ideal: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
@@ -753,15 +757,13 @@ struct EditorContainerView: View {
                 handleToolbarAction(action)
             } label: {
                 EditorToolbarIcon(
-                    systemImage: EditorToolbarPressedState.displaySystemImage(for: action, isActive: isActive),
-                    isOn: isActive,
-                    usesDarkChrome: currentTheme.usesDarkChrome,
-                    symbolScale: EditorToolbarPressedState.displaySymbolScale(for: action, isActive: isActive),
-                    symbolTransitionStyle: EditorToolbarPressedState.symbolTransitionStyle(isActive: isActive)
+                    systemImage: action.systemImage,
+                    usesDarkChrome: currentTheme.usesDarkChrome
                 )
             }
             .help(toolbarHelp(for: action))
             .accessibilityLabel(action.title)
+            .accessibilityAddTraits(isActive ? .isSelected : [])
         }
     }
 
