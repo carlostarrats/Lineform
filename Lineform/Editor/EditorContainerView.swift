@@ -22,6 +22,13 @@ struct EditorContainerView: View {
     @StateObject private var reloadController = DocumentReloadController()
     @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
+    // Coalesces the heavy per-edit derived work (word/char count, heading outline,
+    // search-match recompute) behind a short typing-pause debounce so large documents
+    // don't re-walk the whole text on every keystroke. Mirrors the existing debounce
+    // idiom (DebouncedMarkdownPreviewView, scheduleMarkdownHighlighting). The dirty flag
+    // and external-reload text tracking are deliberately NOT debounced (see onChange).
+    @State private var pendingDerivedRefresh: DispatchWorkItem?
+    private let derivedRefreshDelay: TimeInterval = 0.2
     @State private var sidebarDialog: SidebarFileDialog?
     @State private var renameText = ""
 
@@ -160,6 +167,9 @@ struct EditorContainerView: View {
             if !EditorToolbarVisibility.showsMarkdownBasics(in: mode) {
                 isShowingMarkdownBasics = false
             }
+            // Settle any pending debounced work so the outline/count are correct the
+            // instant the user switches modes (rather than a debounce interval later).
+            flushDerivedRefresh()
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleOutline.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else {
@@ -268,13 +278,16 @@ struct EditorContainerView: View {
             LineformTextFormatMenuState.shared.setTextFormat(newValue)
         }
         .onChange(of: document.text) { _, newValue in
-            documentStatistics = DocumentStatistics(text: newValue)
-            outlineItems = MarkdownOutlineParser().items(in: newValue)
-            refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil, navigatesToActiveMatch: false)
+            // Instant, cheap, must stay accurate on every keystroke: external-reload text
+            // tracking and the dirty/unsaved flag. (The latter is load-bearing for autosave
+            // and for future Read-mode checkbox edits — never debounce it.)
             reloadController.currentText = newValue
             // An edit means the next write is an autosave of this change, not the
             // earlier ⌘S/Save As — so a still-pending manual intent no longer applies.
             documentSaveStatus.noteUserEdit()
+            // Heavy full-document work (count/outline/search) is coalesced to run once
+            // after a brief typing pause instead of on every keystroke.
+            scheduleDerivedRefresh(for: newValue)
         }
         .onChange(of: windowNumber) { _, _ in
             registerReloadWatcher()
@@ -287,6 +300,9 @@ struct EditorContainerView: View {
             // A first save on an untitled doc (or any save) can create/replace the file URL;
             // re-point the watcher and refresh the synced baseline with the saved text.
             noteSavedToReloadWatcher()
+            // Guarantee the displayed count/outline match the just-saved file rather than
+            // lagging by a debounce interval.
+            flushDerivedRefresh()
         }
         .onChange(of: documentSaveStatus.lastSaveEvent) { _, event in
             // Flash a green save confirmation only for this document's real writes.
@@ -295,6 +311,8 @@ struct EditorContainerView: View {
         }
         .onDisappear {
             reloadController.stop()
+            // Drop any pending derived-refresh work for a window that's going away.
+            pendingDerivedRefresh?.cancel()
         }
         .onChange(of: searchQuery) { _, _ in
             refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
@@ -579,6 +597,8 @@ struct EditorContainerView: View {
         document.text = replacement.text
         document.textFormat = replacement.textFormat
         document.plainTextConversion = replacement.plainTextConversion
+        // Show the newly-opened file's outline/count at once, like a fresh window's .onAppear.
+        recomputeDerivedNow(for: replacement.text)
         // Re-point the watcher at the newly-swapped file. Async so it runs after the sidebar
         // opener has retargeted the window's NSDocument.fileURL.
         DispatchQueue.main.async { registerReloadWatcher() }
@@ -625,6 +645,10 @@ struct EditorContainerView: View {
         document.plainTextConversion = nil
         document.text = result.text
         reloadController.currentText = result.text
+        // Live reload is a discrete, non-typing change — refresh outline/count/search now so
+        // they match the reloaded text immediately (they did before the debounce), rather than
+        // lagging the "Updated" flash by the debounce interval.
+        recomputeDerivedNow(for: result.text)
 
         if let backingDocument = activeWindow?.windowController?.document as? NSDocument {
             backingDocument.fileModificationDate = result.modificationDate
@@ -633,6 +657,52 @@ struct EditorContainerView: View {
         DocumentSaveStatus.shared.markSaved(documentID: document.id, at: result.modificationDate ?? Date(), text: result.text)
         flashStatus(.updated)
         reloadController.clearLastReload()
+    }
+
+    // Schedules the heavy derived recompute (stats/outline/search) after a typing pause,
+    // cancelling any earlier pending pass so a burst of keystrokes coalesces to one run.
+    private func scheduleDerivedRefresh(for text: String) {
+        pendingDerivedRefresh?.cancel()
+        let work = DispatchWorkItem {
+            pendingDerivedRefresh = nil
+            recomputeDerived(from: text)
+        }
+        pendingDerivedRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + derivedRefreshDelay, execute: work)
+    }
+
+    // The actual derived work: word/char count, heading outline, and search-match recompute.
+    // Parse logic is unchanged from the old per-keystroke path — only its timing moved.
+    // Keep the search refresh NON-navigating (navigatesToActiveMatch: false): it must never
+    // move the caret/scroll. This is load-bearing now that recomputeDerivedNow reuses this on
+    // reload and format-conversion, whose own caret placement and scroll preservation must be
+    // left untouched (a `true` here would hijack the selection on those paths).
+    private func recomputeDerived(from text: String) {
+        documentStatistics = DocumentStatistics(text: text)
+        outlineItems = MarkdownOutlineParser().items(in: text)
+        refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil, navigatesToActiveMatch: false)
+    }
+
+    // Runs any pending derived recompute immediately (on the live text) and clears the
+    // timer. Called at moments the values must be current now — mode switch, save.
+    private func flushDerivedRefresh() {
+        guard let work = pendingDerivedRefresh else { return }
+        work.cancel()
+        pendingDerivedRefresh = nil
+        recomputeDerived(from: document.text)
+    }
+
+    // A programmatic (non-typing) replacement of document.text — opening a file, an external
+    // reload, a format conversion. Recompute the derived state at once: the debounce exists
+    // only to smooth the continuous keystroke stream, not to lag these discrete changes (they
+    // refreshed synchronously before the debounce, and the outline/count/search should settle
+    // immediately). Cancels any pass still pending from prior edits so its captured older text
+    // can't clobber the fresh values when it fires; the change's own onChange will schedule one
+    // more identical pass a beat later, which is harmless.
+    private func recomputeDerivedNow(for text: String) {
+        pendingDerivedRefresh?.cancel()
+        pendingDerivedRefresh = nil
+        recomputeDerived(from: text)
     }
 
     private func flashStatus(_ flash: EditorStatusFlash) {
@@ -761,6 +831,9 @@ struct EditorContainerView: View {
             requestedSelection = document.convertMarkdownToPlainText(selectedRange: selectedRange)
         }
         LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
+        // Format conversion is a discrete command whose result the user expects settled at
+        // once — refresh outline/count/search for the converted text immediately.
+        recomputeDerivedNow(for: document.text)
     }
 
     @ViewBuilder
