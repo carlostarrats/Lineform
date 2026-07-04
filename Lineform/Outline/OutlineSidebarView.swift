@@ -120,11 +120,16 @@ struct OutlineSidebarView: View {
     /// row x-position.
     static let filesTreeIndentStep: CGFloat = 14
 
-    /// How far the whole Files tree shifts left when root collapsing is disallowed
-    /// (Settings): the root rows drop their chevron slot (10pt) + HStack spacing (8pt),
-    /// and every descendant row shifts by the same amount so the section moves as one
-    /// block — reclaiming the chevron column is part of the setting's point.
+    /// When root collapsing is disallowed, the root rows drop their chevron slot
+    /// (10pt) + HStack spacing (8pt) — an 18pt structural shift of the header.
     static let filesLockedChevronReclaim: CGFloat = 18
+
+    /// Descendants (sort row, empty state, tree rows) shift by ONE INDENT STEP (14pt),
+    /// not the root's full 18pt: both row kinds carry the same 6pt inner padding, so a
+    /// 14pt shift lands a depth-1 subfolder chevron exactly left-aligned with the root
+    /// icon — visibly under its root. Shifting the full 18 would push it 4pt LEFT of
+    /// the root's leading edge, reading as a sibling (the alignment bug from QA).
+    static let filesLockedDescendantShift: CGFloat = filesTreeIndentStep
 
     /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
     /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
@@ -1337,12 +1342,12 @@ private struct OutlineFileBrowserView: View {
 
     @ViewBuilder
     private func rootView(_ root: OutlineFileRoot) -> some View {
-        // When collapsing is disallowed, the ENTIRE section (root row, sort row,
-        // empty state, tree) shifts left by the reclaimed chevron column so it moves
-        // as one block — the root row drops its slot internally; every descendant
-        // subtracts the same constant here.
+        // When collapsing is disallowed, the ENTIRE section shifts left: the root row
+        // drops its chevron slot internally (18pt), and every descendant subtracts one
+        // indent step (14pt) — landing depth-1 chevrons left-aligned with the root icon
+        // (see filesLockedDescendantShift for why the two amounts differ).
         let lockExpanded = self.lockExpanded
-        let reclaim = lockExpanded ? OutlineSidebarView.filesLockedChevronReclaim : 0
+        let reclaim = lockExpanded ? OutlineSidebarView.filesLockedDescendantShift : 0
 
         VStack(alignment: .leading, spacing: 2) {
             OutlineFileRootRow(
@@ -1714,12 +1719,11 @@ private struct OutlineFileTreeNodeView: View {
 
             Spacer(minLength: 0)
         }
-        // Shift with the root when collapsing is disallowed (the reclaimed chevron
-        // column). Depth-1 rows go slightly negative here (14 − 18 = −4), which the
-        // trailing `.padding(.horizontal, 6)` and the container's 10pt inset absorb —
-        // nothing clips, and the relative indent ladder stays intact.
+        // Shift with the root when collapsing is disallowed: one indent step, which
+        // lands depth-1 chevrons exactly left-aligned with the root icon (see
+        // filesLockedDescendantShift). The 14pt indent ladder stays intact.
         .padding(.leading, CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep
-            - (lockExpanded ? OutlineSidebarView.filesLockedChevronReclaim : 0))
+            - (lockExpanded ? OutlineSidebarView.filesLockedDescendantShift : 0))
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
