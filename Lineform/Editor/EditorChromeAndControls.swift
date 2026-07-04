@@ -61,6 +61,109 @@ private struct MarkdownGuideHeightKey: PreferenceKey {
     }
 }
 
+/// Shared visual language for Lineform's in-window "Muse-style" modals — the Info
+/// modal (`MarkdownBasicsModal`) and the Settings modal (`SettingsModal`): a light,
+/// theme-independent card with a title + circular-close header, presented over a
+/// dimming scrim. Centralizing the chrome here keeps the two modals identical and
+/// removes the old coupling where `SettingsModal` reached into `MarkdownBasicsModal`'s
+/// constants for its palette and metrics.
+enum MuseModalChrome {
+    /// Theme-independent light-card palette (the card reads the same in dark mode).
+    static let backgroundWhiteComponent: CGFloat = 0.98
+    static let textRedComponent: CGFloat = 0.12
+    static let secondaryTextOpacity: CGFloat = 0.74
+
+    /// Circular close-button fill: invisible at rest, a faint tint on hover.
+    static let closeRestingFillOpacity = 0.0
+    static let closeHoverFillOpacity = 0.08
+
+    /// Card geometry + entrance motion (shared so both modals animate identically).
+    static let cornerRadius: CGFloat = 18
+    static let animationDuration = 0.24
+    static let entranceYOffset: CGFloat = 10
+
+    static var backgroundColor: Color {
+        Color(nsColor: NSColor(calibratedWhite: backgroundWhiteComponent, alpha: 1))
+    }
+
+    static var primaryTextColor: Color {
+        Color(nsColor: NSColor(calibratedRed: textRedComponent, green: textRedComponent, blue: textRedComponent, alpha: 1))
+    }
+
+    static var secondaryTextColor: Color {
+        primaryTextColor.opacity(secondaryTextOpacity)
+    }
+}
+
+/// The shared header row for a Muse modal: a semibold title on the left and a
+/// circular, Esc-bound close button on the right (invisible until hovered).
+struct MuseModalHeader: View {
+    var title: String
+    var dismiss: () -> Void
+    @State private var isCloseHovered = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(MuseModalChrome.primaryTextColor)
+
+            Spacer()
+
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(MuseModalChrome.secondaryTextColor)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(MuseModalChrome.primaryTextColor.opacity(isCloseHovered ? MuseModalChrome.closeHoverFillOpacity : MuseModalChrome.closeRestingFillOpacity))
+                    )
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .contentShape(Circle())
+            .help("Close")
+            .onHover { hovering in
+                isCloseHovered = hovering
+            }
+            .animation(.easeOut(duration: 0.12), value: isCloseHovered)
+        }
+    }
+}
+
+/// The card container shared by every Muse modal: fixed inner padding, a
+/// caller-sized width, the light background, rounded clip + hairline stroke, drop
+/// shadow, and a forced-light color scheme so the card matches in either appearance.
+private struct MuseModalCard: ViewModifier {
+    var width: CGFloat
+    var accessibilityLabel: String
+
+    func body(content: Content) -> some View {
+        content
+            .padding(24)
+            .frame(width: width, alignment: .leading)
+            .background(MuseModalChrome.backgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
+            .environment(\.colorScheme, .light)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+extension View {
+    func museModalCard(width: CGFloat, accessibilityLabel: String) -> some View {
+        modifier(MuseModalCard(width: width, accessibilityLabel: accessibilityLabel))
+    }
+}
+
 struct MarkdownBasicsModal: View {
     struct Example: Identifiable, Equatable {
         var label: String
@@ -90,14 +193,16 @@ struct MarkdownBasicsModal: View {
     static let usesRowSeparators = true
     static let usesMonospacedExampleFont = false
     static let contentWidth: CGFloat = 560
-    static let closeRestingFillOpacity = 0.0
-    static let closeHoverFillOpacity = 0.08
-    static let animationDuration = 0.24
-    static let entranceYOffset: CGFloat = 10
+    // Shared Muse chrome values, forwarded so this modal has a stable surface while
+    // `MuseModalChrome` stays the single source of truth for the visual language.
+    static let closeRestingFillOpacity = MuseModalChrome.closeRestingFillOpacity
+    static let closeHoverFillOpacity = MuseModalChrome.closeHoverFillOpacity
+    static let animationDuration = MuseModalChrome.animationDuration
+    static let entranceYOffset = MuseModalChrome.entranceYOffset
     static let usesThemeIndependentLightChrome = true
-    static let backgroundWhiteComponent: CGFloat = 0.98
-    static let textRedComponent: CGFloat = 0.12
-    static let secondaryTextOpacity: CGFloat = 0.74
+    static let backgroundWhiteComponent = MuseModalChrome.backgroundWhiteComponent
+    static let textRedComponent = MuseModalChrome.textRedComponent
+    static let secondaryTextOpacity = MuseModalChrome.secondaryTextOpacity
     static let transitionStyle = EditorAuxiliaryTransitionStyle.fadeAndMoveUp
     static let examples = [
         Example(label: "Title", syntax: "# Title"),
@@ -143,7 +248,6 @@ struct MarkdownBasicsModal: View {
     /// the window taller.
     var availableHeight: CGFloat = 900
     var dismiss: () -> Void = {}
-    @State private var isCloseHovered = false
     @State private var measuredSectionsHeight: CGFloat = 0
 
     /// Room left for the title, paddings, and top/bottom breathing space around the card.
@@ -157,34 +261,7 @@ struct MarkdownBasicsModal: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(Self.title)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(Self.primaryTextColor)
-
-                Spacer()
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Self.secondaryTextColor)
-                        .frame(width: 28, height: 28)
-                        .background(
-                            Circle()
-                                .fill(Self.primaryTextColor.opacity(isCloseHovered ? Self.closeHoverFillOpacity : Self.closeRestingFillOpacity))
-                        )
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-                .contentShape(Circle())
-                .help("Close")
-                .onHover { hovering in
-                    isCloseHovered = hovering
-                }
-                .animation(.easeOut(duration: 0.12), value: isCloseHovered)
-            }
+            MuseModalHeader(title: Self.title, dismiss: dismiss)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -203,25 +280,17 @@ struct MarkdownBasicsModal: View {
             .frame(height: min(measuredSectionsHeight == 0 ? maxSectionsHeight : measuredSectionsHeight, maxSectionsHeight))
             .onPreferenceChange(MarkdownGuideHeightKey.self) { measuredSectionsHeight = $0 }
         }
-        .padding(24)
-        .frame(width: Self.contentWidth, alignment: .leading)
-        .background(Self.backgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-        }
-        .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
-        .environment(\.colorScheme, .light)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel)
+        .museModalCard(
+            width: Self.contentWidth,
+            accessibilityLabel: EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel
+        )
     }
 
     private func guideSection(_ section: Section) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(section.title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Self.primaryTextColor)
+                .foregroundStyle(MuseModalChrome.primaryTextColor)
 
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
@@ -229,7 +298,7 @@ struct MarkdownBasicsModal: View {
 
                     if Self.usesRowSeparators && index < section.rows.count - 1 {
                         Divider()
-                            .overlay(Self.primaryTextColor.opacity(0.08))
+                            .overlay(MuseModalChrome.primaryTextColor.opacity(0.08))
                     }
                 }
             }
@@ -240,27 +309,15 @@ struct MarkdownBasicsModal: View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             Text(row.label)
                 .font(.body)
-                .foregroundStyle(Self.primaryTextColor)
+                .foregroundStyle(MuseModalChrome.primaryTextColor)
                 .frame(width: 172, alignment: .leading)
 
             Text(row.detail)
                 .font(.body)
-                .foregroundStyle(Self.secondaryTextColor)
+                .foregroundStyle(MuseModalChrome.secondaryTextColor)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 8)
-    }
-
-    private static var backgroundColor: Color {
-        Color(nsColor: NSColor(calibratedWhite: backgroundWhiteComponent, alpha: 1))
-    }
-
-    private static var primaryTextColor: Color {
-        Color(nsColor: NSColor(calibratedRed: textRedComponent, green: textRedComponent, blue: textRedComponent, alpha: 1))
-    }
-
-    private static var secondaryTextColor: Color {
-        primaryTextColor.opacity(secondaryTextOpacity)
     }
 }
 
