@@ -120,6 +120,12 @@ struct OutlineSidebarView: View {
     /// row x-position.
     static let filesTreeIndentStep: CGFloat = 14
 
+    /// How far the whole Files tree shifts left when root collapsing is disallowed
+    /// (Settings): the root rows drop their chevron slot (10pt) + HStack spacing (8pt),
+    /// and every descendant row shifts by the same amount so the section moves as one
+    /// block — reclaiming the chevron column is part of the setting's point.
+    static let filesLockedChevronReclaim: CGFloat = 18
+
     /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
     /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
     static func rootShowsDisclosure(state: OutlineFileRootState, isEmpty: Bool) -> Bool {
@@ -1331,11 +1337,18 @@ private struct OutlineFileBrowserView: View {
 
     @ViewBuilder
     private func rootView(_ root: OutlineFileRoot) -> some View {
+        // When collapsing is disallowed, the ENTIRE section (root row, sort row,
+        // empty state, tree) shifts left by the reclaimed chevron column so it moves
+        // as one block — the root row drops its slot internally; every descendant
+        // subtracts the same constant here.
+        let lockExpanded = !settings.allowRootFolderCollapse
+        let reclaim = lockExpanded ? OutlineSidebarView.filesLockedChevronReclaim : 0
+
         VStack(alignment: .leading, spacing: 2) {
             OutlineFileRootRow(
                 root: root,
                 isCollapsed: isRootCollapsed(root.id),
-                lockExpanded: !settings.allowRootFolderCollapse,
+                lockExpanded: lockExpanded,
                 toggleCollapsed: { toggle(root.id) },
                 chooseWorkspaceFolder: store.chooseWorkspaceFolder
             )
@@ -1345,7 +1358,7 @@ private struct OutlineFileBrowserView: View {
             // expandable tree, no empty-state line — just the quiet header.
             if root.state == .available, !isRootCollapsed(root.id), !rootIsDimmed(root), !root.items.isEmpty {
                 OutlineFileSortRow(rootTitle: root.title, sortOrder: sortBinding(for: root))
-                    .padding(.leading, 28)
+                    .padding(.leading, 28 - reclaim)
                     .padding(.bottom, 2)
             }
 
@@ -1358,7 +1371,7 @@ private struct OutlineFileBrowserView: View {
                         Text("No Markdown files")
                             .font(.system(size: 12))
                             .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                            .padding(.leading, 28)
+                            .padding(.leading, 28 - reclaim)
                             .padding(.vertical, 4)
                     }
                 } else {
@@ -1373,7 +1386,8 @@ private struct OutlineFileBrowserView: View {
                             currentFileURL: currentFileURL,
                             renameItem: renameItem,
                             deleteItem: deleteItem,
-                            revealItem: revealItem
+                            revealItem: revealItem,
+                            lockExpanded: lockExpanded
                         )
                         .opacity(root.state == .disconnected ? 0.48 : 1)
                         .allowsHitTesting(root.state != .disconnected)
@@ -1612,6 +1626,9 @@ private struct OutlineFileTreeNodeView: View {
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
+    /// When root collapsing is disallowed, every tree row shifts left with the root
+    /// (the reclaimed chevron column) so the whole section moves as one block.
+    var lockExpanded: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
@@ -1641,7 +1658,8 @@ private struct OutlineFileTreeNodeView: View {
                         currentFileURL: currentFileURL,
                         renameItem: renameItem,
                         deleteItem: deleteItem,
-                        revealItem: revealItem
+                        revealItem: revealItem,
+                        lockExpanded: lockExpanded
                     )
                 }
             }
@@ -1674,7 +1692,12 @@ private struct OutlineFileTreeNodeView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.leading, CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep)
+        // Shift with the root when collapsing is disallowed (the reclaimed chevron
+        // column). Depth-1 rows go slightly negative here (14 − 18 = −4), which the
+        // trailing `.padding(.horizontal, 6)` and the container's 10pt inset absorb —
+        // nothing clips, and the relative indent ladder stays intact.
+        .padding(.leading, CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep
+            - (lockExpanded ? OutlineSidebarView.filesLockedChevronReclaim : 0))
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
