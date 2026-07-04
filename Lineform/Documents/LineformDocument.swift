@@ -264,12 +264,22 @@ final class DocumentSaveStatus: ObservableObject {
 
     @Published private var savedAtByDocumentID: [UUID: Date] = [:]
     private var savedTextByDocumentID: [UUID: String] = [:]
+    /// Hash of the last text written per document, used for dirty detection. Kept
+    /// separately from `savedTextByDocumentID` (which is capped for memory and only
+    /// feeds the reload baseline) because dirty detection has no live fallback: if it
+    /// were pruned, an open document would silently stop showing "Unsaved changes".
+    /// This map is tiny (one Int per doc) and shares `savedAt`'s never-pruned lifetime.
+    private var savedTextHashByDocumentID: [UUID: Int] = [:]
 
     /// A transient signal published for each real write so the status bar can flash
     /// a green "Saved"/"Autosaved" confirmation. Distinct `sequence` per event so
     /// `.onChange` fires even for repeated kinds.
     @Published private(set) var lastSaveEvent: SaveEvent?
-    private var manualSaveIntentAt: Date?
+    /// Set when the user invokes Save / Save As, cleared when consumed by a write or
+    /// invalidated by an edit (see `noteUserEdit`). A one-shot flag rather than a timed
+    /// window so it survives a slow `NSSavePanel` interaction (Save As, first save of an
+    /// untitled doc) without misclassifying the resulting write as an autosave.
+    private var pendingManualSave = false
     private var writeSequence = 0
 
     private init() {}
@@ -283,20 +293,28 @@ final class DocumentSaveStatus: ObservableObject {
     /// "Not saved yet" instead.
     func isDirty(documentID: UUID, currentText: String) -> Bool {
         guard savedAtByDocumentID[documentID] != nil else { return false }
-        guard let saved = savedTextByDocumentID[documentID] else { return false }
-        return saved != currentText
+        guard let savedHash = savedTextHashByDocumentID[documentID] else { return false }
+        return savedHash != currentText.hashValue
     }
 
-    /// Records that the user just invoked Save / Save As. The next `recordWrite`
-    /// (within a short window) is attributed to the user; anything else is an autosave.
+    /// Records that the user just invoked Save / Save As, so the next real write is
+    /// attributed to the user ("Saved") rather than an autosave ("Autosaved").
     func noteManualSaveIntent() {
-        manualSaveIntentAt = Date()
+        pendingManualSave = true
     }
 
-    private func consumeManualSaveIntent(within window: TimeInterval = 2) -> Bool {
-        guard let at = manualSaveIntentAt else { return false }
-        manualSaveIntentAt = nil
-        return Date().timeIntervalSince(at) <= window
+    /// Called when the user edits the document. A pending manual-save intent that has
+    /// not yet produced a write is cleared, because the next write will be an autosave
+    /// of this new edit — not the earlier ⌘S/Save As. (During a modal save panel the
+    /// document can't be edited, so a legitimate panel save keeps its intent.)
+    func noteUserEdit() {
+        pendingManualSave = false
+    }
+
+    private func consumeManualSaveIntent() -> Bool {
+        let manual = pendingManualSave
+        pendingManualSave = false
+        return manual
     }
 
     /// Called from the document write path for a real save. Updates the saved
@@ -318,6 +336,7 @@ final class DocumentSaveStatus: ObservableObject {
     func markSaved(documentID: UUID, at date: Date = Date(), text: String? = nil) {
         if let text {
             savedTextByDocumentID[documentID] = text
+            savedTextHashByDocumentID[documentID] = text.hashValue
         }
         savedAtByDocumentID[documentID] = date
         pruneSavedTexts(keeping: documentID)

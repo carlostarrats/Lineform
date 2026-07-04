@@ -272,6 +272,9 @@ struct EditorContainerView: View {
             outlineItems = MarkdownOutlineParser().items(in: newValue)
             refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil, navigatesToActiveMatch: false)
             reloadController.currentText = newValue
+            // An edit means the next write is an autosave of this change, not the
+            // earlier ⌘S/Save As — so a still-pending manual intent no longer applies.
+            documentSaveStatus.noteUserEdit()
         }
         .onChange(of: windowNumber) { _, _ in
             registerReloadWatcher()

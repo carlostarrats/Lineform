@@ -436,6 +436,23 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(status.lastSaveEvent?.kind, .autosave)
     }
 
+    @MainActor
+    func testManualIntentSurvivesUntilWriteButIsClearedByAnEdit() {
+        let status = DocumentSaveStatus.testInstance()
+        let id = UUID()
+        // Intent is not time-gated: it persists across a (potentially slow) save panel
+        // until the write lands, so panel saves still classify as manual.
+        status.noteManualSaveIntent()
+        status.recordWrite(documentID: id, text: "saved via panel")
+        XCTAssertEqual(status.lastSaveEvent?.kind, .manual)
+
+        // But an edit before the write means the next write is an autosave of that edit.
+        status.noteManualSaveIntent()
+        status.noteUserEdit()
+        status.recordWrite(documentID: id, text: "edited then autosaved")
+        XCTAssertEqual(status.lastSaveEvent?.kind, .autosave)
+    }
+
     func testStatusStateColorsMeetAAAgainstEveryThemeBackground() {
         for theme in Theme.builtIn {
             let dark = theme.usesDarkChrome
