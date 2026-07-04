@@ -3,6 +3,8 @@ import SwiftUI
 struct ReadingExperienceInspector: View {
     @ObservedObject var store: ReadingProfileStore
     var usesDarkChrome = false
+    var onClose: () -> Void = {}
+    @State private var isCloseHovered = false
 
     static let visibleControlLabels = [
         "Themes",
@@ -40,11 +42,24 @@ struct ReadingExperienceInspector: View {
     static let usesNativeControlHoverOnly = true
     static let resetButtonShowsHoverFeedback = true
     static let resetButtonHoverFillOpacity = 0.08
+    static let headerCloseHoverFillOpacity = 0.08
     static let presetCardHoverFillOpacity = 0.07
     static let fontSizeRange: ClosedRange<Double> = 12...48
     static let lineHeightRange: ClosedRange<Double> = 0.5...1.8
 
     var body: some View {
+        VStack(spacing: 0) {
+            header
+            controls
+        }
+        .background(Color(nsColor: Self.backgroundColor(usesDarkChrome: usesDarkChrome)))
+        .font(Self.inspectorUIFont())
+        .environment(\.colorScheme, Self.colorScheme(usesDarkChrome: usesDarkChrome))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Reading Experience Inspector")
+    }
+
+    private var controls: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 presetGrid
@@ -125,11 +140,39 @@ struct ReadingExperienceInspector: View {
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .background(Color(nsColor: Self.backgroundColor(usesDarkChrome: usesDarkChrome)))
-        .font(Self.inspectorUIFont())
-        .environment(\.colorScheme, Self.colorScheme(usesDarkChrome: usesDarkChrome))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Reading Experience Inspector")
+    }
+
+    // A pinned header so the panel owns its own dismissal (its close ✕ lives here,
+    // mirroring the Info modal) rather than relying on the toolbar toggle. No divider
+    // beneath it — the title just sits above the scrolling controls.
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text("Reading")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: 0)
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        Circle().fill(
+                            Color.primary.opacity(isCloseHovered ? Self.headerCloseHoverFillOpacity : 0)
+                        )
+                    )
+            }
+            .buttonStyle(.plain)
+            .contentShape(Circle())
+            .help("Close")
+            .onHover { isCloseHovered = $0 }
+            .animation(.easeOut(duration: 0.12), value: isCloseHovered)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
     }
 
     static func inspectorUIFont(size: CGFloat = controlLabelFontSize, weight: Font.Weight = .medium) -> Font {

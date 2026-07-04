@@ -189,18 +189,13 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertNil(EditorAuxiliaryPresentation.markdownBasics.idealWidth)
     }
 
-    func testEditorToolbarToggleUsesFilledNativePressedState() {
+    func testEditorToolbarToggleUsesQuietNativeGlyph() {
         XCTAssertTrue(EditorToolbarTogglePresentation.usesNativeToolbarButtonShell)
         XCTAssertNil(EditorToolbarTogglePresentation.outerButtonWidth)
-        XCTAssertEqual(EditorToolbarTogglePresentation.iconFillDiameter, 20)
-        XCTAssertEqual(EditorToolbarTogglePresentation.fillOpacityWhenOn, 1.0, accuracy: 0.01)
-        XCTAssertTrue(EditorToolbarTogglePresentation.usesWhiteIconWhenOn)
         XCTAssertLessThan(EditorToolbarTogglePresentation.lightChromeIconWhiteComponent, 0.35)
         XCTAssertGreaterThan(EditorToolbarTogglePresentation.darkChromeIconWhiteComponent, 0.75)
-        XCTAssertGreaterThan(
-            EditorToolbarTogglePresentation.iconOpacityWhenOn,
-            EditorToolbarTogglePresentation.iconOpacityWhenOff
-        )
+        XCTAssertGreaterThan(EditorToolbarTogglePresentation.iconOpacity, 0)
+        XCTAssertLessThanOrEqual(EditorToolbarTogglePresentation.iconOpacity, 1)
     }
 
     func testToolbarPressedStateCoversInfoAndInspectorButtons() {
@@ -218,23 +213,25 @@ final class EditorDisplayModeTests: XCTestCase {
             ),
             [.markdownBasics, .readingExperience]
         )
-        XCTAssertTrue(EditorToolbarPressedState.usesFilledActiveIcon)
-        XCTAssertTrue(EditorToolbarPressedState.usesWhiteActiveIcon)
+        XCTAssertEqual(
+            EditorToolbarPressedState.activeActions(
+                isShowingMarkdownBasics: false,
+                isShowingReadingInspector: true
+            ),
+            [.readingExperience]
+        )
     }
 
-    func testToolbarActiveButtonsReplaceSymbolsWithCloseAction() {
-        XCTAssertTrue(EditorToolbarPressedState.replacesActiveSymbolWithCloseAction)
-        XCTAssertEqual(EditorToolbarPressedState.closeSystemImage, "xmark")
-        XCTAssertEqual(EditorToolbarPressedState.closeSymbolScale, 0.67, accuracy: 0.01)
-        XCTAssertEqual(EditorToolbarPressedState.openSymbolTransition, .replaceOffUp)
-        XCTAssertEqual(EditorToolbarPressedState.closeSymbolTransition, .instant)
-
+    func testToolbarActiveButtonsKeepTheirOwnGlyph() {
+        // The buttons no longer morph into a filled ✕ when their panel is open — the
+        // reading inspector carries its own close now, so each toolbar button keeps its
+        // own quiet glyph regardless of active state.
         for action in EditorToolbarAction.allCases {
-            XCTAssertEqual(EditorToolbarPressedState.displaySystemImage(for: action, isActive: false), action.systemImage)
-            XCTAssertEqual(EditorToolbarPressedState.displaySystemImage(for: action, isActive: true), "xmark")
-            XCTAssertEqual(EditorToolbarPressedState.displaySymbolScale(for: action, isActive: false), 1.0, accuracy: 0.01)
-            XCTAssertEqual(EditorToolbarPressedState.displaySymbolScale(for: action, isActive: true), 0.67, accuracy: 0.01)
+            XCTAssertFalse(action.systemImage.isEmpty)
+            XCTAssertNotEqual(action.systemImage, "xmark")
         }
+        XCTAssertEqual(EditorToolbarAction.markdownBasics.systemImage, "info.circle")
+        XCTAssertEqual(EditorToolbarAction.readingExperience.systemImage, "textformat.size")
     }
 
     @MainActor

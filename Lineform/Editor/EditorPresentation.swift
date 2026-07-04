@@ -49,13 +49,9 @@ enum EditorToolbarVisibility {
 enum EditorToolbarTogglePresentation {
     static let usesNativeToolbarButtonShell = true
     static let outerButtonWidth: CGFloat? = nil
-    static let iconFillDiameter: CGFloat = 20
-    static let fillOpacityWhenOn = 1.0
-    static let usesWhiteIconWhenOn = true
     static let lightChromeIconWhiteComponent: CGFloat = 0.18
     static let darkChromeIconWhiteComponent: CGFloat = 0.92
-    static let iconOpacityWhenOn = 1.0
-    static let iconOpacityWhenOff = 0.72
+    static let iconOpacity: CGFloat = 0.72
 
     static func offIconColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
@@ -65,15 +61,12 @@ enum EditorToolbarTogglePresentation {
     }
 }
 
+// The info and reading buttons no longer morph into a filled close (✕) when their
+// panel is open: the reading inspector now carries its own close in its header, and
+// the info modal already had one, so the toolbar buttons stay their own quiet glyph
+// whether open or closed. `isActive` survives only to expose the open state to
+// accessibility (a `.isSelected` trait on the button).
 enum EditorToolbarPressedState {
-    static let usesFilledActiveIcon = true
-    static let usesWhiteActiveIcon = true
-    static let replacesActiveSymbolWithCloseAction = true
-    static let closeSystemImage = "xmark"
-    static let closeSymbolScale = 0.67
-    static let openSymbolTransition = EditorToolbarSymbolTransitionStyle.replaceOffUp
-    static let closeSymbolTransition = EditorToolbarSymbolTransitionStyle.instant
-
     static func isActive(
         _ action: EditorToolbarAction,
         isShowingMarkdownBasics: Bool,
@@ -99,72 +92,18 @@ enum EditorToolbarPressedState {
             )
         }
     }
-
-    static func displaySystemImage(for action: EditorToolbarAction, isActive: Bool) -> String {
-        isActive ? closeSystemImage : action.systemImage
-    }
-
-    static func displaySymbolScale(for action: EditorToolbarAction, isActive: Bool) -> CGFloat {
-        isActive ? closeSymbolScale : 1
-    }
-
-    static func symbolTransitionStyle(isActive: Bool) -> EditorToolbarSymbolTransitionStyle {
-        isActive ? openSymbolTransition : closeSymbolTransition
-    }
-}
-
-enum EditorToolbarSymbolTransitionStyle: Equatable {
-    case replaceOffUp
-    case instant
 }
 
 struct EditorToolbarIcon: View {
     let systemImage: String
-    let isOn: Bool
     let usesDarkChrome: Bool
-    var symbolScale: CGFloat = 1
-    var symbolTransitionStyle: EditorToolbarSymbolTransitionStyle = .instant
 
     var body: some View {
-        ZStack {
-            if isOn {
-                Circle()
-                    .fill(Color.accentColor.opacity(EditorToolbarTogglePresentation.fillOpacityWhenOn))
-                    .frame(
-                        width: EditorToolbarTogglePresentation.iconFillDiameter,
-                        height: EditorToolbarTogglePresentation.iconFillDiameter
-                    )
-            }
-
-            Image(systemName: systemImage)
-                .contentTransition(contentTransition)
-                .animation(symbolAnimation, value: systemImage)
-                .scaleEffect(symbolScale)
-                .foregroundStyle(
-                    isOn
-                        ? Color.white.opacity(EditorToolbarTogglePresentation.iconOpacityWhenOn)
-                        : EditorToolbarTogglePresentation.offIconColor(usesDarkChrome: usesDarkChrome)
-                            .opacity(EditorToolbarTogglePresentation.iconOpacityWhenOff)
-                )
-        }
-    }
-
-    private var contentTransition: ContentTransition {
-        switch symbolTransitionStyle {
-        case .replaceOffUp:
-            return .symbolEffect(.replace.offUp)
-        case .instant:
-            return .identity
-        }
-    }
-
-    private var symbolAnimation: Animation? {
-        switch symbolTransitionStyle {
-        case .replaceOffUp:
-            return .easeOut(duration: 0.16)
-        case .instant:
-            return nil
-        }
+        Image(systemName: systemImage)
+            .foregroundStyle(
+                EditorToolbarTogglePresentation.offIconColor(usesDarkChrome: usesDarkChrome)
+                    .opacity(EditorToolbarTogglePresentation.iconOpacity)
+            )
     }
 }
 
