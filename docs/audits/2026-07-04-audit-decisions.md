@@ -74,7 +74,7 @@ security scope; keep UI native/restrained; no analytics, no uploads, no AI insid
 Order = top to bottom. A fresh session: find the first UNCHECKED box, that's the next task.
 When done + QA'd, check it and append `— done YYYY-MM-DD, branch <name>`.
 
-- [ ] 1. Task 1 — keystroke debounce
+- [ ] 1. Task 1 — keystroke debounce  [code-complete 2026-07-04, branch `work-2026-07-04-7-keystroke-debounce`, suite 386/0; box left unchecked — felt-smoothness on big docs needs Task 2 (see its GATE note), other behaviors QA pending]
 - [ ] 2. Task 3a + resize nit + Task 3b fixed-card (diagram/render bundle)
 - [ ] 3. Task 6 — SPEC (Read-mode rendering; sign-off before code)
 - [ ] 4. Task 6 Wave 1 — easy styling (strikethrough, HR, blockquote, lists) + image placeholder
@@ -83,7 +83,7 @@ When done + QA'd, check it and append `— done YYYY-MM-DD, branch <name>`.
 - [ ] 7. Task 7 — SPEC (rich PDF + Print; sign-off before code)
 - [ ] 8. Task 7 — build (PDF export + Print/⌘P)
 - [ ] 9. Task 8 — Find & Replace (single-file; spec-light)
-- [ ] 10. Task 2 — scope syntax highlighting  [ONLY if stutter remains after Task 1]
+- [ ] 10. Task 2 — scope syntax highlighting  [🔔 GATE SATISFIED 2026-07-04 — stutter confirmed & measured to ~121 ms/pass whole-doc highlight; now the do-next perf task, own fresh session]
 - [ ] 11. Task 5 — sidebar scan  [LAST; fresh worktree; spec the fix shape first]
 
 Everything below is the plain-language decision record, grouped by status.
@@ -360,6 +360,20 @@ on screen.
 **Decision (2026-07-04):** WAIT. Do Task 1 first, live with it, and only build Task 2
 if a real stutter remains in large files. The downside (subtle, hard-to-repro coloring
 bugs) outweighs the upside (invisible smoothness) unless the stutter is confirmed.
+
+**🔔 GATE NOW SATISFIED — measured 2026-07-04 (branch `work-2026-07-04-7-keystroke-debounce`).**
+Task 1 shipped (code-complete on that branch; suite 386/0) and its own work was confirmed
+reduced — the outline/stats/search derived pass measures ~84 ms on a 2.5 MB doc and now runs
+once per typing pause instead of ~20× per keystroke burst. BUT felt typing stutter REMAINS
+in that doc, and it was measured to THIS task's cause: `MarkdownRangeAnalyzer.ranges(in:)`
+re-tokenizes the WHOLE document inside `highlight()` at **~121 ms/pass**, on top of a
+full-range `setAttributes` + full TextKit relayout, firing 80 ms after each pause
+(`MarkdownSyntaxHighlighter.swift:150-165`, `MarkdownTextViewRepresentable.swift:296-300`).
+The other per-keystroke suspect — the whole-string bridge `text.wrappedValue = textView.string`
+(`MarkdownTextViewRepresentable.swift:257`) — measured ~0 ms (COW), so it is NOT the cause.
+Conclusion: Task 1 alone does not make a large doc feel smooth; **Task 2 is now the do-next
+perf task.** Keep it in its OWN fresh session (WAIT-tier care) with the refined visible-region
++ fence-state approach below — do NOT fold it into the Task 1 branch.
 
 **Refined approach if/when we build it** (safer than whole-document re-color, and
 better than a plain margin):
