@@ -72,10 +72,10 @@ struct ICloudFolderProbe: ICloudFolderProbing {
         self.documentsURLProvider = documentsURLProvider
     }
 
+    /// Resolves via the SAME helper the sidebar uses, so the probe and the rendered
+    /// iCloud root can never drift to different folders.
     static let defaultDocumentsURL: @Sendable () -> URL? = {
-        FileManager.default
-            .url(forUbiquityContainerIdentifier: OutlineFileBrowserStore.iCloudContainerIdentifier)?
-            .appendingPathComponent("Documents", isDirectory: true)
+        OutlineFileBrowserStore.lineformICloudDocumentsURL(fileManager: FileManager.default)
     }
 
     func status() async -> ICloudFolderStatus {
@@ -93,17 +93,34 @@ struct ICloudFolderProbe: ICloudFolderProbing {
 }
 
 /// Drives the "Show iCloud in sidebar" control's enabled/visible/checking state
-/// from an async probe. `status == nil` means the probe hasn't finished (inline
+/// from an async probe. `status == nil` means no probe has EVER finished (inline
 /// "Checking…"). The Settings pane owns one of these and calls `refresh()` from
 /// `.task` when the window appears — never at app launch.
 @MainActor
 final class ICloudSettingViewModel: ObservableObject {
     @Published private(set) var status: ICloudFolderStatus?
 
+    /// Last completed probe result, shared across Settings opens. Without it, a
+    /// machine where iCloud never resolves (Debug, not signed in) would flash the
+    /// row in as "Checking…" and pop it back out on EVERY ⌘, open. Seeding from the
+    /// cache renders the last-known truth immediately; refresh() then revalidates
+    /// quietly and updates in place.
+    private static var lastKnownStatus: ICloudFolderStatus?
+
     private let probe: ICloudFolderProbing
+    /// Latest-wins guard: a slow, stale probe completion must not overwrite the
+    /// result of a newer refresh.
+    private var refreshGeneration = 0
 
     init(probe: ICloudFolderProbing = ICloudFolderProbe()) {
         self.probe = probe
+        _status = Published(initialValue: Self.lastKnownStatus)
+    }
+
+    /// Test-only seeding: bypasses the process-wide cache so tests are order-independent.
+    init(probe: ICloudFolderProbing, seededStatus: ICloudFolderStatus?) {
+        self.probe = probe
+        _status = Published(initialValue: seededStatus)
     }
 
     var isChecking: Bool { status == nil }
@@ -112,11 +129,23 @@ final class ICloudSettingViewModel: ObservableObject {
     /// row visible (showing "Checking…") so it doesn't flicker in/out.
     var isControlVisible: Bool { status != .unavailable }
 
-    /// The toggle may be operated only when we've confirmed the folder is empty.
-    var isToggleEnabled: Bool { status == .empty }
+    /// The folder is confirmed empty, so turning the toggle OFF is allowed.
+    var canHideICloud: Bool { status == .empty }
+
+    /// The emptiness guard only blocks turning iCloud OFF. Re-showing a hidden root
+    /// is always safe, so when the setting is already off the toggle stays operable
+    /// even if the folder has since gained content (otherwise the user could get
+    /// stuck unable to bring iCloud back).
+    func isToggleDisabled(currentlyShown: Bool) -> Bool {
+        currentlyShown && !canHideICloud
+    }
 
     func refresh() async {
-        status = nil
-        status = await probe.status()
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        let result = await probe.status()
+        guard generation == refreshGeneration else { return }
+        status = result
+        Self.lastKnownStatus = result
     }
 }

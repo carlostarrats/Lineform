@@ -252,6 +252,10 @@ struct OutlineSidebarView: View {
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
+    /// The app-wide settings store, injectable so hosted tests can isolate the two
+    /// sidebar-affecting preferences (Show iCloud, Keep roots expanded) on their own
+    /// defaults suite instead of leaking the developer's real prefs into test geometry.
+    private let settings: LineformSettingsStore
 
     init(
         items: [MarkdownOutlineItem],
@@ -261,6 +265,7 @@ struct OutlineSidebarView: View {
         },
         currentFileURL: URL? = nil,
         fileBrowserStore: OutlineFileBrowserStore? = nil,
+        settings: LineformSettingsStore = .shared,
         renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
         deleteItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
         revealItem: @escaping (OutlineFileTreeItem) -> Void = { _ in }
@@ -269,6 +274,7 @@ struct OutlineSidebarView: View {
         self.jumpToHeading = jumpToHeading
         self.openFile = openFile
         self.currentFileURL = currentFileURL
+        self.settings = settings
         self.renameItem = renameItem
         self.deleteItem = deleteItem
         self.revealItem = revealItem
@@ -293,6 +299,7 @@ struct OutlineSidebarView: View {
                         store: fileBrowserStore,
                         openFile: openFile,
                         currentFileURL: currentFileURL,
+                        settings: settings,
                         renameItem: renameItem,
                         deleteItem: deleteItem,
                         revealItem: revealItem
@@ -1162,7 +1169,9 @@ final class OutlineFileBrowserStore: ObservableObject {
         }
     }
 
-    private static func lineformICloudDocumentsURL(fileManager: FileManager) -> URL? {
+    /// Internal (not private) so the Settings iCloud probe resolves the SAME folder
+    /// the sidebar renders — the container-relative path must live in one place.
+    static func lineformICloudDocumentsURL(fileManager: FileManager) -> URL? {
         fileManager
             .url(forUbiquityContainerIdentifier: iCloudContainerIdentifier)?
             .appendingPathComponent("Documents", isDirectory: true)
@@ -1189,11 +1198,20 @@ final class OutlineFileBrowserStore: ObservableObject {
 
     /// Whether a documents folder has no display-worthy content — used by the
     /// Settings iCloud toggle to decide if the user may hide the iCloud root.
-    /// Reuses the same scan the sidebar tree uses (hidden files excluded, default
-    /// name sort) so "empty" here matches exactly what the sidebar would render.
-    /// Read-only; never writes to the folder.
+    /// Deliberately CONSERVATIVE: scans with hidden folders INCLUDED (regardless of
+    /// the user's Show Hidden Folders setting), so a folder whose only content is
+    /// dot-folder Markdown still counts as non-empty — the guard must never allow
+    /// hiding a root the sidebar could visibly render files under. Depth-limited to
+    /// one level because `items(in:)` includes a directory regardless of its
+    /// contents, so emptiness is decided entirely by the top-level enumeration (no
+    /// full-tree walk on large iCloud folders). Read-only; never writes.
     static func documentsFolderIsEmpty(at url: URL, fileManager: FileManager) -> Bool {
-        items(in: url, fileManager: fileManager, showsHiddenFolders: false).isEmpty
+        items(
+            in: url,
+            fileManager: fileManager,
+            depth: maximumTreeDepth - 1,
+            showsHiddenFolders: true
+        ).isEmpty
     }
 
     private static func items(
@@ -1283,12 +1301,15 @@ private struct OutlineFileBrowserView: View {
     @ObservedObject var store: OutlineFileBrowserStore
     var openFile: (URL) -> Void
     var currentFileURL: URL?
+    /// Injected from OutlineSidebarView (which defaults it to .shared for the app) so
+    /// tests and previews can isolate the sidebar-affecting settings. Declared before
+    /// the defaulted closures so the memberwise init's parameter order matches call sites.
+    @ObservedObject var settings: LineformSettingsStore
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
-    @ObservedObject private var settings = LineformSettingsStore.shared
 
     var body: some View {
         // "Show Hidden Folders" now lives in the View menu (⌘⇧.), so the Files tab is just

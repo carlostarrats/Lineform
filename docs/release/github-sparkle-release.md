@@ -20,6 +20,7 @@ See `docs/superpowers/specs/2026-07-01-diagram-report-design.md`. This step is o
 
 ## Order of Work
 
+0. Run the test gates (see "Test gates before building" below).
 1. Create or connect the GitHub repo from this folder.
 2. Generate Sparkle EdDSA keys and keep the private key in Keychain.
 3. Build a signed release with `SPARKLE_PUBLIC_ED_KEY` set.
@@ -27,6 +28,25 @@ See `docs/superpowers/specs/2026-07-01-diagram-report-design.md`. This step is o
 5. Generate `docs/appcast.xml`.
 6. Publish the DMG on GitHub Releases and commit `docs/appcast.xml`.
 7. Confirm the public README and website download link point at the current release.
+
+## Test gates before building
+
+Two test plans exist (see `Claude.md` › Verification Commands). Before any release:
+
+```sh
+# Default plan — full pure suite (also what CI runs on every push):
+xcodebuild test -project Lineform.xcodeproj -scheme Lineform \
+  -destination 'platform=macOS' -parallel-testing-enabled NO
+
+# Hosted plan — the quarantined window-motion tests. NOT run by CI or the default
+# suite, so a release is the checkpoint that must run them. Quiet machine, Xcode quit.
+xcodebuild test -project Lineform.xcodeproj -scheme Lineform \
+  -destination 'platform=macOS' -parallel-testing-enabled NO -testPlan LineformHosted
+```
+
+The hosted plan is load-sensitive and its test host can crash at teardown (known,
+documented in `Claude.md`; never affects the app). A hosted failure on a quiet
+machine that reproduces in isolation is a real motion regression — do not ship it.
 
 ## GitHub Repo
 

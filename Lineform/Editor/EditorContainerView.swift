@@ -25,13 +25,9 @@ struct EditorContainerView: View {
     @State private var renameText = ""
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
-
-    /// New windows open with the sidebar in the user's preferred launch state
-    /// (Settings › Show sidebar on launch, default on). This governs the initial
-    /// value only; once open, the user's ⌥⌘0 toggle takes over.
-    static func initialOutlineVisible(settings: LineformSettingsStore) -> Bool {
-        settings.showSidebarOnLaunch
-    }
+    /// Held so the sidebar (Files tab) observes the SAME store this window was built
+    /// with — tests inject an isolated store and it governs the whole view tree.
+    private let settings: LineformSettingsStore
 
     init(
         document: Binding<LineformDocument>,
@@ -42,7 +38,11 @@ struct EditorContainerView: View {
         _document = document
         _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
         injectedFileBrowserStore = fileBrowserStore
-        _isShowingOutline = State(initialValue: Self.initialOutlineVisible(settings: settings))
+        self.settings = settings
+        // New windows open with the sidebar in the user's preferred launch state
+        // (Settings › Show sidebar on launch, default on). Initial value only;
+        // once open, the user's ⌥⌘0 toggle takes over.
+        _isShowingOutline = State(initialValue: settings.showSidebarOnLaunch)
     }
 
     var body: some View {
@@ -55,6 +55,7 @@ struct EditorContainerView: View {
                 openFile: openSidebarFile,
                 currentFileURL: currentFileURL,
                 fileBrowserStore: injectedFileBrowserStore,
+                settings: settings,
                 renameItem: { renameSidebarItem(at: $0.url, isDirectory: $0.isDirectory) },
                 deleteItem: { deleteSidebarItem(at: $0.url) },
                 revealItem: { SidebarFileActionPresenter.showInFinder($0.url) }

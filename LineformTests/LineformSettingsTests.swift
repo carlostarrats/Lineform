@@ -61,6 +61,18 @@ extension LineformSettingsTests {
         try "# Hi".data(using: .utf8)!.write(to: dir.appendingPathComponent("note.md"))
         XCTAssertFalse(OutlineFileBrowserStore.documentsFolderIsEmpty(at: dir, fileManager: .default))
     }
+
+    func testDocumentsFolderWithOnlyHiddenContentCountsAsNotEmpty() throws {
+        // The guard is conservative: content inside dot-folders counts regardless of the
+        // user's Show Hidden Folders setting, so a root the sidebar COULD render files
+        // under can never be hidden.
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let hidden = dir.appendingPathComponent(".claude", isDirectory: true)
+        try FileManager.default.createDirectory(at: hidden, withIntermediateDirectories: true)
+        try "# Note".data(using: .utf8)!.write(to: hidden.appendingPathComponent("note.md"))
+        XCTAssertFalse(OutlineFileBrowserStore.documentsFolderIsEmpty(at: dir, fileManager: .default))
+    }
 }
 
 // MARK: - Probe
@@ -99,32 +111,55 @@ private struct StubProbe: ICloudFolderProbing {
 
 extension LineformSettingsTests {
     func testViewModelStartsChecking() {
-        let vm = ICloudSettingViewModel(probe: StubProbe(result: .empty))
+        let vm = ICloudSettingViewModel(probe: StubProbe(result: .empty), seededStatus: nil)
         XCTAssertNil(vm.status)
         XCTAssertTrue(vm.isChecking)
-        XCTAssertFalse(vm.isToggleEnabled)   // disabled while unknown
+        XCTAssertFalse(vm.canHideICloud)     // hiding blocked while unknown
         XCTAssertTrue(vm.isControlVisible)   // visible (as "Checking…") until proven unavailable
     }
 
     func testViewModelUnavailableHidesControl() async {
-        let vm = ICloudSettingViewModel(probe: StubProbe(result: .unavailable))
+        let vm = ICloudSettingViewModel(probe: StubProbe(result: .unavailable), seededStatus: nil)
         await vm.refresh()
         XCTAssertFalse(vm.isChecking)
         XCTAssertFalse(vm.isControlVisible)
     }
 
-    func testViewModelEmptyEnablesToggle() async {
-        let vm = ICloudSettingViewModel(probe: StubProbe(result: .empty))
+    func testViewModelEmptyAllowsHiding() async {
+        let vm = ICloudSettingViewModel(probe: StubProbe(result: .empty), seededStatus: nil)
         await vm.refresh()
         XCTAssertTrue(vm.isControlVisible)
-        XCTAssertTrue(vm.isToggleEnabled)
+        XCTAssertTrue(vm.canHideICloud)
     }
 
-    func testViewModelNotEmptyDisablesToggle() async {
-        let vm = ICloudSettingViewModel(probe: StubProbe(result: .notEmpty))
+    func testViewModelNotEmptyBlocksHiding() async {
+        let vm = ICloudSettingViewModel(probe: StubProbe(result: .notEmpty), seededStatus: nil)
         await vm.refresh()
         XCTAssertTrue(vm.isControlVisible)
-        XCTAssertFalse(vm.isToggleEnabled)
+        XCTAssertFalse(vm.canHideICloud)
+    }
+
+    func testViewModelSeededStatusRendersImmediatelyWithoutChecking() {
+        // A prior probe's cached result renders instantly on reopen — no Checking flash,
+        // no control flicker on machines where iCloud never resolves.
+        let vm = ICloudSettingViewModel(probe: StubProbe(result: .unavailable), seededStatus: .unavailable)
+        XCTAssertFalse(vm.isChecking)
+        XCTAssertFalse(vm.isControlVisible)
+    }
+
+    func testViewModelToggleDisableGuardOnlyBlocksTurningOff() async {
+        let vm = ICloudSettingViewModel(probe: StubProbe(result: .notEmpty), seededStatus: nil)
+        await vm.refresh()
+        // Shown + folder not empty → can't turn off (disabled).
+        XCTAssertTrue(vm.isToggleDisabled(currentlyShown: true))
+        // Hidden + folder not empty → re-showing is always allowed (never stuck).
+        XCTAssertFalse(vm.isToggleDisabled(currentlyShown: false))
+
+        let emptyVM = ICloudSettingViewModel(probe: StubProbe(result: .empty), seededStatus: nil)
+        await emptyVM.refresh()
+        // Shown + folder empty → can turn off (enabled).
+        XCTAssertFalse(emptyVM.isToggleDisabled(currentlyShown: true))
+        XCTAssertFalse(emptyVM.isToggleDisabled(currentlyShown: false))
     }
 }
 
@@ -153,21 +188,6 @@ extension LineformSettingsTests {
     }
 }
 
-// MARK: - Launch seeding
-
-extension LineformSettingsTests {
-    func testInitialOutlineVisibleFollowsSetting() {
-        let defaults = freshDefaults("LineformSettingsLaunchSeed")
-        let store = LineformSettingsStore(defaults: defaults)
-
-        store.showSidebarOnLaunch = true
-        XCTAssertTrue(EditorContainerView.initialOutlineVisible(settings: store))
-
-        store.showSidebarOnLaunch = false
-        XCTAssertFalse(EditorContainerView.initialOutlineVisible(settings: store))
-    }
-}
-
 // MARK: - Settings copy
 
 extension LineformSettingsTests {
@@ -179,16 +199,5 @@ extension LineformSettingsTests {
         XCTAssertTrue(SettingsView.iCloudDisabledNote.contains("empty"))
         XCTAssertTrue(SettingsView.iCloudDisabledNote.lowercased().contains("does not delete"))
         XCTAssertEqual(SettingsView.iCloudCheckingNote, "Checking…")
-    }
-
-    func testICloudToggleDisableGuardOnlyBlocksTurningOff() {
-        // Shown + folder not empty → can't turn off (disabled).
-        XCTAssertTrue(SettingsView.iCloudToggleDisabled(currentlyShown: true, canToggleOff: false))
-        // Shown + folder empty → can turn off (enabled).
-        XCTAssertFalse(SettingsView.iCloudToggleDisabled(currentlyShown: true, canToggleOff: true))
-        // Hidden + folder not empty → re-showing is always allowed (enabled), never stuck.
-        XCTAssertFalse(SettingsView.iCloudToggleDisabled(currentlyShown: false, canToggleOff: false))
-        // Hidden + folder empty → enabled.
-        XCTAssertFalse(SettingsView.iCloudToggleDisabled(currentlyShown: false, canToggleOff: true))
     }
 }

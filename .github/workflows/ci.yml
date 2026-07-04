@@ -8,6 +8,9 @@ on:
 jobs:
   test:
     runs-on: macos-26
+    # Bound a hung test (AppKit-hosted state or slow file-presenter events on a
+    # loaded runner) instead of billing the 6-hour default before the kill.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Resolve packages

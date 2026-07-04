@@ -13,20 +13,14 @@ struct SettingsView: View {
     static let iCloudCheckingNote = "Checking…"
     static let iCloudDisabledNote = "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive."
 
-    /// The emptiness guard only blocks turning iCloud OFF. Re-showing a hidden root is
-    /// always safe, so when the setting is already off the toggle stays operable even
-    /// if the folder has since become non-empty (otherwise the user could get stuck
-    /// unable to bring iCloud back).
-    static func iCloudToggleDisabled(currentlyShown: Bool, canToggleOff: Bool) -> Bool {
-        currentlyShown && !canToggleOff
-    }
-
     init(
         settings: LineformSettingsStore,
-        iCloudViewModel: ICloudSettingViewModel = ICloudSettingViewModel()
+        // Autoclosure so the default view-model is built at most once, inside
+        // StateObject's own lazy storage — not on every SettingsView init.
+        iCloudViewModel: @autoclosure @escaping () -> ICloudSettingViewModel = ICloudSettingViewModel()
     ) {
         self.settings = settings
-        _iCloud = StateObject(wrappedValue: iCloudViewModel)
+        _iCloud = StateObject(wrappedValue: iCloudViewModel())
     }
 
     var body: some View {
@@ -41,10 +35,7 @@ struct SettingsView: View {
             }
 
             if iCloud.isControlVisible {
-                let toggleDisabled = Self.iCloudToggleDisabled(
-                    currentlyShown: settings.showICloudInSidebar,
-                    canToggleOff: iCloud.isToggleEnabled
-                )
+                let toggleDisabled = iCloud.isToggleDisabled(currentlyShown: settings.showICloudInSidebar)
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle(Self.showICloudTitle, isOn: $settings.showICloudInSidebar)
                         .disabled(toggleDisabled)
