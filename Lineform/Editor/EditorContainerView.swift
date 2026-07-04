@@ -7,8 +7,9 @@ struct EditorContainerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
     @State private var isShowingMarkdownBasics = false
+    @State private var isShowingSettings = false
     @State private var displayMode = EditorDisplayMode.write
-    @State private var isShowingOutline = false
+    @State private var isShowingOutline: Bool
     @State private var outlineItems: [MarkdownOutlineItem] = []
     @State private var requestedSelection: NSRange?
     @State private var searchQuery = ""
@@ -25,15 +26,24 @@ struct EditorContainerView: View {
     @State private var renameText = ""
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
+    /// Held so the sidebar (Files tab) observes the SAME store this window was built
+    /// with — tests inject an isolated store and it governs the whole view tree.
+    private let settings: LineformSettingsStore
 
     init(
         document: Binding<LineformDocument>,
         readingProfileStore: ReadingProfileStore = ReadingProfileStore(),
-        fileBrowserStore: OutlineFileBrowserStore? = nil
+        fileBrowserStore: OutlineFileBrowserStore? = nil,
+        settings: LineformSettingsStore = .shared
     ) {
         _document = document
         _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
         injectedFileBrowserStore = fileBrowserStore
+        self.settings = settings
+        // New windows open with the sidebar in the user's preferred launch state
+        // (Settings › Show sidebar on launch, default on). Initial value only;
+        // once open, the user's ⌥⌘0 toggle takes over.
+        _isShowingOutline = State(initialValue: settings.showSidebarOnLaunch)
     }
 
     var body: some View {
@@ -46,6 +56,7 @@ struct EditorContainerView: View {
                 openFile: openSidebarFile,
                 currentFileURL: currentFileURL,
                 fileBrowserStore: injectedFileBrowserStore,
+                settings: settings,
                 renameItem: { renameSidebarItem(at: $0.url, isDirectory: $0.isDirectory) },
                 deleteItem: { deleteSidebarItem(at: $0.url) },
                 revealItem: { SidebarFileActionPresenter.showInFinder($0.url) }
@@ -155,6 +166,18 @@ struct EditorContainerView: View {
                 return
             }
             isShowingOutline.toggle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showSettings.name)) { _ in
+            // Present in the MAIN window, not via key-window payload matching: still
+            // works when a panel (About, open/save) is key, and can never match
+            // several windows at once the way a nil window number could.
+            guard activeWindow?.isMainWindow == true else {
+                return
+            }
+            // One modal at a time — also keeps a single live Esc (.cancelAction)
+            // target, so Esc can't dismiss a hidden Info modal underneath.
+            isShowingMarkdownBasics = false
+            isShowingSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.renameCurrentFile.name)) { notification in
             guard notificationMatchesActiveWindow(notification), let url = currentFileURL else {
@@ -327,10 +350,47 @@ struct EditorContainerView: View {
                 }
                 .zIndex(2)
             }
+
+            // Settings uses the same modal language as Info: scrim + centered light
+            // card + Esc/outside-click dismissal. Higher zIndex so that if both are
+            // ever up, Settings (the more deliberate action) sits on top.
+            if isShowingSettings {
+                MarkdownBasicsOverlay {
+                    isShowingSettings = false
+                }
+                .zIndex(3)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
+
+                GeometryReader { geometry in
+                    SettingsModal(settings: settings, availableWidth: geometry.size.width) {
+                        isShowingSettings = false
+                    }
+                    .transition(
+                        .asymmetric(
+                            insertion: EditorMotionPolicy.fadeAndMoveTransition(
+                                y: SettingsModal.entranceYOffset,
+                                reduceMotion: reduceMotion
+                            ),
+                            removal: EditorMotionPolicy.fadeAndMoveTransition(
+                                y: SettingsModal.entranceYOffset / 2,
+                                reduceMotion: reduceMotion
+                            )
+                        )
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                }
+                .zIndex(4)
+            }
         }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: MarkdownBasicsModal.animationDuration), reduceMotion: reduceMotion),
             value: isShowingMarkdownBasics
+        )
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
+            value: isShowingSettings
         )
     }
 

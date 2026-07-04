@@ -96,6 +96,14 @@ final class AppCommandNotificationTests: XCTestCase {
         )
     }
 
+    func testSettingsCommandUsesStableNotificationNameAndTitle() {
+        XCTAssertEqual(AppMenuConfiguration.settingsCommandTitle, "Settings…")
+        XCTAssertEqual(
+            LineformAppNotification.showSettings.name.rawValue,
+            "Lineform.showSettings"
+        )
+    }
+
     func testFindCommandFocusesToolbarSearch() {
         XCTAssertEqual(AppMenuConfiguration.findCommandTitle, "Find")
         XCTAssertEqual(AppMenuConfiguration.findCommandKeyEquivalent, "f")

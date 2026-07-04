@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "id" : "5A1E4B2C-0000-4000-8000-000000000002",
+      "name" : "Hosted",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "EditorDrawerMotionHostedTests",
+        "LiveReloadScrollTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Lineform.xcodeproj",
+        "identifier" : "1F0000050000000000000002",
+        "name" : "LineformTests"
+      }
+    }
+  ],
+  "version" : 1
+}

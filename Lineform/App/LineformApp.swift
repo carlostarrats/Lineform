@@ -24,6 +24,9 @@ struct LineformApp: App {
                 updaterController: updaterController
             )
         }
+        // Settings deliberately has NO `Settings { }` scene: it presents as a
+        // Muse-style in-window modal (SettingsModal, same chrome as the Info
+        // modal) via the Settings… item AppCommands adds to the app menu (⌘,).
     }
 }
 

@@ -7,6 +7,7 @@ enum AppMenuCommandPlacement: Equatable {
 
 enum AppMenuConfiguration {
     static let aboutCommandTitle = "About Lineform"
+    static let settingsCommandTitle = "Settings…"
     static let aboutVersionDisplay = "V1.1.1"
     static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
     static let saveCommandTitle = "Save"
@@ -200,6 +201,27 @@ struct AppCommands: Commands {
             Button(AppMenuConfiguration.aboutCommandTitle) {
                 NSApp.orderFrontStandardAboutPanel(options: AppMenuConfiguration.aboutPanelOptions())
             }
+
+            Divider()
+
+            // Settings presents as a Muse-style in-window modal (SettingsModal) in the
+            // MAIN document window — the app deliberately has no `Settings { }` scene,
+            // so this button (with the standard ⌘,) is the whole entry point. With no
+            // documents open, make one first (what ⌘N would do) so ⌘, always works;
+            // a silent no-op here would break the platform expectation that Settings
+            // opens from any app state.
+            Button(AppMenuConfiguration.settingsCommandTitle) {
+                if NSDocumentController.shared.documents.isEmpty {
+                    NSDocumentController.shared.newDocument(nil)
+                    // Let the fresh window become main before the modal presents.
+                    DispatchQueue.main.async {
+                        LineformAppNotification.showSettings.post()
+                    }
+                } else {
+                    LineformAppNotification.showSettings.post()
+                }
+            }
+            .keyboardShortcut(",", modifiers: .command)
 
             Divider()
 

@@ -1,0 +1,53 @@
+name: Deploy docs to Pages
+
+# Replaces GitHub's legacy "deploy from a branch" Pages builder, which ran on EVERY
+# push to main (even code-only pushes) and produced frequent "Deployment failed, try
+# again later" failures and superseded-run cancellations — each one an email. This
+# deploys ONLY when docs/ actually changes, so the vast majority of pushes no longer
+# trigger a Pages run at all.
+#
+# The site is a plain static serve of docs/ (docs/.nojekyll is present); we upload
+# docs/ wholesale so every site path stays byte-for-byte stable. NOTE: Sparkle app
+# updates do NOT depend on this site — the shipped SUFeedURL is the raw-content URL
+# (https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml),
+# which serves straight from the git blob on push. A delayed or failed Pages deploy
+# never blocks in-app updates; this deploys the public docs site only.
+#
+# STATUS: the Pages source was flipped to build_type=workflow on 2026-07-03
+# (gh api -X PUT repos/carlostarrats/Lineform/pages -f build_type=workflow; site
+# verified still serving). If it is ever reset to "legacy", re-run that flip BEFORE
+# merging changes to this file — under legacy builds this workflow's deploy step fails.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Queue superseded deploys instead of cancelling them, so a burst of docs pushes never
+# produces a "cancelled" run (and thus no email); each queued run still deploys.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4

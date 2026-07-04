@@ -25,6 +25,11 @@
 		1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */; };
 		1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
+		1F0000010000000000000320 /* LineformSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000320 /* LineformSettings.swift */; };
+		1F0000010000000000000321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000321 /* SettingsView.swift */; };
+		1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000322 /* LineformSettingsTests.swift */; };
+		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
+		1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000324 /* TestPlanGuardTests.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000220 /* LineformCommandLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000220 /* LineformCommandLine.swift */; };
 		1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000221 /* CommandLineToolTests.swift */; };
@@ -133,6 +138,11 @@
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000011 /* LineformApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformApp.swift; sourceTree = "<group>"; };
+		1F0000020000000000000320 /* LineformSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettings.swift; sourceTree = "<group>"; };
+		1F0000020000000000000321 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		1F0000020000000000000322 /* LineformSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettingsTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000324 /* TestPlanGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlanGuardTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
 		1F0000020000000000000220 /* LineformCommandLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformCommandLine.swift; sourceTree = "<group>"; };
 		1F0000020000000000000221 /* CommandLineToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolTests.swift; sourceTree = "<group>"; };
@@ -256,6 +266,8 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000011 /* LineformApp.swift */,
+				1F0000020000000000000320 /* LineformSettings.swift */,
+				1F0000020000000000000321 /* SettingsView.swift */,
 				1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */,
 				1F0000020000000000000036 /* AppCommands.swift */,
 				1F0000020000000000000201 /* AppUpdater.swift */,
@@ -377,6 +389,9 @@
 				1F0000020000000000000042 /* FontOptionTests.swift */,
 				1F0000020000000000000043 /* ThemeTests.swift */,
 				1F0000020000000000000044 /* ReadingProfileStoreTests.swift */,
+				1F0000020000000000000322 /* LineformSettingsTests.swift */,
+				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
+				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
 				1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */,
 				1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */,
 				1F0000020000000000000063 /* AppCommandNotificationTests.swift */,
@@ -535,6 +550,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				1F0000010000000000000011 /* LineformApp.swift in Sources */,
+				1F0000010000000000000320 /* LineformSettings.swift in Sources */,
+				1F0000010000000000000321 /* SettingsView.swift in Sources */,
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
 				1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */,
 				1F0000010000000000000211 /* DocumentReloadController.swift in Sources */,
@@ -596,6 +613,9 @@
 				1F0000010000000000000042 /* FontOptionTests.swift in Sources */,
 				1F0000010000000000000043 /* ThemeTests.swift in Sources */,
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
+				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
+				1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */,
+				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,
 				1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */,
 				1F0000010000000000000062 /* ReadingAssistPreferenceTests.swift in Sources */,
 				1F0000010000000000000063 /* AppCommandNotificationTests.swift in Sources */,
