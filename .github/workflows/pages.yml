@@ -1,0 +1,53 @@
+name: Deploy docs to Pages
+
+# Replaces GitHub's legacy "deploy from a branch" Pages builder, which ran on EVERY
+# push to main (even code-only pushes) and produced frequent "Deployment failed, try
+# again later" failures and superseded-run cancellations — each one an email. This
+# deploys ONLY when docs/ actually changes, so the vast majority of pushes no longer
+# trigger a Pages run at all.
+#
+# The site is a plain static serve of docs/ (docs/.nojekyll is present), including
+# docs/appcast.xml, which is the Sparkle update channel — so we upload docs/ wholesale
+# to preserve every path byte-for-byte.
+#
+# ACTIVATION (both required, do the settings flip FIRST):
+#   1. Set the Pages source to GitHub Actions:
+#        gh api -X PUT repos/carlostarrats/Lineform/pages -f build_type=workflow
+#      (until then this workflow's deploy step fails, so do not merge to main first.)
+#   2. Merge this file to main.
+#   3. Verify the appcast still serves:
+#        curl -sI https://<pages-host>/Lineform/appcast.xml   # expect 200
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Queue superseded deploys instead of cancelling them, so a burst of docs pushes never
+# produces a "cancelled" run (and thus no email); each queued run still deploys.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
