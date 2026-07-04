@@ -127,7 +127,7 @@ enum EditorToolbarAction: CaseIterable, Equatable, Identifiable {
         case .markdownBasics:
             return "info.circle"
         case .readingExperience:
-            return "textformat.size"
+            return "textformat.alt"
         }
     }
 

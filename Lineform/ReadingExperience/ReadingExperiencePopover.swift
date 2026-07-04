@@ -19,7 +19,7 @@ struct ReadingExperienceInspector: View {
         "Highlights the current line while you write.",
         "Typewriter Mode",
         "Keeps the current line centered as you write.",
-        "Reset to Default",
+        "Reset all to default",
     ]
     static let resetTopSpacing: CGFloat = 20
     static let usesResetSeparator = false
@@ -129,7 +129,7 @@ struct ReadingExperienceInspector: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     InspectorControlRow {
-                        HoverFeedbackButton("Reset to Default") {
+                        HoverFeedbackButton("Reset all to default") {
                             store.resetToDefault()
                         }
                     }
