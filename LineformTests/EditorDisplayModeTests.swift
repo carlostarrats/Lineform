@@ -353,6 +353,123 @@ final class EditorDisplayModeTests: XCTestCase {
         )
     }
 
+    func testMetadataSegmentsColorOnlyTheUntitledLabel() {
+        let untitled = EditorStatusFormatter.metadataSegments(
+            lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay(label: "Not saved yet", detail: nil),
+            statisticsText: "12 words — 68 characters"
+        )
+        XCTAssertEqual(untitled.unsavedLabel, "Not saved yet")
+        XCTAssertEqual(untitled.neutralText, "  |  12 words — 68 characters")
+
+        let saved = EditorStatusFormatter.metadataSegments(
+            lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "3:41 PM"),
+            statisticsText: "340 words — 1948 characters"
+        )
+        XCTAssertNil(saved.unsavedLabel, "Established doc metadata is never colored")
+        XCTAssertEqual(saved.neutralText, "Last save: 3:41 PM  |  340 words — 1948 characters")
+    }
+
+    func testMetadataTextStillMatchesSegments() {
+        // Existing metadataText output must be unchanged (a11y string).
+        let display = EditorStatusFormatter.LastSavedDisplay(label: "Not saved yet", detail: nil)
+        XCTAssertEqual(
+            EditorStatusFormatter.metadataText(lastSavedDisplay: display, statisticsText: "12 words — 68 characters"),
+            "Not saved yet  |  12 words — 68 characters"
+        )
+    }
+
+    func testLeftIndicatorReflectsSaveState() {
+        let now = Date()
+        // Untitled: never a left indicator (red lives in main text).
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: nil, isDirty: false, flash: nil), .none)
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: nil, isDirty: true, flash: .saved), .none)
+        // Established dirty: amber, and dirty wins over a lingering flash.
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: now, isDirty: true, flash: nil), .unsavedChanges)
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: now, isDirty: true, flash: .autosaved), .unsavedChanges)
+        // Established clean with a flash: show the flash.
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: now, isDirty: false, flash: .saved), .saved)
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: now, isDirty: false, flash: .autosaved), .autosaved)
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: now, isDirty: false, flash: .updated), .updated)
+        // Established clean, no flash: nothing.
+        XCTAssertEqual(EditorStatusFormatter.indicator(savedAt: now, isDirty: false, flash: nil), .none)
+    }
+
+    func testIndicatorPresentationTextAndIcon() {
+        XCTAssertEqual(EditorStatusIndicator.unsavedChanges.text, "Unsaved changes")
+        XCTAssertEqual(EditorStatusIndicator.saved.text, "Saved")
+        XCTAssertEqual(EditorStatusIndicator.autosaved.text, "Autosaved")
+        XCTAssertEqual(EditorStatusIndicator.updated.text, "Updated")
+        XCTAssertNil(EditorStatusIndicator.none.text)
+        XCTAssertTrue(EditorStatusIndicator.updated.showsReloadIcon)
+        XCTAssertFalse(EditorStatusIndicator.unsavedChanges.showsReloadIcon)
+        XCTAssertFalse(EditorStatusIndicator.saved.showsReloadIcon)
+    }
+
+    @MainActor
+    func testDocumentDirtyReflectsTextVsLastWrite() {
+        let status = DocumentSaveStatus.testInstance()
+        let id = UUID()
+        // Untitled (never saved): never "dirty" — the untitled state is signaled separately.
+        XCTAssertFalse(status.isDirty(documentID: id, currentText: "hello"))
+        // After a write, matching text is clean; changed text is dirty.
+        status.recordWrite(documentID: id, text: "hello")
+        XCTAssertFalse(status.isDirty(documentID: id, currentText: "hello"))
+        XCTAssertTrue(status.isDirty(documentID: id, currentText: "hello world"))
+    }
+
+    @MainActor
+    func testRecordWriteClassifiesManualVsAutosave() {
+        let status = DocumentSaveStatus.testInstance()
+        let id = UUID()
+        // No intent → autosave.
+        status.recordWrite(documentID: id, text: "a")
+        XCTAssertEqual(status.lastSaveEvent?.kind, .autosave)
+        let firstSeq = status.lastSaveEvent?.sequence
+        // Manual intent → manual, consumed once.
+        status.noteManualSaveIntent()
+        status.recordWrite(documentID: id, text: "ab")
+        XCTAssertEqual(status.lastSaveEvent?.kind, .manual)
+        // A distinct event each time, so .onChange fires even for repeated kinds.
+        XCTAssertNotEqual(status.lastSaveEvent?.sequence, firstSeq)
+        // Intent is one-shot: the next write is autosave again.
+        status.recordWrite(documentID: id, text: "abc")
+        XCTAssertEqual(status.lastSaveEvent?.kind, .autosave)
+    }
+
+    @MainActor
+    func testManualIntentSurvivesUntilWriteButIsClearedByAnEdit() {
+        let status = DocumentSaveStatus.testInstance()
+        let id = UUID()
+        // Intent is not time-gated: it persists across a (potentially slow) save panel
+        // until the write lands, so panel saves still classify as manual.
+        status.noteManualSaveIntent()
+        status.recordWrite(documentID: id, text: "saved via panel")
+        XCTAssertEqual(status.lastSaveEvent?.kind, .manual)
+
+        // But an edit before the write means the next write is an autosave of that edit.
+        status.noteManualSaveIntent()
+        status.noteUserEdit()
+        status.recordWrite(documentID: id, text: "edited then autosaved")
+        XCTAssertEqual(status.lastSaveEvent?.kind, .autosave)
+    }
+
+    func testStatusStateColorsMeetAAAgainstEveryThemeBackground() {
+        for theme in Theme.builtIn {
+            let dark = theme.usesDarkChrome
+            let background = theme.backgroundColor
+            for color in [
+                EditorStatusColors.notSaved(dark: dark),
+                EditorStatusColors.unsavedChanges(dark: dark),
+                EditorStatusColors.saved(dark: dark)
+            ] {
+                XCTAssertGreaterThanOrEqual(
+                    Self.contrastRatio(color, background), 4.5,
+                    "Status color fails AA on theme \(theme.name) (dark=\(dark))"
+                )
+            }
+        }
+    }
+
     func testStatusBarFormatsLastSavedTimeAndDate() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
@@ -460,14 +577,15 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     private static func relativeLuminance(_ color: NSColor) -> CGFloat {
+        let rgb = color.usingColorSpace(.sRGB) ?? color
         func linearized(_ component: CGFloat) -> CGFloat {
             component <= 0.03928
                 ? component / 12.92
                 : pow((component + 0.055) / 1.055, 2.4)
         }
 
-        return 0.2126 * linearized(color.redComponent)
-            + 0.7152 * linearized(color.greenComponent)
-            + 0.0722 * linearized(color.blueComponent)
+        return 0.2126 * linearized(rgb.redComponent)
+            + 0.7152 * linearized(rgb.greenComponent)
+            + 0.0722 * linearized(rgb.blueComponent)
     }
 }

@@ -5,6 +5,31 @@ enum AppMenuCommandPlacement: Equatable {
     case view
 }
 
+enum ManualSaveIntentMonitor {
+    @MainActor private static var installed = false
+
+    /// Observes ⌘S / ⌘⇧S so a keyboard-initiated Save is attributed to the user
+    /// (green "Saved") rather than an autosave (green "Autosaved"). Pure observation:
+    /// it returns the event unchanged and never swallows the keystroke or touches the
+    /// save machinery itself.
+    @MainActor
+    static func installIfNeeded() {
+        guard !installed else { return }
+        installed = true
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let isCommandS = mods.contains(.command)
+                && !mods.contains(.option)
+                && !mods.contains(.control)
+                && event.charactersIgnoringModifiers?.lowercased() == "s"
+            if isCommandS {
+                DocumentSaveStatus.shared.noteManualSaveIntent()
+            }
+            return event
+        }
+    }
+}
+
 enum AppMenuConfiguration {
     static let aboutCommandTitle = "About Lineform"
     static let settingsCommandTitle = "Settings…"
@@ -248,6 +273,7 @@ struct AppCommands: Commands {
 
         CommandGroup(after: .saveItem) {
             Button(AppMenuConfiguration.saveAsCommandTitle) {
+                DocumentSaveStatus.shared.noteManualSaveIntent()
                 NSApp.sendAction(AppMenuConfiguration.saveAsCommandSelector, to: nil, from: nil)
             }
             .keyboardShortcut(
