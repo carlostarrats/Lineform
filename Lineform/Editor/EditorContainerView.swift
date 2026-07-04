@@ -167,10 +167,16 @@ struct EditorContainerView: View {
             }
             isShowingOutline.toggle()
         }
-        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showSettings.name)) { notification in
-            guard notificationMatchesActiveWindow(notification) else {
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showSettings.name)) { _ in
+            // Present in the MAIN window, not via key-window payload matching: still
+            // works when a panel (About, open/save) is key, and can never match
+            // several windows at once the way a nil window number could.
+            guard activeWindow?.isMainWindow == true else {
                 return
             }
+            // One modal at a time — also keeps a single live Esc (.cancelAction)
+            // target, so Esc can't dismiss a hidden Info modal underneath.
+            isShowingMarkdownBasics = false
             isShowingSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.renameCurrentFile.name)) { notification in
@@ -357,22 +363,24 @@ struct EditorContainerView: View {
                     transaction.animation = nil
                 }
 
-                SettingsModal(settings: settings) {
-                    isShowingSettings = false
-                }
-                .transition(
-                    .asymmetric(
-                        insertion: EditorMotionPolicy.fadeAndMoveTransition(
-                            y: SettingsModal.entranceYOffset,
-                            reduceMotion: reduceMotion
-                        ),
-                        removal: EditorMotionPolicy.fadeAndMoveTransition(
-                            y: SettingsModal.entranceYOffset / 2,
-                            reduceMotion: reduceMotion
+                GeometryReader { geometry in
+                    SettingsModal(settings: settings, availableWidth: geometry.size.width) {
+                        isShowingSettings = false
+                    }
+                    .transition(
+                        .asymmetric(
+                            insertion: EditorMotionPolicy.fadeAndMoveTransition(
+                                y: SettingsModal.entranceYOffset,
+                                reduceMotion: reduceMotion
+                            ),
+                            removal: EditorMotionPolicy.fadeAndMoveTransition(
+                                y: SettingsModal.entranceYOffset / 2,
+                                reduceMotion: reduceMotion
+                            )
                         )
                     )
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                }
                 .zIndex(4)
             }
         }

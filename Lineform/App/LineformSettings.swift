@@ -26,8 +26,14 @@ final class LineformSettingsStore: ObservableObject {
     /// choice is persisted and always wins.
     @Published private(set) var allowRootFolderCollapseChoice: Bool? {
         didSet {
-            guard oldValue != allowRootFolderCollapseChoice, let choice = allowRootFolderCollapseChoice else { return }
-            defaults.set(choice, forKey: Self.allowRootFolderCollapseKey)
+            guard oldValue != allowRootFolderCollapseChoice else { return }
+            if let choice = allowRootFolderCollapseChoice {
+                defaults.set(choice, forKey: Self.allowRootFolderCollapseKey)
+            } else {
+                // nil = back to adaptive: the key must actually clear, or the old
+                // explicit choice silently resurrects from defaults on next launch.
+                defaults.removeObject(forKey: Self.allowRootFolderCollapseKey)
+            }
         }
     }
 
@@ -131,15 +137,27 @@ final class ICloudSettingViewModel: ObservableObject {
     /// result of a newer refresh.
     private var refreshGeneration = 0
 
-    init(probe: ICloudFolderProbing = ICloudFolderProbe()) {
+    init(probe: ICloudFolderProbing = ICloudFolderProbe(), defaults: UserDefaults = .standard) {
         self.probe = probe
-        _status = Published(initialValue: Self.lastKnownStatus)
+        // Seed from the process cache first; failing that, from the PERSISTED
+        // last-known container availability the sidebar's scans record — so a Mac
+        // known to lack iCloud renders the row disabled on the very first Settings
+        // open of a session (no Checking… flash, and the collapse toggle agrees
+        // with the sidebar's auto-lock from frame one).
+        let persistedUnavailable = (defaults.object(forKey: OutlineFileBrowserStore.lastKnownICloudAvailableDefaultsKey) as? Bool) == false
+        _status = Published(initialValue: Self.lastKnownStatus ?? (persistedUnavailable ? .unavailable : nil))
     }
 
     /// Test-only seeding: bypasses the process-wide cache so tests are order-independent.
     init(probe: ICloudFolderProbing, seededStatus: ICloudFolderStatus?) {
         self.probe = probe
         _status = Published(initialValue: seededStatus)
+    }
+
+    /// Test-only: clears the process-wide cache so tests of the designated init's
+    /// seeding behavior don't depend on which test ran (and refreshed) first.
+    static func resetProcessCacheForTesting() {
+        lastKnownStatus = nil
     }
 
     var isChecking: Bool { status == nil }

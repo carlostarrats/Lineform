@@ -12,6 +12,11 @@ struct SettingsModal: View {
 
     static let title = "Settings"
     static let contentWidth: CGFloat = 460
+    /// The card fits inside narrow windows (minimum editor width is ~300pt): it
+    /// takes its ideal width when the window allows, else shrinks with margins.
+    static func cardWidth(availableWidth: CGFloat) -> CGFloat {
+        min(contentWidth, max(280, availableWidth - 24))
+    }
     static let animationDuration = MarkdownBasicsModal.animationDuration
     static let entranceYOffset = MarkdownBasicsModal.entranceYOffset
 
@@ -26,15 +31,19 @@ struct SettingsModal: View {
     static let iCloudEnabledNote = "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed."
 
     @State private var isCloseHovered = false
+    /// Window width the presenting container offers (via GeometryReader).
+    var availableWidth: CGFloat
 
     init(
         settings: LineformSettingsStore,
+        availableWidth: CGFloat = SettingsModal.contentWidth + 24,
         // Autoclosure so the default view-model is built at most once, inside
         // StateObject's own lazy storage — not on every SettingsModal init.
         iCloudViewModel: @autoclosure @escaping () -> ICloudSettingViewModel = ICloudSettingViewModel(),
         dismiss: @escaping () -> Void = {}
     ) {
         self.settings = settings
+        self.availableWidth = availableWidth
         _iCloud = StateObject(wrappedValue: iCloudViewModel())
         self.dismiss = dismiss
     }
@@ -93,12 +102,12 @@ struct SettingsModal: View {
                     title: Self.showICloudTitle,
                     note: iCloudNote,
                     isOn: $settings.showICloudInSidebar,
-                    disabled: iCloud.isToggleDisabled(currentlyShown: settings.showICloudInSidebar)
+                    disabled: iCloudToggleDisabled
                 )
             }
         }
         .padding(24)
-        .frame(width: Self.contentWidth, alignment: .leading)
+        .frame(width: Self.cardWidth(availableWidth: availableWidth), alignment: .leading)
         .background(Self.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
@@ -128,6 +137,12 @@ struct SettingsModal: View {
         )
     }
 
+    /// Single derivation shared by the row's disabled state AND its caption, so the
+    /// two can never disagree.
+    private var iCloudToggleDisabled: Bool {
+        iCloud.isToggleDisabled(currentlyShown: settings.showICloudInSidebar)
+    }
+
     /// The iCloud row's explanatory line tracks the probe state: checking →
     /// unavailable → blocked-because-not-empty → the plain description.
     private var iCloudNote: String {
@@ -137,7 +152,7 @@ struct SettingsModal: View {
         if iCloud.isUnavailable {
             return Self.iCloudUnavailableNote
         }
-        if iCloud.isToggleDisabled(currentlyShown: settings.showICloudInSidebar) {
+        if iCloudToggleDisabled {
             return Self.iCloudDisabledNote
         }
         return Self.iCloudEnabledNote

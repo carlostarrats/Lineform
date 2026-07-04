@@ -33,6 +33,52 @@ final class LineformSettingsTests: XCTestCase {
         XCTAssertFalse(restored.showICloudInSidebar)
     }
 
+    func testStoreRecordsPersistedICloudAvailability() {
+        // Optimistic default: never recorded → assume available (fresh installs are
+        // mostly real users with iCloud; avoids a locked-geometry flash).
+        let defaults = freshDefaults("LineformICloudAvailability")
+        let unavailableStore = OutlineFileBrowserStore(
+            defaults: defaults,
+            iCloudDocumentsURLProvider: { _ in nil }
+        )
+        XCTAssertTrue(unavailableStore.lastKnownICloudAvailable)
+
+        // A scan that fails to resolve the container records (and persists) false…
+        unavailableStore.refreshICloud()
+        XCTAssertFalse(unavailableStore.lastKnownICloudAvailable)
+        XCTAssertEqual(defaults.object(forKey: OutlineFileBrowserStore.lastKnownICloudAvailableDefaultsKey) as? Bool, false)
+
+        // …so the NEXT store on the same defaults knows before any scan runs.
+        let restored = OutlineFileBrowserStore(
+            defaults: defaults,
+            iCloudDocumentsURLProvider: { _ in nil }
+        )
+        XCTAssertFalse(restored.lastKnownICloudAvailable)
+
+        // And a scan that resolves flips it back.
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let availableStore = OutlineFileBrowserStore(
+            defaults: defaults,
+            iCloudDocumentsURLProvider: { _ in dir }
+        )
+        availableStore.refreshICloud()
+        XCTAssertTrue(availableStore.lastKnownICloudAvailable)
+        XCTAssertEqual(defaults.object(forKey: OutlineFileBrowserStore.lastKnownICloudAvailableDefaultsKey) as? Bool, true)
+    }
+
+    func testViewModelSeedsFromPersistedAvailability() {
+        // A Mac whose last scan found no iCloud renders .unavailable on the very
+        // first Settings open of a session — no Checking… flash, and the collapse
+        // toggle agrees with the sidebar's auto-lock immediately.
+        ICloudSettingViewModel.resetProcessCacheForTesting()
+        let defaults = freshDefaults("LineformVMPersistedSeed")
+        defaults.set(false, forKey: OutlineFileBrowserStore.lastKnownICloudAvailableDefaultsKey)
+        let vm = ICloudSettingViewModel(probe: StubProbe(result: .unavailable), defaults: defaults)
+        XCTAssertFalse(vm.isChecking)
+        XCTAssertTrue(vm.isUnavailable)
+    }
+
     func testEffectiveCollapseAdaptsToICloudVisibilityUntilUserChooses() {
         // No choice: collapsible only while both roots are visible — a lone
         // Workspace root auto-locks open (nothing to collapse against).

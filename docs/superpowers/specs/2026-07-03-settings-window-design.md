@@ -2,6 +2,17 @@
 
 Date: 2026-07-03
 
+> **SUPERSEDED (same day, after user QA).** The shipped implementation deliberately
+> differs from this spec on four points — do not "restore" the spec'd design:
+> Settings presents as a Muse-style **in-window modal** (`SettingsModal`), not a
+> native `Settings { }` scene; the iCloud row is **always visible** (disabled with
+> "iCloud is not available on this Mac." when unavailable), not hidden; the collapse
+> pref is **"Allow root folders to expand and collapse"** — tri-state with an
+> adaptive default that auto-locks a lone Workspace root — not the default-off
+> "Keep root folders expanded"; and locked mode reclaims the chevron column with
+> QA-dialed geometry. The current truth lives in `Claude.md` (Main Features →
+> Settings) and the code.
+
 ## Summary
 
 Add a native macOS **Settings…** window (⌘,) to Lineform, reachable from the

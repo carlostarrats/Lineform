@@ -120,16 +120,15 @@ struct OutlineSidebarView: View {
     /// row x-position.
     static let filesTreeIndentStep: CGFloat = 14
 
-    /// When root collapsing is disallowed, the root rows drop their chevron slot
-    /// (10pt) + HStack spacing (8pt) — an 18pt structural shift of the header.
-    static let filesLockedChevronReclaim: CGFloat = 18
-
-    /// Descendants (sort row, empty state, tree rows) shift by ONE INDENT STEP (14pt),
-    /// not the root's full 18pt: both row kinds carry the same 6pt inner padding, so a
-    /// 14pt shift lands a depth-1 subfolder chevron exactly left-aligned with the root
-    /// icon — visibly under its root. Shifting the full 18 would push it 4pt LEFT of
-    /// the root's leading edge, reading as a sibling (the alignment bug from QA).
-    static let filesLockedDescendantShift: CGFloat = filesTreeIndentStep
+    /// How far everything UNDER a root (Sort row, empty state, tree rows) shifts
+    /// left when root collapsing is locked off. The root header itself shifts 18pt
+    /// structurally — its 10pt chevron slot + 8pt HStack spacing are simply dropped
+    /// in OutlineFileRootRow (no constant governs that; don't invent one) — while
+    /// descendants shift this smaller amount so they stay visibly indented under
+    /// the root. Locked geometry (QA-dialed): depth-1 tree chevron at a 10pt
+    /// leading, 4pt inside the root icon's edge (icon at 6pt); Sort row at 18pt —
+    /// the same 8pt right of the tree chevron it has unlocked (28 vs 20).
+    static let filesLockedDescendantShift: CGFloat = 10
 
     /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
     /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
@@ -155,8 +154,9 @@ struct OutlineSidebarView: View {
         rootIsVisible(id: "icloud", state: state) && showICloudInSidebar
     }
 
-    /// A root's collapse chevron is suppressed entirely when the user has locked
-    /// roots expanded (Settings › Keep root folders expanded).
+    /// A root's collapse chevron is suppressed entirely when root collapsing is
+    /// locked off (Settings › Allow root folders to expand and collapse — either
+    /// turned off explicitly, or auto-locked while only the Workspace root shows).
     static func rootDisclosureVisible(state: OutlineFileRootState, isEmpty: Bool, lockExpanded: Bool) -> Bool {
         rootShowsDisclosure(state: state, isEmpty: isEmpty) && !lockExpanded
     }
@@ -671,6 +671,7 @@ final class OutlineFileBrowserStore: ObservableObject {
     static let showsHiddenFoldersDefaultsKey = "Lineform.outline.showsHiddenFolders"
     static let iCloudSortOrderDefaultsKey = "Lineform.outline.sortOrder.icloud"
     static let workspaceSortOrderDefaultsKey = "Lineform.outline.sortOrder.workspace"
+    static let lastKnownICloudAvailableDefaultsKey = "Lineform.outline.lastKnownICloudAvailable"
     static let maximumTreeDepth = 4
     static let maximumChildrenPerFolder = 80
     static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
@@ -714,6 +715,21 @@ final class OutlineFileBrowserStore: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Whether the iCloud container resolved on this machine the LAST time any scan
+    /// ran, persisted across launches. Surfaces that need "is iCloud a thing here"
+    /// BEFORE the deferred Files-tab scan (the adaptive root-collapse lock, the
+    /// Settings modal's first frame) read this instead of live root state — which is
+    /// hardcoded `.unavailable` until a scan and would otherwise flash locked/wrong
+    /// UI on iCloud machines. Optimistic `true` when never recorded, so fresh
+    /// installs (mostly real users with iCloud) don't flash either.
+    @Published private(set) var lastKnownICloudAvailable = true
+
+    private func recordICloudAvailability(_ available: Bool) {
+        guard available != lastKnownICloudAvailable else { return }
+        lastKnownICloudAvailable = available
+        defaults.set(available, forKey: Self.lastKnownICloudAvailableDefaultsKey)
     }
 
     /// Per-section sort preferences (spec: independent for iCloud and workspace, like Muse).
@@ -810,6 +826,9 @@ final class OutlineFileBrowserStore: ObservableObject {
         )
         _workspaceSortOrder = Published(
             initialValue: OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.workspaceSortOrderDefaultsKey) ?? "") ?? .name
+        )
+        _lastKnownICloudAvailable = Published(
+            initialValue: defaults.object(forKey: Self.lastKnownICloudAvailableDefaultsKey) as? Bool ?? true
         )
         loadICloudSnapshot()
         loadWorkspaceSnapshot()
@@ -1060,6 +1079,7 @@ final class OutlineFileBrowserStore: ObservableObject {
         resolvedICloudDocumentsURL = nil
 
         guard let url = iCloudDocumentsURLProvider(fileManager) else {
+            recordICloudAvailability(false)
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
                 title: "Lineform",
@@ -1077,6 +1097,7 @@ final class OutlineFileBrowserStore: ObservableObject {
             fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory),
             isDirectory.boolValue
         else {
+            recordICloudAvailability(false)
             iCloudRoot = OutlineFileRoot(
                 id: "icloud",
                 title: "Lineform",
@@ -1087,6 +1108,7 @@ final class OutlineFileBrowserStore: ObservableObject {
             return
         }
 
+        recordICloudAvailability(true)
         resolvedICloudDocumentsURL = url
         let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: iCloudSortOrder)
         let itemsChanged = items != lastICloudItems
@@ -1342,17 +1364,18 @@ private struct OutlineFileBrowserView: View {
 
     @ViewBuilder
     private func rootView(_ root: OutlineFileRoot) -> some View {
-        // When collapsing is disallowed, the ENTIRE section shifts left: the root row
-        // drops its chevron slot internally (18pt), and every descendant subtracts one
-        // indent step (14pt) — landing depth-1 chevrons left-aligned with the root icon
-        // (see filesLockedDescendantShift for why the two amounts differ).
+        // When collapsing is disallowed, the section shifts left: the root row drops
+        // its chevron slot internally (18pt); everything under it (Sort, empty state,
+        // tree rows) shifts by filesLockedDescendantShift (10pt), preserving the
+        // normal Sort-to-subfolder relationship (Sort sits 8pt right of the tree
+        // chevron in both states).
         let lockExpanded = self.lockExpanded
         let reclaim = lockExpanded ? OutlineSidebarView.filesLockedDescendantShift : 0
 
         VStack(alignment: .leading, spacing: 2) {
             OutlineFileRootRow(
                 root: root,
-                isCollapsed: isRootCollapsed(root.id),
+                isCollapsed: isRootCollapsed(root.id, lockExpanded: lockExpanded),
                 lockExpanded: lockExpanded,
                 toggleCollapsed: { toggle(root.id) },
                 chooseWorkspaceFolder: store.chooseWorkspaceFolder
@@ -1361,13 +1384,16 @@ private struct OutlineFileBrowserView: View {
 
             // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
             // expandable tree, no empty-state line — just the quiet header.
-            if root.state == .available, !isRootCollapsed(root.id), !rootIsDimmed(root), !root.items.isEmpty {
+            if root.state == .available, !isRootCollapsed(root.id, lockExpanded: lockExpanded), !rootIsDimmed(root), !root.items.isEmpty {
+                // The Sort row shifts with the tree (10pt), keeping its normal
+                // alignment to the subfolder below it: 8pt right of the tree's
+                // chevron in both states (28 vs 20 unlocked, 18 vs 10 locked).
                 OutlineFileSortRow(rootTitle: root.title, sortOrder: sortBinding(for: root))
                     .padding(.leading, 28 - reclaim)
                     .padding(.bottom, 2)
             }
 
-            if root.showsTree, !isRootCollapsed(root.id), !rootIsDimmed(root) {
+            if root.showsTree, !isRootCollapsed(root.id, lockExpanded: lockExpanded), !rootIsDimmed(root) {
                 if root.items.isEmpty {
                     // Only a connected (.available) empty folder is genuinely "no Markdown." A
                     // disconnected folder's emptiness just means the cached snapshot is empty — the
@@ -1418,18 +1444,18 @@ private struct OutlineFileBrowserView: View {
     /// Whether the root sections are locked open right now: the user's explicit
     /// Settings choice wins; with no choice, a lone Workspace root (iCloud
     /// unavailable or hidden) auto-locks — one section has nothing to collapse
-    /// against, and dropping the chevrons reclaims their column.
+    /// against, and dropping the chevrons reclaims their column. Reads the store's
+    /// PERSISTED last-known iCloud availability, not live root state: live state is
+    /// hardcoded `.unavailable` until the deferred Files-tab scan, which would
+    /// flash locked geometry on every first tab reveal on iCloud machines.
     private var lockExpanded: Bool {
         !LineformSettingsStore.effectiveAllowRootFolderCollapse(
             choice: settings.allowRootFolderCollapseChoice,
-            iCloudRootVisible: OutlineSidebarView.iCloudRootVisible(
-                state: store.iCloudRoot.state,
-                showICloudInSidebar: settings.showICloudInSidebar
-            )
+            iCloudRootVisible: settings.showICloudInSidebar && store.lastKnownICloudAvailable
         )
     }
 
-    private func isRootCollapsed(_ id: String) -> Bool {
+    private func isRootCollapsed(_ id: String, lockExpanded: Bool) -> Bool {
         OutlineSidebarView.rootIsCollapsed(
             isInCollapsedSet: collapsedIDs.contains(id),
             lockExpanded: lockExpanded
@@ -1719,8 +1745,8 @@ private struct OutlineFileTreeNodeView: View {
 
             Spacer(minLength: 0)
         }
-        // Shift with the root when collapsing is disallowed: one indent step, which
-        // lands depth-1 chevrons exactly left-aligned with the root icon (see
+        // Shift with the root when collapsing is locked: depth-1 chevrons land at a
+        // 10pt leading, 4pt inside the root icon's edge (see the geometry notes on
         // filesLockedDescendantShift). The 14pt indent ladder stays intact.
         .padding(.leading, CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep
             - (lockExpanded ? OutlineSidebarView.filesLockedDescendantShift : 0))
