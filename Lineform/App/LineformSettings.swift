@@ -18,14 +18,28 @@ final class LineformSettingsStore: ObservableObject {
             defaults.set(showSidebarOnLaunch, forKey: Self.showSidebarOnLaunchKey)
         }
     }
-    /// Default ON (today's behavior: the sidebar's root sections are collapsible).
-    /// Turning it OFF locks the iCloud/Workspace sections open and hides their
-    /// chevrons. Phrased as an "allow" so the toggle reads in the affirmative.
-    @Published var allowRootFolderCollapse: Bool {
+    /// The user's EXPLICIT choice for root-folder collapsing, or nil if they have
+    /// never touched the toggle. Kept tri-state so the effective behavior can adapt:
+    /// with no explicit choice, collapsing is on only while BOTH roots are visible —
+    /// a lone Workspace root has nothing to collapse against, so it auto-locks open
+    /// (and reclaims the chevron column). The moment the user sets the toggle, their
+    /// choice is persisted and always wins.
+    @Published private(set) var allowRootFolderCollapseChoice: Bool? {
         didSet {
-            guard oldValue != allowRootFolderCollapse else { return }
-            defaults.set(allowRootFolderCollapse, forKey: Self.allowRootFolderCollapseKey)
+            guard oldValue != allowRootFolderCollapseChoice, let choice = allowRootFolderCollapseChoice else { return }
+            defaults.set(choice, forKey: Self.allowRootFolderCollapseKey)
         }
+    }
+
+    func setAllowRootFolderCollapse(_ allow: Bool) {
+        allowRootFolderCollapseChoice = allow
+    }
+
+    /// The behavior the sidebar actually applies: the user's saved choice if they
+    /// made one, otherwise collapsible only when the iCloud root is visible alongside
+    /// the workspace (two sections are worth collapsing; one is not).
+    static func effectiveAllowRootFolderCollapse(choice: Bool?, iCloudRootVisible: Bool) -> Bool {
+        choice ?? iCloudRootVisible
     }
     @Published var showICloudInSidebar: Bool {
         didSet {
@@ -46,7 +60,9 @@ final class LineformSettingsStore: ObservableObject {
             defaults.object(forKey: key) as? Bool ?? fallback
         }
         _showSidebarOnLaunch = Published(initialValue: boolOrDefault(Self.showSidebarOnLaunchKey, true))
-        _allowRootFolderCollapse = Published(initialValue: boolOrDefault(Self.allowRootFolderCollapseKey, true))
+        // Tri-state: absent key = the user never chose (nil), so the effective
+        // behavior can adapt to root visibility.
+        _allowRootFolderCollapseChoice = Published(initialValue: defaults.object(forKey: Self.allowRootFolderCollapseKey) as? Bool)
         _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, true))
     }
 }

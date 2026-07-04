@@ -11,10 +11,12 @@ final class LineformSettingsTests: XCTestCase {
 
     // MARK: - Store
 
-    func testDefaultsAreSidebarOnCollapseAllowedICloudOn() {
+    func testDefaultsAreSidebarOnNoCollapseChoiceICloudOn() {
         let store = LineformSettingsStore(defaults: freshDefaults("LineformSettingsDefaults"))
         XCTAssertTrue(store.showSidebarOnLaunch)
-        XCTAssertTrue(store.allowRootFolderCollapse)
+        // No explicit collapse choice out of the box — the effective behavior adapts
+        // to root visibility until the user touches the toggle.
+        XCTAssertNil(store.allowRootFolderCollapseChoice)
         XCTAssertTrue(store.showICloudInSidebar)
     }
 
@@ -22,13 +24,23 @@ final class LineformSettingsTests: XCTestCase {
         let defaults = freshDefaults("LineformSettingsPersist")
         let store = LineformSettingsStore(defaults: defaults)
         store.showSidebarOnLaunch = false
-        store.allowRootFolderCollapse = false
+        store.setAllowRootFolderCollapse(false)
         store.showICloudInSidebar = false
 
         let restored = LineformSettingsStore(defaults: defaults)
         XCTAssertFalse(restored.showSidebarOnLaunch)
-        XCTAssertFalse(restored.allowRootFolderCollapse)
+        XCTAssertEqual(restored.allowRootFolderCollapseChoice, false)
         XCTAssertFalse(restored.showICloudInSidebar)
+    }
+
+    func testEffectiveCollapseAdaptsToICloudVisibilityUntilUserChooses() {
+        // No choice: collapsible only while both roots are visible — a lone
+        // Workspace root auto-locks open (nothing to collapse against).
+        XCTAssertTrue(LineformSettingsStore.effectiveAllowRootFolderCollapse(choice: nil, iCloudRootVisible: true))
+        XCTAssertFalse(LineformSettingsStore.effectiveAllowRootFolderCollapse(choice: nil, iCloudRootVisible: false))
+        // An explicit choice always wins, in both directions.
+        XCTAssertTrue(LineformSettingsStore.effectiveAllowRootFolderCollapse(choice: true, iCloudRootVisible: false))
+        XCTAssertFalse(LineformSettingsStore.effectiveAllowRootFolderCollapse(choice: false, iCloudRootVisible: true))
     }
 }
 

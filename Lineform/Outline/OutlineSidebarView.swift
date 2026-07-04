@@ -1341,7 +1341,7 @@ private struct OutlineFileBrowserView: View {
         // empty state, tree) shifts left by the reclaimed chevron column so it moves
         // as one block — the root row drops its slot internally; every descendant
         // subtracts the same constant here.
-        let lockExpanded = !settings.allowRootFolderCollapse
+        let lockExpanded = self.lockExpanded
         let reclaim = lockExpanded ? OutlineSidebarView.filesLockedChevronReclaim : 0
 
         VStack(alignment: .leading, spacing: 2) {
@@ -1410,10 +1410,24 @@ private struct OutlineFileBrowserView: View {
         return root.state == .unavailable
     }
 
+    /// Whether the root sections are locked open right now: the user's explicit
+    /// Settings choice wins; with no choice, a lone Workspace root (iCloud
+    /// unavailable or hidden) auto-locks — one section has nothing to collapse
+    /// against, and dropping the chevrons reclaims their column.
+    private var lockExpanded: Bool {
+        !LineformSettingsStore.effectiveAllowRootFolderCollapse(
+            choice: settings.allowRootFolderCollapseChoice,
+            iCloudRootVisible: OutlineSidebarView.iCloudRootVisible(
+                state: store.iCloudRoot.state,
+                showICloudInSidebar: settings.showICloudInSidebar
+            )
+        )
+    }
+
     private func isRootCollapsed(_ id: String) -> Bool {
         OutlineSidebarView.rootIsCollapsed(
             isInCollapsedSet: collapsedIDs.contains(id),
-            lockExpanded: !settings.allowRootFolderCollapse
+            lockExpanded: lockExpanded
         )
     }
 
@@ -1442,42 +1456,41 @@ private struct OutlineFileRootRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // The chevron slot is reserved even when a single root has no glyph, so titles
-            // align across roots (an empty iCloud root next to an expandable workspace).
-            // But when collapse is disallowed (Settings), NO root can ever show a chevron,
-            // so the slot is dropped entirely — the rows shift flush left and reclaim the
-            // space, which is part of the point of turning collapsing off.
-            if !lockExpanded {
-                Group {
-                    if showsDisclosure {
+            // Only an expandable root is a real disclosure control. The WHOLE header
+            // (chevron + icon + title) is the button — users click the chevron or icon
+            // as readily as the title, and a title-only target leaves dead zones. A
+            // non-expandable header renders as plain views so VoiceOver doesn't
+            // announce an "Expand/Collapse" affordance it can't honor.
+            if showsDisclosure {
+                Button(action: toggleCollapsed) {
+                    HStack(spacing: 8) {
                         Image(systemName: chevronSystemImage)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                    } else {
-                        Color.clear
+                            .frame(width: 10)
+                            .accessibilityHidden(true)
+
+                        rootIcon
+
+                        titleLabel
                     }
-                }
-                .frame(width: 10)
-                .accessibilityHidden(true)
-            }
-
-            Image(systemName: root.systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                .frame(width: 18)
-                .opacity(root.state == .disconnected ? 0.48 : 1)
-                .accessibilityHidden(true)
-
-            // Only an expandable root is a real disclosure control. A non-expandable header
-            // renders as plain text so VoiceOver doesn't announce an "Expand/Collapse" affordance
-            // it can't honor.
-            if showsDisclosure {
-                Button(action: toggleCollapsed) {
-                    titleLabel
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isCollapsed ? "Expand \(root.title)" : "Collapse \(root.title)")
             } else {
+                // The empty chevron slot is reserved so titles align across roots (an
+                // empty iCloud root next to an expandable workspace) — EXCEPT when
+                // collapse is disallowed: then no root can ever show a chevron, the slot
+                // is dropped entirely, and the rows shift flush left to reclaim the space.
+                if !lockExpanded {
+                    Color.clear
+                        .frame(width: 10)
+                        .accessibilityHidden(true)
+                }
+
+                rootIcon
+
                 titleLabel
             }
 
@@ -1541,6 +1554,15 @@ private struct OutlineFileRootRow: View {
             isEmpty: root.items.isEmpty,
             lockExpanded: lockExpanded
         )
+    }
+
+    private var rootIcon: some View {
+        Image(systemName: root.systemImage)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            .frame(width: 18)
+            .opacity(root.state == .disconnected ? 0.48 : 1)
+            .accessibilityHidden(true)
     }
 
     private var chevronSystemImage: String {

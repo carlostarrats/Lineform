@@ -83,7 +83,7 @@ struct SettingsModal: View {
                 settingRow(
                     title: Self.allowCollapseTitle,
                     note: Self.allowCollapseNote,
-                    isOn: $settings.allowRootFolderCollapse
+                    isOn: allowCollapseBinding
                 )
 
                 Divider()
@@ -110,6 +110,22 @@ struct SettingsModal: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Settings")
         .task { await iCloud.refresh() }
+    }
+
+    /// Reads the EFFECTIVE collapse behavior (the user's saved choice, or the
+    /// adaptive default: collapsible only while the iCloud root is visible) and
+    /// writes an explicit, persisted choice on toggle — so a lone Workspace root
+    /// auto-locks open until the user says otherwise, and their say sticks.
+    private var allowCollapseBinding: Binding<Bool> {
+        Binding(
+            get: {
+                LineformSettingsStore.effectiveAllowRootFolderCollapse(
+                    choice: settings.allowRootFolderCollapseChoice,
+                    iCloudRootVisible: !iCloud.isUnavailable && settings.showICloudInSidebar
+                )
+            },
+            set: { settings.setAllowRootFolderCollapse($0) }
+        )
     }
 
     /// The iCloud row's explanatory line tracks the probe state: checking →
