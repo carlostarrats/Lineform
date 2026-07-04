@@ -1428,19 +1428,24 @@ private struct OutlineFileRootRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // The chevron slot is always reserved so titles align, but the glyph only shows when
-            // the root actually has an expandable child area.
-            Group {
-                if showsDisclosure {
-                    Image(systemName: chevronSystemImage)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                } else {
-                    Color.clear
+            // The chevron slot is reserved even when a single root has no glyph, so titles
+            // align across roots (an empty iCloud root next to an expandable workspace).
+            // But when collapse is disallowed (Settings), NO root can ever show a chevron,
+            // so the slot is dropped entirely — the rows shift flush left and reclaim the
+            // space, which is part of the point of turning collapsing off.
+            if !lockExpanded {
+                Group {
+                    if showsDisclosure {
+                        Image(systemName: chevronSystemImage)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                    } else {
+                        Color.clear
+                    }
                 }
+                .frame(width: 10)
+                .accessibilityHidden(true)
             }
-            .frame(width: 10)
-            .accessibilityHidden(true)
 
             Image(systemName: root.systemImage)
                 .font(.system(size: 12, weight: .semibold))
