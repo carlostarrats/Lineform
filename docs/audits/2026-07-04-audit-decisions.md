@@ -74,7 +74,7 @@ security scope; keep UI native/restrained; no analytics, no uploads, no AI insid
 Order = top to bottom. A fresh session: find the first UNCHECKED box, that's the next task.
 When done + QA'd, check it and append `— done YYYY-MM-DD, branch <name>`.
 
-- [ ] 1. Task 1 — keystroke debounce  [code-complete 2026-07-04, branch `work-2026-07-04-7-keystroke-debounce`, suite 386/0; box left unchecked — felt-smoothness on big docs needs Task 2 (see its GATE note), other behaviors QA pending]
+- [x] 1. Task 1 — keystroke debounce  — done 2026-07-04, branch `work-2026-07-04-7-keystroke-debounce` (commit 9128c41), suite 386/0, reviewed + fixed (reload/convert recompute-now). ⚠️ MAY STILL NEED REVISION: this alone did NOT make big-doc typing feel smooth — the felt stutter is Task 2 (whole-doc highlight, ~121 ms/pass, see its GATE note). If Task 2 does NOT resolve the stutter, revisit Task 1's approach (e.g. debounce interval, or whether more/less should be coalesced).
 - [ ] 2. Task 3a + resize nit + Task 3b fixed-card (diagram/render bundle)
 - [ ] 3. Task 6 — SPEC (Read-mode rendering; sign-off before code)
 - [ ] 4. Task 6 Wave 1 — easy styling (strikethrough, HR, blockquote, lists) + image placeholder
