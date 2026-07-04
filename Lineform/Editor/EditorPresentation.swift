@@ -12,6 +12,13 @@ enum EditorReadingLayout {
     static func textContainerWidth(forContainerWidth containerWidth: CGFloat, profile: ReadingProfile) -> CGFloat {
         max(0, containerWidth - (horizontalInset(forContainerWidth: containerWidth, profile: profile) * 2))
     }
+
+    /// The width a block diagram/equation should fit into for a given container (window) width:
+    /// the reading column, but never wider than the visible text area — so a wide diagram shrinks
+    /// to stay contained when the window is narrower than the column (the resize refit nit).
+    static func blockAttachmentFitWidth(forContainerWidth containerWidth: CGFloat, profile: ReadingProfile) -> CGFloat {
+        min(textColumnMaxWidth(for: profile), textContainerWidth(forContainerWidth: containerWidth, profile: profile))
+    }
 }
 
 enum EditorLayout {
