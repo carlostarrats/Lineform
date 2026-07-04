@@ -1335,7 +1335,7 @@ private struct OutlineFileBrowserView: View {
             OutlineFileRootRow(
                 root: root,
                 isCollapsed: isRootCollapsed(root.id),
-                lockExpanded: settings.keepRootFoldersExpanded,
+                lockExpanded: !settings.allowRootFolderCollapse,
                 toggleCollapsed: { toggle(root.id) },
                 chooseWorkspaceFolder: store.chooseWorkspaceFolder
             )
@@ -1399,7 +1399,7 @@ private struct OutlineFileBrowserView: View {
     private func isRootCollapsed(_ id: String) -> Bool {
         OutlineSidebarView.rootIsCollapsed(
             isInCollapsedSet: collapsedIDs.contains(id),
-            lockExpanded: settings.keepRootFoldersExpanded
+            lockExpanded: !settings.allowRootFolderCollapse
         )
     }
 

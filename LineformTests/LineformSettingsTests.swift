@@ -11,10 +11,10 @@ final class LineformSettingsTests: XCTestCase {
 
     // MARK: - Store
 
-    func testDefaultsAreSidebarOnLockOffICloudOn() {
+    func testDefaultsAreSidebarOnCollapseAllowedICloudOn() {
         let store = LineformSettingsStore(defaults: freshDefaults("LineformSettingsDefaults"))
         XCTAssertTrue(store.showSidebarOnLaunch)
-        XCTAssertFalse(store.keepRootFoldersExpanded)
+        XCTAssertTrue(store.allowRootFolderCollapse)
         XCTAssertTrue(store.showICloudInSidebar)
     }
 
@@ -22,12 +22,12 @@ final class LineformSettingsTests: XCTestCase {
         let defaults = freshDefaults("LineformSettingsPersist")
         let store = LineformSettingsStore(defaults: defaults)
         store.showSidebarOnLaunch = false
-        store.keepRootFoldersExpanded = true
+        store.allowRootFolderCollapse = false
         store.showICloudInSidebar = false
 
         let restored = LineformSettingsStore(defaults: defaults)
         XCTAssertFalse(restored.showSidebarOnLaunch)
-        XCTAssertTrue(restored.keepRootFoldersExpanded)
+        XCTAssertFalse(restored.allowRootFolderCollapse)
         XCTAssertFalse(restored.showICloudInSidebar)
     }
 }
@@ -110,41 +110,45 @@ private struct StubProbe: ICloudFolderProbing {
 }
 
 extension LineformSettingsTests {
-    func testViewModelStartsChecking() {
+    func testViewModelStartsCheckingAndInert() {
         let vm = ICloudSettingViewModel(probe: StubProbe(result: .empty), seededStatus: nil)
         XCTAssertNil(vm.status)
         XCTAssertTrue(vm.isChecking)
         XCTAssertFalse(vm.canHideICloud)     // hiding blocked while unknown
-        XCTAssertTrue(vm.isControlVisible)   // visible (as "Checking…") until proven unavailable
+        // Toggle is inert in either direction until the probe resolves.
+        XCTAssertTrue(vm.isToggleDisabled(currentlyShown: true))
+        XCTAssertTrue(vm.isToggleDisabled(currentlyShown: false))
     }
 
-    func testViewModelUnavailableHidesControl() async {
+    func testViewModelUnavailableDisablesRow() async {
         let vm = ICloudSettingViewModel(probe: StubProbe(result: .unavailable), seededStatus: nil)
         await vm.refresh()
         XCTAssertFalse(vm.isChecking)
-        XCTAssertFalse(vm.isControlVisible)
+        XCTAssertTrue(vm.isUnavailable)
+        // The row stays visible but the toggle is disabled in both directions.
+        XCTAssertTrue(vm.isToggleDisabled(currentlyShown: true))
+        XCTAssertTrue(vm.isToggleDisabled(currentlyShown: false))
     }
 
     func testViewModelEmptyAllowsHiding() async {
         let vm = ICloudSettingViewModel(probe: StubProbe(result: .empty), seededStatus: nil)
         await vm.refresh()
-        XCTAssertTrue(vm.isControlVisible)
+        XCTAssertFalse(vm.isUnavailable)
         XCTAssertTrue(vm.canHideICloud)
     }
 
     func testViewModelNotEmptyBlocksHiding() async {
         let vm = ICloudSettingViewModel(probe: StubProbe(result: .notEmpty), seededStatus: nil)
         await vm.refresh()
-        XCTAssertTrue(vm.isControlVisible)
+        XCTAssertFalse(vm.isUnavailable)
         XCTAssertFalse(vm.canHideICloud)
     }
 
     func testViewModelSeededStatusRendersImmediatelyWithoutChecking() {
-        // A prior probe's cached result renders instantly on reopen — no Checking flash,
-        // no control flicker on machines where iCloud never resolves.
+        // A prior probe's cached result renders instantly on reopen — no Checking flash.
         let vm = ICloudSettingViewModel(probe: StubProbe(result: .unavailable), seededStatus: .unavailable)
         XCTAssertFalse(vm.isChecking)
-        XCTAssertFalse(vm.isControlVisible)
+        XCTAssertTrue(vm.isUnavailable)
     }
 
     func testViewModelToggleDisableGuardOnlyBlocksTurningOff() async {
@@ -192,12 +196,19 @@ extension LineformSettingsTests {
 
 extension LineformSettingsTests {
     func testSettingsCopyIsAccurateAndHonest() {
-        XCTAssertEqual(SettingsView.showSidebarOnLaunchTitle, "Show sidebar on launch")
-        XCTAssertEqual(SettingsView.keepRootsExpandedTitle, "Keep root folders expanded")
-        XCTAssertEqual(SettingsView.showICloudTitle, "Show iCloud in sidebar")
-        // The iCloud note must promise no destructive iCloud action.
-        XCTAssertTrue(SettingsView.iCloudDisabledNote.contains("empty"))
-        XCTAssertTrue(SettingsView.iCloudDisabledNote.lowercased().contains("does not delete"))
-        XCTAssertEqual(SettingsView.iCloudCheckingNote, "Checking…")
+        XCTAssertEqual(SettingsModal.title, "Settings")
+        XCTAssertEqual(SettingsModal.showSidebarOnLaunchTitle, "Show sidebar on launch")
+        // The collapse setting reads in the affirmative and its note names what it
+        // actually affects (the Files sidebar's iCloud and Workspace sections).
+        XCTAssertEqual(SettingsModal.allowCollapseTitle, "Allow root folders to expand and collapse")
+        XCTAssertTrue(SettingsModal.allowCollapseNote.contains("iCloud and Workspace"))
+        XCTAssertTrue(SettingsModal.allowCollapseNote.contains("Files sidebar"))
+        XCTAssertEqual(SettingsModal.showICloudTitle, "Show iCloud in sidebar")
+        // The iCloud notes must promise no destructive iCloud action.
+        XCTAssertTrue(SettingsModal.iCloudDisabledNote.contains("empty"))
+        XCTAssertTrue(SettingsModal.iCloudDisabledNote.lowercased().contains("does not delete"))
+        XCTAssertTrue(SettingsModal.iCloudEnabledNote.lowercased().contains("nothing in icloud drive is changed"))
+        XCTAssertEqual(SettingsModal.iCloudCheckingNote, "Checking…")
+        XCTAssertEqual(SettingsModal.iCloudUnavailableNote, "iCloud is not available on this Mac.")
     }
 }

@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 
 enum LineformAppNotification {
+    case showSettings
     case showReadingExperience
     case focusSearch
     case setDisplayMode
@@ -16,6 +17,8 @@ enum LineformAppNotification {
 
     var name: Notification.Name {
         switch self {
+        case .showSettings:
+            return Notification.Name("Lineform.showSettings")
         case .showReadingExperience:
             return Notification.Name("Lineform.showReadingExperience")
         case .focusSearch:

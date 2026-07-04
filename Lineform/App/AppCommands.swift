@@ -7,6 +7,7 @@ enum AppMenuCommandPlacement: Equatable {
 
 enum AppMenuConfiguration {
     static let aboutCommandTitle = "About Lineform"
+    static let settingsCommandTitle = "Settings…"
     static let aboutVersionDisplay = "V1.1.1"
     static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
     static let saveCommandTitle = "Save"
@@ -200,6 +201,16 @@ struct AppCommands: Commands {
             Button(AppMenuConfiguration.aboutCommandTitle) {
                 NSApp.orderFrontStandardAboutPanel(options: AppMenuConfiguration.aboutPanelOptions())
             }
+
+            Divider()
+
+            // Settings presents as a Muse-style in-window modal (SettingsModal) in the
+            // key window — the app deliberately has no `Settings { }` scene, so this
+            // button (with the standard ⌘,) is the whole entry point.
+            Button(AppMenuConfiguration.settingsCommandTitle) {
+                LineformAppNotification.showSettings.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut(",", modifiers: .command)
 
             Divider()
 

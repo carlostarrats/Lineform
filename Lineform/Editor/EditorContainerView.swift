@@ -7,6 +7,7 @@ struct EditorContainerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
     @State private var isShowingMarkdownBasics = false
+    @State private var isShowingSettings = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline: Bool
     @State private var outlineItems: [MarkdownOutlineItem] = []
@@ -165,6 +166,12 @@ struct EditorContainerView: View {
                 return
             }
             isShowingOutline.toggle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showSettings.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else {
+                return
+            }
+            isShowingSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.renameCurrentFile.name)) { notification in
             guard notificationMatchesActiveWindow(notification), let url = currentFileURL else {
@@ -337,10 +344,45 @@ struct EditorContainerView: View {
                 }
                 .zIndex(2)
             }
+
+            // Settings uses the same modal language as Info: scrim + centered light
+            // card + Esc/outside-click dismissal. Higher zIndex so that if both are
+            // ever up, Settings (the more deliberate action) sits on top.
+            if isShowingSettings {
+                MarkdownBasicsOverlay {
+                    isShowingSettings = false
+                }
+                .zIndex(3)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
+
+                SettingsModal(settings: settings) {
+                    isShowingSettings = false
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: SettingsModal.entranceYOffset,
+                            reduceMotion: reduceMotion
+                        ),
+                        removal: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: SettingsModal.entranceYOffset / 2,
+                            reduceMotion: reduceMotion
+                        )
+                    )
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .zIndex(4)
+            }
         }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: MarkdownBasicsModal.animationDuration), reduceMotion: reduceMotion),
             value: isShowingMarkdownBasics
+        )
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
+            value: isShowingSettings
         )
     }
 

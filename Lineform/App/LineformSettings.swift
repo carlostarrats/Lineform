@@ -9,7 +9,7 @@ final class LineformSettingsStore: ObservableObject {
     static let shared = LineformSettingsStore()
 
     static let showSidebarOnLaunchKey = "Lineform.settings.showSidebarOnLaunch"
-    static let keepRootFoldersExpandedKey = "Lineform.settings.keepRootFoldersExpanded"
+    static let allowRootFolderCollapseKey = "Lineform.settings.allowRootFolderCollapse"
     static let showICloudInSidebarKey = "Lineform.settings.showICloudInSidebar"
 
     @Published var showSidebarOnLaunch: Bool {
@@ -18,10 +18,13 @@ final class LineformSettingsStore: ObservableObject {
             defaults.set(showSidebarOnLaunch, forKey: Self.showSidebarOnLaunchKey)
         }
     }
-    @Published var keepRootFoldersExpanded: Bool {
+    /// Default ON (today's behavior: the sidebar's root sections are collapsible).
+    /// Turning it OFF locks the iCloud/Workspace sections open and hides their
+    /// chevrons. Phrased as an "allow" so the toggle reads in the affirmative.
+    @Published var allowRootFolderCollapse: Bool {
         didSet {
-            guard oldValue != keepRootFoldersExpanded else { return }
-            defaults.set(keepRootFoldersExpanded, forKey: Self.keepRootFoldersExpandedKey)
+            guard oldValue != allowRootFolderCollapse else { return }
+            defaults.set(allowRootFolderCollapse, forKey: Self.allowRootFolderCollapseKey)
         }
     }
     @Published var showICloudInSidebar: Bool {
@@ -43,7 +46,7 @@ final class LineformSettingsStore: ObservableObject {
             defaults.object(forKey: key) as? Bool ?? fallback
         }
         _showSidebarOnLaunch = Published(initialValue: boolOrDefault(Self.showSidebarOnLaunchKey, true))
-        _keepRootFoldersExpanded = Published(initialValue: boolOrDefault(Self.keepRootFoldersExpandedKey, false))
+        _allowRootFolderCollapse = Published(initialValue: boolOrDefault(Self.allowRootFolderCollapseKey, true))
         _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, true))
     }
 }
@@ -125,19 +128,27 @@ final class ICloudSettingViewModel: ObservableObject {
 
     var isChecking: Bool { status == nil }
 
-    /// Hidden only once we KNOW iCloud is unavailable. While checking we keep the
-    /// row visible (showing "Checking…") so it doesn't flicker in/out.
-    var isControlVisible: Bool { status != .unavailable }
+    /// iCloud can't resolve on this Mac (Debug build, or not signed in). The row
+    /// stays visible but disabled with an explanatory note — hiding it entirely
+    /// made the setting look missing.
+    var isUnavailable: Bool { status == .unavailable }
 
     /// The folder is confirmed empty, so turning the toggle OFF is allowed.
     var canHideICloud: Bool { status == .empty }
 
-    /// The emptiness guard only blocks turning iCloud OFF. Re-showing a hidden root
-    /// is always safe, so when the setting is already off the toggle stays operable
-    /// even if the folder has since gained content (otherwise the user could get
-    /// stuck unable to bring iCloud back).
+    /// The emptiness guard only blocks turning iCloud OFF — re-showing a hidden root
+    /// is always safe, so a user can never get stuck unable to bring iCloud back.
+    /// While the probe is unresolved (checking) or iCloud is unavailable, the toggle
+    /// is inert either way.
     func isToggleDisabled(currentlyShown: Bool) -> Bool {
-        currentlyShown && !canHideICloud
+        switch status {
+        case nil, .unavailable:
+            return true
+        case .empty:
+            return false
+        case .notEmpty:
+            return currentlyShown
+        }
     }
 
     func refresh() async {
