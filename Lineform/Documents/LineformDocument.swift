@@ -238,7 +238,7 @@ struct LineformDocument: FileDocument, Equatable {
             let documentID = id
             let savedText = text
             Task { @MainActor in
-                DocumentSaveStatus.shared.markSaved(documentID: documentID, text: savedText)
+                DocumentSaveStatus.shared.recordWrite(documentID: documentID, text: savedText)
             }
         }
 
@@ -254,13 +254,58 @@ struct LineformDocument: FileDocument, Equatable {
 final class DocumentSaveStatus: ObservableObject {
     static let shared = DocumentSaveStatus()
 
+    enum SaveKind: Equatable { case manual, autosave }
+
+    struct SaveEvent: Equatable {
+        let documentID: UUID
+        let kind: SaveKind
+        let sequence: Int
+    }
+
     @Published private var savedAtByDocumentID: [UUID: Date] = [:]
     private var savedTextByDocumentID: [UUID: String] = [:]
+
+    /// A transient signal published for each real write so the status bar can flash
+    /// a green "Saved"/"Autosaved" confirmation. Distinct `sequence` per event so
+    /// `.onChange` fires even for repeated kinds.
+    @Published private(set) var lastSaveEvent: SaveEvent?
+    private var manualSaveIntentAt: Date?
+    private var writeSequence = 0
 
     private init() {}
 
     func savedAt(for documentID: UUID) -> Date? {
         savedAtByDocumentID[documentID]
+    }
+
+    /// True when the live text differs from the last text written to disk. Untitled
+    /// documents (no recorded save) are never "dirty" — their state is shown as
+    /// "Not saved yet" instead.
+    func isDirty(documentID: UUID, currentText: String) -> Bool {
+        guard savedAtByDocumentID[documentID] != nil else { return false }
+        guard let saved = savedTextByDocumentID[documentID] else { return false }
+        return saved != currentText
+    }
+
+    /// Records that the user just invoked Save / Save As. The next `recordWrite`
+    /// (within a short window) is attributed to the user; anything else is an autosave.
+    func noteManualSaveIntent() {
+        manualSaveIntentAt = Date()
+    }
+
+    private func consumeManualSaveIntent(within window: TimeInterval = 2) -> Bool {
+        guard let at = manualSaveIntentAt else { return false }
+        manualSaveIntentAt = nil
+        return Date().timeIntervalSince(at) <= window
+    }
+
+    /// Called from the document write path for a real save. Updates the saved
+    /// date/text baseline and publishes a classified event for the status flash.
+    func recordWrite(documentID: UUID, text: String) {
+        let manual = consumeManualSaveIntent()
+        markSaved(documentID: documentID, at: Date(), text: text)
+        writeSequence += 1
+        lastSaveEvent = SaveEvent(documentID: documentID, kind: manual ? .manual : .autosave, sequence: writeSequence)
     }
 
     /// The exact text that was written by the save this `savedAt` describes. The live reload
@@ -293,3 +338,10 @@ final class DocumentSaveStatus: ObservableObject {
         }
     }
 }
+
+#if DEBUG
+extension DocumentSaveStatus {
+    /// Isolated instance for tests so they don't mutate the shared singleton.
+    static func testInstance() -> DocumentSaveStatus { DocumentSaveStatus() }
+}
+#endif

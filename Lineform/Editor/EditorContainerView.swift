@@ -20,7 +20,7 @@ struct EditorContainerView: View {
     @State private var windowNumber: Int?
     @State private var currentFileURL: URL?
     @StateObject private var reloadController = DocumentReloadController()
-    @State private var showsUpdatedIndicator = false
+    @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
     @State private var sidebarDialog: SidebarFileDialog?
     @State private var renameText = ""
@@ -285,6 +285,11 @@ struct EditorContainerView: View {
             // re-point the watcher and refresh the synced baseline with the saved text.
             noteSavedToReloadWatcher()
         }
+        .onChange(of: documentSaveStatus.lastSaveEvent) { _, event in
+            // Flash a green save confirmation only for this document's real writes.
+            guard let event, event.documentID == document.id else { return }
+            flashStatus(event.kind == .manual ? .saved : .autosaved)
+        }
         .onDisappear {
             reloadController.stop()
         }
@@ -409,7 +414,7 @@ struct EditorContainerView: View {
                         lastSavedDisplay: lastSavedDisplay,
                         statisticsText: statisticsText,
                         statusAccessibilityLabel: statusAccessibilityLabel,
-                        showsUpdatedIndicator: showsUpdatedIndicator
+                        indicator: statusIndicator
                     )
                 }
             }
@@ -631,18 +636,21 @@ struct EditorContainerView: View {
             backingDocument.updateChangeCount(.changeCleared)
         }
         DocumentSaveStatus.shared.markSaved(documentID: document.id, at: result.modificationDate ?? Date(), text: result.text)
-        flashUpdatedIndicator()
+        flashStatus(.updated)
         reloadController.clearLastReload()
     }
 
-    private func flashUpdatedIndicator() {
+    private func flashStatus(_ flash: EditorStatusFlash) {
         updatedIndicatorWorkItem?.cancel()
         withAnimation(EditorMotionPolicy.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion)) {
-            showsUpdatedIndicator = true
+            statusFlash = flash
         }
+        let token = flash
         let work = DispatchWorkItem {
+            // Only clear if still showing the same flash; a newer edit/flash may have replaced it.
+            guard statusFlash == token else { return }
             withAnimation(EditorMotionPolicy.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion)) {
-                showsUpdatedIndicator = false
+                statusFlash = nil
             }
         }
         updatedIndicatorWorkItem = work
@@ -717,6 +725,18 @@ struct EditorContainerView: View {
 
     private var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay {
         EditorStatusFormatter.lastSavedDisplay(for: documentSaveStatus.savedAt(for: document.id))
+    }
+
+    private var isDocumentDirty: Bool {
+        documentSaveStatus.isDirty(documentID: document.id, currentText: document.text)
+    }
+
+    private var statusIndicator: EditorStatusIndicator {
+        EditorStatusFormatter.indicator(
+            savedAt: documentSaveStatus.savedAt(for: document.id),
+            isDirty: isDocumentDirty,
+            flash: statusFlash
+        )
     }
 
     private var statusAccessibilityLabel: String {
