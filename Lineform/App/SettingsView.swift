@@ -17,8 +17,8 @@ struct SettingsModal: View {
     static func cardWidth(availableWidth: CGFloat) -> CGFloat {
         min(contentWidth, max(280, availableWidth - 24))
     }
-    static let animationDuration = MarkdownBasicsModal.animationDuration
-    static let entranceYOffset = MarkdownBasicsModal.entranceYOffset
+    static let animationDuration = MuseModalChrome.animationDuration
+    static let entranceYOffset = MuseModalChrome.entranceYOffset
 
     static let showSidebarOnLaunchTitle = "Show sidebar on launch"
     static let showSidebarOnLaunchNote = "New windows open with the sidebar visible."
@@ -30,7 +30,6 @@ struct SettingsModal: View {
     static let iCloudDisabledNote = "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive."
     static let iCloudEnabledNote = "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed."
 
-    @State private var isCloseHovered = false
     /// Window width the presenting container offers (via GeometryReader).
     var availableWidth: CGFloat
 
@@ -50,34 +49,7 @@ struct SettingsModal: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(Self.title)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(Self.primaryTextColor)
-
-                Spacer()
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Self.secondaryTextColor)
-                        .frame(width: 28, height: 28)
-                        .background(
-                            Circle()
-                                .fill(Self.primaryTextColor.opacity(isCloseHovered ? MarkdownBasicsModal.closeHoverFillOpacity : MarkdownBasicsModal.closeRestingFillOpacity))
-                        )
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-                .contentShape(Circle())
-                .help("Close")
-                .onHover { hovering in
-                    isCloseHovered = hovering
-                }
-                .animation(.easeOut(duration: 0.12), value: isCloseHovered)
-            }
+            MuseModalHeader(title: Self.title, dismiss: dismiss)
 
             VStack(alignment: .leading, spacing: 0) {
                 settingRow(
@@ -106,18 +78,10 @@ struct SettingsModal: View {
                 )
             }
         }
-        .padding(24)
-        .frame(width: Self.cardWidth(availableWidth: availableWidth), alignment: .leading)
-        .background(Self.backgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-        }
-        .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
-        .environment(\.colorScheme, .light)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Settings")
+        .museModalCard(
+            width: Self.cardWidth(availableWidth: availableWidth),
+            accessibilityLabel: "Settings"
+        )
         .task { await iCloud.refresh() }
     }
 
@@ -163,10 +127,10 @@ struct SettingsModal: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Self.primaryTextColor)
+                    .foregroundStyle(MuseModalChrome.primaryTextColor)
                 Text(note)
                     .font(.system(size: 11))
-                    .foregroundStyle(Self.secondaryTextColor)
+                    .foregroundStyle(MuseModalChrome.secondaryTextColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -180,22 +144,5 @@ struct SettingsModal: View {
         }
         .opacity(disabled ? 0.55 : 1)
         .accessibilityElement(children: .combine)
-    }
-
-    private static var backgroundColor: Color {
-        Color(nsColor: NSColor(calibratedWhite: MarkdownBasicsModal.backgroundWhiteComponent, alpha: 1))
-    }
-
-    private static var primaryTextColor: Color {
-        Color(nsColor: NSColor(
-            calibratedRed: MarkdownBasicsModal.textRedComponent,
-            green: MarkdownBasicsModal.textRedComponent,
-            blue: MarkdownBasicsModal.textRedComponent,
-            alpha: 1
-        ))
-    }
-
-    private static var secondaryTextColor: Color {
-        primaryTextColor.opacity(MarkdownBasicsModal.secondaryTextOpacity)
     }
 }

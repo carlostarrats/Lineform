@@ -334,66 +334,22 @@ struct EditorContainerView: View {
                 }
 
             if isShowingMarkdownBasics {
-                MarkdownBasicsOverlay {
-                    isShowingMarkdownBasics = false
-                }
-                .zIndex(1)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
-
-                GeometryReader { geometry in
+                museModalLayer(scrimZIndex: 1, modalZIndex: 2, onDismiss: { isShowingMarkdownBasics = false }) { geometry in
                     MarkdownBasicsModal(availableHeight: geometry.size.height) {
                         isShowingMarkdownBasics = false
                     }
-                    .transition(
-                        .asymmetric(
-                            insertion: EditorMotionPolicy.fadeAndMoveTransition(
-                                y: MarkdownBasicsModal.entranceYOffset,
-                                reduceMotion: reduceMotion
-                            ),
-                            removal: EditorMotionPolicy.fadeAndMoveTransition(
-                                y: MarkdownBasicsModal.entranceYOffset / 2,
-                                reduceMotion: reduceMotion
-                            )
-                        )
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
-                .zIndex(2)
             }
 
             // Settings uses the same modal language as Info: scrim + centered light
             // card + Esc/outside-click dismissal. Higher zIndex so that if both are
             // ever up, Settings (the more deliberate action) sits on top.
             if isShowingSettings {
-                MarkdownBasicsOverlay {
-                    isShowingSettings = false
-                }
-                .zIndex(3)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
-
-                GeometryReader { geometry in
+                museModalLayer(scrimZIndex: 3, modalZIndex: 4, onDismiss: { isShowingSettings = false }) { geometry in
                     SettingsModal(settings: settings, availableWidth: geometry.size.width) {
                         isShowingSettings = false
                     }
-                    .transition(
-                        .asymmetric(
-                            insertion: EditorMotionPolicy.fadeAndMoveTransition(
-                                y: SettingsModal.entranceYOffset,
-                                reduceMotion: reduceMotion
-                            ),
-                            removal: EditorMotionPolicy.fadeAndMoveTransition(
-                                y: SettingsModal.entranceYOffset / 2,
-                                reduceMotion: reduceMotion
-                            )
-                        )
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
-                .zIndex(4)
             }
         }
         .animation(
@@ -404,6 +360,42 @@ struct EditorContainerView: View {
             EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
             value: isShowingSettings
         )
+    }
+
+    /// The shared presentation for a Muse-style modal (Info, Settings): a tap-to-dismiss
+    /// scrim beneath a centered card that fades and slides up on entry. Callers supply the
+    /// card via `modal`, sized against the window's `GeometryProxy`, plus the z-indices that
+    /// stack scrim below card (and one modal above another when both can appear).
+    @ViewBuilder
+    private func museModalLayer<Modal: View>(
+        scrimZIndex: Double,
+        modalZIndex: Double,
+        onDismiss: @escaping () -> Void,
+        @ViewBuilder modal: @escaping (GeometryProxy) -> Modal
+    ) -> some View {
+        MarkdownBasicsOverlay(dismiss: onDismiss)
+            .zIndex(scrimZIndex)
+            .transaction { transaction in
+                transaction.animation = nil
+            }
+
+        GeometryReader { geometry in
+            modal(geometry)
+                .transition(
+                    .asymmetric(
+                        insertion: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: MuseModalChrome.entranceYOffset,
+                            reduceMotion: reduceMotion
+                        ),
+                        removal: EditorMotionPolicy.fadeAndMoveTransition(
+                            y: MuseModalChrome.entranceYOffset / 2,
+                            reduceMotion: reduceMotion
+                        )
+                    )
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+        .zIndex(modalZIndex)
     }
 
     private var editorPrimaryShell: some View {
