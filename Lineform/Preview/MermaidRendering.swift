@@ -114,7 +114,8 @@ final class MermaidImageProvider: MermaidImageProviding {
     private let failureCache = NSCache<NSString, NSString>()
 
     init() {
-        cache.countLimit = 50
+        cache.countLimit = DiagramCacheBudget.countLimit
+        cache.totalCostLimit = DiagramCacheBudget.totalCostLimitBytes
         failureCache.countLimit = 200
     }
 
@@ -134,7 +135,7 @@ final class MermaidImageProvider: MermaidImageProviding {
             let theme = DiagramTheme(background: background, foreground: foreground)
             if let image = try MermaidRenderer.renderImage(source: source, theme: theme, scale: scale) {
                 let upright = MermaidImageOrientation.uprightForMacOS(image)
-                cache.setObject(upright, forKey: key)
+                cache.setObject(upright, forKey: key, cost: RasterImageCost.bytes(for: upright))
                 return .image(upright)
             }
             // Not negatively cached: producing no image without an error may be transient

@@ -127,6 +127,28 @@ final class MarkdownPreviewRendererTests: XCTestCase {
     }
 
     @MainActor
+    func testResizingNarrowerShrinksAWideBlockAttachment() throws {
+        let textView = MarkdownPreviewTextView()
+        var profile = ReadingProfile.original
+        profile.columnWidth = 800
+        profile.marginWidth = 20
+        textView.apply(text: "seed", profile: profile)   // sets activeProfile
+
+        // A wide block diagram rendered at the column width (800), natural raster 1200 wide.
+        let attachment = BlockRenderedAttachment()
+        attachment.image = NSImage(size: NSSize(width: 1200, height: 600))
+        attachment.bounds = CGRect(x: 0, y: 0, width: 800, height: 400)
+        textView.textStorage?.setAttributedString(NSAttributedString(attachment: attachment))
+
+        textView.setFrameSize(NSSize(width: 1000, height: 600))   // wide: fits at 800, no change
+        XCTAssertEqual(attachment.bounds.width, 800, accuracy: 0.5)
+
+        textView.setFrameSize(NSSize(width: 300, height: 600))    // narrow: must shrink to fit
+        XCTAssertLessThan(attachment.bounds.width, 800)
+        XCTAssertEqual(attachment.bounds.height, attachment.bounds.width * 0.5, accuracy: 0.5)  // aspect kept
+    }
+
+    @MainActor
     func testPreviewTextViewDoesNotRerenderUnchangedContent() {
         let textView = MarkdownPreviewTextView()
 
@@ -170,6 +192,104 @@ private final class FakeMathProvider: MathImageProviding {
     func outcome(latex: String, style: MathStyle, foreground: NSColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome { result }
 }
 
+/// Captures the foreground the renderer asks for, to prove block math uses the fixed ink and
+/// inline math stays theme-aware.
+private final class SpyMathProvider: MathImageProviding {
+    private(set) var captured: [NSColor] = []
+    let result: MathRenderOutcome
+    init(_ result: MathRenderOutcome) { self.result = result }
+    func outcome(latex: String, style: MathStyle, foreground: NSColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome {
+        captured.append(foreground)
+        return result
+    }
+}
+
+private final class SpyMermaidProvider: MermaidImageProviding {
+    private(set) var captured: [(background: NSColor, foreground: NSColor)] = []
+    let result: MermaidRenderOutcome
+    init(_ result: MermaidRenderOutcome) { self.result = result }
+    func outcome(source: String, background: NSColor, foreground: NSColor, scale: CGFloat) -> MermaidRenderOutcome {
+        captured.append((background, foreground))
+        return result
+    }
+}
+
+// MARK: - Block diagram/math background + fixed ink (Task 3b)
+
+final class MarkdownPreviewRendererBackgroundTests: XCTestCase {
+    private func renderMermaid(profile: ReadingProfile, provider: SpyMermaidProvider) {
+        _ = MarkdownPreviewRenderer().render(
+            "```mermaid\ngraph TD;A-->B;\n```",
+            profile: profile,
+            columnWidth: 600,
+            mermaidProvider: provider,
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "1.0"
+        )
+    }
+
+    private func renderMath(_ text: String, profile: ReadingProfile, provider: SpyMathProvider) {
+        _ = MarkdownPreviewRenderer().render(
+            text,
+            profile: profile,
+            columnWidth: 600,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: provider,
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "1.0"
+        )
+    }
+
+    private func profile(theme: ThemeID) -> ReadingProfile {
+        var p = ReadingProfile.original
+        p.themeID = theme
+        return p
+    }
+
+    func testBlockDiagramIsTransparentWithLightInkOnLightTheme() throws {
+        let spy = SpyMermaidProvider(.skipped)
+        renderMermaid(profile: profile(theme: .system), provider: spy)
+        let cap = try XCTUnwrap(spy.captured.first)
+        XCTAssertEqual(cap.background.alphaComponent, 0, "block diagram canvas is transparent")
+        XCTAssertEqual(cap.foreground, DiagramPalette.ink(isDark: false))
+    }
+
+    func testBlockDiagramUsesPageMatchedCanvasOnDarkTheme() throws {
+        // Dark themes set the canvas to the page color so Mermaid's node boxes get a visible outline;
+        // it still reads as "no box" because the canvas matches the page.
+        let spy = SpyMermaidProvider(.skipped)
+        renderMermaid(profile: profile(theme: .night), provider: spy)
+        let cap = try XCTUnwrap(spy.captured.first)
+        XCTAssertEqual(cap.background, Theme.night.backgroundColor)
+        XCTAssertEqual(cap.foreground, Theme.night.textColor)
+    }
+
+    func testBlockDiagramInkIsIdenticalAcrossTwoLightThemes() throws {
+        // Two different light themes must yield identical ink → identical cache key → no redraw on
+        // the switch (the freeze fix).
+        let paper = SpyMermaidProvider(.skipped)
+        let calm = SpyMermaidProvider(.skipped)
+        renderMermaid(profile: profile(theme: .paper), provider: paper)
+        renderMermaid(profile: profile(theme: .calm), provider: calm)
+        XCTAssertEqual(try XCTUnwrap(paper.captured.first).foreground, try XCTUnwrap(calm.captured.first).foreground)
+    }
+
+    func testBlockMathUsesFixedInk() throws {
+        let spy = SpyMathProvider(.image(NSImage(size: NSSize(width: 20, height: 12)), descent: 0))
+        renderMath("$$\nx^2\n$$", profile: profile(theme: .system), provider: spy)
+        XCTAssertEqual(try XCTUnwrap(spy.captured.first), DiagramPalette.ink(isDark: false))
+    }
+
+    func testInlineMathStaysThemeAware() throws {
+        let spy = SpyMathProvider(.image(NSImage(size: NSSize(width: 10, height: 8)), descent: 2))
+        renderMath("value $x^2$ here", profile: profile(theme: .night), provider: spy)
+        XCTAssertEqual(try XCTUnwrap(spy.captured.first), Theme.night.textColor)  // theme-aware
+    }
+}
+
 final class MarkdownPreviewRendererMathTests: XCTestCase {
     private func render(_ text: String, math: MathRenderOutcome) -> NSAttributedString {
         MarkdownPreviewRenderer().render(
@@ -199,6 +319,23 @@ final class MarkdownPreviewRendererMathTests: XCTestCase {
         let rendered = render("$$\nx^2+y^2\n$$", math: .image(image, descent: 0))
         let a = try XCTUnwrap(firstAttachment(rendered))
         XCTAssertEqual(a.image?.accessibilityDescription, "Math. x^2+y^2")
+    }
+
+    func testBlockMathAttachmentIsMarkedBlockForRefit() throws {
+        // Block attachments must be the refit-eligible subclass so a resize rescales them.
+        let image = NSImage(size: NSSize(width: 20, height: 12))
+        let rendered = render("$$\nx^2\n$$", math: .image(image, descent: 0))
+        let a = try XCTUnwrap(firstAttachment(rendered))
+        XCTAssertTrue(a is BlockRenderedAttachment)
+    }
+
+    func testInlineMathAttachmentIsNotMarkedBlock() throws {
+        // Inline math must stay a plain attachment so the resize refit never rescales it (which
+        // would break its baseline offset).
+        let image = NSImage(size: NSSize(width: 10, height: 8))
+        let rendered = render("value $x^2$ here", math: .image(image, descent: 3))
+        let a = try XCTUnwrap(firstAttachment(rendered))
+        XCTAssertFalse(a is BlockRenderedAttachment)
     }
 
     func testSingleLineBlockMathRenders() throws {

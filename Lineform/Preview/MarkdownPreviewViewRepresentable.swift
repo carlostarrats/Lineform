@@ -61,8 +61,42 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = abs(newSize.width - frame.width) > 0.5
         super.setFrameSize(newSize)
         updateTextContainerLayout()
+        // Refit block diagrams/equations on EVERY width change — the same place `updateTextContainerLayout`
+        // already tracks the window (so it works during a live window/split drag, unlike the
+        // unreliable `viewDidEndLiveResize` on a scroll view's documentView). During a live resize
+        // the refit is deferred to the next runloop tick so its `ensureLayout` doesn't run
+        // re-entrantly inside AppKit's in-progress resize layout pass; scaling the cached raster is
+        // cheap, so per-tick is fine (no re-render).
+        if widthChanged {
+            if inLiveResize {
+                scheduleBlockAttachmentRefit()
+            } else {
+                refitBlockAttachments()
+            }
+        }
+    }
+
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        // Final settle once the drag ends (inLiveResize is false here, so refit immediately).
+        refitBlockAttachments()
+    }
+
+    private var blockRefitScheduled = false
+
+    /// Coalesce refits requested during a live resize and run them once, outside the in-progress
+    /// frame/layout pass.
+    private func scheduleBlockAttachmentRefit() {
+        guard !blockRefitScheduled else { return }
+        blockRefitScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.blockRefitScheduled = false
+            self.refitBlockAttachments()
+        }
     }
 
     func apply(text: String, profile: ReadingProfile) {
@@ -90,6 +124,37 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         )
         renderedText = text
         renderedProfile = profile
+        // The renderer fits diagrams/equations to the reading column; refit to the current window
+        // width so a fresh render on a narrow window doesn't overflow until the next resize.
+        refitBlockAttachments()
+    }
+
+    /// Scale block diagram/equation attachments to the current window's available width, in place,
+    /// without re-rendering (the raster is high-res; only the width number was stale). Inline math
+    /// already fits, so it is left untouched and keeps its baseline offset.
+    private func refitBlockAttachments() {
+        guard let textStorage, let layoutManager, let textContainer, textStorage.length > 0 else { return }
+        // Before the view is in a window its width is 0; refitting then would collapse every
+        // diagram to ~1pt. Wait for a real width (the next real setFrameSize/apply refits).
+        guard bounds.width > 1 else { return }
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: activeProfile)
+        var didChange = false
+        textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
+            // Only block diagrams/equations are refit; inline math is small, baseline-aligned, and
+            // must never be rescaled (that would break its -descent baseline offset).
+            guard let attachment = value as? BlockRenderedAttachment, let image = attachment.image else { return }
+            guard let newBounds = BlockAttachmentRefit.refittedBounds(
+                naturalSize: image.size,
+                currentBounds: attachment.bounds,
+                fitWidth: fitWidth
+            ) else { return }
+            attachment.bounds = newBounds
+            layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
+            didChange = true
+        }
+        if didChange {
+            layoutManager.ensureLayout(for: textContainer)
+        }
     }
 
     // MARK: - "Report this" link handling

@@ -49,8 +49,9 @@ security scope; keep UI native/restrained; no analytics, no uploads, no AI insid
 
 **RECOMMENDED ORDER (each = its own fresh chat):**
 1. **Task 1** — keystroke debounce. [do-now; smallest, biggest felt win]
-2. **Task 3a + resize nit + Task 3b fixed-card** — all touch diagram/render code; can be one
-   branch or split. [do-now]
+2. **Task 3a + resize nit + Task 3b diagram backgrounds** — all touch diagram/render code; can be
+   one branch or split. [do-now] (Shipped: the fixed-card idea was iterated away during QA — see
+   the tracker entry below for the final transparent/per-theme design.)
 3. **Task 6 — SPEC first** (whole Read-mode rendering feature: all approved constructs +
    cross-cutting rules + the design decisions below). Get sign-off. THEN implement in waves,
    each wave its own fresh chat + QA:
@@ -75,7 +76,11 @@ Order = top to bottom. A fresh session: find the first UNCHECKED box, that's the
 When done + QA'd, check it and append `— done YYYY-MM-DD, branch <name>`.
 
 - [x] 1. Task 1 — keystroke debounce  — done 2026-07-04, branch `work-2026-07-04-7-keystroke-debounce` (commit 9128c41), suite 386/0, reviewed + fixed (reload/convert recompute-now). ⚠️ MAY STILL NEED REVISION: this alone did NOT make big-doc typing feel smooth — the felt stutter is Task 2 (whole-doc highlight, ~121 ms/pass, see its GATE note). If Task 2 does NOT resolve the stutter, revisit Task 1's approach (e.g. debounce interval, or whether more/less should be coalesced).
-- [ ] 2. Task 3a + resize nit + Task 3b fixed-card (diagram/render bundle)
+- [x] 2. Task 3a + resize nit + Task 3b diagram backgrounds (diagram/render bundle) — done 2026-07-04, branch `work-2026-07-04-8`, suite 406/0, **QA'd in-app with the user (confirmed good, incl. dark)**. Final design (the "fixed card" from Task 3b was iterated away during QA — a card looked like a box on the themes it couldn't match; see below):
+  - **Task 3b (diagrams/math backgrounds):** block **math** renders **transparent** (glyphs need no canvas) with a fixed light/dark ink (`DiagramPalette.ink`) → matches every theme, never re-renders on theme switch. Block **Mermaid**: **light** themes transparent (fixed ink draws crisp borders on the light page, no re-render among light); **dark** themes set the canvas to the theme's OWN page color so it still reads as no box (matches the page) but the node boxes get a visible fill — a transparent canvas CAN'T darken just the node boxes because Mermaid derives the node fill from the canvas (verified empirically). Dark Mermaid is thus per-theme (re-renders switching between the two dark themes), kept cheap by Task 3a's memory cache. Inline math unchanged (theme-aware).
+  - **Task 3a:** both caches memory-sized (`NSCache.totalCostLimit` via `RasterImageCost`; `DiagramCacheBudget`/`MathCacheBudget`).
+  - **Resize nit:** wide block diagrams/equations refit to the window on resize (`BlockAttachmentRefit`, scaling the cached raster with no re-render; runs on `setFrameSize`/`viewDidEndLiveResize`, deferred a tick during a live drag; only `BlockRenderedAttachment` block content is refit so inline math's baseline is untouched).
+  - Colors live in `DiagramPalette` (`Lineform/Preview/DiagramCardStyle.swift`).
 - [ ] 3. Task 6 — SPEC (Read-mode rendering; sign-off before code)
 - [ ] 4. Task 6 Wave 1 — easy styling (strikethrough, HR, blockquote, lists) + image placeholder
 - [ ] 5. Task 6 Wave 2 — interactive checkboxes

@@ -222,17 +222,25 @@ struct MarkdownPreviewRenderer {
         appVersion: String
     ) {
         let scale = NSScreen.main?.backingScaleFactor ?? 2
+        // Block diagrams: LIGHT themes render on a TRANSPARENT canvas (no box; dark ink draws crisp
+        // node borders on the light page) with a fixed ink, so switching among light themes redraws
+        // nothing. DARK themes render on a canvas set to the theme's own page color — it still reads
+        // as "no box" (it matches the page) but gives Mermaid's node boxes a clearly visible outline,
+        // which a transparent canvas can't (Mermaid derives the node fill from the canvas). That's
+        // per-theme on the dark side, so switching between the two dark themes re-renders — cheap,
+        // and Task 3a's memory cache keeps both.
+        let isDark = theme.usesDarkChrome
         let outcome = mermaidProvider.outcome(
             source: source,
-            background: theme.backgroundColor,
-            foreground: theme.textColor,
+            background: isDark ? theme.backgroundColor : .clear,
+            foreground: isDark ? theme.textColor : DiagramPalette.ink(isDark: false),
             scale: scale
         )
 
         switch outcome {
         case .image(let image):
             image.accessibilityDescription = "Mermaid diagram. \(source)"
-            let attachment = NSTextAttachment()
+            let attachment = BlockRenderedAttachment()
             attachment.image = image
             let natural = image.size
             let width = min(natural.width, max(columnWidth, 1))
@@ -293,10 +301,13 @@ struct MarkdownPreviewRenderer {
     ) {
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let pointSize = CGFloat(profile.fontSize)
+        // Block math renders transparent (no canvas) with a fixed light/dark ink, so it matches
+        // every theme's page and is exempt from theme-switch redraw.
+        let isDark = theme.usesDarkChrome
         let outcome = mathProvider.outcome(
             latex: latex,
             style: .display,
-            foreground: theme.textColor,
+            foreground: DiagramPalette.ink(isDark: isDark),
             pointSize: pointSize,
             scale: scale
         )
@@ -304,7 +315,7 @@ struct MarkdownPreviewRenderer {
         switch outcome {
         case .image(let image, _):
             image.accessibilityDescription = "Math. \(latex)"
-            let attachment = NSTextAttachment()
+            let attachment = BlockRenderedAttachment()
             attachment.image = image
             let natural = image.size
             let width = min(natural.width, max(columnWidth, 1))
@@ -399,6 +410,7 @@ struct MarkdownPreviewRenderer {
     ) {
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let pointSize = CGFloat(profile.fontSize)
+        // Inline math stays fully theme-aware.
         let outcome = mathProvider.outcome(
             latex: span.latex,
             style: span.style,

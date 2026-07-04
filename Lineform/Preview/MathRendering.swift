@@ -190,7 +190,8 @@ final class MathImageProvider: MathImageProviding {
     }
 
     init() {
-        cache.countLimit = 100
+        cache.countLimit = MathCacheBudget.countLimit
+        cache.totalCostLimit = MathCacheBudget.totalCostLimitBytes
         failureCache.countLimit = 200
     }
 
@@ -226,7 +227,11 @@ final class MathImageProvider: MathImageProviding {
             return .failed("Math render produced no image")
         }
         let descent = layout?.descent ?? 0
-        cache.setObject(CachedMath(image: image, descent: descent), forKey: key)
+        cache.setObject(
+            CachedMath(image: image, descent: descent),
+            forKey: key,
+            cost: RasterImageCost.bytes(for: image)
+        )
         return .image(image, descent: descent)
     }
 }
