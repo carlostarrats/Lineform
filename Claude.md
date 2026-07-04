@@ -100,7 +100,9 @@ The short rules:
 
 ## Verification Commands
 
-General deterministic test gate:
+The scheme uses two test plans (shared scheme `Lineform.xcscheme` + `Lineform.xctestplan` / `LineformHosted.xctestplan` at the repo root). The split exists because a handful of tests host a real `NSWindow` + `NSHostingView` editor inside the unit-test process — powerful but outside what XCTest supports well: load-sensitive assertions and intermittent test-host crashes (over-releases during autorelease-pool drains; the app itself is never affected). Everything else is pure and deterministic.
+
+**Default gate (the everyday command — pure suite, ~370 tests in seconds, crash-free):**
 
 ```sh
 xcodebuild test \
@@ -110,22 +112,27 @@ xcodebuild test \
   -parallel-testing-enabled NO
 ```
 
-Use serial testing for the full suite. Some AppKit-hosted tests can contaminate each other when Xcode runs them in parallel. No signing/team flags are needed: Debug ships no iCloud entitlement, so the test host signs ad-hoc ("Sign to Run Locally") and launches on unprovisioned machines and CI. Do not add an iCloud entitlement to Debug — it cannot be satisfied under ad-hoc signing and the test host will fail to launch (CI red).
+This runs the default plan (`Lineform.xctestplan`), which skips the two hosted-window classes. Xcode ⌘U uses the same plan. CI (`.github/workflows/ci.yml`) runs this full default plan on every push/PR. Keep `-parallel-testing-enabled NO`: some AppKit-hosted state can contaminate across parallel runners. No signing/team flags are needed: Debug ships no iCloud entitlement, so the test host signs ad-hoc ("Sign to Run Locally") and launches on unprovisioned machines and CI. Do not add an iCloud entitlement to Debug — it cannot be satisfied under ad-hoc signing and the test host will fail to launch (CI red).
 
-CLI test runs on the user's machine trigger a macOS prompt: "'Lineform' would like to
-access files in your Documents folder" (usually near the end of the suite). This is the
-ad-hoc-re-signed test host looking like a new app to TCC on every build — expected,
-dev-only, harmless; warn the user beforehand and have them click Allow. It blocks the
-suite until answered, so never run the full suite unattended and assume it finished.
+**Hosted plan (opt-in — the quarantined window-motion tests):**
 
-QUIT XCODE BEFORE RUNNING THE FULL SUITE. The hosted editor tests in `EditorDisplayModeTests` (e.g. `testEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens`) measure a sub-second animation and are load-sensitive: with Xcode left open during `xcodebuild test`, the extra resource contention intermittently makes them fail with a spurious vertical-jump delta (e.g. "13.0 > 1.0"). They pass reliably in isolation and on a quiet machine. This is harness fragility, not a product regression — do not weaken these tests to "fix" it; quit Xcode and re-run.
+```sh
+xcodebuild test \
+  -project Lineform.xcodeproj \
+  -scheme Lineform \
+  -destination 'platform=macOS' \
+  -parallel-testing-enabled NO \
+  -testPlan LineformHosted
+```
 
-Known AppKit test-harness warning:
+This runs `EditorDrawerMotionHostedTests` (drawer/inspector motion sampling) and `LiveReloadScrollTests` (scroll preservation across external reload). Run it deliberately — on a quiet machine, Xcode quit — before releases that touch editor motion, drawer/inspector presentation, or reload scroll behavior. Expectations when running it:
 
-- `EditorDisplayModeTests/testEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens` may log `[WarnOnce] It's not legal to call -layoutSubtreeIfNeeded on a view which is already being laid out`.
-- This warning was investigated in an isolated worktree on May 28, 2026. It appears when the test constructs the full `NSHostingView`/`NSWindow` editor harness via `makeEditorDrawerHarness()`.
-- Sandbox checks ruled out the drawer notification, the tuned text-canvas drawer motion code, Lineform's SwiftUI toolbar/search modifiers, and `makeKeyAndOrderFront` as direct causes.
-- Do not weaken or replace the full hosted drawer-motion harness just to silence this warning. The harness protects real UI motion regressions. Revisit only if the warning appears during normal app use, becomes a CI failure, or has a proven user-visible layout symptom.
+- QUIT XCODE FIRST. These tests measure sub-second animations and are load-sensitive: under contention they fail with spurious deltas (e.g. "13.0 > 1.0" or a flaky `testEditorVisibleTextDoesNotJumpVerticallyWhenReadingInspectorOpens`). They pass reliably in isolation on a quiet machine. Harness fragility, not a product regression — do not weaken the tests to "fix" it; re-run quiet.
+- The TCC prompt ("'Lineform' would like to access files in your Documents folder") can appear on CLI runs — the ad-hoc-re-signed test host looks like a new app to TCC. Expected, dev-only; click Allow. It blocks the run until answered.
+- The test host may occasionally crash (per-test via `XCTMemoryChecker`, or at process exit in `_NSWindowTransformAnimation dealloc`) and leave a Lineform `.ips` crash report. This is the known SwiftUI-window-in-XCTest over-release; it never affects the shipped app. Two targeted fixes were tried on 2026-07-03 (`window.close()` in teardown → crash-looped the host; `animationBehavior = .none` → moved the crash to `XCTMemoryChecker`), which is why the durable fix is this quarantine, not more patching.
+- `EditorDrawerMotionHostedTests/testZEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens` may log `[WarnOnce] It's not legal to call -layoutSubtreeIfNeeded on a view which is already being laid out` (investigated 2026-05-28; harness-construction artifact, not product code).
+
+Do not weaken, delete, or fold the hosted tests back into the default plan. They protect real UI motion regressions; their placement — not their existence — was the problem.
 
 ## Quality Bar
 

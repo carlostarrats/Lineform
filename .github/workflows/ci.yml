@@ -12,11 +12,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Lineform.xcodeproj -scheme Lineform
+      # Runs the scheme's default test plan (Lineform.xctestplan): the full pure,
+      # deterministic suite. The hosted-window motion tests (EditorDrawerMotionHostedTests,
+      # LiveReloadScrollTests) are quarantined into the opt-in LineformHosted plan — they
+      # need a quiet machine and are run manually before releases, never in CI.
       - name: Test
         run: |
           xcodebuild test \
             -project Lineform.xcodeproj \
             -scheme Lineform \
             -destination 'platform=macOS' \
-            -parallel-testing-enabled NO \
-            -only-testing:LineformTests/ReleaseResourceTests
+            -parallel-testing-enabled NO
