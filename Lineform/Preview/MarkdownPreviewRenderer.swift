@@ -657,8 +657,27 @@ struct MarkdownPreviewRenderer {
             return nil
         }
         let alt = nsLine.substring(with: match.range(at: 1))
-        let display = alt.isEmpty ? "🖼" : "🖼 \(alt)"
-        return InlineToken(kind: .image, text: display, range: match.range)
+        // Prefer the alt text; with none, use the image's filename (last path component) so the
+        // placeholder still carries context — a lead to find the file later — rather than a lone
+        // glyph or a generic word. Falls back to "Image" only when there's no usable filename.
+        // Still file-free/network-free: this only reads the path string already in the document.
+        let label: String
+        if !alt.isEmpty {
+            label = alt
+        } else {
+            let filename = Self.imageFilename(from: nsLine.substring(with: match.range(at: 2)))
+            label = filename.isEmpty ? "Image" : filename
+        }
+        return InlineToken(kind: .image, text: "🖼 \(label)", range: match.range)
+    }
+
+    /// The last path component of an image URL/path (the filename), stripped of any query or
+    /// fragment. Pure string work — never resolves or touches the file.
+    private static func imageFilename(from url: String) -> String {
+        let path = url.split(separator: "?", maxSplits: 1).first.map(String.init) ?? url
+        let withoutFragment = path.split(separator: "#", maxSplits: 1).first.map(String.init) ?? path
+        let lastComponent = withoutFragment.split(separator: "/").last.map(String.init) ?? withoutFragment
+        return lastComponent.trimmingCharacters(in: .whitespaces)
     }
 }
 

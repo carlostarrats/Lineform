@@ -112,10 +112,23 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertFalse(rendered.contains("cat.png")) // URL never shown; file never touched
     }
 
-    func testImageWithEmptyAltStillRendersGlyph() {
-        let rendered = MarkdownPreviewRenderer().render("![](x.png)", profile: .original).string
+    func testImageWithNoAltUsesFilename() {
+        let rendered = MarkdownPreviewRenderer().render("![](photos/mountain.png)", profile: .original).string
         XCTAssertTrue(rendered.contains("🖼"))
-        XCTAssertFalse(rendered.contains("x.png"))
+        XCTAssertTrue(rendered.contains("mountain.png"))   // filename gives context
+        XCTAssertFalse(rendered.contains("photos/"))       // just the filename, not the full path
+    }
+
+    func testImageWithNoAltStripsQueryFromFilename() {
+        let rendered = MarkdownPreviewRenderer().render("![](https://x.test/img/cat.png?v=2)", profile: .original).string
+        XCTAssertTrue(rendered.contains("cat.png"))
+        XCTAssertFalse(rendered.contains("v=2"))
+    }
+
+    func testImageWithNoAltAndNoUsableFilenameFallsBackToLabel() {
+        let rendered = MarkdownPreviewRenderer().render("![](   )", profile: .original).string
+        XCTAssertTrue(rendered.contains("🖼"))
+        XCTAssertTrue(rendered.contains("Image"))
     }
 
     func testPlainLinkStillRendersNormally() {
