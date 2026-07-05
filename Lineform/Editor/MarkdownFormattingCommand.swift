@@ -87,6 +87,7 @@ enum MarkdownFormattingCommand {
     case strikethrough
     case blockquote
     case unorderedList
+    case orderedList
     case link
 
     func apply(to text: String, selectedRange: NSRange) -> MarkdownEdit {
@@ -107,6 +108,8 @@ enum MarkdownFormattingCommand {
             return prefixSelectedLines("> ", in: text, selectedRange: selectedRange)
         case .unorderedList:
             return prefixSelectedLines("- ", in: text, selectedRange: selectedRange)
+        case .orderedList:
+            return prefixSelectedLines("1. ", in: text, selectedRange: selectedRange)
         case .link:
             return wrapLink(in: text, selectedRange: selectedRange)
         }

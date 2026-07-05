@@ -128,4 +128,46 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertEqual(MarkdownBlockquote.quoteLine("  > y"), MarkdownQuoteLine(depth: 1, text: "y"))
         XCTAssertNil(MarkdownBlockquote.quoteLine("no quote"))
     }
+
+    // MARK: - Lists
+
+    func testUnorderedListGroupsItems() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["- one", "- two"]),
+            [.list(items: [
+                MarkdownListItem(text: "one", indentLevel: 0, ordinal: nil),
+                MarkdownListItem(text: "two", indentLevel: 0, ordinal: nil)
+            ], lastLineIndex: 1)]
+        )
+    }
+
+    func testOrderedListNumbersSequentiallyEvenWhenAllOnes() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["1. a", "1. b", "1. c"]),
+            [.list(items: [
+                MarkdownListItem(text: "a", indentLevel: 0, ordinal: 1),
+                MarkdownListItem(text: "b", indentLevel: 0, ordinal: 2),
+                MarkdownListItem(text: "c", indentLevel: 0, ordinal: 3)
+            ], lastLineIndex: 2)]
+        )
+    }
+
+    func testNestedListRaisesIndentLevelAndCountsIndependently() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["1. top", "  1. nested", "  1. nested2", "2. top2"]),
+            [.list(items: [
+                MarkdownListItem(text: "top", indentLevel: 0, ordinal: 1),
+                MarkdownListItem(text: "nested", indentLevel: 1, ordinal: 1),
+                MarkdownListItem(text: "nested2", indentLevel: 1, ordinal: 2),
+                MarkdownListItem(text: "top2", indentLevel: 0, ordinal: 2)
+            ], lastLineIndex: 3)]
+        )
+    }
+
+    func testListParsingIgnoresNonListLines() {
+        XCTAssertNil(MarkdownList.parse("just text"))
+        XCTAssertNil(MarkdownList.parse("-no space after marker"))
+        XCTAssertEqual(MarkdownList.parse("* star")?.ordered, false)
+        XCTAssertEqual(MarkdownList.parse("3) paren")?.ordered, true)
+    }
 }

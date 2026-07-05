@@ -210,6 +210,7 @@ struct MarkdownBasicsModal: View {
         Example(label: "Bold", syntax: "**bold**"),
         Example(label: "Italic", syntax: "_italic_"),
         Example(label: "Bullet", syntax: "- bullet"),
+        Example(label: "Numbered", syntax: "1. item"),
         Example(label: "Quote", syntax: "> quote"),
         Example(label: "Strikethrough", syntax: "~~text~~"),
         Example(label: "Code", syntax: "`code`"),

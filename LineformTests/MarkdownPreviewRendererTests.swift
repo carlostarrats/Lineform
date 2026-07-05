@@ -104,6 +104,21 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertGreaterThan(deepIndent, shallowIndent)
     }
 
+    func testBulletedListRendersBulletWithHangingIndent() throws {
+        let rendered = MarkdownPreviewRenderer().render("- item", profile: .original)
+        XCTAssertTrue(rendered.string.contains("•"))
+        XCTAssertTrue(rendered.string.contains("item"))
+        XCTAssertFalse(rendered.string.hasPrefix("-"))
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertGreaterThan(style.headIndent, style.firstLineHeadIndent) // wrapped lines hang under the text
+    }
+
+    func testNumberedListRendersSequentialNumbers() {
+        let rendered = MarkdownPreviewRenderer().render("1. a\n1. b", profile: .original).string
+        XCTAssertTrue(rendered.contains("1."))
+        XCTAssertTrue(rendered.contains("2."))
+    }
+
     func testBlockSpacingAppliesOnlyToMarkdownBlockEndings() throws {
         var profile = ReadingProfile.original
         profile.paragraphSpacing = 18

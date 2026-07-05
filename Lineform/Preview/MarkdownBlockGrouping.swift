@@ -28,6 +28,44 @@ enum MarkdownBlock: Equatable {
     /// A contiguous run of `>`-quoted lines (markers stripped, per-line nesting depth kept).
     /// `lastLineIndex` is the last original line the block covers, for the trailing-newline rule.
     case blockquote(lines: [MarkdownQuoteLine], lastLineIndex: Int)
+    /// A contiguous run of list items (bulleted and/or numbered), with resolved ordinals and
+    /// nesting levels. `lastLineIndex` is the last original line the block covers.
+    case list(items: [MarkdownListItem], lastLineIndex: Int)
+}
+
+/// One rendered list item: its text, its nesting level, and — for numbered items — the sequential
+/// number to display (`nil` for bullets). Ordinals are resolved during grouping so `1.` / `1.` /
+/// `1.` renders as 1, 2, 3 and nested levels count independently.
+struct MarkdownListItem: Equatable {
+    var text: String
+    var indentLevel: Int
+    var ordinal: Int?
+}
+
+/// List-item line parsing: `-` / `*` / `+` bullets and `1.` / `1)` numbers, with a leading-indent
+/// nesting level. Pure syntax; ordinal resolution happens in the grouping pass.
+enum MarkdownList {
+    struct Parsed: Equatable {
+        var indentLevel: Int
+        var ordered: Bool
+        var text: String
+    }
+
+    private static let regex = try! NSRegularExpression(pattern: #"^([ \t]*)([-*+]|[0-9]{1,9}[.)])[ \t]+(.*)$"#)
+
+    static func parse(_ line: String) -> Parsed? {
+        let ns = line as NSString
+        guard let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else {
+            return nil
+        }
+        let indentText = ns.substring(with: match.range(at: 1))
+        let marker = ns.substring(with: match.range(at: 2))
+        let text = ns.substring(with: match.range(at: 3))
+        // Tabs count as two columns; every two columns of leading space is one nesting level.
+        let width = indentText.reduce(0) { $0 + ($1 == "\t" ? 2 : 1) }
+        let ordered = marker.first.map { $0.isNumber } ?? false
+        return Parsed(indentLevel: width / 2, ordered: ordered, text: text)
+    }
 }
 
 /// One line of a blockquote: its nesting depth (number of `>` markers) and the text after the
@@ -173,6 +211,19 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             continue
         }
 
+        if !inFence, let firstItem = MarkdownList.parse(lines[index]) {
+            flushLines(upTo: index)
+            var parsed = [firstItem]
+            var cursor = index + 1
+            while cursor < lines.count, let item = MarkdownList.parse(lines[cursor]) {
+                parsed.append(item)
+                cursor += 1
+            }
+            blocks.append(.list(items: resolveListOrdinals(parsed), lastLineIndex: cursor - 1))
+            index = cursor
+            continue
+        }
+
         // A regular code fence stays inside the current `.lines` run; track the state so the
         // special blocks above are correctly ignored while inside it.
         if MermaidFence.isFenceDelimiter(trimmed) {
@@ -186,4 +237,20 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
 
     flushLines(upTo: lines.count)
     return blocks
+}
+
+/// Resolve display ordinals for a run of parsed list items: numbered items count sequentially
+/// within their nesting level (so `1.` `1.` `1.` renders as 1, 2, 3), and re-entering a deeper
+/// level restarts its counter. Bullets carry `nil`.
+private func resolveListOrdinals(_ parsed: [MarkdownList.Parsed]) -> [MarkdownListItem] {
+    var counters: [Int: Int] = [:]
+    return parsed.map { item in
+        counters = counters.filter { $0.key <= item.indentLevel }
+        var ordinal: Int?
+        if item.ordered {
+            counters[item.indentLevel, default: 0] += 1
+            ordinal = counters[item.indentLevel]
+        }
+        return MarkdownListItem(text: item.text, indentLevel: item.indentLevel, ordinal: ordinal)
+    }
 }

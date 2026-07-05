@@ -126,10 +126,61 @@ struct MarkdownPreviewRenderer {
                 if lastLineIndex < lines.count - 1 {
                     output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
                 }
+            case .list(let items, let lastLineIndex):
+                appendList(items, to: output, profile: profile, theme: theme, mathProvider: mathProvider)
+                if lastLineIndex < lines.count - 1 {
+                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                }
             }
         }
 
         return output
+    }
+
+    /// Emit a list: Google-Docs-style with a slight indent per nesting level, real bullets (•) and
+    /// sequence numbers, and a hanging indent so wrapped lines align under the item text rather than
+    /// the marker. Inline styling inside an item still renders.
+    private func appendList(
+        _ items: [MarkdownListItem],
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) {
+        let baseBody = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        let levelStep: CGFloat = 24
+        let markerColumn: CGFloat = 22
+
+        for (offset, item) in items.enumerated() {
+            let base = CGFloat(item.indentLevel) * levelStep
+            let textIndent = base + markerColumn
+            let paragraph: NSMutableParagraphStyle
+            if let baseStyle = baseBody[.paragraphStyle] as? NSParagraphStyle,
+               let mutable = baseStyle.mutableCopy() as? NSMutableParagraphStyle {
+                paragraph = mutable
+            } else {
+                paragraph = NSMutableParagraphStyle()
+            }
+            paragraph.firstLineHeadIndent = base
+            paragraph.headIndent = textIndent
+            paragraph.tabStops = [NSTextTab(textAlignment: .left, location: textIndent)]
+
+            var attributes = baseBody
+            attributes[.paragraphStyle] = paragraph
+
+            let marker = item.ordinal.map { "\($0)." } ?? "•"
+            output.append(NSAttributedString(string: "\(marker)\t", attributes: attributes))
+            output.append(inlineWithMath(
+                in: item.text,
+                baseAttributes: attributes,
+                profile: profile,
+                theme: theme,
+                mathProvider: mathProvider
+            ))
+            if offset < items.count - 1 {
+                output.append(NSAttributedString(string: "\n", attributes: attributes))
+            }
+        }
     }
 
     /// Emit a blockquote: each quoted line indented by its nesting depth (markers hidden) and

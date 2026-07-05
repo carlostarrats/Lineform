@@ -342,6 +342,11 @@ struct AppCommands: Commands {
                 }
                 .keyboardShortcut("8", modifiers: [.command, .shift])
 
+                Button("Numbered List") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleOrderedListMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("7", modifiers: [.command, .shift])
+
                 Button("Link") {
                     NSApp.sendAction(#selector(LineformTextView.toggleLinkMarkdown(_:)), to: nil, from: nil)
                 }
