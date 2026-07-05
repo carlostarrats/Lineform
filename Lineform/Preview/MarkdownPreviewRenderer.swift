@@ -5,6 +5,7 @@ struct MarkdownPreviewRenderer {
     private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
     private static let codeRegex = try! NSRegularExpression(pattern: #"`([^`\n]+)`"#)
     private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
+    private static let imageRegex = try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
     private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
     private static let headingSizeBoosts: [Int: CGFloat] = [
         1: 11,
@@ -616,6 +617,10 @@ struct MarkdownPreviewRenderer {
             earliest: &earliest
         )
         consider(
+            imageToken(in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
             inlineToken(regex: Self.linkRegex, kind: .link, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
@@ -641,6 +646,20 @@ struct MarkdownPreviewRenderer {
 
         return InlineToken(kind: kind, text: nsLine.substring(with: match.range(at: 1)), range: match.range)
     }
+
+    /// An `![alt](url)` image rendered as a quiet, file-free, network-free placeholder: a small
+    /// image glyph plus the alt text. The file is never opened and the network is never touched —
+    /// deliberate, consistent with local-first privacy and the deferred-images decision. The `!`
+    /// and the URL are consumed so nothing leaks into the rendered text.
+    private func imageToken(in line: String, nsLine: NSString, from location: Int) -> InlineToken? {
+        let searchRange = NSRange(location: location, length: nsLine.length - location)
+        guard let match = Self.imageRegex.firstMatch(in: line, range: searchRange) else {
+            return nil
+        }
+        let alt = nsLine.substring(with: match.range(at: 1))
+        let display = alt.isEmpty ? "🖼" : "🖼 \(alt)"
+        return InlineToken(kind: .image, text: display, range: match.range)
+    }
 }
 
 private struct InlineToken {
@@ -649,6 +668,7 @@ private struct InlineToken {
         case italic
         case code
         case strikethrough
+        case image
         case link
     }
 
@@ -671,6 +691,10 @@ private struct InlineToken {
             attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
         case .strikethrough:
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+        case .image:
+            if let color = base[.foregroundColor] as? NSColor {
+                attributes[.foregroundColor] = color.withAlphaComponent(0.6)
+            }
         case .link:
             attributes[.foregroundColor] = NSColor.linkColor
         }

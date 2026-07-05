@@ -104,6 +104,25 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertGreaterThan(deepIndent, shallowIndent)
     }
 
+    func testImageRendersQuietPlaceholderWithAltTextAndNoBangOrURL() {
+        let rendered = MarkdownPreviewRenderer().render("![a cat](cat.png)", profile: .original).string
+        XCTAssertTrue(rendered.contains("a cat"))
+        XCTAssertTrue(rendered.contains("🖼"))
+        XCTAssertFalse(rendered.contains("!"))
+        XCTAssertFalse(rendered.contains("cat.png")) // URL never shown; file never touched
+    }
+
+    func testImageWithEmptyAltStillRendersGlyph() {
+        let rendered = MarkdownPreviewRenderer().render("![](x.png)", profile: .original).string
+        XCTAssertTrue(rendered.contains("🖼"))
+        XCTAssertFalse(rendered.contains("x.png"))
+    }
+
+    func testPlainLinkStillRendersNormally() {
+        let rendered = MarkdownPreviewRenderer().render("[a link](https://example.com)", profile: .original).string
+        XCTAssertEqual(rendered, "a link")
+    }
+
     func testBulletedListRendersBulletWithHangingIndent() throws {
         let rendered = MarkdownPreviewRenderer().render("- item", profile: .original)
         XCTAssertTrue(rendered.string.contains("•"))
