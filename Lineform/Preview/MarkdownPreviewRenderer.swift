@@ -13,6 +13,9 @@ struct MarkdownPreviewRenderer {
     private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
     private static let imageRegex = try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
     private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
+    /// Table cell text renders at this fraction of the reading font size — denser than prose, but
+    /// still relative so it scales with the user's size setting. Dial-able.
+    static let tableTextScale: CGFloat = 0.9
     private static let headingSizeBoosts: [Int: CGFloat] = [
         1: 11,
         2: 3,
@@ -172,7 +175,11 @@ struct MarkdownPreviewRenderer {
         let borderColor = theme.textColor.withAlphaComponent(0.25)
         let headerFill = theme.textColor.withAlphaComponent(0.06)
         let baseFont = (baseAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
-        let headerFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+        // Table cells render slightly smaller than prose (a common, denser table convention) while
+        // still tracking the reading font size — so it scales with the user's accessibility setting
+        // and just fits more per column, easing the too-wide case. Relative, never a fixed size.
+        let cellFont = NSFont(descriptor: baseFont.fontDescriptor, size: baseFont.pointSize * Self.tableTextScale) ?? baseFont
+        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
 
         let allRows: [(cells: [String], isHeader: Bool)] =
             [(table.headers, true)] + table.rows.map { ($0, false) }
@@ -205,9 +212,7 @@ struct MarkdownPreviewRenderer {
 
                 var attributes = baseAttributes
                 attributes[.paragraphStyle] = paragraph
-                if row.isHeader {
-                    attributes[.font] = headerFont
-                }
+                attributes[.font] = row.isHeader ? headerFont : cellFont
 
                 let cellText = column < row.cells.count ? row.cells[column] : ""
                 output.append(NSAttributedString(string: cellText + "\n", attributes: attributes))

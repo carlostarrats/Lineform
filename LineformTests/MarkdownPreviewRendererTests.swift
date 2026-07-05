@@ -165,6 +165,17 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertTrue(style.textBlocks.contains { $0 is NSTextTableBlock })
     }
 
+    func testTableTextIsRelativelySmallerThanReadingFont() throws {
+        var profile = ReadingProfile.original
+        profile.fontSize = 20
+        let rendered = MarkdownPreviewRenderer().render("| a | b |\n|---|---|\n| 1 | 2 |", profile: profile)
+        let cellIndex = (rendered.string as NSString).range(of: "1").location
+        let cellFont = try XCTUnwrap(rendered.attribute(.font, at: cellIndex, effectiveRange: nil) as? NSFont)
+        // Relative reduction: tracks the reading size (20) but a bit smaller, and scales with it.
+        XCTAssertEqual(cellFont.pointSize, 20 * MarkdownPreviewRenderer.tableTextScale, accuracy: 0.01)
+        XCTAssertLessThan(cellFont.pointSize, 20)
+    }
+
     func testTableColumnAlignmentFollowsDelimiter() throws {
         // Header "b" column is centered by ":--:"; find a cell in that column and check its alignment.
         let rendered = MarkdownPreviewRenderer().render("| a | b |\n|:--|:--:|\n| 1 | 2 |", profile: .original)
