@@ -861,7 +861,10 @@ extension OutlineSidebarViewTests {
                 let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
                 monitors.append(monitor)
                 return monitor
-            }
+            },
+            // Interval 0 → the monitor rescan runs synchronously (the debounce fast-path),
+            // so this test asserts the rescan behavior inline as before the debounce landed.
+            directoryRescanDebounce: 0
         )
         store.refreshICloud()
         XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["A.md"])
@@ -907,7 +910,8 @@ extension OutlineSidebarViewTests {
                 let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
                 monitors.append(monitor)
                 return monitor
-            }
+            },
+            directoryRescanDebounce: 0
         )
         store.beginWatchingForExternalChanges()
         XCTAssertEqual(monitors.map(\.url.standardizedFileURL), [workspace.standardizedFileURL])
@@ -915,6 +919,114 @@ extension OutlineSidebarViewTests {
         try "# X".write(to: workspace.appendingPathComponent("X.md"), atomically: true, encoding: .utf8)
         monitors[0].onChange()
         XCTAssertEqual(store.workspaceRoot.items.map(\.name), ["W.md", "X.md"])
+    }
+
+    /// Poll until `condition` holds (or fail at `timeout`). A one-shot assert at a fixed
+    /// deadline flakes on loaded machines; this mirrors DocumentReloadControllerTests.
+    @MainActor
+    private func waitUntil(
+        timeout: TimeInterval = 2,
+        _ description: String,
+        _ condition: @escaping @MainActor () -> Bool
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+        let expectation = expectation(description: description)
+        func poll() {
+            if condition() {
+                expectation.fulfill()
+            } else if Date() < deadline {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { poll() }
+            }
+        }
+        poll()
+        wait(for: [expectation], timeout: timeout + 0.5)
+    }
+
+    @MainActor
+    func testWatcherDebouncesMonitorDrivenRescans() throws {
+        // A monitor event (e.g. autosave-while-typing churn) must NOT run the recursive
+        // directory walk synchronously on the main thread — that inline walk every ~0.5s
+        // was the large-workspace typing hitch (Task 5). With a non-zero debounce the
+        // rescan defers to a trailing timer and the single walk runs after the burst.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var monitors: [FakeDirectoryMonitor] = []
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder },
+            directoryMonitorFactory: { url, onChange in
+                let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
+                monitors.append(monitor)
+                return monitor
+            },
+            directoryRescanDebounce: 0.1
+        )
+        store.refreshICloud()
+        store.beginWatchingForExternalChanges()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["A.md"])
+
+        try "# B".write(to: folder.appendingPathComponent("B.md"), atomically: true, encoding: .utf8)
+        monitors[0].onChange()
+        // Deferral: the published tree still shows the pre-event state right after onChange.
+        XCTAssertEqual(
+            store.iCloudRoot.items.map(\.name), ["A.md"],
+            "a debounced monitor event must not rescan synchronously"
+        )
+
+        // Eventual correctness: after the interval the single trailing rescan publishes B.
+        waitUntil("debounced rescan publishes the new file") {
+            store.iCloudRoot.items.map(\.name) == ["A.md", "B.md"]
+        }
+    }
+
+    @MainActor
+    func testEndWatchingCancelsPendingDebouncedRescan() throws {
+        // Ending watching (Files tab hidden) must cancel a pending debounced rescan: the
+        // tree is a view convenience and a late walk after the tab is gone is wasted work.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var monitors: [FakeDirectoryMonitor] = []
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder },
+            directoryMonitorFactory: { url, onChange in
+                let monitor = FakeDirectoryMonitor(url: url, onChange: onChange)
+                monitors.append(monitor)
+                return monitor
+            },
+            directoryRescanDebounce: 0.1
+        )
+        store.refreshICloud()
+        store.beginWatchingForExternalChanges()
+
+        try "# B".write(to: folder.appendingPathComponent("B.md"), atomically: true, encoding: .utf8)
+        monitors[0].onChange()                    // schedules a debounced rescan
+        store.endWatchingForExternalChanges()     // must cancel it
+
+        // Pump the runloop well past the interval; the cancelled rescan must never fire.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertEqual(
+            store.iCloudRoot.items.map(\.name), ["A.md"],
+            "a pending debounced rescan must be cancelled when watching ends"
+        )
     }
 
     @MainActor

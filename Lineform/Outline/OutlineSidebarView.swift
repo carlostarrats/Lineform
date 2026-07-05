@@ -674,6 +674,14 @@ final class OutlineFileBrowserStore: ObservableObject {
     static let lastKnownICloudAvailableDefaultsKey = "Lineform.outline.lastKnownICloudAvailable"
     static let maximumTreeDepth = 4
     static let maximumChildrenPerFolder = 80
+    /// Trailing debounce for FSEvents-driven rescans (Task 5). Autosave-while-typing writes
+    /// fire the monitor; without a debounce each coalesced tick ran the recursive directory
+    /// walk synchronously on the main thread ~every `DirectoryEventMonitor.coalescingLatency`
+    /// (0.5s), which is the large-workspace typing hitch. MUST exceed that latency: during
+    /// continuous churn FSEvents delivers a callback roughly every `coalescingLatency`, so a
+    /// longer debounce is guaranteed to keep resetting (never fire) until the churn stops —
+    /// converting the mid-typing hitch into a single settle-after-pause rescan.
+    static let directoryRescanDebounceInterval: TimeInterval = 0.75
     static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
     /// Directory names always hidden from the tree, even with "Show hidden folders" on —
     /// build/vcs noise that is never useful reading material.
@@ -782,6 +790,12 @@ final class OutlineFileBrowserStore: ObservableObject {
     private let iCloudDownloader: UbiquitousItemDownloader
     private let scopeAccessor: SecurityScopedResourceAccessing
     private let directoryMonitorFactory: DirectoryChangeMonitorFactory
+    /// Trailing debounce interval for monitor-driven rescans (0 → run synchronously, the
+    /// test fast-path). Only the FSEvents `onChange` path is debounced; every user-initiated
+    /// refresh stays instant.
+    private let directoryRescanDebounce: TimeInterval
+    private var pendingWorkspaceRescan: DispatchWorkItem?
+    private var pendingICloudRescan: DispatchWorkItem?
     private var workspaceMonitor: DirectoryChangeMonitoring?
     private var iCloudMonitor: DirectoryChangeMonitoring?
     /// Whether the Files tab wants live watching right now. Tracked separately from the
@@ -805,13 +819,15 @@ final class OutlineFileBrowserStore: ObservableObject {
         iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL,
         iCloudDownloader: UbiquitousItemDownloader? = nil,
         scopeAccessor: SecurityScopedResourceAccessing = URLSecurityScopedResourceAccessor(),
-        directoryMonitorFactory: DirectoryChangeMonitorFactory? = nil
+        directoryMonitorFactory: DirectoryChangeMonitorFactory? = nil,
+        directoryRescanDebounce: TimeInterval = OutlineFileBrowserStore.directoryRescanDebounceInterval
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
         self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
         self.iCloudDownloader = iCloudDownloader ?? fileManager
         self.scopeAccessor = scopeAccessor
+        self.directoryRescanDebounce = directoryRescanDebounce
         self.directoryMonitorFactory = directoryMonitorFactory ?? { url, onChange in
             DirectoryEventMonitor(url: url, onChange: onChange)
         }
@@ -860,23 +876,63 @@ final class OutlineFileBrowserStore: ObservableObject {
         isWatchingForExternalChanges = true
         if workspaceMonitor == nil, let workspaceURL {
             workspaceMonitor = directoryMonitorFactory(workspaceURL) { [weak self] in
-                self?.refreshWorkspaceRoot()
+                self?.scheduleWorkspaceRescan()
             }
         }
         if iCloudMonitor == nil, let url = resolvedICloudDocumentsURL {
             iCloudMonitor = directoryMonitorFactory(url) { [weak self] in
-                self?.refreshICloudRoot()
+                self?.scheduleICloudRescan()
             }
         }
     }
 
-    /// Stops watching (Files tab hidden / view gone). Cheap to call repeatedly.
+    /// Stops watching (Files tab hidden / view gone). Cheap to call repeatedly. Also cancels
+    /// any pending debounced rescan: once the tab is hidden a late walk is wasted work, and
+    /// the next tab-appear rescans anyway.
     func endWatchingForExternalChanges() {
         isWatchingForExternalChanges = false
         workspaceMonitor?.stop()
         workspaceMonitor = nil
         iCloudMonitor?.stop()
         iCloudMonitor = nil
+        pendingWorkspaceRescan?.cancel()
+        pendingWorkspaceRescan = nil
+        pendingICloudRescan?.cancel()
+        pendingICloudRescan = nil
+    }
+
+    /// Trailing-debounced rescan for the workspace root, fed by the FSEvents monitor only.
+    /// Autosave-while-typing churn keeps resetting the timer so the recursive directory walk
+    /// runs once after the burst settles instead of on every coalesced tick (Task 5). Mirrors
+    /// `DocumentReloadController`'s debounce, including the `interval == 0` synchronous
+    /// fast-path used by tests. User-initiated refreshes call `refreshWorkspaceRoot()` directly.
+    private func scheduleWorkspaceRescan() {
+        pendingWorkspaceRescan?.cancel()
+        guard directoryRescanDebounce > 0 else {
+            refreshWorkspaceRoot()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingWorkspaceRescan = nil
+            self?.refreshWorkspaceRoot()
+        }
+        pendingWorkspaceRescan = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + directoryRescanDebounce, execute: work)
+    }
+
+    /// Trailing-debounced rescan for the iCloud root, fed by the FSEvents monitor only.
+    private func scheduleICloudRescan() {
+        pendingICloudRescan?.cancel()
+        guard directoryRescanDebounce > 0 else {
+            refreshICloudRoot()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingICloudRescan = nil
+            self?.refreshICloudRoot()
+        }
+        pendingICloudRescan = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + directoryRescanDebounce, execute: work)
     }
 
     /// Targeted refresh after an in-app rename/delete: re-scan only the root containing
@@ -978,6 +1034,8 @@ final class OutlineFileBrowserStore: ObservableObject {
     deinit {
         workspaceMonitor?.stop()
         iCloudMonitor?.stop()
+        pendingWorkspaceRescan?.cancel()
+        pendingICloudRescan?.cancel()
         releaseWorkspaceScope()
     }
 
@@ -1035,6 +1093,10 @@ final class OutlineFileBrowserStore: ObservableObject {
         // still needs one if the Files tab is watching.
         workspaceMonitor?.stop()
         workspaceMonitor = nil
+        // Drop any debounced rescan queued against the old workspace's monitor; the direct
+        // refresh below re-scans the new folder, so a late fire would only be redundant work.
+        pendingWorkspaceRescan?.cancel()
+        pendingWorkspaceRescan = nil
 
         workspaceURL = url
         saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
