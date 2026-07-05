@@ -81,8 +81,16 @@ When done + QA'd, check it and append `— done YYYY-MM-DD, branch <name>`.
   - **Task 3a:** both caches memory-sized (`NSCache.totalCostLimit` via `RasterImageCost`; `DiagramCacheBudget`/`MathCacheBudget`).
   - **Resize nit:** wide block diagrams/equations refit to the window on resize (`BlockAttachmentRefit`, scaling the cached raster with no re-render; runs on `setFrameSize`/`viewDidEndLiveResize`, deferred a tick during a live drag; only `BlockRenderedAttachment` block content is refit so inline math's baseline is untouched).
   - Colors live in `DiagramPalette` (`Lineform/Preview/DiagramCardStyle.swift`).
-- [ ] 3. Task 6 — SPEC (Read-mode rendering; sign-off before code)
-- [ ] 4. Task 6 Wave 1 — easy styling (strikethrough, HR, blockquote, lists) + image placeholder
+- [x] 3. Task 6 — SPEC (Read-mode rendering; sign-off before code) — done 2026-07-04, branch `work-2026-07-04-9` (commit cb06f71). Umbrella spec `docs/superpowers/specs/2026-07-04-read-mode-rendering-design.md`: block-grouping renderer layer + per-construct decisions + waves. (Sign-off was waived — user directed "write the spec, write the plan, action it and review" without stopping.)
+- [x] 4. Task 6 Wave 1 — easy styling (strikethrough, HR, blockquote, lists) + image placeholder — done 2026-07-04, branch `work-2026-07-04-9`, suite **441/0**. Plan `docs/superpowers/plans/2026-07-04-read-mode-rendering-wave1.md`. Shipped:
+  - **Block-grouping layer** (`MarkdownBlockGrouping.swift`): single pass → typed blocks; `MarkdownPreviewRenderer` renders block-by-block, reusing the existing per-line emission unchanged (**byte-identical** for headings/code/mermaid/math — verified line-by-line in review). **This folded in Task 4** (single split + `markdownBlockSpacingLineIndexes(inLines:)`).
+  - **Strikethrough** `~~x~~` (inline token) + Format ▸ Strikethrough **⌘⇧X** + Info row.
+  - **Horizontal rule** `---`/`***`/`___` → `HorizontalRuleAttachment` (self-sizing cell); front-matter + setext (incl. after list/quote) guards. Info row.
+  - **Blockquote** `>` (nested `>>`) → indent + de-emphasis, markers hidden + Format ▸ Blockquote + Info row.
+  - **Lists** bulleted (•) + numbered (renumbered, nested) with hanging indent + Format ▸ Numbered List **⌘⇧7** + Info row.
+  - **Image placeholder** `![alt](url)` → 🖼 + alt, **file-free + network-free**, no stray `!`/URL. Info row.
+  - Reviewed (2 parallel reviewers) + fixes applied (HR-after-list/quote; dedup baseAttributes).
+  - ⚠️ **Residual risk / NOT yet exercised by me:** on-screen visual QA (build-only + 441 unit tests, no app run). Two items need your eyes: (1) the blockquote **left vertical bar is deferred** — it currently ships as indent + de-emphasis only (the drawn bar needs on-screen positioning); (2) HR thickness/spacing, list indent metrics, and blockquote dim were tuned blind. Please QA in Read/Split across a light + a dark theme.
 - [ ] 5. Task 6 Wave 2 — interactive checkboxes
 - [ ] 6. Task 6 Wave 3 — tables (self-scrolling)  [also fold in Task 4 cleanup]
 - [ ] 7. Task 7 — SPEC (rich PDF + Print; sign-off before code)
