@@ -99,6 +99,172 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertTrue(EditorSearchToolbarPresentation.usesSystemSearchFieldSizing)
     }
 
+    // MARK: - Find & Replace (Task 8)
+
+    func testReplaceAllSwapsEveryMatchAndCountsThem() {
+        let result = EditorSearchResolver.replaceAll(
+            in: "cat dog cat bird cat",
+            query: "cat",
+            replacement: "fox"
+        )
+
+        XCTAssertEqual(result?.text, "fox dog fox bird fox")
+        XCTAssertEqual(result?.replacedCount, 3)
+    }
+
+    func testReplaceAllReplacesExactlyAsManyAsSearchMatches() {
+        let text = "Find this, then find this again. FIND."
+        let query = "find"
+        let matchCount = EditorSearchResolver.matches(in: text, query: query).count
+        let result = EditorSearchResolver.replaceAll(in: text, query: query, replacement: "seek")
+
+        XCTAssertEqual(result?.replacedCount, matchCount)
+        XCTAssertEqual(result?.text, "seek this, then seek this again. seek.")
+    }
+
+    func testReplaceAllIsCaseAndDiacriticInsensitiveLikeSearch() {
+        // Matches search's [.caseInsensitive, .diacriticInsensitive] behavior.
+        let result = EditorSearchResolver.replaceAll(
+            in: "café CAFE cafe",
+            query: "cafe",
+            replacement: "bar"
+        )
+
+        XCTAssertEqual(result?.replacedCount, 3)
+        XCTAssertEqual(result?.text, "bar bar bar")
+    }
+
+    func testReplaceAllHandlesReplacementLongerAndShorterThanQuery() {
+        let longer = EditorSearchResolver.replaceAll(in: "a b a", query: "a", replacement: "xyz")
+        XCTAssertEqual(longer?.text, "xyz b xyz")
+
+        let shorter = EditorSearchResolver.replaceAll(in: "aaa b aaa", query: "aaa", replacement: "z")
+        XCTAssertEqual(shorter?.text, "z b z")
+    }
+
+    func testReplaceAllWithEmptyReplacementDeletesMatches() {
+        let result = EditorSearchResolver.replaceAll(in: "a-b-a-b", query: "-", replacement: "")
+
+        XCTAssertEqual(result?.text, "abab")
+        XCTAssertEqual(result?.replacedCount, 3)
+    }
+
+    func testReplaceAllDoesNotCascadeWhenReplacementContainsQuery() {
+        // Replacing "a" with "aa" must not re-scan the freshly written text (no runaway).
+        let result = EditorSearchResolver.replaceAll(in: "a a a", query: "a", replacement: "aa")
+
+        XCTAssertEqual(result?.text, "aa aa aa")
+        XCTAssertEqual(result?.replacedCount, 3)
+    }
+
+    func testReplaceAllReturnsNilWhenNothingMatchesOrQueryEmpty() {
+        XCTAssertNil(EditorSearchResolver.replaceAll(in: "hello", query: "zzz", replacement: "x"))
+        XCTAssertNil(EditorSearchResolver.replaceAll(in: "hello", query: "", replacement: "x"))
+        XCTAssertNil(EditorSearchResolver.replaceAll(in: "hello", query: "   ", replacement: "x"))
+    }
+
+    func testReplaceAllCaretLandsAfterLastReplacement() {
+        // Back-to-front rewrite; caret ends up as a zero-length insertion point at the
+        // end of the top-most replacement so the view has a sensible post-edit selection.
+        let result = EditorSearchResolver.replaceAll(in: "cat cat", query: "cat", replacement: "fox")
+
+        XCTAssertEqual(result?.text, "fox fox")
+        // First "fox" occupies 0..<3; caret sits at its end.
+        XCTAssertEqual(result?.selectedRange, NSRange(location: 3, length: 0))
+    }
+
+    func testReplaceMatchReplacesOnlyTheGivenRangeAndSelectsInsertion() {
+        let text = "cat dog cat"
+        let matches = EditorSearchResolver.matches(in: text, query: "cat")
+        let result = EditorSearchResolver.replaceMatch(in: text, matchRange: matches[1], replacement: "fox")
+
+        XCTAssertEqual(result?.text, "cat dog fox")
+        XCTAssertEqual(result?.replacedCount, 1)
+        XCTAssertEqual(result?.selectedRange, NSRange(location: 8, length: 3))
+    }
+
+    func testReplaceMatchReturnsNilForOutOfBoundsRange() {
+        XCTAssertNil(
+            EditorSearchResolver.replaceMatch(
+                in: "short",
+                matchRange: NSRange(location: 10, length: 3),
+                replacement: "x"
+            )
+        )
+    }
+
+    func testNextActiveIndexAfterReplacementAdvancesPastTheReplacement() {
+        // Replaced "cat" at loc 0 with "dog" (len 3) in "cat cat cat" → next is the following match.
+        let newMatches = EditorSearchResolver.matches(in: "dog cat cat", query: "cat")
+        let next = EditorSearchResolver.nextActiveIndexAfterReplacement(
+            matches: newMatches,
+            replacedLocation: 0,
+            replacementLength: 3
+        )
+        XCTAssertEqual(next, 0) // first "cat" now at loc 4
+    }
+
+    func testNextActiveIndexAfterReplacementSkipsAReplacementContainingTheQuery() {
+        // Regression: replacing "cat"→"cats" must NOT re-select the "cat" inside the fresh "cats"
+        // (that would make Replace loop on its own output: cat→cats→catss…).
+        let newMatches = EditorSearchResolver.matches(in: "cats cat", query: "cat")
+        // Two matches: the one inside "cats" at loc 0, and the standalone "cat" at loc 5.
+        XCTAssertEqual(newMatches.map(\.location), [0, 5])
+        let next = EditorSearchResolver.nextActiveIndexAfterReplacement(
+            matches: newMatches,
+            replacedLocation: 0,
+            replacementLength: 4 // "cats"
+        )
+        XCTAssertEqual(next, 1) // skips loc 0 (inside the replacement), lands on loc 5
+    }
+
+    func testNextActiveIndexAfterReplacementWrapsWhenNoneFollow() {
+        // Replaced the LAST "cat" (loc 4) in "cat cat" → wrap back to the first remaining match.
+        let newMatches = EditorSearchResolver.matches(in: "cat dog", query: "cat")
+        let next = EditorSearchResolver.nextActiveIndexAfterReplacement(
+            matches: newMatches,
+            replacedLocation: 4,
+            replacementLength: 3
+        )
+        XCTAssertEqual(next, 0)
+    }
+
+    func testNextActiveIndexAfterReplacementReturnsNilWhenNoMatchesRemain() {
+        XCTAssertNil(
+            EditorSearchResolver.nextActiveIndexAfterReplacement(
+                matches: [],
+                replacedLocation: 0,
+                replacementLength: 3
+            )
+        )
+    }
+
+    func testNextActiveIndexAfterReplacementDoesNotWrapOntoASoleSelfContainingReplacement() {
+        // Single occurrence "cat" replaced by "cats": the only match left is the "cat" INSIDE the
+        // inserted "cats". Wrapping onto it would resume the cascade, so no match is selected.
+        let newMatches = EditorSearchResolver.matches(in: "cats", query: "cat")
+        XCTAssertEqual(newMatches, [NSRange(location: 0, length: 3)])
+        let next = EditorSearchResolver.nextActiveIndexAfterReplacement(
+            matches: newMatches,
+            replacedLocation: 0,
+            replacementLength: 4 // "cats"
+        )
+        XCTAssertNil(next)
+    }
+
+    func testNextActiveIndexAfterReplacementWrapSkipsMatchInsideInsertion() {
+        // "cat cat" → replace the SECOND (loc 4) with "cats" → "cat cats". Matches: "cat" at loc 0
+        // and the "cat" inside "cats" at loc 4. Wrap must land on loc 0, never the loc-4 self-match.
+        let newMatches = EditorSearchResolver.matches(in: "cat cats", query: "cat")
+        XCTAssertEqual(newMatches.map(\.location), [0, 4])
+        let next = EditorSearchResolver.nextActiveIndexAfterReplacement(
+            matches: newMatches,
+            replacedLocation: 4,
+            replacementLength: 4 // "cats"
+        )
+        XCTAssertEqual(next, 0)
+    }
+
     func testDisplayModesStaySmallAndOrdered() {
         XCTAssertEqual(EditorDisplayMode.allCases, [.write, .read, .split])
         XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])

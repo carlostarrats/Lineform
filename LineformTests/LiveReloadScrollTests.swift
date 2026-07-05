@@ -16,6 +16,7 @@ final class LiveReloadScrollTests: XCTestCase {
         @ObservedObject var model: ReloadTestModel
         @State private var format = LineformTextFormat.markdown
         @State private var conversion: MarkdownPlainTextConversion?
+        @State private var requestedReplacement: MarkdownEdit?
 
         var body: some View {
             MarkdownTextViewRepresentable(
@@ -23,6 +24,7 @@ final class LiveReloadScrollTests: XCTestCase {
                 textFormat: $format,
                 plainTextConversion: $conversion,
                 requestedSelection: $model.requestedSelection,
+                requestedReplacement: $requestedReplacement,
                 profile: .original
             )
         }

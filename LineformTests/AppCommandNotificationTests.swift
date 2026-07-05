@@ -113,6 +113,15 @@ final class AppCommandNotificationTests: XCTestCase {
         )
     }
 
+    func testFindReplaceCommandUsesWindowScopedNotification() {
+        XCTAssertEqual(AppMenuConfiguration.findReplaceCommandTitle, "Find & Replace…")
+        XCTAssertEqual(AppMenuConfiguration.findReplaceCommandKeyEquivalent, "f")
+        XCTAssertEqual(
+            LineformAppNotification.showFindReplace.name.rawValue,
+            "Lineform.showFindReplace"
+        )
+    }
+
     func testTextFormatConversionCommandUsesWindowScopedNotification() {
         XCTAssertEqual(
             LineformAppNotification.convertTextFormat.name.rawValue,

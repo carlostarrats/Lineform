@@ -6,6 +6,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var textFormat: LineformTextFormat
     @Binding var plainTextConversion: MarkdownPlainTextConversion?
     @Binding var requestedSelection: NSRange?
+    @Binding var requestedReplacement: MarkdownEdit?
     var profile: ReadingProfile
     var smoothsHorizontalInsetChanges = false
     var searchRanges: [NSRange] = []
@@ -56,7 +57,16 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
 
-        if textView.string != text {
+        if let replacement = requestedReplacement {
+            // A Find & Replace edit. Route through the same undoable whole-text path the
+            // formatting commands use (shouldChangeText → setAttributedString → didChangeText),
+            // so it is a single ⌘Z step and syncs `text` back through the delegate. This
+            // replaces the plain string-sync below for this cycle so the text lands exactly once.
+            textView.applyExternalReplacement(replacement)
+            DispatchQueue.main.async {
+                requestedReplacement = nil
+            }
+        } else if textView.string != text {
             // A programmatic full-text replacement. When no explicit selection/scroll target
             // is requested (live reload), preserve the reader's place proportionally; the
             // sidebar swap requests (0,0) instead and is handled below.

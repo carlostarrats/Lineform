@@ -17,6 +17,10 @@ struct EditorContainerView: View {
     @State private var searchMatches: [NSRange] = []
     @State private var activeSearchIndex: Int?
     @FocusState private var isSearchFocused: Bool
+    @State private var isShowingFindReplace = false
+    @State private var replaceText = ""
+    @State private var requestedReplacement: MarkdownEdit?
+    @FocusState private var isReplaceFocused: Bool
     @State private var documentStatistics = DocumentStatistics(text: "")
     @State private var windowNumber: Int?
     @State private var currentFileURL: URL?
@@ -156,6 +160,19 @@ struct EditorContainerView: View {
             guard notificationMatchesActiveWindow(notification) else {
                 return
             }
+            isSearchFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showFindReplace.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else {
+                return
+            }
+            // Replace needs the editor, which only exists in Write/Split; force Write so ⌥⌘F
+            // always lands somewhere it can act (search likewise forces Write when it navigates
+            // to a match, in refreshSearchMatches).
+            if displayMode == .read {
+                displayMode = .write
+            }
+            isShowingFindReplace = true
             isSearchFocused = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.setDisplayMode.name)) { notification in
@@ -455,6 +472,19 @@ struct EditorContainerView: View {
                     )
                 }
             }
+
+            // Find & Replace floats OVER the page as a small panel (Safari-⌘F style). It is
+            // deliberately an overlay, NOT a row in the VStack: a full-width strip at the top of
+            // the layout becomes what the translucent toolbar samples for its own color, so a
+            // laid-out bar visibly recolored the navigation whenever it opened. An overlay leaves
+            // the view hierarchy at the top edge identical to when the bar is closed — the header
+            // cannot change.
+            if isShowingFindReplace && displayMode != .read {
+                findReplaceBar
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 10)
+                    .padding(.trailing, 14)
+            }
         }
         .background(Color(nsColor: currentTheme.backgroundColor))
         .animation(
@@ -477,6 +507,155 @@ struct EditorContainerView: View {
     private func toggleCheckbox(at range: NSRange) {
         guard let newText = CheckboxToggle.toggledText(in: document.text, at: range) else { return }
         document.text = newText
+    }
+
+    // The Find & Replace panel. The FIND term stays in the existing native toolbar search
+    // field (`searchQuery`); this adds only the replacement field + actions beside it, so the
+    // settled search UX is untouched. Rendered as a compact FLOATING card over the page (see the
+    // overlay comment in editorPrimaryShell — never a laid-out top strip, which recolors the
+    // toolbar). The card is the app's theme-independent light chrome (same family as the Muse
+    // modals), so it looks identical on every page and its controls are always legible.
+    private var findReplaceBar: some View {
+        HStack(spacing: 8) {
+            TextField("Replace", text: $replaceText)
+                .textFieldStyle(.roundedBorder)
+                // Compressible so the card fits a narrow editor pane (minimum content width is
+                // 300pt): the field shrinks before the card can overflow and clip off-screen.
+                .frame(minWidth: 80, idealWidth: 190, maxWidth: 190)
+                .focused($isReplaceFocused)
+                .onSubmit { replaceCurrentMatch() }
+                .accessibilityLabel("Replacement text")
+
+            Button("Replace") { replaceCurrentMatch() }
+                .disabled(activeSearchRange == nil)
+                .accessibilityLabel("Replace")
+
+            Button("Replace All") { replaceAllMatches() }
+                .disabled(searchMatches.isEmpty)
+                .accessibilityLabel("Replace all")
+
+            if let countLabel = replaceMatchCountLabel {
+                Text(countLabel)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    // First to give way when the card is squeezed in a narrow window.
+                    .layoutPriority(-1)
+            }
+
+            Button {
+                dismissFindReplace()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Close find and replace")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        // Two fixed card variants (user-requested): a light card for the light themes and a
+        // darker card for the dark-chrome themes (Quiet/Night) so the panel isn't a bright block
+        // on a dark page. Keyed on usesDarkChrome — two variants, not per-theme tinting — and the
+        // controls are pinned to the matching appearance so field borders/labels always read.
+        // Floating overlay, so neither variant can affect the toolbar (see editorPrimaryShell).
+        .environment(\.colorScheme, currentTheme.usesDarkChrome ? .dark : .light)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    currentTheme.usesDarkChrome
+                        ? Color(white: 0.15)
+                        : Color(white: MuseModalChrome.backgroundWhiteComponent)
+                )
+                .shadow(color: .black.opacity(0.28), radius: 10, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(
+                    currentTheme.usesDarkChrome
+                        ? Color.white.opacity(0.14)
+                        : Color.black.opacity(0.10)
+                )
+        )
+        .onExitCommand { dismissFindReplace() }
+    }
+
+    // Quiet count hint that informs the Replace All decision. Nil (no label) until the user
+    // has typed a find term, so an empty bar reads as calm rather than "No matches".
+    private var replaceMatchCountLabel: String? {
+        guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        let count = searchMatches.count
+        guard count > 0 else {
+            return "No matches"
+        }
+        return count == 1 ? "1 found" : "\(count) found"
+    }
+
+    private func dismissFindReplace() {
+        isShowingFindReplace = false
+        isReplaceFocused = false
+    }
+
+    // Replace the current active match with the replacement text, then move to the next match
+    // ("Replace & find next"). One undo step (routes through applyExternalReplacement).
+    private func replaceCurrentMatch() {
+        guard let currentIndex = activeSearchIndex, searchMatches.indices.contains(currentIndex) else {
+            return
+        }
+        let matchRange = searchMatches[currentIndex]
+        // Re-resolve against LIVE text: a body edit within the search debounce can shift offsets,
+        // and replaceMatch only bounds-checks — replacing a stale range would overwrite non-matching
+        // characters. Only proceed if the highlighted range is still a real match; otherwise resync.
+        let liveMatches = EditorSearchResolver.matches(in: document.text, query: searchQuery)
+        guard
+            liveMatches.contains(matchRange),
+            let result = EditorSearchResolver.replaceMatch(
+                in: document.text,
+                matchRange: matchRange,
+                replacement: replaceText
+            )
+        else {
+            searchMatches = liveMatches
+            activeSearchIndex = liveMatches.isEmpty ? nil : min(currentIndex, liveMatches.count - 1)
+            return
+        }
+
+        let newMatches = EditorSearchResolver.matches(in: result.text, query: searchQuery)
+        let nextIndex = EditorSearchResolver.nextActiveIndexAfterReplacement(
+            matches: newMatches,
+            replacedLocation: matchRange.location,
+            replacementLength: (replaceText as NSString).length
+        )
+        applyReplacement(result: result, newMatches: newMatches, activeIndex: nextIndex)
+    }
+
+    private func replaceAllMatches() {
+        guard let result = EditorSearchResolver.replaceAll(
+            in: document.text,
+            query: searchQuery,
+            replacement: replaceText
+        ) else {
+            return
+        }
+        let newMatches = EditorSearchResolver.matches(in: result.text, query: searchQuery)
+        applyReplacement(result: result, newMatches: newMatches, activeIndex: newMatches.isEmpty ? nil : 0)
+    }
+
+    // Shared tail for both replace actions. Refreshes search state against the post-replace text
+    // now so highlights don't lag a debounce interval on the new text (the debounced recompute from
+    // the text change reproduces the same result, so this is stable, not a race), then hands the
+    // edit to the text view via the undoable `requestedReplacement` channel — a single ⌘Z step that
+    // syncs `document.text` through didChangeText. `document.text` is deliberately NOT set here.
+    private func applyReplacement(
+        result: EditorSearchResolver.ReplacementResult,
+        newMatches: [NSRange],
+        activeIndex: Int?
+    ) {
+        searchMatches = newMatches
+        activeSearchIndex = activeIndex
+        let selection = activeIndex.map { newMatches[$0] } ?? result.selectedRange
+        requestedReplacement = MarkdownEdit(text: result.text, selectedRange: selection)
     }
 
     @ViewBuilder
@@ -513,6 +692,7 @@ struct EditorContainerView: View {
             textFormat: $document.textFormat,
             plainTextConversion: $document.plainTextConversion,
             requestedSelection: $requestedSelection,
+            requestedReplacement: $requestedReplacement,
             profile: readingProfileStore.activeProfile,
             smoothsHorizontalInsetChanges: false,
             searchRanges: searchMatches,
@@ -776,6 +956,10 @@ struct EditorContainerView: View {
         searchQuery = ""
         searchMatches = []
         activeSearchIndex = nil
+        isShowingFindReplace = false
+        isReplaceFocused = false
+        replaceText = ""
+        requestedReplacement = nil
     }
 
     private func refreshSearchMatches(selectFirstWhenNeeded: Bool, navigatesToActiveMatch: Bool = true) {
