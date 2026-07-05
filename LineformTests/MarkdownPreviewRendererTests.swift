@@ -88,6 +88,22 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertFalse(hasRule)
     }
 
+    func testBlockquoteIndentsAndHidesMarker() throws {
+        let rendered = MarkdownPreviewRenderer().render("> quoted", profile: .original)
+        XCTAssertEqual(rendered.string, "quoted")
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertGreaterThan(style.headIndent, 0)
+        XCTAssertGreaterThan(style.firstLineHeadIndent, 0)
+    }
+
+    func testNestedBlockquoteIndentsFurther() throws {
+        let shallow = MarkdownPreviewRenderer().render("> one", profile: .original)
+        let deep = MarkdownPreviewRenderer().render(">> two", profile: .original)
+        let shallowIndent = try XCTUnwrap(shallow.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle).headIndent
+        let deepIndent = try XCTUnwrap(deep.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle).headIndent
+        XCTAssertGreaterThan(deepIndent, shallowIndent)
+    }
+
     func testBlockSpacingAppliesOnlyToMarkdownBlockEndings() throws {
         var profile = ReadingProfile.original
         profile.paragraphSpacing = 18

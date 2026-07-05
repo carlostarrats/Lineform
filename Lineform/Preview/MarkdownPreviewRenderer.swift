@@ -121,10 +121,58 @@ struct MarkdownPreviewRenderer {
                 if lineIndex < lines.count - 1 {
                     output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
                 }
+            case .blockquote(let quoteLines, let lastLineIndex):
+                appendBlockquote(quoteLines, to: output, profile: profile, theme: theme, mathProvider: mathProvider)
+                if lastLineIndex < lines.count - 1 {
+                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                }
             }
         }
 
         return output
+    }
+
+    /// Emit a blockquote: each quoted line indented by its nesting depth (markers hidden) and
+    /// gently de-emphasized so it reads as a set-apart quote while staying readable on every theme.
+    /// Inline styling inside the quote (bold/italic/code/link/math) still renders.
+    private func appendBlockquote(
+        _ quoteLines: [MarkdownQuoteLine],
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) {
+        let baseBody = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        let quoteColor = theme.textColor.withAlphaComponent(0.8)
+        let indentStep: CGFloat = 22
+
+        for (offset, quote) in quoteLines.enumerated() {
+            let indent = CGFloat(max(1, quote.depth)) * indentStep
+            let paragraph: NSMutableParagraphStyle
+            if let base = baseBody[.paragraphStyle] as? NSParagraphStyle,
+               let mutable = base.mutableCopy() as? NSMutableParagraphStyle {
+                paragraph = mutable
+            } else {
+                paragraph = NSMutableParagraphStyle()
+            }
+            paragraph.firstLineHeadIndent = indent
+            paragraph.headIndent = indent
+
+            var attributes = baseBody
+            attributes[.paragraphStyle] = paragraph
+            attributes[.foregroundColor] = quoteColor
+
+            output.append(inlineWithMath(
+                in: quote.text,
+                baseAttributes: attributes,
+                profile: profile,
+                theme: theme,
+                mathProvider: mathProvider
+            ))
+            if offset < quoteLines.count - 1 {
+                output.append(NSAttributedString(string: "\n", attributes: attributes))
+            }
+        }
     }
 
     /// Emit a quiet, full-width divider as a self-sizing attachment. The line is low-contrast

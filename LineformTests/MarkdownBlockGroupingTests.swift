@@ -96,4 +96,36 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         let blocks = markdownBlocks(in: ["```", "---", "```"])
         XCTAssertEqual(blocks, [.lines(0..<3)])
     }
+
+    // MARK: - Blockquote
+
+    func testBlockquoteGroupsContiguousQuotedLinesStrippingMarkers() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["> a", "> b", "after"]),
+            [
+                .blockquote(lines: [
+                    MarkdownQuoteLine(depth: 1, text: "a"),
+                    MarkdownQuoteLine(depth: 1, text: "b")
+                ], lastLineIndex: 1),
+                .lines(2..<3)
+            ]
+        )
+    }
+
+    func testNestedBlockquoteRaisesDepth() {
+        XCTAssertEqual(
+            markdownBlocks(in: [">> deep"]),
+            [.blockquote(lines: [MarkdownQuoteLine(depth: 2, text: "deep")], lastLineIndex: 0)]
+        )
+    }
+
+    func testBlockquoteInsideCodeFenceIsNotAQuote() {
+        XCTAssertEqual(markdownBlocks(in: ["```", "> a", "```"]), [.lines(0..<3)])
+    }
+
+    func testBlockquoteLineParsingHandlesSpacedNesting() {
+        XCTAssertEqual(MarkdownBlockquote.quoteLine("> > x"), MarkdownQuoteLine(depth: 2, text: "x"))
+        XCTAssertEqual(MarkdownBlockquote.quoteLine("  > y"), MarkdownQuoteLine(depth: 1, text: "y"))
+        XCTAssertNil(MarkdownBlockquote.quoteLine("no quote"))
+    }
 }

@@ -85,6 +85,7 @@ enum MarkdownFormattingCommand {
     case italic
     case inlineCode
     case strikethrough
+    case blockquote
     case unorderedList
     case link
 
@@ -102,6 +103,8 @@ enum MarkdownFormattingCommand {
             return toggleMarkers("`", in: text, selectedRange: selectedRange)
         case .strikethrough:
             return toggleMarkers("~~", in: text, selectedRange: selectedRange)
+        case .blockquote:
+            return prefixSelectedLines("> ", in: text, selectedRange: selectedRange)
         case .unorderedList:
             return prefixSelectedLines("- ", in: text, selectedRange: selectedRange)
         case .link:

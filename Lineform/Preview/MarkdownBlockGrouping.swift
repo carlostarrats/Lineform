@@ -25,6 +25,33 @@ enum MarkdownBlock: Equatable {
     /// A thematic break (`---` / `***` / `___` on its own line) rendered as a quiet divider.
     /// `lineIndex` is the original line so the trailing-newline rule is reproduced.
     case horizontalRule(lineIndex: Int)
+    /// A contiguous run of `>`-quoted lines (markers stripped, per-line nesting depth kept).
+    /// `lastLineIndex` is the last original line the block covers, for the trailing-newline rule.
+    case blockquote(lines: [MarkdownQuoteLine], lastLineIndex: Int)
+}
+
+/// One line of a blockquote: its nesting depth (number of `>` markers) and the text after the
+/// markers are stripped.
+struct MarkdownQuoteLine: Equatable {
+    var depth: Int
+    var text: String
+}
+
+/// Blockquote line parsing: a line is quoted when, after optional leading whitespace, it starts
+/// with `>`. Nested `> >` / `>>` raise the depth; one optional space after each marker is consumed.
+enum MarkdownBlockquote {
+    static func quoteLine(_ line: String) -> MarkdownQuoteLine? {
+        var rest = Substring(line)
+        while rest.first == " " || rest.first == "\t" { rest = rest.dropFirst() }
+        guard rest.first == ">" else { return nil }
+        var depth = 0
+        while rest.first == ">" {
+            depth += 1
+            rest = rest.dropFirst()
+            if rest.first == " " { rest = rest.dropFirst() }
+        }
+        return MarkdownQuoteLine(depth: depth, text: String(rest))
+    }
 }
 
 /// Thematic-break (horizontal-rule) detection, kept separate so its two gotchas are explicit:
@@ -130,6 +157,19 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             flushLines(upTo: index)
             blocks.append(.horizontalRule(lineIndex: index))
             index += 1
+            continue
+        }
+
+        if !inFence, let firstQuote = MarkdownBlockquote.quoteLine(lines[index]) {
+            flushLines(upTo: index)
+            var quoteLines = [firstQuote]
+            var cursor = index + 1
+            while cursor < lines.count, let quote = MarkdownBlockquote.quoteLine(lines[cursor]) {
+                quoteLines.append(quote)
+                cursor += 1
+            }
+            blocks.append(.blockquote(lines: quoteLines, lastLineIndex: cursor - 1))
+            index = cursor
             continue
         }
 

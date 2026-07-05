@@ -333,6 +333,10 @@ struct AppCommands: Commands {
 
                 Divider()
 
+                Button("Blockquote") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleBlockquoteMarkdown(_:)), to: nil, from: nil)
+                }
+
                 Button("Bulleted List") {
                     NSApp.sendAction(#selector(LineformTextView.toggleUnorderedListMarkdown(_:)), to: nil, from: nil)
                 }
