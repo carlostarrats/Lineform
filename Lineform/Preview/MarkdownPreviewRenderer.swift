@@ -138,10 +138,89 @@ struct MarkdownPreviewRenderer {
                 if lastLineIndex < lines.count - 1 {
                     output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
                 }
+            case .table(let table, let lastLineIndex):
+                appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme)
+                if lastLineIndex < lines.count - 1 {
+                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                }
             }
         }
 
         return output
+    }
+
+    /// Emit a GFM table as a native `NSTextTable`: live, selectable, theme-colored text that lays
+    /// out responsively to the reading column and wraps cell text when narrow (columns auto-size).
+    /// The header row is distinguished; per-column alignment comes from the delimiter row; gridlines
+    /// are quiet and contrast-derived from the theme so they read on light and dark pages.
+    private func appendTable(
+        _ table: MarkdownTable,
+        to output: NSMutableAttributedString,
+        baseAttributes: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme
+    ) {
+        let columns = table.columnCount
+        guard columns > 0 else { return }
+
+        let textTable = NSTextTable()
+        textTable.numberOfColumns = columns
+        textTable.layoutAlgorithm = .automaticLayoutAlgorithm
+        textTable.collapsesBorders = true
+        textTable.hidesEmptyCells = false
+
+        let borderColor = theme.textColor.withAlphaComponent(0.25)
+        let headerFill = theme.textColor.withAlphaComponent(0.06)
+        let baseFont = (baseAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
+        let headerFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+
+        let allRows: [(cells: [String], isHeader: Bool)] =
+            [(table.headers, true)] + table.rows.map { ($0, false) }
+
+        for (rowIndex, row) in allRows.enumerated() {
+            for column in 0..<columns {
+                let block = NSTextTableBlock(
+                    table: textTable,
+                    startingRow: rowIndex,
+                    rowSpan: 1,
+                    startingColumn: column,
+                    columnSpan: 1
+                )
+                block.setBorderColor(borderColor)
+                block.setWidth(1, type: .absoluteValueType, for: .border)
+                block.setWidth(6, type: .absoluteValueType, for: .padding)
+                if row.isHeader {
+                    block.backgroundColor = headerFill
+                }
+
+                let paragraph: NSMutableParagraphStyle
+                if let base = baseAttributes[.paragraphStyle] as? NSParagraphStyle,
+                   let mutable = base.mutableCopy() as? NSMutableParagraphStyle {
+                    paragraph = mutable
+                } else {
+                    paragraph = NSMutableParagraphStyle()
+                }
+                paragraph.textBlocks = [block]
+                paragraph.alignment = nsAlignment(table.alignments[column])
+
+                var attributes = baseAttributes
+                attributes[.paragraphStyle] = paragraph
+                if row.isHeader {
+                    attributes[.font] = headerFont
+                }
+
+                let cellText = column < row.cells.count ? row.cells[column] : ""
+                output.append(NSAttributedString(string: cellText + "\n", attributes: attributes))
+            }
+        }
+    }
+
+    private func nsAlignment(_ alignment: MarkdownTableAlignment) -> NSTextAlignment {
+        switch alignment {
+        case .left: return .left
+        case .center: return .center
+        case .right: return .right
+        }
     }
 
     /// Emit a list: Google-Docs-style with a slight indent per nesting level, real bullets (•) and

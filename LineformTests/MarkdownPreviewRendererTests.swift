@@ -152,6 +152,27 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertFalse(rendered.contains("[x]"))
     }
 
+    func testTableRendersAsNativeTextTableWithCellText() throws {
+        let rendered = MarkdownPreviewRenderer().render("| a | b |\n|---|---|\n| 1 | 2 |", profile: .original)
+        // Cell text is present and live; the pipes / delimiter dashes are gone.
+        for cell in ["a", "b", "1", "2"] {
+            XCTAssertTrue(rendered.string.contains(cell), "missing cell \(cell)")
+        }
+        XCTAssertFalse(rendered.string.contains("|"))
+        XCTAssertFalse(rendered.string.contains("---"))
+        // The content is laid out via a native NSTextTable (paragraph carries a text block).
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertTrue(style.textBlocks.contains { $0 is NSTextTableBlock })
+    }
+
+    func testTableColumnAlignmentFollowsDelimiter() throws {
+        // Header "b" column is centered by ":--:"; find a cell in that column and check its alignment.
+        let rendered = MarkdownPreviewRenderer().render("| a | b |\n|:--|:--:|\n| 1 | 2 |", profile: .original)
+        let bIndex = (rendered.string as NSString).range(of: "b").location
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: bIndex, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertEqual(style.alignment, .center)
+    }
+
     func testBulletedListRendersBulletWithHangingIndent() throws {
         let rendered = MarkdownPreviewRenderer().render("- item", profile: .original)
         XCTAssertTrue(rendered.string.contains("•"))

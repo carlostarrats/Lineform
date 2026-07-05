@@ -31,6 +31,79 @@ enum MarkdownBlock: Equatable {
     /// A contiguous run of list items (bulleted and/or numbered), with resolved ordinals and
     /// nesting levels. `lastLineIndex` is the last original line the block covers.
     case list(items: [MarkdownListItem], lastLineIndex: Int)
+    /// A GFM pipe table (header + delimiter + body rows). `lastLineIndex` is the last covered line.
+    case table(MarkdownTable, lastLineIndex: Int)
+}
+
+/// Per-column text alignment for a table, read from the delimiter row's colons.
+enum MarkdownTableAlignment: Equatable {
+    case left, center, right
+}
+
+/// A parsed GFM pipe table: header cells, per-column alignment, and body rows. Every row is padded
+/// or truncated to the column count so rendering is uniform even for malformed input.
+struct MarkdownTable: Equatable {
+    var headers: [String]
+    var alignments: [MarkdownTableAlignment]
+    var rows: [[String]]
+
+    var columnCount: Int { alignments.count }
+}
+
+/// Pure GFM pipe-table parsing: delimiter-row detection, cell splitting, alignment, and assembly.
+enum MarkdownTableParser {
+    /// A candidate table row: non-empty and containing a pipe. (GFM multi-column rows use pipes.)
+    static func looksLikeRow(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return !trimmed.isEmpty && trimmed.contains("|")
+    }
+
+    /// A delimiter row: every cell is dashes with optional leading/trailing colons (`:--`, `--:`,
+    /// `:-:`, `---`), and there is at least one cell.
+    static func isDelimiterRow(_ line: String) -> Bool {
+        let cellStrings = cells(in: line)
+        guard !cellStrings.isEmpty else { return false }
+        return cellStrings.allSatisfy { cell in
+            delimiterCellRegex.firstMatch(in: cell, range: NSRange(location: 0, length: (cell as NSString).length)) != nil
+        }
+    }
+
+    /// Split a row into trimmed cell strings, dropping the optional outer pipes. Escaped `\|` is a
+    /// known limitation (v1 splits on every pipe).
+    static func cells(in row: String) -> [String] {
+        var trimmed = row.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("|") { trimmed.removeFirst() }
+        if trimmed.hasSuffix("|") { trimmed.removeLast() }
+        return trimmed.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    static func alignment(of delimiterCell: String) -> MarkdownTableAlignment {
+        let hasLeading = delimiterCell.hasPrefix(":")
+        let hasTrailing = delimiterCell.hasSuffix(":")
+        switch (hasLeading, hasTrailing) {
+        case (true, true): return .center
+        case (false, true): return .right
+        default: return .left
+        }
+    }
+
+    /// Assemble a table from its header, delimiter, and body lines. Columns are defined by the
+    /// delimiter row; every row is padded/truncated to that width.
+    static func parse(header: String, delimiter: String, body: [String]) -> MarkdownTable {
+        let alignments = cells(in: delimiter).map(alignment(of:))
+        let columns = alignments.count
+        let headers = fit(cells(in: header), to: columns)
+        let rows = body.map { fit(cells(in: $0), to: columns) }
+        return MarkdownTable(headers: headers, alignments: alignments, rows: rows)
+    }
+
+    private static func fit(_ cells: [String], to columns: Int) -> [String] {
+        if cells.count == columns { return cells }
+        if cells.count > columns { return Array(cells.prefix(columns)) }
+        return cells + Array(repeating: "", count: columns - cells.count)
+    }
+
+    private static let delimiterCellRegex = try! NSRegularExpression(pattern: #"^:?-+:?$"#)
 }
 
 /// One rendered list item: its text, its nesting level, and — for numbered items — the sequential
@@ -229,6 +302,27 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             }
             blocks.append(.mermaid(source: body.joined(separator: "\n"), closingIndex: closing))
             index = (closing ?? lines.count - 1) + 1
+            continue
+        }
+
+        if !inFence,
+           index + 1 < lines.count,
+           MarkdownTableParser.looksLikeRow(lines[index]),
+           MarkdownTableParser.isDelimiterRow(lines[index + 1]),
+           // GFM requires the header and delimiter rows to have the same column count. This gate
+           // also keeps a pipe-containing line above a bare `---` (a setext heading / rule) from
+           // being mis-read as a 1-column table.
+           MarkdownTableParser.cells(in: lines[index]).count == MarkdownTableParser.cells(in: lines[index + 1]).count {
+            flushLines(upTo: index)
+            var cursor = index + 2
+            var body: [String] = []
+            while cursor < lines.count, MarkdownTableParser.looksLikeRow(lines[cursor]) {
+                body.append(lines[cursor])
+                cursor += 1
+            }
+            let table = MarkdownTableParser.parse(header: lines[index], delimiter: lines[index + 1], body: body)
+            blocks.append(.table(table, lastLineIndex: cursor - 1))
+            index = cursor
             continue
         }
 

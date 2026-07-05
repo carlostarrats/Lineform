@@ -235,4 +235,70 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertEqual(items.first?.checkbox?.isChecked, false)
         XCTAssertEqual(items.first?.text, "")
     }
+
+    // MARK: - Tables
+
+    func testDelimiterRowDetection() {
+        XCTAssertTrue(MarkdownTableParser.isDelimiterRow("|---|---|"))
+        XCTAssertTrue(MarkdownTableParser.isDelimiterRow("| :--- | :---: | ---: |"))
+        XCTAssertTrue(MarkdownTableParser.isDelimiterRow("--- | ---"))
+        XCTAssertFalse(MarkdownTableParser.isDelimiterRow("| a | b |"))
+        XCTAssertFalse(MarkdownTableParser.isDelimiterRow("plain text"))
+    }
+
+    func testCellSplittingDropsOuterPipes() {
+        XCTAssertEqual(MarkdownTableParser.cells(in: "| a | b |"), ["a", "b"])
+        XCTAssertEqual(MarkdownTableParser.cells(in: "a | b"), ["a", "b"])
+    }
+
+    func testAlignmentFromDelimiterColons() {
+        XCTAssertEqual(MarkdownTableParser.alignment(of: ":---"), .left)
+        XCTAssertEqual(MarkdownTableParser.alignment(of: ":---:"), .center)
+        XCTAssertEqual(MarkdownTableParser.alignment(of: "---:"), .right)
+        XCTAssertEqual(MarkdownTableParser.alignment(of: "---"), .left)
+    }
+
+    func testTableGroupsHeaderDelimiterAndRows() {
+        let blocks = markdownBlocks(in: ["| a | b |", "|---|:--:|", "| 1 | 2 |", "| 3 | 4 |"])
+        guard case .table(let table, let last) = blocks.first else { return XCTFail("expected a table") }
+        XCTAssertEqual(table.headers, ["a", "b"])
+        XCTAssertEqual(table.alignments, [.left, .center])
+        XCTAssertEqual(table.rows, [["1", "2"], ["3", "4"]])
+        XCTAssertEqual(last, 3)
+    }
+
+    func testTableRowsPadAndTruncateToColumnCount() {
+        let blocks = markdownBlocks(in: ["| a | b | c |", "|---|---|---|", "| 1 | 2 |", "| 1 | 2 | 3 | 4 |"])
+        guard case .table(let table, _) = blocks.first else { return XCTFail("expected a table") }
+        XCTAssertEqual(table.rows, [["1", "2", ""], ["1", "2", "3"]])
+    }
+
+    func testHeaderWithoutDelimiterIsNotATable() {
+        let blocks = markdownBlocks(in: ["| a | b |", "just text"])
+        XCTAssertEqual(blocks, [.lines(0..<2)])
+    }
+
+    func testTableIsBracketedByLinesRuns() {
+        let blocks = markdownBlocks(in: ["intro", "| a | b |", "|---|---|", "outro"])
+        guard blocks.count == 3, case .lines = blocks[0], case .table = blocks[1], case .lines = blocks[2] else {
+            return XCTFail("expected lines, table, lines; got \(blocks)")
+        }
+    }
+
+    func testPipesInsideCodeFenceAreNotATable() {
+        let blocks = markdownBlocks(in: ["```", "| a | b |", "|---|---|", "```"])
+        XCTAssertEqual(blocks, [.lines(0..<4)])
+    }
+
+    func testPipeLineOverBareDashesIsNotATable() {
+        // GFM column-count gate: "Pros | Cons" (2 cells) over "---" (1 cell) is NOT a table — it's a
+        // setext heading (a `---` under paragraph text), so no table block is produced.
+        let blocks = markdownBlocks(in: ["Pros | Cons", "---"])
+        XCTAssertFalse(blocks.contains { if case .table = $0 { return true } else { return false } })
+    }
+
+    func testMismatchedColumnCountsAreNotATable() {
+        let blocks = markdownBlocks(in: ["| a | b | c |", "|---|---|"])
+        XCTAssertFalse(blocks.contains { if case .table = $0 { return true } else { return false } })
+    }
 }
