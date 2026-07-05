@@ -45,80 +45,35 @@ struct MarkdownPreviewRenderer {
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
         let codeAttributes = codeAttributes(profile: profile)
         let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
-        let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(in: text))
-        let theme = Theme.theme(for: profile)
-        var inFence = false
         let lines = text.components(separatedBy: "\n")
+        let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: lines))
+        let theme = Theme.theme(for: profile)
 
-        // Mermaid block accumulation: when a ```mermaid fence opens we buffer its body and, on
-        // the closing fence, emit a rendered diagram (or a captioned-source fallback) as one unit.
-        var mermaidBody: [String]?
-        // Display-math block accumulation: same pattern, delimited by lines that are exactly `$$`.
-        var mathBody: [String]?
-
-        var index = 0
-        while index < lines.count {
-            let line = lines[index]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            if mathBody != nil {
-                if MathBlockFence.blockDelimiterOnly(trimmed) {
-                    // Closing `$$`: emit the accumulated equation, then stop buffering.
-                    appendMathBlock(
-                        latex: mathBody!.joined(separator: "\n"),
-                        to: output,
-                        profile: profile,
-                        theme: theme,
-                        columnWidth: columnWidth,
-                        codeAttributes: codeAttributes,
-                        mathProvider: mathProvider
-                    )
-                    mathBody = nil
-                    if index < lines.count - 1 {
-                        output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                    }
-                } else {
-                    mathBody!.append(line)
-                }
-                index += 1
-                continue
-            }
-
-            if mermaidBody != nil {
-                if MermaidFence.isFenceDelimiter(trimmed) {
-                    // Closing fence: emit the accumulated block, then stop buffering.
-                    let source = mermaidBody!.joined(separator: "\n")
-                    appendMermaidBlock(
-                        source: source,
-                        to: output,
-                        profile: profile,
-                        theme: theme,
-                        columnWidth: columnWidth,
-                        codeAttributes: codeAttributes,
-                        mermaidProvider: mermaidProvider,
-                        diagramLog: diagramLog,
-                        reportRegistry: reportRegistry,
-                        appVersion: appVersion
-                    )
-                    mermaidBody = nil
-                    if index < lines.count - 1 {
-                        output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                    }
-                } else {
-                    mermaidBody!.append(line)
-                }
-                index += 1
-                continue
-            }
-
-            let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
-            let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
-            let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
-            var lineTerminatorAttributes = activeBodyAttributes
-            if !inFence, let inner = MathBlockFence.singleLineBlock(trimmed) {
-                // Single-line display block `$$…$$`: emit the equation as one unit.
+        // Group the lines once, then render each block. `.lines` runs reproduce the original
+        // per-line output exactly (headings / inline-with-math / fenced code), and the mermaid /
+        // display-math blocks reuse the same emitters and the same trailing-newline rules as
+        // before — byte-identical for the existing constructs. New block constructs become new
+        // cases here plus their own emitter.
+        for block in markdownBlocks(in: lines) {
+            switch block {
+            case .lines(let range):
+                appendLines(
+                    range,
+                    to: output,
+                    lines: lines,
+                    totalLines: lines.count,
+                    profile: profile,
+                    theme: theme,
+                    mathProvider: mathProvider,
+                    bodyAttributes: bodyAttributes,
+                    bodyBlockSpacingAttributes: bodyBlockSpacingAttributes,
+                    codeAttributes: codeAttributes,
+                    codeBlockSpacingAttributes: codeBlockSpacingAttributes,
+                    blockSpacingLineIndexes: blockSpacingLineIndexes
+                )
+            case .singleLineMath(let latex, let lineIndex):
                 appendMathBlock(
-                    latex: inner,
+                    latex: latex,
                     to: output,
                     profile: profile,
                     theme: theme,
@@ -126,22 +81,74 @@ struct MarkdownPreviewRenderer {
                     codeAttributes: codeAttributes,
                     mathProvider: mathProvider
                 )
-                if index < lines.count - 1 {
+                if lineIndex < lines.count - 1 {
+                    let usesBlockSpacing = blockSpacingLineIndexes.contains(lineIndex)
+                    let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
                     output.append(NSAttributedString(string: "\n", attributes: activeBodyAttributes))
                 }
-                index += 1
-                continue
-            } else if !inFence, MathBlockFence.blockDelimiterOnly(trimmed) {
-                // Opening `$$` fence: start buffering the display-math body (delimiter not emitted).
-                mathBody = []
-                index += 1
-                continue
-            } else if !inFence, MermaidFence.isMermaidOpening(trimmed) {
-                // Opening mermaid fence: start buffering the body (the fence line is not emitted).
-                mermaidBody = []
-                index += 1
-                continue
-            } else if MermaidFence.isFenceDelimiter(trimmed) {
+            case .fencedMath(let latex, let closingIndex):
+                appendMathBlock(
+                    latex: latex,
+                    to: output,
+                    profile: profile,
+                    theme: theme,
+                    columnWidth: columnWidth,
+                    codeAttributes: codeAttributes,
+                    mathProvider: mathProvider
+                )
+                if let closingIndex, closingIndex < lines.count - 1 {
+                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                }
+            case .mermaid(let source, let closingIndex):
+                appendMermaidBlock(
+                    source: source,
+                    to: output,
+                    profile: profile,
+                    theme: theme,
+                    columnWidth: columnWidth,
+                    codeAttributes: codeAttributes,
+                    mermaidProvider: mermaidProvider,
+                    diagramLog: diagramLog,
+                    reportRegistry: reportRegistry,
+                    appVersion: appVersion
+                )
+                if let closingIndex, closingIndex < lines.count - 1 {
+                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                }
+            }
+        }
+
+        return output
+    }
+
+    /// Render a maximal run of ordinary lines (body, headings, fenced code) exactly as the original
+    /// per-line loop did: fence state starts closed (every `.lines` run begins where the grouping
+    /// was outside any fence), each line emits its content plus a trailing newline unless it is the
+    /// document's last line, and block-spacing attributes are looked up by original line index.
+    private func appendLines(
+        _ range: Range<Int>,
+        to output: NSMutableAttributedString,
+        lines: [String],
+        totalLines: Int,
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding,
+        bodyAttributes: [NSAttributedString.Key: Any],
+        bodyBlockSpacingAttributes: [NSAttributedString.Key: Any],
+        codeAttributes: [NSAttributedString.Key: Any],
+        codeBlockSpacingAttributes: [NSAttributedString.Key: Any],
+        blockSpacingLineIndexes: Set<Int>
+    ) {
+        var inFence = false
+        for index in range {
+            let line = lines[index]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
+            let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
+            let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
+            var lineTerminatorAttributes = activeBodyAttributes
+
+            if MermaidFence.isFenceDelimiter(trimmed) {
                 inFence.toggle()
                 output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
                 lineTerminatorAttributes = activeCodeAttributes
@@ -169,42 +176,10 @@ struct MarkdownPreviewRenderer {
                 ))
             }
 
-            if index < lines.count - 1 {
+            if index < totalLines - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: lineTerminatorAttributes))
             }
-            index += 1
         }
-
-        // Flush an unclosed mermaid block (no closing fence) so its content is never dropped.
-        if let mermaidBody {
-            appendMermaidBlock(
-                source: mermaidBody.joined(separator: "\n"),
-                to: output,
-                profile: profile,
-                theme: theme,
-                columnWidth: columnWidth,
-                codeAttributes: codeAttributes,
-                mermaidProvider: mermaidProvider,
-                diagramLog: diagramLog,
-                reportRegistry: reportRegistry,
-                appVersion: appVersion
-            )
-        }
-
-        // Flush an unclosed display-math block (no closing `$$`) so its content is never dropped.
-        if let mathBody {
-            appendMathBlock(
-                latex: mathBody.joined(separator: "\n"),
-                to: output,
-                profile: profile,
-                theme: theme,
-                columnWidth: columnWidth,
-                codeAttributes: codeAttributes,
-                mathProvider: mathProvider
-            )
-        }
-
-        return output
     }
 
     /// Emit a mermaid block: a rendered diagram image (constrained to the column width, with a
