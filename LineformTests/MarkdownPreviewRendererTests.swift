@@ -57,6 +57,148 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(rendered.string, "This is bold, clear, code, and a link.")
     }
 
+    func testReadModeRendersStrikethroughAndHidesMarkers() throws {
+        let rendered = MarkdownPreviewRenderer().render("done ~~old~~ text", profile: .original)
+        XCTAssertEqual(rendered.string, "done old text")
+        let style = rendered.attribute(.strikethroughStyle, at: ("done " as NSString).length, effectiveRange: nil) as? Int
+        XCTAssertEqual(style, NSUnderlineStyle.single.rawValue)
+    }
+
+    func testStrikethroughInsideCodeSpanStaysLiteral() {
+        // A code span starts earlier, so `~~x~~` inside it must not be struck.
+        let rendered = MarkdownPreviewRenderer().render("`~~x~~`", profile: .original)
+        XCTAssertEqual(rendered.string, "~~x~~")
+    }
+
+    func testHorizontalRuleRendersAsAttachment() {
+        let rendered = MarkdownPreviewRenderer().render("a\n\n---\n\nb", profile: .original)
+        var hasRule = false
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value is HorizontalRuleAttachment { hasRule = true }
+        }
+        XCTAssertTrue(hasRule)
+    }
+
+    func testDashesUnderParagraphAreNotRenderedAsRule() {
+        let rendered = MarkdownPreviewRenderer().render("paragraph\n---\nmore", profile: .original)
+        var hasRule = false
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value is HorizontalRuleAttachment { hasRule = true }
+        }
+        XCTAssertFalse(hasRule)
+    }
+
+    func testBlockquoteIndentsAndHidesMarker() throws {
+        let rendered = MarkdownPreviewRenderer().render("> quoted", profile: .original)
+        XCTAssertEqual(rendered.string, "quoted")
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertGreaterThan(style.headIndent, 0)
+        XCTAssertGreaterThan(style.firstLineHeadIndent, 0)
+    }
+
+    func testNestedBlockquoteIndentsFurther() throws {
+        let shallow = MarkdownPreviewRenderer().render("> one", profile: .original)
+        let deep = MarkdownPreviewRenderer().render(">> two", profile: .original)
+        let shallowIndent = try XCTUnwrap(shallow.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle).headIndent
+        let deepIndent = try XCTUnwrap(deep.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle).headIndent
+        XCTAssertGreaterThan(deepIndent, shallowIndent)
+    }
+
+    func testImageRendersQuietPlaceholderWithAltTextAndNoBangOrURL() {
+        let rendered = MarkdownPreviewRenderer().render("![a cat](cat.png)", profile: .original).string
+        XCTAssertTrue(rendered.contains("a cat"))
+        XCTAssertTrue(rendered.contains("🖼"))
+        XCTAssertFalse(rendered.contains("!"))
+        XCTAssertFalse(rendered.contains("cat.png")) // URL never shown; file never touched
+    }
+
+    func testImageWithNoAltUsesFilename() {
+        let rendered = MarkdownPreviewRenderer().render("![](photos/mountain.png)", profile: .original).string
+        XCTAssertTrue(rendered.contains("🖼"))
+        XCTAssertTrue(rendered.contains("mountain.png"))   // filename gives context
+        XCTAssertFalse(rendered.contains("photos/"))       // just the filename, not the full path
+    }
+
+    func testImageWithNoAltStripsQueryFromFilename() {
+        let rendered = MarkdownPreviewRenderer().render("![](https://x.test/img/cat.png?v=2)", profile: .original).string
+        XCTAssertTrue(rendered.contains("cat.png"))
+        XCTAssertFalse(rendered.contains("v=2"))
+    }
+
+    func testImageWithNoAltAndNoUsableFilenameFallsBackToLabel() {
+        let rendered = MarkdownPreviewRenderer().render("![](   )", profile: .original).string
+        XCTAssertTrue(rendered.contains("🖼"))
+        XCTAssertTrue(rendered.contains("Image"))
+    }
+
+    func testPlainLinkStillRendersNormally() {
+        let rendered = MarkdownPreviewRenderer().render("[a link](https://example.com)", profile: .original).string
+        XCTAssertEqual(rendered, "a link")
+    }
+
+    func testTaskCheckboxRendersGlyphWithSourceRangeAttribute() throws {
+        let rendered = MarkdownPreviewRenderer().render("- [ ] task", profile: .original)
+        XCTAssertTrue(rendered.string.contains("☐"))
+        XCTAssertTrue(rendered.string.contains("task"))
+        XCTAssertFalse(rendered.string.contains("[ ]")) // marker replaced by the glyph
+        let glyphIndex = (rendered.string as NSString).range(of: "☐").location
+        let value = rendered.attribute(.checkboxSourceRange, at: glyphIndex, effectiveRange: nil) as? NSValue
+        XCTAssertEqual(value?.rangeValue, NSRange(location: 2, length: 3))
+    }
+
+    func testCheckedTaskRendersFilledGlyph() {
+        let rendered = MarkdownPreviewRenderer().render("- [x] done", profile: .original).string
+        XCTAssertTrue(rendered.contains("☑"))
+        XCTAssertFalse(rendered.contains("[x]"))
+    }
+
+    func testTableRendersAsNativeTextTableWithCellText() throws {
+        let rendered = MarkdownPreviewRenderer().render("| a | b |\n|---|---|\n| 1 | 2 |", profile: .original)
+        // Cell text is present and live; the pipes / delimiter dashes are gone.
+        for cell in ["a", "b", "1", "2"] {
+            XCTAssertTrue(rendered.string.contains(cell), "missing cell \(cell)")
+        }
+        XCTAssertFalse(rendered.string.contains("|"))
+        XCTAssertFalse(rendered.string.contains("---"))
+        // The content is laid out via a native NSTextTable (paragraph carries a text block).
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertTrue(style.textBlocks.contains { $0 is NSTextTableBlock })
+    }
+
+    func testTableTextIsRelativelySmallerThanReadingFont() throws {
+        var profile = ReadingProfile.original
+        profile.fontSize = 20
+        let rendered = MarkdownPreviewRenderer().render("| a | b |\n|---|---|\n| 1 | 2 |", profile: profile)
+        let cellIndex = (rendered.string as NSString).range(of: "1").location
+        let cellFont = try XCTUnwrap(rendered.attribute(.font, at: cellIndex, effectiveRange: nil) as? NSFont)
+        // Relative reduction: tracks the reading size (20) but a bit smaller, and scales with it.
+        XCTAssertEqual(cellFont.pointSize, 20 * MarkdownPreviewRenderer.tableTextScale, accuracy: 0.01)
+        XCTAssertLessThan(cellFont.pointSize, 20)
+    }
+
+    func testTableColumnAlignmentFollowsDelimiter() throws {
+        // Header "b" column is centered by ":--:"; find a cell in that column and check its alignment.
+        let rendered = MarkdownPreviewRenderer().render("| a | b |\n|:--|:--:|\n| 1 | 2 |", profile: .original)
+        let bIndex = (rendered.string as NSString).range(of: "b").location
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: bIndex, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertEqual(style.alignment, .center)
+    }
+
+    func testBulletedListRendersBulletWithHangingIndent() throws {
+        let rendered = MarkdownPreviewRenderer().render("- item", profile: .original)
+        XCTAssertTrue(rendered.string.contains("•"))
+        XCTAssertTrue(rendered.string.contains("item"))
+        XCTAssertFalse(rendered.string.hasPrefix("-"))
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertGreaterThan(style.headIndent, style.firstLineHeadIndent) // wrapped lines hang under the text
+    }
+
+    func testNumberedListRendersSequentialNumbers() {
+        let rendered = MarkdownPreviewRenderer().render("1. a\n1. b", profile: .original).string
+        XCTAssertTrue(rendered.contains("1."))
+        XCTAssertTrue(rendered.contains("2."))
+    }
+
     func testBlockSpacingAppliesOnlyToMarkdownBlockEndings() throws {
         var profile = ReadingProfile.original
         profile.paragraphSpacing = 18

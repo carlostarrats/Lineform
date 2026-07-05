@@ -107,7 +107,18 @@ final class MarkdownSyntaxHighlighter {
         in text: String,
         includeTrailingBlankBoundary: Bool = true
     ) -> [Int] {
-        let lines = text.components(separatedBy: "\n")
+        markdownBlockSpacingLineIndexes(
+            inLines: text.components(separatedBy: "\n"),
+            includeTrailingBlankBoundary: includeTrailingBlankBoundary
+        )
+    }
+
+    /// Same as `markdownBlockSpacingLineIndexes(in:)` but takes lines already split by the caller,
+    /// so a caller that also needs the split (the preview renderer) does it once, not twice.
+    static func markdownBlockSpacingLineIndexes(
+        inLines lines: [String],
+        includeTrailingBlankBoundary: Bool = true
+    ) -> [Int] {
         var inFence = false
 
         return lines.indices.compactMap { index in

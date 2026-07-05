@@ -32,6 +32,26 @@ final class MarkdownFormattingCommandTests: XCTestCase {
         XCTAssertEqual(edit.selectedRange, NSRange(location: 7, length: 4))
     }
 
+    func testStrikethroughWrapsSelectedTextWithTildes() {
+        let edit = MarkdownFormattingCommand.strikethrough.apply(
+            to: "old",
+            selectedRange: NSRange(location: 0, length: 3)
+        )
+
+        XCTAssertEqual(edit.text, "~~old~~")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 2, length: 3))
+    }
+
+    func testStrikethroughRemovesExistingTildesAroundSelection() {
+        let edit = MarkdownFormattingCommand.strikethrough.apply(
+            to: "~~old~~",
+            selectedRange: NSRange(location: 2, length: 3)
+        )
+
+        XCTAssertEqual(edit.text, "old")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 0, length: 3))
+    }
+
     func testBoldRemovesExistingMarkersAroundSelection() {
         let edit = MarkdownFormattingCommand.bold.apply(
             to: "Make **this** clear",

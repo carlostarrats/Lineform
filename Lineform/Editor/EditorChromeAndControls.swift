@@ -210,13 +210,21 @@ struct MarkdownBasicsModal: View {
         Example(label: "Bold", syntax: "**bold**"),
         Example(label: "Italic", syntax: "_italic_"),
         Example(label: "Bullet", syntax: "- bullet"),
+        Example(label: "Numbered", syntax: "1. item"),
+        Example(label: "Task", syntax: "- [ ] to do"),
+        Example(label: "Done (click to toggle)", syntax: "- [x] done"),
+        Example(label: "Quote", syntax: "> quote"),
+        Example(label: "Strikethrough", syntax: "~~text~~"),
         Example(label: "Code", syntax: "`code`"),
+        Example(label: "Divider", syntax: "---"),
         Example(label: "Link", syntax: "[link](https://example.com)")
     ]
     static let sections = [
         Section(
             title: "Markdown Basics",
             rows: examples.map { Row(label: $0.syntax, detail: $0.label) } + [
+                Row(label: "![alt](url)", detail: "An image shows as a labelled placeholder."),
+                Row(label: "| a | b |", detail: "A table: a header row, then a |---|---| line under it, then rows. Colons in the dashes (:--, :-:, --:) set column alignment."),
                 Row(label: "Block Spacing", detail: "In Read and Preview modes, adds space around Markdown block breaks.")
             ]
         ),

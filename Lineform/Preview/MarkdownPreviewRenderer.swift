@@ -1,10 +1,21 @@
 import AppKit
 
+extension NSAttributedString.Key {
+    /// Attached to a rendered task-checkbox glyph; value is an `NSValue` boxing the `NSRange` of the
+    /// `[ ]`/`[x]` marker in the source document, so a click on the glyph can toggle that span.
+    static let checkboxSourceRange = NSAttributedString.Key("lineform.checkboxSourceRange")
+}
+
 struct MarkdownPreviewRenderer {
     private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
     private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
     private static let codeRegex = try! NSRegularExpression(pattern: #"`([^`\n]+)`"#)
+    private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
+    private static let imageRegex = try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
     private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
+    /// Table cell text renders at this fraction of the reading font size — denser than prose, but
+    /// still relative so it scales with the user's size setting. Dial-able.
+    static let tableTextScale: CGFloat = 0.9
     private static let headingSizeBoosts: [Int: CGFloat] = [
         1: 11,
         2: 3,
@@ -45,80 +56,34 @@ struct MarkdownPreviewRenderer {
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
         let codeAttributes = codeAttributes(profile: profile)
         let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
-        let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(in: text))
-        let theme = Theme.theme(for: profile)
-        var inFence = false
         let lines = text.components(separatedBy: "\n")
+        let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: lines))
+        let theme = Theme.theme(for: profile)
 
-        // Mermaid block accumulation: when a ```mermaid fence opens we buffer its body and, on
-        // the closing fence, emit a rendered diagram (or a captioned-source fallback) as one unit.
-        var mermaidBody: [String]?
-        // Display-math block accumulation: same pattern, delimited by lines that are exactly `$$`.
-        var mathBody: [String]?
-
-        var index = 0
-        while index < lines.count {
-            let line = lines[index]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            if mathBody != nil {
-                if MathBlockFence.blockDelimiterOnly(trimmed) {
-                    // Closing `$$`: emit the accumulated equation, then stop buffering.
-                    appendMathBlock(
-                        latex: mathBody!.joined(separator: "\n"),
-                        to: output,
-                        profile: profile,
-                        theme: theme,
-                        columnWidth: columnWidth,
-                        codeAttributes: codeAttributes,
-                        mathProvider: mathProvider
-                    )
-                    mathBody = nil
-                    if index < lines.count - 1 {
-                        output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                    }
-                } else {
-                    mathBody!.append(line)
-                }
-                index += 1
-                continue
-            }
-
-            if mermaidBody != nil {
-                if MermaidFence.isFenceDelimiter(trimmed) {
-                    // Closing fence: emit the accumulated block, then stop buffering.
-                    let source = mermaidBody!.joined(separator: "\n")
-                    appendMermaidBlock(
-                        source: source,
-                        to: output,
-                        profile: profile,
-                        theme: theme,
-                        columnWidth: columnWidth,
-                        codeAttributes: codeAttributes,
-                        mermaidProvider: mermaidProvider,
-                        diagramLog: diagramLog,
-                        reportRegistry: reportRegistry,
-                        appVersion: appVersion
-                    )
-                    mermaidBody = nil
-                    if index < lines.count - 1 {
-                        output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                    }
-                } else {
-                    mermaidBody!.append(line)
-                }
-                index += 1
-                continue
-            }
-
-            let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
-            let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
-            let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
-            var lineTerminatorAttributes = activeBodyAttributes
-            if !inFence, let inner = MathBlockFence.singleLineBlock(trimmed) {
-                // Single-line display block `$$…$$`: emit the equation as one unit.
+        // Group the lines once, then render each block. `.lines` runs reproduce the original
+        // per-line output exactly (headings / inline-with-math / fenced code), and the mermaid /
+        // display-math blocks reuse the same emitters and the same trailing-newline rules as
+        // before — byte-identical for the existing constructs. New block constructs become new
+        // cases here plus their own emitter.
+        for block in markdownBlocks(in: lines) {
+            switch block {
+            case .lines(let range):
+                appendLines(
+                    range,
+                    to: output,
+                    lines: lines,
+                    profile: profile,
+                    theme: theme,
+                    mathProvider: mathProvider,
+                    bodyAttributes: bodyAttributes,
+                    bodyBlockSpacingAttributes: bodyBlockSpacingAttributes,
+                    codeAttributes: codeAttributes,
+                    codeBlockSpacingAttributes: codeBlockSpacingAttributes,
+                    blockSpacingLineIndexes: blockSpacingLineIndexes
+                )
+            case .singleLineMath(let latex, let lineIndex):
                 appendMathBlock(
-                    latex: inner,
+                    latex: latex,
                     to: output,
                     profile: profile,
                     theme: theme,
@@ -126,22 +91,275 @@ struct MarkdownPreviewRenderer {
                     codeAttributes: codeAttributes,
                     mathProvider: mathProvider
                 )
-                if index < lines.count - 1 {
+                if lineIndex < lines.count - 1 {
+                    let usesBlockSpacing = blockSpacingLineIndexes.contains(lineIndex)
+                    let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
                     output.append(NSAttributedString(string: "\n", attributes: activeBodyAttributes))
                 }
-                index += 1
-                continue
-            } else if !inFence, MathBlockFence.blockDelimiterOnly(trimmed) {
-                // Opening `$$` fence: start buffering the display-math body (delimiter not emitted).
-                mathBody = []
-                index += 1
-                continue
-            } else if !inFence, MermaidFence.isMermaidOpening(trimmed) {
-                // Opening mermaid fence: start buffering the body (the fence line is not emitted).
-                mermaidBody = []
-                index += 1
-                continue
-            } else if MermaidFence.isFenceDelimiter(trimmed) {
+            case .fencedMath(let latex, let closingIndex):
+                appendMathBlock(
+                    latex: latex,
+                    to: output,
+                    profile: profile,
+                    theme: theme,
+                    columnWidth: columnWidth,
+                    codeAttributes: codeAttributes,
+                    mathProvider: mathProvider
+                )
+                appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            case .mermaid(let source, let closingIndex):
+                appendMermaidBlock(
+                    source: source,
+                    to: output,
+                    profile: profile,
+                    theme: theme,
+                    columnWidth: columnWidth,
+                    codeAttributes: codeAttributes,
+                    mermaidProvider: mermaidProvider,
+                    diagramLog: diagramLog,
+                    reportRegistry: reportRegistry,
+                    appVersion: appVersion
+                )
+                appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            case .horizontalRule(let lineIndex):
+                appendHorizontalRule(to: output, profile: profile, theme: theme)
+                appendBlockSeparator(afterLine: lineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            case .blockquote(let quoteLines, let lastLineIndex):
+                appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            case .list(let items, let lastLineIndex):
+                appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            case .table(let table, let lastLineIndex):
+                appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme)
+                appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            }
+        }
+
+        return output
+    }
+
+    /// Emit a GFM table as a native `NSTextTable`: live, selectable, theme-colored text that lays
+    /// out responsively to the reading column and wraps cell text when narrow (columns auto-size).
+    /// The header row is distinguished; per-column alignment comes from the delimiter row; gridlines
+    /// are quiet and contrast-derived from the theme so they read on light and dark pages.
+    private func appendTable(
+        _ table: MarkdownTable,
+        to output: NSMutableAttributedString,
+        baseAttributes: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme
+    ) {
+        let columns = table.columnCount
+        guard columns > 0 else { return }
+
+        let textTable = NSTextTable()
+        textTable.numberOfColumns = columns
+        textTable.layoutAlgorithm = .automaticLayoutAlgorithm
+        textTable.collapsesBorders = true
+        textTable.hidesEmptyCells = false
+
+        let borderColor = theme.textColor.withAlphaComponent(0.25)
+        let headerFill = theme.textColor.withAlphaComponent(0.06)
+        let baseFont = (baseAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
+        // Table cells render slightly smaller than prose (a common, denser table convention) while
+        // still tracking the reading font size — so it scales with the user's accessibility setting
+        // and just fits more per column, easing the too-wide case. Relative, never a fixed size.
+        let cellFont = NSFont(descriptor: baseFont.fontDescriptor, size: baseFont.pointSize * Self.tableTextScale) ?? baseFont
+        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+
+        let allRows: [(cells: [String], isHeader: Bool)] =
+            [(table.headers, true)] + table.rows.map { ($0, false) }
+
+        for (rowIndex, row) in allRows.enumerated() {
+            for column in 0..<columns {
+                let block = NSTextTableBlock(
+                    table: textTable,
+                    startingRow: rowIndex,
+                    rowSpan: 1,
+                    startingColumn: column,
+                    columnSpan: 1
+                )
+                block.setBorderColor(borderColor)
+                block.setWidth(1, type: .absoluteValueType, for: .border)
+                block.setWidth(6, type: .absoluteValueType, for: .padding)
+                if row.isHeader {
+                    block.backgroundColor = headerFill
+                }
+
+                let paragraph = mutableParagraphStyle(from: baseAttributes)
+                paragraph.textBlocks = [block]
+                paragraph.alignment = nsAlignment(table.alignments[column])
+
+                var attributes = baseAttributes
+                attributes[.paragraphStyle] = paragraph
+                attributes[.font] = row.isHeader ? headerFont : cellFont
+
+                let cellText = column < row.cells.count ? row.cells[column] : ""
+                output.append(NSAttributedString(string: cellText + "\n", attributes: attributes))
+            }
+        }
+    }
+
+    private func nsAlignment(_ alignment: MarkdownTableAlignment) -> NSTextAlignment {
+        switch alignment {
+        case .left: return .left
+        case .center: return .center
+        case .right: return .right
+        }
+    }
+
+    /// Emit a list: Google-Docs-style with a slight indent per nesting level, real bullets (•) and
+    /// sequence numbers, and a hanging indent so wrapped lines align under the item text rather than
+    /// the marker. Inline styling inside an item still renders.
+    private func appendList(
+        _ items: [MarkdownListItem],
+        to output: NSMutableAttributedString,
+        baseAttributes baseBody: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) {
+        let levelStep: CGFloat = 24
+        let markerColumn: CGFloat = 22
+
+        for (offset, item) in items.enumerated() {
+            let base = CGFloat(item.indentLevel) * levelStep
+            let textIndent = base + markerColumn
+            let paragraph = mutableParagraphStyle(from: baseBody)
+            paragraph.firstLineHeadIndent = base
+            paragraph.headIndent = textIndent
+            paragraph.tabStops = [NSTextTab(textAlignment: .left, location: textIndent)]
+
+            var attributes = baseBody
+            attributes[.paragraphStyle] = paragraph
+
+            if let checkbox = item.checkbox {
+                // A task item: draw a check glyph carrying its source range for click-to-toggle,
+                // then the item text. The glyph replaces the bullet.
+                var glyphAttributes = attributes
+                glyphAttributes[.checkboxSourceRange] = NSValue(range: checkbox.sourceRange)
+                let glyph = checkbox.isChecked ? "☑" : "☐"
+                output.append(NSAttributedString(string: glyph, attributes: glyphAttributes))
+                output.append(NSAttributedString(string: "\t", attributes: attributes))
+            } else {
+                let marker = item.ordinal.map { "\($0)." } ?? "•"
+                output.append(NSAttributedString(string: "\(marker)\t", attributes: attributes))
+            }
+            output.append(inlineWithMath(
+                in: item.text,
+                baseAttributes: attributes,
+                profile: profile,
+                theme: theme,
+                mathProvider: mathProvider
+            ))
+            if offset < items.count - 1 {
+                output.append(NSAttributedString(string: "\n", attributes: attributes))
+            }
+        }
+    }
+
+    /// A mutable copy of the base paragraph style (or a fresh one) for block emitters that layer
+    /// indents / tab stops / text blocks on top of the profile's line height.
+    private func mutableParagraphStyle(from attributes: [NSAttributedString.Key: Any]) -> NSMutableParagraphStyle {
+        if let base = attributes[.paragraphStyle] as? NSParagraphStyle,
+           let mutable = base.mutableCopy() as? NSMutableParagraphStyle {
+            return mutable
+        }
+        return NSMutableParagraphStyle()
+    }
+
+    /// Append the inter-block separator newline — the "\n" after a block unless it is the document's
+    /// last line. `afterLine` is the block's last source line index, or nil (an unclosed block) →
+    /// no separator.
+    private func appendBlockSeparator(
+        afterLine lineIndex: Int?,
+        to output: NSMutableAttributedString,
+        totalLines: Int,
+        attributes: [NSAttributedString.Key: Any]
+    ) {
+        guard let lineIndex, lineIndex < totalLines - 1 else { return }
+        output.append(NSAttributedString(string: "\n", attributes: attributes))
+    }
+
+    /// Emit a blockquote: each quoted line indented by its nesting depth (markers hidden) and
+    /// gently de-emphasized so it reads as a set-apart quote while staying readable on every theme.
+    /// Inline styling inside the quote (bold/italic/code/link/math) still renders.
+    private func appendBlockquote(
+        _ quoteLines: [MarkdownQuoteLine],
+        to output: NSMutableAttributedString,
+        baseAttributes baseBody: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) {
+        let quoteColor = theme.textColor.withAlphaComponent(0.8)
+        let indentStep: CGFloat = 22
+
+        for (offset, quote) in quoteLines.enumerated() {
+            let indent = CGFloat(max(1, quote.depth)) * indentStep
+            let paragraph = mutableParagraphStyle(from: baseBody)
+            paragraph.firstLineHeadIndent = indent
+            paragraph.headIndent = indent
+
+            var attributes = baseBody
+            attributes[.paragraphStyle] = paragraph
+            attributes[.foregroundColor] = quoteColor
+
+            output.append(inlineWithMath(
+                in: quote.text,
+                baseAttributes: attributes,
+                profile: profile,
+                theme: theme,
+                mathProvider: mathProvider
+            ))
+            if offset < quoteLines.count - 1 {
+                output.append(NSAttributedString(string: "\n", attributes: attributes))
+            }
+        }
+    }
+
+    /// Emit a quiet, full-width divider as a self-sizing attachment. The line is low-contrast
+    /// (theme text at a low alpha), so it stays readable on every theme without a heavy bar.
+    private func appendHorizontalRule(
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        theme: Theme
+    ) {
+        let attachment = HorizontalRuleAttachment(
+            color: theme.textColor.withAlphaComponent(0.22),
+            height: CGFloat(profile.fontSize)
+        )
+        output.append(NSAttributedString(attachment: attachment))
+    }
+
+    /// Render a maximal run of ordinary lines (body, headings, fenced code) exactly as the original
+    /// per-line loop did: fence state starts closed (every `.lines` run begins where the grouping
+    /// was outside any fence), each line emits its content plus a trailing newline unless it is the
+    /// document's last line, and block-spacing attributes are looked up by original line index.
+    private func appendLines(
+        _ range: Range<Int>,
+        to output: NSMutableAttributedString,
+        lines: [String],
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding,
+        bodyAttributes: [NSAttributedString.Key: Any],
+        bodyBlockSpacingAttributes: [NSAttributedString.Key: Any],
+        codeAttributes: [NSAttributedString.Key: Any],
+        codeBlockSpacingAttributes: [NSAttributedString.Key: Any],
+        blockSpacingLineIndexes: Set<Int>
+    ) {
+        var inFence = false
+        for index in range {
+            let line = lines[index]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
+            let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
+            let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
+            var lineTerminatorAttributes = activeBodyAttributes
+
+            if MermaidFence.isFenceDelimiter(trimmed) {
                 inFence.toggle()
                 output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
                 lineTerminatorAttributes = activeCodeAttributes
@@ -172,39 +390,7 @@ struct MarkdownPreviewRenderer {
             if index < lines.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: lineTerminatorAttributes))
             }
-            index += 1
         }
-
-        // Flush an unclosed mermaid block (no closing fence) so its content is never dropped.
-        if let mermaidBody {
-            appendMermaidBlock(
-                source: mermaidBody.joined(separator: "\n"),
-                to: output,
-                profile: profile,
-                theme: theme,
-                columnWidth: columnWidth,
-                codeAttributes: codeAttributes,
-                mermaidProvider: mermaidProvider,
-                diagramLog: diagramLog,
-                reportRegistry: reportRegistry,
-                appVersion: appVersion
-            )
-        }
-
-        // Flush an unclosed display-math block (no closing `$$`) so its content is never dropped.
-        if let mathBody {
-            appendMathBlock(
-                latex: mathBody.joined(separator: "\n"),
-                to: output,
-                profile: profile,
-                theme: theme,
-                columnWidth: columnWidth,
-                codeAttributes: codeAttributes,
-                mathProvider: mathProvider
-            )
-        }
-
-        return output
     }
 
     /// Emit a mermaid block: a rendered diagram image (constrained to the column width, with a
@@ -518,6 +704,14 @@ struct MarkdownPreviewRenderer {
             earliest: &earliest
         )
         consider(
+            inlineToken(regex: Self.strikethroughRegex, kind: .strikethrough, in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
+            imageToken(in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
             inlineToken(regex: Self.linkRegex, kind: .link, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
@@ -543,6 +737,39 @@ struct MarkdownPreviewRenderer {
 
         return InlineToken(kind: kind, text: nsLine.substring(with: match.range(at: 1)), range: match.range)
     }
+
+    /// An `![alt](url)` image rendered as a quiet, file-free, network-free placeholder: a small
+    /// image glyph plus the alt text. The file is never opened and the network is never touched —
+    /// deliberate, consistent with local-first privacy and the deferred-images decision. The `!`
+    /// and the URL are consumed so nothing leaks into the rendered text.
+    private func imageToken(in line: String, nsLine: NSString, from location: Int) -> InlineToken? {
+        let searchRange = NSRange(location: location, length: nsLine.length - location)
+        guard let match = Self.imageRegex.firstMatch(in: line, range: searchRange) else {
+            return nil
+        }
+        let alt = nsLine.substring(with: match.range(at: 1))
+        // Prefer the alt text; with none, use the image's filename (last path component) so the
+        // placeholder still carries context — a lead to find the file later — rather than a lone
+        // glyph or a generic word. Falls back to "Image" only when there's no usable filename.
+        // Still file-free/network-free: this only reads the path string already in the document.
+        let label: String
+        if !alt.isEmpty {
+            label = alt
+        } else {
+            let filename = Self.imageFilename(from: nsLine.substring(with: match.range(at: 2)))
+            label = filename.isEmpty ? "Image" : filename
+        }
+        return InlineToken(kind: .image, text: "🖼 \(label)", range: match.range)
+    }
+
+    /// The last path component of an image URL/path (the filename), stripped of any query or
+    /// fragment. Pure string work — never resolves or touches the file.
+    private static func imageFilename(from url: String) -> String {
+        let path = url.split(separator: "?", maxSplits: 1).first.map(String.init) ?? url
+        let withoutFragment = path.split(separator: "#", maxSplits: 1).first.map(String.init) ?? path
+        let lastComponent = withoutFragment.split(separator: "/").last.map(String.init) ?? withoutFragment
+        return lastComponent.trimmingCharacters(in: .whitespaces)
+    }
 }
 
 private struct InlineToken {
@@ -550,6 +777,8 @@ private struct InlineToken {
         case bold
         case italic
         case code
+        case strikethrough
+        case image
         case link
     }
 
@@ -570,6 +799,12 @@ private struct InlineToken {
             }
         case .code:
             attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
+        case .strikethrough:
+            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+        case .image:
+            if let color = base[.foregroundColor] as? NSColor {
+                attributes[.foregroundColor] = color.withAlphaComponent(0.6)
+            }
         case .link:
             attributes[.foregroundColor] = NSColor.linkColor
         }

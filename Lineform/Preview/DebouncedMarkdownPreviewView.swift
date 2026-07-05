@@ -3,11 +3,12 @@ import SwiftUI
 struct DebouncedMarkdownPreviewView: View {
     let text: String
     let profile: ReadingProfile
+    var onCheckboxToggle: (NSRange) -> Void = { _ in }
     @State private var previewText = ""
     @State private var pendingUpdate: DispatchWorkItem?
 
     var body: some View {
-        MarkdownPreviewViewRepresentable(text: resolvedPreviewText, profile: profile)
+        MarkdownPreviewViewRepresentable(text: resolvedPreviewText, profile: profile, onCheckboxToggle: onCheckboxToggle)
             .accessibilityLabel("Markdown read view")
             .onAppear {
                 previewText = text

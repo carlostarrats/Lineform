@@ -34,6 +34,7 @@
 		1F0000010000000000000220 /* LineformCommandLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000220 /* LineformCommandLine.swift */; };
 		1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000221 /* CommandLineToolTests.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
+		1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */; };
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
 		1F0000010000000000000233 /* DiagramLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000233 /* DiagramLogTests.swift */; };
@@ -78,6 +79,8 @@
 		1F0000010000000000000230 /* MermaidRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000230 /* MermaidRendering.swift */; };
 		1F00000100000000000002B0 /* MathRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B0 /* MathRendering.swift */; };
 		1F00000100000000000002B1 /* DiagramCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B1 /* DiagramCardStyle.swift */; };
+		1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */; };
+		1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */; };
 		1F0000010000000000000231 /* DiagramLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000231 /* DiagramLog.swift */; };
 		1F0000010000000000000234 /* DiagramReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000234 /* DiagramReportService.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
@@ -149,6 +152,7 @@
 		1F0000020000000000000220 /* LineformCommandLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformCommandLine.swift; sourceTree = "<group>"; };
 		1F0000020000000000000221 /* CommandLineToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGroupingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000233 /* DiagramLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLogTests.swift; sourceTree = "<group>"; };
@@ -196,6 +200,8 @@
 		1F0000020000000000000230 /* MermaidRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRendering.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B0 /* MathRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRendering.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B1 /* DiagramCardStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardStyle.swift; sourceTree = "<group>"; };
+		1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrouping.swift; sourceTree = "<group>"; };
+		1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalRuleAttachment.swift; sourceTree = "<group>"; };
 		1F0000020000000000000231 /* DiagramLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLog.swift; sourceTree = "<group>"; };
 		1F0000020000000000000234 /* DiagramReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
@@ -345,6 +351,8 @@
 				1F0000020000000000000230 /* MermaidRendering.swift */,
 				1F00000200000000000002B0 /* MathRendering.swift */,
 				1F00000200000000000002B1 /* DiagramCardStyle.swift */,
+				1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */,
+				1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */,
 				1F0000020000000000000231 /* DiagramLog.swift */,
 				1F0000020000000000000234 /* DiagramReportService.swift */,
 			);
@@ -417,6 +425,7 @@
 				1F0000020000000000000214 /* LiveReloadScrollTests.swift */,
 				1F0000020000000000000221 /* CommandLineToolTests.swift */,
 				1F0000020000000000000232 /* MermaidRenderingTests.swift */,
+				1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */,
 				1F00000200000000000002B2 /* MathRenderingTests.swift */,
 				1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */,
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
@@ -592,6 +601,8 @@
 				1F0000010000000000000230 /* MermaidRendering.swift in Sources */,
 				1F00000100000000000002B0 /* MathRendering.swift in Sources */,
 				1F00000100000000000002B1 /* DiagramCardStyle.swift in Sources */,
+				1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */,
+				1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */,
 				1F0000010000000000000231 /* DiagramLog.swift in Sources */,
 				1F0000010000000000000234 /* DiagramReportService.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
@@ -643,6 +654,7 @@
 				1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */,
 				1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */,
 				1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */,
+				1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */,
 				1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */,
 				1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */,
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,

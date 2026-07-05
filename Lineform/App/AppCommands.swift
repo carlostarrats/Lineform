@@ -326,12 +326,26 @@ struct AppCommands: Commands {
                 }
                 .keyboardShortcut("`", modifiers: .command)
 
+                Button("Strikethrough") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleStrikethroughMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("x", modifiers: [.command, .shift])
+
                 Divider()
+
+                Button("Blockquote") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleBlockquoteMarkdown(_:)), to: nil, from: nil)
+                }
 
                 Button("Bulleted List") {
                     NSApp.sendAction(#selector(LineformTextView.toggleUnorderedListMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("8", modifiers: [.command, .shift])
+
+                Button("Numbered List") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleOrderedListMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("7", modifiers: [.command, .shift])
 
                 Button("Link") {
                     NSApp.sendAction(#selector(LineformTextView.toggleLinkMarkdown(_:)), to: nil, from: nil)

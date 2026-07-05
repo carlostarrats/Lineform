@@ -54,6 +54,22 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
         self.themeID = themeID
     }
 
+    // MARK: - Column width range
+
+    /// Narrowest reading column the slider allows.
+    static let columnWidthMinimum: Double = 460
+    /// Slider maximum. The top of the slider (at or above `columnWidthFullThreshold`) means **Full**
+    /// width — the reading column fills to the margins on any window size — rather than a fixed
+    /// pixel width. Fixed widths run from the minimum up to just below the threshold.
+    static let columnWidthMaximum: Double = 1200
+    /// At or above this, the column is "Full" (unbounded → clamps to the margins), not a fixed width.
+    static let columnWidthFullThreshold: Double = 1160
+
+    /// Whether a stored column width means "Full width" (fill to the margins) rather than a fixed px.
+    static func isFullWidthColumn(_ columnWidth: Double) -> Bool {
+        columnWidth >= columnWidthFullThreshold
+    }
+
     static let original = ReadingProfile(
         id: UUID(uuidString: "1C7B19CC-A1ED-4828-8F77-94B6769F7260")!,
         name: "Original",

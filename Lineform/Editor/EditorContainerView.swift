@@ -446,6 +446,15 @@ struct EditorContainerView: View {
         Theme.theme(for: readingProfileStore.activeProfile)
     }
 
+    /// Toggle a Read-mode task checkbox as a normal document edit: swap `[ ]`↔`[x]` at the clicked
+    /// marker's source range. Because it mutates `document.text` through the binding like any edit,
+    /// dirty-tracking, autosave, and undo (single ⌘Z) all apply. A stale range (the text changed
+    /// out from under the render) yields nil and is ignored.
+    private func toggleCheckbox(at range: NSRange) {
+        guard let newText = CheckboxToggle.toggledText(in: document.text, at: range) else { return }
+        document.text = newText
+    }
+
     @ViewBuilder
     private var editorContent: some View {
         switch displayMode {
@@ -453,15 +462,23 @@ struct EditorContainerView: View {
             markdownEditor
         case .read:
             HStack {
-                DebouncedMarkdownPreviewView(text: document.text, profile: readingProfileStore.activeProfile)
-                    .frame(maxHeight: .infinity)
+                DebouncedMarkdownPreviewView(
+                    text: document.text,
+                    profile: readingProfileStore.activeProfile,
+                    onCheckboxToggle: toggleCheckbox
+                )
+                .frame(maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .split:
             HStack(spacing: 0) {
                 markdownEditor
                 Divider()
-                DebouncedMarkdownPreviewView(text: document.text, profile: readingProfileStore.activeProfile)
+                DebouncedMarkdownPreviewView(
+                    text: document.text,
+                    profile: readingProfileStore.activeProfile,
+                    onCheckboxToggle: toggleCheckbox
+                )
             }
         }
     }

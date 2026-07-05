@@ -111,8 +111,8 @@ struct ReadingExperienceInspector: View {
                 InspectorSliderRow(
                     title: "Column Width",
                     valueText: Self.valueText(for: \.columnWidth, in: store.activeProfile),
-                    value: numericBinding(\.columnWidth, range: 460...900),
-                    range: 460...900
+                    value: numericBinding(\.columnWidth, range: ReadingProfile.columnWidthMinimum...ReadingProfile.columnWidthMaximum),
+                    range: ReadingProfile.columnWidthMinimum...ReadingProfile.columnWidthMaximum
                 )
 
                 InspectorToggleRow(
@@ -238,7 +238,9 @@ struct ReadingExperienceInspector: View {
             return "\(roundedInteger(value)) pt"
         case \ReadingProfile.lineHeightMultiple:
             return decimalText(value, maximumFractionDigits: 2)
-        case \ReadingProfile.paragraphSpacing, \ReadingProfile.columnWidth, \ReadingProfile.insertionPointWidth:
+        case \ReadingProfile.columnWidth:
+            return ReadingProfile.isFullWidthColumn(value) ? "Full" : "\(roundedInteger(value)) px"
+        case \ReadingProfile.paragraphSpacing, \ReadingProfile.insertionPointWidth:
             return "\(roundedInteger(value)) px"
         case \ReadingProfile.letterSpacing:
             return decimalText(value, maximumFractionDigits: 1)

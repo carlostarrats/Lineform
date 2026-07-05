@@ -163,6 +163,18 @@ final class LineformTextView: NSTextView {
         applyFormattingCommand(.inlineCode)
     }
 
+    @objc func toggleStrikethroughMarkdown(_ sender: Any?) {
+        applyFormattingCommand(.strikethrough)
+    }
+
+    @objc func toggleBlockquoteMarkdown(_ sender: Any?) {
+        applyFormattingCommand(.blockquote)
+    }
+
+    @objc func toggleOrderedListMarkdown(_ sender: Any?) {
+        applyFormattingCommand(.orderedList)
+    }
+
     @objc func toggleUnorderedListMarkdown(_ sender: Any?) {
         applyFormattingCommand(.unorderedList)
     }

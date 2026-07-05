@@ -2,7 +2,11 @@ import SwiftUI
 
 enum EditorReadingLayout {
     static func textColumnMaxWidth(for profile: ReadingProfile) -> CGFloat {
-        CGFloat(profile.columnWidth)
+        // "Full width" means the column is unbounded, so `horizontalInset` clamps to `marginWidth`
+        // and the text fills to the margins regardless of window size.
+        ReadingProfile.isFullWidthColumn(profile.columnWidth)
+            ? .greatestFiniteMagnitude
+            : CGFloat(profile.columnWidth)
     }
 
     static func horizontalInset(forContainerWidth containerWidth: CGFloat, profile: ReadingProfile) -> CGFloat {
