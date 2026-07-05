@@ -14,6 +14,8 @@ enum LineformAppNotification {
     case sidebarFileDeleted
     case renameCurrentFile
     case deleteCurrentFile
+    case printDocument
+    case exportPDF
 
     var name: Notification.Name {
         switch self {
@@ -41,6 +43,10 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.renameCurrentFile")
         case .deleteCurrentFile:
             return Notification.Name("Lineform.deleteCurrentFile")
+        case .printDocument:
+            return Notification.Name("Lineform.printDocument")
+        case .exportPDF:
+            return Notification.Name("Lineform.exportPDF")
         }
     }
 

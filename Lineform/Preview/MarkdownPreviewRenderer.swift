@@ -48,7 +48,11 @@ struct MarkdownPreviewRenderer {
         mathProvider: MathImageProviding,
         diagramLog: DiagramFailureLogging,
         reportRegistry: DiagramReportRegistry,
-        appVersion: String
+        appVersion: String,
+        // Export/print sets this so tables shrink to fit the page (proportional percentage
+        // columns, cells wrap) instead of overflowing a narrow page column. On screen it stays
+        // false so the wide reading column keeps content-sized columns.
+        fitTablesToWidth: Bool = false
     ) -> NSAttributedString {
         reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
@@ -131,7 +135,7 @@ struct MarkdownPreviewRenderer {
                 appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .table(let table, let lastLineIndex):
-                appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme)
+                appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, fitToWidth: fitTablesToWidth)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             }
         }
@@ -148,7 +152,8 @@ struct MarkdownPreviewRenderer {
         to output: NSMutableAttributedString,
         baseAttributes: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
-        theme: Theme
+        theme: Theme,
+        fitToWidth: Bool = false
     ) {
         let columns = table.columnCount
         guard columns > 0 else { return }
@@ -159,6 +164,15 @@ struct MarkdownPreviewRenderer {
         textTable.collapsesBorders = true
         textTable.hidesEmptyCells = false
 
+        // When exporting to a fixed page, content-sized columns can overflow the (narrow) page
+        // column and clip on the right. Give each column a percentage width proportional to its
+        // longest cell, summing to a value under 100% (leaving room for per-cell padding/borders),
+        // so the whole table fits the page and long cells wrap. On screen this stays off and the
+        // wide reading column keeps natural content-sized columns.
+        let allRows: [(cells: [String], isHeader: Bool)] =
+            [(table.headers, true)] + table.rows.map { ($0, false) }
+        let columnPercentages: [CGFloat]? = fitToWidth ? Self.fitColumnPercentages(rows: allRows, columns: columns) : nil
+
         let borderColor = theme.textColor.withAlphaComponent(0.25)
         let headerFill = theme.textColor.withAlphaComponent(0.06)
         let baseFont = (baseAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
@@ -167,9 +181,6 @@ struct MarkdownPreviewRenderer {
         // and just fits more per column, easing the too-wide case. Relative, never a fixed size.
         let cellFont = NSFont(descriptor: baseFont.fontDescriptor, size: baseFont.pointSize * Self.tableTextScale) ?? baseFont
         let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
-
-        let allRows: [(cells: [String], isHeader: Bool)] =
-            [(table.headers, true)] + table.rows.map { ($0, false) }
 
         for (rowIndex, row) in allRows.enumerated() {
             for column in 0..<columns {
@@ -183,6 +194,9 @@ struct MarkdownPreviewRenderer {
                 block.setBorderColor(borderColor)
                 block.setWidth(1, type: .absoluteValueType, for: .border)
                 block.setWidth(6, type: .absoluteValueType, for: .padding)
+                if let columnPercentages {
+                    block.setContentWidth(columnPercentages[column], type: .percentageValueType)
+                }
                 if row.isHeader {
                     block.backgroundColor = headerFill
                 }
@@ -199,6 +213,29 @@ struct MarkdownPreviewRenderer {
                 output.append(NSAttributedString(string: cellText + "\n", attributes: attributes))
             }
         }
+    }
+
+    /// Percentage content widths (of the page column) per table column, proportional to each
+    /// column's longest cell, summing to a budget under 100% so per-cell padding + borders don't
+    /// push the table past the page column. Used only for export (fit-to-width). A small floor
+    /// keeps a short column from collapsing.
+    static func fitColumnPercentages(rows: [(cells: [String], isHeader: Bool)], columns: Int) -> [CGFloat] {
+        guard columns > 0 else { return [] }
+        var weights = [CGFloat](repeating: 1, count: columns)
+        for column in 0..<columns {
+            var longest = 1
+            for row in rows {
+                let cell = column < row.cells.count ? row.cells[column] : ""
+                longest = max(longest, cell.count)
+            }
+            weights[column] = CGFloat(longest)
+        }
+        let total = weights.reduce(0, +)
+        // Reserve headroom for each column's padding (6pt × 2) and border so the sum of content
+        // widths plus that fixed overhead stays within the page column.
+        let budget: CGFloat = 88
+        let floor: CGFloat = 100 / CGFloat(columns) * 0.25
+        return weights.map { max(floor, $0 / total * budget) }
     }
 
     private func nsAlignment(_ alignment: MarkdownTableAlignment) -> NSTextAlignment {

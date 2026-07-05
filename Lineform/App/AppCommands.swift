@@ -42,6 +42,8 @@ enum AppMenuConfiguration {
     // Three-period ellipsis matches the surrounding File-menu titles ("Save As...").
     static let renameFileCommandTitle = "Rename..."
     static let deleteFileCommandTitle = "Delete..."
+    static let printCommandTitle = "Print..."
+    static let exportPDFCommandTitle = "Export as PDF..."
     static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let privacyPolicyCommandTitle = "Privacy Policy"
@@ -295,6 +297,20 @@ struct AppCommands: Commands {
                 LineformAppNotification.deleteCurrentFile.post(object: LineformAppNotification.activeWindowPayload())
             }
             .disabled(currentFileMenuState.currentFileURL == nil)
+        }
+
+        // Print + rich PDF export live in the natural Print slot of the File menu. Both render
+        // the document the way Read mode does (white page, black ink), regardless of the current
+        // display mode. Always enabled like Save As…; a post with no key window is a safe no-op.
+        CommandGroup(replacing: .printItem) {
+            Button(AppMenuConfiguration.printCommandTitle) {
+                LineformAppNotification.printDocument.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut("p", modifiers: .command)
+
+            Button(AppMenuConfiguration.exportPDFCommandTitle) {
+                LineformAppNotification.exportPDF.post(object: LineformAppNotification.activeWindowPayload())
+            }
         }
 
         CommandMenu("Format") {
