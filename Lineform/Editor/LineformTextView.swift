@@ -32,6 +32,8 @@ final class LineformTextView: NSTextView {
     private var horizontalInsetAnimationTargetContainerWidth: CGFloat = 0
     private var horizontalInsetAnimationVerticalScrollOrigin: CGFloat?
     private var lastHighlightedTokenRange: NSRange?
+    private var isPreservingVisibleLayoutAnchor = false
+    private var isRunningLayoutSensitiveEnsureLayout = false
     var textFormat = LineformTextFormat.markdown
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
@@ -232,7 +234,15 @@ final class LineformTextView: NSTextView {
     }
 
     func refreshReadingAssists() {
-        needsDisplay = true
+        // Called on every keystroke and selection change. A full-viewport redraw is only
+        // needed when something custom-drawn tracks the selection/text: the reading ruler,
+        // visible search highlights, or the empty-state placeholder. The common case (plain
+        // typing — no ruler, no search) skips it and leaves AppKit's minimal edited-line
+        // invalidation in place; the saved per-keystroke repaint of a dense Retina viewport
+        // is what keeps the caret from momentarily trailing fast typing (perf, 2026-07-05).
+        if activeReadingProfile.readingRulerEnabled || !searchHighlightRanges.isEmpty || string.isEmpty {
+            needsDisplay = true
+        }
         centerSelectionForTypewriterModeIfNeeded()
     }
 
@@ -389,6 +399,11 @@ final class LineformTextView: NSTextView {
     }
 
     func setSearchHighlights(_ ranges: [NSRange], activeRange: NSRange?) {
+        // updateNSView calls this on every SwiftUI cycle (i.e. every keystroke), almost always
+        // with unchanged values — usually ([], nil). Only an actual change needs a repaint.
+        guard ranges != searchHighlightRanges || activeRange != activeSearchHighlightRange else {
+            return
+        }
         searchHighlightRanges = ranges
         activeSearchHighlightRange = activeRange
         needsDisplay = true
@@ -403,12 +418,22 @@ final class LineformTextView: NSTextView {
             return nil
         }
 
-        layoutManager.ensureLayout(for: textContainer)
+        runLayoutSensitiveEnsureLayout { layoutManager.ensureLayout(for: textContainer) }
         var visibleRect = scrollView.contentView.bounds
         visibleRect.origin.x -= textContainerOrigin.x
         visibleRect.origin.y -= textContainerOrigin.y
         let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
         return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+    }
+
+    /// Runs a whole-container `ensureLayout` with the re-entrancy flag `setFrameSize` checks
+    /// set, so the typesetter's per-fragment resizes stay plain frame changes (see the crash
+    /// note in `setFrameSize`).
+    private func runLayoutSensitiveEnsureLayout(_ body: () -> Void) {
+        let wasRunning = isRunningLayoutSensitiveEnsureLayout
+        isRunningLayoutSensitiveEnsureLayout = true
+        defer { isRunningLayoutSensitiveEnsureLayout = wasRunning }
+        body()
     }
 
     private func configureForMarkdownEditing() {
@@ -446,6 +471,17 @@ final class LineformTextView: NSTextView {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        // Crash fix (2026-07-05): while one of OUR `ensureLayout(for:)` calls below is running,
+        // AppKit's typesetter resizes the text view after each line fragment it lays out
+        // (`_resizeTextViewForTextContainer` → here). Running the full body then re-enters
+        // `ensureLayout` mid-layout and recurses once per remaining fragment — a stack overflow
+        // on a large not-yet-laid-out document. Those typesetter-driven resizes only need the
+        // plain frame change; the outer call finishes its own preservation afterwards.
+        guard !isRunningLayoutSensitiveEnsureLayout else {
+            super.setFrameSize(newSize)
+            return
+        }
+
         let previousVerticalScrollOrigin = enclosingScrollView?.contentView.bounds.origin.y
         preserveVisibleLayoutAnchorDuring(
             preservesVisualAnchor: shouldPreserveVisualLayoutAnchorDuringLayoutTransition(),
@@ -463,6 +499,20 @@ final class LineformTextView: NSTextView {
         verticalScrollOrigin: CGFloat? = nil,
         _ updates: () -> Void
     ) {
+        // Re-entrancy guard (crash fix, 2026-07-05): AppKit resizes the text view from INSIDE
+        // typesetting (`_resizeTextViewForTextContainer` while filling layout holes), which
+        // lands back in `setFrameSize` → here while an outer preservation is already running.
+        // Capturing a visual anchor calls `ensureLayout(for:)` MID-layout, which typesets one
+        // more fragment, resizes again, and recurses — once per remaining line fragment, a
+        // guaranteed stack overflow on a large not-yet-laid-out document. Nested calls
+        // therefore skip anchor capture (scroll-origin restore only — no ensureLayout); the
+        // OUTERMOST call still captures and restores its anchor last, so the final scroll
+        // position is unchanged.
+        let isNestedPreservation = isPreservingVisibleLayoutAnchor
+        isPreservingVisibleLayoutAnchor = true
+        defer { isPreservingVisibleLayoutAnchor = isNestedPreservation }
+        let preservesVisualAnchor = preservesVisualAnchor && !isNestedPreservation
+
         if !preservesVisualAnchor {
             pendingDeferredVisualLayoutAnchor = nil
         }
@@ -712,7 +762,7 @@ final class LineformTextView: NSTextView {
                 height: CGFloat.greatestFiniteMagnitude
             )
         }
-        layoutManager.ensureLayout(for: textContainer)
+        runLayoutSensitiveEnsureLayout { layoutManager.ensureLayout(for: textContainer) }
 
         let minimumDocumentHeight = ceil(
             layoutManager.usedRect(for: textContainer).height + textContainerInset.height * 2

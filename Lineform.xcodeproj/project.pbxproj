@@ -11,6 +11,7 @@
 		1F0000010000000000000002 /* ReadingProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000002 /* ReadingProfileTests.swift */; };
 		1F0000010000000000000021 /* MarkdownRangeAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000021 /* MarkdownRangeAnalyzerTests.swift */; };
 		1F0000010000000000000327 /* ScopedSyntaxHighlightingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */; };
+		1F0000010000000000000329 /* LargeDocumentLayoutReentrancyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */; };
 		1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
@@ -129,6 +130,7 @@
 		1F0000020000000000000002 /* ReadingProfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000021 /* MarkdownRangeAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRangeAnalyzerTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopedSyntaxHighlightingTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentLayoutReentrancyTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommandTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
@@ -404,6 +406,7 @@
 				1F0000020000000000000002 /* ReadingProfileTests.swift */,
 				1F0000020000000000000021 /* MarkdownRangeAnalyzerTests.swift */,
 				1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */,
+				1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */,
 				1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */,
 				1F0000020000000000000023 /* DocumentStatisticsTests.swift */,
 				1F0000020000000000000041 /* ReadingPresetTests.swift */,
@@ -636,6 +639,7 @@
 				1F0000010000000000000002 /* ReadingProfileTests.swift in Sources */,
 				1F0000010000000000000021 /* MarkdownRangeAnalyzerTests.swift in Sources */,
 				1F0000010000000000000327 /* ScopedSyntaxHighlightingTests.swift in Sources */,
+				1F0000010000000000000329 /* LargeDocumentLayoutReentrancyTests.swift in Sources */,
 				1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */,
 				1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */,
 				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
