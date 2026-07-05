@@ -211,6 +211,8 @@ struct MarkdownBasicsModal: View {
         Example(label: "Italic", syntax: "_italic_"),
         Example(label: "Bullet", syntax: "- bullet"),
         Example(label: "Numbered", syntax: "1. item"),
+        Example(label: "Task", syntax: "- [ ] to do"),
+        Example(label: "Done (click to toggle)", syntax: "- [x] done"),
         Example(label: "Quote", syntax: "> quote"),
         Example(label: "Strikethrough", syntax: "~~text~~"),
         Example(label: "Code", syntax: "`code`"),

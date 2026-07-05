@@ -136,6 +136,22 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(rendered, "a link")
     }
 
+    func testTaskCheckboxRendersGlyphWithSourceRangeAttribute() throws {
+        let rendered = MarkdownPreviewRenderer().render("- [ ] task", profile: .original)
+        XCTAssertTrue(rendered.string.contains("☐"))
+        XCTAssertTrue(rendered.string.contains("task"))
+        XCTAssertFalse(rendered.string.contains("[ ]")) // marker replaced by the glyph
+        let glyphIndex = (rendered.string as NSString).range(of: "☐").location
+        let value = rendered.attribute(.checkboxSourceRange, at: glyphIndex, effectiveRange: nil) as? NSValue
+        XCTAssertEqual(value?.rangeValue, NSRange(location: 2, length: 3))
+    }
+
+    func testCheckedTaskRendersFilledGlyph() {
+        let rendered = MarkdownPreviewRenderer().render("- [x] done", profile: .original).string
+        XCTAssertTrue(rendered.contains("☑"))
+        XCTAssertFalse(rendered.contains("[x]"))
+    }
+
     func testBulletedListRendersBulletWithHangingIndent() throws {
         let rendered = MarkdownPreviewRenderer().render("- item", profile: .original)
         XCTAssertTrue(rendered.string.contains("•"))

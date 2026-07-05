@@ -1,5 +1,11 @@
 import AppKit
 
+extension NSAttributedString.Key {
+    /// Attached to a rendered task-checkbox glyph; value is an `NSValue` boxing the `NSRange` of the
+    /// `[ ]`/`[x]` marker in the source document, so a click on the glyph can toggle that span.
+    static let checkboxSourceRange = NSAttributedString.Key("lineform.checkboxSourceRange")
+}
+
 struct MarkdownPreviewRenderer {
     private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
     private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
@@ -169,8 +175,18 @@ struct MarkdownPreviewRenderer {
             var attributes = baseBody
             attributes[.paragraphStyle] = paragraph
 
-            let marker = item.ordinal.map { "\($0)." } ?? "•"
-            output.append(NSAttributedString(string: "\(marker)\t", attributes: attributes))
+            if let checkbox = item.checkbox {
+                // A task item: draw a check glyph carrying its source range for click-to-toggle,
+                // then the item text. The glyph replaces the bullet.
+                var glyphAttributes = attributes
+                glyphAttributes[.checkboxSourceRange] = NSValue(range: checkbox.sourceRange)
+                let glyph = checkbox.isChecked ? "☑" : "☐"
+                output.append(NSAttributedString(string: glyph, attributes: glyphAttributes))
+                output.append(NSAttributedString(string: "\t", attributes: attributes))
+            } else {
+                let marker = item.ordinal.map { "\($0)." } ?? "•"
+                output.append(NSAttributedString(string: "\(marker)\t", attributes: attributes))
+            }
             output.append(inlineWithMath(
                 in: item.text,
                 baseAttributes: attributes,

@@ -35,11 +35,37 @@ enum MarkdownBlock: Equatable {
 
 /// One rendered list item: its text, its nesting level, and — for numbered items — the sequential
 /// number to display (`nil` for bullets). Ordinals are resolved during grouping so `1.` / `1.` /
-/// `1.` renders as 1, 2, 3 and nested levels count independently.
+/// `1.` renders as 1, 2, 3 and nested levels count independently. A task item (`- [ ]` / `- [x]`)
+/// carries `checkbox`, and its display `text` has the `[ ]`/`[x]` marker stripped.
 struct MarkdownListItem: Equatable {
     var text: String
     var indentLevel: Int
     var ordinal: Int?
+    var checkbox: MarkdownCheckbox?
+}
+
+/// A rendered task checkbox: whether it is checked, and the exact `NSRange` of the `[ ]`/`[x]`
+/// marker in the source document (UTF-16) so a click can toggle that precise span.
+struct MarkdownCheckbox: Equatable {
+    var isChecked: Bool
+    var sourceRange: NSRange
+
+    /// Whether a list item's text is a GFM task marker, and — if so — its checked state and the
+    /// remaining text after the marker. Matches `[ ]`, `[x]`, or `[X]` that is followed by
+    /// whitespace-then-text or nothing (end of line). `- [x](link)` is NOT a task — GFM requires
+    /// whitespace after the bracket — so it stays a normal bullet.
+    static func detect(in text: String) -> (isChecked: Bool, remaining: String)? {
+        let ns = text as NSString
+        guard let match = detectRegex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else {
+            return nil
+        }
+        let mark = ns.substring(with: match.range(at: 1))
+        let remainingRange = match.range(at: 2)
+        let remaining = remainingRange.location == NSNotFound ? "" : ns.substring(with: remainingRange)
+        return (isChecked: mark.lowercased() == "x", remaining: remaining)
+    }
+
+    private static let detectRegex = try! NSRegularExpression(pattern: #"^\[([ xX])\](?:[ \t]+(.*))?$"#)
 }
 
 /// List-item line parsing: `-` / `*` / `+` bullets and `1.` / `1)` numbers, with a leading-indent
@@ -49,6 +75,8 @@ enum MarkdownList {
         var indentLevel: Int
         var ordered: Bool
         var text: String
+        /// UTF-16 column in the line where the item text begins (just past the marker + whitespace).
+        var textColumn: Int
     }
 
     private static let regex = try! NSRegularExpression(pattern: #"^([ \t]*)([-*+]|[0-9]{1,9}[.)])[ \t]+(.*)$"#)
@@ -64,7 +92,7 @@ enum MarkdownList {
         // Tabs count as two columns; every two columns of leading space is one nesting level.
         let width = indentText.reduce(0) { $0 + ($1 == "\t" ? 2 : 1) }
         let ordered = marker.first.map { $0.isNumber } ?? false
-        return Parsed(indentLevel: width / 2, ordered: ordered, text: text)
+        return Parsed(indentLevel: width / 2, ordered: ordered, text: text, textColumn: match.range(at: 3).location)
     }
 }
 
@@ -141,6 +169,15 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
     var inFence = false
     var linesStart: Int?
     var index = 0
+
+    // UTF-16 offset where each line begins in the joined source (lines are joined by "\n"), so a
+    // task checkbox's marker can be given its exact source range for click-to-toggle.
+    var lineStartOffsets = [Int](repeating: 0, count: lines.count)
+    var runningOffset = 0
+    for i in lines.indices {
+        lineStartOffsets[i] = runningOffset
+        runningOffset += (lines[i] as NSString).length + 1
+    }
 
     func flushLines(upTo end: Int) {
         if let start = linesStart, start < end {
@@ -223,7 +260,8 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
                 parsed.append(item)
                 cursor += 1
             }
-            blocks.append(.list(items: resolveListOrdinals(parsed), lastLineIndex: cursor - 1))
+            let items = resolveListItems(parsed, firstLineIndex: index, lineStartOffsets: lineStartOffsets)
+            blocks.append(.list(items: items, lastLineIndex: cursor - 1))
             index = cursor
             continue
         }
@@ -243,18 +281,52 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
     return blocks
 }
 
-/// Resolve display ordinals for a run of parsed list items: numbered items count sequentially
-/// within their nesting level (so `1.` `1.` `1.` renders as 1, 2, 3), and re-entering a deeper
-/// level restarts its counter. Bullets carry `nil`.
-private func resolveListOrdinals(_ parsed: [MarkdownList.Parsed]) -> [MarkdownListItem] {
+/// Resolve a run of parsed list items into rendered items: numbered items count sequentially
+/// within their nesting level (so `1.` `1.` `1.` renders as 1, 2, 3) with re-entering a deeper
+/// level restarting its counter; an unordered item whose text is a `[ ]`/`[x]` task marker becomes
+/// a checkbox (marker stripped from the text, no ordinal) carrying the marker's source range.
+/// `firstLineIndex` is the source line index of the first item; items are contiguous after it.
+private func resolveListItems(
+    _ parsed: [MarkdownList.Parsed],
+    firstLineIndex: Int,
+    lineStartOffsets: [Int]
+) -> [MarkdownListItem] {
     var counters: [Int: Int] = [:]
-    return parsed.map { item in
+    return parsed.enumerated().map { offset, item in
         counters = counters.filter { $0.key <= item.indentLevel }
+
+        var checkbox: MarkdownCheckbox?
+        var displayText = item.text
+        if !item.ordered, let detected = MarkdownCheckbox.detect(in: item.text) {
+            let lineIndex = firstLineIndex + offset
+            let markerLocation = lineStartOffsets[lineIndex] + item.textColumn
+            checkbox = MarkdownCheckbox(isChecked: detected.isChecked, sourceRange: NSRange(location: markerLocation, length: 3))
+            displayText = detected.remaining
+        }
+
         var ordinal: Int?
         if item.ordered {
             counters[item.indentLevel, default: 0] += 1
             ordinal = counters[item.indentLevel]
         }
-        return MarkdownListItem(text: item.text, indentLevel: item.indentLevel, ordinal: ordinal)
+        return MarkdownListItem(text: displayText, indentLevel: item.indentLevel, ordinal: ordinal, checkbox: checkbox)
+    }
+}
+
+/// Pure toggle of a task checkbox in the source text: swaps `[ ]`↔`[x]` at `range`, returning the
+/// new text — or `nil` when `range` does not hold a `[ ]`/`[x]` marker (a stale range after an
+/// external edit), so the caller can safely ignore it.
+enum CheckboxToggle {
+    static func toggledText(in text: String, at range: NSRange) -> String? {
+        let ns = text as NSString
+        guard range.location >= 0, NSMaxRange(range) <= ns.length, range.length == 3 else { return nil }
+        let current = ns.substring(with: range)
+        let toggled: String
+        switch current {
+        case "[ ]": toggled = "[x]"
+        case "[x]", "[X]": toggled = "[ ]"
+        default: return nil
+        }
+        return ns.replacingCharacters(in: range, with: toggled)
     }
 }

@@ -179,4 +179,60 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertEqual(MarkdownList.parse("* star")?.ordered, false)
         XCTAssertEqual(MarkdownList.parse("3) paren")?.ordered, true)
     }
+
+    // MARK: - Task checkboxes
+
+    func testUncheckedTaskItemCarriesCheckboxAndStrippedText() {
+        let blocks = markdownBlocks(in: ["- [ ] buy milk"])
+        guard case .list(let items, _) = blocks.first else { return XCTFail("expected a list") }
+        XCTAssertEqual(items.first?.text, "buy milk")
+        XCTAssertEqual(items.first?.checkbox, MarkdownCheckbox(isChecked: false, sourceRange: NSRange(location: 2, length: 3)))
+        XCTAssertNil(items.first?.ordinal)
+    }
+
+    func testCheckedTaskItemIsChecked() {
+        let blocks = markdownBlocks(in: ["- [x] done"])
+        guard case .list(let items, _) = blocks.first else { return XCTFail("expected a list") }
+        XCTAssertEqual(items.first?.checkbox?.isChecked, true)
+        XCTAssertEqual(items.first?.text, "done")
+    }
+
+    func testCheckboxSourceRangeIsAbsoluteAcrossLines() {
+        // "intro\n- [ ] a": line 1 begins at offset 6; the "[" sits at column 2 -> range (8, 3).
+        let blocks = markdownBlocks(in: ["intro", "- [ ] a"])
+        guard case .list(let items, _) = blocks.last else { return XCTFail("expected a list") }
+        XCTAssertEqual(items.first?.checkbox?.sourceRange, NSRange(location: 8, length: 3))
+    }
+
+    func testNonTaskListItemHasNoCheckbox() {
+        let blocks = markdownBlocks(in: ["- regular"])
+        guard case .list(let items, _) = blocks.first else { return XCTFail("expected a list") }
+        XCTAssertNil(items.first?.checkbox)
+    }
+
+    func testCheckboxToggleSwapsMarker() {
+        XCTAssertEqual(CheckboxToggle.toggledText(in: "- [ ] a", at: NSRange(location: 2, length: 3)), "- [x] a")
+        XCTAssertEqual(CheckboxToggle.toggledText(in: "- [x] a", at: NSRange(location: 2, length: 3)), "- [ ] a")
+    }
+
+    func testCheckboxToggleIgnoresStaleRange() {
+        // Range no longer points at a marker (text changed) -> nil, so the caller ignores it.
+        XCTAssertNil(CheckboxToggle.toggledText(in: "- hello", at: NSRange(location: 2, length: 3)))
+        XCTAssertNil(CheckboxToggle.toggledText(in: "- [ ] a", at: NSRange(location: 200, length: 3)))
+    }
+
+    func testBracketWithoutTrailingSpaceIsNotATask() {
+        // GFM requires whitespace after the bracket: `- [x](link)` is a normal bullet, not a task.
+        let blocks = markdownBlocks(in: ["- [x](link)"])
+        guard case .list(let items, _) = blocks.first else { return XCTFail("expected a list") }
+        XCTAssertNil(items.first?.checkbox)
+        XCTAssertEqual(items.first?.text, "[x](link)")
+    }
+
+    func testBareCheckboxWithNoContentIsATask() {
+        let blocks = markdownBlocks(in: ["- [ ]"])
+        guard case .list(let items, _) = blocks.first else { return XCTFail("expected a list") }
+        XCTAssertEqual(items.first?.checkbox?.isChecked, false)
+        XCTAssertEqual(items.first?.text, "")
+    }
 }

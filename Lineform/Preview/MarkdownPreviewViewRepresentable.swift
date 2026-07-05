@@ -4,6 +4,9 @@ import SwiftUI
 struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     var text: String
     var profile: ReadingProfile
+    /// Called when the user clicks a rendered task checkbox, with the `NSRange` of its `[ ]`/`[x]`
+    /// marker in the source document. The container toggles that span in `document.text`.
+    var onCheckboxToggle: (NSRange) -> Void = { _ in }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -16,6 +19,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         let textView = MarkdownPreviewTextView()
         textView.setAccessibilityLabel("Markdown read view")
         textView.setAccessibilityRole(.textArea)
+        textView.onCheckboxToggle = onCheckboxToggle
 
         scrollView.documentView = textView
         textView.apply(text: text, profile: profile)
@@ -27,11 +31,16 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
             return
         }
 
+        // Re-bind the closure each update so it captures the current document binding.
+        textView.onCheckboxToggle = onCheckboxToggle
         textView.apply(text: text, profile: profile)
     }
 }
 
 final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
+    /// Set by the representable; invoked with a checkbox's source-marker range on a click that lands
+    /// on a rendered checkbox glyph.
+    var onCheckboxToggle: (NSRange) -> Void = { _ in }
     private var activeProfile = ReadingProfile.original
     private var renderedText: String?
     private var renderedProfile: ReadingProfile?
@@ -155,6 +164,36 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         if didChange {
             layoutManager.ensureLayout(for: textContainer)
         }
+    }
+
+    // MARK: - Checkbox click handling
+
+    override func mouseDown(with event: NSEvent) {
+        if let range = checkboxSourceRange(at: event) {
+            onCheckboxToggle(range)
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    /// The source range of a task checkbox whose glyph the event's point lands on, or nil. Requires
+    /// the click to fall inside the glyph's bounding rect (not merely the same line) so clicking
+    /// empty space never toggles.
+    private func checkboxSourceRange(at event: NSEvent) -> NSRange? {
+        guard let layoutManager, let textContainer, let textStorage, textStorage.length > 0 else {
+            return nil
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        let containerPoint = NSPoint(x: point.x - textContainerInset.width, y: point.y - textContainerInset.height)
+        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: textContainer)
+        guard glyphRect.contains(containerPoint) else { return nil }
+        let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        guard charIndex < textStorage.length,
+              let value = textStorage.attribute(.checkboxSourceRange, at: charIndex, effectiveRange: nil) as? NSValue else {
+            return nil
+        }
+        return value.rangeValue
     }
 
     // MARK: - "Report this" link handling

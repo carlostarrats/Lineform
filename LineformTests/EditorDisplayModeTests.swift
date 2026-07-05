@@ -122,7 +122,7 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(MarkdownBasicsModal.title, "Info")
         XCTAssertEqual(
             MarkdownBasicsModal.examples.map(\.syntax),
-            ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "1. item", "> quote", "~~text~~", "`code`", "---", "[link](https://example.com)"]
+            ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "1. item", "- [ ] to do", "- [x] done", "> quote", "~~text~~", "`code`", "---", "[link](https://example.com)"]
         )
         XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "Diagrams", "Math", "Search"])
         XCTAssertEqual(MarkdownBasicsModal.sections.first?.rows.last?.label, "Block Spacing")
