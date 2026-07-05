@@ -12,8 +12,9 @@ final class ScopedSyntaxHighlightingTests: XCTestCase {
         let scope = MarkdownSyntaxHighlighter.scopedTokenRange(
             visibleRange: NSRange(location: 10, length: 4), margin: 1, in: text
         )
-        // 10-1=9 snaps back to start of "bbbb" (loc 5); 14+1=15 snaps to end of "dddd" line (loc 19).
-        XCTAssertEqual(scope, NSRange(location: 5, length: 14))
+        // 10-1=9 (the \n after "bbbb") snaps back to the start of "bbbb" (loc 5); 14+1=15
+        // (the 'd' of "dddd") snaps out to the end of the "dddd" line incl. its \n (loc 20).
+        XCTAssertEqual(scope, NSRange(location: 5, length: 15))
     }
 
     func testScopedTokenRangeClampsAtDocumentEdges() {
