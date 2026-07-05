@@ -5,6 +5,10 @@ final class LineformTextView: NSTextView {
     static let readingRulerFillOpacity: CGFloat = 0.12
     static let lightSelectionBackgroundAlpha: CGFloat = 0.34
     static let darkSelectionBackgroundAlpha: CGFloat = 0.56
+    /// Characters of syntax highlighting kept on each side of the visible range so scroll
+    /// seams stay coloured. A few hundred words; tokenizing this window is sub-millisecond.
+    static let highlightMargin = 3000
+    static let scrollHighlightDebounce: TimeInterval = 0.05
     private static let maximumHorizontalInsetAnimationSpeed: CGFloat = 220
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
@@ -27,6 +31,8 @@ final class LineformTextView: NSTextView {
     private var horizontalInsetAnimationStartContainerWidth: CGFloat = 0
     private var horizontalInsetAnimationTargetContainerWidth: CGFloat = 0
     private var horizontalInsetAnimationVerticalScrollOrigin: CGFloat?
+    private var lastHighlightedTokenRange: NSRange?
+    private var hasScrollBoundsObservation = false
     var textFormat = LineformTextFormat.markdown
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
@@ -55,8 +61,17 @@ final class LineformTextView: NSTextView {
         configureForMarkdownEditing()
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override var acceptsFirstResponder: Bool {
         true
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        setUpScrollBoundsObservationIfNeeded()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -130,12 +145,84 @@ final class LineformTextView: NSTextView {
         ]
     }
 
+    /// Full refresh (load / profile change / full-text replacement): resets base attributes
+    /// across the whole document and colorizes tokens in the visible window (+margin). Falls
+    /// back to the whole document when there is no enclosing scroll view (tests, etc.).
     func refreshMarkdownHighlighting() {
-        markdownHighlighter.highlight(textView: self, profile: activeReadingProfile)
+        let scope = currentVisibleTokenScope()
+        markdownHighlighter.highlight(textView: self, profile: activeReadingProfile, tokenScope: scope)
+        lastHighlightedTokenRange = scope ?? NSRange(location: 0, length: (string as NSString).length)
     }
 
+    /// Typing-pause pass: re-tokenize only the visible window. Base is already whole-document
+    /// from the last full refresh and edits preserve attributes, so no whole-document write.
     @objc func refreshMarkdownHighlightingAfterTypingDelay() {
-        refreshMarkdownHighlighting()
+        guard let scope = currentVisibleTokenScope() else {
+            refreshMarkdownHighlighting()
+            return
+        }
+        markdownHighlighter.refreshTokens(textView: self, profile: activeReadingProfile, scope: scope)
+        lastHighlightedTokenRange = scope
+    }
+
+    /// The visible character range expanded by `highlightMargin` and snapped to line
+    /// boundaries; `nil` when there is no enclosing scroll view (→ whole-document fallback).
+    func currentVisibleTokenScope() -> NSRange? {
+        guard let visible = visibleCharacterRangeForHighlighting() else { return nil }
+        return MarkdownSyntaxHighlighter.scopedTokenRange(
+            visibleRange: visible, margin: Self.highlightMargin, in: string as NSString
+        )
+    }
+
+    /// Visible character range WITHOUT forcing full-container layout. Unlike
+    /// `visibleCharacterRangeForLayoutPreservation`, this never calls `ensureLayout(for:)`;
+    /// `glyphRange(forBoundingRect:)` lays out lazily, only what the visible rect needs — so
+    /// computing the highlight scope stays cheap on large documents.
+    private func visibleCharacterRangeForHighlighting() -> NSRange? {
+        guard
+            let layoutManager,
+            let textContainer,
+            let scrollView = enclosingScrollView
+        else {
+            return nil
+        }
+
+        var visibleRect = scrollView.contentView.bounds
+        visibleRect.origin.x -= textContainerOrigin.x
+        visibleRect.origin.y -= textContainerOrigin.y
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+        return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+    }
+
+    @objc func refreshVisibleTokensAfterScroll() {
+        guard let scope = currentVisibleTokenScope() else { return }
+        if let last = lastHighlightedTokenRange, MarkdownSyntaxHighlighter.range(last, covers: scope) {
+            return // already highlighted; an ordinary in-margin scroll does no work
+        }
+        markdownHighlighter.refreshTokens(textView: self, profile: activeReadingProfile, scope: scope)
+        lastHighlightedTokenRange = scope
+    }
+
+    private func scheduleVisibleTokensRefreshAfterScroll() {
+        let selector = #selector(refreshVisibleTokensAfterScroll)
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
+        perform(selector, with: nil, afterDelay: Self.scrollHighlightDebounce, inModes: [.common])
+    }
+
+    private func setUpScrollBoundsObservationIfNeeded() {
+        guard !hasScrollBoundsObservation, let clipView = enclosingScrollView?.contentView else { return }
+        clipView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(clipViewBoundsDidChange),
+            name: NSView.boundsDidChangeNotification,
+            object: clipView
+        )
+        hasScrollBoundsObservation = true
+    }
+
+    @objc private func clipViewBoundsDidChange(_ notification: Notification) {
+        scheduleVisibleTokensRefreshAfterScroll()
     }
 
     func refreshReadingAssists() {
