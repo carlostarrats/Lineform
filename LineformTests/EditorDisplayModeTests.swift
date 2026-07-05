@@ -336,6 +336,39 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorReadingLayout.horizontalInset(forContainerWidth: 700, profile: profile), 40)
     }
 
+    func testFullWidthColumnFillsToMarginsRegardlessOfWindowSize() {
+        var profile = ReadingProfile.original
+        profile.columnWidth = ReadingProfile.columnWidthMaximum // "Full"
+        profile.marginWidth = 40
+
+        XCTAssertTrue(ReadingProfile.isFullWidthColumn(profile.columnWidth))
+        // The column is unbounded, so the inset clamps to the margin at any window size.
+        XCTAssertEqual(EditorReadingLayout.horizontalInset(forContainerWidth: 900, profile: profile), 40)
+        XCTAssertEqual(EditorReadingLayout.horizontalInset(forContainerWidth: 3_000, profile: profile), 40)
+        // Text fills the window minus both margins.
+        XCTAssertEqual(EditorReadingLayout.textContainerWidth(forContainerWidth: 3_000, profile: profile), 2_920)
+    }
+
+    func testFixedColumnWidthStillCentersOnWideWindows() {
+        var profile = ReadingProfile.original
+        profile.columnWidth = 820 // below the Full threshold
+        profile.marginWidth = 40
+
+        XCTAssertFalse(ReadingProfile.isFullWidthColumn(profile.columnWidth))
+        // A fixed column centers with growing margins on a wide window (unchanged behavior).
+        XCTAssertEqual(EditorReadingLayout.horizontalInset(forContainerWidth: 3_000, profile: profile), 1_090)
+    }
+
+    func testColumnWidthValueReadsFullAtTheTop() {
+        var full = ReadingProfile.original
+        full.columnWidth = ReadingProfile.columnWidthMaximum
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.columnWidth, in: full), "Full")
+
+        var fixed = ReadingProfile.original
+        fixed.columnWidth = 820
+        XCTAssertEqual(ReadingExperienceInspector.valueText(for: \.columnWidth, in: fixed), "820 px")
+    }
+
     func testStatusBarFormatsCountsWithEmDash() {
         XCTAssertEqual(
             EditorStatusFormatter.statisticsText(wordCount: 304, characterCount: 2345),
