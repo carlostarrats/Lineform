@@ -37,4 +37,26 @@ final class LargeDocumentLayoutReentrancyTests: XCTestCase {
         XCTAssertEqual((textView.string as NSString).length, (doc as NSString).length)
         XCTAssertGreaterThan(textView.frame.height, 500)
     }
+
+    /// Perf regression guard (caret-trail fix, 2026-07-05): `updateNSView` calls
+    /// `applyTypography` with the UNCHANGED profile on every SwiftUI cycle — i.e. every
+    /// keystroke. NSTextView invalidates the whole visible rect when `textContainerInset` /
+    /// `containerSize` are re-assigned even to EQUAL values, which forced a full-viewport
+    /// repaint per keystroke on large docs (the felt caret trail). Re-applying identical
+    /// typography must not dirty the view.
+    @MainActor
+    func testReapplyingUnchangedTypographyDoesNotInvalidateDisplay() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 500))
+        let textView = LineformTextView()
+        textView.frame = NSRect(x: 0, y: 0, width: 700, height: 500)
+        scrollView.documentView = textView
+        textView.string = "Some steady text that does not change."
+        textView.applyTypography(.original)
+        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+
+        textView.needsDisplay = false
+        textView.applyTypography(.original) // what updateNSView does each keystroke
+
+        XCTAssertFalse(textView.needsDisplay, "Re-applying identical typography must not force a viewport repaint")
+    }
 }

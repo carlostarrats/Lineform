@@ -32,6 +32,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
         let textView = LineformTextView()
         textView.string = text
+        context.coordinator.noteSyncedText(text)
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
         textView.delegate = context.coordinator
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
@@ -66,13 +67,18 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             DispatchQueue.main.async {
                 requestedReplacement = nil
             }
-        } else if textView.string != text {
+        } else if context.coordinator.lastSyncedText != text && textView.string != text {
+            // Cheap-first change detection: the binding almost always holds the exact value the
+            // coordinator pushed (identical storage → ~0 ms compare). Only when it differs —
+            // a genuine external replacement — pay for the whole-document comparison against
+            // the freshly bridged textView.string (~11 ms on a 280K doc; see lastSyncedText).
             // A programmatic full-text replacement. When no explicit selection/scroll target
             // is requested (live reload), preserve the reader's place proportionally; the
             // sidebar swap requests (0,0) instead and is handled below.
             let preservesScroll = requestedSelection == nil
             let scrollRatio = preservesScroll ? textView.captureProportionalScrollOffset() : 0
             textView.string = text
+            context.coordinator.noteSyncedText(text)
             textView.refreshMarkdownHighlighting()
             if preservesScroll {
                 // Cancel any in-flight anchor restore (it captured the pre-reload layout) and
@@ -217,6 +223,19 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
     private var suppressSelectionUpdates = false
+    /// The exact String value last synced between the text view and the binding (in either
+    /// direction). `updateNSView` compares the binding against THIS before falling back to the
+    /// expensive whole-document `textView.string != text` walk: the binding hands back the very
+    /// value we pushed, so the comparison hits Swift's identical-storage fast path (~0 ms),
+    /// whereas comparing against a freshly bridged `textView.string` walks all 280K+ chars —
+    /// measured at ~11 ms per call, 4-5 calls per keystroke: the large-doc caret trail
+    /// (diagnosed with in-app timing, 2026-07-05). Only a genuine external replacement
+    /// (live reload, sidebar swap, Read-mode checkbox toggle) differs from this value.
+    private(set) var lastSyncedText: String?
+
+    func noteSyncedText(_ value: String) {
+        lastSyncedText = value
+    }
 
     init(
         text: Binding<String>,
@@ -264,7 +283,9 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         if writingToolsSessionActive {
             pendingWritingToolsText = textView.string
         } else {
-            text.wrappedValue = textView.string
+            let snapshot = textView.string
+            text.wrappedValue = snapshot
+            lastSyncedText = snapshot
         }
 
         if let lineformTextView = textView as? LineformTextView {
@@ -293,7 +314,9 @@ final class Coordinator: NSObject, NSTextViewDelegate {
 
     func textViewWritingToolsDidEnd(_ textView: NSTextView) {
         writingToolsSessionActive = false
-        text.wrappedValue = pendingWritingToolsText ?? textView.string
+        let snapshot = pendingWritingToolsText ?? textView.string
+        text.wrappedValue = snapshot
+        lastSyncedText = snapshot
         pendingWritingToolsText = nil
         (textView as? LineformTextView)?.writingToolsDidEnd()
         writingToolsSessionChangeHandler?(false)
@@ -306,6 +329,10 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private func scheduleMarkdownHighlighting(for textView: LineformTextView) {
         let selector = #selector(LineformTextView.refreshMarkdownHighlightingAfterTypingDelay)
         NSObject.cancelPreviousPerformRequests(withTarget: textView, selector: selector, object: nil)
-        textView.perform(selector, with: nil, afterDelay: 0.08, inModes: [.common])
+        // 0.25s, not 0.08s: fast typing has ~80-120ms inter-key gaps, so an 0.08s delay fires
+        // BETWEEN keystrokes mid-burst — each pass re-attributes the visible window and forces
+        // a full-viewport repaint, feeding the large-doc caret trail (measured 2026-07-05).
+        // A quarter second coalesces the burst and recolors on the actual pause.
+        textView.perform(selector, with: nil, afterDelay: 0.25, inModes: [.common])
     }
 }
