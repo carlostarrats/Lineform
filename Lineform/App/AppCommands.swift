@@ -56,6 +56,9 @@ enum AppMenuConfiguration {
     static let showHiddenFoldersCommandKeyEquivalent = "."
     static let findCommandTitle = "Find"
     static let findCommandKeyEquivalent = "f"
+    // ⌥⌘F — the macOS-standard Find & Replace shortcut (TextEdit/Pages).
+    static let findReplaceCommandTitle = "Find & Replace…"
+    static let findReplaceCommandKeyEquivalent = "f"
     static let usesTopLevelReadingMenu = false
     static let addsWritingToolsToEditMenu = false
     static let exposesAppleWritingTools = false
@@ -418,6 +421,14 @@ struct AppCommands: Commands {
                 LineformAppNotification.focusSearch.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut(KeyEquivalent(Character(AppMenuConfiguration.findCommandKeyEquivalent)), modifiers: .command)
+
+            Button(AppMenuConfiguration.findReplaceCommandTitle) {
+                LineformAppNotification.showFindReplace.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut(
+                KeyEquivalent(Character(AppMenuConfiguration.findReplaceCommandKeyEquivalent)),
+                modifiers: [.command, .option]
+            )
         }
 
         CommandGroup(replacing: .help) {

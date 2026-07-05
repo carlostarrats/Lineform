@@ -5,6 +5,7 @@ enum LineformAppNotification {
     case showSettings
     case showReadingExperience
     case focusSearch
+    case showFindReplace
     case setDisplayMode
     case toggleOutline
     case toggleHiddenFolders
@@ -25,6 +26,8 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.showReadingExperience")
         case .focusSearch:
             return Notification.Name("Lineform.focusSearch")
+        case .showFindReplace:
+            return Notification.Name("Lineform.showFindReplace")
         case .setDisplayMode:
             return Notification.Name("Lineform.setDisplayMode")
         case .toggleOutline:

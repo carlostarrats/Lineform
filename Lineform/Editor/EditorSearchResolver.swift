@@ -39,6 +39,82 @@ enum EditorSearchResolver {
         return matches
     }
 
+    struct ReplacementResult: Equatable {
+        let text: String
+        let selectedRange: NSRange
+        let replacedCount: Int
+    }
+
+    /// Replace ALL occurrences of `query` in `text` with `replacement`, in one pass.
+    /// Uses the same `matches(in:query:)` as search (case- & diacritic-insensitive, trimmed
+    /// query) so replace matches exactly what search finds. Rewrites back-to-front so earlier
+    /// ranges stay valid when the replacement length differs, and never re-scans freshly
+    /// written text, so a replacement containing the query cannot cascade. Returns nil when
+    /// there is nothing to replace (empty/whitespace query or no matches) so callers can no-op.
+    static func replaceAll(in text: String, query: String, replacement: String) -> ReplacementResult? {
+        let ranges = matches(in: text, query: query)
+        guard let firstRange = ranges.first else {
+            return nil
+        }
+
+        let mutable = NSMutableString(string: text)
+        for range in ranges.reversed() {
+            mutable.replaceCharacters(in: range, with: replacement)
+        }
+
+        // Caret lands at the end of the top-most (first, in document order) replacement.
+        let caretLocation = firstRange.location + (replacement as NSString).length
+        return ReplacementResult(
+            text: mutable as String,
+            selectedRange: NSRange(location: caretLocation, length: 0),
+            replacedCount: ranges.count
+        )
+    }
+
+    /// Replace the single match occupying `matchRange` with `replacement`. The returned
+    /// selection spans the inserted replacement (so it reads as selected). Returns nil if
+    /// `matchRange` no longer fits the text (a stale range after an edit).
+    static func replaceMatch(in text: String, matchRange: NSRange, replacement: String) -> ReplacementResult? {
+        let nsText = text as NSString
+        guard
+            matchRange.location != NSNotFound,
+            NSMaxRange(matchRange) <= nsText.length
+        else {
+            return nil
+        }
+
+        let mutable = NSMutableString(string: text)
+        mutable.replaceCharacters(in: matchRange, with: replacement)
+        let insertionRange = NSRange(location: matchRange.location, length: (replacement as NSString).length)
+        return ReplacementResult(
+            text: mutable as String,
+            selectedRange: insertionRange,
+            replacedCount: 1
+        )
+    }
+
+    /// Pick the match to make active for "Replace & find next" after a single replacement.
+    /// `matches` are recomputed against the post-replace text; the next match is the first one
+    /// starting at or **after the end of the inserted replacement** (`replacedLocation +
+    /// replacementLength`), so a replacement that itself contains the query is skipped rather
+    /// than re-selected (otherwise Replace would loop on its own output, e.g. cat→cats→catss).
+    /// When none follow it wraps to the first match **before** the insertion; matches that fall
+    /// *inside* the inserted text are never selected (both forward and on wrap), so the cascade
+    /// can't recur even for a single self-containing occurrence. nil when no such match exists.
+    static func nextActiveIndexAfterReplacement(
+        matches: [NSRange],
+        replacedLocation: Int,
+        replacementLength: Int
+    ) -> Int? {
+        let afterInsertion = replacedLocation + replacementLength
+        if let forward = matches.firstIndex(where: { $0.location >= afterInsertion }) {
+            return forward
+        }
+        // Wrap to the top, but skip any match overlapping the just-inserted text
+        // [replacedLocation, afterInsertion): those are the replacement matching itself.
+        return matches.firstIndex { $0.location < replacedLocation }
+    }
+
     static func refreshState(
         currentActiveIndex: Int?,
         matches: [NSRange],

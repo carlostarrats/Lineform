@@ -921,6 +921,26 @@ final class LineformTextView: NSTextView {
         applyWholeTextReplacement(MarkdownEdit(text: edited, selectedRange: selectedRange))
     }
 
+    /// Apply a Find & Replace edit produced off the responder chain (from the SwiftUI replace
+    /// bar via the `requestedReplacement` channel). Uses the same single-undo-step path as the
+    /// formatting commands, then scrolls the resulting selection into view so a replaced /
+    /// find-next match is visible.
+    ///
+    /// Idempotent on text: `applyWholeTextReplacement`'s `didChangeText` mutates `document.text`
+    /// mid-update, so SwiftUI can run another `updateNSView` pass before the async
+    /// `requestedReplacement = nil` lands and re-enter here with the same edit. Re-running
+    /// `setAttributedString` would register a SECOND undo step, breaking "Replace All = one ⌘Z";
+    /// so when the text already matches we only re-assert the selection and return.
+    func applyExternalReplacement(_ edit: MarkdownEdit) {
+        guard string != edit.text else {
+            setSelectedRange(edit.selectedRange)
+            scrollRangeToVisible(edit.selectedRange)
+            return
+        }
+        applyWholeTextReplacement(edit)
+        scrollRangeToVisible(edit.selectedRange)
+    }
+
     private func applyWholeTextReplacement(_ edit: MarkdownEdit) {
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
 
