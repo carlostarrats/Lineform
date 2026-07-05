@@ -58,9 +58,11 @@ enum MarkdownTableParser {
         return !trimmed.isEmpty && trimmed.contains("|")
     }
 
-    /// A delimiter row: every cell is dashes with optional leading/trailing colons (`:--`, `--:`,
-    /// `:-:`, `---`), and there is at least one cell.
+    /// A delimiter row: it must contain a pipe (a bare `---` with no pipe is a setext/thematic
+    /// break, never a 1-column table delimiter), and every cell is dashes with optional
+    /// leading/trailing colons (`:--`, `--:`, `:-:`, `---`).
     static func isDelimiterRow(_ line: String) -> Bool {
+        guard line.contains("|") else { return false }
         let cellStrings = cells(in: line)
         guard !cellStrings.isEmpty else { return false }
         return cellStrings.allSatisfy { cell in

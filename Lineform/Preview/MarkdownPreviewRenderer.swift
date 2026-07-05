@@ -72,7 +72,6 @@ struct MarkdownPreviewRenderer {
                     range,
                     to: output,
                     lines: lines,
-                    totalLines: lines.count,
                     profile: profile,
                     theme: theme,
                     mathProvider: mathProvider,
@@ -107,9 +106,7 @@ struct MarkdownPreviewRenderer {
                     codeAttributes: codeAttributes,
                     mathProvider: mathProvider
                 )
-                if let closingIndex, closingIndex < lines.count - 1 {
-                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                }
+                appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .mermaid(let source, let closingIndex):
                 appendMermaidBlock(
                     source: source,
@@ -123,29 +120,19 @@ struct MarkdownPreviewRenderer {
                     reportRegistry: reportRegistry,
                     appVersion: appVersion
                 )
-                if let closingIndex, closingIndex < lines.count - 1 {
-                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                }
+                appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .horizontalRule(let lineIndex):
                 appendHorizontalRule(to: output, profile: profile, theme: theme)
-                if lineIndex < lines.count - 1 {
-                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                }
+                appendBlockSeparator(afterLine: lineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .blockquote(let quoteLines, let lastLineIndex):
                 appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
-                if lastLineIndex < lines.count - 1 {
-                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                }
+                appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .list(let items, let lastLineIndex):
                 appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
-                if lastLineIndex < lines.count - 1 {
-                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                }
+                appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .table(let table, let lastLineIndex):
                 appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme)
-                if lastLineIndex < lines.count - 1 {
-                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
-                }
+                appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             }
         }
 
@@ -200,13 +187,7 @@ struct MarkdownPreviewRenderer {
                     block.backgroundColor = headerFill
                 }
 
-                let paragraph: NSMutableParagraphStyle
-                if let base = baseAttributes[.paragraphStyle] as? NSParagraphStyle,
-                   let mutable = base.mutableCopy() as? NSMutableParagraphStyle {
-                    paragraph = mutable
-                } else {
-                    paragraph = NSMutableParagraphStyle()
-                }
+                let paragraph = mutableParagraphStyle(from: baseAttributes)
                 paragraph.textBlocks = [block]
                 paragraph.alignment = nsAlignment(table.alignments[column])
 
@@ -245,13 +226,7 @@ struct MarkdownPreviewRenderer {
         for (offset, item) in items.enumerated() {
             let base = CGFloat(item.indentLevel) * levelStep
             let textIndent = base + markerColumn
-            let paragraph: NSMutableParagraphStyle
-            if let baseStyle = baseBody[.paragraphStyle] as? NSParagraphStyle,
-               let mutable = baseStyle.mutableCopy() as? NSMutableParagraphStyle {
-                paragraph = mutable
-            } else {
-                paragraph = NSMutableParagraphStyle()
-            }
+            let paragraph = mutableParagraphStyle(from: baseBody)
             paragraph.firstLineHeadIndent = base
             paragraph.headIndent = textIndent
             paragraph.tabStops = [NSTextTab(textAlignment: .left, location: textIndent)]
@@ -284,6 +259,29 @@ struct MarkdownPreviewRenderer {
         }
     }
 
+    /// A mutable copy of the base paragraph style (or a fresh one) for block emitters that layer
+    /// indents / tab stops / text blocks on top of the profile's line height.
+    private func mutableParagraphStyle(from attributes: [NSAttributedString.Key: Any]) -> NSMutableParagraphStyle {
+        if let base = attributes[.paragraphStyle] as? NSParagraphStyle,
+           let mutable = base.mutableCopy() as? NSMutableParagraphStyle {
+            return mutable
+        }
+        return NSMutableParagraphStyle()
+    }
+
+    /// Append the inter-block separator newline — the "\n" after a block unless it is the document's
+    /// last line. `afterLine` is the block's last source line index, or nil (an unclosed block) →
+    /// no separator.
+    private func appendBlockSeparator(
+        afterLine lineIndex: Int?,
+        to output: NSMutableAttributedString,
+        totalLines: Int,
+        attributes: [NSAttributedString.Key: Any]
+    ) {
+        guard let lineIndex, lineIndex < totalLines - 1 else { return }
+        output.append(NSAttributedString(string: "\n", attributes: attributes))
+    }
+
     /// Emit a blockquote: each quoted line indented by its nesting depth (markers hidden) and
     /// gently de-emphasized so it reads as a set-apart quote while staying readable on every theme.
     /// Inline styling inside the quote (bold/italic/code/link/math) still renders.
@@ -300,13 +298,7 @@ struct MarkdownPreviewRenderer {
 
         for (offset, quote) in quoteLines.enumerated() {
             let indent = CGFloat(max(1, quote.depth)) * indentStep
-            let paragraph: NSMutableParagraphStyle
-            if let base = baseBody[.paragraphStyle] as? NSParagraphStyle,
-               let mutable = base.mutableCopy() as? NSMutableParagraphStyle {
-                paragraph = mutable
-            } else {
-                paragraph = NSMutableParagraphStyle()
-            }
+            let paragraph = mutableParagraphStyle(from: baseBody)
             paragraph.firstLineHeadIndent = indent
             paragraph.headIndent = indent
 
@@ -349,7 +341,6 @@ struct MarkdownPreviewRenderer {
         _ range: Range<Int>,
         to output: NSMutableAttributedString,
         lines: [String],
-        totalLines: Int,
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
@@ -396,7 +387,7 @@ struct MarkdownPreviewRenderer {
                 ))
             }
 
-            if index < totalLines - 1 {
+            if index < lines.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: lineTerminatorAttributes))
             }
         }

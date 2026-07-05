@@ -244,6 +244,20 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertTrue(MarkdownTableParser.isDelimiterRow("--- | ---"))
         XCTAssertFalse(MarkdownTableParser.isDelimiterRow("| a | b |"))
         XCTAssertFalse(MarkdownTableParser.isDelimiterRow("plain text"))
+        // A bare dash row with no pipe is a setext/rule, never a table delimiter.
+        XCTAssertFalse(MarkdownTableParser.isDelimiterRow("---"))
+    }
+
+    func testSingleCellPipeLineOverBareDashesIsNotATable() {
+        // "foo |" (1 cell) over "---" (no pipe) must NOT be a 1-column table — the `---` stays a
+        // setext/rule, not consumed as a delimiter.
+        for header in ["foo |", "| Note |"] {
+            let blocks = markdownBlocks(in: [header, "---"])
+            XCTAssertFalse(
+                blocks.contains { if case .table = $0 { return true } else { return false } },
+                "\(header) over --- should not be a table"
+            )
+        }
     }
 
     func testCellSplittingDropsOuterPipes() {
