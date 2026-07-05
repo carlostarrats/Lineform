@@ -76,6 +76,18 @@ final class ScopedSyntaxHighlightingTests: XCTestCase {
         XCTAssertTrue(highlighter.tokens(in: "# H" as NSString, scope: NSRange(location: 0, length: 0)).isEmpty)
     }
 
+    func testLinkTokenizationIsLineLocal() {
+        // A link split across lines must NOT be tokenized (newline-excluded regex) — this is what
+        // keeps the analyzer fully line-local so scoped highlighting is byte-identical.
+        let kinds = MarkdownRangeAnalyzer().ranges(in: "[label\nspill](https://example.com)").map(\.kind)
+        XCTAssertFalse(kinds.contains(.linkText))
+        XCTAssertFalse(kinds.contains(.linkDestination))
+        // A same-line link still tokenizes.
+        let sameLine = MarkdownRangeAnalyzer().ranges(in: "see [label](https://example.com) here").map(\.kind)
+        XCTAssertTrue(sameLine.contains(.linkText))
+        XCTAssertTrue(sameLine.contains(.linkDestination))
+    }
+
     // MARK: - Task 3: base pass + scoped token pass
 
     @MainActor

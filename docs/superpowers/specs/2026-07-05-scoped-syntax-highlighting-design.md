@@ -40,7 +40,9 @@ computed within one line:
 - `headingMarker`, `listMarker`, `checkbox`, `blockquoteMarker`, `codeFence` (the ` ``` `
   marker only) come from per-line regexes in `lineTokens(in:lineRange:)`.
 - `codeSpan` uses `` `[^`\n]+` `` — newline-excluded, so it cannot span lines.
-- `linkText` / `linkDestination` come from a single-line-shaped `\[...\]\(...\)` regex.
+- `linkText` / `linkDestination` use `\[([^\]\n]+)\]\(([^\)\n]+)\)` — also newline-excluded
+  (tightened during review from `[^\]]`/`[^)]`, which could match across lines), so links are
+  strictly single-line too.
 
 There is **no cross-line token state**. (The one construct that *does* carry fence state —
 `markdownBlockSpacingLineIndexes` — is used only by the **Preview** renderer, never by the
@@ -128,10 +130,15 @@ the audit's "off-screen self-heals on scroll" model.
   window whose boundary sits inside a fenced code block and inside a heading/list run).
 - Existing tests (`LineformTextViewWritingToolsTests` color-at-0/6, `LargeDocumentPerformance`
   source-preservation) pass unchanged via the no-scroll-view full-range fallback.
-- A view-level test: a `LineformTextView` inside a real `NSScrollView` sized smaller than a
-  large doc highlights the visible top region and leaves a deep-off-screen region at base
-  color, then colors it after a simulated scroll + settle. (Hosted-style; if it proves
-  layout/timing-sensitive it goes in the hosted plan, matching the project's split.)
+- **Scroll geometry (the visible-rect → sub-range computation and the boundsDidChange →
+  coalesced-refresh wiring) is verified by in-app QA, not an automated test.** An initial
+  attempt hosted a real `NSWindow`/`NSScrollView` and drove a programmatic scroll; that
+  crash-looped the XCTest host on teardown — the exact SwiftUI/AppKit-window-in-XCTest
+  over-release the project quarantines rather than patches (CLAUDE.md, hosted-plan section).
+  Rather than add another crashing hosted-window test, the geometry is left to manual QA; the
+  scoping *mechanism* it drives (`highlight(tokenScope:)` colors only in-scope, `refreshTokens`
+  scoping, the `range(_:covers:)` guard, the whole-doc fallback) is fully covered by the pure
+  default-plan tests above.
 
 ## Non-goals
 

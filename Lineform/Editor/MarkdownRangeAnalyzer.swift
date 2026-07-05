@@ -22,7 +22,10 @@ struct MarkdownRangeAnalyzer {
     private static let checkboxRegex = try? NSRegularExpression(pattern: #"\[[ xX]\]"#)
     private static let blockquoteRegex = try? NSRegularExpression(pattern: #"^\s*>\s?"#)
     private static let codeSpanRegex = try? NSRegularExpression(pattern: "`[^`\\n]+`")
-    private static let linkRegex = try? NSRegularExpression(pattern: #"\[([^\]]+)\]\(([^\)]+)\)"#)
+    // Newline-excluded so links are strictly single-line: keeps the analyzer fully line-local,
+    // which is what lets scoped (visible-window) highlighting stay byte-identical to a whole-doc
+    // pass (see MarkdownSyntaxHighlighter.tokens(in:scope:)).
+    private static let linkRegex = try? NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
 
     func ranges(in text: String) -> [MarkdownTokenRange] {
         var tokens: [MarkdownTokenRange] = []

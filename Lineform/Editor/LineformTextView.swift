@@ -32,7 +32,6 @@ final class LineformTextView: NSTextView {
     private var horizontalInsetAnimationTargetContainerWidth: CGFloat = 0
     private var horizontalInsetAnimationVerticalScrollOrigin: CGFloat?
     private var lastHighlightedTokenRange: NSRange?
-    private var hasScrollBoundsObservation = false
     var textFormat = LineformTextFormat.markdown
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
@@ -71,7 +70,7 @@ final class LineformTextView: NSTextView {
 
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
-        setUpScrollBoundsObservationIfNeeded()
+        updateScrollBoundsObservation()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -195,6 +194,10 @@ final class LineformTextView: NSTextView {
     }
 
     @objc func refreshVisibleTokensAfterScroll() {
+        // This is a NEW storage-mutating trigger (scrolling never touched attributes before).
+        // Skip while an IME/marked-text composition is active so we don't strip its marked-text
+        // styling or poke the selection mid-compose; the composition-end edit re-highlights.
+        guard !hasMarkedText() else { return }
         guard let scope = currentVisibleTokenScope() else { return }
         if let last = lastHighlightedTokenRange, MarkdownSyntaxHighlighter.range(last, covers: scope) {
             return // already highlighted; an ordinary in-margin scroll does no work
@@ -209,8 +212,12 @@ final class LineformTextView: NSTextView {
         perform(selector, with: nil, afterDelay: Self.scrollHighlightDebounce, inModes: [.common])
     }
 
-    private func setUpScrollBoundsObservationIfNeeded() {
-        guard !hasScrollBoundsObservation, let clipView = enclosingScrollView?.contentView else { return }
+    /// (Re)binds the scroll-bounds observer to the CURRENT enclosing clip view. Removing first
+    /// makes this correct across re-parenting (a new scroll view) and safe to call repeatedly;
+    /// with no scroll view it simply stops observing.
+    private func updateScrollBoundsObservation() {
+        NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
+        guard let clipView = enclosingScrollView?.contentView else { return }
         clipView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(
             self,
@@ -218,7 +225,6 @@ final class LineformTextView: NSTextView {
             name: NSView.boundsDidChangeNotification,
             object: clipView
         )
-        hasScrollBoundsObservation = true
     }
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {

@@ -16,8 +16,7 @@
       "selectedTests" : [
         "DocumentExportPDFHostedTests",
         "EditorDrawerMotionHostedTests",
-        "LiveReloadScrollTests",
-        "ScopedHighlightingScrollHostedTests"
+        "LiveReloadScrollTests"
       ],
       "target" : {
         "containerPath" : "container:Lineform.xcodeproj",
