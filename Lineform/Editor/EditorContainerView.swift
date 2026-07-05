@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct EditorContainerView: View {
     @Binding var document: LineformDocument
@@ -31,6 +32,9 @@ struct EditorContainerView: View {
     private let derivedRefreshDelay: TimeInterval = 0.2
     @State private var sidebarDialog: SidebarFileDialog?
     @State private var renameText = ""
+    /// Set when a PDF export write fails, driving a native in-window `.alert` (no app-icon
+    /// NSAlert). Holds the destination file name for the message.
+    @State private var pdfExportErrorFileName: String?
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
     /// Held so the sidebar (Files tab) observes the SAME store this window was built
@@ -109,6 +113,18 @@ struct EditorContainerView: View {
             case .delete:
                 Text(SidebarFileActionPresenter.deleteMessage)
             }
+        }
+        .alert(
+            "Couldn’t Export PDF",
+            isPresented: Binding(
+                get: { pdfExportErrorFileName != nil },
+                set: { if !$0 { pdfExportErrorFileName = nil } }
+            ),
+            presenting: pdfExportErrorFileName
+        ) { _ in
+            Button("OK", role: .cancel) { pdfExportErrorFileName = nil }
+        } message: { fileName in
+            Text("Lineform couldn’t write “\(fileName)”. Choose a different location and try again.")
         }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
@@ -200,6 +216,14 @@ struct EditorContainerView: View {
                 return
             }
             deleteSidebarItem(at: url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.printDocument.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            printCurrentDocument()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.exportPDF.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            exportCurrentDocumentAsPDF()
         }
         .onChange(of: currentFileURL) { _, newValue in
             // Keep the File-menu Rename…/Delete… enabled state tracking the key window.
@@ -830,6 +854,109 @@ struct EditorContainerView: View {
             return false
         }
         return payload.matches(windowNumber: windowNumber)
+    }
+
+    // MARK: - Print / PDF export
+
+    /// Presents the standard print panel for the rich rendered document (white page, black ink,
+    /// the reader's typography). Paper size, copies, and the OS "Save as PDF" come from the panel.
+    ///
+    /// The offscreen view is built once for `defaultExportPaperSize`. Prose and tables are live
+    /// text and re-paginate to whatever paper the user picks in the panel, but rasterized mermaid/
+    /// math images keep the width they were fit to — so changing paper size mid-print on a
+    /// diagram-heavy document may scale those images slightly. Minor and cosmetic; Export as PDF,
+    /// which fixes the paper before building the view, is unaffected.
+    ///
+    private func printCurrentDocument() {
+        DocumentExportRenderer.runInteractivePrint(
+            text: document.text,
+            profile: readingProfileStore.activeProfile,
+            paper: defaultExportPaperSize
+        )
+    }
+
+    /// Prompts for a destination (with a Letter/A4 accessory) and writes the rich rendered PDF.
+    private func exportCurrentDocumentAsPDF() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = defaultExportFileName
+        panel.canCreateDirectories = true
+
+        let paperPopup = makePaperSizePopup()
+        panel.accessoryView = makePaperSizeAccessory(popup: paperPopup)
+
+        let write: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else { return }
+            let selection = paperPopup.indexOfSelectedItem
+            let paper = ExportPaperSize.allCases.indices.contains(selection)
+                ? ExportPaperSize.allCases[selection]
+                : .usLetter
+            let succeeded = DocumentExportRenderer.writePDF(
+                text: document.text,
+                profile: readingProfileStore.activeProfile,
+                paper: paper,
+                to: url
+            )
+            if !succeeded {
+                pdfExportErrorFileName = url.lastPathComponent
+            }
+        }
+
+        if let window = activeWindow {
+            panel.beginSheetModal(for: window, completionHandler: write)
+        } else {
+            write(panel.runModal())
+        }
+    }
+
+    private var defaultExportFileName: String {
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent
+        return ((base?.isEmpty == false ? base! : "Untitled")) + ".pdf"
+    }
+
+    /// Defaults to whichever offered paper best matches the system's default (A4 in most of the
+    /// world, Letter in the US/Canada). Compared on portrait dimensions so a landscape default
+    /// printer isn't misread.
+    private var defaultExportPaperSize: ExportPaperSize {
+        let paper = NSPrintInfo.shared.paperSize
+        let width = min(paper.width, paper.height)
+        let height = max(paper.width, paper.height)
+        return ExportPaperSize.allCases.min(by: { a, b in
+            let sa = a.sizeInPoints, sb = b.sizeInPoints
+            let da = abs(sa.width - width) + abs(sa.height - height)
+            let db = abs(sb.width - width) + abs(sb.height - height)
+            return da < db
+        }) ?? .usLetter
+    }
+
+    private func makePaperSizePopup() -> NSPopUpButton {
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 140, height: 25))
+        for size in ExportPaperSize.allCases {
+            popup.addItem(withTitle: size.displayName)
+        }
+        if let index = ExportPaperSize.allCases.firstIndex(of: defaultExportPaperSize) {
+            popup.selectItem(at: index)
+        }
+        return popup
+    }
+
+    private func makePaperSizeAccessory(popup: NSPopUpButton) -> NSView {
+        let label = NSTextField(labelWithString: "Paper Size:")
+        label.translatesAutoresizingMaskIntoConstraints = false
+        popup.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.addSubview(label)
+        container.addSubview(popup)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            popup.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
+            popup.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            popup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            container.heightAnchor.constraint(equalToConstant: 48)
+        ])
+        return container
     }
 
     private func notificationPayloadValue(_ notification: Notification) -> String? {

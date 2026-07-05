@@ -35,7 +35,7 @@ More release files and notes are available on the [Lineform Releases page](https
 - Search inside the current file with match navigation.
 - Format headings, lists, links, emphasis, and inline code.
 - Use Apple's native Writing Tools in the editor, with Markdown structure (fenced code, front matter) protected from rewrites.
-- Save Markdown, save plain text, or export PDF.
+- Save Markdown or plain text, print (⌘P), or export a formatted PDF — headings, tables, math, and diagrams included, on a clean white page at a standard document size.
 - Adjust reading font, size, line height, spacing, width, theme, reading ruler, and typewriter mode — including the bundled accessibility fonts Atkinson Hyperlegible and OpenDyslexic.
 
 ## Privacy

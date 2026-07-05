@@ -49,29 +49,9 @@ final class LineformDocumentTests: XCTestCase {
         XCTAssertTrue(LineformDocument.readableContentTypes.contains(.plainText))
         XCTAssertTrue(LineformDocument.writableContentTypes.contains(.markdownText))
         XCTAssertTrue(LineformDocument.writableContentTypes.contains(.plainText))
-        XCTAssertTrue(LineformDocument.writableContentTypes.contains(.pdf))
-    }
-
-    func testDocumentCanRenderPDFDataForSavePanel() {
-        let document = LineformDocument(text: "# Title\n\nPortable **Markdown**.\n")
-
-        let pdfData = document.pdfData()
-
-        XCTAssertTrue(pdfData.starts(with: Data("%PDF".utf8)))
-        XCTAssertGreaterThan(pdfData.count, 100)
-    }
-
-    func testPDFExportPaginatesLongDocuments() throws {
-        let longText = (1...220)
-            .map { "Line \($0): Lineform keeps Markdown files portable across normal file tools." }
-            .joined(separator: "\n")
-        let document = LineformDocument(text: longText)
-
-        let pdfData = document.pdfData()
-        let provider = try XCTUnwrap(CGDataProvider(data: pdfData as CFData))
-        let pdfDocument = try XCTUnwrap(CGPDFDocument(provider))
-
-        XCTAssertGreaterThan(pdfDocument.numberOfPages, 1)
+        // PDF is no longer an implicit Save As format — rich PDF export/print is a dedicated
+        // command (see DocumentExportRendererTests).
+        XCTAssertFalse(LineformDocument.writableContentTypes.contains(.pdf))
     }
 
     func testPlainTextSaveWritesPlainTextWithoutMarkdownMarkers() throws {
@@ -103,10 +83,8 @@ final class LineformDocumentTests: XCTestCase {
 
         XCTAssertTrue(markdownDocument.recordsSourceSave(for: .markdownText))
         XCTAssertFalse(markdownDocument.recordsSourceSave(for: .plainText))
-        XCTAssertFalse(markdownDocument.recordsSourceSave(for: .pdf))
         XCTAssertTrue(plainTextDocument.recordsSourceSave(for: .plainText))
         XCTAssertFalse(plainTextDocument.recordsSourceSave(for: .markdownText))
-        XCTAssertFalse(plainTextDocument.recordsSourceSave(for: .pdf))
     }
 
     func testDocumentTextFormatConversionRoundTripsMarkdownFromMenuCommandState() {

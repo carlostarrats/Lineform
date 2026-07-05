@@ -13,7 +13,7 @@ struct LineformDocument: FileDocument, Equatable {
     }
 
     static var writableContentTypes: [UTType] {
-        [.markdownText, .plainText, .pdf]
+        [.markdownText, .plainText]
     }
 
     let id: UUID
@@ -143,8 +143,6 @@ struct LineformDocument: FileDocument, Equatable {
 
     func data(for contentType: UTType) throws -> Data {
         switch contentType {
-        case .pdf:
-            return pdfData()
         case .plainText:
             return textFormat == .plainText ? markdownData() : plainTextData()
         default:
@@ -159,61 +157,6 @@ struct LineformDocument: FileDocument, Equatable {
         case .plainText:
             return contentType == .plainText
         }
-    }
-
-    func pdfData() -> Data {
-        let pageRect = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let margin: CGFloat = 72
-        let textRect = pageRect.insetBy(dx: margin, dy: margin)
-        let renderedText = MarkdownPlainTextConverter.plainText(from: text)
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = 4
-
-        let attributedText = NSAttributedString(
-            string: renderedText,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 12),
-                .foregroundColor: NSColor.textColor,
-                .paragraphStyle: paragraph
-            ]
-        )
-
-        let data = NSMutableData()
-        guard let consumer = CGDataConsumer(data: data) else {
-            return Data()
-        }
-
-        var mediaBox = pageRect
-        guard let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
-            return Data()
-        }
-
-        let textStorage = NSTextStorage(attributedString: attributedText)
-        let layoutManager = NSLayoutManager()
-        textStorage.addLayoutManager(layoutManager)
-
-        repeat {
-            let textContainer = NSTextContainer(size: textRect.size)
-            textContainer.lineFragmentPadding = 0
-            layoutManager.addTextContainer(textContainer)
-
-            let glyphRange = layoutManager.glyphRange(for: textContainer)
-            guard glyphRange.length > 0 else {
-                break
-            }
-
-            context.beginPDFPage(nil)
-            NSGraphicsContext.saveGraphicsState()
-            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-            layoutManager.drawBackground(forGlyphRange: glyphRange, at: textRect.origin)
-            layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: textRect.origin)
-            NSGraphicsContext.restoreGraphicsState()
-            context.endPDFPage()
-        } while layoutManager.textContainers.count < layoutManager.numberOfGlyphs
-
-        context.closePDF()
-
-        return data as Data
     }
 
     static func modificationDate(from fileWrapper: FileWrapper) -> Date? {

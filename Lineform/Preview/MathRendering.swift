@@ -2,6 +2,24 @@ import AppKit
 import CryptoKit
 import SwiftMath
 
+/// Makes a rendered math `NSImage` orientation-stable across graphics contexts.
+///
+/// SwiftMath's `MathImage.asImage()` returns an `NSImage` that draws correctly (upright) in the
+/// flipped `NSTextView` used on screen, but flips vertically in a non-flipped context such as the
+/// PDF/print graphics context — leaving block equations upside down in exported PDFs. Rewrapping
+/// it as a CGImage-backed `NSImage` (the same technique `MermaidImageOrientation` uses) makes it
+/// render identically in both contexts. No flip is applied: SwiftMath is already upright, so its
+/// extracted bitmap is used as-is (unlike mermaid, whose raw raster is mirrored).
+enum MathImageOrientation {
+    static func cgImageBacked(_ image: NSImage) -> NSImage {
+        var proposed = CGRect(origin: .zero, size: image.size)
+        guard let cgImage = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) else {
+            return image
+        }
+        return NSImage(cgImage: cgImage, size: image.size)
+    }
+}
+
 // MARK: - Delimiter parsing (pure, no rendering)
 
 /// Fence detection for display (`$$`) math blocks.
@@ -215,17 +233,23 @@ final class MathImageProvider: MathImageProviding {
             labelMode: style == .inline ? .text : .display,
             textAlignment: .left
         )
-        let (error, image, layout) = mathImage.asImage()
+        let (error, rawImage, layout) = mathImage.asImage()
 
         if let error {
             let message = error.localizedDescription
             failureCache.setObject(message as NSString, forKey: key)
             return .failed(message)
         }
-        guard let image, image.size.width > 0, image.size.height > 0 else {
+        guard let rawImage, rawImage.size.width > 0, rawImage.size.height > 0 else {
             // No error but no image: treat as a (non-cached) failure so a later pass can retry.
             return .failed("Math render produced no image")
         }
+        // SwiftMath's NSImage draws upright in a flipped view (on-screen Read mode) but flips in a
+        // non-flipped context such as the PDF/print graphics context, which left block equations
+        // upside down in exported PDFs. Rewrap it as a CGImage-backed image — orientation-stable
+        // across contexts (the technique the mermaid path uses), without a flip since SwiftMath is
+        // already upright.
+        let image = MathImageOrientation.cgImageBacked(rawImage)
         let descent = layout?.descent ?? 0
         cache.setObject(
             CachedMath(image: image, descent: descent),
