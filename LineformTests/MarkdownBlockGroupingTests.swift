@@ -64,4 +64,36 @@ final class MarkdownBlockGroupingTests: XCTestCase {
     func testSingleEmptyLineIsOneLinesBlock() {
         XCTAssertEqual(markdownBlocks(in: [""]), [.lines(0..<1)])
     }
+
+    // MARK: - Horizontal rule
+
+    func testStandaloneDashesAfterBlankAreHorizontalRule() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["a", "", "---", "", "b"]),
+            [.lines(0..<2), .horizontalRule(lineIndex: 2), .lines(3..<5)]
+        )
+    }
+
+    func testStarsAndUnderscoresAreHorizontalRules() {
+        XCTAssertEqual(markdownBlocks(in: ["***"]), [.horizontalRule(lineIndex: 0)])
+        XCTAssertEqual(markdownBlocks(in: ["___"]), [.horizontalRule(lineIndex: 0)])
+    }
+
+    func testLeadingDashesAreFrontMatterNotRule() {
+        // A leading `---` opens YAML front matter — not a divider.
+        let blocks = markdownBlocks(in: ["---", "title: x", "---", "body"])
+        XCTAssertFalse(blocks.contains(.horizontalRule(lineIndex: 0)))
+        XCTAssertFalse(blocks.contains(.horizontalRule(lineIndex: 2)))
+    }
+
+    func testDashesUnderTextAreSetextUnderlineNotRule() {
+        // `---` directly under a paragraph line is a setext heading underline, not a divider.
+        let blocks = markdownBlocks(in: ["Heading", "---", "body"])
+        XCTAssertFalse(blocks.contains(.horizontalRule(lineIndex: 1)))
+    }
+
+    func testDashesInsideCodeFenceAreNotRule() {
+        let blocks = markdownBlocks(in: ["```", "---", "```"])
+        XCTAssertEqual(blocks, [.lines(0..<3)])
+    }
 }

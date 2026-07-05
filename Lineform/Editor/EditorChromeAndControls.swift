@@ -212,6 +212,7 @@ struct MarkdownBasicsModal: View {
         Example(label: "Bullet", syntax: "- bullet"),
         Example(label: "Strikethrough", syntax: "~~text~~"),
         Example(label: "Code", syntax: "`code`"),
+        Example(label: "Divider", syntax: "---"),
         Example(label: "Link", syntax: "[link](https://example.com)")
     ]
     static let sections = [

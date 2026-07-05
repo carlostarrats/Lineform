@@ -22,6 +22,45 @@ enum MarkdownBlock: Equatable {
     /// A ```mermaid fenced block. `closingIndex` is the index of the closing fence, or `nil` when it
     /// ran to end-of-document unclosed.
     case mermaid(source: String, closingIndex: Int?)
+    /// A thematic break (`---` / `***` / `___` on its own line) rendered as a quiet divider.
+    /// `lineIndex` is the original line so the trailing-newline rule is reproduced.
+    case horizontalRule(lineIndex: Int)
+}
+
+/// Thematic-break (horizontal-rule) detection, kept separate so its two gotchas are explicit:
+/// a leading `---` opening front matter and a `---` directly under paragraph text (a setext
+/// heading underline) are NOT rules.
+enum MarkdownHorizontalRule {
+    /// Whether a trimmed line is a thematic-break candidate by syntax alone (3+ of the same
+    /// `-` / `*` / `_`, spaces allowed), returning the marker character.
+    static func candidate(_ trimmed: String) -> Character? {
+        let compact = trimmed.filter { !$0.isWhitespace }
+        guard compact.count >= 3, let first = compact.first, "-*_".contains(first),
+              compact.allSatisfy({ $0 == first }) else {
+            return nil
+        }
+        return first
+    }
+
+    /// Whether the line at `index` is a real thematic break, given the surrounding lines. Only `-`
+    /// carries the front-matter / setext ambiguity; `*` and `_` are always rules when they match.
+    static func isRule(lines: [String], index: Int) -> Bool {
+        guard let marker = candidate(lines[index].trimmingCharacters(in: .whitespaces)) else {
+            return false
+        }
+        guard marker == "-" else { return true }
+        // A leading `---` opens YAML front matter, not a divider.
+        if index == 0 { return false }
+        // `---` immediately under a non-blank paragraph line is a setext heading underline. A
+        // heading or fence line above is its own block, so `---` after it is still a real rule.
+        let previous = lines[index - 1].trimmingCharacters(in: .whitespaces)
+        if !previous.isEmpty
+            && !previous.hasPrefix("#")
+            && !MermaidFence.isFenceDelimiter(previous) {
+            return false
+        }
+        return true
+    }
 }
 
 /// Group already-split lines into blocks. Mirrors the detection order and fence-state tracking of
@@ -84,6 +123,13 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             }
             blocks.append(.mermaid(source: body.joined(separator: "\n"), closingIndex: closing))
             index = (closing ?? lines.count - 1) + 1
+            continue
+        }
+
+        if !inFence, MarkdownHorizontalRule.isRule(lines: lines, index: index) {
+            flushLines(upTo: index)
+            blocks.append(.horizontalRule(lineIndex: index))
+            index += 1
             continue
         }
 

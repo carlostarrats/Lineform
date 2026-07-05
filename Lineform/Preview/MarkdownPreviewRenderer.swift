@@ -116,10 +116,29 @@ struct MarkdownPreviewRenderer {
                 if let closingIndex, closingIndex < lines.count - 1 {
                     output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
                 }
+            case .horizontalRule(let lineIndex):
+                appendHorizontalRule(to: output, profile: profile, theme: theme)
+                if lineIndex < lines.count - 1 {
+                    output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
+                }
             }
         }
 
         return output
+    }
+
+    /// Emit a quiet, full-width divider as a self-sizing attachment. The line is low-contrast
+    /// (theme text at a low alpha), so it stays readable on every theme without a heavy bar.
+    private func appendHorizontalRule(
+        to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        theme: Theme
+    ) {
+        let attachment = HorizontalRuleAttachment(
+            color: theme.textColor.withAlphaComponent(0.22),
+            height: CGFloat(profile.fontSize)
+        )
+        output.append(NSAttributedString(attachment: attachment))
     }
 
     /// Render a maximal run of ordinary lines (body, headings, fenced code) exactly as the original

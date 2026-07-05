@@ -70,6 +70,24 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(rendered.string, "~~x~~")
     }
 
+    func testHorizontalRuleRendersAsAttachment() {
+        let rendered = MarkdownPreviewRenderer().render("a\n\n---\n\nb", profile: .original)
+        var hasRule = false
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value is HorizontalRuleAttachment { hasRule = true }
+        }
+        XCTAssertTrue(hasRule)
+    }
+
+    func testDashesUnderParagraphAreNotRenderedAsRule() {
+        let rendered = MarkdownPreviewRenderer().render("paragraph\n---\nmore", profile: .original)
+        var hasRule = false
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value is HorizontalRuleAttachment { hasRule = true }
+        }
+        XCTAssertFalse(hasRule)
+    }
+
     func testBlockSpacingAppliesOnlyToMarkdownBlockEndings() throws {
         var profile = ReadingProfile.original
         profile.paragraphSpacing = 18

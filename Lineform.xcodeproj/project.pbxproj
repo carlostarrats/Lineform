@@ -80,6 +80,7 @@
 		1F00000100000000000002B0 /* MathRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B0 /* MathRendering.swift */; };
 		1F00000100000000000002B1 /* DiagramCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B1 /* DiagramCardStyle.swift */; };
 		1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */; };
+		1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */; };
 		1F0000010000000000000231 /* DiagramLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000231 /* DiagramLog.swift */; };
 		1F0000010000000000000234 /* DiagramReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000234 /* DiagramReportService.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
@@ -200,6 +201,7 @@
 		1F00000200000000000002B0 /* MathRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRendering.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B1 /* DiagramCardStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardStyle.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrouping.swift; sourceTree = "<group>"; };
+		1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalRuleAttachment.swift; sourceTree = "<group>"; };
 		1F0000020000000000000231 /* DiagramLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLog.swift; sourceTree = "<group>"; };
 		1F0000020000000000000234 /* DiagramReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
@@ -350,6 +352,7 @@
 				1F00000200000000000002B0 /* MathRendering.swift */,
 				1F00000200000000000002B1 /* DiagramCardStyle.swift */,
 				1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */,
+				1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */,
 				1F0000020000000000000231 /* DiagramLog.swift */,
 				1F0000020000000000000234 /* DiagramReportService.swift */,
 			);
@@ -599,6 +602,7 @@
 				1F00000100000000000002B0 /* MathRendering.swift in Sources */,
 				1F00000100000000000002B1 /* DiagramCardStyle.swift in Sources */,
 				1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */,
+				1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */,
 				1F0000010000000000000231 /* DiagramLog.swift in Sources */,
 				1F0000010000000000000234 /* DiagramReportService.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
