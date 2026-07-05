@@ -119,7 +119,12 @@ When done + QA'd, check it and append `— done YYYY-MM-DD, branch <name>`.
   - **Pure logic in `EditorSearchResolver`:** `replaceAll` (back-to-front rewrite, no self-cascade), `replaceMatch`, `nextActiveIndexAfterReplacement` (Replace-&-find-next; anchored past the insertion, skips matches inside the insertion forward AND on wrap).
   - **Single ⌘Z:** edit routed through a one-shot `requestedReplacement` binding → `LineformTextView.applyExternalReplacement` → the formatting-commands' `applyWholeTextReplacement` path (one undo step; syncs `document.text`). Idempotency guard (`guard string != edit.text`) prevents a re-entrant-render double-apply.
   - **No Info-modal entry** (deliberate — that modal teaches Markdown *syntax*, not editor commands; don't add just to add). CLAUDE.md Main-Features bullet added.
-- [ ] 10. Task 2 — scope syntax highlighting  [🔔 GATE SATISFIED 2026-07-04 — stutter confirmed & measured to ~121 ms/pass whole-doc highlight; now the do-next perf task, own fresh session]
+- [x] 10. Task 2 — scope syntax highlighting — done 2026-07-05, branch `work-2026-07-05-2-scope-highlighting`, suite **503/0** (default), reviewed (subagent, clean verdict + 3 minor fixes applied), **in-app visual QA done (highlighting renders correctly on a 281 KB / 47.6k-word doc, no regression)**. ⚠️ **Felt-smoothness + scroll-coloring QA still needs your hands** (I can't type via automation — the app is left open on the large test doc for you). Spec `docs/superpowers/specs/2026-07-05-scoped-syntax-highlighting-design.md`, plan `docs/superpowers/plans/2026-07-05-scoped-syntax-highlighting.md`. Shipped:
+  - **Split `MarkdownSyntaxHighlighter.highlight` into two passes:** a whole-document **base pass** (`setAttributes(base, fullRange)` — uniform font/paragraph-style/kern/color → stable layout everywhere) and a **scoped token pass** (`refreshTokens(scope:)` — resets only the visible window to base + re-tokenizes it). The ~121 ms whole-doc re-tokenize is off the per-keystroke path: typing and a new coalesced **scroll-settle** handler only re-tokenize the visible window (+3000-char margin, line-snapped). Off-screen keeps correct base (layout) and its token colors fill in on scroll.
+  - **Refined the audit's plan from the code:** the range analyzer is **line-local** (no cross-line token state), so a line-snapped window is **byte-identical** to a whole-doc pass — the audit's "load-bearing fenced-block state scan" is **unnecessary** and was NOT added. (Its premise — that fence contents are suppressed — is false; a `#` inside a ``` fence is highlighted as a heading today, unchanged.) The one non-line-local edge (the link regex could match across lines) was **tightened to exclude newlines** so the invariant is airtight.
+  - **No enclosing scroll view → whole-document fallback**, so all existing highlighter tests (and any bare `LineformTextView`) stay byte-identical.
+  - **Review fixes:** skip the scroll pass during IME/marked-text composition; rebind the scroll-bounds observer on reparent (remove-then-add, not a one-shot latch); line-local link regex.
+  - **NOT scoped:** the initial open/mode-switch highlight is still whole-doc (one-time, matches old behavior — the felt problem was typing, not open). A crash-looping hosted NSWindow scroll test was **removed** (the exact hosted-window over-release the project quarantines); scroll geometry is covered by in-app QA, the scoping mechanism by pure default-plan tests.
 - [ ] 11. Task 5 — sidebar scan  [LAST; fresh worktree; spec the fix shape first]
 
 Everything below is the plain-language decision record, grouped by status.
@@ -389,6 +394,12 @@ Build with tests, especially single-undo Replace All.
 ## ⏸️ WAIT — revisit after Task 1 ships
 
 ### Task 2 — Only re-color the visible part of the page (not the whole document)
+**✅ SHIPPED 2026-07-05** (branch `work-2026-07-05-2-scope-highlighting`, suite 503/0). See the
+PROGRESS TRACKER entry above for the as-built summary. The refined approach below was followed,
+with ONE code-verified change: the analyzer is line-local, so the "fenced-block state scan"
+(step 2) proved unnecessary and was not built — line-boundary snapping alone guarantees
+byte-identity. Felt-smoothness QA is with the user.
+
 **Plain terms:** Write-mode coloring currently re-colors the entire document on each
 typing pause; on big files that causes a small stutter. Fix would color only what's
 on screen.
