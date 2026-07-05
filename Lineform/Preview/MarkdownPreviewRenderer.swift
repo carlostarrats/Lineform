@@ -4,6 +4,7 @@ struct MarkdownPreviewRenderer {
     private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
     private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
     private static let codeRegex = try! NSRegularExpression(pattern: #"`([^`\n]+)`"#)
+    private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
     private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
     private static let headingSizeBoosts: [Int: CGFloat] = [
         1: 11,
@@ -493,6 +494,10 @@ struct MarkdownPreviewRenderer {
             earliest: &earliest
         )
         consider(
+            inlineToken(regex: Self.strikethroughRegex, kind: .strikethrough, in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
             inlineToken(regex: Self.linkRegex, kind: .link, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
@@ -525,6 +530,7 @@ private struct InlineToken {
         case bold
         case italic
         case code
+        case strikethrough
         case link
     }
 
@@ -545,6 +551,8 @@ private struct InlineToken {
             }
         case .code:
             attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
+        case .strikethrough:
+            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         case .link:
             attributes[.foregroundColor] = NSColor.linkColor
         }

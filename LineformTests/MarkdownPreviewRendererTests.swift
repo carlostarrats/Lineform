@@ -57,6 +57,19 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(rendered.string, "This is bold, clear, code, and a link.")
     }
 
+    func testReadModeRendersStrikethroughAndHidesMarkers() throws {
+        let rendered = MarkdownPreviewRenderer().render("done ~~old~~ text", profile: .original)
+        XCTAssertEqual(rendered.string, "done old text")
+        let style = rendered.attribute(.strikethroughStyle, at: ("done " as NSString).length, effectiveRange: nil) as? Int
+        XCTAssertEqual(style, NSUnderlineStyle.single.rawValue)
+    }
+
+    func testStrikethroughInsideCodeSpanStaysLiteral() {
+        // A code span starts earlier, so `~~x~~` inside it must not be struck.
+        let rendered = MarkdownPreviewRenderer().render("`~~x~~`", profile: .original)
+        XCTAssertEqual(rendered.string, "~~x~~")
+    }
+
     func testBlockSpacingAppliesOnlyToMarkdownBlockEndings() throws {
         var profile = ReadingProfile.original
         profile.paragraphSpacing = 18

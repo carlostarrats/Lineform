@@ -326,6 +326,11 @@ struct AppCommands: Commands {
                 }
                 .keyboardShortcut("`", modifiers: .command)
 
+                Button("Strikethrough") {
+                    NSApp.sendAction(#selector(LineformTextView.toggleStrikethroughMarkdown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("x", modifiers: [.command, .shift])
+
                 Divider()
 
                 Button("Bulleted List") {
