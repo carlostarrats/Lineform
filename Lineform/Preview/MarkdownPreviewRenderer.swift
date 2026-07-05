@@ -123,12 +123,12 @@ struct MarkdownPreviewRenderer {
                     output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
                 }
             case .blockquote(let quoteLines, let lastLineIndex):
-                appendBlockquote(quoteLines, to: output, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
                 if lastLineIndex < lines.count - 1 {
                     output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
                 }
             case .list(let items, let lastLineIndex):
-                appendList(items, to: output, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
                 if lastLineIndex < lines.count - 1 {
                     output.append(NSAttributedString(string: "\n", attributes: bodyAttributes))
                 }
@@ -144,11 +144,11 @@ struct MarkdownPreviewRenderer {
     private func appendList(
         _ items: [MarkdownListItem],
         to output: NSMutableAttributedString,
+        baseAttributes baseBody: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding
     ) {
-        let baseBody = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         let levelStep: CGFloat = 24
         let markerColumn: CGFloat = 22
 
@@ -190,11 +190,11 @@ struct MarkdownPreviewRenderer {
     private func appendBlockquote(
         _ quoteLines: [MarkdownQuoteLine],
         to output: NSMutableAttributedString,
+        baseAttributes baseBody: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding
     ) {
-        let baseBody = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         let quoteColor = theme.textColor.withAlphaComponent(0.8)
         let indentStep: CGFloat = 22
 

@@ -116,12 +116,16 @@ enum MarkdownHorizontalRule {
         guard marker == "-" else { return true }
         // A leading `---` opens YAML front matter, not a divider.
         if index == 0 { return false }
-        // `---` immediately under a non-blank paragraph line is a setext heading underline. A
-        // heading or fence line above is its own block, so `---` after it is still a real rule.
-        let previous = lines[index - 1].trimmingCharacters(in: .whitespaces)
-        if !previous.isEmpty
-            && !previous.hasPrefix("#")
-            && !MermaidFence.isFenceDelimiter(previous) {
+        // `---` immediately under a non-blank PARAGRAPH line is a setext heading underline. Lines
+        // that are their own block above it — a heading, a fence, a blockquote, or a list item —
+        // don't form a setext heading, so `---` after them is still a real rule.
+        let previous = lines[index - 1]
+        let previousTrimmed = previous.trimmingCharacters(in: .whitespaces)
+        if !previousTrimmed.isEmpty
+            && !previousTrimmed.hasPrefix("#")
+            && !MermaidFence.isFenceDelimiter(previousTrimmed)
+            && MarkdownBlockquote.quoteLine(previous) == nil
+            && MarkdownList.parse(previous) == nil {
             return false
         }
         return true

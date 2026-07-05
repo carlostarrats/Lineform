@@ -97,6 +97,15 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertEqual(blocks, [.lines(0..<3)])
     }
 
+    func testDashesAfterListOrQuoteAreRuleNotSetext() {
+        // A list item or blockquote line is its own block, so `---` right after it is a real
+        // thematic break — not a setext heading underline (which only applies under paragraph text).
+        XCTAssertTrue(markdownBlocks(in: ["- item", "---"]).contains(.horizontalRule(lineIndex: 1)))
+        XCTAssertTrue(markdownBlocks(in: ["> quote", "---"]).contains(.horizontalRule(lineIndex: 1)))
+        // But `---` under ordinary paragraph text stays a setext underline (not a rule).
+        XCTAssertFalse(markdownBlocks(in: ["paragraph", "---"]).contains(.horizontalRule(lineIndex: 1)))
+    }
+
     // MARK: - Blockquote
 
     func testBlockquoteGroupsContiguousQuotedLinesStrippingMarkers() {
