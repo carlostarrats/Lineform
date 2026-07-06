@@ -10,8 +10,8 @@ final class ThemeTests: XCTestCase {
     }
 
     func testReaderThemesStaySmallAndAppleBooksStyle() {
-        XCTAssertEqual(Theme.readerThemes.map(\.id), [.system, .paper, .calm, .quiet, .night])
-        XCTAssertEqual(Theme.readerThemes.map(\.name), ["Original", "Paper", "Calm", "Quiet", "Night"])
+        XCTAssertEqual(Theme.builtIn.map(\.id), [.system, .paper, .calm, .quiet, .night])
+        XCTAssertEqual(Theme.builtIn.map(\.name), ["Original", "Paper", "Calm", "Quiet", "Night"])
     }
 
     func testReaderThemesUseRequestedBackgroundAndSoftTextColors() throws {
@@ -67,7 +67,7 @@ final class ThemeTests: XCTestCase {
     }
 
     func testCodeAccentBlueMaintainsTextContrastAcrossReaderThemes() {
-        for theme in Theme.readerThemes {
+        for theme in Theme.builtIn {
             let contrast = Self.contrastRatio(
                 MarkdownSyntaxHighlighter.inlineCodeColor(for: theme),
                 theme.backgroundColor

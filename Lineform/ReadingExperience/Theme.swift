@@ -94,14 +94,6 @@ struct Theme: Equatable, Identifiable {
         .night
     ]
 
-    static let readerThemes: [Theme] = [
-        .system,
-        .paper,
-        .calm,
-        .quiet,
-        .night
-    ]
-
     static func theme(for id: ThemeID) -> Theme {
         builtIn.first { $0.id == id } ?? .system
     }
