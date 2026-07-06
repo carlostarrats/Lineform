@@ -1,10 +1,9 @@
 import SwiftUI
 
 /// The app's Settings surface (⌘, / Lineform › Settings…), presented as a
-/// Muse-style in-window modal — the same chrome language as the Info modal
-/// (`MarkdownBasicsModal`): light card, scrim, close button, Esc dismissal —
-/// deliberately NOT the native macOS settings window, so every modal in the
-/// app looks and behaves the same.
+/// Muse-style in-window modal (`MuseModalChrome` card over a `MuseModalScrim`):
+/// light card, scrim, close button, Esc dismissal — deliberately NOT the native
+/// macOS settings window, so every modal in the app looks and behaves the same.
 struct SettingsModal: View {
     @ObservedObject var settings: LineformSettingsStore
     @StateObject private var iCloud: ICloudSettingViewModel

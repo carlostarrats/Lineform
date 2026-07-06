@@ -7,7 +7,6 @@ struct EditorContainerView: View {
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
-    @State private var isShowingMarkdownBasics = false
     @State private var isShowingSettings = false
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline: Bool
@@ -197,9 +196,6 @@ struct EditorContainerView: View {
         }
         .onChange(of: displayMode) { _, mode in
             LineformDisplayModeMenuState.shared.setDisplayMode(mode)
-            if !EditorToolbarVisibility.showsMarkdownBasics(in: mode) {
-                isShowingMarkdownBasics = false
-            }
             // Settle any pending debounced work so the outline/count are correct the
             // instant the user switches modes (rather than a debounce interval later).
             flushDerivedRefresh()
@@ -217,9 +213,6 @@ struct EditorContainerView: View {
             guard activeWindow?.isMainWindow == true else {
                 return
             }
-            // One modal at a time — also keeps a single live Esc (.cancelAction)
-            // target, so Esc can't dismiss a hidden Info modal underneath.
-            isShowingMarkdownBasics = false
             isShowingSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.renameCurrentFile.name)) { notification in
@@ -392,17 +385,8 @@ struct EditorContainerView: View {
                         .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
                 }
 
-            if isShowingMarkdownBasics {
-                museModalLayer(scrimZIndex: 1, modalZIndex: 2, onDismiss: { isShowingMarkdownBasics = false }) { geometry in
-                    MarkdownBasicsModal(availableHeight: geometry.size.height) {
-                        isShowingMarkdownBasics = false
-                    }
-                }
-            }
-
-            // Settings uses the same modal language as Info: scrim + centered light
-            // card + Esc/outside-click dismissal. Higher zIndex so that if both are
-            // ever up, Settings (the more deliberate action) sits on top.
+            // Settings uses the shared Muse modal language: scrim + centered light
+            // card + Esc/outside-click dismissal.
             if isShowingSettings {
                 museModalLayer(scrimZIndex: 3, modalZIndex: 4, onDismiss: { isShowingSettings = false }) { geometry in
                     SettingsModal(settings: settings, availableWidth: geometry.size.width) {
@@ -411,10 +395,6 @@ struct EditorContainerView: View {
                 }
             }
         }
-        .animation(
-            EditorMotionPolicy.animation(.easeOut(duration: MarkdownBasicsModal.animationDuration), reduceMotion: reduceMotion),
-            value: isShowingMarkdownBasics
-        )
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
             value: isShowingSettings
@@ -432,7 +412,7 @@ struct EditorContainerView: View {
         onDismiss: @escaping () -> Void,
         @ViewBuilder modal: @escaping (GeometryProxy) -> Modal
     ) -> some View {
-        MarkdownBasicsOverlay(dismiss: onDismiss)
+        MuseModalScrim(dismiss: onDismiss)
             .zIndex(scrimZIndex)
             .transaction { transaction in
                 transaction.animation = nil
@@ -1167,7 +1147,7 @@ struct EditorContainerView: View {
     @ViewBuilder
     private func toolbarControl(for action: EditorToolbarAction) -> some View {
         switch action {
-        case .markdownBasics, .readingExperience:
+        case .readingExperience:
             let isActive = toolbarActionIsActive(action)
             Button {
                 handleToolbarAction(action)
@@ -1185,8 +1165,6 @@ struct EditorContainerView: View {
 
     private func handleToolbarAction(_ action: EditorToolbarAction) {
         switch action {
-        case .markdownBasics:
-            isShowingMarkdownBasics.toggle()
         case .readingExperience:
             setReadingInspectorVisible(!isShowingReadingInspector)
         }
@@ -1203,14 +1181,13 @@ struct EditorContainerView: View {
     private func toolbarActionIsActive(_ action: EditorToolbarAction) -> Bool {
         EditorToolbarPressedState.isActive(
             action,
-            isShowingMarkdownBasics: isShowingMarkdownBasics,
             isShowingReadingInspector: isShowingReadingInspector
         )
     }
 
     private func toolbarHelp(for action: EditorToolbarAction) -> String {
         switch action {
-        case .markdownBasics, .readingExperience:
+        case .readingExperience:
             return action.title
         }
     }

@@ -7,6 +7,22 @@ import SwiftUI
 struct OutlineInfoTabView: View {
     var usesDarkChrome: Bool
 
+    // The explanation text uses a muted tone that still clears WCAG AA (>= 4.5:1)
+    // against the sidebar background in BOTH chromes. The sidebar's own secondary
+    // color is fine for short Files labels but dips to ~3.8:1 on the light page —
+    // too low for this longer-form reference copy — so the Info tab picks a slightly
+    // darker light tone (dark chrome already clears AA and is unchanged). The syntax
+    // line reuses the sidebar's primary color (>= 9:1 in both chromes).
+    static let explanationLightWhiteComponent: CGFloat = 0.36
+    static let explanationDarkWhiteComponent: CGFloat = 0.68
+
+    static func explanationColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: NSColor(
+            calibratedWhite: usesDarkChrome ? explanationDarkWhiteComponent : explanationLightWhiteComponent,
+            alpha: 1
+        ))
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -49,7 +65,7 @@ struct OutlineInfoTabView: View {
 
             Text(row.explanation)
                 .font(.footnote)
-                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                .foregroundStyle(Self.explanationColor(usesDarkChrome: usesDarkChrome))
                 .fixedSize(horizontal: false, vertical: true) // wrap, never truncate
         }
         .frame(maxWidth: .infinity, alignment: .leading)

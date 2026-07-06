@@ -277,82 +277,15 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertTrue(EditorStatusBar.isVisible(in: .split))
     }
 
-    func testMarkdownBasicsHelpShowsOnlyInWritingModes() {
-        XCTAssertTrue(EditorToolbarVisibility.showsMarkdownBasics(in: .write))
-        XCTAssertFalse(EditorToolbarVisibility.showsMarkdownBasics(in: .read))
-        XCTAssertTrue(EditorToolbarVisibility.showsMarkdownBasics(in: .split))
-    }
-
-    @MainActor
-    func testMarkdownBasicsExamplesCoverCommonFormatting() {
-        XCTAssertEqual(MarkdownBasicsModal.title, "Info")
-        XCTAssertEqual(
-            MarkdownBasicsModal.examples.map(\.syntax),
-            ["# Title", "## Section", "**bold**", "_italic_", "- bullet", "1. item", "- [ ] to do", "- [x] done", "> quote", "~~text~~", "`code`", "---", "[link](https://example.com)"]
-        )
-        XCTAssertEqual(MarkdownBasicsModal.sections.map(\.title), ["Markdown Basics", "Diagrams", "Math", "Search"])
-        XCTAssertEqual(MarkdownBasicsModal.sections.first?.rows.last?.label, "Block Spacing")
-        XCTAssertTrue(MarkdownBasicsModal.sections.first?.rows.last?.detail.localizedCaseInsensitiveContains("Read and Preview") == true)
-
-        // The Diagrams and Math sections document the native rendering features.
-        let diagrams = MarkdownBasicsModal.sections.first { $0.title == "Diagrams" }
-        XCTAssertTrue(diagrams?.rows.contains { $0.label == "```mermaid" } == true)
-        let math = MarkdownBasicsModal.sections.first { $0.title == "Math" }
-        XCTAssertTrue(math?.rows.contains { $0.label == "$$…$$" } == true)
-        XCTAssertTrue(math?.rows.contains { $0.label.contains("$x^2") } == true)
-        // The prose-dollar caveat is spelled out so writers aren't surprised.
-        XCTAssertTrue(math?.rows.contains { $0.detail.localizedCaseInsensitiveContains("not treated as math") } == true)
-        XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { $0.label == "Line Height" })
-        XCTAssertTrue(MarkdownBasicsModal.usesRowSeparators)
-        XCTAssertFalse(MarkdownBasicsModal.usesMonospacedExampleFont)
-        XCTAssertTrue(MarkdownBasicsModal.supportsEscapeDismissal)
-        XCTAssertEqual(MarkdownBasicsModal.contentWidth, 560)
-        XCTAssertFalse(MarkdownBasicsModal.sections.flatMap(\.rows).contains { row in
-            row.detail.localizedCaseInsensitiveContains("git")
-                || row.detail.localizedCaseInsensitiveContains("privacy")
-                || row.detail.localizedCaseInsensitiveContains("file")
-        })
-    }
-
-    @MainActor
-    func testMarkdownGuideTextMeetsAAContrast() {
-        let background = NSColor(
-            calibratedRed: MarkdownBasicsModal.backgroundWhiteComponent,
-            green: MarkdownBasicsModal.backgroundWhiteComponent,
-            blue: MarkdownBasicsModal.backgroundWhiteComponent,
-            alpha: 1
-        )
-        let primary = NSColor(
-            calibratedRed: MarkdownBasicsModal.textRedComponent,
-            green: MarkdownBasicsModal.textRedComponent,
-            blue: MarkdownBasicsModal.textRedComponent,
-            alpha: 1
-        )
-        let secondaryComponent = MarkdownBasicsModal.textRedComponent * MarkdownBasicsModal.secondaryTextOpacity
-            + MarkdownBasicsModal.backgroundWhiteComponent * (1 - MarkdownBasicsModal.secondaryTextOpacity)
-        let secondary = NSColor(
-            calibratedRed: secondaryComponent,
-            green: secondaryComponent,
-            blue: secondaryComponent,
-            alpha: 1
-        )
-
-        XCTAssertGreaterThanOrEqual(Self.contrastRatio(primary, background), 4.5)
-        XCTAssertGreaterThanOrEqual(Self.contrastRatio(secondary, background), 4.5)
-    }
-
     func testToolbarButtonsUseSeparateNativePresentationModels() {
-        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.markdownBasics, .readingExperience])
+        // The Markdown reference moved to the Files-sidebar Info tab, so the only
+        // primary toolbar toggle left is the Reading Experience inspector — in every mode.
+        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .write), [.readingExperience])
         XCTAssertEqual(EditorToolbarAction.primaryActions(in: .read), [.readingExperience])
-        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .split), [.markdownBasics, .readingExperience])
+        XCTAssertEqual(EditorToolbarAction.primaryActions(in: .split), [.readingExperience])
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.kind, .nativeInspector)
-        XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.kind, .centeredModal)
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel, "Reading Experience Inspector")
-        // VoiceOver label must match the modal's visible "Info" title, which now covers Markdown
-        // Basics + Diagrams + Math — not just the original Markdown Basics section.
-        XCTAssertEqual(EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel, "Info")
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.idealWidth, 320)
-        XCTAssertNil(EditorAuxiliaryPresentation.markdownBasics.idealWidth)
     }
 
     func testEditorToolbarToggleUsesQuietNativeGlyph() {
@@ -364,26 +297,13 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertLessThanOrEqual(EditorToolbarTogglePresentation.iconOpacity, 1)
     }
 
-    func testToolbarPressedStateCoversInfoAndInspectorButtons() {
+    func testToolbarPressedStateCoversInspectorButton() {
         XCTAssertEqual(
-            EditorToolbarPressedState.activeActions(
-                isShowingMarkdownBasics: false,
-                isShowingReadingInspector: false
-            ),
+            EditorToolbarPressedState.activeActions(isShowingReadingInspector: false),
             []
         )
         XCTAssertEqual(
-            EditorToolbarPressedState.activeActions(
-                isShowingMarkdownBasics: true,
-                isShowingReadingInspector: true
-            ),
-            [.markdownBasics, .readingExperience]
-        )
-        XCTAssertEqual(
-            EditorToolbarPressedState.activeActions(
-                isShowingMarkdownBasics: false,
-                isShowingReadingInspector: true
-            ),
+            EditorToolbarPressedState.activeActions(isShowingReadingInspector: true),
             [.readingExperience]
         )
     }
@@ -396,27 +316,14 @@ final class EditorDisplayModeTests: XCTestCase {
             XCTAssertFalse(action.systemImage.isEmpty)
             XCTAssertNotEqual(action.systemImage, "xmark")
         }
-        XCTAssertEqual(EditorToolbarAction.markdownBasics.systemImage, "info.circle")
         XCTAssertEqual(EditorToolbarAction.readingExperience.systemImage, "textformat.alt")
     }
 
     @MainActor
-    func testMarkdownBasicsModalHasExplicitAndOutsideDismissal() {
-        XCTAssertTrue(MarkdownBasicsModal.showsCloseButton)
-        XCTAssertTrue(MarkdownBasicsModal.dismissesWhenClickingOutside)
-    }
-
-    @MainActor
-    func testMarkdownBasicsModalKeepsBackdropAnimationAndCloseHoverPolish() {
-        XCTAssertGreaterThanOrEqual(MarkdownBasicsOverlay.scrimOpacity, 0.28)
-        XCTAssertEqual(MarkdownBasicsOverlay.scrimTransitionStyle, .instant)
-        XCTAssertEqual(MarkdownBasicsModal.transitionStyle, .fadeAndMoveUp)
-        XCTAssertEqual(MarkdownBasicsModal.entranceYOffset, 10)
-        XCTAssertTrue(MarkdownBasicsModal.usesThemeIndependentLightChrome)
-        XCTAssertGreaterThan(MarkdownBasicsModal.backgroundWhiteComponent, 0.9)
-        XCTAssertLessThan(MarkdownBasicsModal.textRedComponent, 0.2)
-        XCTAssertGreaterThan(MarkdownBasicsModal.closeHoverFillOpacity, MarkdownBasicsModal.closeRestingFillOpacity)
-        XCTAssertEqual(MarkdownBasicsModal.animationDuration, 0.24, accuracy: 0.01)
+    func testMuseModalScrimKeepsBackdropOpacityAndInstantTransition() {
+        // The shared scrim (Settings) still dims and appears instantly (no fade lag).
+        XCTAssertGreaterThanOrEqual(MuseModalScrim.scrimOpacity, 0.28)
+        XCTAssertEqual(MuseModalScrim.scrimTransitionStyle, .instant)
     }
 
     func testReadingInspectorUsesNativeInspectorChrome() {

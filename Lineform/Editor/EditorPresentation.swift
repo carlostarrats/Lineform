@@ -51,12 +51,6 @@ enum EditorInspectorTextResponse {
     }
 }
 
-enum EditorToolbarVisibility {
-    static func showsMarkdownBasics(in mode: EditorDisplayMode) -> Bool {
-        mode != .read
-    }
-}
-
 enum EditorToolbarTogglePresentation {
     static let usesNativeToolbarButtonShell = true
     static let outerButtonWidth: CGFloat? = nil
@@ -72,35 +66,27 @@ enum EditorToolbarTogglePresentation {
     }
 }
 
-// The info and reading buttons no longer morph into a filled close (✕) when their
-// panel is open: the reading inspector now carries its own close in its header, and
-// the info modal already had one, so the toolbar buttons stay their own quiet glyph
-// whether open or closed. `isActive` survives only to expose the open state to
-// accessibility (a `.isSelected` trait on the button).
+// The reading button no longer morphs into a filled close (✕) when its panel is
+// open: the reading inspector now carries its own close in its header, so the
+// toolbar button stays its own quiet glyph whether open or closed. `isActive`
+// survives only to expose the open state to accessibility (a `.isSelected` trait
+// on the button).
 enum EditorToolbarPressedState {
     static func isActive(
         _ action: EditorToolbarAction,
-        isShowingMarkdownBasics: Bool,
         isShowingReadingInspector: Bool
     ) -> Bool {
         switch action {
-        case .markdownBasics:
-            return isShowingMarkdownBasics
         case .readingExperience:
             return isShowingReadingInspector
         }
     }
 
     static func activeActions(
-        isShowingMarkdownBasics: Bool,
         isShowingReadingInspector: Bool
     ) -> [EditorToolbarAction] {
         EditorToolbarAction.allCases.filter {
-            isActive(
-                $0,
-                isShowingMarkdownBasics: isShowingMarkdownBasics,
-                isShowingReadingInspector: isShowingReadingInspector
-            )
+            isActive($0, isShowingReadingInspector: isShowingReadingInspector)
         }
     }
 }
@@ -119,15 +105,12 @@ struct EditorToolbarIcon: View {
 }
 
 enum EditorToolbarAction: CaseIterable, Equatable, Identifiable {
-    case markdownBasics
     case readingExperience
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .markdownBasics:
-            return "Markdown Basics"
         case .readingExperience:
             return "Reading Experience"
         }
@@ -135,19 +118,16 @@ enum EditorToolbarAction: CaseIterable, Equatable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .markdownBasics:
-            return "info.circle"
         case .readingExperience:
             return "textformat.alt"
         }
     }
 
     static func primaryActions(in mode: EditorDisplayMode) -> [EditorToolbarAction] {
-        if EditorToolbarVisibility.showsMarkdownBasics(in: mode) {
-            return [.markdownBasics, .readingExperience]
-        }
-
-        return [.readingExperience]
+        // The Markdown reference moved to the Files-sidebar "Info" tab, so the only
+        // primary toolbar toggle left is the Reading Experience inspector — shown in
+        // every mode.
+        [.readingExperience]
     }
 }
 

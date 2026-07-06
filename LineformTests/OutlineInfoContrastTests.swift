@@ -12,6 +12,8 @@ final class OutlineInfoContrastTests: XCTestCase {
                 alpha: 1)
     }
 
+    // Syntax reuses the sidebar's primary text color; the explanation uses the Info
+    // tab's own AA-safe muted tone (the sidebar secondary dips below AA on the light page).
     private func syntaxText(darkChrome: Bool) -> NSColor {
         NSColor(calibratedWhite: darkChrome ? OutlineSidebarView.darkPrimaryTextWhiteComponent
                                             : OutlineSidebarView.primaryTextWhiteComponent,
@@ -19,8 +21,8 @@ final class OutlineInfoContrastTests: XCTestCase {
     }
 
     private func explanationText(darkChrome: Bool) -> NSColor {
-        NSColor(calibratedWhite: darkChrome ? OutlineSidebarView.darkSecondaryTextWhiteComponent
-                                            : OutlineSidebarView.secondaryTextWhiteComponent,
+        NSColor(calibratedWhite: darkChrome ? OutlineInfoTabView.explanationDarkWhiteComponent
+                                            : OutlineInfoTabView.explanationLightWhiteComponent,
                 alpha: 1)
     }
 

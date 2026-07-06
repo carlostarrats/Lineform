@@ -26,19 +26,6 @@ struct EditorAuxiliaryPresentation: Equatable {
         transitionStyle: .systemInspector,
         animationDuration: nil
     )
-
-    static let markdownBasics = EditorAuxiliaryPresentation(
-        kind: .centeredModal,
-        presenter: .customOverlay,
-        // Announced by VoiceOver as the modal's name; must match the visible "Info" title, which
-        // now spans Markdown Basics + Diagrams + Math (not just the original Markdown Basics).
-        accessibilityLabel: "Info",
-        minimumWidth: nil,
-        idealWidth: nil,
-        maximumWidth: nil,
-        transitionStyle: .fadeAndMoveUp,
-        animationDuration: 0.24
-    )
 }
 
 enum EditorAuxiliaryPresenter: Equatable {
@@ -54,19 +41,10 @@ enum EditorAuxiliaryTransitionStyle: Equatable {
     case slideAndFade
 }
 
-private struct MarkdownGuideHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-/// Shared visual language for Lineform's in-window "Muse-style" modals — the Info
-/// modal (`MarkdownBasicsModal`) and the Settings modal (`SettingsModal`): a light,
-/// theme-independent card with a title + circular-close header, presented over a
-/// dimming scrim. Centralizing the chrome here keeps the two modals identical and
-/// removes the old coupling where `SettingsModal` reached into `MarkdownBasicsModal`'s
-/// constants for its palette and metrics.
+/// Shared visual language for Lineform's in-window "Muse-style" modal — the Settings
+/// modal (`SettingsModal`): a light, theme-independent card with a title +
+/// circular-close header, presented over a dimming scrim (`MuseModalScrim`).
+/// Centralizing the chrome here keeps the modal's look stable and reusable.
 enum MuseModalChrome {
     /// Theme-independent light-card palette (the card reads the same in dark mode).
     static let backgroundWhiteComponent: CGFloat = 0.98
@@ -164,172 +142,9 @@ extension View {
     }
 }
 
-struct MarkdownBasicsModal: View {
-    struct Example: Identifiable, Equatable {
-        var label: String
-        var syntax: String
-
-        var id: String { syntax }
-    }
-
-    struct Row: Identifiable, Equatable {
-        var label: String
-        var detail: String
-
-        var id: String { "\(label)-\(detail)" }
-    }
-
-    struct Section: Identifiable, Equatable {
-        var title: String
-        var rows: [Row]
-
-        var id: String { title }
-    }
-
-    static let title = "Info"
-    static let showsCloseButton = true
-    static let dismissesWhenClickingOutside = true
-    static let supportsEscapeDismissal = true
-    static let usesRowSeparators = true
-    static let usesMonospacedExampleFont = false
-    static let contentWidth: CGFloat = 560
-    // Shared Muse chrome values, forwarded so this modal has a stable surface while
-    // `MuseModalChrome` stays the single source of truth for the visual language.
-    static let closeRestingFillOpacity = MuseModalChrome.closeRestingFillOpacity
-    static let closeHoverFillOpacity = MuseModalChrome.closeHoverFillOpacity
-    static let animationDuration = MuseModalChrome.animationDuration
-    static let entranceYOffset = MuseModalChrome.entranceYOffset
-    static let usesThemeIndependentLightChrome = true
-    static let backgroundWhiteComponent = MuseModalChrome.backgroundWhiteComponent
-    static let textRedComponent = MuseModalChrome.textRedComponent
-    static let secondaryTextOpacity = MuseModalChrome.secondaryTextOpacity
-    static let transitionStyle = EditorAuxiliaryTransitionStyle.fadeAndMoveUp
-    static let examples = [
-        Example(label: "Title", syntax: "# Title"),
-        Example(label: "Section", syntax: "## Section"),
-        Example(label: "Bold", syntax: "**bold**"),
-        Example(label: "Italic", syntax: "_italic_"),
-        Example(label: "Bullet", syntax: "- bullet"),
-        Example(label: "Numbered", syntax: "1. item"),
-        Example(label: "Task", syntax: "- [ ] to do"),
-        Example(label: "Done (click to toggle)", syntax: "- [x] done"),
-        Example(label: "Quote", syntax: "> quote"),
-        Example(label: "Strikethrough", syntax: "~~text~~"),
-        Example(label: "Code", syntax: "`code`"),
-        Example(label: "Divider", syntax: "---"),
-        Example(label: "Link", syntax: "[link](https://example.com)")
-    ]
-    static let sections = [
-        Section(
-            title: "Markdown Basics",
-            rows: examples.map { Row(label: $0.syntax, detail: $0.label) } + [
-                Row(label: "![alt](url)", detail: "An image shows as a labelled placeholder."),
-                Row(label: "| a | b |", detail: "A table: a header row, then a |---|---| line under it, then rows. Colons in the dashes (:--, :-:, --:) set column alignment."),
-                Row(label: "Block Spacing", detail: "In Read and Preview modes, adds space around Markdown block breaks.")
-            ]
-        ),
-        Section(
-            title: "Diagrams",
-            rows: [
-                Row(label: "```mermaid", detail: "Fence a code block tagged “mermaid” to render a diagram in Read and Preview. Write shows the source; a diagram that can’t be parsed falls back to a labelled source block.")
-            ]
-        ),
-        Section(
-            title: "Math",
-            rows: [
-                Row(label: "$x^2 + y^2$", detail: "Inline LaTeX math between single dollar signs, rendered in the line."),
-                Row(label: "$$…$$", detail: "A centered equation block between double dollar signs (put them on their own lines, or wrap a single line)."),
-                Row(label: "\\frac{a}{b}", detail: "Standard LaTeX math is supported — fractions, roots, Greek letters, sums, integrals. Renders in Read and Preview; Write shows the source, and invalid math falls back to its source."),
-                Row(label: "it costs $5", detail: "Ordinary dollar amounts stay as text — they are not treated as math.")
-            ]
-        ),
-        Section(
-            title: "Search",
-            rows: [
-                Row(label: "Return", detail: "While searching, press Return to jump to the next match. It wraps back to the first.")
-            ]
-        )
-    ]
-
-    /// Height the window actually offers (injected by the container's GeometryReader). The section
-    /// list is capped to this so the modal fits and scrolls inside a short window instead of forcing
-    /// the window taller.
-    var availableHeight: CGFloat = 900
-    var dismiss: () -> Void = {}
-    @State private var measuredSectionsHeight: CGFloat = 0
-
-    /// Room left for the title, paddings, and top/bottom breathing space around the card.
-    private static let verticalChromeAllowance: CGFloat = 180
-
-    /// The scrollable section list is capped to the available window height; when the content is
-    /// shorter than the cap the frame hugs it exactly (no empty slack, no scrolling).
-    private var maxSectionsHeight: CGFloat {
-        max(160, availableHeight - Self.verticalChromeAllowance)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            MuseModalHeader(title: Self.title, dismiss: dismiss)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    ForEach(Self.sections) { section in
-                        guideSection(section)
-                    }
-                }
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: MarkdownGuideHeightKey.self, value: proxy.size.height)
-                    }
-                )
-            }
-            // Hug the content, but cap the height so a taller guide scrolls instead of clipping
-            // off the top/bottom on a short window.
-            .frame(height: min(measuredSectionsHeight == 0 ? maxSectionsHeight : measuredSectionsHeight, maxSectionsHeight))
-            .onPreferenceChange(MarkdownGuideHeightKey.self) { measuredSectionsHeight = $0 }
-        }
-        .museModalCard(
-            width: Self.contentWidth,
-            accessibilityLabel: EditorAuxiliaryPresentation.markdownBasics.accessibilityLabel
-        )
-    }
-
-    private func guideSection(_ section: Section) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(section.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(MuseModalChrome.primaryTextColor)
-
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
-                    guideRow(row)
-
-                    if Self.usesRowSeparators && index < section.rows.count - 1 {
-                        Divider()
-                            .overlay(MuseModalChrome.primaryTextColor.opacity(0.08))
-                    }
-                }
-            }
-        }
-    }
-
-    private func guideRow(_ row: Row) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 16) {
-            Text(row.label)
-                .font(.body)
-                .foregroundStyle(MuseModalChrome.primaryTextColor)
-                .frame(width: 172, alignment: .leading)
-
-            Text(row.detail)
-                .font(.body)
-                .foregroundStyle(MuseModalChrome.secondaryTextColor)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 8)
-    }
-}
-
-struct MarkdownBasicsOverlay: View {
+/// The dimming, tap-to-dismiss scrim behind a Muse-style modal (Settings). Shared
+/// chrome — the modal card is layered above it by `museModalLayer`.
+struct MuseModalScrim: View {
     static let scrimOpacity = 0.32
     static let scrimTransitionStyle = EditorAuxiliaryTransitionStyle.instant
 

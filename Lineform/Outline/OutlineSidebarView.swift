@@ -492,7 +492,7 @@ struct OutlineSidebarView: View {
         ))
     }
 
-    static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
+    fileprivate static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome ? darkSecondaryTextWhiteComponent : secondaryTextWhiteComponent,
             alpha: 1
