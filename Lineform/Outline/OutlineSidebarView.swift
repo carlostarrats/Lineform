@@ -19,6 +19,16 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
 
     var id: String { url.path }
 
+    /// A copy with `children` dropped. Used for the flattened sidebar rows: the row view reads
+    /// only scalar fields, so carrying the whole subtree by value would make SwiftUI's per-row
+    /// diff (and the flat-list build) O(subtree) on the hot path (Task 5). The parent flattener
+    /// still recurses over the ORIGINAL `children` before stripping, so nothing is lost.
+    var withoutChildren: OutlineFileTreeItem {
+        var copy = self
+        copy.children = []
+        return copy
+    }
+
     init(
         url: URL,
         name: String,
@@ -58,7 +68,7 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
 /// One visible row of the flattened file tree: an item plus its indent depth. Rendering the
 /// tree from a flat list of these in a `LazyVStack` (rather than recursive `VStack`s) is what
 /// virtualizes a large workspace so only on-screen rows are laid out.
-struct OutlineFileTreeFlatRow: Identifiable, Equatable {
+struct OutlineFileTreeFlatRow: Identifiable {
     let item: OutlineFileTreeItem
     let depth: Int
     var id: String { item.id }
@@ -190,7 +200,10 @@ struct OutlineSidebarView: View {
     ) -> [OutlineFileTreeFlatRow] {
         var rows: [OutlineFileTreeFlatRow] = []
         for item in items {
-            rows.append(OutlineFileTreeFlatRow(item: item, depth: depth))
+            // Store a children-stripped copy: the row view never reads `children`, and keeping
+            // the subtree would make SwiftUI's per-row diff O(subtree). Recurse over the
+            // ORIGINAL children below so the flattened output is unchanged.
+            rows.append(OutlineFileTreeFlatRow(item: item.withoutChildren, depth: depth))
             if item.isDirectory, !collapsedIDs.contains(item.id) {
                 rows.append(contentsOf: visibleFileRows(item.children, collapsedIDs: collapsedIDs, depth: depth + 1))
             }

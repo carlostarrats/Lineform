@@ -1107,7 +1107,7 @@ extension OutlineSidebarViewTests {
     // MARK: - Tree virtualization (flatten visible rows so a large tree renders lazily)
 
     @MainActor
-    func testVisibleFileRowsFlattensTreeDepthFirstRespectingCollapse() {
+    func testVisibleFileRowsFlattensTreeDepthFirstRespectingCollapse() throws {
         func file(_ path: String) -> OutlineFileTreeItem {
             OutlineFileTreeItem(url: URL(fileURLWithPath: path), name: (path as NSString).lastPathComponent,
                                 isDirectory: false, children: [])
@@ -1124,6 +1124,12 @@ extension OutlineSidebarViewTests {
         let expanded = OutlineSidebarView.visibleFileRows(items, collapsedIDs: [])
         XCTAssertEqual(expanded.map(\.item.name), ["A", "a1.md", "a2.md", "B.md"])
         XCTAssertEqual(expanded.map(\.depth), [1, 2, 2, 1])
+
+        // Each flat row carries a children-STRIPPED item (the row view never reads children;
+        // keeping the subtree would make SwiftUI's per-row diff O(subtree)). Folder A's own
+        // children were still emitted as their own rows above.
+        let folderRow = try XCTUnwrap(expanded.first { $0.item.name == "A" })
+        XCTAssertTrue(folderRow.item.children.isEmpty)
 
         // Collapsing A drops its children from the flat list; A and B stay at depth 1.
         let collapsed = OutlineSidebarView.visibleFileRows(items, collapsedIDs: [folderA.id])
