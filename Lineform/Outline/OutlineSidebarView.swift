@@ -19,6 +19,16 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
 
     var id: String { url.path }
 
+    /// A copy with `children` dropped. Used for the flattened sidebar rows: the row view reads
+    /// only scalar fields, so carrying the whole subtree by value would make SwiftUI's per-row
+    /// diff (and the flat-list build) O(subtree) on the hot path (Task 5). The parent flattener
+    /// still recurses over the ORIGINAL `children` before stripping, so nothing is lost.
+    var withoutChildren: OutlineFileTreeItem {
+        var copy = self
+        copy.children = []
+        return copy
+    }
+
     init(
         url: URL,
         name: String,
@@ -53,6 +63,15 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt)
     }
+}
+
+/// One visible row of the flattened file tree: an item plus its indent depth. Rendering the
+/// tree from a flat list of these in a `LazyVStack` (rather than recursive `VStack`s) is what
+/// virtualizes a large workspace so only on-screen rows are laid out.
+struct OutlineFileTreeFlatRow: Identifiable {
+    let item: OutlineFileTreeItem
+    let depth: Int
+    var id: String { item.id }
 }
 
 struct OutlineSidebarView: View {
@@ -166,6 +185,30 @@ struct OutlineSidebarView: View {
     /// off restores the prior in-session state).
     static func rootIsCollapsed(isInCollapsedSet: Bool, lockExpanded: Bool) -> Bool {
         !lockExpanded && isInCollapsedSet
+    }
+
+    /// Flattens a file tree into the rows currently VISIBLE (depth-first: parent, then its
+    /// children only when the folder is expanded), each tagged with its indent depth. The tree
+    /// is rendered from this flat list in a `LazyVStack` so a large workspace only lays out the
+    /// rows in the scroll viewport — the recursive non-lazy `VStack` rendering it replaced forced
+    /// SwiftUI to lay out every row of a fully-expanded tree at once, which froze typing and
+    /// file-switching on big workspaces (Task 5 — the real bottleneck, not the directory scan).
+    static func visibleFileRows(
+        _ items: [OutlineFileTreeItem],
+        collapsedIDs: Set<String>,
+        depth: Int = 1
+    ) -> [OutlineFileTreeFlatRow] {
+        var rows: [OutlineFileTreeFlatRow] = []
+        for item in items {
+            // Store a children-stripped copy: the row view never reads `children`, and keeping
+            // the subtree would make SwiftUI's per-row diff O(subtree). Recurse over the
+            // ORIGINAL children below so the flattened output is unchanged.
+            rows.append(OutlineFileTreeFlatRow(item: item.withoutChildren, depth: depth))
+            if item.isDirectory, !collapsedIDs.contains(item.id) {
+                rows.append(contentsOf: visibleFileRows(item.children, collapsedIDs: collapsedIDs, depth: depth + 1))
+            }
+        }
+        return rows
     }
     static let minimumColumnWidth: CGFloat = 220
     static let idealColumnWidth: CGFloat = 260
@@ -292,7 +335,10 @@ struct OutlineSidebarView: View {
         // Production passes nil → a real store is created lazily on first render. Tests inject
         // a store on an isolated defaults suite so they never resolve the user's real workspace
         // bookmark (which would touch ~/Documents and prompt for access).
-        _fileBrowserStore = StateObject(wrappedValue: fileBrowserStore ?? OutlineFileBrowserStore())
+        // Production opts into background scanning: the recursive directory walk must not block
+        // the main thread (typing/file-switching) on large workspaces (Task 5). Tests default to
+        // synchronous scanning (never a race, and they keep asserting inline).
+        _fileBrowserStore = StateObject(wrappedValue: fileBrowserStore ?? OutlineFileBrowserStore(runsScanInBackground: true))
     }
 
     var body: some View {
@@ -674,6 +720,14 @@ final class OutlineFileBrowserStore: ObservableObject {
     static let lastKnownICloudAvailableDefaultsKey = "Lineform.outline.lastKnownICloudAvailable"
     static let maximumTreeDepth = 4
     static let maximumChildrenPerFolder = 80
+    /// Trailing debounce for FSEvents-driven rescans (Task 5). Autosave-while-typing writes
+    /// fire the monitor; without a debounce each coalesced tick ran the recursive directory
+    /// walk synchronously on the main thread ~every `DirectoryEventMonitor.coalescingLatency`
+    /// (0.5s), which is the large-workspace typing hitch. MUST exceed that latency: during
+    /// continuous churn FSEvents delivers a callback roughly every `coalescingLatency`, so a
+    /// longer debounce is guaranteed to keep resetting (never fire) until the churn stops —
+    /// converting the mid-typing hitch into a single settle-after-pause rescan.
+    static let directoryRescanDebounceInterval: TimeInterval = 0.75
     static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
     /// Directory names always hidden from the tree, even with "Show hidden folders" on —
     /// build/vcs noise that is never useful reading material.
@@ -782,6 +836,23 @@ final class OutlineFileBrowserStore: ObservableObject {
     private let iCloudDownloader: UbiquitousItemDownloader
     private let scopeAccessor: SecurityScopedResourceAccessing
     private let directoryMonitorFactory: DirectoryChangeMonitorFactory
+    /// Trailing debounce interval for monitor-driven rescans (0 → run synchronously, the
+    /// test fast-path). Only the FSEvents `onChange` path is debounced; every user-initiated
+    /// refresh stays instant.
+    private let directoryRescanDebounce: TimeInterval
+    private var pendingWorkspaceRescan: DispatchWorkItem?
+    private var pendingICloudRescan: DispatchWorkItem?
+    /// When true (production), the recursive `items(in:)` walk runs on `scanQueue` and its
+    /// result is applied back on the main thread — so a ~35ms+ scan of thousands of files never
+    /// blocks typing/file-switching (Task 5 escalation). Default false keeps the walk inline
+    /// and synchronous: concurrency is opt-in at the one production site, and the existing test
+    /// suite keeps asserting synchronously (never a race by default).
+    private let runsScanInBackground: Bool
+    private let scanQueue = DispatchQueue(label: "com.lineform.outline.directory-scan", qos: .userInitiated)
+    /// Latest-wins guards: bumped at each refresh entry so a background scan whose apply arrives
+    /// after a newer refresh started (e.g. the workspace was reassigned meanwhile) is discarded.
+    private(set) var workspaceScanGeneration: UInt64 = 0
+    private(set) var iCloudScanGeneration: UInt64 = 0
     private var workspaceMonitor: DirectoryChangeMonitoring?
     private var iCloudMonitor: DirectoryChangeMonitoring?
     /// Whether the Files tab wants live watching right now. Tracked separately from the
@@ -805,13 +876,25 @@ final class OutlineFileBrowserStore: ObservableObject {
         iCloudDocumentsURLProvider: @escaping (FileManager) -> URL? = OutlineFileBrowserStore.lineformICloudDocumentsURL,
         iCloudDownloader: UbiquitousItemDownloader? = nil,
         scopeAccessor: SecurityScopedResourceAccessing = URLSecurityScopedResourceAccessor(),
-        directoryMonitorFactory: DirectoryChangeMonitorFactory? = nil
+        directoryMonitorFactory: DirectoryChangeMonitorFactory? = nil,
+        directoryRescanDebounce: TimeInterval = OutlineFileBrowserStore.directoryRescanDebounceInterval,
+        runsScanInBackground: Bool = false
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
         self.iCloudDocumentsURLProvider = iCloudDocumentsURLProvider
         self.iCloudDownloader = iCloudDownloader ?? fileManager
         self.scopeAccessor = scopeAccessor
+        self.directoryRescanDebounce = directoryRescanDebounce
+        self.runsScanInBackground = runsScanInBackground
+        // The background scan path uses FileManager.default (FileManager isn't Sendable), so an
+        // injected non-default FileManager is honored ONLY on the synchronous path. Guard the
+        // mismatch: a test/variant injecting a fake FileManager with background scanning would
+        // silently diverge (sync branch uses the fake, background branch uses .default).
+        assert(
+            !runsScanInBackground || fileManager === FileManager.default,
+            "runsScanInBackground uses FileManager.default; injecting a non-default FileManager is unsupported"
+        )
         self.directoryMonitorFactory = directoryMonitorFactory ?? { url, onChange in
             DirectoryEventMonitor(url: url, onChange: onChange)
         }
@@ -860,23 +943,63 @@ final class OutlineFileBrowserStore: ObservableObject {
         isWatchingForExternalChanges = true
         if workspaceMonitor == nil, let workspaceURL {
             workspaceMonitor = directoryMonitorFactory(workspaceURL) { [weak self] in
-                self?.refreshWorkspaceRoot()
+                self?.scheduleWorkspaceRescan()
             }
         }
         if iCloudMonitor == nil, let url = resolvedICloudDocumentsURL {
             iCloudMonitor = directoryMonitorFactory(url) { [weak self] in
-                self?.refreshICloudRoot()
+                self?.scheduleICloudRescan()
             }
         }
     }
 
-    /// Stops watching (Files tab hidden / view gone). Cheap to call repeatedly.
+    /// Stops watching (Files tab hidden / view gone). Cheap to call repeatedly. Also cancels
+    /// any pending debounced rescan: once the tab is hidden a late walk is wasted work, and
+    /// the next tab-appear rescans anyway.
     func endWatchingForExternalChanges() {
         isWatchingForExternalChanges = false
         workspaceMonitor?.stop()
         workspaceMonitor = nil
         iCloudMonitor?.stop()
         iCloudMonitor = nil
+        pendingWorkspaceRescan?.cancel()
+        pendingWorkspaceRescan = nil
+        pendingICloudRescan?.cancel()
+        pendingICloudRescan = nil
+    }
+
+    /// Trailing-debounced rescan for the workspace root, fed by the FSEvents monitor only.
+    /// Autosave-while-typing churn keeps resetting the timer so the recursive directory walk
+    /// runs once after the burst settles instead of on every coalesced tick (Task 5). Mirrors
+    /// `DocumentReloadController`'s debounce, including the `interval == 0` synchronous
+    /// fast-path used by tests. User-initiated refreshes call `refreshWorkspaceRoot()` directly.
+    private func scheduleWorkspaceRescan() {
+        pendingWorkspaceRescan?.cancel()
+        guard directoryRescanDebounce > 0 else {
+            refreshWorkspaceRoot()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingWorkspaceRescan = nil
+            self?.refreshWorkspaceRoot()
+        }
+        pendingWorkspaceRescan = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + directoryRescanDebounce, execute: work)
+    }
+
+    /// Trailing-debounced rescan for the iCloud root, fed by the FSEvents monitor only.
+    private func scheduleICloudRescan() {
+        pendingICloudRescan?.cancel()
+        guard directoryRescanDebounce > 0 else {
+            refreshICloudRoot()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingICloudRescan = nil
+            self?.refreshICloudRoot()
+        }
+        pendingICloudRescan = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + directoryRescanDebounce, execute: work)
     }
 
     /// Targeted refresh after an in-app rename/delete: re-scan only the root containing
@@ -978,6 +1101,8 @@ final class OutlineFileBrowserStore: ObservableObject {
     deinit {
         workspaceMonitor?.stop()
         iCloudMonitor?.stop()
+        pendingWorkspaceRescan?.cancel()
+        pendingICloudRescan?.cancel()
         releaseWorkspaceScope()
     }
 
@@ -1035,6 +1160,10 @@ final class OutlineFileBrowserStore: ObservableObject {
         // still needs one if the Files tab is watching.
         workspaceMonitor?.stop()
         workspaceMonitor = nil
+        // Drop any debounced rescan queued against the old workspace's monitor; the direct
+        // refresh below re-scans the new folder, so a late fire would only be redundant work.
+        pendingWorkspaceRescan?.cancel()
+        pendingWorkspaceRescan = nil
 
         workspaceURL = url
         saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
@@ -1073,7 +1202,47 @@ final class OutlineFileBrowserStore: ObservableObject {
         }
     }
 
+    /// Runs the recursive `items(in:)` walk and hands the result to `apply`. In production
+    /// (`runsScanInBackground`) the walk runs on `scanQueue` — a ~35ms+ scan of thousands of
+    /// files must not block the main thread (typing/file-switching) — and `apply` is invoked
+    /// back on the main thread. Otherwise (tests, default) it runs inline and synchronously.
+    ///
+    /// `apply` is ALWAYS invoked on the main thread here (inline from a main-thread caller, or
+    /// via `DispatchQueue.main.async`), so the `nonisolated(unsafe)` capture is safe: the
+    /// closure mutates the store only on the main thread. The background path uses
+    /// `FileManager.default` rather than the injected `fileManager` because `FileManager` is
+    /// not `Sendable`; production always injects `.default` (equivalent), and test doubles use
+    /// the synchronous path with their injected `fileManager`.
+    private func performScan(
+        in url: URL,
+        showsHidden: Bool,
+        sortOrder: OutlineFileSortOrder,
+        apply: @escaping ([OutlineFileTreeItem]) -> Void
+    ) {
+        // The store isn't @MainActor, so the "everything but the walk runs on main" invariant
+        // is convention. Assert it so a future off-main caller crashes loudly (in Debug/CI)
+        // instead of racing silently — the `nonisolated(unsafe)` below disables the compiler's
+        // one guard against exactly that.
+        assert(Thread.isMainThread, "performScan must be called on the main thread")
+        guard runsScanInBackground else {
+            apply(Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHidden, sortOrder: sortOrder))
+            return
+        }
+        nonisolated(unsafe) let applyOnMain = apply
+        scanQueue.async {
+            let items = OutlineFileBrowserStore.items(
+                in: url, fileManager: .default, showsHiddenFolders: showsHidden, sortOrder: sortOrder
+            )
+            DispatchQueue.main.async { applyOnMain(items) }
+        }
+    }
+
     private func refreshICloudRoot() {
+        // Bumped up front so an in-flight background scan from a prior refresh is discarded
+        // by the generation guard in applyICloudScan (latest-wins).
+        iCloudScanGeneration &+= 1
+        let generation = iCloudScanGeneration
+
         // Cleared up front so every early return leaves it nil; only a successful scan
         // (re)establishes the resolved URL the watcher is allowed to use.
         resolvedICloudDocumentsURL = nil
@@ -1110,7 +1279,17 @@ final class OutlineFileBrowserStore: ObservableObject {
 
         recordICloudAvailability(true)
         resolvedICloudDocumentsURL = url
-        let items = Self.items(in: url, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: iCloudSortOrder)
+        performScan(in: url, showsHidden: showsHiddenFolders, sortOrder: iCloudSortOrder) { [weak self] items in
+            self?.applyICloudScan(items, generation: generation)
+        }
+    }
+
+    /// Applies a completed iCloud scan on the main thread. Internal + generation-guarded so it
+    /// is synchronously unit-testable and so a stale background scan (an older generation, e.g.
+    /// after a newer refresh started) is dropped. Mirrors `DocumentReloadController.applyDiskSnapshot`.
+    func applyICloudScan(_ items: [OutlineFileTreeItem], generation: UInt64) {
+        assert(Thread.isMainThread, "applyICloudScan must run on the main thread (@Published mutation)")
+        guard generation == iCloudScanGeneration else { return }
         let itemsChanged = items != lastICloudItems
         lastICloudItems = items
         if itemsChanged {
@@ -1142,6 +1321,12 @@ final class OutlineFileBrowserStore: ObservableObject {
     }
 
     private func refreshWorkspaceRoot() {
+        // Bumped up front so an in-flight background scan from a prior refresh (or from before
+        // the workspace was reassigned) is discarded by the generation guard in
+        // applyWorkspaceScan (latest-wins).
+        workspaceScanGeneration &+= 1
+        let generation = workspaceScanGeneration
+
         guard let workspaceURL else {
             workspaceRoot = OutlineFileRoot(
                 id: "workspace",
@@ -1181,8 +1366,41 @@ final class OutlineFileBrowserStore: ObservableObject {
         // No transient start/stop here: the workspace scope is held for the store's
         // lifetime (see holdWorkspaceScope), which is what keeps file OPENS working —
         // a scope that ends when this scan returns leaves NSDocumentController reading
-        // the user's files with no grant at all.
-        let items = Self.items(in: workspaceURL, fileManager: fileManager, showsHiddenFolders: showsHiddenFolders, sortOrder: workspaceSortOrder)
+        // the user's files with no grant at all. The held scope is a PROCESS-wide grant, so
+        // it also covers the background scan thread.
+        let url = workspaceURL
+
+        // Seed the visible root from the cached snapshot synchronously so the first frame after
+        // launch shows the saved tree and folder name — NOT a "Choose folder"/empty flash —
+        // while the background scan runs (the scan is off-main now, so it lands a frame + ~35ms
+        // later). On a normal rescan the root is already `.available`, so this is skipped and
+        // the background scan reconciles in place.
+        if workspaceRoot.state != .available {
+            let seededRoot = OutlineFileRoot(
+                id: "workspace",
+                title: Self.workspaceTitle(for: url),
+                systemImage: "folder",
+                state: .available,
+                items: filteredForDisplay(lastWorkspaceItems)
+            )
+            if seededRoot != workspaceRoot {
+                workspaceRoot = seededRoot
+            }
+        }
+
+        performScan(in: url, showsHidden: showsHiddenFolders, sortOrder: workspaceSortOrder) { [weak self] items in
+            self?.applyWorkspaceScan(items, url: url, generation: generation)
+        }
+    }
+
+    /// Applies a completed workspace scan on the main thread. Internal + generation-guarded so
+    /// it is synchronously unit-testable and so a stale background scan is dropped (e.g. one
+    /// dispatched before the workspace was reassigned or the tab went unassigned/disconnected).
+    /// The `url` guard is belt-and-suspenders alongside the generation guard: never publish a
+    /// scan of a folder that is no longer the current workspace.
+    func applyWorkspaceScan(_ items: [OutlineFileTreeItem], url: URL, generation: UInt64) {
+        assert(Thread.isMainThread, "applyWorkspaceScan must run on the main thread (@Published mutation)")
+        guard generation == workspaceScanGeneration, workspaceURL == url else { return }
         if items != lastWorkspaceItems {
             saveSnapshot(items, defaultsKey: Self.workspaceSnapshotDefaultsKey)
         }
@@ -1190,7 +1408,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 
         let newRoot = OutlineFileRoot(
             id: "workspace",
-            title: Self.workspaceTitle(for: workspaceURL),
+            title: Self.workspaceTitle(for: url),
             systemImage: "folder",
             state: .available,
             items: items
@@ -1406,23 +1624,28 @@ private struct OutlineFileBrowserView: View {
                             .padding(.vertical, 4)
                     }
                 } else {
-                    // Direct children start at depth 1 so they indent one step past the root's
-                    // icon; each row draws its own guide line back to its parent (see the node).
-                    ForEach(root.items) { item in
-                        OutlineFileTreeNodeView(
-                            item: item,
-                            depth: 1,
-                            collapsedIDs: $collapsedIDs,
-                            openFile: openFile,
-                            currentFileURL: currentFileURL,
-                            renameItem: renameItem,
-                            deleteItem: deleteItem,
-                            revealItem: revealItem,
-                            lockExpanded: lockExpanded
-                        )
-                        .opacity(root.state == .disconnected ? 0.48 : 1)
-                        .allowsHitTesting(root.state != .disconnected)
+                    // Render the tree from a FLATTENED list of visible rows in a LazyVStack, so a
+                    // large fully-expanded workspace only lays out the rows in the viewport. The
+                    // old recursive non-lazy VStacks laid out every row at once (~3,840 on a big
+                    // workspace), which froze typing/file-switching (Task 5's real cause). Direct
+                    // children start at depth 1 so they indent one step past the root's icon.
+                    LazyVStack(alignment: .leading, spacing: 1) {
+                        ForEach(OutlineSidebarView.visibleFileRows(root.items, collapsedIDs: collapsedIDs)) { flatRow in
+                            OutlineFileTreeNodeView(
+                                item: flatRow.item,
+                                depth: flatRow.depth,
+                                collapsedIDs: $collapsedIDs,
+                                openFile: openFile,
+                                currentFileURL: currentFileURL,
+                                renameItem: renameItem,
+                                deleteItem: deleteItem,
+                                revealItem: revealItem,
+                                lockExpanded: lockExpanded
+                            )
+                        }
                     }
+                    .opacity(root.state == .disconnected ? 0.48 : 1)
+                    .allowsHitTesting(root.state != .disconnected)
                 }
             }
         }
@@ -1697,26 +1920,12 @@ private struct OutlineFileTreeNodeView: View {
         )
     }
 
+    // A single flat row. Children are NOT rendered here — the parent flattens the visible tree
+    // (see OutlineSidebarView.visibleFileRows) and renders every row in one LazyVStack, so the
+    // whole tree virtualizes. This view stays responsible for its own row's chrome, indentation
+    // (by `depth`), collapse toggle, selection, hover, context menu, and accessibility.
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            row
-
-            if item.isDirectory, !isCollapsed {
-                ForEach(item.children) { child in
-                    OutlineFileTreeNodeView(
-                        item: child,
-                        depth: depth + 1,
-                        collapsedIDs: $collapsedIDs,
-                        openFile: openFile,
-                        currentFileURL: currentFileURL,
-                        renameItem: renameItem,
-                        deleteItem: deleteItem,
-                        revealItem: revealItem,
-                        lockExpanded: lockExpanded
-                    )
-                }
-            }
-        }
+        row
     }
 
     private var row: some View {
