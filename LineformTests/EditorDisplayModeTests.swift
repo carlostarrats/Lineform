@@ -475,6 +475,47 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
+    func testWindowChromeReaderAppliesDarkAppearanceSynchronouslyOnWindowJoin() {
+        // Regression: the appearance used to be applied inside a deferred Task (needed only
+        // to write the windowNumber binding outside the view-update phase). That let the
+        // window paint a frame with the default light appearance, so appearance-derived
+        // native controls — the NavigationSplitView sidebar-toggle glyph and
+        // NSColor.secondaryLabelColor in the empty-state placeholder — flashed dark-on-dark
+        // in the Quiet theme. The backing view must apply the dark appearance SYNCHRONOUSLY
+        // the moment it joins the window (no runloop pump), while only the windowNumber
+        // write stays deferred.
+        let window = NSWindow()
+        window.contentView = NSView(frame: .zero)
+
+        var reportedWindow: NSWindow?
+        let view = WindowChromeReader.ChromeView()
+        view.usesDarkChrome = true
+        // The reporter is handed the window (not a pre-read number) so it can read the
+        // windowNumber a runloop later, once the window is ordered on-screen.
+        view.onWindowChanged = { reportedWindow = $0 }
+
+        // Not yet in a window: nothing applied.
+        XCTAssertNil(view.window)
+
+        window.contentView?.addSubview(view)
+
+        // Synchronously dark — no async wait.
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+        XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+        XCTAssertIdentical(reportedWindow, window)
+
+        // A later theme change also applies synchronously.
+        view.usesDarkChrome = false
+        view.applyChrome()
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
+
+        // Detaching reports a nil window so the reader clears the stale windowNumber.
+        reportedWindow = window
+        view.removeFromSuperview()
+        XCTAssertNil(reportedWindow)
+    }
+
+    @MainActor
     func testEditorMinimumWidthAllowsOutlineAndInspectorWithoutForcingWideWindow() {
         XCTAssertLessThanOrEqual(EditorLayout.minimumContentWidth, 360)
 

@@ -582,30 +582,65 @@ struct WindowChromeReader: NSViewRepresentable {
     @Binding var windowNumber: Int?
     var usesDarkChrome: Bool
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        Task { @MainActor in
-            applyChrome(to: view.window)
+    func makeNSView(context: Context) -> ChromeView {
+        let view = ChromeView()
+        view.usesDarkChrome = usesDarkChrome
+        view.onWindowChanged = { window in
+            // Read the window number a runloop LATER: an off-screen window (before it is
+            // ordered front) reports 0/-1, and the @Binding write must not happen during
+            // the SwiftUI view-update phase. Deferring the read (as the old code did) lets
+            // it settle to the real on-screen number and reset to nil when the view
+            // detaches. The appearance itself is applied synchronously (in ChromeView) so
+            // native, appearance-derived controls never paint a frame against the default
+            // light appearance.
+            Task { @MainActor in windowNumber = window?.windowNumber }
         }
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        Task { @MainActor in
-            applyChrome(to: nsView.window)
-        }
+    func updateNSView(_ nsView: ChromeView, context: Context) {
+        nsView.usesDarkChrome = usesDarkChrome
+        nsView.applyChrome()
     }
 
-    static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
+    static func dismantleNSView(_ nsView: ChromeView, coordinator: ()) {
         nsView.window?.appearance = nil
         nsView.window?.contentView?.appearance = nil
     }
 
-    @MainActor
-    private func applyChrome(to window: NSWindow?) {
-        windowNumber = window?.windowNumber
-        window?.animationBehavior = .none
-        EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome)
+    /// Applies the window appearance SYNCHRONOUSLY the moment it joins a window (and on
+    /// later theme changes), rather than deferring it inside the Task used for the
+    /// windowNumber binding. Deferring the appearance let the window render a frame with
+    /// the default (light) appearance, so appearance-derived native controls — the
+    /// NavigationSplitView sidebar-toggle glyph and NSColor.secondaryLabelColor in the
+    /// empty-state placeholder — flashed dark-on-dark in the Quiet theme.
+    final class ChromeView: NSView {
+        var usesDarkChrome = false
+        var onWindowChanged: ((NSWindow?) -> Void)?
+        private weak var appliedWindow: NSWindow?
+        private var appliedDarkChrome: Bool?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyChrome()
+        }
+
+        func applyChrome() {
+            // Apply synchronously, but only when the window or theme actually changed —
+            // re-setting an identical appearance on every unrelated SwiftUI update would
+            // force a redundant appearance recalc during the update phase (a re-entrancy
+            // risk) for no benefit. The first application happens in viewDidMoveToWindow,
+            // an AppKit callback outside SwiftUI's update phase.
+            if let window, window !== appliedWindow || appliedDarkChrome != usesDarkChrome {
+                appliedWindow = window
+                appliedDarkChrome = usesDarkChrome
+                window.animationBehavior = .none
+                EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome)
+            }
+            // Report the (possibly nil) window every time so the deferred reader converges
+            // on the real number once the window is ordered and clears it on detach.
+            onWindowChanged?(window)
+        }
     }
 }
 
