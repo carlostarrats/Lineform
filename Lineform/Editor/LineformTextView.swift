@@ -651,7 +651,7 @@ final class LineformTextView: NSTextView {
             return []
         }
 
-        layoutManager.ensureLayout(for: textContainer)
+        runLayoutSensitiveEnsureLayout { layoutManager.ensureLayout(for: textContainer) }
         let glyphRange = layoutManager.glyphRange(forCharacterRange: safeRange, actualCharacterRange: nil)
         var rects: [NSRect] = []
         layoutManager.enumerateEnclosingRects(
@@ -1190,7 +1190,7 @@ extension LineformTextView {
     /// so `bounds.height` still reflects the old (pre-replacement) content when restore runs.
     private func laidOutContentHeight() -> CGFloat {
         guard let layoutManager, let textContainer else { return bounds.height }
-        layoutManager.ensureLayout(for: textContainer)
+        runLayoutSensitiveEnsureLayout { layoutManager.ensureLayout(for: textContainer) }
         return layoutManager.usedRect(for: textContainer).height + textContainerInset.height * 2
     }
 

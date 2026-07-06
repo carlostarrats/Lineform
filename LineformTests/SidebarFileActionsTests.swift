@@ -43,6 +43,18 @@ final class SidebarFileActionsTests: XCTestCase {
         XCTAssertNil(SidebarFileRenaming.validatedDestination(for: url, isDirectory: false, newDisplayName: "Notes"))
     }
 
+    // "." / ".." would, for a folder (no extension appended), resolve the destination to the
+    // parent directory — a move disguised as a rename, which the file system rejects with a
+    // confusing raw error. They must be treated as invalid names, not attempted.
+    func testValidatedDestinationRejectsDotAndDotDot() {
+        let folder = URL(fileURLWithPath: "/tmp/Journal", isDirectory: true)
+        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: folder, isDirectory: true, newDisplayName: "."))
+        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: folder, isDirectory: true, newDisplayName: ".."))
+        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: folder, isDirectory: true, newDisplayName: "  ..  "))
+        let file = URL(fileURLWithPath: "/tmp/Notes.md")
+        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: file, isDirectory: false, newDisplayName: ".."))
+    }
+
     func testRenameMovesFileOnDisk() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
