@@ -143,6 +143,25 @@ final class DocumentExportRendererTests: XCTestCase {
         XCTAssertTrue(pct.allSatisfy { $0 > 0 })
     }
 
+    // Regression: several narrow columns next to one wide column each hit the per-column floor.
+    // A plain `max(floor, share)` would add those floors on top of the wide column's full share
+    // and push the total past the page column (>100%), clipping the exported table. The
+    // reserve-floor-then-distribute formula must keep the sum inside the budget.
+    func testFitColumnPercentagesStayUnderBudgetWithManyNarrowColumns() {
+        let rows: [(cells: [String], isHeader: Bool)] = [
+            (["a", "b", "c", "d", "e"], true),
+            (["x", "y", "z", "w", String(repeating: "M", count: 100)], false)
+        ]
+        let pct = MarkdownPreviewRenderer.fitColumnPercentages(rows: rows, columns: 5)
+
+        XCTAssertEqual(pct.count, 5)
+        // Must never exceed the page column, and stays within the padding/border budget.
+        XCTAssertLessThanOrEqual(pct.reduce(0, +), 90)
+        // The wide last column still dominates; the four narrow ones keep a nonzero floor.
+        XCTAssertEqual(pct.firstIndex(of: pct.max()!), 4)
+        XCTAssertTrue(pct.allSatisfy { $0 > 0 })
+    }
+
     // Draws a view into a bitmap so a pixel can be sampled (used to assert the white page fill).
     private func renderToImage(_ view: NSView) -> NSBitmapImageRep {
         let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)!

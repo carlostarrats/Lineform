@@ -23,10 +23,14 @@ enum SidebarFileRenaming {
     }
 
     /// The rename target for a user-entered name, or nil when the name is empty,
-    /// unchanged, or contains a path separator ("/" or the legacy ":").
+    /// unchanged, contains a path separator ("/" or the legacy ":"), or is the reserved
+    /// relative component "." / ".." (which for a folder — no extension appended — would
+    /// resolve the destination to the parent directory, turning a rename into a move that
+    /// the file system rejects with a confusing raw error).
     static func validatedDestination(for url: URL, isDirectory: Bool, newDisplayName: String) -> URL? {
         let trimmed = newDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.contains("/"), !trimmed.contains(":") else {
+        guard !trimmed.isEmpty, !trimmed.contains("/"), !trimmed.contains(":"),
+              trimmed != ".", trimmed != ".." else {
             return nil
         }
 

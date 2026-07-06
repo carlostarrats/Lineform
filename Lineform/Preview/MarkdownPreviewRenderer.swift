@@ -235,7 +235,14 @@ struct MarkdownPreviewRenderer {
         // widths plus that fixed overhead stays within the page column.
         let budget: CGFloat = 88
         let floor: CGFloat = 100 / CGFloat(columns) * 0.25
-        return weights.map { max(floor, $0 / total * budget) }
+        // Give every column its floor first, then split the remaining budget proportionally by
+        // weight. This guarantees the total is exactly `budget` (never over) even when many narrow
+        // columns would each be raised to the floor — a plain `max(floor, share)` could otherwise
+        // sum past the page column and clip the table off the right margin. `floor * columns` is a
+        // constant 25 (floor = 25/columns), so `distributable` is always positive under `budget`.
+        let reserved = floor * CGFloat(columns)
+        let distributable = max(0, budget - reserved)
+        return weights.map { floor + ($0 / total) * distributable }
     }
 
     private func nsAlignment(_ alignment: MarkdownTableAlignment) -> NSTextAlignment {
