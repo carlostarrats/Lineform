@@ -33,7 +33,7 @@ enum ManualSaveIntentMonitor {
 enum AppMenuConfiguration {
     static let aboutCommandTitle = "About Lineform"
     static let settingsCommandTitle = "Settings…"
-    static let aboutVersionDisplay = "V1.1.1"
+    static let aboutVersionDisplay = "V1.2.0"
     static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
     static let saveCommandTitle = "Save"
     static let saveAsCommandTitle = "Save As..."
