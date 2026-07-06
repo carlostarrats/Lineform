@@ -1029,6 +1029,108 @@ extension OutlineSidebarViewTests {
         )
     }
 
+    // MARK: - Off-main scan (Task 5 escalation: the recursive walk must not block the main thread)
+
+    @MainActor
+    func testBackgroundScanDefersTheWalkOffTheMainThreadThenPublishes() throws {
+        // With background scanning, the recursive walk is dispatched off the main thread, so the
+        // published root does NOT update synchronously on the calling (main) thread — it fills in
+        // after the scan settles. This is what keeps the ~35ms+ walk from blocking typing.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder },
+            directoryRescanDebounce: 0,
+            runsScanInBackground: true
+        )
+
+        store.refreshICloud()
+        XCTAssertTrue(
+            store.iCloudRoot.items.isEmpty,
+            "the directory walk must run off the main thread, not block the caller synchronously"
+        )
+        waitUntil("background scan publishes the tree") {
+            store.iCloudRoot.items.map(\.name) == ["A.md"]
+        }
+    }
+
+    @MainActor
+    func testStaleScanApplyIsDroppedByGenerationGuard() throws {
+        // A background scan whose apply lands after a newer refresh started (older generation)
+        // must be discarded — otherwise a stale tree could clobber a fresher one.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try "# A".write(to: folder.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Synchronous default: refreshICloud() applies inline and advances the generation.
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in folder },
+            directoryRescanDebounce: 0
+        )
+        store.refreshICloud()
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["A.md"])
+
+        // A stale apply (an older generation than the current one) must be a no-op.
+        let staleItem = OutlineFileTreeItem(
+            url: folder.appendingPathComponent("STALE.md"), name: "STALE.md",
+            isDirectory: false, children: [], isHidden: false, createdAt: nil, modifiedAt: nil
+        )
+        store.applyICloudScan([staleItem], generation: store.iCloudScanGeneration - 1)
+        XCTAssertEqual(
+            store.iCloudRoot.items.map(\.name), ["A.md"],
+            "a stale (older-generation) scan apply must be dropped"
+        )
+
+        // A current-generation apply is honored (sanity: the guard isn't blocking everything).
+        store.applyICloudScan([staleItem], generation: store.iCloudScanGeneration)
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["STALE.md"])
+    }
+
+    // MARK: - Tree virtualization (flatten visible rows so a large tree renders lazily)
+
+    @MainActor
+    func testVisibleFileRowsFlattensTreeDepthFirstRespectingCollapse() {
+        func file(_ path: String) -> OutlineFileTreeItem {
+            OutlineFileTreeItem(url: URL(fileURLWithPath: path), name: (path as NSString).lastPathComponent,
+                                isDirectory: false, children: [])
+        }
+        func folder(_ path: String, _ kids: [OutlineFileTreeItem]) -> OutlineFileTreeItem {
+            OutlineFileTreeItem(url: URL(fileURLWithPath: path), name: (path as NSString).lastPathComponent,
+                                isDirectory: true, children: kids)
+        }
+        let folderA = folder("/w/A", [file("/w/A/a1.md"), file("/w/A/a2.md")])
+        let fileB = file("/w/B.md")
+        let items = [folderA, fileB]
+
+        // Fully expanded: parent before children, depths 1/2/2/1, order preserved.
+        let expanded = OutlineSidebarView.visibleFileRows(items, collapsedIDs: [])
+        XCTAssertEqual(expanded.map(\.item.name), ["A", "a1.md", "a2.md", "B.md"])
+        XCTAssertEqual(expanded.map(\.depth), [1, 2, 2, 1])
+
+        // Collapsing A drops its children from the flat list; A and B stay at depth 1.
+        let collapsed = OutlineSidebarView.visibleFileRows(items, collapsedIDs: [folderA.id])
+        XCTAssertEqual(collapsed.map(\.item.name), ["A", "B.md"])
+        XCTAssertEqual(collapsed.map(\.depth), [1, 1])
+    }
+
     @MainActor
     func testInitNeverRunsTheICloudScanEvenWithPersistedPreferences() {
         // @Published didSet observers DO fire for assignments made in init (they go

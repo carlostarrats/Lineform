@@ -156,3 +156,97 @@ mechanism — so it is not over-tested with a production-only rescan counter.
   reported symptom is a felt typing hitch on a large workspace. Unit tests prove the debounce
   mechanism (deferral / eventual correctness / cancel); the *felt* result must be confirmed
   in-app by the user on a many-file workspace.
+
+---
+
+## UPDATE 2026-07-05 (same day) — Option 2 proved INSUFFICIENT; escalated to Option 1 (off-main)
+
+**What happened:** the user felt-tested the shipped debounce on a real **4,321-file** workspace
+(57 folders, a 3,002-line doc). Verdict: *"Changing files is very slow in the sidebar. And then
+once in a file, typing or doing anything is extremely slow. If this was a released app as it is,
+it would be unusable."* The debounce did not fix the felt problem.
+
+**Root cause, re-investigated with evidence (systematic-debugging, not guessing):**
+- **Measured:** one `items(in:)` scan of 4,320 files = **~35 ms on the main thread** in an
+  isolated test process (worse in the real Debug app under editor/highlighter/Spotlight
+  contention). The scan always walks the FULL tree (depth 4, all folders) even though the
+  display is capped/collapsed.
+- **Trigger cadence (code map):** typing does no per-keystroke workspace work, but SwiftUI
+  DocumentGroup **autosave writes fire every ~1–2 s** during continuous typing. Each write lands
+  in the watched workspace → FSEvents → the debounced rescan. Because the 0.75 s debounce window
+  is **shorter than the ~1–2 s gap between autosave writes**, the timer expires *between* writes
+  and the scan fires **mid-typing**, every couple seconds. A debounce **cannot** fix this: the
+  trigger is periodic seconds apart, not continuous, so no interval both coalesces it and keeps
+  the tree fresh. File-switch is the same path (switching away from the dirty doc autosaves it →
+  scan ~0.75 s later).
+- **Conclusion:** the ~35 ms+ scan runs **synchronously on the main thread**, and Option 2 only
+  changed *when* it is triggered, never *where it runs*. The fix must take the scan **off the
+  main thread** — Option 1, the follow-up this very spec named. The user's QA is its trigger.
+
+**Fix (Option 1, additive to the retained debounce):** run `items(in:)` on a **background queue**
+and publish the results back on the main thread, mirroring `DocumentReloadController`'s existing
+background-read → main-publish pattern.
+- **Injectable `DirectoryScanScheduler`** (`(scan, publish) -> Void`), **defaulting to
+  SYNCHRONOUS** (`publish(scan())`). Concurrency is therefore **opt-in and explicit** at the one
+  production construction site (`OutlineFileBrowserStore()` in `OutlineSidebarView`), which passes
+  `backgroundScanScheduler()` (a serial `userInitiated` queue: `scan` off-main, `publish` on
+  main). Rationale for a synchronous *default* in this incident-prone, concurrency-sensitive
+  area: a future accidental construction gets correct-but-slower behavior, **never a race**; and
+  the entire existing store test suite stays byte-identical (tests keep asserting synchronously).
+- **Per-root latest-wins generation guard** (`workspaceScanGeneration` / `iCloudScanGeneration`,
+  bumped at each refresh entry): a background publish that arrives after a newer refresh has
+  started is discarded, so overlapping scans can't publish out of order.
+- **What stays on main (unchanged):** all the cheap guards (unassigned / disconnected / bookmark
+  re-resolution / iCloud availability) and `resolvedICloudDocumentsURL` assignment — only the
+  recursive `items(in:)` walk is dispatched off-main. The **held workspace security scope stays
+  lifetime-held** (a process-wide grant covers background reads — no transient start/stop, the
+  1.1.1 bug shape avoided); `FileManager` is used only for thread-safe read APIs (no delegate);
+  the publish guard, snapshot save, and `ensureDownloaded` still run on main in the publish step.
+- **Debounce retained:** it still coalesces bursts so we dispatch ONE background scan per burst
+  instead of piling scans on the serial queue.
+
+**Testing the escalation:** existing tests keep the synchronous default (byte-identical). New
+tests: (a) with a *deferring* scheduler, `refresh*` does not update the root until `publish` is
+invoked (proves the scan/publish seam), and a stale (older-generation) publish is dropped after a
+newer refresh; (b) `backgroundScanScheduler()` runs `scan` off the main thread and `publish` on
+it. Felt-smoothness on the 4,321-file workspace still requires the user's hands.
+
+---
+
+## UPDATE 2 2026-07-05 (same day) — off-main ALSO insufficient; profiler found the REAL cause: eager tree rendering
+
+**What happened:** the off-main scan build was felt-tested on the same 4,321-file workspace.
+Verdict: *"no change. changing files and typing are still really really slow."* So the scan —
+debounced OR off-main — was **never the bottleneck**. Two evidence-based fixes had now missed;
+per systematic-debugging, stop guessing and **measure the running app.**
+
+**Measurement (macOS `sample` profiler on the live app during interaction):** **71% of main-thread
+time (20,869 / 29,271 samples) was in `NSHostingView.layout()` → `ViewGraphRootValueUpdater.render`
+→ `AG::Subgraph::update`** — SwiftUI laying out the view tree. **Zero** TextKit/editor-text frames
+in the hot path. The cost scaled with **workspace size**, which only the sidebar file tree does.
+
+**Confirmed with a live A/B (user):** collapsing the folders in the sidebar made typing/switching
+**instantly normal**; expanding them brought the freeze back. Decisive.
+
+**Root cause (the real one):** the Files sidebar rendered the file tree with **recursive,
+NON-lazy `VStack`s** (`OutlineFileTreeNodeView` = `VStack { row; ForEach(children) { recurse } }`),
+and folders **default to expanded** (`collapsedIDs` starts empty). On a large workspace that is
+**~3,840 rows all laid out at once**, and SwiftUI **re-lays-out the whole set** on any interaction
+the tree depends on — a **file switch** (`currentFileURL` is passed to every row → every row
+re-evaluates `isSelected`) or a store republish. The directory scan (debounce + off-main) was a
+red herring for the FELT problem; it is still correct hygiene (a 35ms main-thread scan on a
+typing pause / file switch is worth avoiding), so it is **retained**, but it is not the fix.
+
+**Fix (the real one) — virtualize the tree:** flatten the currently-visible rows into one list
+(`OutlineSidebarView.visibleFileRows(_:collapsedIDs:)` → `[OutlineFileTreeFlatRow]`, depth-first,
+children only when expanded) and render it in a **`LazyVStack`**, so only the rows in the scroll
+viewport are laid out — fast whether the tree is collapsed OR fully expanded. `OutlineFileTreeNodeView`
+becomes a single flat row (its recursion removed); it keeps its own indentation-by-`depth`, collapse
+toggle, selection, hover, context menu, and accessibility, so **visuals + behavior are identical**.
+Pure `visibleFileRows` is unit-tested (order / depth / collapse). **Felt-confirmed by the user
+("performs fine … works well") on the 4,321-file workspace, folders fully expanded.**
+
+**Lesson:** measure before fixing. Two plausible, evidence-adjacent hypotheses (the scan is on the
+main thread; therefore debounce it, then move it off-main) were both wrong about the FELT symptom
+because the real cost was in a different subsystem (SwiftUI view layout). The `sample` profiler on
+the live app + a 15-second user A/B settled it in minutes after ~two fixes of thrashing.
