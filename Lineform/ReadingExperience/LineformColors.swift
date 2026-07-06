@@ -6,7 +6,7 @@ enum LineformColors {
     static let paperBackground = color(hex: 0xF6F3ED)
     static let calmBackground = color(hex: 0xF2F4F5)
     static let inspectorLightBackground = color(hex: 0xFDFDFD)
-    static let darkControlBackground = color(hex: 0x232323)
+    static let darkControlBackground = color(hex: 0x1A1A1A)
 
     private static func color(hex: Int) -> NSColor {
         NSColor(

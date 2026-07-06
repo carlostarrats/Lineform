@@ -421,7 +421,7 @@ struct EditorModeSegmentedControl: View {
                 .fill(.ultraThinMaterial)
                 .overlay {
                     Capsule()
-                        .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome).opacity(usesDarkChrome ? 0.86 : 0.82))
+                        .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome).opacity(usesDarkChrome ? 0.92 : 0.82))
                 }
                 .overlay {
                     Capsule()
