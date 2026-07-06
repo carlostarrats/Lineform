@@ -21,7 +21,8 @@ final class OutlineInfoContrastTests: XCTestCase {
     }
 
     private func explanationText(darkChrome: Bool) -> NSColor {
-        NSColor(calibratedWhite: darkChrome ? OutlineInfoTabView.explanationDarkWhiteComponent
+        // Dark reuses the sidebar's secondary (already AA); only light is overridden.
+        NSColor(calibratedWhite: darkChrome ? OutlineSidebarView.darkSecondaryTextWhiteComponent
                                             : OutlineInfoTabView.explanationLightWhiteComponent,
                 alpha: 1)
     }

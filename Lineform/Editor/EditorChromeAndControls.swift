@@ -4,7 +4,6 @@ struct EditorAuxiliaryPresentation: Equatable {
     enum Kind: Equatable {
         case nativeInspector
         case trailingDrawer
-        case centeredModal
     }
 
     var kind: Kind
@@ -31,13 +30,11 @@ struct EditorAuxiliaryPresentation: Equatable {
 enum EditorAuxiliaryPresenter: Equatable {
     case systemInspector
     case customLayout
-    case customOverlay
 }
 
 enum EditorAuxiliaryTransitionStyle: Equatable {
     case instant
     case systemInspector
-    case fadeAndMoveUp
     case slideAndFade
 }
 
