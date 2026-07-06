@@ -4,6 +4,7 @@ import SwiftUI
 enum OutlineSidebarTab: String, CaseIterable, Identifiable {
     case outline = "Outline"
     case files = "Files"
+    case info = "Info"
 
     var id: Self { self }
 }
@@ -349,9 +350,10 @@ struct OutlineSidebarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 tabPicker
 
-                if selectedTab == .outline {
+                switch selectedTab {
+                case .outline:
                     outlineContent
-                } else {
+                case .files:
                     OutlineFileBrowserView(
                         store: fileBrowserStore,
                         openFile: openFile,
@@ -404,6 +406,8 @@ struct OutlineSidebarView: View {
                             // the deferred-scan invariant.
                             fileBrowserStore.refreshRoots(affecting: notification.object as? URL)
                         }
+                case .info:
+                    OutlineInfoTabView(usesDarkChrome: usesDarkChrome)
                 }
             }
         }
@@ -481,14 +485,14 @@ struct OutlineSidebarView: View {
         usesDarkChrome ? .darkAqua : .aqua
     }
 
-    fileprivate static func primaryTextColor(usesDarkChrome: Bool) -> Color {
+    static func primaryTextColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome ? darkPrimaryTextWhiteComponent : primaryTextWhiteComponent,
             alpha: 1
         ))
     }
 
-    fileprivate static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
+    static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome ? darkSecondaryTextWhiteComponent : secondaryTextWhiteComponent,
             alpha: 1
@@ -628,6 +632,7 @@ private struct OutlineSidebarSegmentedControl: NSViewRepresentable {
         nsView.segmentDistribution = .fillEqually
         nsView.setWidth(0, forSegment: 0)
         nsView.setWidth(0, forSegment: 1)
+        nsView.setWidth(0, forSegment: 2)
         nsView.needsDisplay = true
     }
 
