@@ -293,8 +293,11 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertNil(EditorToolbarTogglePresentation.outerButtonWidth)
         XCTAssertLessThan(EditorToolbarTogglePresentation.lightChromeIconWhiteComponent, 0.35)
         XCTAssertGreaterThan(EditorToolbarTogglePresentation.darkChromeIconWhiteComponent, 0.75)
-        XCTAssertGreaterThan(EditorToolbarTogglePresentation.iconOpacity, 0)
-        XCTAssertLessThanOrEqual(EditorToolbarTogglePresentation.iconOpacity, 1)
+        XCTAssertGreaterThan(EditorToolbarTogglePresentation.iconOpacity(usesDarkChrome: false), 0)
+        XCTAssertLessThanOrEqual(EditorToolbarTogglePresentation.iconOpacity(usesDarkChrome: false), 1)
+        // Dark chrome renders the glyph at full strength so it matches the sidebar's opaque
+        // white symbols rather than reading as dimmed grey.
+        XCTAssertEqual(EditorToolbarTogglePresentation.iconOpacity(usesDarkChrome: true), 1)
     }
 
     func testToolbarPressedStateCoversInspectorButton() {

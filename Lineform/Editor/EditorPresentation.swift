@@ -54,15 +54,26 @@ enum EditorInspectorTextResponse {
 enum EditorToolbarTogglePresentation {
     static let usesNativeToolbarButtonShell = true
     static let outerButtonWidth: CGFloat? = nil
-    static let lightChromeIconWhiteComponent: CGFloat = 0.18
-    static let darkChromeIconWhiteComponent: CGFloat = 0.92
-    static let iconOpacity: CGFloat = 0.72
+    // Both tones match the sidebar's primary symbol so the Aa glyph reads as the SAME ink as
+    // the side-nav symbols in every theme: light chrome uses OutlineSidebarView.primaryText
+    // (0.16, near-black), dark chrome uses darkPrimaryText (0.90, white).
+    static let lightChromeIconWhiteComponent: CGFloat = 0.16
+    static let darkChromeIconWhiteComponent: CGFloat = 0.90
+    // Rendered at FULL strength in every theme. The old 0.72 dimming made the glyph composite
+    // to a lighter grey than the sidebar symbols — dark grey on the dark toolbar, medium grey
+    // on the light page — so it never matched the opaque side-nav symbols (QA 2026-07-06).
+    static let lightChromeIconOpacity: CGFloat = 1.0
+    static let darkChromeIconOpacity: CGFloat = 1.0
 
     static func offIconColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome ? darkChromeIconWhiteComponent : lightChromeIconWhiteComponent,
             alpha: 1
         ))
+    }
+
+    static func iconOpacity(usesDarkChrome: Bool) -> CGFloat {
+        usesDarkChrome ? darkChromeIconOpacity : lightChromeIconOpacity
     }
 }
 
@@ -99,7 +110,7 @@ struct EditorToolbarIcon: View {
         Image(systemName: systemImage)
             .foregroundStyle(
                 EditorToolbarTogglePresentation.offIconColor(usesDarkChrome: usesDarkChrome)
-                    .opacity(EditorToolbarTogglePresentation.iconOpacity)
+                    .opacity(EditorToolbarTogglePresentation.iconOpacity(usesDarkChrome: usesDarkChrome))
             )
     }
 }
