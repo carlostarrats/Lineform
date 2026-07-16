@@ -5,6 +5,7 @@ struct EditorContainerView: View {
     @Binding var document: LineformDocument
     @StateObject private var readingProfileStore: ReadingProfileStore
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
+    @StateObject private var tabStore: EditorTabStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
     @State private var isShowingSettings = false
@@ -38,6 +39,7 @@ struct EditorContainerView: View {
     /// Set when a PDF export write fails, driving a native in-window `.alert` (no app-icon
     /// NSAlert). Holds the destination file name for the message.
     @State private var pdfExportErrorFileName: String?
+    @State private var tabCloseDialog: TabCloseDialog?
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
     /// Held so the sidebar (Files tab) observes the SAME store this window was built
@@ -52,6 +54,7 @@ struct EditorContainerView: View {
     ) {
         _document = document
         _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
+        _tabStore = StateObject(wrappedValue: EditorTabStore(initialDocument: document.wrappedValue))
         injectedFileBrowserStore = fileBrowserStore
         self.settings = settings
         // New windows open with the sidebar in the user's preferred launch state
@@ -82,7 +85,18 @@ struct EditorContainerView: View {
                     max: OutlineSidebarView.maximumColumnWidth
                 )
         } detail: {
-            editorShell
+            VStack(spacing: 0) {
+                if tabStore.shouldShowTabBar {
+                    TabBarView(
+                        tabStore: tabStore,
+                        documentSaveStatus: documentSaveStatus,
+                        usesDarkChrome: currentTheme.usesDarkChrome,
+                        onSelectTab: switchToTab,
+                        onCloseTab: requestCloseTab
+                    )
+                }
+                editorShell
+            }
         }
         .navigationSplitViewStyle(.balanced)
         // A single native SwiftUI alert (title + message + text field + buttons) — the
@@ -127,7 +141,25 @@ struct EditorContainerView: View {
         ) { _ in
             Button("OK", role: .cancel) { pdfExportErrorFileName = nil }
         } message: { fileName in
-            Text("Lineform couldn’t write “\(fileName)”. Choose a different location and try again.")
+            Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
+        }
+        .alert(
+            "Close Tab",
+            isPresented: Binding(
+                get: { tabCloseDialog != nil },
+                set: { if !$0 { tabCloseDialog = nil } }
+            ),
+            presenting: tabCloseDialog
+        ) { dialog in
+            Button("Cancel", role: .cancel) {
+                tabCloseDialog = nil
+            }
+            .keyboardShortcut(.defaultAction)
+            Button("Don't Save", role: .destructive) {
+                confirmCloseTab(id: dialog.tabID)
+            }
+        } message: { dialog in
+            Text("Do you want to save changes to \u{201C}\(dialog.tabTitle)\u{201D} before closing?")
         }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
@@ -196,6 +228,7 @@ struct EditorContainerView: View {
         }
         .onChange(of: displayMode) { _, mode in
             LineformDisplayModeMenuState.shared.setDisplayMode(mode)
+            tabStore.updateActiveTabDisplayMode(mode)
             // Settle any pending debounced work so the outline/count are correct the
             // instant the user switches modes (rather than a debounce interval later).
             flushDerivedRefresh()
@@ -235,11 +268,34 @@ struct EditorContainerView: View {
             guard notificationMatchesActiveWindow(notification) else { return }
             exportCurrentDocumentAsPDF()
         }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.newTab.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            createNewTab()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.closeTab.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            requestCloseTab()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.selectNextTab.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            tabStore.selectNextTab()
+            activateSelectedTab()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.selectPreviousTab.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            tabStore.selectPreviousTab()
+            activateSelectedTab()
+        }
+        .onChange(of: tabStore.selectedTabID) { _, newID in
+            guard newID != nil else { return }
+            activateSelectedTab()
+        }
         .onChange(of: currentFileURL) { _, newValue in
             // Keep the File-menu Rename…/Delete… enabled state tracking the key window.
             if activeWindow?.isKeyWindow == true {
                 LineformCurrentFileMenuState.shared.setCurrentFileURL(newValue)
             }
+            tabStore.updateActiveTabFileURL(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             guard (notification.object as? NSWindow)?.windowNumber == windowNumber else {
@@ -319,6 +375,7 @@ struct EditorContainerView: View {
             // An edit means the next write is an autosave of this change, not the
             // earlier ⌘S/Save As — so a still-pending manual intent no longer applies.
             documentSaveStatus.noteUserEdit()
+            tabStore.updateActiveTab(document: document)
             // Heavy full-document work (count/outline/search) is coalesced to run once
             // after a brief typing pause instead of on every keystroke.
             scheduleDerivedRefresh(for: newValue)
@@ -711,11 +768,86 @@ struct EditorContainerView: View {
     }
 
     private func openSidebarFile(_ url: URL) {
-        LineformSidebarFileOpener.open(
-            url,
-            replacing: activeWindow,
-            updateEditorDocument: replaceDocumentFromSidebar
-        )
+        if let existingIndex = tabStore.tabIndex(for: url) {
+            tabStore.selectTab(id: tabStore.tabs[existingIndex].id)
+            return
+        }
+        do {
+            let loadedDocument = try LineformDocument(contentsOf: url)
+            let tabID = tabStore.openTab(document: loadedDocument, fileURL: url)
+            if tabID != tabStore.tabs.first(where: { $0.fileURL == url })?.id {
+                // New tab was created; it's already selected by openTab
+            }
+        } catch {
+            return
+        }
+    }
+
+    private func switchToTab(id: UUID) {
+        guard id != tabStore.selectedTabID else { return }
+        tabStore.snapshotActiveTab()
+        tabStore.selectTab(id: id)
+    }
+
+    private func activateSelectedTab() {
+        guard let tab = tabStore.selectedTab else { return }
+        resetTransientDocumentState()
+        document = tab.document
+        displayMode = tab.displayMode
+        recomputeDerivedNow(for: tab.document.text)
+
+        guard let backingDocument = activeWindow?.windowController?.document as? NSDocument else { return }
+        backingDocument.fileURL = tab.fileURL
+        backingDocument.fileType = tab.fileURL.map { LineformDocument.contentType(for: $0).identifier }
+        backingDocument.fileModificationDate = tab.fileURL.flatMap { LineformDocument.modificationDate(at: $0) }
+        backingDocument.undoManager?.removeAllActions()
+        backingDocument.updateChangeCount(.changeCleared)
+
+        activeWindow?.representedURL = tab.fileURL
+        activeWindow?.setTitleWithRepresentedFilename(tab.fileURL?.path ?? tab.title)
+        activeWindow?.isDocumentEdited = false
+
+        DispatchQueue.main.async { [weak backingDocument, weak window = activeWindow] in
+            backingDocument?.undoManager?.removeAllActions()
+            backingDocument?.updateChangeCount(.changeCleared)
+            window?.isDocumentEdited = false
+        }
+
+        registerReloadWatcher()
+        LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
+        LineformDisplayModeMenuState.shared.setDisplayMode(displayMode)
+    }
+
+    private func requestCloseTab(id: UUID? = nil) {
+        let targetID = id ?? tabStore.selectedTabID
+        guard let targetID, let tabIndex = tabStore.tabs.firstIndex(where: { $0.id == targetID }) else { return }
+        let tab = tabStore.tabs[tabIndex]
+        let isDirty = documentSaveStatus.isDirty(documentID: tab.document.id, currentText: tab.document.text)
+
+        if isDirty {
+            tabCloseDialog = TabCloseDialog(tabID: targetID, tabTitle: tab.title)
+        } else {
+            performCloseTab(id: targetID)
+        }
+    }
+
+    private func performCloseTab(id: UUID) {
+        tabStore.closeTab(id: id)
+        if tabStore.tabs.isEmpty {
+            activeWindow?.performClose(nil)
+        } else {
+            activateSelectedTab()
+        }
+    }
+
+    private func confirmCloseTab(id: UUID) {
+        tabCloseDialog = nil
+        performCloseTab(id: id)
+    }
+
+    private func createNewTab() {
+        let newDocument = LineformDocument()
+        tabStore.openTab(document: newDocument)
     }
 
     private func renameSidebarItem(at url: URL, isDirectory: Bool) {
@@ -1205,4 +1337,10 @@ private extension View {
             self
         }
     }
+}
+
+struct TabCloseDialog: Identifiable {
+    let id = UUID()
+    let tabID: UUID
+    let tabTitle: String
 }

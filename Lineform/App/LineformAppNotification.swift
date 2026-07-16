@@ -17,6 +17,10 @@ enum LineformAppNotification {
     case deleteCurrentFile
     case printDocument
     case exportPDF
+    case newTab
+    case closeTab
+    case selectNextTab
+    case selectPreviousTab
 
     var name: Notification.Name {
         switch self {
@@ -50,6 +54,14 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.printDocument")
         case .exportPDF:
             return Notification.Name("Lineform.exportPDF")
+        case .newTab:
+            return Notification.Name("Lineform.newTab")
+        case .closeTab:
+            return Notification.Name("Lineform.closeTab")
+        case .selectNextTab:
+            return Notification.Name("Lineform.selectNextTab")
+        case .selectPreviousTab:
+            return Notification.Name("Lineform.selectPreviousTab")
         }
     }
 

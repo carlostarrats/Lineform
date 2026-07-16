@@ -8,6 +8,7 @@ struct LineformApp: App {
 
     init() {
         BundledFontRegistrar.registerFonts()
+        NSWindow.allowsAutomaticWindowTabbing = false
     }
 
     var body: some Scene {

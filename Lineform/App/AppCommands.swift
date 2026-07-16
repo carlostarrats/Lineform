@@ -431,6 +431,30 @@ struct AppCommands: Commands {
             )
         }
 
+        CommandGroup(after: .pasteboard) {
+            Button("New Tab") {
+                LineformAppNotification.newTab.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut("t", modifiers: .command)
+
+            Button("Close Tab") {
+                LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut("w", modifiers: .command)
+
+            Divider()
+
+            Button("Select Next Tab") {
+                LineformAppNotification.selectNextTab.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut("]", modifiers: .command)
+
+            Button("Select Previous Tab") {
+                LineformAppNotification.selectPreviousTab.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut("[", modifiers: .command)
+        }
+
         CommandGroup(replacing: .help) {
             EmptyView()
         }

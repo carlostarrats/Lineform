@@ -118,6 +118,9 @@
 		1F0000010000000000000202 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000001 /* Sparkle */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
 		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
+		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
+		1F00000100000000000003A2 /* EditorTabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A2 /* EditorTabStore.swift */; };
+		1F00000100000000000003A3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A3 /* TabBarView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -241,8 +244,11 @@
 		1F0000020000000000000143 /* EditorChromeAndControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorChromeAndControls.swift; sourceTree = "<group>"; };
 		1F0000020000000000000144 /* MarkdownHeadingParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingParser.swift; sourceTree = "<group>"; };
 		1F0000020000000000000148 /* EditorFloatingControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFloatingControlSupport.swift; sourceTree = "<group>"; };
-		1F0000020000000000000201 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+ 		1F0000020000000000000201 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
+ 		1F00000200000000000003A1 /* DocumentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTab.swift; sourceTree = "<group>"; };
+ 		1F00000200000000000003A2 /* EditorTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStore.swift; sourceTree = "<group>"; };
+ 		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
+ /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		1F0000060000000000000001 /* Frameworks */ = {
@@ -325,12 +331,15 @@
 		};
 		1F0000070000000000000013 /* Editor */ = {
 			isa = PBXGroup;
-			children = (
-				1F0000020000000000000014 /* EditorContainerView.swift */,
-				1F0000020000000000000143 /* EditorChromeAndControls.swift */,
-				1F0000020000000000000148 /* EditorFloatingControlSupport.swift */,
-				1F0000020000000000000074 /* EditorDisplayMode.swift */,
-				1F0000020000000000000142 /* EditorPresentation.swift */,
+ 			children = (
+ 				1F0000020000000000000014 /* EditorContainerView.swift */,
+ 				1F0000020000000000000143 /* EditorChromeAndControls.swift */,
+ 				1F0000020000000000000148 /* EditorFloatingControlSupport.swift */,
+ 				1F0000020000000000000074 /* EditorDisplayMode.swift */,
+ 				1F00000200000000000003A1 /* DocumentTab.swift */,
+ 				1F00000200000000000003A2 /* EditorTabStore.swift */,
+ 				1F00000200000000000003A3 /* TabBarView.swift */,
+ 				1F0000020000000000000142 /* EditorPresentation.swift */,
 				1F0000020000000000000140 /* EditorSearchResolver.swift */,
 				1F0000020000000000000141 /* EditorStatusPresentation.swift */,
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
@@ -619,8 +628,11 @@
 				1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */,
 				1F0000010000000000000064 /* ReadingAssistRangeResolver.swift in Sources */,
 				1F0000010000000000000065 /* LineformAppNotification.swift in Sources */,
-				1F0000010000000000000074 /* EditorDisplayMode.swift in Sources */,
-				1F0000010000000000000144 /* MarkdownHeadingParser.swift in Sources */,
+ 				1F0000010000000000000074 /* EditorDisplayMode.swift in Sources */,
+ 				1F00000100000000000003A1 /* DocumentTab.swift in Sources */,
+ 				1F00000100000000000003A2 /* EditorTabStore.swift in Sources */,
+ 				1F00000100000000000003A3 /* TabBarView.swift in Sources */,
+ 				1F0000010000000000000144 /* MarkdownHeadingParser.swift in Sources */,
 				1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */,
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */,
