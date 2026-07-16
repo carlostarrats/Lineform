@@ -121,17 +121,27 @@
 		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
 		1F00000100000000000003A2 /* EditorTabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A2 /* EditorTabStore.swift */; };
 		1F00000100000000000003A3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A3 /* TabBarView.swift */; };
+		1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */; };
+		1F00000100000000000004A2 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A2 /* Info.plist */; };
+		1F00000100000000000004A3 /* LineformQuickLook.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A3 /* LineformQuickLook.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		1F0000030000000000000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 1F0000040000000000000001 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 1F0000050000000000000001;
-			remoteInfo = Lineform;
-		};
-/* End PBXContainerItemProxy section */
+ /* Begin PBXContainerItemProxy section */
+ 		1F0000030000000000000001 /* PBXContainerItemProxy */ = {
+ 			isa = PBXContainerItemProxy;
+ 			containerPortal = 1F0000040000000000000001 /* Project object */;
+ 			proxyType = 1;
+ 			remoteGlobalIDString = 1F0000050000000000000001;
+ 			remoteInfo = Lineform;
+ 		};
+ 		1F0000030000000000000002 /* PBXContainerItemProxy */ = {
+ 			isa = PBXContainerItemProxy;
+ 			containerPortal = 1F0000040000000000000001 /* Project object */;
+ 			proxyType = 1;
+ 			remoteGlobalIDString = 1F0000050000000000000003;
+ 			remoteInfo = LineformQuickLook;
+ 		};
+ /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		1F0000020000000000000001 /* LineformDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocumentTests.swift; sourceTree = "<group>"; };
@@ -248,6 +258,10 @@
  		1F00000200000000000003A1 /* DocumentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTab.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A2 /* EditorTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStore.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
+ 		1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewProvider.swift; sourceTree = "<group>"; };
+ 		1F00000200000000000004A2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+ 		1F00000200000000000004A3 /* LineformQuickLook.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LineformQuickLook.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+ 		1F00000200000000000004A4 /* LineformQuickLook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformQuickLook.entitlements; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -261,25 +275,33 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1F0000060000000000000002 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
+ 		1F0000060000000000000002 /* Frameworks */ = {
+ 			isa = PBXFrameworksBuildPhase;
+ 			buildActionMask = 2147483647;
+ 			files = (
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ 		1F0000060000000000000003 /* Frameworks */ = {
+ 			isa = PBXFrameworksBuildPhase;
+ 			buildActionMask = 2147483647;
+ 			files = (
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		1F0000070000000000000001 = {
-			isa = PBXGroup;
-			children = (
-				1F0000070000000000000002 /* Lineform */,
-				1F0000070000000000000003 /* LineformTests */,
-				1F0000070000000000000004 /* Products */,
-			);
-			sourceTree = "<group>";
-		};
+ 		1F0000070000000000000001 = {
+ 			isa = PBXGroup;
+ 			children = (
+ 				1F0000070000000000000002 /* Lineform */,
+ 				1F0000070000000000000003 /* LineformTests */,
+ 				1F0000070000000000000005 /* LineformQuickLook */,
+ 				1F0000070000000000000004 /* Products */,
+ 			);
+ 			sourceTree = "<group>";
+ 		};
 		1F0000070000000000000002 /* Lineform */ = {
 			isa = PBXGroup;
 			children = (
@@ -467,33 +489,46 @@
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
 				1F0000020000000000000235 /* DiagramReportServiceTests.swift */,
 			);
-			path = LineformTests;
-			sourceTree = "<group>";
-		};
-		1F0000070000000000000004 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				1F0000020000000000000004 /* Lineform.app */,
-				1F0000020000000000000005 /* LineformTests.xctest */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
+ 			path = LineformTests;
+ 			sourceTree = "<group>";
+ 		};
+ 		1F0000070000000000000005 /* LineformQuickLook */ = {
+ 			isa = PBXGroup;
+ 			children = (
+ 				1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */,
+ 				1F00000200000000000004A2 /* Info.plist */,
+ 				1F00000200000000000004A4 /* LineformQuickLook.entitlements */,
+ 			);
+ 			path = LineformQuickLook;
+ 			sourceTree = "<group>";
+ 		};
+ 		1F0000070000000000000004 /* Products */ = {
+ 			isa = PBXGroup;
+ 			children = (
+ 				1F0000020000000000000004 /* Lineform.app */,
+ 				1F0000020000000000000005 /* LineformTests.xctest */,
+ 				1F00000200000000000004A3 /* LineformQuickLook.appex */,
+ 			);
+ 			name = Products;
+ 			sourceTree = "<group>";
+ 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1F0000050000000000000001 /* Lineform */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 1F0000080000000000000001 /* Build configuration list for PBXNativeTarget "Lineform" */;
-			buildPhases = (
-				1F0000090000000000000001 /* Sources */,
-				1F0000060000000000000001 /* Frameworks */,
-				1F0000100000000000000001 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
+ 		1F0000050000000000000001 /* Lineform */ = {
+ 			isa = PBXNativeTarget;
+ 			buildConfigurationList = 1F0000080000000000000001 /* Build configuration list for PBXNativeTarget "Lineform" */;
+ 			buildPhases = (
+ 				1F0000090000000000000001 /* Sources */,
+ 				1F0000060000000000000001 /* Frameworks */,
+ 				1F0000100000000000000001 /* Resources */,
+ 				1F0000150000000000000001 /* Embed Extensions */,
+ 			);
+ 			buildRules = (
+ 			);
+ 			dependencies = (
+ 				1F0000110000000000000002 /* PBXTargetDependency */,
+ 			);
 			name = Lineform;
 			packageProductDependencies = (
 				1F0000130000000000000001 /* Sparkle */,
@@ -518,11 +553,28 @@
 				1F0000110000000000000001 /* PBXTargetDependency */,
 			);
 			name = LineformTests;
-			productName = LineformTests;
-			productReference = 1F0000020000000000000005 /* LineformTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-/* End PBXNativeTarget section */
+ 			productName = LineformTests;
+ 			productReference = 1F0000020000000000000005 /* LineformTests.xctest */;
+ 			productType = "com.apple.product-type.bundle.unit-test";
+ 		};
+ 		1F0000050000000000000003 /* LineformQuickLook */ = {
+ 			isa = PBXNativeTarget;
+ 			buildConfigurationList = 1F0000080000000000000004 /* Build configuration list for PBXNativeTarget "LineformQuickLook" */;
+ 			buildPhases = (
+ 				1F0000090000000000000003 /* Sources */,
+ 				1F0000060000000000000003 /* Frameworks */,
+ 				1F0000100000000000000003 /* Resources */,
+ 			);
+ 			buildRules = (
+ 			);
+ 			dependencies = (
+ 			);
+ 			name = LineformQuickLook;
+ 			productName = LineformQuickLook;
+ 			productReference = 1F00000200000000000004A3 /* LineformQuickLook.appex */;
+ 			productType = "com.apple.product-type.app-extension";
+ 		};
+ /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		1F0000040000000000000001 /* Project object */ = {
@@ -563,10 +615,11 @@
 			productRefGroup = 1F0000070000000000000004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (
-				1F0000050000000000000001 /* Lineform */,
-				1F0000050000000000000002 /* LineformTests */,
-			);
+ 			targets = (
+ 				1F0000050000000000000001 /* Lineform */,
+ 				1F0000050000000000000002 /* LineformTests */,
+ 				1F0000050000000000000003 /* LineformQuickLook */,
+ 			);
 		};
 /* End PBXProject section */
 
@@ -586,14 +639,36 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1F0000100000000000000002 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
+ 		1F0000100000000000000002 /* Resources */ = {
+ 			isa = PBXResourcesBuildPhase;
+ 			buildActionMask = 2147483647;
+ 			files = (
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ 		1F0000100000000000000003 /* Resources */ = {
+ 			isa = PBXResourcesBuildPhase;
+ 			buildActionMask = 2147483647;
+ 			files = (
+ 				1F00000100000000000004A2 /* Info.plist in Resources */,
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+ 		1F0000150000000000000001 /* Embed Extensions */ = {
+ 			isa = PBXCopyFilesBuildPhase;
+ 			buildActionMask = 2147483647;
+ 			dstPath = "";
+ 			dstSubfolderSpec = 13;
+ 			files = (
+ 				1F00000100000000000004A3 /* LineformQuickLook.appex in Embed Extensions */,
+ 			);
+ 			name = "Embed Extensions";
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1F0000090000000000000001 /* Sources */ = {
@@ -708,17 +783,30 @@
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
 				1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXSourcesBuildPhase section */
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ 		1F0000090000000000000003 /* Sources */ = {
+ 			isa = PBXSourcesBuildPhase;
+ 			buildActionMask = 2147483647;
+ 			files = (
+ 				1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */,
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+ /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		1F0000110000000000000001 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 1F0000050000000000000001 /* Lineform */;
-			targetProxy = 1F0000030000000000000001 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
+ /* Begin PBXTargetDependency section */
+ 		1F0000110000000000000001 /* PBXTargetDependency */ = {
+ 			isa = PBXTargetDependency;
+ 			target = 1F0000050000000000000001 /* Lineform */;
+ 			targetProxy = 1F0000030000000000000001 /* PBXContainerItemProxy */;
+ 		};
+ 		1F0000110000000000000002 /* PBXTargetDependency */ = {
+ 			isa = PBXTargetDependency;
+ 			target = 1F0000050000000000000003 /* LineformQuickLook */;
+ 			targetProxy = 1F0000030000000000000002 /* PBXContainerItemProxy */;
+ 		};
+ /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1F0000120000000000000001 /* Debug */ = {
@@ -910,9 +998,55 @@
 				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lineform.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Lineform";
 			};
-			name = Release;
-		};
-/* End XCBuildConfiguration section */
+ 			name = Release;
+ 		};
+ 		1F0000120000000000000007 /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+ 			buildSettings = {
+ 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
+ 				CODE_SIGN_STYLE = Automatic;
+ 				DEVELOPMENT_TEAM = "";
+ 				GENERATE_INFOPLIST_FILE = YES;
+ 				INFOPLIST_FILE = LineformQuickLook/Info.plist;
+ 				INFOPLIST_KEY_CFBundleDisplayName = "Lineform Quick Look";
+ 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/../Frameworks",
+ 					"@executable_path/../../../../Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
+ 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug.quicklook;
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				SKIP_INSTALL = YES;
+ 				SWIFT_VERSION = 6.0;
+ 			};
+ 			name = Debug;
+ 		};
+ 		1F0000120000000000000008 /* Release */ = {
+ 			isa = XCBuildConfiguration;
+ 			buildSettings = {
+ 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
+ 				CODE_SIGN_STYLE = Automatic;
+ 				DEVELOPMENT_TEAM = "";
+ 				GENERATE_INFOPLIST_FILE = YES;
+ 				INFOPLIST_FILE = LineformQuickLook/Info.plist;
+ 				INFOPLIST_KEY_CFBundleDisplayName = "Lineform Quick Look";
+ 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/../Frameworks",
+ 					"@executable_path/../../../../Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
+ 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.quicklook;
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				SKIP_INSTALL = YES;
+ 				SWIFT_VERSION = 6.0;
+ 			};
+ 			name = Release;
+ 		};
+ /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		1F0000080000000000000001 /* Build configuration list for PBXNativeTarget "Lineform" */ = {
@@ -933,16 +1067,25 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1F0000080000000000000003 /* Build configuration list for PBXProject "Lineform" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				1F0000120000000000000001 /* Debug */,
-				1F0000120000000000000002 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-/* End XCConfigurationList section */
+ 		1F0000080000000000000003 /* Build configuration list for PBXProject "Lineform" */ = {
+ 			isa = XCConfigurationList;
+ 			buildConfigurations = (
+ 				1F0000120000000000000001 /* Debug */,
+ 				1F0000120000000000000002 /* Release */,
+ 			);
+ 			defaultConfigurationIsVisible = 0;
+ 			defaultConfigurationName = Release;
+ 		};
+ 		1F0000080000000000000004 /* Build configuration list for PBXNativeTarget "LineformQuickLook" */ = {
+ 			isa = XCConfigurationList;
+ 			buildConfigurations = (
+ 				1F0000120000000000000007 /* Debug */,
+ 				1F0000120000000000000008 /* Release */,
+ 			);
+ 			defaultConfigurationIsVisible = 0;
+ 			defaultConfigurationName = Release;
+ 		};
+ /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
