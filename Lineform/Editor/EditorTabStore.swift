@@ -31,6 +31,7 @@ final class EditorTabStore: ObservableObject {
         return tabs.firstIndex { $0.fileURL?.standardizedFileURL == standardized }
     }
 
+    @discardableResult
     func openTab(document: LineformDocument, fileURL: URL? = nil, displayMode: EditorDisplayMode = .write) -> UUID {
         if let existingIndex = fileURL.flatMap({ tabIndex(for: $0) }) {
             selectedTabID = tabs[existingIndex].id
@@ -59,6 +60,7 @@ final class EditorTabStore: ObservableObject {
         selectedTabID = tabs[prevIndex].id
     }
 
+    @discardableResult
     func closeTab(id: UUID) -> DocumentTab? {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return nil }
         let removed = tabs.remove(at: index)
@@ -92,6 +94,33 @@ final class EditorTabStore: ObservableObject {
         guard let index = selectedTabIndex else { return }
         tabs[index].document = currentDocumentProvider?() ?? tabs[index].document
         currentDisplayModeProvider.map { tabs[index].displayMode = $0() }
+    }
+
+    /// Updates the file URL for every tab whose URL matches (or lives under) the rename.
+    func retargetFileURL(from source: URL, to destination: URL, isDirectory: Bool) {
+        let sourcePath = source.standardizedFileURL.path
+        let destPath = destination.standardizedFileURL.path
+        for index in tabs.indices {
+            guard let url = tabs[index].fileURL else { continue }
+            let targetPath = url.standardizedFileURL.path
+            if targetPath == sourcePath {
+                tabs[index].fileURL = destination
+            } else if isDirectory, targetPath.hasPrefix(sourcePath + "/") {
+                let suffix = String(targetPath.dropFirst(sourcePath.count))
+                tabs[index].fileURL = URL(fileURLWithPath: destPath + suffix)
+            }
+        }
+    }
+
+    /// Clears the file URL for every tab pointing at the deleted file.
+    func markFileDeleted(_ url: URL) {
+        let deletedPath = url.standardizedFileURL.path
+        for index in tabs.indices {
+            guard let tabURL = tabs[index].fileURL else { continue }
+            if tabURL.standardizedFileURL.path == deletedPath {
+                tabs[index].fileURL = nil
+            }
+        }
     }
 
     var currentDocumentProvider: (() -> LineformDocument)?

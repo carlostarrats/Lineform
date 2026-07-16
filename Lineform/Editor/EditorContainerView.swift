@@ -40,6 +40,10 @@ struct EditorContainerView: View {
     /// NSAlert). Holds the destination file name for the message.
     @State private var pdfExportErrorFileName: String?
     @State private var tabCloseDialog: TabCloseDialog?
+    /// Coordinates saving a dirty tab before closing it.
+    @State private var saveAndCloseCoordinator: SaveAndCloseCoordinator?
+    /// Intercepts window close to guard against losing non-active dirty tabs.
+    @State private var windowCloseController: WindowCloseController?
 
     private let injectedFileBrowserStore: OutlineFileBrowserStore?
     /// Held so the sidebar (Files tab) observes the SAME store this window was built
@@ -151,10 +155,13 @@ struct EditorContainerView: View {
             ),
             presenting: tabCloseDialog
         ) { dialog in
+            Button("Save", role: .none) {
+                saveAndCloseTab(id: dialog.tabID)
+            }
+            .keyboardShortcut(.defaultAction)
             Button("Cancel", role: .cancel) {
                 tabCloseDialog = nil
             }
-            .keyboardShortcut(.defaultAction)
             Button("Don't Save", role: .destructive) {
                 confirmCloseTab(id: dialog.tabID)
             }
@@ -325,11 +332,13 @@ struct EditorContainerView: View {
             else {
                 return
             }
-            // This window's document just moved on disk (file rename, or an ancestor
-            // folder rename). Follow it so the title bar, autosave target, selection
-            // highlight, and reload watcher all track the new location. The reload watcher
-            // is re-pointed with noteMoved — NOT registerReloadWatcher/register, whose
-            // new-URL path resets the synced baseline to the live text and would bless
+            // Retarget ALL tabs that point to the moved file or any descendant of a moved
+            // folder, so switching tabs later does not try to autosave to a stale path.
+            tabStore.retargetFileURL(from: payload.from, to: payload.to, isDirectory: payload.isDirectory)
+            // This window's active document follows the rename so the title bar, autosave
+            // target, selection highlight, and reload watcher all track the new location.
+            // The reload watcher is re-pointed with noteMoved — NOT registerReloadWatcher/register,
+            // whose new-URL path resets the synced baseline to the live text and would bless
             // unsaved edits as synced (letting a later external write clobber them).
             backingDocument.fileURL = newURL
             backingDocument.fileModificationDate = LineformDocument.modificationDate(at: newURL)
@@ -346,9 +355,10 @@ struct EditorContainerView: View {
             else {
                 return
             }
-            // The file is in the Trash; keep the text in the window as unsaved content
-            // (nothing is lost — the next save prompts for a location). Without this,
-            // the next autosave would silently resurrect the file the user just deleted.
+            // Clear the file URL for ALL tabs that pointed at this deleted file, so they
+            // become untitled-with-content and the next save prompts for a location.
+            tabStore.markFileDeleted(deletedURL)
+            // The file is in the Trash; keep the text in the window as unsaved content.
             backingDocument.fileURL = nil
             backingDocument.updateChangeCount(.changeDone)
             activeWindow?.representedURL = nil
@@ -382,6 +392,7 @@ struct EditorContainerView: View {
         }
         .onChange(of: windowNumber) { _, _ in
             registerReloadWatcher()
+            installWindowCloseControllerIfNeeded()
         }
         .onChange(of: reloadController.lastReload) { _, result in
             guard let result else { return }
@@ -404,6 +415,11 @@ struct EditorContainerView: View {
             reloadController.stop()
             // Drop any pending derived-refresh work for a window that's going away.
             pendingDerivedRefresh?.cancel()
+            // Restore the original window delegate if our intercept is still installed.
+            if let controller = windowCloseController, controller.window?.delegate === controller {
+                controller.window?.delegate = controller.originalDelegate
+            }
+            windowCloseController = nil
         }
         .onChange(of: searchQuery) { _, _ in
             refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
@@ -774,10 +790,13 @@ struct EditorContainerView: View {
         }
         do {
             let loadedDocument = try LineformDocument(contentsOf: url)
-            let tabID = tabStore.openTab(document: loadedDocument, fileURL: url)
-            if tabID != tabStore.tabs.first(where: { $0.fileURL == url })?.id {
-                // New tab was created; it's already selected by openTab
-            }
+            let modificationDate = LineformDocument.modificationDate(at: url) ?? Date()
+            DocumentSaveStatus.shared.markSaved(
+                documentID: loadedDocument.id,
+                at: modificationDate,
+                text: loadedDocument.text
+            )
+            tabStore.openTab(document: loadedDocument, fileURL: url)
         } catch {
             return
         }
@@ -791,26 +810,50 @@ struct EditorContainerView: View {
 
     private func activateSelectedTab() {
         guard let tab = tabStore.selectedTab else { return }
+
+        guard let backingDocument = activeWindow?.windowController?.document as? NSDocument else {
+            // No backing document yet (view appearing before window bind); just load the tab state.
+            resetTransientDocumentState()
+            document = tab.document
+            displayMode = tab.displayMode
+            recomputeDerivedNow(for: tab.document.text)
+            LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
+            LineformDisplayModeMenuState.shared.setDisplayMode(displayMode)
+            return
+        }
+
+        // Repoint the NSDocument to the incoming tab's file FIRST, before mutating the
+        // binding's document text, so any autosave/Versions operation that fires in this
+        // window cannot write the new tab's text to the outgoing tab's file.
+        backingDocument.fileURL = tab.fileURL
+        backingDocument.fileType = tab.fileURL.map { LineformDocument.contentType(for: $0).identifier }
+        backingDocument.fileModificationDate = tab.fileURL.flatMap { LineformDocument.modificationDate(at: $0) }
+
         resetTransientDocumentState()
         document = tab.document
         displayMode = tab.displayMode
         recomputeDerivedNow(for: tab.document.text)
 
-        guard let backingDocument = activeWindow?.windowController?.document as? NSDocument else { return }
-        backingDocument.fileURL = tab.fileURL
-        backingDocument.fileType = tab.fileURL.map { LineformDocument.contentType(for: $0).identifier }
-        backingDocument.fileModificationDate = tab.fileURL.flatMap { LineformDocument.modificationDate(at: $0) }
+        // Sync the system dirty state with the incoming tab. Untitled documents with any
+        // content are marked edited so the window close sheet prompts to save.
+        let isEdited = !tab.document.text.isEmpty || documentSaveStatus.isDirty(documentID: tab.document.id, currentText: tab.document.text)
+        if isEdited {
+            backingDocument.updateChangeCount(.changeDone)
+        } else {
+            backingDocument.updateChangeCount(.changeCleared)
+        }
+        activeWindow?.isDocumentEdited = isEdited
         backingDocument.undoManager?.removeAllActions()
-        backingDocument.updateChangeCount(.changeCleared)
 
         activeWindow?.representedURL = tab.fileURL
         activeWindow?.setTitleWithRepresentedFilename(tab.fileURL?.path ?? tab.title)
-        activeWindow?.isDocumentEdited = false
 
+        // Defensive re-clear after SwiftUI's async binding registration, but this time
+        // preserving the dirty state we just set.
         DispatchQueue.main.async { [weak backingDocument, weak window = activeWindow] in
-            backingDocument?.undoManager?.removeAllActions()
-            backingDocument?.updateChangeCount(.changeCleared)
-            window?.isDocumentEdited = false
+            guard let backingDocument else { return }
+            backingDocument.undoManager?.removeAllActions()
+            window?.isDocumentEdited = isEdited
         }
 
         registerReloadWatcher()
@@ -822,7 +865,7 @@ struct EditorContainerView: View {
         let targetID = id ?? tabStore.selectedTabID
         guard let targetID, let tabIndex = tabStore.tabs.firstIndex(where: { $0.id == targetID }) else { return }
         let tab = tabStore.tabs[tabIndex]
-        let isDirty = documentSaveStatus.isDirty(documentID: tab.document.id, currentText: tab.document.text)
+        let isDirty = !tab.document.text.isEmpty || documentSaveStatus.isDirty(documentID: tab.document.id, currentText: tab.document.text)
 
         if isDirty {
             tabCloseDialog = TabCloseDialog(tabID: targetID, tabTitle: tab.title)
@@ -843,6 +886,30 @@ struct EditorContainerView: View {
     private func confirmCloseTab(id: UUID) {
         tabCloseDialog = nil
         performCloseTab(id: id)
+    }
+
+    private func saveAndCloseTab(id: UUID) {
+        tabCloseDialog = nil
+
+        // The document backing the window must be the one we save. Switch first, then
+        // save; the coordinator closes the right tab after the save completes.
+        if id != tabStore.selectedTabID {
+            switchToTab(id: id)
+            activateSelectedTab()
+        }
+
+        guard let backingDocument = activeWindow?.windowController?.document as? NSDocument else {
+            return
+        }
+
+        let coordinator = SaveAndCloseCoordinator(
+            targetID: id,
+            tabStore: tabStore,
+            activeWindow: activeWindow,
+            document: backingDocument
+        )
+        saveAndCloseCoordinator = coordinator
+        coordinator.start()
     }
 
     private func createNewTab() {
@@ -951,6 +1018,17 @@ struct EditorContainerView: View {
         // every watcher retarget (appear, window bind, sidebar swap) so the blue row follows
         // the document actually on screen.
         currentFileURL = reloadWatcherURL
+    }
+
+    private func installWindowCloseControllerIfNeeded() {
+        guard let window = activeWindow, windowCloseController?.window !== window else { return }
+        let controller = WindowCloseController()
+        controller.window = window
+        controller.originalDelegate = window.delegate
+        controller.tabStore = tabStore
+        controller.documentSaveStatus = documentSaveStatus
+        window.delegate = controller
+        windowCloseController = controller
     }
 
     private func noteSavedToReloadWatcher() {

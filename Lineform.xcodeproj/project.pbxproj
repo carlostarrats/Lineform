@@ -121,6 +121,8 @@
 		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
 		1F00000100000000000003A2 /* EditorTabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A2 /* EditorTabStore.swift */; };
 		1F00000100000000000003A3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A3 /* TabBarView.swift */; };
+		1F00000100000000000003A4 /* WindowCloseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A4 /* WindowCloseController.swift */; };
+		1F00000100000000000003A5 /* SaveAndCloseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */; };
 		1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */; };
 		1F00000100000000000004A2 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A2 /* Info.plist */; };
 		1F00000100000000000004A3 /* LineformQuickLook.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A3 /* LineformQuickLook.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -258,6 +260,8 @@
  		1F00000200000000000003A1 /* DocumentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTab.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A2 /* EditorTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStore.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
+ 		1F00000200000000000003A4 /* WindowCloseController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCloseController.swift; sourceTree = "<group>"; };
+ 		1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAndCloseCoordinator.swift; sourceTree = "<group>"; };
  		1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewProvider.swift; sourceTree = "<group>"; };
  		1F00000200000000000004A2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
  		1F00000200000000000004A3 /* LineformQuickLook.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LineformQuickLook.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -361,6 +365,8 @@
  				1F00000200000000000003A1 /* DocumentTab.swift */,
  				1F00000200000000000003A2 /* EditorTabStore.swift */,
  				1F00000200000000000003A3 /* TabBarView.swift */,
+ 				1F00000200000000000003A4 /* WindowCloseController.swift */,
+ 				1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */,
  				1F0000020000000000000142 /* EditorPresentation.swift */,
 				1F0000020000000000000140 /* EditorSearchResolver.swift */,
 				1F0000020000000000000141 /* EditorStatusPresentation.swift */,
@@ -707,6 +713,8 @@
  				1F00000100000000000003A1 /* DocumentTab.swift in Sources */,
  				1F00000100000000000003A2 /* EditorTabStore.swift in Sources */,
  				1F00000100000000000003A3 /* TabBarView.swift in Sources */,
+ 				1F00000100000000000003A4 /* WindowCloseController.swift in Sources */,
+ 				1F00000100000000000003A5 /* SaveAndCloseCoordinator.swift in Sources */,
  				1F0000010000000000000144 /* MarkdownHeadingParser.swift in Sources */,
 				1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */,
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,

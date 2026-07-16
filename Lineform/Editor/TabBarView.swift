@@ -44,10 +44,24 @@ struct TabBarView: View {
             documentID: tab.document.id,
             currentText: tab.document.text
         )
+        let showsClose = tabStore.tabCount > 1
 
-        Button {
-            onSelectTab(tab.id)
-        } label: {
+        ZStack {
+            // Selection tap area: covers the whole row so the close button can be a
+            // sibling Button instead of nested inside another Button.
+            Rectangle()
+                .fill(Color(nsColor: Self.tabBackgroundColor(
+                    isSelected: isSelected,
+                    usesDarkChrome: usesDarkChrome
+                )))
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onSelectTab(tab.id)
+                }
+                .accessibilityLabel(Text(tab.title))
+                .accessibilityValue(isSelected ? Text("selected") : Text(""))
+                .accessibilityAddTraits(.isButton)
+
             HStack(spacing: 6) {
                 if isDirty {
                     Circle()
@@ -63,24 +77,15 @@ struct TabBarView: View {
                         usesDarkChrome: usesDarkChrome
                     )))
 
-                if tabStore.tabCount > 1 {
+                if showsClose {
                     closeButton(for: tab.id, isSelected: isSelected)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 0)
             .frame(height: Self.barHeight)
-            .background(
-                Rectangle()
-                    .fill(Color(nsColor: Self.tabBackgroundColor(
-                        isSelected: isSelected,
-                        usesDarkChrome: usesDarkChrome
-                    )))
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(tab.title))
-        .accessibilityValue(isSelected ? Text("selected") : Text(""))
+        .frame(height: Self.barHeight)
     }
 
     @ViewBuilder

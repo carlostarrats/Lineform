@@ -431,16 +431,20 @@ struct AppCommands: Commands {
             )
         }
 
-        CommandGroup(after: .pasteboard) {
+        // Tab commands live in the File menu, alongside the standard document commands.
+        // Close Tab uses ⌘⇧W so it does not collide with the system Close Window (⌘W).
+        CommandGroup(after: .newItem) {
             Button("New Tab") {
                 LineformAppNotification.newTab.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("t", modifiers: .command)
+        }
 
+        CommandGroup(after: .saveItem) {
             Button("Close Tab") {
                 LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
             }
-            .keyboardShortcut("w", modifiers: .command)
+            .keyboardShortcut("w", modifiers: [.command, .shift])
 
             Divider()
 
