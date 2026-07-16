@@ -17,8 +17,10 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         textView.drawsBackground = true
         textView.backgroundColor = .textBackgroundColor
         textView.textColor = .textColor
-        textView.font = NSFont.systemFont(ofSize: 13)
-        textView.textContainerInset = NSSize(width: 20, height: 20)
+        textView.font = NSFont.systemFont(ofSize: 17)
+        textView.textContainerInset = NSSize(width: 40, height: 40)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineFragmentPadding = 0
 
         scrollView.documentView = textView
         self.view = scrollView
@@ -28,24 +30,8 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         Task { @MainActor in
             do {
                 let markdown = try String(contentsOf: url, encoding: .utf8)
-                let html = MarkdownToHTML.convert(markdown)
-
-                if let data = html.data(using: .utf8) {
-                    textView.drawsBackground = false
-                    textView.backgroundColor = .clear
-
-                    let attributedString = try NSAttributedString(
-                        data: data,
-                        options: [
-                            .documentType: NSAttributedString.DocumentType.html,
-                            .characterEncoding: String.Encoding.utf8.rawValue
-                        ],
-                        documentAttributes: nil
-                    )
-
-                    textView.textStorage?.setAttributedString(attributedString)
-                }
-
+                let attributedString = QuickLookMarkdownRenderer.render(markdown)
+                textView.textStorage?.setAttributedString(attributedString)
                 handler(nil)
             } catch {
                 handler(error)
@@ -54,151 +40,31 @@ class PreviewViewController: NSViewController, QLPreviewingController {
     }
 }
 
-enum MarkdownToHTML {
-    static func convert(_ markdown: String) -> String {
-        var html = "<!DOCTYPE html>\n"
-        html += "<html>\n<head>\n"
-        html += "<meta charset=\"UTF-8\">\n"
-        html += "<style>\n"
-        html += stylesheet
-        html += "</style>\n"
-        html += "</head>\n<body>\n"
-        html += renderMarkdown(markdown)
-        html += "</body>\n</html>"
-        return html
-    }
+enum QuickLookMarkdownRenderer {
+    // Matches the app's ReadingProfile.original defaults
+    private static let bodyFontSize: CGFloat = 17
+    private static let lineHeightMultiple: CGFloat = 1.5
+    private static let paragraphSpacing: CGFloat = 12
+    private static let letterSpacing: CGFloat = 0.5
+    private static let listIndentStep: CGFloat = 24
+    private static let listMarkerColumn: CGFloat = 22
+    private static let blockquoteIndentStep: CGFloat = 22
 
-    // CSS matches the app's ReadingProfile and Theme values exactly
-    private static let stylesheet = """
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-            font-size: 17px;
-            line-height: 1.5;
-            color: #1F1F1F;
-            background: transparent;
-            padding: 0;
-            margin: 0;
-            max-width: 820px;
-            letter-spacing: 0.5px;
-        }
-        h1, h2, h3, h4, h5, h6 {
-            font-weight: 600;
-            line-height: 1.3;
-            margin-top: 1.2em;
-            margin-bottom: 0.4em;
-        }
-        h1 { font-size: 28px; }
-        h2 { font-size: 20px; }
-        h3 { font-size: 19px; }
-        h4 { font-size: 18px; }
-        h5 { font-size: 17px; }
-        h6 { font-size: 17px; color: #6e6e73; }
-        p {
-            margin: 0;
-            padding: 6px 0;
-        }
-        code {
-            font-family: "SF Mono", Monaco, monospace;
-            font-size: 17px;
-        }
-        pre {
-            margin: 12px 0;
-            padding: 0;
-            overflow-x: auto;
-        }
-        pre code {
-            font-family: "SF Mono", Monaco, monospace;
-            font-size: 17px;
-            line-height: 1.5;
-            display: block;
-            white-space: pre;
-        }
-        blockquote {
-            margin: 12px 0;
-            padding: 0;
-            padding-left: 22px;
-            color: rgba(31, 31, 31, 0.8);
-        }
-        blockquote p {
-            margin: 0;
-            padding: 3px 0;
-        }
-        ul, ol {
-            margin: 12px 0;
-            padding-left: 24px;
-        }
-        ul ul, ul ol, ol ul, ol ol {
-            margin: 6px 0;
-            padding-left: 24px;
-        }
-        li {
-            margin: 0;
-            padding: 3px 0;
-        }
-        li > p {
-            margin: 0;
-            padding: 0;
-        }
-        a {
-            color: -webkit-link;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        hr {
-            border: none;
-            border-top: 1px solid rgba(31, 31, 31, 0.22);
-            margin: 17px 0;
-            height: 0;
-        }
-        table {
-            border-collapse: collapse;
-            margin: 12px 0;
-            width: 100%;
-            font-size: 15.3px;
-        }
-        th, td {
-            border: 1px solid rgba(31, 31, 31, 0.25);
-            padding: 6px;
-            text-align: left;
-        }
-        th {
-            font-weight: 600;
-            background: rgba(31, 31, 31, 0.06);
-        }
-        img {
-            max-width: 100%;
-            height: auto;
-        }
-        @media (prefers-color-scheme: dark) {
-            body {
-                color: #E0E0E0;
-            }
-            h6 {
-                color: #98989d;
-            }
-            blockquote {
-                color: rgba(224, 224, 224, 0.8);
-            }
-            hr {
-                border-top-color: rgba(224, 224, 224, 0.22);
-            }
-            th, td {
-                border-color: rgba(224, 224, 224, 0.25);
-            }
-            th {
-                background: rgba(224, 224, 224, 0.06);
-            }
-        }
-        """
+    // Heading size boosts matching MarkdownPreviewRenderer
+    private static let headingSizeBoosts: [Int: CGFloat] = [
+        1: 11, 2: 3, 3: 2, 4: 1, 5: 0, 6: 0
+    ]
 
-    private static func renderMarkdown(_ text: String) -> String {
+    static func render(_ text: String) -> NSAttributedString {
+        let output = NSMutableAttributedString(string: "")
         let lines = text.components(separatedBy: "\n")
-        var html = ""
+        let bodyFont = NSFont.systemFont(ofSize: bodyFontSize)
+        let themeTextColor = NSColor.labelColor
+
         var inCodeBlock = false
-        var codeBlockLanguage = ""
+        var codeBlockLines: [String] = []
         var listStack: [(type: String, indent: Int)] = []
+        var listIndexCounters: [Int] = []
         var inBlockquote = false
         var inTable = false
         var tableRows: [[String]] = []
@@ -207,16 +73,33 @@ enum MarkdownToHTML {
         func flushParagraph() {
             if !paragraphBuffer.isEmpty {
                 let content = paragraphBuffer.joined(separator: " ")
-                html += "<p>" + renderInline(content) + "</p>\n"
+                let attrs = bodyAttributes()
+                let attrString = NSAttributedString(string: content + "\n", attributes: attrs)
+                output.append(attrString)
                 paragraphBuffer = []
             }
         }
 
         func closeAllLists() {
             while !listStack.isEmpty {
-                let list = listStack.removeLast()
-                html += list.type == "ul" ? "</ul>\n" : "</ol>\n"
+                listStack.removeLast()
+                // List closure doesn't add visual text; spacing is handled by paragraph styles
             }
+        }
+
+        func appendParagraph(text: String, attributes: [NSAttributedString.Key: Any] = [:]) {
+            var attrs = bodyAttributes()
+            attrs.merge(attributes) { _, new in new }
+            let attrString = NSAttributedString(string: text + "\n", attributes: attrs)
+            output.append(attrString)
+        }
+
+        func listIndex(at level: Int) -> Int {
+            while listIndexCounters.count <= level {
+                listIndexCounters.append(0)
+            }
+            listIndexCounters[level] += 1
+            return listIndexCounters[level]
         }
 
         for (index, line) in lines.enumerated() {
@@ -224,21 +107,27 @@ enum MarkdownToHTML {
 
             // Code blocks
             if trimmed.hasPrefix("```") {
-                flushParagraph()
                 if inCodeBlock {
-                    html += "</code></pre>\n"
+                    let codeText = codeBlockLines.joined(separator: "\n") + "\n"
+                    let codeFont = NSFont.monospacedSystemFont(ofSize: bodyFontSize, weight: .regular)
+                    var attrs: [NSAttributedString.Key: Any] = [
+                        .font: codeFont,
+                        .foregroundColor: themeTextColor
+                    ]
+                    attrs[.paragraphStyle] = paragraphStyle(lineHeight: lineHeightMultiple, spacing: paragraphSpacing)
+                    output.append(NSAttributedString(string: codeText, attributes: attrs))
                     inCodeBlock = false
-                    codeBlockLanguage = ""
+                    codeBlockLines = []
                 } else {
-                    codeBlockLanguage = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-                    html += "<pre><code>"
+                    flushParagraph()
+                    closeAllLists()
                     inCodeBlock = true
                 }
                 continue
             }
 
             if inCodeBlock {
-                html += escapeHTML(line) + "\n"
+                codeBlockLines.append(line)
                 continue
             }
 
@@ -246,84 +135,70 @@ enum MarkdownToHTML {
             if trimmed.isEmpty {
                 flushParagraph()
                 if inBlockquote {
-                    html += "</blockquote>\n"
                     inBlockquote = false
                 }
                 if inTable {
-                    html += renderTable(tableRows)
+                    output.append(renderTable(tableRows))
                     tableRows = []
                     inTable = false
                 }
                 continue
             }
 
-            // Table detection (line with |)
+            // Table detection
             if trimmed.contains("|") && trimmed.hasPrefix("|") {
                 flushParagraph()
                 closeAllLists()
-                
-                if !inTable {
-                    inTable = true
-                }
-                
+                if !inTable { inTable = true }
+
                 let cells = trimmed.split(separator: "|", omittingEmptySubsequences: false)
                     .map { String($0).trimmingCharacters(in: .whitespaces) }
                     .dropFirst()
                     .dropLast()
-                    .map { String($0) }
-                
-                // Skip separator rows like |---|---|
+
                 if cells.allSatisfy({ $0.allSatisfy { $0 == "-" || $0 == ":" } }) {
                     continue
                 }
-                
-                tableRows.append(cells)
+                tableRows.append(Array(cells))
                 continue
             }
 
             // Headings
-            if trimmed.hasPrefix("# ") {
-                flushParagraph()
-                closeAllLists()
-                html += "<h1>" + renderInline(String(trimmed.dropFirst(2))) + "</h1>\n"
-                continue
+            var handledAsHeading = false
+            for level in 1...6 {
+                let prefix = String(repeating: "#", count: level) + " "
+                if trimmed.hasPrefix(prefix) {
+                    flushParagraph()
+                    closeAllLists()
+                    let content = String(trimmed.dropFirst(prefix.count))
+                    let headingSize = bodyFontSize + (headingSizeBoosts[level] ?? 0)
+                    let font = NSFont.boldSystemFont(ofSize: headingSize)
+                    var attrs: [NSAttributedString.Key: Any] = [
+                        .font: font,
+                        .foregroundColor: themeTextColor
+                    ]
+                    let spacing = paragraphSpacing + (level <= 2 ? 4 : 0)
+                    attrs[.paragraphStyle] = paragraphStyle(lineHeight: lineHeightMultiple, spacing: spacing)
+                    attrs[.kern] = letterSpacing
+                    output.append(NSAttributedString(string: content + "\n", attributes: attrs))
+                    handledAsHeading = true
+                    break
+                }
             }
-            if trimmed.hasPrefix("## ") {
-                flushParagraph()
-                closeAllLists()
-                html += "<h2>" + renderInline(String(trimmed.dropFirst(3))) + "</h2>\n"
-                continue
-            }
-            if trimmed.hasPrefix("### ") {
-                flushParagraph()
-                closeAllLists()
-                html += "<h3>" + renderInline(String(trimmed.dropFirst(4))) + "</h3>\n"
-                continue
-            }
-            if trimmed.hasPrefix("#### ") {
-                flushParagraph()
-                closeAllLists()
-                html += "<h4>" + renderInline(String(trimmed.dropFirst(5))) + "</h4>\n"
-                continue
-            }
-            if trimmed.hasPrefix("##### ") {
-                flushParagraph()
-                closeAllLists()
-                html += "<h5>" + renderInline(String(trimmed.dropFirst(6))) + "</h5>\n"
-                continue
-            }
-            if trimmed.hasPrefix("###### ") {
-                flushParagraph()
-                closeAllLists()
-                html += "<h6>" + renderInline(String(trimmed.dropFirst(7))) + "</h6>\n"
-                continue
-            }
+            if handledAsHeading { continue }
 
             // Horizontal rule
             if trimmed == "---" || trimmed == "***" || trimmed == "___" {
                 flushParagraph()
                 closeAllLists()
-                html += "<hr>\n"
+                let ruleColor = themeTextColor.withAlphaComponent(0.22)
+                let ruleFont = NSFont.systemFont(ofSize: bodyFontSize)
+                var attrs: [NSAttributedString.Key: Any] = [
+                    .font: ruleFont,
+                    .foregroundColor: ruleColor
+                ]
+                attrs[.paragraphStyle] = paragraphStyle(lineHeight: 1.0, spacing: paragraphSpacing)
+                output.append(NSAttributedString(string: "\n\u{2014}\u{2014}\u{2014}\u{2014}\u{2014}\u{2014}\u{2014}\u{2014}\n", attributes: attrs))
                 continue
             }
 
@@ -332,94 +207,104 @@ enum MarkdownToHTML {
                 flushParagraph()
                 closeAllLists()
                 if !inBlockquote {
-                    html += "<blockquote>\n"
                     inBlockquote = true
                 }
-                html += "<p>" + renderInline(String(trimmed.dropFirst(2))) + "</p>\n"
+                let content = String(trimmed.dropFirst(2))
+                let color = themeTextColor.withAlphaComponent(0.8)
+                var attrs: [NSAttributedString.Key: Any] = [
+                    .font: bodyFont,
+                    .foregroundColor: color
+                ]
+                let style = paragraphStyle(lineHeight: lineHeightMultiple, spacing: paragraphSpacing)
+                style.headIndent = blockquoteIndentStep
+                style.firstLineHeadIndent = blockquoteIndentStep
+                attrs[.paragraphStyle] = style
+                attrs[.kern] = letterSpacing
+                output.append(NSAttributedString(string: content + "\n", attributes: attrs))
                 continue
             }
 
-            // List items with indentation tracking
+            // List items
             let listMatch = matchListItem(line)
             if let match = listMatch {
                 flushParagraph()
-                
+
                 let currentIndent = match.indent
                 let listType = match.type
-                
+
                 if listStack.isEmpty {
-                    // First list item
-                    html += listType == "ul" ? "<ul>\n" : "<ol>\n"
                     listStack.append((type: listType, indent: currentIndent))
                 } else {
                     let lastList = listStack.last!
-                    
                     if currentIndent > lastList.indent {
-                        // Nested list - open new list
-                        html += listType == "ul" ? "<ul>\n" : "<ol>\n"
                         listStack.append((type: listType, indent: currentIndent))
                     } else if currentIndent < lastList.indent {
-                        // Dedent - close lists until we match
                         while !listStack.isEmpty && listStack.last!.indent > currentIndent {
-                            let closed = listStack.removeLast()
-                            html += closed.type == "ul" ? "</ul>\n" : "</ol>\n"
+                            listStack.removeLast()
                         }
-                        // If we closed all lists or the type changed, open new list
                         if listStack.isEmpty || listStack.last!.type != listType {
-                            html += listType == "ul" ? "<ul>\n" : "<ol>\n"
                             listStack.append((type: listType, indent: currentIndent))
                         }
                     } else if lastList.type != listType {
-                        // Same indent but different type - close and reopen
-                        let closed = listStack.removeLast()
-                        html += closed.type == "ul" ? "</ul>\n" : "</ol>\n"
-                        html += listType == "ul" ? "<ul>\n" : "<ol>\n"
+                        listStack.removeLast()
                         listStack.append((type: listType, indent: currentIndent))
                     }
                 }
-                
-                html += "<li>" + renderInline(match.content)
-                
-                // Check if next line is a continuation (indented but not a list item)
-                if index + 1 < lines.count {
-                    let nextLine = lines[index + 1]
-                    let nextTrimmed = nextLine.trimmingCharacters(in: .whitespaces)
-                    if !nextTrimmed.isEmpty && !nextTrimmed.hasPrefix("#") && !nextTrimmed.hasPrefix(">") &&
-                       !nextTrimmed.hasPrefix("-") && !nextTrimmed.hasPrefix("*") &&
-                       !nextTrimmed.hasPrefix("+") && !isOrderedListItem(nextTrimmed) &&
-                       nextLine.hasPrefix(String(repeating: " ", count: match.indent + 2)) {
-                        // This is a continuation, don't close the li yet
-                        continue
-                    }
-                }
-                
-                html += "</li>\n"
+
+                let level = listStack.count - 1
+                let marker = listType == "ul" ? "\u{2022}" : "\(listIndex(at: level))."
+                let content = match.content
+                let fullText = marker + "\t" + content + "\n"
+
+                let color = themeTextColor
+                var attrs: [NSAttributedString.Key: Any] = [
+                    .font: bodyFont,
+                    .foregroundColor: color
+                ]
+                let style = paragraphStyle(lineHeight: lineHeightMultiple, spacing: paragraphSpacing / 2)
+                let baseIndent = CGFloat(level) * listIndentStep
+                style.headIndent = baseIndent + listMarkerColumn
+                style.firstLineHeadIndent = baseIndent
+                style.tabStops = [NSTextTab(textAlignment: .left, location: baseIndent + listMarkerColumn, options: [:])]
+                attrs[.paragraphStyle] = style
+                attrs[.kern] = letterSpacing
+                output.append(NSAttributedString(string: fullText, attributes: attrs))
                 continue
             }
 
             // Regular paragraph text
             closeAllLists()
             if inBlockquote {
-                html += "</blockquote>\n"
                 inBlockquote = false
             }
             paragraphBuffer.append(trimmed)
         }
 
-        // Close any open tags
         flushParagraph()
         closeAllLists()
-        if inBlockquote {
-            html += "</blockquote>\n"
-        }
         if inTable {
-            html += renderTable(tableRows)
-        }
-        if inCodeBlock {
-            html += "</code></pre>\n"
+            output.append(renderTable(tableRows))
         }
 
-        return html
+        return output
+    }
+
+    private static func bodyAttributes() -> [NSAttributedString.Key: Any] {
+        var attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: bodyFontSize),
+            .foregroundColor: NSColor.labelColor
+        ]
+        attrs[.paragraphStyle] = paragraphStyle(lineHeight: lineHeightMultiple, spacing: paragraphSpacing)
+        attrs[.kern] = letterSpacing
+        return attrs
+    }
+
+    private static func paragraphStyle(lineHeight: CGFloat, spacing: CGFloat) -> NSMutableParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.lineHeightMultiple = lineHeight
+        style.paragraphSpacing = spacing
+        style.lineBreakMode = .byWordWrapping
+        return style
     }
 
     private struct ListItemMatch {
@@ -429,11 +314,9 @@ enum MarkdownToHTML {
     }
 
     private static func matchListItem(_ line: String) -> ListItemMatch? {
-        // Count leading spaces
         let leadingSpaces = line.prefix(while: { $0 == " " }).count
         let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-        // Unordered list: -, *, +
         if trimmed.hasPrefix("- ") {
             return ListItemMatch(type: "ul", indent: leadingSpaces, content: String(trimmed.dropFirst(2)))
         }
@@ -444,7 +327,6 @@ enum MarkdownToHTML {
             return ListItemMatch(type: "ul", indent: leadingSpaces, content: String(trimmed.dropFirst(2)))
         }
 
-        // Ordered list: 1. 2. etc
         if let match = trimmed.range(of: #"^\d+\. "#, options: .regularExpression) {
             let content = String(trimmed[match.upperBound...])
             return ListItemMatch(type: "ol", indent: leadingSpaces, content: content)
@@ -453,93 +335,85 @@ enum MarkdownToHTML {
         return nil
     }
 
-    private static func isOrderedListItem(_ text: String) -> Bool {
-        return text.range(of: #"^\d+\. "#, options: .regularExpression) != nil
-    }
+    private static func renderTable(_ rows: [[String]]) -> NSAttributedString {
+        guard !rows.isEmpty else { return NSAttributedString(string: "") }
 
-    private static func renderTable(_ rows: [[String]]) -> String {
-        guard !rows.isEmpty else { return "" }
+        let result = NSMutableAttributedString(string: "")
+        let headerFont = NSFont.boldSystemFont(ofSize: bodyFontSize * 0.9)
+        let cellFont = NSFont.systemFont(ofSize: bodyFontSize * 0.9)
+        let textColor = NSColor.labelColor
+        let borderColor = textColor.withAlphaComponent(0.25)
+        let headerBgColor = textColor.withAlphaComponent(0.06)
 
-        var html = "<table>\n"
+        let cellPadding = "  "
+        let columnCount = rows.map(\.count).max() ?? 0
 
-        // First row is header
+        // Calculate column widths
+        var widths = Array(repeating: 0, count: columnCount)
+        for row in rows {
+            for (i, cell) in row.enumerated() {
+                widths[i] = max(widths[i], cell.count)
+            }
+        }
+
+        func pad(_ text: String, to width: Int) -> String {
+            if text.count >= width { return text }
+            return text + String(repeating: " ", count: width - text.count)
+        }
+
+        // Header row
         if let headerRow = rows.first {
-            html += "<thead><tr>\n"
-            for cell in headerRow {
-                html += "<th>" + renderInline(cell) + "</th>\n"
+            var line = ""
+            for (i, cell) in headerRow.enumerated() {
+                line += cellPadding + pad(cell, to: widths[i]) + cellPadding + "|"
             }
-            html += "</tr></thead>\n"
+            line += "\n"
+            var attrs: [NSAttributedString.Key: Any] = [
+                .font: headerFont,
+                .foregroundColor: textColor
+            ]
+            attrs[.paragraphStyle] = paragraphStyle(lineHeight: 1.0, spacing: 0)
+            result.append(NSAttributedString(string: line, attributes: attrs))
         }
 
-        // Remaining rows are body
+        // Separator
+        var separator = ""
+        for i in 0..<columnCount {
+            let width = widths[i] + 4
+            separator += String(repeating: "-", count: width) + "|"
+        }
+        separator += "\n"
+        var sepAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: bodyFontSize * 0.9),
+            .foregroundColor: borderColor
+        ]
+        sepAttrs[.paragraphStyle] = paragraphStyle(lineHeight: 1.0, spacing: 0)
+        result.append(NSAttributedString(string: separator, attributes: sepAttrs))
+
+        // Body rows
         if rows.count > 1 {
-            html += "<tbody>\n"
             for row in rows.dropFirst() {
-                html += "<tr>\n"
-                for cell in row {
-                    html += "<td>" + renderInline(cell) + "</td>\n"
+                var line = ""
+                for (i, cell) in row.enumerated() {
+                    line += cellPadding + pad(cell, to: widths[i]) + cellPadding + "|"
                 }
-                html += "</tr>\n"
+                line += "\n"
+                var attrs: [NSAttributedString.Key: Any] = [
+                    .font: cellFont,
+                    .foregroundColor: textColor
+                ]
+                attrs[.paragraphStyle] = paragraphStyle(lineHeight: 1.0, spacing: 0)
+                result.append(NSAttributedString(string: line, attributes: attrs))
             }
-            html += "</tbody>\n"
         }
 
-        html += "</table>\n"
-        return html
-    }
-
-    private static func renderInline(_ text: String) -> String {
-        var result = escapeHTML(text)
-
-        result = result.replacingOccurrences(
-            of: #"\*\*([^*]+)\*\*"#,
-            with: "<strong>$1</strong>",
-            options: .regularExpression
-        )
-        result = result.replacingOccurrences(
-            of: #"__([^_]+)__"#,
-            with: "<strong>$1</strong>",
-            options: .regularExpression
-        )
-
-        result = result.replacingOccurrences(
-            of: #"\*([^*]+)\*"#,
-            with: "<em>$1</em>",
-            options: .regularExpression
-        )
-        result = result.replacingOccurrences(
-            of: #"(?<!\w)_([^_]+)_(?!\w)"#,
-            with: "<em>$1</em>",
-            options: .regularExpression
-        )
-
-        result = result.replacingOccurrences(
-            of: #"~~([^~]+)~~"#,
-            with: "<del>$1</del>",
-            options: .regularExpression
-        )
-
-        result = result.replacingOccurrences(
-            of: #"`([^`]+)`"#,
-            with: "<code>$1</code>",
-            options: .regularExpression
-        )
-
-        result = result.replacingOccurrences(
-            of: #"\[([^\]]+)\]\(([^\)]+)\)"#,
-            with: "<a href=\"$2\">$1</a>",
-            options: .regularExpression
-        )
+        // Add spacing after table
+        var spaceAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: bodyFontSize)
+        ]
+        spaceAttrs[.paragraphStyle] = paragraphStyle(lineHeight: 1.0, spacing: paragraphSpacing)
+        result.append(NSAttributedString(string: "\n", attributes: spaceAttrs))
 
         return result
-    }
-
-    private static func escapeHTML(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&#39;")
     }
 }
