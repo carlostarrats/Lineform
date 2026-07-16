@@ -68,80 +68,79 @@ enum MarkdownToHTML {
         return html
     }
 
+    // CSS matches the app's ReadingProfile and Theme values exactly
     private static let stylesheet = """
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-            font-size: 13px;
-            line-height: 1.6;
-            color: #1d1d1f;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+            font-size: 17px;
+            line-height: 1.5;
+            color: #1F1F1F;
             background: transparent;
             padding: 0;
             margin: 0;
-            max-width: 100%;
+            max-width: 820px;
+            letter-spacing: 0.5px;
         }
         h1, h2, h3, h4, h5, h6 {
-            margin-top: 1.2em;
-            margin-bottom: 0.4em;
             font-weight: 600;
             line-height: 1.3;
+            margin-top: 1.2em;
+            margin-bottom: 0.4em;
         }
-        h1 { font-size: 1.8em; border-bottom: 1px solid #e5e5e7; padding-bottom: 0.3em; }
-        h2 { font-size: 1.4em; border-bottom: 1px solid #e5e5e7; padding-bottom: 0.3em; }
-        h3 { font-size: 1.2em; }
-        h4 { font-size: 1.1em; }
-        h5 { font-size: 1em; }
-        h6 { font-size: 0.9em; color: #6e6e73; }
+        h1 { font-size: 28px; }
+        h2 { font-size: 20px; }
+        h3 { font-size: 19px; }
+        h4 { font-size: 18px; }
+        h5 { font-size: 17px; }
+        h6 { font-size: 17px; color: #6e6e73; }
         p {
-            margin: 0.6em 0;
+            margin: 0;
+            padding: 6px 0;
         }
         code {
-            font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
-            background: #f5f5f7;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-size: 0.9em;
+            font-family: "SF Mono", Monaco, monospace;
+            font-size: 17px;
         }
         pre {
-            background: #f5f5f7;
-            padding: 12px;
-            border-radius: 6px;
+            margin: 12px 0;
+            padding: 0;
             overflow-x: auto;
-            margin: 0.8em 0;
-            border: 1px solid #e5e5e7;
         }
         pre code {
-            background: none;
-            padding: 0;
-            border-radius: 0;
-            font-size: 0.85em;
+            font-family: "SF Mono", Monaco, monospace;
+            font-size: 17px;
             line-height: 1.5;
+            display: block;
+            white-space: pre;
         }
         blockquote {
-            border-left: 4px solid #0071e3;
-            margin: 0.8em 0;
-            padding: 0.5em 1em;
-            color: #6e6e73;
-            background: #f5f5f7;
-            border-radius: 0 4px 4px 0;
+            margin: 12px 0;
+            padding: 0;
+            padding-left: 22px;
+            color: rgba(31, 31, 31, 0.8);
         }
         blockquote p {
-            margin: 0.3em 0;
+            margin: 0;
+            padding: 3px 0;
         }
         ul, ol {
-            margin: 0.6em 0;
-            padding-left: 2em;
+            margin: 12px 0;
+            padding-left: 24px;
         }
         ul ul, ul ol, ol ul, ol ol {
-            margin: 0.3em 0;
+            margin: 6px 0;
+            padding-left: 24px;
         }
         li {
-            margin: 0.3em 0;
+            margin: 0;
+            padding: 3px 0;
         }
         li > p {
-            margin: 0.2em 0;
+            margin: 0;
+            padding: 0;
         }
         a {
-            color: #0066cc;
+            color: -webkit-link;
             text-decoration: none;
         }
         a:hover {
@@ -149,26 +148,24 @@ enum MarkdownToHTML {
         }
         hr {
             border: none;
-            border-top: 2px solid #e5e5e7;
-            margin: 2em 0;
+            border-top: 1px solid rgba(31, 31, 31, 0.22);
+            margin: 17px 0;
+            height: 0;
         }
         table {
             border-collapse: collapse;
-            margin: 1em 0;
+            margin: 12px 0;
             width: 100%;
-            font-size: 0.9em;
+            font-size: 15.3px;
         }
         th, td {
-            border: 1px solid #d2d2d7;
-            padding: 8px 12px;
+            border: 1px solid rgba(31, 31, 31, 0.25);
+            padding: 6px;
             text-align: left;
         }
         th {
-            background: #f5f5f7;
             font-weight: 600;
-        }
-        tr:nth-child(even) {
-            background: #fafafa;
+            background: rgba(31, 31, 31, 0.06);
         }
         img {
             max-width: 100%;
@@ -176,40 +173,22 @@ enum MarkdownToHTML {
         }
         @media (prefers-color-scheme: dark) {
             body {
-                color: #f5f5f7;
-            }
-            h1, h2 {
-                border-bottom-color: #424245;
+                color: #E0E0E0;
             }
             h6 {
                 color: #98989d;
             }
-            code {
-                background: #2d2d2f;
-            }
-            pre {
-                background: #2d2d2f;
-                border-color: #424245;
-            }
             blockquote {
-                border-left-color: #0a84ff;
-                background: #2d2d2f;
-                color: #98989d;
-            }
-            th {
-                background: #2d2d2f;
-            }
-            th, td {
-                border-color: #424245;
-            }
-            tr:nth-child(even) {
-                background: #1d1d1f;
-            }
-            a {
-                color: #0a84ff;
+                color: rgba(224, 224, 224, 0.8);
             }
             hr {
-                border-top-color: #424245;
+                border-top-color: rgba(224, 224, 224, 0.22);
+            }
+            th, td {
+                border-color: rgba(224, 224, 224, 0.25);
+            }
+            th {
+                background: rgba(224, 224, 224, 0.06);
             }
         }
         """
