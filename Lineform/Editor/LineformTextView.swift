@@ -572,6 +572,21 @@ final class LineformTextView: NSTextView {
         defer { isPreservingVisibleLayoutAnchor = isNestedPreservation }
         let preservesVisualAnchor = preservesVisualAnchor && !isNestedPreservation
 
+        if isNestedPreservation {
+            // The OUTERMOST preservation owns the final scroll position; its visual-anchor
+            // restore runs after this nested pass returns. A nested pass therefore only re-pins
+            // the origin for interim stability — it must NOT clear the outer pass's pending
+            // anchor and must NOT schedule a deferred restore: during a live window drag those
+            // deferred restores fired a runloop later with a PRE-REWRAP origin and overwrote
+            // the outer anchor's correct restore, which is exactly the "text loses its place
+            // when the window is drag-resized" bug (diagnosed from the live trace, 2026-07-17).
+            let verticalScrollOriginToRestore = verticalScrollOrigin
+                ?? enclosingScrollView?.contentView.bounds.origin.y
+            updates()
+            restoreVerticalScrollOrigin(verticalScrollOriginToRestore)
+            return
+        }
+
         if !preservesVisualAnchor {
             pendingDeferredVisualLayoutAnchor = nil
         }
@@ -1010,13 +1025,19 @@ final class LineformTextView: NSTextView {
     private struct VisualLayoutAnchor {
         let characterRange: NSRange
         let yInWindow: CGFloat
+        /// True when the view was scrolled to the very top at capture time. The restore then pins
+        /// the origin to 0 outright: character-anchoring quantizes to the top-edge character and
+        /// can wobble by ±1 line per resize frame, which at the top of the document reads as the
+        /// text bouncing up and settling back while the window is drag-resized (user report,
+        /// 2026-07-17). At the top there is nothing to anchor — the top IS the anchor.
+        let capturedAtTop: Bool
     }
 
     private func visualLayoutAnchorForPreservation() -> VisualLayoutAnchor? {
         guard
             let visibleRange = visibleCharacterRangeForLayoutPreservation(),
             visibleRange.location < (string as NSString).length,
-            enclosingScrollView != nil
+            let scrollView = enclosingScrollView
         else {
             return nil
         }
@@ -1026,15 +1047,35 @@ final class LineformTextView: NSTextView {
             return nil
         }
 
-        return VisualLayoutAnchor(characterRange: characterRange, yInWindow: yInWindow)
+        return VisualLayoutAnchor(
+            characterRange: characterRange,
+            yInWindow: yInWindow,
+            capturedAtTop: scrollView.contentView.bounds.origin.y <= 1
+        )
     }
 
     private func restoreVisualLayoutAnchor(_ anchor: VisualLayoutAnchor?) {
-        guard
-            let anchor,
-            let scrollView = enclosingScrollView,
-            let currentY = yPositionInWindow(for: anchor.characterRange)
-        else {
+        guard let anchor, let scrollView = enclosingScrollView else {
+            return
+        }
+
+        // Top pin: a view that was at the top stays exactly at the top through the rewrap.
+        if anchor.capturedAtTop {
+            var restoredOrigin = scrollView.contentView.bounds.origin
+            guard restoredOrigin.y > 0.5 else {
+                return
+            }
+            restoredOrigin.y = 0
+            if let clipView = scrollView.contentView as? LineformEditorClipView {
+                clipView.setBoundsOriginBypassingVerticalLock(restoredOrigin)
+            } else {
+                scrollView.contentView.setBoundsOrigin(restoredOrigin)
+            }
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            return
+        }
+
+        guard let currentY = yPositionInWindow(for: anchor.characterRange) else {
             return
         }
 
@@ -1045,7 +1086,14 @@ final class LineformTextView: NSTextView {
 
         var restoredOrigin = scrollView.contentView.bounds.origin
         restoredOrigin.y -= verticalDelta
-        scrollView.contentView.setBoundsOrigin(restoredOrigin)
+        // The anchor restore must land even while the clip view's transition lock is pinning
+        // ordinary scrolls (manual window resize re-engages that lock on every width change);
+        // the bypass also re-points the lock at the corrected origin.
+        if let clipView = scrollView.contentView as? LineformEditorClipView {
+            clipView.setBoundsOriginBypassingVerticalLock(restoredOrigin)
+        } else {
+            scrollView.contentView.setBoundsOrigin(restoredOrigin)
+        }
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 

@@ -174,6 +174,146 @@ extension View {
     }
 }
 
+/// The toolbar's principal mode control, self-adapting to window width: the wide segmented
+/// control normally, the compact labeled menu below
+/// `EditorToolbarCompactPresentation.compactModeControlThreshold`. The width observation and the
+/// compact flag live HERE, in this small view, so a threshold crossing re-renders only this
+/// control — putting that state on `EditorContainerView` re-rendered the whole editor mid-drag,
+/// which visibly disturbed the editor's scroll anchoring.
+struct EditorModePrincipalControl: View {
+    @Binding var selection: EditorDisplayMode
+    var windowNumber: Int?
+    var usesDarkChrome = false
+    var reduceMotion = false
+    /// When set, the compact menu also carries a "Reading Experience" row — at compact widths the
+    /// separate Aa toolbar button is hidden entirely (EditorReadingExperienceToolbarButton), so
+    /// the native "»" overflow can only ever contain ONE uniform native menu item.
+    var openReadingExperience: (() -> Void)?
+
+    @State private var usesCompactControl = false
+
+    var body: some View {
+        Group {
+            if usesCompactControl {
+                EditorModeCompactMenu(
+                    selection: $selection,
+                    usesDarkChrome: usesDarkChrome,
+                    openReadingExperience: openReadingExperience
+                )
+            } else {
+                EditorModeSegmentedControl(
+                    selection: $selection,
+                    usesDarkChrome: usesDarkChrome,
+                    reduceMotion: reduceMotion
+                )
+            }
+        }
+        .onAppear(perform: refresh)
+        .onChange(of: windowNumber) { _, _ in
+            refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { notification in
+            guard (notification.object as? NSWindow)?.windowNumber == windowNumber else {
+                return
+            }
+            refresh()
+        }
+    }
+
+    private func refresh() {
+        guard
+            let windowNumber,
+            let window = NSApp.windows.first(where: { $0.windowNumber == windowNumber })
+        else {
+            return
+        }
+
+        let compact = EditorToolbarCompactPresentation.usesCompactModeControl(windowWidth: window.frame.width)
+        // Write state only on a threshold crossing, never per resize tick.
+        if compact != usesCompactControl {
+            usesCompactControl = compact
+        }
+    }
+}
+
+/// The Aa (Reading Experience) toolbar button, hidden at compact widths — its action lives in the
+/// compact mode menu there instead, so no bare icon can ever land in the "»" overflow popover.
+struct EditorReadingExperienceToolbarButton<Content: View>: View {
+    var windowNumber: Int?
+    @ViewBuilder var content: () -> Content
+
+    @State private var isCompact = false
+
+    var body: some View {
+        Group {
+            if !isCompact {
+                content()
+            }
+        }
+        .onAppear(perform: refresh)
+        .onChange(of: windowNumber) { _, _ in
+            refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { notification in
+            guard (notification.object as? NSWindow)?.windowNumber == windowNumber else {
+                return
+            }
+            refresh()
+        }
+    }
+
+    private func refresh() {
+        guard
+            let windowNumber,
+            let window = NSApp.windows.first(where: { $0.windowNumber == windowNumber })
+        else {
+            return
+        }
+
+        let compact = EditorToolbarCompactPresentation.usesCompactModeControl(windowWidth: window.frame.width)
+        if compact != isCompact {
+            isCompact = compact
+        }
+    }
+}
+
+/// The narrow-window stand-in for `EditorModeSegmentedControl`: a compact labeled menu showing
+/// the current mode with a native pulldown of all three, so the toolbar never overflows our
+/// custom control into the clipped "»" popover.
+struct EditorModeCompactMenu: View {
+    @Binding var selection: EditorDisplayMode
+    var usesDarkChrome = false
+    var openReadingExperience: (() -> Void)?
+
+    var body: some View {
+        Menu {
+            Picker("Editor mode", selection: $selection) {
+                ForEach(EditorDisplayMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.inline)
+
+            if let openReadingExperience {
+                Divider()
+                Button("Reading Experience") {
+                    openReadingExperience()
+                }
+            }
+        } label: {
+            // No custom font: the label must inherit the system menu/toolbar typography so the
+            // "»" overflow popover renders it at the same size as every other native row.
+            Text(selection.title)
+                .foregroundStyle(
+                    EditorToolbarTogglePresentation.offIconColor(usesDarkChrome: usesDarkChrome)
+                )
+        }
+        .menuIndicator(.visible)
+        .fixedSize()
+        .accessibilityLabel("Editor mode")
+    }
+}
+
 struct EditorModeSegmentedControl: View {
     struct LiquidBridge: Equatable {
         var from: EditorDisplayMode

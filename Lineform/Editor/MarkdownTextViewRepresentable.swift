@@ -217,6 +217,19 @@ final class LineformEditorClipView: NSClipView {
     private var lockedVerticalBoundsOriginY: CGFloat?
     private var verticalBoundsOriginLockID: UUID?
 
+    /// The visual-anchor restore's entry point: unlike ordinary `setBoundsOrigin` calls (which the
+    /// transition lock pins so AppKit's own scroll adjustments can't lurch the view), an anchor
+    /// restore is the CORRECTION that keeps the top visible character in place while the column
+    /// rewraps — it must land, and the lock must then hold the CORRECTED origin. Without this,
+    /// a manual window resize (continuous width changes re-engaging the lock) swallowed every
+    /// restore and the text visibly jumped as it rewrapped.
+    func setBoundsOriginBypassingVerticalLock(_ newOrigin: NSPoint) {
+        if lockedVerticalBoundsOriginY != nil {
+            lockedVerticalBoundsOriginY = newOrigin.y
+        }
+        super.setBoundsOrigin(newOrigin)
+    }
+
     func lockVerticalBoundsOrigin(duration: TimeInterval) {
         let lockID = UUID()
         verticalBoundsOriginLockID = lockID

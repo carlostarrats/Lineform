@@ -290,6 +290,188 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(attachment.bounds.height, attachment.bounds.width * 0.5, accuracy: 0.5)  // aspect kept
     }
 
+    /// Read/Preview mode regression (2026-07-17): when a side drawer narrows the view, the text
+    /// rewraps but the scroll offset used to stay at its old pixel value, so the passage being
+    /// read visibly shifted. The view must keep the top visible character at the same viewport
+    /// offset across a width change, mirroring Write mode's visual-anchor preservation.
+    @MainActor
+    func testNarrowingPreviewKeepsTopVisibleTextAnchoredWhileRewrapping() throws {
+        let text = (0..<40)
+            .map { index in
+                "Paragraph \(index): " + String(
+                    repeating: "calm words that wrap at ordinary reading widths without effort ",
+                    count: 4
+                )
+            }
+            .joined(separator: "\n\n")
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
+        scrollView.hasVerticalScroller = true
+        let textView = MarkdownPreviewTextView()
+        scrollView.documentView = textView
+        textView.apply(text: text, profile: .original)
+        textView.setFrameSize(NSSize(width: 1_000, height: 100))
+
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: container)
+        let laidOutHeight = layoutManager.usedRect(for: container).height + textView.textContainerInset.height * 2
+        // Generous height so the rewrapped (taller) document still fits without clip clamping.
+        textView.setFrameSize(NSSize(width: 1_000, height: laidOutHeight * 2))
+
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 800))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        let anchorIndex = try topVisibleCharacterIndex(in: textView)
+        XCTAssertGreaterThan(anchorIndex, 0, "The fixture must be scrolled into the document body.")
+        let offsetBefore = try viewportOffset(ofCharacterAt: anchorIndex, in: textView)
+        let containerYBefore = try containerY(ofCharacterAt: anchorIndex, in: textView)
+
+        textView.setFrameSize(NSSize(width: 640, height: textView.frame.height))
+        layoutManager.ensureLayout(for: container)
+
+        let containerYAfter = try containerY(ofCharacterAt: anchorIndex, in: textView)
+        XCTAssertGreaterThan(
+            abs(containerYAfter - containerYBefore),
+            10,
+            "The fixture must actually rewrap: the anchor character should move within the document."
+        )
+
+        let offsetAfter = try viewportOffset(ofCharacterAt: anchorIndex, in: textView)
+        XCTAssertEqual(
+            offsetAfter,
+            offsetBefore,
+            accuracy: 1.0,
+            "The top visible text must stay put in the viewport while the column rewraps."
+        )
+    }
+
+    /// Same invariant, driven the way a MANUAL WINDOW RESIZE reaches the text view: through the
+    /// scroll view's own frame change (clip view resize → documentView autoresizing), not a direct
+    /// `setFrameSize` on the text view.
+    @MainActor
+    func testNarrowingScrollViewKeepsTopVisibleTextAnchoredWhileRewrapping() throws {
+        let text = (0..<40)
+            .map { index in
+                "Paragraph \(index): " + String(
+                    repeating: "calm words that wrap at ordinary reading widths without effort ",
+                    count: 4
+                )
+            }
+            .joined(separator: "\n\n")
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
+        scrollView.hasVerticalScroller = true
+        let textView = MarkdownPreviewTextView()
+        scrollView.documentView = textView
+        textView.apply(text: text, profile: .original)
+        textView.setFrameSize(NSSize(width: 1_000, height: 100))
+
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: container)
+        let laidOutHeight = layoutManager.usedRect(for: container).height + textView.textContainerInset.height * 2
+        textView.setFrameSize(NSSize(width: 1_000, height: laidOutHeight * 2))
+
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 800))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        let anchorIndex = try topVisibleCharacterIndex(in: textView)
+        XCTAssertGreaterThan(anchorIndex, 0, "The fixture must be scrolled into the document body.")
+        let offsetBefore = try viewportOffset(ofCharacterAt: anchorIndex, in: textView)
+        let containerYBefore = try containerY(ofCharacterAt: anchorIndex, in: textView)
+
+        scrollView.setFrameSize(NSSize(width: 640, height: 600))
+        scrollView.layoutSubtreeIfNeeded()
+        layoutManager.ensureLayout(for: container)
+
+        XCTAssertEqual(textView.frame.width, 640, accuracy: 0.5, "The clip resize must reach the document view.")
+        let containerYAfter = try containerY(ofCharacterAt: anchorIndex, in: textView)
+        XCTAssertGreaterThan(
+            abs(containerYAfter - containerYBefore),
+            10,
+            "The fixture must actually rewrap: the anchor character should move within the document."
+        )
+
+        let offsetAfter = try viewportOffset(ofCharacterAt: anchorIndex, in: textView)
+        XCTAssertEqual(
+            offsetAfter,
+            offsetBefore,
+            accuracy: 1.0,
+            "The top visible text must stay put in the viewport across a window-driven resize."
+        )
+    }
+
+    /// Top-of-document pin for Read/Preview: a view at the very top stays at exactly the top
+    /// through width changes (see the Write-mode counterpart for rationale).
+    @MainActor
+    func testNarrowingPreviewAtTopStaysPinnedToTop() throws {
+        let text = (0..<40)
+            .map { index in
+                "Paragraph \(index): " + String(
+                    repeating: "calm words that wrap at ordinary reading widths without effort ",
+                    count: 4
+                )
+            }
+            .joined(separator: "\n\n")
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
+        scrollView.hasVerticalScroller = true
+        let textView = MarkdownPreviewTextView()
+        scrollView.documentView = textView
+        textView.apply(text: text, profile: .original)
+        textView.setFrameSize(NSSize(width: 1_000, height: 100))
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: container)
+        let laidOutHeight = layoutManager.usedRect(for: container).height + textView.textContainerInset.height * 2
+        textView.setFrameSize(NSSize(width: 1_000, height: laidOutHeight * 2))
+
+        scrollView.contentView.setBoundsOrigin(.zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        for width in [900, 780, 640, 780, 1_000] as [CGFloat] {
+            textView.setFrameSize(NSSize(width: width, height: textView.frame.height))
+            layoutManager.ensureLayout(for: container)
+            XCTAssertEqual(
+                scrollView.contentView.bounds.origin.y,
+                0,
+                accuracy: 0.5,
+                "A top-anchored view must stay at the top at width \(width)."
+            )
+        }
+    }
+
+    @MainActor
+    private func topVisibleCharacterIndex(in textView: MarkdownPreviewTextView) throws -> Int {
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        let clipView = try XCTUnwrap(textView.enclosingScrollView?.contentView)
+        var visibleRect = clipView.bounds
+        visibleRect.origin.x -= textView.textContainerOrigin.x
+        visibleRect.origin.y -= textView.textContainerOrigin.y
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: container)
+        return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil).location
+    }
+
+    @MainActor
+    private func containerY(ofCharacterAt characterIndex: Int, in textView: MarkdownPreviewTextView) throws -> CGFloat {
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: characterIndex, length: 1),
+            actualCharacterRange: nil
+        )
+        return layoutManager.boundingRect(forGlyphRange: glyphRange, in: container).minY
+    }
+
+    @MainActor
+    private func viewportOffset(ofCharacterAt characterIndex: Int, in textView: MarkdownPreviewTextView) throws -> CGFloat {
+        let clipView = try XCTUnwrap(textView.enclosingScrollView?.contentView)
+        let yInContainer = try containerY(ofCharacterAt: characterIndex, in: textView)
+        return yInContainer + textView.textContainerOrigin.y - clipView.bounds.origin.y
+    }
+
     @MainActor
     func testPreviewTextViewDoesNotRerenderUnchangedContent() {
         let textView = MarkdownPreviewTextView()

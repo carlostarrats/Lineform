@@ -26,8 +26,29 @@ enum EditorReadingLayout {
 }
 
 enum EditorLayout {
-    static let minimumContentWidth: CGFloat = 300
+    // 220 (was 300, reduced 2026-07-17): opening the sidebar on a small window forced the whole
+    // window wider; a thinner floor lets the nav open without pushing the window out. The text
+    // column still gets ~140pt after the 40pt minimum margins — thin, but readable and the
+    // user's own choice of window size.
+    static let minimumContentWidth: CGFloat = 220
     static let minimumContentHeight: CGFloat = 480
+}
+
+/// Narrow-window toolbar adaptation (2026-07-17). The native toolbar collapses overflowing items
+/// into the "»" popover, which renders custom SwiftUI views CLIPPED — the three-mode segmented
+/// control showed only "Write" and the Reading Experience button a bare tiny "Aa". Below this
+/// window width the principal control swaps to a compact labeled menu that always fits, so the
+/// unreadable overflow popover never appears for our controls.
+enum EditorToolbarCompactPresentation {
+    /// Measured with the real toolbar (2026-07-17, AX inspection): the Aa button falls into the
+    /// "»" overflow at a 780pt window and the segmented mode control at 760pt — the window title,
+    /// sidebar toggle, and search field eat far more room than the controls themselves. Swap at
+    /// 840 so the compact menu is in place comfortably before anything overflows.
+    static let compactModeControlThreshold: CGFloat = 840
+
+    static func usesCompactModeControl(windowWidth: CGFloat) -> Bool {
+        windowWidth < compactModeControlThreshold
+    }
 }
 
 enum EditorInspectorTextResponse {

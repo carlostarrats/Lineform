@@ -317,6 +317,138 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertEqual(typedCaretRect.origin.x, staleCaretRect.origin.x, accuracy: 0.5)
     }
 
+    /// Manual-window-resize regression (2026-07-17): narrowing the WRITE-mode editor through the
+    /// scroll view (the window-resize path, using the production scroll/clip stack) must keep the
+    /// top visible character at its viewport offset while the column rewraps — the same invariant
+    /// the drawer transition already holds.
+    func testNarrowingEditorScrollViewKeepsTopVisibleTextAnchoredWhileRewrapping() throws {
+        let scrollView = LineformEditorScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
+        scrollView.contentView = LineformEditorClipView()
+        scrollView.hasVerticalScroller = true
+        let textView = LineformTextView()
+        scrollView.documentView = textView
+        textView.string = (0..<40)
+            .map { index in
+                "Paragraph \(index): " + String(
+                    repeating: "calm words that wrap at ordinary reading widths without effort ",
+                    count: 4
+                )
+            }
+            .joined(separator: "\n\n")
+        var profile = ReadingProfile.original
+        profile.columnWidth = 820
+        profile.marginWidth = 40
+        textView.applyTypography(profile)
+        textView.setFrameSize(NSSize(width: 1_000, height: 100))
+
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: container)
+        let laidOutHeight = layoutManager.usedRect(for: container).height + textView.textContainerInset.height * 2
+        textView.setFrameSize(NSSize(width: 1_000, height: laidOutHeight * 2))
+
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 800))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        let anchorIndex = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation()).location
+        XCTAssertGreaterThan(anchorIndex, 0, "The fixture must be scrolled into the document body.")
+        let offsetBefore = try viewportOffset(ofCharacterAt: anchorIndex, in: textView)
+        let containerYBefore = try containerY(ofCharacterAt: anchorIndex, in: textView)
+
+        scrollView.setFrameSize(NSSize(width: 640, height: 600))
+        scrollView.layoutSubtreeIfNeeded()
+        layoutManager.ensureLayout(for: container)
+
+        XCTAssertEqual(textView.frame.width, 640, accuracy: 0.5, "The clip resize must reach the document view.")
+        let containerYAfter = try containerY(ofCharacterAt: anchorIndex, in: textView)
+        XCTAssertGreaterThan(
+            abs(containerYAfter - containerYBefore),
+            10,
+            "The fixture must actually rewrap: the anchor character should move within the document."
+        )
+
+        let offsetAfter = try viewportOffset(ofCharacterAt: anchorIndex, in: textView)
+        XCTAssertEqual(
+            offsetAfter,
+            offsetBefore,
+            accuracy: 1.0,
+            "The top visible text must stay put in the viewport across a window-driven resize."
+        )
+
+        // Pump the run loop so any DEFERRED restores fire. A nested preservation used to schedule
+        // a deferred restore of the pre-rewrap origin, which overwrote the anchor's correct
+        // position a runloop later — the live-drag "text loses its place" bug (2026-07-17).
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        let offsetSettled = try viewportOffset(ofCharacterAt: anchorIndex, in: textView)
+        XCTAssertEqual(
+            offsetSettled,
+            offsetBefore,
+            accuracy: 1.0,
+            "Deferred restores must not undo the visual-anchor restore after the resize settles."
+        )
+    }
+
+    /// Top-of-document pin (2026-07-17): a view at the very top must stay at exactly the top
+    /// through a width change — character-anchoring wobbles by ±1 line per resize frame, which
+    /// at the top read as the text bouncing during a window drag.
+    func testNarrowingEditorScrollViewAtTopStaysPinnedToTop() throws {
+        let scrollView = LineformEditorScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
+        scrollView.contentView = LineformEditorClipView()
+        scrollView.hasVerticalScroller = true
+        let textView = LineformTextView()
+        scrollView.documentView = textView
+        textView.string = (0..<40)
+            .map { index in
+                "Paragraph \(index): " + String(
+                    repeating: "calm words that wrap at ordinary reading widths without effort ",
+                    count: 4
+                )
+            }
+            .joined(separator: "\n\n")
+        var profile = ReadingProfile.original
+        profile.columnWidth = 820
+        profile.marginWidth = 40
+        textView.applyTypography(profile)
+        textView.setFrameSize(NSSize(width: 1_000, height: 100))
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: container)
+        let laidOutHeight = layoutManager.usedRect(for: container).height + textView.textContainerInset.height * 2
+        textView.setFrameSize(NSSize(width: 1_000, height: laidOutHeight * 2))
+
+        scrollView.contentView.setBoundsOrigin(.zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        for width in [900, 780, 640, 780, 900, 1_000] as [CGFloat] {
+            scrollView.setFrameSize(NSSize(width: width, height: 600))
+            scrollView.layoutSubtreeIfNeeded()
+            XCTAssertEqual(
+                scrollView.contentView.bounds.origin.y,
+                0,
+                accuracy: 0.5,
+                "A top-anchored view must stay at the top at width \(width)."
+            )
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, 0, accuracy: 0.5)
+    }
+
+    private func containerY(ofCharacterAt characterIndex: Int, in textView: LineformTextView) throws -> CGFloat {
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: characterIndex, length: 1),
+            actualCharacterRange: nil
+        )
+        return layoutManager.boundingRect(forGlyphRange: glyphRange, in: container).minY
+    }
+
+    private func viewportOffset(ofCharacterAt characterIndex: Int, in textView: LineformTextView) throws -> CGFloat {
+        let clipView = try XCTUnwrap(textView.enclosingScrollView?.contentView)
+        let yInContainer = try containerY(ofCharacterAt: characterIndex, in: textView)
+        return yInContainer + textView.textContainerOrigin.y - clipView.bounds.origin.y
+    }
+
     func testTightLineHeightDoesNotClipFirstLineAboveTextContainer() throws {
         let textView = LineformTextView()
         textView.setFrameSize(NSSize(width: 600, height: 500))
