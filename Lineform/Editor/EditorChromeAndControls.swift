@@ -310,6 +310,13 @@ struct EditorModeCompactMenu: View {
         }
         .menuIndicator(.visible)
         .fixedSize()
+        // EXACTLY the segmented control's total height. The toolbar derives its height from its
+        // tallest item, so swapping in a shorter control mid-drag changed the toolbar height and
+        // vertically snapped the ENTIRE content area (~65pt) at the compact threshold — the
+        // "text jumps up when resizing" the user kept reporting after the scroll fixes landed;
+        // caught on a screen recording of the real drag (2026-07-17). Same-height controls keep
+        // the toolbar, and therefore the page, rock still across the swap.
+        .frame(height: EditorModeSegmentedControl.segmentHeight + 6)
         .accessibilityLabel("Editor mode")
     }
 }

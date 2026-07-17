@@ -86,7 +86,10 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         // where. A narrower column rewraps the text, so the same scroll offset would show a
         // different passage — the "text jumps when a side drawer opens" bug. Mirrors Write
         // mode's visual-anchor preservation (LineformTextView), scoped to width changes only.
-        let reflowAnchor = widthChanged ? reflowAnchorForWidthChange() : nil
+        // NOT during a manual window drag: there the text must simply rewrap downward under a
+        // fixed scroll origin, like plain text (user decision, 2026-07-17 — see
+        // LineformTextView.shouldPreserveVisualLayoutAnchorDuringLayoutTransition).
+        let reflowAnchor = (widthChanged && !inLiveResize) ? reflowAnchorForWidthChange() : nil
         super.setFrameSize(newSize)
         updateTextContainerLayout()
         // Refit block diagrams/equations on EVERY width change — the same place `updateTextContainerLayout`

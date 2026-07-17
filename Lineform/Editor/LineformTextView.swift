@@ -614,6 +614,15 @@ final class LineformTextView: NSTextView {
         guard !smoothsHorizontalInsetChanges else {
             return false
         }
+        // During a MANUAL window drag, text must behave like plain text: the scroll origin stays
+        // fixed and the content simply rewraps downward. Character-anchoring here kept a
+        // mid-paragraph character stationary, which visibly slid the surrounding lines UP while
+        // the user dragged — "text should wrap down, that's it" (user decision, 2026-07-17).
+        // Anchoring still applies to non-live width changes (sidebar/drawer transitions), where
+        // keeping the reading position is the right behavior.
+        guard !inLiveResize else {
+            return false
+        }
         return true
     }
 
