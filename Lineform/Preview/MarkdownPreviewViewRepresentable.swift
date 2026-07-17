@@ -202,7 +202,25 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     }
 
     override func viewDidEndLiveResize() {
+        // AppKit's end-of-live-resize revalidation snaps the clip origin to the topmost line
+        // boundary (at the document top: exactly the top inset — the "text jumps up" resize
+        // bug). Pin the pre-snap origin, same as LineformTextView.viewDidEndLiveResize.
+        let originBeforeEndResize = enclosingScrollView?.contentView.bounds.origin.y
         super.viewDidEndLiveResize()
+        if
+            let originBeforeEndResize,
+            let scrollView = enclosingScrollView,
+            let documentView = scrollView.documentView
+        {
+            let maximumOriginY = max(0, documentView.frame.height - scrollView.contentView.bounds.height)
+            let clampedOriginY = min(max(originBeforeEndResize, 0), maximumOriginY)
+            if abs(scrollView.contentView.bounds.origin.y - clampedOriginY) > 0.5 {
+                var restoredOrigin = scrollView.contentView.bounds.origin
+                restoredOrigin.y = clampedOriginY
+                scrollView.contentView.setBoundsOrigin(restoredOrigin)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+            }
+        }
         // Final settle once the drag ends (inLiveResize is false here, so refit immediately).
         refitBlockAttachments()
     }

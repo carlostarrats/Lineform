@@ -529,6 +529,41 @@ final class LineformTextView: NSTextView {
         }
     }
 
+    override func viewDidEndLiveResize() {
+        // AppKit's end-of-live-resize revalidation snaps the clip origin to the top of the
+        // topmost line fragment — at the document top that's exactly the top text inset
+        // (origin 0 → 32), the "text jumps up when I drag-resize the window" bug (traced
+        // 2026-07-17: the scroll stays fixed through the whole drag; the snap fires inside
+        // `super.viewDidEndLiveResize()`). We deliberately hold a fixed origin during live
+        // drags so text simply rewraps downward; re-assert that origin across AppKit's snap,
+        // clamped to the still-scrollable range so legitimate bottom overscroll correction
+        // (content shorter than the viewport after a widen) survives.
+        let originBeforeEndResize = enclosingScrollView?.contentView.bounds.origin.y
+        super.viewDidEndLiveResize()
+        guard
+            let originBeforeEndResize,
+            let scrollView = enclosingScrollView,
+            let documentView = scrollView.documentView
+        else {
+            return
+        }
+
+        let maximumOriginY = max(0, documentView.frame.height - scrollView.contentView.bounds.height)
+        let clampedOriginY = min(max(originBeforeEndResize, 0), maximumOriginY)
+        guard abs(scrollView.contentView.bounds.origin.y - clampedOriginY) > 0.5 else {
+            return
+        }
+
+        var restoredOrigin = scrollView.contentView.bounds.origin
+        restoredOrigin.y = clampedOriginY
+        if let clipView = scrollView.contentView as? LineformEditorClipView {
+            clipView.setBoundsOriginBypassingVerticalLock(restoredOrigin)
+        } else {
+            scrollView.contentView.setBoundsOrigin(restoredOrigin)
+        }
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
     override func setFrameSize(_ newSize: NSSize) {
         // Crash fix (2026-07-05): while one of OUR `ensureLayout(for:)` calls below is running,
         // AppKit's typesetter resizes the text view after each line fragment it lays out
