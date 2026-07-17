@@ -438,16 +438,23 @@ struct WindowChromeReader: NSViewRepresentable {
         }
 
         func applyChrome() {
-            // Apply synchronously, but only when the window or theme actually changed —
-            // re-setting an identical appearance on every unrelated SwiftUI update would
-            // force a redundant appearance recalc during the update phase (a re-entrancy
-            // risk) for no benefit. The first application happens in viewDidMoveToWindow,
-            // an AppKit callback outside SwiftUI's update phase.
-            if let window, window !== appliedWindow || appliedDarkChrome != usesDarkChrome {
-                appliedWindow = window
-                appliedDarkChrome = usesDarkChrome
-                window.animationBehavior = .none
-                EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome)
+            // Apply synchronously when the window or theme changed — OR when the window's
+            // appearance has drifted from what the theme wants. The drift check is load-bearing
+            // for multi-tab: when the tab bar appears (1→2 tabs) the detail hierarchy rebuilds and
+            // AppKit can reset the window's explicit appearance back to the default (light) aqua,
+            // which on a dark theme leaves the toolbar/title bar light while the content stays
+            // dark. Re-asserting only on window/theme change missed that (neither changed), so the
+            // light header stuck. Re-applying on drift self-heals it and cannot loop: once applied,
+            // the appearance matches and the guard no longer fires.
+            if let window {
+                let desiredName = EditorWindowChrome.appearanceName(usesDarkChrome: usesDarkChrome)
+                let appearanceDrifted = window.appearance?.name != desiredName
+                if window !== appliedWindow || appliedDarkChrome != usesDarkChrome || appearanceDrifted {
+                    appliedWindow = window
+                    appliedDarkChrome = usesDarkChrome
+                    window.animationBehavior = .none
+                    EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome)
+                }
             }
             // Report the (possibly nil) window every time so the deferred reader converges
             // on the real number once the window is ordered and clears it on detach.

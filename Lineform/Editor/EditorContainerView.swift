@@ -305,6 +305,16 @@ struct EditorContainerView: View {
             guard newID != nil else { return }
             activateSelectedTab()
         }
+        .onChange(of: tabStore.shouldShowTabBar) { _, _ in
+            // The tab bar appearing/disappearing rebuilds the detail hierarchy, which can reset
+            // the window's explicit appearance to the default (light) aqua — leaving a dark theme
+            // with a light toolbar/title bar. Re-assert the themed appearance on the next runloop
+            // tick, after AppKit's reset settles. (WindowChromeReader also self-heals on drift.)
+            let usesDarkChrome = currentTheme.usesDarkChrome
+            DispatchQueue.main.async {
+                EditorWindowChrome.apply(to: activeWindow, usesDarkChrome: usesDarkChrome)
+            }
+        }
         .onChange(of: currentFileURL) { _, newValue in
             // Keep the File-menu Rename…/Delete… enabled state tracking the key window.
             if activeWindow?.isKeyWindow == true {
