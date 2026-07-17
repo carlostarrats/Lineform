@@ -9,8 +9,6 @@ struct OutlineMarkdownBasicsTabView: View {
     static let explanationLightWhiteComponent: CGFloat = 0.36
     static let rowBackgroundLightWhiteComponent: CGFloat = 0.96
     static let rowBackgroundDarkWhiteComponent: CGFloat = 0.22
-    static let headerLightWhiteComponent: CGFloat = 0.42
-    static let headerDarkWhiteComponent: CGFloat = 0.62
 
     static func explanationColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
@@ -30,13 +28,6 @@ struct OutlineMarkdownBasicsTabView: View {
         ))
     }
 
-    static func headerColor(usesDarkChrome: Bool) -> Color {
-        Color(nsColor: NSColor(
-            calibratedWhite: usesDarkChrome ? headerDarkWhiteComponent : headerLightWhiteComponent,
-            alpha: 1
-        ))
-    }
-
     private var sections: [MarkdownReference.Section] {
         MarkdownReference.sections
     }
@@ -46,15 +37,25 @@ struct OutlineMarkdownBasicsTabView: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     if index > 0 {
-                        Spacer().frame(height: 14)
+                        // Generous separation between sections (Markdown Basics, Diagrams, Math…).
+                        Spacer().frame(height: 38)
                     }
 
                     Text(section.title)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Self.headerColor(usesDarkChrome: usesDarkChrome))
-                        .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding + 6)
+                        // Match the Files "Sort folders by" label: size 12, medium, inactive-tab grey.
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(OutlineSidebarView.tabTextColor(
+                            usesDarkChrome: usesDarkChrome,
+                            isSelected: false,
+                            isHovered: false
+                        ))
+                        // Align the header with the box's syntax text (outer 14 + box inner 10 = 24),
+                        // which is also the shared icon column.
+                        .padding(.leading, 10)
+                        .padding(.trailing, OutlineSidebarView.pillHorizontalInset)
 
-                    Spacer().frame(height: 6)
+                    // Breathing room between a header and the boxes it labels.
+                    Spacer().frame(height: 18)
 
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(section.rows) { row in
@@ -63,8 +64,10 @@ struct OutlineMarkdownBasicsTabView: View {
                     }
                 }
             }
-            .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
-            .padding(.top, 8)
+            .padding(.horizontal, OutlineSidebarView.pillHorizontalInset)
+            // +4 matches the Files sort row's internal top padding, so the first line of text sits
+            // at the same y below the divider as the Files tab (both are size-12 medium).
+            .padding(.top, OutlineSidebarView.tabDividerGap + 4)
             .padding(.bottom, 60)
             .frame(maxWidth: .infinity, alignment: .leading)
         }

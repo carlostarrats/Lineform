@@ -44,7 +44,7 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertEqual(OutlineSidebarView.chooseWorkspaceButtonTitle, "Choose")
         XCTAssertEqual(OutlineSidebarView.changeWorkspaceButtonTitle, "Change")
         XCTAssertTrue(OutlineSidebarView.filesRowsFillAvailableWidth)
-        XCTAssertEqual(OutlineSidebarView.filesContentHorizontalPadding, 10)
+        XCTAssertEqual(OutlineSidebarView.filesContentHorizontalPadding, 6)
         XCTAssertEqual(OutlineSidebarView.filesRootRowHeight, 28)
         XCTAssertEqual(OutlineSidebarView.filesChildRowHeight, 26)
         XCTAssertLessThan(OutlineSidebarView.filesUnavailableRootOpacity, 0.7)

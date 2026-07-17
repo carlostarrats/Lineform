@@ -121,8 +121,11 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
         if let range = requestedScrollToTopRange {
             let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))
+            // Jumping from the outline scrolls the heading to the top WITHOUT selecting it —
+            // the reader wanted to navigate, not highlight text. Collapse the insertion point
+            // to the heading's start (so typing/caret is sensibly placed) but draw no selection.
             context.coordinator.performWithoutSelectionUpdates {
-                textView.setSelectedRange(safeRange)
+                textView.setSelectedRange(NSRange(location: safeRange.location, length: 0))
             }
             textView.scrollCharacterRangeToTop(safeRange)
             DispatchQueue.main.async {

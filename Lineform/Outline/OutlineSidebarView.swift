@@ -122,7 +122,10 @@ struct OutlineSidebarView: View {
     static let chooseWorkspaceButtonTitle = "Choose"
     static let changeWorkspaceButtonTitle = "Change"
     static let filesRowsFillAvailableWidth = true
-    static let filesContentHorizontalPadding: CGFloat = 10
+    /// Left inset of the Files tree from the sidebar edge. Sits at the CHEVRON column so
+    /// disclosure chevrons hang here and the icons after them land on `sidebarIconColumnLeading`
+    /// (6 + 10 chevron + 8 gap = 24), aligning file/folder icons with the tab icons above.
+    static let filesContentHorizontalPadding: CGFloat = 6
     static let filesRootRowHeight: CGFloat = 28
     static let filesChildRowHeight: CGFloat = 26
     static let filesUnavailableRootOpacity = 0.56
@@ -147,16 +150,6 @@ struct OutlineSidebarView: View {
     /// no vertical guide lines), so the step is generous enough for the eye to track structure by
     /// row x-position.
     static let filesTreeIndentStep: CGFloat = 14
-
-    /// How far everything UNDER a root (Sort row, empty state, tree rows) shifts
-    /// left when root collapsing is locked off. The root header itself shifts 18pt
-    /// structurally — its 10pt chevron slot + 8pt HStack spacing are simply dropped
-    /// in OutlineFileRootRow (no constant governs that; don't invent one) — while
-    /// descendants shift this smaller amount so they stay visibly indented under
-    /// the root. Locked geometry (QA-dialed): depth-1 tree chevron at a 10pt
-    /// leading, 4pt inside the root icon's edge (icon at 6pt); Sort row at 18pt —
-    /// the same 8pt right of the tree chevron it has unlocked (28 vs 20).
-    static let filesLockedDescendantShift: CGFloat = 10
 
     /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
     /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
@@ -463,15 +456,17 @@ struct OutlineSidebarView: View {
 
                     Spacer(minLength: 0)
                 }
-                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                .padding(.horizontal, 10)
+                // Settings reads dark by default and LIGHTENS on hover (the reverse of the
+                // tabs): not hovered → darkest (isSelected), hovered → the quiet grey.
+                .foregroundStyle(OutlineSidebarView.tabTextColor(
+                    usesDarkChrome: usesDarkChrome,
+                    isSelected: !isSettingsHovered,
+                    isHovered: false
+                ))
+                .padding(.leading, OutlineSidebarView.pillInnerLeading)
+                .padding(.trailing, OutlineSidebarView.pillInnerLeading)
                 .frame(height: 32)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
-                            .opacity(isSettingsHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
-                }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -500,12 +495,12 @@ struct OutlineSidebarView: View {
                     )
                 }
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, Self.tabDividerGap)
 
             sidebarDivider
                 .padding(.horizontal, 0)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Self.pillHorizontalInset)
         .padding(.top, 12)
     }
 
@@ -568,8 +563,8 @@ struct OutlineSidebarView: View {
                         )
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.top, 8)
+                .padding(.horizontal, Self.pillHorizontalInset)
+                .padding(.top, Self.tabDividerGap)
             }
             .scrollContentBackground(.hidden)
         }
@@ -607,6 +602,50 @@ struct OutlineSidebarView: View {
             calibratedWhite: usesDarkChrome ? darkSecondaryTextWhiteComponent : secondaryTextWhiteComponent,
             alpha: 1
         ))
+    }
+
+    // MARK: - Unified leading geometry
+
+    /// The single icon column every section aligns to (icon left edge, measured from the
+    /// sidebar's content edge). Disclosure chevrons hang in the reserved slot to the LEFT of
+    /// this column (the Finder/Xcode source-list convention), so tab icons, Settings, outline
+    /// rows, the Files sort row, root icons, and file/folder icons all share one vertical line.
+    static let sidebarIconColumnLeading: CGFloat = 24
+    /// Disclosure chevron (Files tree AND root headers): a small glyph right-aligned in this slot
+    /// with `filesChevronToIconGap` to the icon, so the chevron sits close to the folder/doc icon
+    /// it discloses. Slot + gap = 18 = the icon column's offset from the content edge, so the icon
+    /// column is unchanged whether or not a chevron is drawn.
+    static let filesChevronSlotWidth: CGFloat = 12
+    static let filesChevronToIconGap: CGFloat = 6
+    /// Horizontal inset of the tab-picker / Settings / outline pills from the sidebar edge.
+    /// The pill's own internal leading padding then carries the icon to `sidebarIconColumnLeading`.
+    static let pillHorizontalInset: CGFloat = 14
+    static let pillInnerLeading: CGFloat = 10
+    /// Symmetric breathing room above and below the divider under the three tabs. Applied as
+    /// the tabs' bottom padding AND each tab-content's top padding so the line sits centered.
+    static let tabDividerGap: CGFloat = 16
+
+    // MARK: - Tab / Settings text states (no pill; state is carried by text color)
+
+    static let tabSelectedLightWhite: CGFloat = 0.16
+    static let tabUnselectedLightWhite: CGFloat = 0.56
+    static let tabUnselectedHoverLightWhite: CGFloat = 0.30
+    static let tabSelectedDarkWhite: CGFloat = 0.93
+    static let tabUnselectedDarkWhite: CGFloat = 0.56
+    static let tabUnselectedHoverDarkWhite: CGFloat = 0.82
+
+    /// Text/icon color for a tab or the Settings button. Selected reads darkest; an
+    /// unselected item is a quiet grey that darkens on hover (never a background fill).
+    static func tabTextColor(usesDarkChrome: Bool, isSelected: Bool, isHovered: Bool) -> Color {
+        let white: CGFloat
+        if isSelected {
+            white = usesDarkChrome ? tabSelectedDarkWhite : tabSelectedLightWhite
+        } else if isHovered {
+            white = usesDarkChrome ? tabUnselectedHoverDarkWhite : tabUnselectedHoverLightWhite
+        } else {
+            white = usesDarkChrome ? tabUnselectedDarkWhite : tabUnselectedLightWhite
+        }
+        return Color(nsColor: NSColor(calibratedWhite: white, alpha: 1))
     }
 }
 
@@ -663,6 +702,7 @@ private struct OutlineSidebarRow: View {
     var toggleCollapsed: () -> Void
     var jumpToHeading: (MarkdownOutlineItem) -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
 
     var body: some View {
         Button {
@@ -675,25 +715,37 @@ private struct OutlineSidebarRow: View {
                     .frame(width: 18)
 
                 Text(node.item.title)
-                    .font(.system(size: 13, weight: fontWeight))
+                    .font(.system(size: 13, weight: isActive ? .bold : baseFontWeight))
                     .foregroundStyle(rowForegroundColor)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
             }
-            .padding(.leading, CGFloat(depth) * 14)
-            .padding(.horizontal, 6)
+            // Icon rides the shared column: pill inner leading (10) + depth indent, inside the
+            // outline content's 14pt inset, lands the icon at `sidebarIconColumnLeading` (24).
+            .padding(.leading, OutlineSidebarView.pillInnerLeading + CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep)
+            .padding(.trailing, OutlineSidebarView.pillInnerLeading)
             .frame(height: 26)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
+                        .opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovered = hovering
+            }
+        }
         .accessibilityLabel("Jump to heading \(node.item.title)")
     }
 
-    private var fontWeight: Font.Weight {
-        if isActive { return .bold }
-        return node.item.level == 1 ? .medium : .regular
+    /// The non-active weight; the active heading swaps to `.bold` (see body).
+    private var baseFontWeight: Font.Weight {
+        node.item.level == 1 ? .medium : .regular
     }
 
     private var rowForegroundColor: Color {
@@ -724,11 +776,13 @@ private struct SidebarTabButton: View {
 
                 Spacer(minLength: 0)
             }
+            // No pill: the selected tab reads darkest, unselected tabs are a quiet grey that
+            // darkens on hover. The icon rides the shared `sidebarIconColumnLeading`.
             .foregroundStyle(foregroundColor)
-            .padding(.horizontal, 10)
+            .padding(.leading, OutlineSidebarView.pillInnerLeading)
+            .padding(.trailing, OutlineSidebarView.pillInnerLeading)
             .frame(height: 28)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(backgroundFill)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -740,21 +794,11 @@ private struct SidebarTabButton: View {
     }
 
     private var foregroundColor: Color {
-        OutlineSidebarView.primaryTextColor(usesDarkChrome: colorScheme == .dark)
-            .opacity(isSelected ? 1.0 : 0.45)
-    }
-
-    @ViewBuilder
-    private var backgroundFill: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: colorScheme == .dark)
-                .opacity(backgroundOpacity))
-    }
-
-    private var backgroundOpacity: Double {
-        if isSelected { return 0.08 }
-        if isHovered { return 0.06 }
-        return 0
+        OutlineSidebarView.tabTextColor(
+            usesDarkChrome: colorScheme == .dark,
+            isSelected: isSelected,
+            isHovered: isHovered
+        )
     }
 }
 
@@ -1658,6 +1702,7 @@ private struct OutlineFileBrowserView: View {
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
+    @State private var isSortHovered = false
 
     var body: some View {
         // "Show Hidden Folders" now lives in the View menu (⌘⇧.), so the Files tab is just
@@ -1673,7 +1718,7 @@ private struct OutlineFileBrowserView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
-            .padding(.top, 8)
+            .padding(.top, OutlineSidebarView.tabDividerGap)
             .padding(.bottom, 14)
         }
         .scrollContentBackground(.hidden)
@@ -1681,18 +1726,16 @@ private struct OutlineFileBrowserView: View {
 
     private var globalSortRow: some View {
         Menu {
-            ForEach(OutlineFileSortOrder.allCases) { order in
-                Button {
-                    globalSortOrder.wrappedValue = order
-                } label: {
-                    if order == globalSortOrder.wrappedValue {
-                        Label(order.title, systemImage: "checkmark")
-                    } else {
-                        Text(order.title)
-                    }
+            // An inline Picker (not hand-rolled Buttons) so the checkmark uses the OS's native
+            // selection gutter — matching the Font menu in the Reading Experience panel. The
+            // hidden label keeps it header-free, and the custom trigger below is unaffected.
+            Picker("Sort folders by", selection: globalSortOrder) {
+                ForEach(OutlineFileSortOrder.allCases) { order in
+                    Text(order.title).tag(order)
                 }
-                .accessibilityAddTraits(order == globalSortOrder.wrappedValue ? [.isSelected] : [])
             }
+            .pickerStyle(.inline)
+            .labelsHidden()
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.up.arrow.down")
@@ -1700,14 +1743,25 @@ private struct OutlineFileBrowserView: View {
                 Text("Sort folders by: \(globalSortOrder.wrappedValue.title)")
                     .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            // Same quiet grey as the inactive tabs above, darkening on hover.
+            .foregroundStyle(OutlineSidebarView.tabTextColor(
+                usesDarkChrome: usesDarkChrome,
+                isSelected: false,
+                isHovered: isSortHovered
+            ))
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
-        .padding(.horizontal, 6)
-        .padding(.leading, 14)
+        // Align the sort icon to the shared icon column (content inset 6 + 18 = 24).
+        .padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)
+        .padding(.trailing, 6)
         .padding(.vertical, 4)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isSortHovered = hovering
+            }
+        }
         .accessibilityLabel("Sort folders by")
         .accessibilityValue(globalSortOrder.wrappedValue.title)
     }
@@ -1724,13 +1778,10 @@ private struct OutlineFileBrowserView: View {
 
     @ViewBuilder
     private func rootView(_ root: OutlineFileRoot) -> some View {
-        // When collapsing is disallowed, the section shifts left: the root row drops
-        // its chevron slot internally (18pt); everything under it (Sort, empty state,
-        // tree rows) shifts by filesLockedDescendantShift (10pt), preserving the
-        // normal Sort-to-subfolder relationship (Sort sits 8pt right of the tree
-        // chevron in both states).
+        // Whether root collapsing is allowed only decides if a chevron is drawn; the chevron
+        // slot is ALWAYS reserved so root/file/folder icons stay pinned to the shared icon
+        // column whether or not a chevron is visible (no left-shift on lock).
         let lockExpanded = self.lockExpanded
-        let reclaim = lockExpanded ? OutlineSidebarView.filesLockedDescendantShift : 0
 
         VStack(alignment: .leading, spacing: 2) {
             OutlineFileRootRow(
@@ -1753,7 +1804,7 @@ private struct OutlineFileBrowserView: View {
                         Text("No Markdown files")
                             .font(.system(size: 12))
                             .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                            .padding(.leading, 28 - reclaim)
+                            .padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)
                             .padding(.vertical, 4)
                     }
                 } else {
@@ -1772,8 +1823,7 @@ private struct OutlineFileBrowserView: View {
                                 currentFileURL: currentFileURL,
                                 renameItem: renameItem,
                                 deleteItem: deleteItem,
-                                revealItem: revealItem,
-                                lockExpanded: lockExpanded
+                                revealItem: revealItem
                             )
                         }
                     }
@@ -1834,7 +1884,6 @@ private struct OutlineFileRootRow: View {
     var toggleCollapsed: () -> Void
     var chooseWorkspaceFolder: () -> Void
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isHovered = false
     @State private var isWorkspaceActionHovered = false
 
     var body: some View {
@@ -1845,35 +1894,16 @@ private struct OutlineFileRootRow: View {
             // affordance it can't honor.
             if showsDisclosure {
                 Button(action: toggleCollapsed) {
-                    HStack(spacing: 8) {
-                        Image(systemName: chevronSystemImage)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                            .frame(width: 10)
-                            .accessibilityHidden(true)
-
-                        rootIcon
-
-                        titleLabel
-                    }
-                    .contentShape(Rectangle())
+                    rootLeadingContent(showsChevron: true)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isCollapsed ? "Expand \(root.title)" : "Collapse \(root.title)")
             } else {
-                // The empty chevron slot is reserved so titles align across roots (an
-                // empty iCloud root next to an expandable workspace) — EXCEPT when
-                // collapse is disallowed: then no root can ever show a chevron, the slot
-                // is dropped entirely, and the rows shift flush left to reclaim the space.
-                if !lockExpanded {
-                    Color.clear
-                        .frame(width: 10)
-                        .accessibilityHidden(true)
-                }
-
-                rootIcon
-
-                titleLabel
+                // The chevron slot is ALWAYS reserved (even when collapse is locked off) so the
+                // root icon stays pinned to the shared icon column, aligned with the file/folder
+                // icons below it.
+                rootLeadingContent(showsChevron: false)
             }
 
             Spacer(minLength: 0)
@@ -1908,18 +1938,13 @@ private struct OutlineFileRootRow: View {
                 }
             }
         }
-        .padding(.horizontal, 6)
+        // Chevron hangs at the content edge (the LazyVStack already insets by the chevron
+        // column); only a trailing inset for the Change button.
+        .padding(.trailing, 6)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesRootRowHeight, maxHeight: OutlineSidebarView.filesRootRowHeight, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(isHovered && root.state != .unavailable ? OutlineSidebarView.rowHoverFillOpacity : 0))
-        }
+        // Root headers are quiet section labels, not file rows — no hover fill (per design:
+        // a non-openable folder header shouldn't light up like a selectable row).
         .contentShape(Rectangle())
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovered = hovering
-            }
-        }
     }
 
     private var titleLabel: some View {
@@ -1930,12 +1955,49 @@ private struct OutlineFileRootRow: View {
             .opacity(root.state == .disconnected ? 0.48 : 1)
     }
 
+    /// Chevron slot + root icon + title, using the same geometry as the file-tree rows: a small
+    /// disclosure glyph right-aligned in a wider slot (nudged toward the icon), with slot + gap
+    /// summing to 18 so the root icon stays on the shared icon column. `showsChevron` is false for
+    /// a non-collapsible (locked/empty) root, which still reserves the slot so nothing shifts.
+    @ViewBuilder
+    private func rootLeadingContent(showsChevron: Bool) -> some View {
+        HStack(spacing: 0) {
+            Group {
+                if showsChevron {
+                    Image(systemName: chevronSystemImage)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: OutlineSidebarView.filesChevronSlotWidth, alignment: .trailing)
+            .accessibilityHidden(true)
+
+            rootIcon
+                .padding(.leading, OutlineSidebarView.filesChevronToIconGap)
+
+            titleLabel
+                .padding(.leading, 8)
+        }
+    }
+
     @ViewBuilder
     private var rootIcon: some View {
         if root.id == "icloud", root.state != .unavailable {
             Image(systemName: "icloud")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                .frame(width: 18, alignment: .center)
+                .opacity(root.state == .disconnected ? 0.48 : 1)
+                .accessibilityHidden(true)
+        } else if root.id == "workspace", root.state != .unavailable {
+            // A folder icon on the workspace header keeps it in the shared icon column
+            // (matching the file/folder rows below it), like the iCloud cloud icon.
+            Image(systemName: "folder")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                .frame(width: 18, alignment: .center)
                 .opacity(root.state == .disconnected ? 0.48 : 1)
                 .accessibilityHidden(true)
         }
@@ -1959,20 +2021,37 @@ private struct OutlineFileRootRow: View {
             : OutlineSidebarView.changeWorkspaceButtonTitle
     }
 
+    /// The first-time "Choose" call-to-action is the only high-contrast (near-black) button.
+    /// Once a workspace exists, "Change" is a secondary action, so it reads as a quiet grey.
+    private var isChooseAction: Bool {
+        root.state == .unassigned
+    }
+
     private var fileActionBackgroundColor: Color {
-        Color(nsColor: NSColor(
-            calibratedWhite: usesDarkChrome
+        let white: CGFloat
+        if isChooseAction {
+            // Prominent CTA: near-black (light) / near-white (dark).
+            white = usesDarkChrome
                 ? (isWorkspaceActionHovered ? 1.0 : 0.92)
-                : (isWorkspaceActionHovered ? 0.12 : 0.20),
-            alpha: 1
-        ))
+                : (isWorkspaceActionHovered ? 0.12 : 0.20)
+        } else {
+            // Quiet secondary "Change": light grey that shifts on hover.
+            white = usesDarkChrome
+                ? (isWorkspaceActionHovered ? 0.48 : 0.40)
+                : (isWorkspaceActionHovered ? 0.86 : 0.91)
+        }
+        return Color(nsColor: NSColor(calibratedWhite: white, alpha: 1))
     }
 
     private var fileActionTextColor: Color {
-        Color(nsColor: NSColor(
-            calibratedWhite: usesDarkChrome ? 0.10 : 1.0,
-            alpha: 1
-        ))
+        let white: CGFloat
+        if isChooseAction {
+            white = usesDarkChrome ? 0.10 : 1.0
+        } else {
+            // Softer than pure black/white on the light-grey fill.
+            white = usesDarkChrome ? 0.98 : 0.34
+        }
+        return Color(nsColor: NSColor(calibratedWhite: white, alpha: 1))
     }
 
     private var usesDarkChrome: Bool {
@@ -2032,9 +2111,6 @@ private struct OutlineFileTreeNodeView: View {
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
-    /// When root collapsing is disallowed, every tree row shifts left with the root
-    /// (the reclaimed chevron column) so the whole section moves as one block.
-    var lockExpanded: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
@@ -2059,37 +2135,42 @@ private struct OutlineFileTreeNodeView: View {
     }
 
     private var row: some View {
-        HStack(spacing: 8) {
-            if item.isDirectory {
-                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                    .frame(width: 10)
-            } else {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .opacity(0)
-                    .frame(width: 10)
+        // spacing 0 with explicit per-element leading padding, so the chevron can sit in a wider,
+        // right-aligned slot (nudged toward the icon, smaller glyph) without moving the icon or
+        // text — the slot width + gap still sum to the default 18, pinning the icon column.
+        HStack(spacing: 0) {
+            Group {
+                if item.isDirectory {
+                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(rowForegroundColor)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .opacity(0)
+                }
             }
+            .frame(width: OutlineSidebarView.filesChevronSlotWidth, alignment: .trailing)
 
             Image(systemName: item.isDirectory ? "folder" : "doc.text")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(rowForegroundColor)
                 .frame(width: 18)
+                .padding(.leading, OutlineSidebarView.filesChevronToIconGap)
 
             Text(item.name)
                 .font(.system(size: 13))
                 .foregroundStyle(rowForegroundColor)
                 .lineLimit(1)
+                .padding(.leading, 8)
 
             Spacer(minLength: 0)
         }
-        // Shift with the root when collapsing is locked: depth-1 chevrons land at a
-        // 10pt leading, 4pt inside the root icon's edge (see the geometry notes on
-        // filesLockedDescendantShift). The 14pt indent ladder stays intact.
-        .padding(.leading, CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep
-            - (lockExpanded ? OutlineSidebarView.filesLockedDescendantShift : 0))
-        .padding(.horizontal, 6)
+        // depth starts at 1 for a root's direct children; that first level sits at the chevron
+        // column (leading 0), each deeper level indents one `filesTreeIndentStep`. The chevron
+        // then hangs and the icon lands on the shared icon column.
+        .padding(.leading, CGFloat(depth - 1) * OutlineSidebarView.filesTreeIndentStep)
+        .padding(.trailing, 6)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -2153,10 +2234,15 @@ private struct OutlineFileTreeNodeView: View {
 
     /// The row fill: the modern macOS sidebar selection — a soft, translucent accent tint on the
     /// currently-shown file (like Finder/Notes source lists), a fainter text-colored tint on hover
-    /// otherwise. Selection wins over hover.
+    /// otherwise. Selection wins over hover. Folders take NO fill — they convey hover by darkening
+    /// their text/icon instead (they're collapse targets, not openable rows), leaving the settled
+    /// `.md` file look untouched.
     private var rowBackgroundStyle: Color {
         if isSelected {
             return Color.accentColor.opacity(OutlineSidebarView.rowSelectionFillOpacity)
+        }
+        if item.isDirectory {
+            return Color.clear
         }
         return OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
             .opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0)
@@ -2166,6 +2252,13 @@ private struct OutlineFileTreeNodeView: View {
         if isSelected {
             // Accent-colored label + icon over the soft tint, matching the native sidebar look.
             return Color.accentColor
+        }
+        if item.isDirectory {
+            // Subfolders read a step lighter than files; hovering darkens the whole row
+            // (chevron + folder icon + name) toward primary, cueing that it's collapsible.
+            return isHovered
+                ? OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
+                : OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome)
         }
         return item.isHidden
             ? OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome)

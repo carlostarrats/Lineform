@@ -156,6 +156,21 @@ struct MuseModalScrim: View {
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The editor's I-beam gets "stuck" when the modal covers the window (nothing over the
+        // scrim resets it). Actively reassert the arrow as the pointer moves across the scrim.
+        .modalArrowCursor()
+    }
+}
+
+extension View {
+    /// Actively sets the arrow cursor while the pointer moves within this view. Used on modal
+    /// surfaces (scrim + card) so the editor's I-beam doesn't linger over them.
+    func modalArrowCursor() -> some View {
+        onContinuousHover { phase in
+            if case .active = phase {
+                NSCursor.arrow.set()
+            }
+        }
     }
 }
 

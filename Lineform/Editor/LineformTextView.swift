@@ -235,6 +235,12 @@ final class LineformTextView: NSTextView {
     }
 
     private static let visibleTopRangeReportDebounce: TimeInterval = 0.08
+    /// How far below the exact top edge the "which heading is at the top" probe reads. A jump
+    /// parks the target heading ~8pt below the top (scrollCharacterRangeToTop's margin), and the
+    /// line just above it can still poke a descender into the exact top pixel. Reading a bit below
+    /// the edge makes the clicked heading the one detected — and, while scrolling, flips a heading
+    /// to active right as its line crosses the top. Must exceed that 8pt park margin.
+    private static let visibleTopProbeInset: CGFloat = 14
     private var lastReportedVisibleTopRange: NSRange?
 
     private func scheduleVisibleTopRangeReportAfterScroll() {
@@ -244,11 +250,26 @@ final class LineformTextView: NSTextView {
     }
 
     @objc private func reportVisibleTopRangeAfterScroll() {
-        guard let fullRange = visibleCharacterRangeForLayoutPreservation() else { return }
-        let topRange = NSRange(location: fullRange.location, length: 1)
+        guard let location = visibleTopCharacterLocation() else { return }
+        let topRange = NSRange(location: location, length: 1)
         guard !NSEqualRanges(topRange, lastReportedVisibleTopRange ?? NSRange(location: NSNotFound, length: 0)) else { return }
         lastReportedVisibleTopRange = topRange
         onVisibleTopRangeChanged?(topRange)
+    }
+
+    /// Character index of the first line at/below the viewport top, read a little below the exact
+    /// edge (see `visibleTopProbeInset`) so a jump-parked heading — not the line sliver above it —
+    /// is what the outline highlights.
+    private func visibleTopCharacterLocation() -> Int? {
+        guard let layoutManager, let textContainer, let scrollView = enclosingScrollView else { return nil }
+        runLayoutSensitiveEnsureLayout { layoutManager.ensureLayout(for: textContainer) }
+        var visibleRect = scrollView.contentView.bounds
+        visibleRect.origin.y += Self.visibleTopProbeInset
+        visibleRect.size.height = max(0, visibleRect.size.height - Self.visibleTopProbeInset)
+        visibleRect.origin.x -= textContainerOrigin.x
+        visibleRect.origin.y -= textContainerOrigin.y
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+        return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil).location
     }
 
     /// (Re)binds the scroll-bounds observer to the CURRENT enclosing clip view. Removing first

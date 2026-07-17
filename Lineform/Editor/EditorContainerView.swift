@@ -524,6 +524,8 @@ struct EditorContainerView: View {
                     )
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                // Keep the arrow cursor over the card too (the editor I-beam otherwise lingers).
+                .modalArrowCursor()
         }
         .zIndex(modalZIndex)
     }
@@ -802,6 +804,10 @@ struct EditorContainerView: View {
 
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
         requestedScrollToTopRange = item.characterRange
+        // Bold the clicked heading immediately rather than waiting for the post-scroll report —
+        // the report then confirms the same heading (it now parks at the viewport top), so the
+        // selection never flickers to a neighbor.
+        activeOutlineSourceRange = item.characterRange
         if displayMode == .read {
             displayMode = .write
         }
