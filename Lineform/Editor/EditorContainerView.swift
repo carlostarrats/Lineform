@@ -12,7 +12,12 @@ struct EditorContainerView: View {
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline: Bool
     @State private var outlineItems: [MarkdownOutlineItem] = []
+    /// The source-text range of the heading (or nearest content) currently at the top of the
+    /// editor viewport. Kept in sync across Write, Read, and Preview modes so the outline
+    /// sidebar can bold the active item.
+    @State private var activeOutlineSourceRange: NSRange?
     @State private var requestedSelection: NSRange?
+    @State private var requestedScrollToTopRange: NSRange?
     @State private var searchQuery = ""
     @State private var searchMatches: [NSRange] = []
     @State private var activeSearchIndex: Int?
@@ -73,6 +78,7 @@ struct EditorContainerView: View {
         NavigationSplitView(columnVisibility: outlineVisibility) {
             OutlineSidebarView(
                 items: outlineItems,
+                activeSourceRange: activeOutlineSourceRange,
                 jumpToHeading: jumpToHeading,
                 openFile: openSidebarFile,
                 currentFileURL: currentFileURL,
@@ -721,7 +727,8 @@ struct EditorContainerView: View {
                 DebouncedMarkdownPreviewView(
                     text: document.text,
                     profile: readingProfileStore.activeProfile,
-                    onCheckboxToggle: toggleCheckbox
+                    onCheckboxToggle: toggleCheckbox,
+                    onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
                 )
                 .frame(maxHeight: .infinity)
             }
@@ -733,7 +740,8 @@ struct EditorContainerView: View {
                 DebouncedMarkdownPreviewView(
                     text: document.text,
                     profile: readingProfileStore.activeProfile,
-                    onCheckboxToggle: toggleCheckbox
+                    onCheckboxToggle: toggleCheckbox,
+                    onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
                 )
             }
         }
@@ -746,6 +754,7 @@ struct EditorContainerView: View {
             plainTextConversion: $document.plainTextConversion,
             requestedSelection: $requestedSelection,
             requestedReplacement: $requestedReplacement,
+            requestedScrollToTopRange: $requestedScrollToTopRange,
             profile: readingProfileStore.activeProfile,
             smoothsHorizontalInsetChanges: false,
             searchRanges: searchMatches,
@@ -755,7 +764,8 @@ struct EditorContainerView: View {
                 // dirty gate can't see the in-progress edits; suspend external reloads until
                 // the session ends (the controller reconciles once on resume).
                 reloadController.isWritingToolsSessionActive = active
-            }
+            },
+            onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
         )
         .accessibilityLabel("Markdown editor")
         .accessibilityValue(searchAccessibilitySummary ?? "")
@@ -777,7 +787,7 @@ struct EditorContainerView: View {
     }
 
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
-        requestedSelection = item.characterRange
+        requestedScrollToTopRange = item.characterRange
         if displayMode == .read {
             displayMode = .write
         }

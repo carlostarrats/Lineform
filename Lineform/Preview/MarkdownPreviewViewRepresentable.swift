@@ -7,6 +7,9 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     /// Called when the user clicks a rendered task checkbox, with the `NSRange` of its `[ ]`/`[x]`
     /// marker in the source document. The container toggles that span in `document.text`.
     var onCheckboxToggle: (NSRange) -> Void = { _ in }
+    /// Called when the visible top of the rendered text changes. The range is in rendered-text
+    /// coordinates; use `.headingSourceRange` attributes to map headings back to source positions.
+    var onVisibleTopRangeChanged: ((NSRange) -> Void)?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -20,6 +23,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.setAccessibilityLabel("Markdown read view")
         textView.setAccessibilityRole(.textArea)
         textView.onCheckboxToggle = onCheckboxToggle
+        textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
 
         scrollView.documentView = textView
         textView.apply(text: text, profile: profile)
@@ -33,6 +37,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
 
         // Re-bind the closure each update so it captures the current document binding.
         textView.onCheckboxToggle = onCheckboxToggle
+        textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
         textView.apply(text: text, profile: profile)
     }
 }
@@ -41,6 +46,10 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     /// Set by the representable; invoked with a checkbox's source-marker range on a click that lands
     /// on a rendered checkbox glyph.
     var onCheckboxToggle: (NSRange) -> Void = { _ in }
+    /// Called when the visible character range changes due to scrolling. For Read/Preview mode this
+    /// is a range in the rendered text; the receiver maps it back to the source via the
+    /// `.headingSourceRange` attribute attached to headings.
+    var onVisibleTopRangeChanged: ((NSRange) -> Void)?
     private var activeProfile = ReadingProfile.original
     private var renderedText: String?
     private var renderedProfile: ReadingProfile?
@@ -49,6 +58,8 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private let diagramLog = DiagramLogStore()
     private let reportRegistry = DiagramReportRegistry()
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+    private static let visibleTopRangeReportDebounce: TimeInterval = 0.08
+    private var lastReportedVisibleTopRange: NSRange?
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -233,6 +244,70 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             done.addButton(withTitle: "OK")
             done.runModal()
         }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateTextContainerLayout()
+        updateScrollBoundsObservation()
+    }
+
+    private func updateScrollBoundsObservation() {
+        NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
+        guard let clipView = enclosingScrollView?.contentView else { return }
+        clipView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(clipViewBoundsDidChange),
+            name: NSView.boundsDidChangeNotification,
+            object: clipView
+        )
+    }
+
+    @objc private func clipViewBoundsDidChange(_ notification: Notification) {
+        scheduleVisibleTopRangeReportAfterScroll()
+    }
+
+    private func scheduleVisibleTopRangeReportAfterScroll() {
+        let selector = #selector(reportVisibleTopRangeAfterScroll)
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
+        perform(selector, with: nil, afterDelay: Self.visibleTopRangeReportDebounce, inModes: [.common])
+    }
+
+    @objc private func reportVisibleTopRangeAfterScroll() {
+        guard let sourceRange = sourceRangeAtTopOfViewport() else { return }
+        guard !NSEqualRanges(sourceRange, lastReportedVisibleTopRange ?? NSRange(location: NSNotFound, length: 0)) else { return }
+        lastReportedVisibleTopRange = sourceRange
+        onVisibleTopRangeChanged?(sourceRange)
+    }
+
+    /// Returns the source-document range of the heading nearest the top of the viewport, or the
+    /// top of the visible rect if no heading is there. The outline sidebar uses this to bold the
+    /// active heading in all display modes.
+    private func sourceRangeAtTopOfViewport() -> NSRange? {
+        guard
+            let layoutManager,
+            let textContainer,
+            let textStorage,
+            textStorage.length > 0,
+            let scrollView = enclosingScrollView
+        else {
+            return nil
+        }
+        var visibleRect = scrollView.contentView.bounds
+        visibleRect.origin.x -= textContainerOrigin.x
+        visibleRect.origin.y -= textContainerOrigin.y
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+        let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+        // Prefer the first heading whose rendered text intersects the top of the viewport.
+        var headingSourceRange: NSRange?
+        textStorage.enumerateAttribute(.headingSourceRange, in: charRange, options: []) { value, _, stop in
+            if let value = value as? NSValue {
+                headingSourceRange = value.rangeValue
+                stop.pointee = true
+            }
+        }
+        return headingSourceRange ?? charRange
     }
 
     private func configure() {

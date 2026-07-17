@@ -4,6 +4,10 @@ extension NSAttributedString.Key {
     /// Attached to a rendered task-checkbox glyph; value is an `NSValue` boxing the `NSRange` of the
     /// `[ ]`/`[x]` marker in the source document, so a click on the glyph can toggle that span.
     static let checkboxSourceRange = NSAttributedString.Key("lineform.checkboxSourceRange")
+
+    /// Attached to rendered heading text; value is an `NSValue` boxing the `NSRange` of the
+    /// heading line in the source document, so the outline sidebar can sync its scroll state.
+    static let headingSourceRange = NSAttributedString.Key("lineform.headingSourceRange")
 }
 
 struct MarkdownPreviewRenderer {
@@ -61,6 +65,7 @@ struct MarkdownPreviewRenderer {
         let codeAttributes = codeAttributes(profile: profile)
         let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
         let lines = text.components(separatedBy: "\n")
+        let lineRanges = Self.sourceRanges(forLines: lines)
         let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: lines))
         let theme = Theme.theme(for: profile)
 
@@ -76,6 +81,7 @@ struct MarkdownPreviewRenderer {
                     range,
                     to: output,
                     lines: lines,
+                    lineRanges: lineRanges,
                     profile: profile,
                     theme: theme,
                     mathProvider: mathProvider,
@@ -377,6 +383,20 @@ struct MarkdownPreviewRenderer {
         output.append(NSAttributedString(attachment: attachment))
     }
 
+    /// Computes the UTF-16 source range of each line in `lines`, assuming they are separated by
+    /// a single newline character. Used to tag rendered headings with their original position so
+    /// the outline sidebar can sync its active item to the editor scroll position.
+    private static func sourceRanges(forLines lines: [String]) -> [NSRange] {
+        var ranges: [NSRange] = []
+        var location = 0
+        for line in lines {
+            let length = (line as NSString).length
+            ranges.append(NSRange(location: location, length: length))
+            location += length + 1
+        }
+        return ranges
+    }
+
     /// Render a maximal run of ordinary lines (body, headings, fenced code) exactly as the original
     /// per-line loop did: fence state starts closed (every `.lines` run begins where the grouping
     /// was outside any fence), each line emits its content plus a trailing newline unless it is the
@@ -385,6 +405,7 @@ struct MarkdownPreviewRenderer {
         _ range: Range<Int>,
         to output: NSMutableAttributedString,
         lines: [String],
+        lineRanges: [NSRange],
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
@@ -411,11 +432,14 @@ struct MarkdownPreviewRenderer {
                 output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
                 lineTerminatorAttributes = activeCodeAttributes
             } else if let heading = heading(in: line) {
-                let activeHeadingAttributes = headingAttributes(
+                var activeHeadingAttributes = headingAttributes(
                     level: heading.level,
                     profile: profile,
                     usesBlockSpacing: usesBlockSpacing
                 )
+                if range.contains(index) {
+                    activeHeadingAttributes[.headingSourceRange] = NSValue(range: lineRanges[index])
+                }
                 output.append(NSAttributedString(
                     string: heading.title,
                     attributes: activeHeadingAttributes

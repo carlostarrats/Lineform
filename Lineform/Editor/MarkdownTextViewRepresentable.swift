@@ -7,17 +7,20 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var plainTextConversion: MarkdownPlainTextConversion?
     @Binding var requestedSelection: NSRange?
     @Binding var requestedReplacement: MarkdownEdit?
+    @Binding var requestedScrollToTopRange: NSRange?
     var profile: ReadingProfile
     var smoothsHorizontalInsetChanges = false
     var searchRanges: [NSRange] = []
     var activeSearchRange: NSRange?
     var onWritingToolsSessionChange: ((Bool) -> Void)?
+    var onVisibleTopRangeChanged: ((NSRange) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             text: $text,
             textFormat: $textFormat,
-            plainTextConversion: $plainTextConversion
+            plainTextConversion: $plainTextConversion,
+            scrollToTopRange: $requestedScrollToTopRange
         )
     }
 
@@ -36,6 +39,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
         textView.delegate = context.coordinator
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
+        textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
         context.coordinator.performWithoutSelectionUpdates {
@@ -55,6 +59,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
         textView.applyTypography(profile)
+        textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
 
@@ -99,6 +104,17 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             textView.scrollRangeToVisible(safeRange)
             DispatchQueue.main.async {
                 requestedSelection = nil
+            }
+        }
+
+        if let range = requestedScrollToTopRange {
+            let safeRange = NSIntersectionRange(range, NSRange(location: 0, length: (textView.string as NSString).length))
+            context.coordinator.performWithoutSelectionUpdates {
+                textView.setSelectedRange(safeRange)
+            }
+            textView.scrollCharacterRangeToTop(safeRange)
+            DispatchQueue.main.async {
+                requestedScrollToTopRange = nil
             }
         }
     }
@@ -220,6 +236,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var text: Binding<String>
     private var textFormat: Binding<LineformTextFormat>
     private var plainTextConversion: Binding<MarkdownPlainTextConversion?>
+    private var scrollToTopRange: Binding<NSRange?>
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
     private var suppressSelectionUpdates = false
@@ -240,11 +257,13 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     init(
         text: Binding<String>,
         textFormat: Binding<LineformTextFormat>,
-        plainTextConversion: Binding<MarkdownPlainTextConversion?>
+        plainTextConversion: Binding<MarkdownPlainTextConversion?>,
+        scrollToTopRange: Binding<NSRange?> = .constant(nil)
     ) {
         self.text = text
         self.textFormat = textFormat
         self.plainTextConversion = plainTextConversion
+        self.scrollToTopRange = scrollToTopRange
     }
 
     var writingToolsSessionChangeHandler: ((Bool) -> Void)?

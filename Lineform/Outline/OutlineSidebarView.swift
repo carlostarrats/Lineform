@@ -4,9 +4,17 @@ import SwiftUI
 enum OutlineSidebarTab: String, CaseIterable, Identifiable {
     case outline = "Outline"
     case files = "Files"
-    case info = "Info"
+    case markdownBasics = "Markdown Basics"
 
     var id: Self { self }
+
+    var systemImage: String {
+        switch self {
+        case .outline: return "list.bullet"
+        case .files: return "folder"
+        case .markdownBasics: return "curlybraces"
+        }
+    }
 }
 
 struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
@@ -218,6 +226,7 @@ struct OutlineSidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedNodeIDs: Set<String> = []
     @State private var selectedTab = OutlineSidebarTab.outline
+    @State private var isSettingsHovered = false
     @StateObject private var fileBrowserStore: OutlineFileBrowserStore
 
     static func showsTitle(for items: [MarkdownOutlineItem]) -> Bool {
@@ -294,6 +303,9 @@ struct OutlineSidebarView: View {
     }
 
     var items: [MarkdownOutlineItem]
+    /// Source-text range of the heading currently at/near the top of the editor viewport.
+    /// When nil, no outline item is highlighted as active.
+    var activeSourceRange: NSRange? = nil
     var jumpToHeading: (MarkdownOutlineItem) -> Void
     var openFile: (URL) -> Void = { url in
         LineformSidebarFileOpener.open(url, replacing: nil)
@@ -314,6 +326,7 @@ struct OutlineSidebarView: View {
 
     init(
         items: [MarkdownOutlineItem],
+        activeSourceRange: NSRange? = nil,
         jumpToHeading: @escaping (MarkdownOutlineItem) -> Void,
         openFile: @escaping (URL) -> Void = { url in
             LineformSidebarFileOpener.open(url, replacing: nil)
@@ -326,6 +339,7 @@ struct OutlineSidebarView: View {
         revealItem: @escaping (OutlineFileTreeItem) -> Void = { _ in }
     ) {
         self.items = items
+        self.activeSourceRange = activeSourceRange
         self.jumpToHeading = jumpToHeading
         self.openFile = openFile
         self.currentFileURL = currentFileURL
@@ -350,78 +364,170 @@ struct OutlineSidebarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 tabPicker
 
-                switch selectedTab {
-                case .outline:
-                    outlineContent
-                case .files:
-                    OutlineFileBrowserView(
-                        store: fileBrowserStore,
-                        openFile: openFile,
-                        currentFileURL: currentFileURL,
-                        settings: settings,
-                        renameItem: renameItem,
-                        deleteItem: deleteItem,
-                        revealItem: revealItem
-                    )
-                        .onAppear {
-                            // Reconcile the app-wide "Show Hidden Folders" preference (driven from
-                            // the View menu) each time the Files tab becomes visible, then run the
-                            // deferred iCloud scan exactly once. Only an OFF→ON change scans iCloud
-                            // via the store's `didSet` (it must enumerate previously-skipped hidden
-                            // entries); every other path — unchanged, or a change toward OFF whose
-                            // `didSet` only filters cached items — still needs the sanctioned
-                            // `refreshICloud()` here. The scan stays deferred to this point, so it
-                            // never runs for windows whose Files tab isn't shown.
-                            let desired = HiddenFoldersMenuState.shared.isOn
-                            let turnedOn = desired && !fileBrowserStore.showsHiddenFolders
-                            fileBrowserStore.showsHiddenFolders = desired
-                            // Reconcile BOTH roots on every appearance (previously only iCloud
-                            // refreshed here, so workspace changes made while the tab was hidden
-                            // never showed). When the toggle just turned ON, its didSet already
-                            // re-scanned both roots — don't walk them twice in one appearance.
-                            if !turnedOn {
-                                fileBrowserStore.refreshICloud()
-                                fileBrowserStore.refreshWorkspace()
-                            }
-                            // Start live watching after the refresh above so the resolved
-                            // iCloud container URL is available to watch.
-                            fileBrowserStore.beginWatchingForExternalChanges()
-                        }
-                        .onDisappear {
-                            fileBrowserStore.endWatchingForExternalChanges()
-                        }
-                        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleHiddenFolders.name)) { _ in
-                            // Live update while the Files tab is visible (its iCloud container is
-                            // already resolved, so the store's re-scan matches the old in-sidebar
-                            // toggle's cost). Windows on the Outline tab or with the sidebar collapsed
-                            // don't observe this, preserving the deferred-scan invariant; they
-                            // reconcile via .onAppear when the Files tab next appears.
-                            fileBrowserStore.showsHiddenFolders = HiddenFoldersMenuState.shared.isOn
-                        }
-                        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.refreshSidebarFiles.name)) { notification in
-                            // An in-app rename/delete happened (any window). Refresh
-                            // immediately — the FSEvents path would also catch it, but only
-                            // after its coalescing latency. Scoped to the root containing the
-                            // affected URL; only visible Files tabs observe this, preserving
-                            // the deferred-scan invariant.
-                            fileBrowserStore.refreshRoots(affecting: notification.object as? URL)
-                        }
-                case .info:
-                    OutlineInfoTabView(usesDarkChrome: usesDarkChrome)
+                ZStack(alignment: .bottom) {
+                    tabContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                    bottomBar
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(minWidth: Self.minimumColumnWidth, idealWidth: Self.idealColumnWidth, maxWidth: Self.maximumColumnWidth)
         .accessibilityLabel("Document outline")
     }
 
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .outline:
+            outlineContent
+        case .files:
+            filesContent
+        case .markdownBasics:
+            OutlineMarkdownBasicsTabView(usesDarkChrome: usesDarkChrome)
+        }
+    }
+
+    @ViewBuilder
+    private var filesContent: some View {
+        OutlineFileBrowserView(
+            store: fileBrowserStore,
+            openFile: openFile,
+            currentFileURL: currentFileURL,
+            settings: settings,
+            renameItem: renameItem,
+            deleteItem: deleteItem,
+            revealItem: revealItem
+        )
+        .onAppear {
+            // Reconcile the app-wide "Show Hidden Folders" preference (driven from
+            // the View menu) each time the Files tab becomes visible, then run the
+            // deferred iCloud scan exactly once. Only an OFF→ON change scans iCloud
+            // via the store's `didSet` (it must enumerate previously-skipped hidden
+            // entries); every other path — unchanged, or a change toward OFF whose
+            // `didSet` only filters cached items — still needs the sanctioned
+            // `refreshICloud()` here. The scan stays deferred to this point, so it
+            // never runs for windows whose Files tab isn't shown.
+            let desired = HiddenFoldersMenuState.shared.isOn
+            let turnedOn = desired && !fileBrowserStore.showsHiddenFolders
+            fileBrowserStore.showsHiddenFolders = desired
+            // Reconcile BOTH roots on every appearance (previously only iCloud
+            // refreshed here, so workspace changes made while the tab was hidden
+            // never showed). When the toggle just turned ON, its didSet already
+            // re-scanned both roots — don't walk them twice in one appearance.
+            if !turnedOn {
+                fileBrowserStore.refreshICloud()
+                fileBrowserStore.refreshWorkspace()
+            }
+            // Start live watching after the refresh above so the resolved
+            // iCloud container URL is available to watch.
+            fileBrowserStore.beginWatchingForExternalChanges()
+        }
+        .onDisappear {
+            fileBrowserStore.endWatchingForExternalChanges()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleHiddenFolders.name)) { _ in
+            // Live update while the Files tab is visible (its iCloud container is
+            // already resolved, so the store's re-scan matches the old in-sidebar
+            // toggle's cost). Windows on the Outline tab or with the sidebar collapsed
+            // don't observe this, preserving the deferred-scan invariant; they
+            // reconcile via .onAppear when the Files tab next appears.
+            fileBrowserStore.showsHiddenFolders = HiddenFoldersMenuState.shared.isOn
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.refreshSidebarFiles.name)) { notification in
+            // An in-app rename/delete happened (any window). Refresh
+            // immediately — the FSEvents path would also catch it, but only
+            // after its coalescing latency. Scoped to the root containing the
+            // affected URL; only visible Files tabs observe this, preserving
+            // the deferred-scan invariant.
+            fileBrowserStore.refreshRoots(affecting: notification.object as? URL)
+        }
+    }
+
+    private var bottomBar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sidebarDivider
+
+            Button {
+                LineformAppNotification.showSettings.post()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 13, weight: .medium))
+                        .frame(width: 18, alignment: .center)
+
+                    Text("Settings")
+                        .font(.system(size: 13, weight: .medium))
+
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
+                            .opacity(isSettingsHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+        }
+        .background(sidebarBackground)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isSettingsHovered = hovering
+            }
+        }
+    }
+
     private var tabPicker: some View {
-        OutlineSidebarSegmentedControl(selection: $selectedTab)
-        .frame(maxWidth: .infinity)
-        .frame(height: 32)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(OutlineSidebarTab.allCases) { tab in
+                    SidebarTabButton(
+                        tab: tab,
+                        isSelected: selectedTab == tab,
+                        action: { selectedTab = tab }
+                    )
+                }
+            }
+            .padding(.bottom, 8)
+
+            sidebarDivider
+                .padding(.horizontal, 0)
+        }
         .padding(.horizontal, 14)
         .padding(.top, 12)
-        .padding(.bottom, 8)
+    }
+
+    private var sidebarDivider: some View {
+        Rectangle()
+            .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(0.10))
+            .frame(height: 0.5)
+            .frame(maxWidth: .infinity)
+    }
+
+    /// Heading items shown in the outline, with the first H1 (document title/page name)
+    /// omitted — it is already visible at the top of the editor.
+    private var displayedItems: [MarkdownOutlineItem] {
+        if items.first?.level == 1 {
+            return Array(items.dropFirst())
+        }
+        return items
+    }
+
+    /// The outline item nearest the top of the current viewport, if any. Choosing the last
+    /// heading whose source position is at or before the viewport top means the heading
+    /// currently being read is bolded, even when its text line has just scrolled past the top.
+    private var activeItemID: String? {
+        guard let activeSourceRange else { return nil }
+        return displayedItems.last { $0.characterRange.location <= activeSourceRange.location }?.id
     }
 
     @ViewBuilder
@@ -449,17 +555,18 @@ struct OutlineSidebarView: View {
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 1) {
-                    ForEach(Self.outlineTree(from: items)) { node in
+                    ForEach(Self.outlineTree(from: displayedItems)) { node in
                         OutlineSidebarNodeView(
                             node: node,
                             depth: 0,
+                            activeItemID: activeItemID,
                             collapsedNodeIDs: $collapsedNodeIDs,
                             jumpToHeading: jumpToHeading
                         )
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, 4)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
             }
             .scrollContentBackground(.hidden)
         }
@@ -492,7 +599,7 @@ struct OutlineSidebarView: View {
         ))
     }
 
-    fileprivate static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
+    static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
         Color(nsColor: NSColor(
             calibratedWhite: usesDarkChrome ? darkSecondaryTextWhiteComponent : secondaryTextWhiteComponent,
             alpha: 1
@@ -503,6 +610,7 @@ struct OutlineSidebarView: View {
 private struct OutlineSidebarNodeView: View {
     var node: OutlineSidebarView.OutlineNode
     var depth: Int
+    var activeItemID: String?
     @Binding var collapsedNodeIDs: Set<String>
     var jumpToHeading: (MarkdownOutlineItem) -> Void
 
@@ -515,6 +623,7 @@ private struct OutlineSidebarNodeView: View {
             OutlineSidebarRow(
                 node: node,
                 depth: depth,
+                isActive: node.id == activeItemID,
                 isCollapsed: isCollapsed,
                 toggleCollapsed: toggleCollapsed,
                 jumpToHeading: jumpToHeading
@@ -525,6 +634,7 @@ private struct OutlineSidebarNodeView: View {
                     OutlineSidebarNodeView(
                         node: child,
                         depth: depth + 1,
+                        activeItemID: activeItemID,
                         collapsedNodeIDs: $collapsedNodeIDs,
                         jumpToHeading: jumpToHeading
                     )
@@ -545,65 +655,46 @@ private struct OutlineSidebarNodeView: View {
 private struct OutlineSidebarRow: View {
     var node: OutlineSidebarView.OutlineNode
     var depth: Int
+    var isActive: Bool
     var isCollapsed: Bool
     var toggleCollapsed: () -> Void
     var jumpToHeading: (MarkdownOutlineItem) -> Void
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            if node.children.isEmpty {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .opacity(0)
-                    .frame(width: 10)
-            } else {
-                Button(action: toggleCollapsed) {
-                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                        .frame(width: 10)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isCollapsed ? "Expand \(node.item.title)" : "Collapse \(node.item.title)")
+        Button {
+            jumpToHeading(node.item)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(rowForegroundColor)
+                    .frame(width: 18)
+
+                Text(node.item.title)
+                    .font(.system(size: 13, weight: fontWeight))
+                    .foregroundStyle(rowForegroundColor)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
             }
-
-            Button {
-                jumpToHeading(node.item)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: OutlineSidebarView.iconName(forHeadingLevel: node.item.level))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                        .frame(width: 18)
-
-                    Text(node.item.title)
-                        .font(.system(size: 13, weight: node.item.level == 1 ? .medium : .regular))
-                        .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Jump to heading \(node.item.title)")
-
-            Spacer(minLength: 0)
+            .padding(.leading, CGFloat(depth) * 14)
+            .padding(.horizontal, 6)
+            .frame(height: 26)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(.leading, CGFloat(depth) * 14)
-        .padding(.horizontal, 6)
-        .frame(height: 26)
-        .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0))
-        }
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovered = hovering
-            }
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Jump to heading \(node.item.title)")
+    }
+
+    private var fontWeight: Font.Weight {
+        if isActive { return .bold }
+        return node.item.level == 1 ? .medium : .regular
+    }
+
+    private var rowForegroundColor: Color {
+        OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
     }
 
     private var usesDarkChrome: Bool {
@@ -611,58 +702,56 @@ private struct OutlineSidebarRow: View {
     }
 }
 
-private struct OutlineSidebarSegmentedControl: NSViewRepresentable {
+private struct SidebarTabButton: View {
+    let tab: OutlineSidebarTab
+    let isSelected: Bool
+    let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
-    @Binding var selection: OutlineSidebarTab
+    @State private var isHovered = false
 
-    func makeNSView(context: Context) -> NSSegmentedControl {
-        let control = NSSegmentedControl(labels: OutlineSidebarView.tabTitles, trackingMode: .selectOne, target: context.coordinator, action: #selector(Coordinator.selectionChanged(_:)))
-        control.segmentStyle = .rounded
-        control.segmentDistribution = .fillEqually
-        control.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        control.selectedSegment = selectedSegmentIndex
-        control.appearance = appearance
-        return control
-    }
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 18, alignment: .center)
 
-    func updateNSView(_ nsView: NSSegmentedControl, context: Context) {
-        nsView.selectedSegment = selectedSegmentIndex
-        nsView.appearance = appearance
-        nsView.segmentDistribution = .fillEqually
-        nsView.setWidth(0, forSegment: 0)
-        nsView.setWidth(0, forSegment: 1)
-        nsView.setWidth(0, forSegment: 2)
-        nsView.needsDisplay = true
-    }
+                Text(tab.rawValue)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(selection: $selection)
-    }
-
-    private var selectedSegmentIndex: Int {
-        OutlineSidebarTab.allCases.firstIndex(of: selection) ?? 0
-    }
-
-    private var appearance: NSAppearance? {
-        NSAppearance(named: OutlineSidebarView.tabAppearanceName(usesDarkChrome: colorScheme == .dark))
-    }
-
-    final class Coordinator: NSObject {
-        @Binding var selection: OutlineSidebarTab
-
-        init(selection: Binding<OutlineSidebarTab>) {
-            _selection = selection
-        }
-
-        @MainActor
-        @objc func selectionChanged(_ sender: NSSegmentedControl) {
-            guard OutlineSidebarTab.allCases.indices.contains(sender.selectedSegment) else {
-                return
+                Spacer(minLength: 0)
             }
-
-            selection = OutlineSidebarTab.allCases[sender.selectedSegment]
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(backgroundFill)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovered = hovering
+            }
+        }
+    }
+
+    private var foregroundColor: Color {
+        OutlineSidebarView.primaryTextColor(usesDarkChrome: colorScheme == .dark)
+            .opacity(isSelected ? 1.0 : 0.45)
+    }
+
+    @ViewBuilder
+    private var backgroundFill: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: colorScheme == .dark)
+                .opacity(backgroundOpacity))
+    }
+
+    private var backgroundOpacity: Double {
+        if isSelected { return 0.08 }
+        if isHovered { return 0.06 }
+        return 0
     }
 }
 
@@ -1572,6 +1661,8 @@ private struct OutlineFileBrowserView: View {
         // the file tree — no in-sidebar toggle chrome.
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
+                globalSortRow
+
                 if OutlineSidebarView.iCloudRootVisible(state: store.iCloudRoot.state, showICloudInSidebar: settings.showICloudInSidebar) {
                     rootView(store.iCloudRoot)
                 }
@@ -1579,10 +1670,53 @@ private struct OutlineFileBrowserView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
-            .padding(.top, 4)
+            .padding(.top, 8)
             .padding(.bottom, 14)
         }
         .scrollContentBackground(.hidden)
+    }
+
+    private var globalSortRow: some View {
+        Menu {
+            ForEach(OutlineFileSortOrder.allCases) { order in
+                Button {
+                    globalSortOrder.wrappedValue = order
+                } label: {
+                    if order == globalSortOrder.wrappedValue {
+                        Label(order.title, systemImage: "checkmark")
+                    } else {
+                        Text(order.title)
+                    }
+                }
+                .accessibilityAddTraits(order == globalSortOrder.wrappedValue ? [.isSelected] : [])
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Sort folders by: \(globalSortOrder.wrappedValue.title)")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+        .padding(.leading, 14)
+        .padding(.vertical, 4)
+        .accessibilityLabel("Sort folders by")
+        .accessibilityValue(globalSortOrder.wrappedValue.title)
+    }
+
+    private var globalSortOrder: Binding<OutlineFileSortOrder> {
+        Binding(
+            get: { store.iCloudSortOrder },
+            set: { newValue in
+                store.iCloudSortOrder = newValue
+                store.workspaceSortOrder = newValue
+            }
+        )
     }
 
     @ViewBuilder
@@ -1607,15 +1741,6 @@ private struct OutlineFileBrowserView: View {
 
             // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
             // expandable tree, no empty-state line — just the quiet header.
-            if root.state == .available, !isRootCollapsed(root.id, lockExpanded: lockExpanded), !rootIsDimmed(root), !root.items.isEmpty {
-                // The Sort row shifts with the tree (10pt), keeping its normal
-                // alignment to the subfolder below it: 8pt right of the tree's
-                // chevron in both states (28 vs 20 unlocked, 18 vs 10 locked).
-                OutlineFileSortRow(rootTitle: root.title, sortOrder: sortBinding(for: root))
-                    .padding(.leading, 28 - reclaim)
-                    .padding(.bottom, 2)
-            }
-
             if root.showsTree, !isRootCollapsed(root.id, lockExpanded: lockExpanded), !rootIsDimmed(root) {
                 if root.items.isEmpty {
                     // Only a connected (.available) empty folder is genuinely "no Markdown." A
@@ -1656,10 +1781,6 @@ private struct OutlineFileBrowserView: View {
         }
         .opacity(rootIsDimmed(root) ? OutlineSidebarView.filesUnavailableRootOpacity : 1)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func sortBinding(for root: OutlineFileRoot) -> Binding<OutlineFileSortOrder> {
-        root.id == "icloud" ? $store.iCloudSortOrder : $store.workspaceSortOrder
     }
 
     private func rootIsDimmed(_ root: OutlineFileRoot) -> Bool {
@@ -1715,11 +1836,10 @@ private struct OutlineFileRootRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Only an expandable root is a real disclosure control. The WHOLE header
-            // (chevron + icon + title) is the button — users click the chevron or icon
-            // as readily as the title, and a title-only target leaves dead zones. A
-            // non-expandable header renders as plain views so VoiceOver doesn't
-            // announce an "Expand/Collapse" affordance it can't honor.
+            // Root headers use a leading icon only for iCloud (the cloud). The workspace
+            // root is plain text. An expandable root still uses a chevron; a non-expandable
+            // header renders as plain views so VoiceOver doesn't announce an "Expand/Collapse"
+            // affordance it can't honor.
             if showsDisclosure {
                 Button(action: toggleCollapsed) {
                     HStack(spacing: 8) {
@@ -1807,21 +1927,23 @@ private struct OutlineFileRootRow: View {
             .opacity(root.state == .disconnected ? 0.48 : 1)
     }
 
+    @ViewBuilder
+    private var rootIcon: some View {
+        if root.id == "icloud", root.state != .unavailable {
+            Image(systemName: "icloud")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                .opacity(root.state == .disconnected ? 0.48 : 1)
+                .accessibilityHidden(true)
+        }
+    }
+
     private var showsDisclosure: Bool {
         OutlineSidebarView.rootDisclosureVisible(
             state: root.state,
             isEmpty: root.items.isEmpty,
             lockExpanded: lockExpanded
         )
-    }
-
-    private var rootIcon: some View {
-        Image(systemName: root.systemImage)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-            .frame(width: 18)
-            .opacity(root.state == .disconnected ? 0.48 : 1)
-            .accessibilityHidden(true)
     }
 
     private var chevronSystemImage: String {

@@ -2,8 +2,8 @@ import XCTest
 import AppKit
 @testable import Lineform
 
-final class OutlineInfoContrastTests: XCTestCase {
-    // The Info tab draws in the sidebar's chrome-mode colors. The sidebar background
+final class OutlineMarkdownBasicsContrastTests: XCTestCase {
+    // The Markdown Basics tab draws in the sidebar's chrome-mode colors. The sidebar background
     // is chrome-mode-based, not per-theme (dark chrome = the Quiet/Night themes), so
     // two checks — light chrome and dark chrome — cover every reader theme.
     private func background(darkChrome: Bool) -> NSColor {
@@ -23,7 +23,7 @@ final class OutlineInfoContrastTests: XCTestCase {
     private func explanationText(darkChrome: Bool) -> NSColor {
         // Dark reuses the sidebar's secondary (already AA); only light is overridden.
         NSColor(calibratedWhite: darkChrome ? OutlineSidebarView.darkSecondaryTextWhiteComponent
-                                            : OutlineInfoTabView.explanationLightWhiteComponent,
+                                            : OutlineMarkdownBasicsTabView.explanationLightWhiteComponent,
                 alpha: 1)
     }
 

@@ -37,6 +37,10 @@ final class LineformTextView: NSTextView {
     var textFormat = LineformTextFormat.markdown
     var lastPlainTextConversion: MarkdownPlainTextConversion?
     var textFormatChangeHandler: ((LineformTextFormat, MarkdownPlainTextConversion?) -> Void)?
+    /// Called when the visible character range changes due to scrolling or layout. The value is
+    /// the source-text range currently at the top of the viewport (or nearest the top for an
+    /// empty/short document), used by the outline sidebar to bold its active heading.
+    var onVisibleTopRangeChanged: ((NSRange) -> Void)?
     var smoothsHorizontalInsetChanges = false
     var correctsEmptyInsertionPointToFinalColumn = false
     var horizontalInsetAnimationDuration: TimeInterval {
@@ -175,6 +179,22 @@ final class LineformTextView: NSTextView {
         )
     }
 
+    /// Scrolls so the start of `range` lands at the top of the viewport (with a small top
+    /// margin), used by the outline sidebar so jumps put the heading at the top of the page
+    /// rather than centered.
+    func scrollCharacterRangeToTop(_ range: NSRange) {
+        guard let layoutManager, let textContainer, let scrollView = enclosingScrollView else { return }
+        runLayoutSensitiveEnsureLayout { layoutManager.ensureLayout(for: textContainer) }
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+        let topMargin: CGFloat = 8
+        let targetY = max(0, rect.minY - topMargin)
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: targetY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
     /// Visible character range WITHOUT forcing full-container layout. Unlike
     /// `visibleCharacterRangeForLayoutPreservation`, this never calls `ensureLayout(for:)`;
     /// `glyphRange(forBoundingRect:)` lays out lazily, only what the visible rect needs — so
@@ -214,6 +234,23 @@ final class LineformTextView: NSTextView {
         perform(selector, with: nil, afterDelay: Self.scrollHighlightDebounce, inModes: [.common])
     }
 
+    private static let visibleTopRangeReportDebounce: TimeInterval = 0.08
+    private var lastReportedVisibleTopRange: NSRange?
+
+    private func scheduleVisibleTopRangeReportAfterScroll() {
+        let selector = #selector(reportVisibleTopRangeAfterScroll)
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
+        perform(selector, with: nil, afterDelay: Self.visibleTopRangeReportDebounce, inModes: [.common])
+    }
+
+    @objc private func reportVisibleTopRangeAfterScroll() {
+        guard let fullRange = visibleCharacterRangeForLayoutPreservation() else { return }
+        let topRange = NSRange(location: fullRange.location, length: 1)
+        guard !NSEqualRanges(topRange, lastReportedVisibleTopRange ?? NSRange(location: NSNotFound, length: 0)) else { return }
+        lastReportedVisibleTopRange = topRange
+        onVisibleTopRangeChanged?(topRange)
+    }
+
     /// (Re)binds the scroll-bounds observer to the CURRENT enclosing clip view. Removing first
     /// makes this correct across re-parenting (a new scroll view) and safe to call repeatedly;
     /// with no scroll view it simply stops observing.
@@ -231,6 +268,7 @@ final class LineformTextView: NSTextView {
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {
         scheduleVisibleTokensRefreshAfterScroll()
+        scheduleVisibleTopRangeReportAfterScroll()
     }
 
     func refreshReadingAssists() {

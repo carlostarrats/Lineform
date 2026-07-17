@@ -2,9 +2,9 @@ import XCTest
 @testable import Lineform
 
 final class OutlineSidebarTabTests: XCTestCase {
-    func testTabsIncludeInfoInOrder() {
-        XCTAssertEqual(OutlineSidebarTab.allCases, [.outline, .files, .info])
-        XCTAssertEqual(OutlineSidebarTab.info.rawValue, "Info")
-        XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files", "Info"])
+    func testTabsIncludeMarkdownBasicsInOrder() {
+        XCTAssertEqual(OutlineSidebarTab.allCases, [.outline, .files, .markdownBasics])
+        XCTAssertEqual(OutlineSidebarTab.markdownBasics.rawValue, "Markdown Basics")
+        XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files", "Markdown Basics"])
     }
 }
