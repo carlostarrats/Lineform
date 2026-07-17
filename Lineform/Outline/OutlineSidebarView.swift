@@ -364,13 +364,14 @@ struct OutlineSidebarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 tabPicker
 
-                ZStack(alignment: .bottom) {
-                    tabContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-                    bottomBar
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                tabContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    // safeAreaInset reserves space for the Settings bar so the last scroll row
+                    // can't hide behind it (a plain ZStack overlay let content underlap the bar).
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        bottomBar
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(minWidth: Self.minimumColumnWidth, idealWidth: Self.idealColumnWidth, maxWidth: Self.maximumColumnWidth)
@@ -474,16 +475,18 @@ struct OutlineSidebarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // Hover scoped to the button itself, not the whole bar/divider, so only hovering
+            // the Settings row highlights it.
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isSettingsHovered = hovering
+                }
+            }
             .padding(.horizontal, 14)
             .padding(.top, 8)
             .padding(.bottom, 10)
         }
         .background(sidebarBackground)
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isSettingsHovered = hovering
-            }
-        }
     }
 
     private var tabPicker: some View {

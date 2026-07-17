@@ -10,6 +10,9 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
     weak var originalDelegate: NSWindowDelegate?
     weak var tabStore: EditorTabStore?
     weak var documentSaveStatus: DocumentSaveStatus?
+    /// Set by the container. Invoked with the ids of every unsaved tab when the user chooses
+    /// "Save All"; the container saves them in turn and then closes the window.
+    var saveTabsAndClose: (([UUID]) -> Void)?
 
     /// Returns true when the window is allowed to close.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -18,8 +21,8 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
         }
 
         let dirtyTabs = tabStore.tabs.filter { tab in
-            tab.id != tabStore.selectedTabID &&
-                (!tab.document.text.isEmpty || documentSaveStatus.isDirty(documentID: tab.document.id, currentText: tab.document.text))
+            tab.id != tabStore.selectedTabID
+                && tab.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
         }
 
         guard !dirtyTabs.isEmpty else {
@@ -27,16 +30,33 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
         }
 
         let alert = NSAlert()
-        alert.messageText = "Close Window?"
-        alert.informativeText = "You have \(dirtyTabs.count) tab(s) with unsaved changes. Closing this window will discard those changes."
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Close Anyway")
-        alert.buttons.first?.keyEquivalent = "\r"
-        alert.buttons.last?.keyEquivalent = ""
+        alert.messageText = "Save changes before closing?"
+        alert.informativeText = "This window has \(dirtyTabs.count) tab(s) with unsaved changes. Closing this window will discard those changes unless you save them."
+        // Save All is the default (Return); Cancel is Escape; Don't Save takes a deliberate click.
+        alert.addButton(withTitle: "Save All")      // .alertFirstButtonReturn
+        alert.addButton(withTitle: "Cancel")        // .alertSecondButtonReturn
+        alert.addButton(withTitle: "Don't Save")    // .alertThirdButtonReturn
+        alert.buttons[0].keyEquivalent = "\r"
+        alert.buttons[1].keyEquivalent = "\u{1b}"
+        alert.buttons[2].keyEquivalent = ""
         alert.alertStyle = .warning
 
-        let shouldClose = alert.runModal() == .alertSecondButtonReturn
-        return shouldClose
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            // Save every unsaved tab (active included) then close. Returning false keeps the
+            // window open now; the coordinator calls performClose once the saves succeed.
+            let allDirtyIDs = tabStore.tabs
+                .filter { $0.hasUnsavedWork(documentSaveStatus: documentSaveStatus) }
+                .map(\.id)
+            saveTabsAndClose?(allDirtyIDs)
+            return false
+        case .alertThirdButtonReturn:
+            // Don't Save — discard and proceed with the normal close.
+            return originalDelegate?.windowShouldClose?(sender) ?? true
+        default:
+            // Cancel — keep the window open.
+            return false
+        }
     }
 
     // MARK: - Delegate forwarding

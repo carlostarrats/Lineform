@@ -90,12 +90,6 @@ final class EditorTabStore: ObservableObject {
         tabs[index].displayMode = mode
     }
 
-    func snapshotActiveTab() {
-        guard let index = selectedTabIndex else { return }
-        tabs[index].document = currentDocumentProvider?() ?? tabs[index].document
-        currentDisplayModeProvider.map { tabs[index].displayMode = $0() }
-    }
-
     /// Updates the file URL for every tab whose URL matches (or lives under) the rename.
     func retargetFileURL(from source: URL, to destination: URL, isDirectory: Bool) {
         let sourcePath = source.standardizedFileURL.path
@@ -122,7 +116,4 @@ final class EditorTabStore: ObservableObject {
             }
         }
     }
-
-    var currentDocumentProvider: (() -> LineformDocument)?
-    var currentDisplayModeProvider: (() -> EditorDisplayMode)?
 }

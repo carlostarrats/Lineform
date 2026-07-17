@@ -12,6 +12,10 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     var smoothsHorizontalInsetChanges = false
     var searchRanges: [NSRange] = []
     var activeSearchRange: NSRange?
+    /// The tab currently shown in this editor, so the text view uses that tab's undo manager.
+    var activeTabID: UUID?
+    /// Every open tab's id, so the coordinator can release undo managers for closed tabs.
+    var liveTabIDs: Set<UUID> = []
     var onWritingToolsSessionChange: ((Bool) -> Void)?
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
 
@@ -34,6 +38,9 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         scrollView.drawsBackground = false
 
         let textView = LineformTextView()
+        // Select the active tab's undo manager before any edit can register one.
+        context.coordinator.currentTabID = activeTabID
+        context.coordinator.retainUndoManagers(for: liveTabIDs)
         textView.string = text
         context.coordinator.noteSyncedText(text)
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
@@ -62,6 +69,11 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
+        // Point the text view at the active tab's undo manager. Because NSTextView asks the
+        // delegate for its undo manager per edit, updating this before the text swap below means
+        // a tab switch's incoming edits land in the right tab's history.
+        context.coordinator.currentTabID = activeTabID
+        context.coordinator.retainUndoManagers(for: liveTabIDs)
 
         if let replacement = requestedReplacement {
             // A Find & Replace edit. Route through the same undoable whole-text path the
@@ -249,6 +261,37 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     /// (diagnosed with in-app timing, 2026-07-05). Only a genuine external replacement
     /// (live reload, sidebar swap, Read-mode checkbox toggle) differs from this value.
     private(set) var lastSyncedText: String?
+
+    // MARK: - Per-tab undo
+    //
+    // The editor reuses ONE text view across all tabs, swapping its text on switch. A single
+    // shared undo manager would let ⌘Z in one tab replay another tab's reverse-edits against the
+    // wrong text (corruption), which is why tab switches used to wipe undo entirely. Instead we
+    // hand the text view a DISTINCT `UndoManager` per tab (via `undoManager(for:)`), so each tab
+    // keeps its own history and can never touch another's. Autosave is unaffected — it is driven
+    // by the SwiftUI document binding, not this manager (verified: change-count is set explicitly).
+    private var undoManagersByTab: [UUID: UndoManager] = [:]
+    /// The tab whose undo manager the text view should currently use. Set from `updateNSView`.
+    var currentTabID: UUID?
+
+    /// The undo manager for the active tab, created on first use. Returning a per-tab manager
+    /// here overrides the responder-chain (document) manager the text view would otherwise use.
+    func undoManager(for textView: NSTextView) -> UndoManager? {
+        guard let currentTabID else { return nil }
+        if let existing = undoManagersByTab[currentTabID] {
+            return existing
+        }
+        let manager = UndoManager()
+        undoManagersByTab[currentTabID] = manager
+        return manager
+    }
+
+    /// Drops undo managers for tabs that are no longer open, so a long-lived window doesn't
+    /// accumulate the undo history of every tab ever closed.
+    func retainUndoManagers(for liveTabIDs: Set<UUID>) {
+        guard !liveTabIDs.isEmpty else { return }
+        undoManagersByTab = undoManagersByTab.filter { liveTabIDs.contains($0.key) }
+    }
 
     func noteSyncedText(_ value: String) {
         lastSyncedText = value

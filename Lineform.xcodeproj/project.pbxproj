@@ -80,6 +80,7 @@
 		1F000001000000000000032A /* MarkdownReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032A /* MarkdownReference.swift */; };
 		1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032B /* MarkdownReferenceTests.swift */; };
 		1F000001000000000000032C /* OutlineSidebarTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032C /* OutlineSidebarTabTests.swift */; };
+		1F0000010000000000000330 /* EditorTabStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000330 /* EditorTabStoreTests.swift */; };
 		1F000001000000000000032D /* OutlineMarkdownBasicsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */; };
 		1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032E /* OutlineInfoContrastTests.swift */; };
 		1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */; };
@@ -225,6 +226,7 @@
 		1F000002000000000000032A /* MarkdownReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReference.swift; sourceTree = "<group>"; };
 		1F000002000000000000032B /* MarkdownReferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReferenceTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032C /* OutlineSidebarTabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarTabTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000330 /* EditorTabStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStoreTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineMarkdownBasicsTabView.swift; sourceTree = "<group>"; };
 		1F000002000000000000032E /* OutlineInfoContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineInfoContrastTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtection.swift; sourceTree = "<group>"; };
@@ -491,6 +493,7 @@
 				1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */,
 				1F000002000000000000032B /* MarkdownReferenceTests.swift */,
 				1F000002000000000000032C /* OutlineSidebarTabTests.swift */,
+				1F0000020000000000000330 /* EditorTabStoreTests.swift */,
 				1F000002000000000000032E /* OutlineInfoContrastTests.swift */,
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
 				1F0000020000000000000235 /* DiagramReportServiceTests.swift */,
@@ -787,6 +790,7 @@
 				1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */,
 				1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */,
 				1F000001000000000000032C /* OutlineSidebarTabTests.swift in Sources */,
+				1F0000010000000000000330 /* EditorTabStoreTests.swift in Sources */,
 				1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */,
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
 				1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */,

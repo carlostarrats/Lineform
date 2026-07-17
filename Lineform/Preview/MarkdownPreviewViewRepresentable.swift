@@ -307,7 +307,29 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
                 stop.pointee = true
             }
         }
-        return headingSourceRange ?? charRange
+        if let headingSourceRange {
+            return headingSourceRange
+        }
+
+        // No heading is on screen (scrolled into a section's body): report the SOURCE range of
+        // the most recent heading ABOVE the viewport top. The old code fell back to the rendered
+        // `charRange` here, but the outline compares `.location` against SOURCE offsets
+        // (OutlineSidebarView.activeItemID), and rendered offsets differ from source offsets
+        // (stripped syntax, single-char math/mermaid/image attachments) — so the wrong item was
+        // bolded whenever the reader scrolled between headings. Returning nil (before the first
+        // heading) simply leaves the previous highlight untouched.
+        guard charRange.location > 0 else { return nil }
+        var lastHeadingAbove: NSRange?
+        textStorage.enumerateAttribute(
+            .headingSourceRange,
+            in: NSRange(location: 0, length: charRange.location),
+            options: []
+        ) { value, _, _ in
+            if let value = value as? NSValue {
+                lastHeadingAbove = value.rangeValue
+            }
+        }
+        return lastHeadingAbove
     }
 
     private func configure() {

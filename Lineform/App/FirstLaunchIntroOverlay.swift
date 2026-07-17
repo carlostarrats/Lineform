@@ -14,31 +14,25 @@ enum LineformLaunchDefaults {
         "Lineform.outline.workspaceSnapshot"
     ]
 
-    private static var restoresApplicationStateForCurrentLaunch: Bool?
-
     static func prepareForLaunch(defaults: UserDefaults = .standard) {
         #if DEBUG
-        restoresApplicationStateForCurrentLaunch = true
+        // Debug builds carry no first-release migration; nothing to prepare here.
         #else
-        let shouldRestoreApplicationState = defaults.bool(forKey: firstPublicReleaseDefaultsInitializedKey)
-        restoresApplicationStateForCurrentLaunch = shouldRestoreApplicationState
-
         _ = migrateFirstPublicReleaseDefaultsIfNeeded(defaults: defaults) {
             NSDocumentController.shared.clearRecentDocuments(nil)
         }
         #endif
     }
 
+    /// Lineform always launches to a clean slate: macOS never reopens the previous
+    /// session's document windows. Without this, a document restored from an earlier
+    /// session — often from a workspace the user has since navigated away from — reappears
+    /// as a lone tab, and because the tab bar only shows with 2+ tabs there is no tab UI to
+    /// close it, so it feels "stuck." Starting clean means quit/relaunch opens a fresh
+    /// untitled document instead. (The first-release migration side effects in
+    /// `prepareForLaunch` are unrelated and preserved.)
     static func shouldRestoreApplicationState(defaults: UserDefaults = .standard) -> Bool {
-        #if DEBUG
-        return true
-        #else
-        if let restoresApplicationStateForCurrentLaunch {
-            return restoresApplicationStateForCurrentLaunch
-        }
-
-        return defaults.bool(forKey: firstPublicReleaseDefaultsInitializedKey)
-        #endif
+        false
     }
 
     @discardableResult

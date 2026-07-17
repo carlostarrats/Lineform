@@ -47,6 +47,8 @@ struct EditorContainerView: View {
     @State private var tabCloseDialog: TabCloseDialog?
     /// Coordinates saving a dirty tab before closing it.
     @State private var saveAndCloseCoordinator: SaveAndCloseCoordinator?
+    /// Coordinates saving every unsaved tab before closing the whole window ("Save All").
+    @State private var saveTabsBeforeCloseCoordinator: SaveTabsBeforeCloseCoordinator?
     /// Intercepts window close to guard against losing non-active dirty tabs.
     @State private var windowCloseController: WindowCloseController?
 
@@ -759,6 +761,8 @@ struct EditorContainerView: View {
             smoothsHorizontalInsetChanges: false,
             searchRanges: searchMatches,
             activeSearchRange: activeSearchRange,
+            activeTabID: tabStore.selectedTabID,
+            liveTabIDs: Set(tabStore.tabs.map(\.id)),
             onWritingToolsSessionChange: { active in
                 // Binding writes are deferred during a Writing Tools session, so the reload
                 // dirty gate can't see the in-progress edits; suspend external reloads until
@@ -814,7 +818,8 @@ struct EditorContainerView: View {
 
     private func switchToTab(id: UUID) {
         guard id != tabStore.selectedTabID else { return }
-        tabStore.snapshotActiveTab()
+        // The outgoing tab's document/displayMode/fileURL are already kept current in the
+        // store by the .onChange(of:) syncs, so no explicit snapshot is needed here.
         tabStore.selectTab(id: id)
     }
 
@@ -845,8 +850,10 @@ struct EditorContainerView: View {
         recomputeDerivedNow(for: tab.document.text)
 
         // Sync the system dirty state with the incoming tab. Untitled documents with any
-        // content are marked edited so the window close sheet prompts to save.
-        let isEdited = !tab.document.text.isEmpty || documentSaveStatus.isDirty(documentID: tab.document.id, currentText: tab.document.text)
+        // content are marked edited so the window close sheet prompts to save; a clean saved
+        // file is NOT edited (see DocumentTab.hasUnsavedWork — an unconditional emptiness
+        // check here previously marked every real file edited, forcing spurious autosaves).
+        let isEdited = tab.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
         if isEdited {
             backingDocument.updateChangeCount(.changeDone)
         } else {
@@ -875,7 +882,7 @@ struct EditorContainerView: View {
         let targetID = id ?? tabStore.selectedTabID
         guard let targetID, let tabIndex = tabStore.tabs.firstIndex(where: { $0.id == targetID }) else { return }
         let tab = tabStore.tabs[tabIndex]
-        let isDirty = !tab.document.text.isEmpty || documentSaveStatus.isDirty(documentID: tab.document.id, currentText: tab.document.text)
+        let isDirty = tab.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
 
         if isDirty {
             tabCloseDialog = TabCloseDialog(tabID: targetID, tabTitle: tab.title)
@@ -1037,8 +1044,37 @@ struct EditorContainerView: View {
         controller.originalDelegate = window.delegate
         controller.tabStore = tabStore
         controller.documentSaveStatus = documentSaveStatus
+        controller.saveTabsAndClose = { ids in saveDirtyTabsThenCloseWindow(ids) }
         window.delegate = controller
         windowCloseController = controller
+    }
+
+    /// Saves every unsaved tab in `ids` (each made the backing document in turn), then closes
+    /// the window. Backs the close-window "Save All" choice. If a save panel is cancelled the
+    /// coordinator stops and the window stays open.
+    private func saveDirtyTabsThenCloseWindow(_ ids: [UUID]) {
+        guard !ids.isEmpty else {
+            activeWindow?.performClose(nil)
+            return
+        }
+        let coordinator = SaveTabsBeforeCloseCoordinator(
+            tabIDs: ids,
+            activateTab: { id in activateTabReturningDocument(id) },
+            window: activeWindow,
+            onFinish: { saveTabsBeforeCloseCoordinator = nil }
+        )
+        saveTabsBeforeCloseCoordinator = coordinator
+        coordinator.start()
+    }
+
+    /// Makes the given tab the window's active/backing document and returns that NSDocument,
+    /// so the close-window save loop can save each tab's real document in turn.
+    private func activateTabReturningDocument(_ id: UUID) -> NSDocument? {
+        if id != tabStore.selectedTabID {
+            switchToTab(id: id)
+            activateSelectedTab()
+        }
+        return activeWindow?.windowController?.document as? NSDocument
     }
 
     private func noteSavedToReloadWatcher() {

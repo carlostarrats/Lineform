@@ -29,7 +29,7 @@ class PreviewViewController: NSViewController, QLPreviewingController {
     nonisolated func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping @Sendable (Error?) -> Void) {
         Task { @MainActor in
             do {
-                let markdown = try String(contentsOf: url, encoding: .utf8)
+                let markdown = try Self.readText(at: url)
                 let attributedString = QuickLookMarkdownRenderer.render(markdown)
                 textView.textStorage?.setAttributedString(attributedString)
                 handler(nil)
@@ -37,6 +37,21 @@ class PreviewViewController: NSViewController, QLPreviewingController {
                 handler(error)
             }
         }
+    }
+
+    /// Reads a Markdown/text file, tolerating non-UTF-8 encodings. UTF-8 is the app's
+    /// canonical format and by far the common case, so it is tried first; a file saved in
+    /// another editor with a legacy encoding falls back to a sniffed encoding, then Latin-1
+    /// (which never fails) so Quick Look shows a preview instead of an error.
+    private nonisolated static func readText(at url: URL) throws -> String {
+        if let utf8 = try? String(contentsOf: url, encoding: .utf8) {
+            return utf8
+        }
+        var sniffed: String.Encoding = .utf8
+        if let detected = try? String(contentsOf: url, usedEncoding: &sniffed) {
+            return detected
+        }
+        return try String(contentsOf: url, encoding: .isoLatin1)
     }
 }
 
@@ -85,6 +100,9 @@ enum QuickLookMarkdownRenderer {
                 listStack.removeLast()
                 // List closure doesn't add visual text; spacing is handled by paragraph styles
             }
+            // Reset ordered-list numbering so a later numbered list restarts at 1 rather than
+            // continuing from the previous list's last index (e.g. 4, 5, 6…).
+            listIndexCounters = []
         }
 
         func appendParagraph(text: String, attributes: [NSAttributedString.Key: Any] = [:]) {
@@ -100,6 +118,13 @@ enum QuickLookMarkdownRenderer {
             }
             listIndexCounters[level] += 1
             return listIndexCounters[level]
+        }
+
+        // A GFM table delimiter row: only dashes, colons, pipes and spaces, with ≥1 dash.
+        func isTableDelimiterRow(_ line: String) -> Bool {
+            let candidate = line.trimmingCharacters(in: .whitespaces)
+            guard candidate.contains("-") else { return false }
+            return candidate.allSatisfy { $0 == "-" || $0 == ":" || $0 == "|" || $0 == " " }
         }
 
         for (index, line) in lines.enumerated() {
@@ -145,21 +170,28 @@ enum QuickLookMarkdownRenderer {
                 continue
             }
 
-            // Table detection
-            if trimmed.contains("|") && trimmed.hasPrefix("|") {
+            // Table detection (GFM): a row contains a pipe, and either we're already inside a
+            // table or the NEXT line is a delimiter row (dashes/colons/pipes). The leading pipe
+            // is optional per GFM, so we don't require hasPrefix("|"); the lookahead keeps a
+            // stray "a | b" in prose from being mistaken for a table.
+            if trimmed.contains("|"),
+               inTable || (index + 1 < lines.count && isTableDelimiterRow(lines[index + 1])) {
                 flushParagraph()
                 closeAllLists()
-                if !inTable { inTable = true }
+                inTable = true
 
-                let cells = trimmed.split(separator: "|", omittingEmptySubsequences: false)
-                    .map { String($0).trimmingCharacters(in: .whitespaces) }
-                    .dropFirst()
-                    .dropLast()
-
-                if cells.allSatisfy({ $0.allSatisfy { $0 == "-" || $0 == ":" } }) {
+                // A delimiter row (---|:--:) sets alignment and carries no cell text — skip it.
+                if isTableDelimiterRow(trimmed) {
                     continue
                 }
-                tableRows.append(Array(cells))
+
+                // Split on pipes and drop only the empty cells created by an optional
+                // leading/trailing pipe — never a real first/last column.
+                var cells = trimmed.split(separator: "|", omittingEmptySubsequences: false)
+                    .map { String($0).trimmingCharacters(in: .whitespaces) }
+                if cells.first == "" { cells.removeFirst() }
+                if cells.last == "" { cells.removeLast() }
+                tableRows.append(cells)
                 continue
             }
 
@@ -339,11 +371,12 @@ enum QuickLookMarkdownRenderer {
         guard !rows.isEmpty else { return NSAttributedString(string: "") }
 
         let result = NSMutableAttributedString(string: "")
-        let headerFont = NSFont.boldSystemFont(ofSize: bodyFontSize * 0.9)
-        let cellFont = NSFont.systemFont(ofSize: bodyFontSize * 0.9)
+        // Monospaced: the columns are aligned by space-padding, which only lines up in a
+        // fixed-width font. A proportional font made the padded columns ragged.
+        let headerFont = NSFont.monospacedSystemFont(ofSize: bodyFontSize * 0.9, weight: .bold)
+        let cellFont = NSFont.monospacedSystemFont(ofSize: bodyFontSize * 0.9, weight: .regular)
         let textColor = NSColor.labelColor
         let borderColor = textColor.withAlphaComponent(0.25)
-        let headerBgColor = textColor.withAlphaComponent(0.06)
 
         let cellPadding = "  "
         let columnCount = rows.map(\.count).max() ?? 0
@@ -384,7 +417,7 @@ enum QuickLookMarkdownRenderer {
         }
         separator += "\n"
         var sepAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: bodyFontSize * 0.9),
+            .font: NSFont.monospacedSystemFont(ofSize: bodyFontSize * 0.9, weight: .regular),
             .foregroundColor: borderColor
         ]
         sepAttrs[.paragraphStyle] = paragraphStyle(lineHeight: 1.0, spacing: 0)
