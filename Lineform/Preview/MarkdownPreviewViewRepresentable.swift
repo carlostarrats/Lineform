@@ -82,6 +82,14 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
 
     override func setFrameSize(_ newSize: NSSize) {
         let widthChanged = abs(newSize.width - frame.width) > 0.5
+        // Capture BEFORE the width change: which character sits at the top of the viewport, and
+        // where. A narrower column rewraps the text, so the same scroll offset would show a
+        // different passage — the "text jumps when a side drawer opens" bug. Mirrors Write
+        // mode's visual-anchor preservation (LineformTextView), scoped to width changes only.
+        // NOT during a manual window drag: there the text must simply rewrap downward under a
+        // fixed scroll origin, like plain text (user decision, 2026-07-17 — see
+        // LineformTextView.shouldPreserveVisualLayoutAnchorDuringLayoutTransition).
+        let reflowAnchor = (widthChanged && !inLiveResize) ? reflowAnchorForWidthChange() : nil
         super.setFrameSize(newSize)
         updateTextContainerLayout()
         // Refit block diagrams/equations on EVERY width change — the same place `updateTextContainerLayout`
@@ -97,6 +105,100 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
                 refitBlockAttachments()
             }
         }
+        // Restore last, after the refit has settled attachment sizes for this pass.
+        if let reflowAnchor {
+            restoreReflowAnchor(reflowAnchor)
+        }
+    }
+
+    /// The character at the top of the viewport and its offset from the viewport top, captured
+    /// before a width change so the passage being read can be pinned through the rewrap.
+    private struct ReflowAnchor {
+        let characterIndex: Int
+        let offsetFromViewportTop: CGFloat
+        /// A view at the very top stays pinned to 0 outright — character-anchoring wobbles by
+        /// ±1 line per resize frame, which at the top reads as bouncing (see LineformTextView).
+        let capturedAtTop: Bool
+    }
+
+    private func reflowAnchorForWidthChange() -> ReflowAnchor? {
+        guard
+            let layoutManager,
+            let textContainer,
+            let textStorage,
+            textStorage.length > 0,
+            let clipView = enclosingScrollView?.contentView
+        else {
+            return nil
+        }
+
+        var visibleRect = clipView.bounds
+        visibleRect.origin.x -= textContainerOrigin.x
+        visibleRect.origin.y -= textContainerOrigin.y
+        let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+        let characterIndex = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil).location
+        guard characterIndex < textStorage.length else {
+            return nil
+        }
+
+        guard let yInContainer = reflowAnchorY(forCharacterAt: characterIndex) else {
+            return nil
+        }
+
+        return ReflowAnchor(
+            characterIndex: characterIndex,
+            offsetFromViewportTop: yInContainer + textContainerOrigin.y - clipView.bounds.origin.y,
+            capturedAtTop: clipView.bounds.origin.y <= 1
+        )
+    }
+
+    private func restoreReflowAnchor(_ anchor: ReflowAnchor) {
+        guard
+            let textStorage,
+            anchor.characterIndex < textStorage.length,
+            let scrollView = enclosingScrollView
+        else {
+            return
+        }
+
+        if anchor.capturedAtTop {
+            var restoredOrigin = scrollView.contentView.bounds.origin
+            guard restoredOrigin.y > 0.5 else {
+                return
+            }
+            restoredOrigin.y = 0
+            scrollView.contentView.setBoundsOrigin(restoredOrigin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            return
+        }
+
+        guard let yInContainer = reflowAnchorY(forCharacterAt: anchor.characterIndex) else {
+            return
+        }
+
+        let restoredY = yInContainer + textContainerOrigin.y - anchor.offsetFromViewportTop
+        var restoredOrigin = scrollView.contentView.bounds.origin
+        guard abs(restoredOrigin.y - restoredY) > 0.5 else {
+            return
+        }
+
+        restoredOrigin.y = max(0, restoredY)
+        scrollView.contentView.setBoundsOrigin(restoredOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    private func reflowAnchorY(forCharacterAt characterIndex: Int) -> CGFloat? {
+        guard let layoutManager, let textContainer else {
+            return nil
+        }
+
+        // Lay out only up to the anchor — enough for a correct Y without typesetting the tail.
+        layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: characterIndex + 1))
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: characterIndex, length: 1),
+            actualCharacterRange: nil
+        )
+        return layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer).minY
     }
 
     override func viewDidEndLiveResize() {

@@ -212,6 +212,11 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         XCTAssertLessThanOrEqual(maximumAnimatedTrackedYDelta, 1.0)
     }
 
+    /// "Does not scroll up" means the CONTENT the user is reading stays put: the character at
+    /// the top of the viewport keeps its window Y while the narrowing column rewraps the text.
+    /// The raw scroll origin is deliberately NOT asserted here — when lines above the viewport
+    /// rewrap, the origin MUST move by the reflow delta to keep the visible text stationary
+    /// (asserting a fixed origin would enshrine the text-shifts-under-a-fixed-viewport bug).
     @MainActor
     private func assertScrolledEditorDoesNotScrollUpWhenDrawerOpens(_ drawer: EditorDrawerKind, text: String) throws {
         let harness = try makeEditorDrawerHarness(text: text)
@@ -225,7 +230,11 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         scrollView.contentView.setBoundsOrigin(startingOrigin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
         runMainLoop(for: 0.1)
-        let scrollOriginBefore = scrollView.contentView.bounds.origin.y
+
+        let trackedRange = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        let trackedCharacter = NSRange(location: trackedRange.location, length: 1)
+        let trackedYBefore = try trackedCharacterY(trackedCharacter, in: textView, relativeTo: harness.window)
+        let scrollOriginBefore = scrollView.contentView.bounds.origin
 
         switch drawer {
         case .outline:
@@ -238,15 +247,135 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
             )
         }
 
-        let maximumScrollOriginDelta = maximumScrollOriginYDelta(
-            in: scrollView,
-            baselineY: scrollOriginBefore,
+        let maximumAnimatedTrackedYDelta = try maximumTrackedYDelta(
+            trackedCharacter,
+            in: textView,
+            baselineY: trackedYBefore,
             duration: 0.45
         )
-        let scrollOriginAfter = scrollView.contentView.bounds.origin.y
+        let trackedYAfter = try trackedCharacterY(trackedCharacter, in: textView, relativeTo: harness.window)
+        let scrollOriginAfter = scrollView.contentView.bounds.origin
 
-        XCTAssertEqual(scrollOriginAfter, scrollOriginBefore, accuracy: 1.0)
-        XCTAssertLessThanOrEqual(maximumScrollOriginDelta, 1.0)
+        XCTAssertEqual(
+            trackedYAfter,
+            trackedYBefore,
+            accuracy: 1.0,
+            "scrollOrigin: \(scrollOriginBefore) -> \(scrollOriginAfter)"
+        )
+        XCTAssertLessThanOrEqual(maximumAnimatedTrackedYDelta, 1.0)
+    }
+
+    /// The manual-window-resize path the offscreen unit tests cannot reach: the FULL SwiftUI
+    /// editor in a real window, width stepped down and back up like a drag. The character at the
+    /// top of the viewport must keep its position relative to the viewport while the column
+    /// rewraps under it.
+    @MainActor
+    func testZWindowResizeKeepsTopVisibleTextAnchoredWhileRewrapping() throws {
+        let harness = try makeEditorDrawerHarness(text: Self.reflowingDrawerTestDocument)
+        defer {
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
+        let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
+        let scrollView = try XCTUnwrap(textView.enclosingScrollView)
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 520))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        runMainLoop(for: 0.15)
+
+        let trackedRange = try XCTUnwrap(textView.visibleCharacterRangeForLayoutPreservation())
+        let trackedCharacter = NSRange(location: trackedRange.location, length: 1)
+        let offsetBefore = try viewportOffset(of: trackedCharacter, in: textView)
+
+        // Step the window narrower then back, pumping the run loop between steps like a drag.
+        let originalFrame = harness.window.frame
+        var maximumDelta: CGFloat = 0
+        let widths: [CGFloat] = [1_000, 920, 840, 760, 680, 760, 840, 920, 1_000, 1_080]
+        for width in widths {
+            var frame = originalFrame
+            frame.size.width = width
+            harness.window.setFrame(frame, display: true)
+            runMainLoop(for: 0.05)
+            let offset = try viewportOffset(of: trackedCharacter, in: textView)
+            maximumDelta = max(maximumDelta, abs(offset - offsetBefore))
+        }
+        runMainLoop(for: 0.2)
+        let offsetAfter = try viewportOffset(of: trackedCharacter, in: textView)
+
+        XCTAssertEqual(
+            offsetAfter,
+            offsetBefore,
+            accuracy: 1.5,
+            "The top visible text must return to its place after a window resize."
+        )
+        XCTAssertLessThanOrEqual(
+            maximumDelta,
+            2.0,
+            "The top visible text must not drift while the window is being resized."
+        )
+    }
+
+    /// The user-reported case none of the pointer-driven repros covered: the editor is FOCUSED
+    /// with the caret placed (as when typing), the view sits at the TOP of the document, and the
+    /// window is resized. A focused NSTextView can auto-scroll to reveal its insertion point on
+    /// layout changes, yanking the view away from the top.
+    @MainActor
+    func testZWindowResizeWithFocusedCaretKeepsTopOfDocumentInPlace() throws {
+        let harness = try makeEditorDrawerHarness(text: Self.reflowingDrawerTestDocument)
+        defer {
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
+        let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)
+        let scrollView = try XCTUnwrap(textView.enclosingScrollView)
+
+        // Focus the editor and put the caret at the very END of the document (typing position),
+        // while the VIEW shows the very top.
+        harness.window.makeFirstResponder(textView)
+        textView.setSelectedRange(NSRange(location: (textView.string as NSString).length, length: 0))
+        scrollView.contentView.setBoundsOrigin(.zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        runMainLoop(for: 0.15)
+        scrollView.contentView.setBoundsOrigin(.zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        runMainLoop(for: 0.1)
+
+        let originBefore = scrollView.contentView.bounds.origin.y
+        XCTAssertEqual(originBefore, 0, accuracy: 1.0, "Fixture: the view must start at the top.")
+
+        let originalFrame = harness.window.frame
+        var maximumOrigin: CGFloat = 0
+        for width in [1_000, 920, 840, 760, 840, 920, 1_000, 1_080] as [CGFloat] {
+            var frame = originalFrame
+            frame.size.width = width
+            harness.window.setFrame(frame, display: true)
+            runMainLoop(for: 0.05)
+            maximumOrigin = max(maximumOrigin, scrollView.contentView.bounds.origin.y)
+        }
+        runMainLoop(for: 0.2)
+
+        XCTAssertLessThanOrEqual(
+            scrollView.contentView.bounds.origin.y,
+            1.0,
+            "A resize must not scroll a top-anchored view away from the top just because the caret is elsewhere."
+        )
+        XCTAssertLessThanOrEqual(
+            maximumOrigin,
+            1.0,
+            "The view must not visit a scrolled-down position mid-resize (caret auto-scroll)."
+        )
+    }
+
+    /// The tracked character's vertical offset from the viewport top — window-size independent,
+    /// unlike window coordinates, so it is stable across width AND height changes.
+    @MainActor
+    private func viewportOffset(of characterRange: NSRange, in textView: LineformTextView) throws -> CGFloat {
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let textContainer = try XCTUnwrap(textView.textContainer)
+        let clipView = try XCTUnwrap(textView.enclosingScrollView?.contentView)
+        layoutManager.ensureLayout(for: textContainer)
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: characterRange, actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        return rect.minY + textView.textContainerOrigin.y - clipView.bounds.origin.y
     }
 
     @MainActor
@@ -456,24 +585,6 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
             RunLoop.main.run(until: Date(timeIntervalSinceNow: interval))
             let currentY = try trackedCharacterY(characterRange, in: textView, relativeTo: window)
             maximumDelta = max(maximumDelta, abs(currentY - baselineY))
-        }
-
-        return maximumDelta
-    }
-
-    @MainActor
-    private func maximumScrollOriginYDelta(
-        in scrollView: NSScrollView,
-        baselineY: CGFloat,
-        duration: TimeInterval,
-        interval: TimeInterval = 0.03
-    ) -> CGFloat {
-        var maximumDelta: CGFloat = 0
-        let deadline = Date(timeIntervalSinceNow: duration)
-
-        while Date() < deadline {
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: interval))
-            maximumDelta = max(maximumDelta, abs(scrollView.contentView.bounds.origin.y - baselineY))
         }
 
         return maximumDelta

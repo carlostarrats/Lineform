@@ -427,13 +427,28 @@ final class EditorDisplayModeTests: XCTestCase {
 
     @MainActor
     func testEditorMinimumWidthAllowsOutlineAndInspectorWithoutForcingWideWindow() {
-        XCTAssertLessThanOrEqual(EditorLayout.minimumContentWidth, 360)
+        XCTAssertLessThanOrEqual(EditorLayout.minimumContentWidth, 240)
 
         let combinedMinimumWidth = EditorLayout.minimumContentWidth
             + OutlineSidebarView.minimumColumnWidth
             + (EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 0)
 
-        XCTAssertLessThanOrEqual(combinedMinimumWidth, 860)
+        XCTAssertLessThanOrEqual(combinedMinimumWidth, 760)
+    }
+
+    func testCompactModeControlSwapsInOnNarrowWindowsOnly() {
+        XCTAssertTrue(EditorToolbarCompactPresentation.usesCompactModeControl(windowWidth: 400))
+        XCTAssertTrue(
+            EditorToolbarCompactPresentation.usesCompactModeControl(
+                windowWidth: EditorToolbarCompactPresentation.compactModeControlThreshold - 1
+            )
+        )
+        XCTAssertFalse(
+            EditorToolbarCompactPresentation.usesCompactModeControl(
+                windowWidth: EditorToolbarCompactPresentation.compactModeControlThreshold
+            )
+        )
+        XCTAssertFalse(EditorToolbarCompactPresentation.usesCompactModeControl(windowWidth: 1_080))
     }
 
     func testReadModeUsesSameTextColumnWidthAsWriteMode() {

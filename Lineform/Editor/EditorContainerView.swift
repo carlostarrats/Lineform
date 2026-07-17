@@ -109,6 +109,15 @@ struct EditorContainerView: View {
                 }
                 editorShell
             }
+            // Without an explicit width, NavigationSplitView applies its own default detail-column
+            // minimum (~500pt, measured 2026-07-17), which — added to the sidebar column — forced
+            // the whole window out to ~756pt whenever the sidebar opened on a small window. Our
+            // content already carries its real minimum (EditorLayout.minimumContentWidth).
+            .navigationSplitViewColumnWidth(
+                min: EditorLayout.minimumContentWidth,
+                ideal: 640,
+                max: .infinity
+            )
         }
         .navigationSplitViewStyle(.balanced)
         // A single native SwiftUI alert (title + message + text field + buttons) — the
@@ -183,16 +192,20 @@ struct EditorContainerView: View {
         .searchFocusedCompat($isSearchFocused)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                EditorModeSegmentedControl(
+                EditorModePrincipalControl(
                     selection: $displayMode,
+                    windowNumber: windowNumber,
                     usesDarkChrome: theme.usesDarkChrome,
-                    reduceMotion: reduceMotion
+                    reduceMotion: reduceMotion,
+                    openReadingExperience: { setReadingInspectorVisible(true) }
                 )
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
-                ForEach(EditorToolbarAction.primaryActions(in: displayMode)) { action in
-                    toolbarControl(for: action)
+                EditorReadingExperienceToolbarButton(windowNumber: windowNumber) {
+                    ForEach(EditorToolbarAction.primaryActions(in: displayMode)) { action in
+                        toolbarControl(for: action)
+                    }
                 }
             }
         }
@@ -1424,10 +1437,18 @@ struct EditorContainerView: View {
             Button {
                 handleToolbarAction(action)
             } label: {
-                EditorToolbarIcon(
-                    systemImage: action.systemImage,
-                    usesDarkChrome: currentTheme.usesDarkChrome
-                )
+                // A real Label (title + icon), NOT the bare icon view: the toolbar shows the
+                // icon as before, but the native "»" overflow popover renders the item from its
+                // label — a bare icon view appeared there as a tiny orphaned "Aa" glyph, while
+                // a Label gets a proper "Reading Experience" menu row.
+                Label {
+                    Text(action.title)
+                } icon: {
+                    EditorToolbarIcon(
+                        systemImage: action.systemImage,
+                        usesDarkChrome: currentTheme.usesDarkChrome
+                    )
+                }
             }
             .help(toolbarHelp(for: action))
             .accessibilityLabel(action.title)
@@ -1449,6 +1470,7 @@ struct EditorContainerView: View {
 
         isShowingReadingInspector = isVisible
     }
+
 
     private func toolbarActionIsActive(_ action: EditorToolbarAction) -> Bool {
         EditorToolbarPressedState.isActive(
