@@ -385,6 +385,7 @@ struct OutlineSidebarView: View {
             openFile: openFile,
             currentFileURL: currentFileURL,
             settings: settings,
+            usesDarkChrome: usesDarkChrome,
             renameItem: renameItem,
             deleteItem: deleteItem,
             revealItem: revealItem
@@ -486,6 +487,7 @@ struct OutlineSidebarView: View {
                     SidebarTabButton(
                         tab: tab,
                         isSelected: selectedTab == tab,
+                        usesDarkChrome: usesDarkChrome,
                         action: { selectedTab = tab }
                     )
                 }
@@ -544,6 +546,7 @@ struct OutlineSidebarView: View {
                             depth: 0,
                             activeItemID: activeItemID,
                             collapsedNodeIDs: $collapsedNodeIDs,
+                            usesDarkChrome: usesDarkChrome,
                             jumpToHeading: jumpToHeading
                         )
                     }
@@ -639,6 +642,9 @@ private struct OutlineSidebarNodeView: View {
     var depth: Int
     var activeItemID: String?
     @Binding var collapsedNodeIDs: Set<String>
+    // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
+    // which a nested Button re-derives from the window's drift-prone effectiveAppearance.
+    var usesDarkChrome: Bool
     var jumpToHeading: (MarkdownOutlineItem) -> Void
 
     private var isCollapsed: Bool {
@@ -652,6 +658,7 @@ private struct OutlineSidebarNodeView: View {
                 depth: depth,
                 isActive: node.id == activeItemID,
                 isCollapsed: isCollapsed,
+                usesDarkChrome: usesDarkChrome,
                 toggleCollapsed: toggleCollapsed,
                 jumpToHeading: jumpToHeading
             )
@@ -663,6 +670,7 @@ private struct OutlineSidebarNodeView: View {
                         depth: depth + 1,
                         activeItemID: activeItemID,
                         collapsedNodeIDs: $collapsedNodeIDs,
+                        usesDarkChrome: usesDarkChrome,
                         jumpToHeading: jumpToHeading
                     )
                 }
@@ -684,9 +692,9 @@ private struct OutlineSidebarRow: View {
     var depth: Int
     var isActive: Bool
     var isCollapsed: Bool
+    var usesDarkChrome: Bool
     var toggleCollapsed: () -> Void
     var jumpToHeading: (MarkdownOutlineItem) -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     var body: some View {
@@ -736,17 +744,17 @@ private struct OutlineSidebarRow: View {
     private var rowForegroundColor: Color {
         OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
     }
-
-    private var usesDarkChrome: Bool {
-        colorScheme == .dark
-    }
 }
 
 private struct SidebarTabButton: View {
     let tab: OutlineSidebarTab
     let isSelected: Bool
+    // Threaded from the theme, NOT read from @Environment(\.colorScheme): this Button's label is a
+    // nested SwiftUI control whose colorScheme re-derives from the window's effectiveAppearance,
+    // which can lag/drift from the active theme (see WindowChromeReader). Passing the theme's value
+    // keeps the selected/hover text color correct even mid-transition.
+    let usesDarkChrome: Bool
     let action: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     var body: some View {
@@ -780,7 +788,7 @@ private struct SidebarTabButton: View {
 
     private var foregroundColor: Color {
         OutlineSidebarView.tabTextColor(
-            usesDarkChrome: colorScheme == .dark,
+            usesDarkChrome: usesDarkChrome,
             isSelected: isSelected,
             isHovered: isHovered
         )
@@ -1688,10 +1696,13 @@ private struct OutlineFileBrowserView: View {
     /// tests and previews can isolate the sidebar-affecting settings. Declared before
     /// the defaulted closures so the memberwise init's parameter order matches call sites.
     @ObservedObject var settings: LineformSettingsStore
+    // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme:
+    // nested rows here are Buttons whose colorScheme re-derives from the window's drift-prone
+    // effectiveAppearance, which would flash near-black text on the near-black dark sidebar.
+    var usesDarkChrome: Bool
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
-    @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedIDs: Set<String> = []
     @State private var isSortHovered = false
 
@@ -1779,6 +1790,7 @@ private struct OutlineFileBrowserView: View {
                 root: root,
                 isCollapsed: isRootCollapsed(root.id, lockExpanded: lockExpanded),
                 lockExpanded: lockExpanded,
+                usesDarkChrome: usesDarkChrome,
                 toggleCollapsed: { toggle(root.id) },
                 chooseWorkspaceFolder: store.chooseWorkspaceFolder
             )
@@ -1812,6 +1824,7 @@ private struct OutlineFileBrowserView: View {
                                 collapsedIDs: $collapsedIDs,
                                 openFile: openFile,
                                 currentFileURL: currentFileURL,
+                                usesDarkChrome: usesDarkChrome,
                                 renameItem: renameItem,
                                 deleteItem: deleteItem,
                                 revealItem: revealItem
@@ -1862,19 +1875,17 @@ private struct OutlineFileBrowserView: View {
             collapsedIDs.insert(id)
         }
     }
-
-    private var usesDarkChrome: Bool {
-        colorScheme == .dark
-    }
 }
 
 private struct OutlineFileRootRow: View {
     var root: OutlineFileRoot
     var isCollapsed: Bool
     var lockExpanded: Bool = false
+    // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
+    // which a nested Button re-derives from the window's drift-prone effectiveAppearance.
+    var usesDarkChrome: Bool
     var toggleCollapsed: () -> Void
     var chooseWorkspaceFolder: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isWorkspaceActionHovered = false
 
     var body: some View {
@@ -2044,10 +2055,6 @@ private struct OutlineFileRootRow: View {
         }
         return Color(nsColor: NSColor(calibratedWhite: white, alpha: 1))
     }
-
-    private var usesDarkChrome: Bool {
-        colorScheme == .dark
-    }
 }
 
 /// Muse-style quiet sort control above a section's contents: "Sort: Name ▾" opening a
@@ -2099,10 +2106,13 @@ private struct OutlineFileTreeNodeView: View {
     @Binding var collapsedIDs: Set<String>
     var openFile: (URL) -> Void
     var currentFileURL: URL?
+    // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
+    // which a nested Button re-derives from the window's drift-prone effectiveAppearance — this
+    // is the bulk of the Files tab, so a mis-derived value renders the whole tree near-invisible.
+    var usesDarkChrome: Bool
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     private var isCollapsed: Bool {
@@ -2254,10 +2264,6 @@ private struct OutlineFileTreeNodeView: View {
         return item.isHidden
             ? OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome)
             : OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
-    }
-
-    private var usesDarkChrome: Bool {
-        colorScheme == .dark
     }
 }
 

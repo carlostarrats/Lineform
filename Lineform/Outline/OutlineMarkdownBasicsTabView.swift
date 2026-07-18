@@ -108,6 +108,7 @@ struct OutlineMarkdownBasicsTabView: View {
         CopyButton(
             rowID: row.id,
             copiedRowID: $copiedRowID,
+            usesDarkChrome: usesDarkChrome,
             action: {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(row.syntax, forType: .string)
@@ -125,11 +126,12 @@ struct OutlineMarkdownBasicsTabView: View {
 private struct CopyButton: View {
     let rowID: String
     @Binding var copiedRowID: String?
+    // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
+    // which a nested Button re-derives from the window's drift-prone effectiveAppearance.
+    let usesDarkChrome: Bool
     let action: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
-    private var usesDarkChrome: Bool { colorScheme == .dark }
     private var isCopied: Bool { copiedRowID == rowID }
 
     var body: some View {

@@ -599,6 +599,21 @@ struct WindowChromeReader: NSViewRepresentable {
             applyChrome()
         }
 
+        // AppKit resets the window's explicit appearance to the default (light) aqua whenever the
+        // detail hierarchy rebuilds — most notably when the tab bar appears/disappears and when the
+        // reading inspector opens/closes. That reset changes this view's effectiveAppearance, so
+        // observing it here re-asserts the themed appearance the instant it drifts, rather than only
+        // on the next SwiftUI update (updateNSView) which those transitions do not reliably trigger.
+        // Without this, a dark theme could keep a light toolbar/title bar, and — because nested
+        // SwiftUI controls (the sidebar tabs, file rows) re-derive colorScheme from the window's
+        // effectiveAppearance — their selected/hover colors would resolve against the wrong chrome.
+        // Cannot loop: applyChrome() re-applies only while drifted; once the appearance matches the
+        // theme the drift guard no longer fires.
+        override func viewDidChangeEffectiveAppearance() {
+            super.viewDidChangeEffectiveAppearance()
+            applyChrome()
+        }
+
         func applyChrome() {
             // Apply synchronously when the window or theme changed — OR when the window's
             // appearance has drifted from what the theme wants. The drift check is load-bearing
