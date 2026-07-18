@@ -143,11 +143,8 @@ struct MarkdownPreviewRenderer {
             case .blockquote(let quoteLines, let lastLineIndex):
                 appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
-            case .callout(_, _, let body, let lastLineIndex):
-                // TODO(Task 4): render as a distinct callout card (icon, label, tinted rule). Until
-                // then, render the callout's body lines as a plain blockquote so the document still
-                // renders something reasonable and the block-dispatch switch stays exhaustive.
-                appendBlockquote(body, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+            case .callout(let kind, let title, let body, let lastLineIndex):
+                appendCallout(kind: kind, title: title, body: body, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .list(let items, let lastLineIndex):
                 appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
@@ -382,6 +379,20 @@ struct MarkdownPreviewRenderer {
         theme: Theme,
         mathProvider: MathImageProviding
     ) {
+        appendQuoteLines(quoteLines, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider)
+    }
+
+    /// Emit a run of blockquote lines: each indented by its nesting depth (markers hidden) and gently
+    /// de-emphasized. Inline styling (bold/italic/code/link/math) still renders. Shared by
+    /// `appendBlockquote` and `appendCallout` so the two produce identical body output.
+    private func appendQuoteLines(
+        _ quoteLines: [MarkdownQuoteLine],
+        to output: NSMutableAttributedString,
+        baseAttributes baseBody: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) {
         let quoteColor = theme.textColor.withAlphaComponent(0.8)
         let indentStep: CGFloat = 22
 
@@ -406,6 +417,21 @@ struct MarkdownPreviewRenderer {
                 output.append(NSAttributedString(string: "\n", attributes: attributes))
             }
         }
+    }
+
+    /// Minimal callout dispatch: renders only the body via the shared quote-line helper.
+    /// TODO(Task 4): render a distinct callout card (icon, label, tinted rule) using `kind`/`title`.
+    private func appendCallout(
+        kind: CalloutKind,
+        title: String?,
+        body: [MarkdownQuoteLine],
+        to output: NSMutableAttributedString,
+        baseAttributes baseBody: [NSAttributedString.Key: Any],
+        profile: ReadingProfile,
+        theme: Theme,
+        mathProvider: MathImageProviding
+    ) {
+        appendQuoteLines(body, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider)
     }
 
     /// Emit a quiet, full-width divider as a self-sizing attachment. The line is low-contrast

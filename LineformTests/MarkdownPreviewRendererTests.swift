@@ -106,6 +106,17 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertGreaterThan(deepIndent, shallowIndent)
     }
 
+    func testBlockquoteBodyMatchesSharedQuoteRendering() throws {
+        // A quote and a callout body over the same lines must render identical body runs.
+        let quote = MarkdownPreviewRenderer().render("> alpha\n> beta", profile: .original)
+        XCTAssertEqual(quote.string, "alpha\nbeta")
+        let firstStyle = try XCTUnwrap(quote.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertGreaterThan(firstStyle.headIndent, 0)
+        // De-emphasis: quote body foreground is the theme ink at reduced alpha (not full ink).
+        let color = try XCTUnwrap(quote.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
+        XCTAssertLessThan(color.alphaComponent, 1.0)
+    }
+
     func testImageRendersQuietPlaceholderWithAltTextAndNoBangOrURL() {
         let rendered = MarkdownPreviewRenderer().render("![a cat](cat.png)", profile: .original).string
         XCTAssertTrue(rendered.contains("a cat"))
