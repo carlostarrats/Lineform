@@ -47,6 +47,40 @@ enum DiagramPalette {
     }
 }
 
+/// Muted, monochrome-leaning token colors for fenced-code highlighting in Read/Preview. Derived
+/// from the theme (light/dark aware), restrained so code reads calm rather than rainbow. `.plain`
+/// reuses the theme's own text color (unchanged code foreground). Every colored role is AA-verified
+/// against every `Theme.builtIn` background (`CodeSyntaxPaletteContrastTests`). Display-only.
+enum CodeSyntaxPalette {
+    static func color(for kind: CodeTokenKind, theme: Theme) -> NSColor {
+        let dark = theme.usesDarkChrome
+        switch kind {
+        case .plain:
+            return theme.textColor
+        case .keyword:
+            // A muted plum/violet — the one role allowed a little hue.
+            return dark ? NSColor(srgbRed: 0.78, green: 0.62, blue: 0.86, alpha: 1)
+                        : NSColor(srgbRed: 0.42, green: 0.24, blue: 0.55, alpha: 1)
+        case .string:
+            // Muted green.
+            return dark ? NSColor(srgbRed: 0.55, green: 0.80, blue: 0.60, alpha: 1)
+                        : NSColor(srgbRed: 0.16, green: 0.44, blue: 0.24, alpha: 1)
+        case .comment:
+            // Low-chroma grey — deliberately the quietest role, still AA.
+            return dark ? NSColor(srgbRed: 0.68, green: 0.70, blue: 0.70, alpha: 1)
+                        : NSColor(srgbRed: 0.42, green: 0.44, blue: 0.44, alpha: 1)
+        case .number:
+            // Muted amber/brown.
+            return dark ? NSColor(srgbRed: 0.85, green: 0.70, blue: 0.48, alpha: 1)
+                        : NSColor(srgbRed: 0.55, green: 0.38, blue: 0.12, alpha: 1)
+        case .type:
+            // Muted teal/blue.
+            return dark ? NSColor(srgbRed: 0.55, green: 0.76, blue: 0.82, alpha: 1)
+                        : NSColor(srgbRed: 0.15, green: 0.40, blue: 0.50, alpha: 1)
+        }
+    }
+}
+
 /// Marks a full-width BLOCK diagram/equation attachment (as opposed to an inline math attachment),
 /// so the resize refit rescales only block content and never disturbs inline math's baseline. A
 /// bare subclass with no overrides — it behaves identically to `NSTextAttachment` in every other

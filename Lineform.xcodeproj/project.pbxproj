@@ -39,6 +39,7 @@
 		1F0000170000000000000001 /* MermaidTypeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */; };
 		1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000180000000000000002 /* MermaidPieChartTests.swift */; };
 		1F00001A0000000000000001 /* CodeSyntaxHighlighterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001A0000000000000002 /* CodeSyntaxHighlighterTests.swift */; };
+		1F00001B0000000000000001 /* CodeSyntaxPaletteContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */; };
 		1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */; };
 		1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000326 /* DocumentExportRendererTests.swift */; };
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
@@ -198,6 +199,7 @@
 		1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidTypeClassifierTests.swift; sourceTree = "<group>"; };
 		1F0000180000000000000002 /* MermaidPieChartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChartTests.swift; sourceTree = "<group>"; };
 		1F00001A0000000000000002 /* CodeSyntaxHighlighterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSyntaxHighlighterTests.swift; sourceTree = "<group>"; };
+		1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSyntaxPaletteContrastTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGroupingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000326 /* DocumentExportRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
@@ -529,6 +531,7 @@
 				1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */,
 				1F0000180000000000000002 /* MermaidPieChartTests.swift */,
 				1F00001A0000000000000002 /* CodeSyntaxHighlighterTests.swift */,
+				1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */,
 				1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */,
 				1F00000200000000000002B2 /* MathRenderingTests.swift */,
 				1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */,
@@ -842,6 +845,7 @@
 				1F0000170000000000000001 /* MermaidTypeClassifierTests.swift in Sources */,
 				1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */,
 				1F00001A0000000000000001 /* CodeSyntaxHighlighterTests.swift in Sources */,
+				1F00001B0000000000000001 /* CodeSyntaxPaletteContrastTests.swift in Sources */,
 				1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */,
 				1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */,
 				1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */,
