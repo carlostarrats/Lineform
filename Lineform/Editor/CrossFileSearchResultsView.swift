@@ -17,7 +17,7 @@ struct CrossFileSearchResultsView: View {
 
     @State private var hoveredResultID: String?
 
-    static let cardHeight: CGFloat = 168
+    static let cardHeight: CGFloat = 220
 
     // User's design-file values, shared with the sidebar chrome (side-sheet background /
     // hairline stroke / snippet-pill fill / muted text). Two fixed variants keyed on
@@ -105,19 +105,20 @@ struct CrossFileSearchResultsView: View {
 
     private func resultCard(_ result: CrossFileSearchResult) -> some View {
         let isHovered = hoveredResultID == result.id
-        return VStack(alignment: .leading, spacing: 6) {
-            cardHeader(result)
-            Text(locationText(result))
-                .font(.system(size: 10.5))
-                .foregroundStyle(secondaryColor)
-                .lineLimit(1)
-                .truncationMode(.middle)
+        return VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                cardHeader(result)
+                Text(locationText(result))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(secondaryColor)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(.bottom, 12)
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(result.snippets.enumerated()), id: \.offset) { _, snippet in
                         Text(snippetText(snippet))
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(secondaryColor)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 8)
@@ -130,6 +131,7 @@ struct CrossFileSearchResultsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(12)
         .frame(height: Self.cardHeight, alignment: .top)
@@ -183,7 +185,14 @@ struct CrossFileSearchResultsView: View {
 
     /// The snippet line with the matched substring emphasized (semibold, primary color).
     private func snippetText(_ snippet: CrossFileSearchSnippet) -> AttributedString {
+        // The base font/color are set as attributes on the FULL string, not as a `.font()`/
+        // `.foregroundStyle()` modifier on the Text view: a whole-view modifier overrides
+        // per-run attributes on a Text(AttributedString), which silently stomped the match
+        // run's semibold weight. Setting both base and match-run attributes directly on the
+        // AttributedString lets the match run's bold survive.
         var attributed = AttributedString(snippet.lineText)
+        attributed.font = .system(size: 11.5)
+        attributed.foregroundColor = secondaryColor
         let nsLine = snippet.lineText as NSString
         guard snippet.matchRange.location != NSNotFound,
               NSMaxRange(snippet.matchRange) <= nsLine.length,
