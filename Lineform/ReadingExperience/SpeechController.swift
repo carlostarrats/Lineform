@@ -83,8 +83,16 @@ final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpeechSynth
     func continueSpeaking() { synthesizer.continueSpeaking() }
     func stop() { synthesizer.stopSpeaking(at: .immediate) }
 
+    // `SpeechController` is `@MainActor`; `AVSpeechSynthesizerDelegate` callbacks are not
+    // documented as guaranteed main-thread, so hop explicitly before touching controller state.
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        onFinish?()
+        if Thread.isMainThread {
+            onFinish?()
+        } else {
+            DispatchQueue.main.async { [onFinish] in
+                onFinish?()
+            }
+        }
     }
 
     // A user `stop()` fires didCancel, NOT didFinish. The controller has already set `.idle`, so

@@ -34,6 +34,7 @@ struct EditorContainerView: View {
     @State private var windowNumber: Int?
     @State private var currentFileURL: URL?
     @StateObject private var reloadController = DocumentReloadController()
+    @StateObject private var speechController = SpeechController()
     @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
     // Coalesces the heavy per-edit derived work (word/char count, heading outline,
@@ -366,6 +367,15 @@ struct EditorContainerView: View {
             tabStore.selectPreviousTab()
             activateSelectedTab()
         }
+        // Bundled as a modifier (same rationale as ReissueCrossFileSearchOnRootChange below):
+        // three `.onReceive`s + one `.onChange` inline pushed this very large body expression's
+        // type-checker over budget.
+        .modifier(SpeechNotificationHandlers(
+            windowNumber: windowNumber,
+            speechController: speechController,
+            isKeyWindow: { activeWindow?.isKeyWindow == true },
+            startSpeaking: startSpeakingCurrentDocument
+        ))
         .onChange(of: tabStore.selectedTabID) { _, newID in
             guard newID != nil else { return }
             activateSelectedTab()
@@ -396,13 +406,18 @@ struct EditorContainerView: View {
                 return
             }
             LineformCurrentFileMenuState.shared.setCurrentFileURL(currentFileURL)
+            LineformSpeechMenuState.shared.setState(speechController.state)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
             guard
                 let closingWindow = notification.object as? NSWindow,
-                closingWindow.windowNumber == windowNumber,
-                closingWindow.isKeyWindow || LineformCurrentFileMenuState.shared.currentFileURL == currentFileURL
+                closingWindow.windowNumber == windowNumber
             else {
+                return
+            }
+            // Audio must never outlive the window it was started from.
+            speechController.stop()
+            guard closingWindow.isKeyWindow || LineformCurrentFileMenuState.shared.currentFileURL == currentFileURL else {
                 return
             }
             // Without this, closing the last window leaves File > Rename.../Delete...
@@ -1593,6 +1608,25 @@ struct EditorContainerView: View {
     /// diagram-heavy document may scale those images slightly. Minor and cosmetic; Export as PDF,
     /// which fixes the paper before building the view, is unaffected.
     ///
+    private func startSpeakingCurrentDocument(_ notification: Notification) {
+        guard let payload = notification.object as? LineformAppNotification.Payload else { return }
+        let source = speechSource(for: payload)
+        speechController.startSpeaking(SpeechTextExtractor.spokenText(from: source))
+    }
+
+    /// The text to speak, per the start-point rule: selection → caret-to-end (Write/Split) →
+    /// whole document (Read / no caret).
+    private func speechSource(for payload: LineformAppNotification.Payload) -> String {
+        let ns = document.text as NSString
+        if let range = payload.selectedRange, range.length > 0, NSMaxRange(range) <= ns.length {
+            return ns.substring(with: range)
+        }
+        if displayMode != .read, let range = payload.selectedRange, range.location <= ns.length {
+            return ns.substring(from: range.location)
+        }
+        return document.text
+    }
+
     private func printCurrentDocument() {
         DocumentExportRenderer.runInteractivePrint(
             text: document.text,
@@ -1858,6 +1892,44 @@ struct TabCloseDialog: Identifiable {
 /// Re-runs the cross-file search when either scanned root changes. Bundled as a modifier so
 /// EditorContainerView's very large `body` expression takes only one added modifier rather
 /// than two `.onChange`s inline (which pushed the type-checker over its budget).
+/// Wires the three Edit ▸ Speech notifications (Start Speaking / Pause·Resume / Stop) plus the
+/// menu-state sync for this window's `SpeechController`. Bundled as a modifier for the same
+/// type-checker-budget reason as `ReissueCrossFileSearchOnRootChange`.
+private struct SpeechNotificationHandlers: ViewModifier {
+    let windowNumber: Int?
+    @ObservedObject var speechController: SpeechController
+    let isKeyWindow: () -> Bool
+    let startSpeaking: (Notification) -> Void
+
+    private func matchesActiveWindow(_ notification: Notification) -> Bool {
+        guard let payload = notification.object as? LineformAppNotification.Payload else {
+            return false
+        }
+        return payload.matches(windowNumber: windowNumber)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.startSpeaking.name)) { notification in
+                guard matchesActiveWindow(notification) else { return }
+                startSpeaking(notification)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.pauseResumeSpeech.name)) { notification in
+                guard matchesActiveWindow(notification) else { return }
+                speechController.pauseOrResume()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.stopSpeech.name)) { notification in
+                guard matchesActiveWindow(notification) else { return }
+                speechController.stop()
+            }
+            .onChange(of: speechController.state) { _, newState in
+                if isKeyWindow() {
+                    LineformSpeechMenuState.shared.setState(newState)
+                }
+            }
+    }
+}
+
 private struct ReissueCrossFileSearchOnRootChange: ViewModifier {
     let iCloudRoot: OutlineFileRoot
     let workspaceRoot: OutlineFileRoot

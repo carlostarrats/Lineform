@@ -213,11 +213,32 @@ final class LineformCurrentFileMenuState: ObservableObject {
     }
 }
 
+/// Tracks the key window's `SpeechController` state so the Edit ▸ Speech submenu's Pause·Resume
+/// label and enablement track the frontmost window. Same shared-state pattern as
+/// `LineformCurrentFileMenuState`: each window's editor container pushes its controller's state
+/// in whenever it becomes key or the state changes.
+@MainActor
+final class LineformSpeechMenuState: ObservableObject {
+    static let shared = LineformSpeechMenuState()
+
+    @Published private(set) var state: SpeechState = .idle
+
+    func setState(_ state: SpeechState) {
+        guard state != self.state else {
+            return
+        }
+
+        self.state = state
+        NSApp.mainMenu?.update()
+    }
+}
+
 struct AppCommands: Commands {
     @ObservedObject private var textFormatMenuState: LineformTextFormatMenuState
     @ObservedObject private var displayModeMenuState: LineformDisplayModeMenuState
     @ObservedObject private var hiddenFoldersMenuState: HiddenFoldersMenuState
     @ObservedObject private var currentFileMenuState: LineformCurrentFileMenuState
+    @ObservedObject private var speechMenuState: LineformSpeechMenuState
     private let updaterController: LineformUpdaterController
 
     init(
@@ -225,12 +246,14 @@ struct AppCommands: Commands {
         displayModeMenuState: LineformDisplayModeMenuState = .shared,
         hiddenFoldersMenuState: HiddenFoldersMenuState = .shared,
         currentFileMenuState: LineformCurrentFileMenuState = .shared,
+        speechMenuState: LineformSpeechMenuState = .shared,
         updaterController: LineformUpdaterController = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
         _displayModeMenuState = ObservedObject(wrappedValue: displayModeMenuState)
         _hiddenFoldersMenuState = ObservedObject(wrappedValue: hiddenFoldersMenuState)
         _currentFileMenuState = ObservedObject(wrappedValue: currentFileMenuState)
+        _speechMenuState = ObservedObject(wrappedValue: speechMenuState)
         self.updaterController = updaterController
     }
 
@@ -454,6 +477,26 @@ struct AppCommands: Commands {
                 KeyEquivalent(Character(AppMenuConfiguration.findReplaceCommandKeyEquivalent)),
                 modifiers: [.command, .option]
             )
+
+            Divider()
+
+            // No default keyboard shortcuts (macOS ships none for read-aloud transport; avoid
+            // collisions). Always enabled like Print — a post with no key window is a safe no-op.
+            Menu("Speech") {
+                Button("Start Speaking") {
+                    LineformAppNotification.startSpeaking.post(object: LineformAppNotification.activeWindowPayload())
+                }
+
+                Button(speechMenuState.state == .paused ? "Resume" : "Pause") {
+                    LineformAppNotification.pauseResumeSpeech.post(object: LineformAppNotification.activeWindowPayload())
+                }
+                .disabled(speechMenuState.state == .idle)
+
+                Button("Stop") {
+                    LineformAppNotification.stopSpeech.post(object: LineformAppNotification.activeWindowPayload())
+                }
+                .disabled(speechMenuState.state == .idle)
+            }
         }
 
         // Tab commands live in the File menu, alongside the standard document commands.
