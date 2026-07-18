@@ -297,9 +297,183 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         }
     }
 
+    // MARK: - Hover "Copy" pill (code blocks)
+
+    /// The source range (in `renderedText`, the raw source markdown) of the currently-hovered code
+    /// block, or nil when the pointer is not over one. Set by `mouseMoved`/`mouseExited`.
+    private var hoveredCodeBlockSourceRange: NSRange?
+    /// The hovered block's pill hit rect, in the text view's own (document) coordinate space —
+    /// valid only while `hoveredCodeBlockSourceRange != nil`.
+    private var hoveredCodePillRect: NSRect = .zero
+    private var isShowingCopiedFeedback = false
+    private var copyFeedbackGeneration = 0
+    private var hoverTrackingArea: NSTrackingArea?
+
+    private static let copyPillSize = NSSize(width: 58, height: 20)
+    private static let copyPillInset: CGFloat = 8
+    private static let copyPillCornerRadius: CGFloat = 10
+    private static let copiedFeedbackDuration: TimeInterval = 1.0
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        hoverTrackingArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        updateHoveredCodeBlock(at: event)
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        clearHoveredCodeBlock()
+        super.mouseExited(with: event)
+    }
+
+    /// Hit-tests the pointer to a code block's full `.codeBlockSourceRange` attribute run (mirrors
+    /// `checkboxSourceRange(at:)`'s point→glyph→character math) and, when found, positions the
+    /// "Copy" pill in that run's rendered bounding rect.
+    private func updateHoveredCodeBlock(at event: NSEvent) {
+        guard let layoutManager, let textContainer, let textStorage, textStorage.length > 0 else {
+            clearHoveredCodeBlock()
+            return
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        let containerPoint = NSPoint(x: point.x - textContainerInset.width, y: point.y - textContainerInset.height)
+        guard bounds.contains(point) else {
+            clearHoveredCodeBlock()
+            return
+        }
+        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
+        guard glyphIndex < layoutManager.numberOfGlyphs else {
+            clearHoveredCodeBlock()
+            return
+        }
+        let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        guard charIndex < textStorage.length else {
+            clearHoveredCodeBlock()
+            return
+        }
+
+        var runRange = NSRange(location: NSNotFound, length: 0)
+        guard let sourceValue = textStorage.attribute(
+            .codeBlockSourceRange,
+            at: charIndex,
+            longestEffectiveRange: &runRange,
+            in: NSRange(location: 0, length: textStorage.length)
+        ) as? NSValue else {
+            clearHoveredCodeBlock()
+            return
+        }
+
+        let glyphRunRange = layoutManager.glyphRange(forCharacterRange: runRange, actualCharacterRange: nil)
+        let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRunRange, in: textContainer)
+            .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
+
+        let pillSize = Self.copyPillSize
+        let pillRect = NSRect(
+            x: blockRect.maxX - pillSize.width - Self.copyPillInset,
+            y: blockRect.minY + Self.copyPillInset,
+            width: pillSize.width,
+            height: pillSize.height
+        )
+
+        let sourceRange = sourceValue.rangeValue
+        if hoveredCodeBlockSourceRange == sourceRange && hoveredCodePillRect == pillRect {
+            return
+        }
+        hoveredCodeBlockSourceRange = sourceRange
+        hoveredCodePillRect = pillRect
+        isShowingCopiedFeedback = false
+        needsDisplay = true
+    }
+
+    private func clearHoveredCodeBlock() {
+        guard hoveredCodeBlockSourceRange != nil else { return }
+        hoveredCodeBlockSourceRange = nil
+        isShowingCopiedFeedback = false
+        needsDisplay = true
+    }
+
+    /// Overlay-drawn only — never inserted into the attributed string, so it cannot affect layout,
+    /// selection, wrapping, or exported/printed output (`DocumentExportRenderer` uses its own
+    /// `ExportTextView`, a different class, which never installs this pill).
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard hoveredCodeBlockSourceRange != nil, dirtyRect.intersects(hoveredCodePillRect) else { return }
+
+        let theme = Theme.theme(for: activeProfile)
+        let tint: NSColor = theme.usesDarkChrome ? .white : .black
+        let path = NSBezierPath(
+            roundedRect: hoveredCodePillRect,
+            xRadius: Self.copyPillCornerRadius,
+            yRadius: Self.copyPillCornerRadius
+        )
+        tint.withAlphaComponent(isShowingCopiedFeedback ? 0.18 : 0.12).setFill()
+        path.fill()
+        tint.withAlphaComponent(0.24).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+
+        let label = isShowingCopiedFeedback ? "Copied" : "Copy"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: theme.textColor
+        ]
+        let labelSize = label.size(withAttributes: attributes)
+        let labelOrigin = NSPoint(
+            x: hoveredCodePillRect.midX - labelSize.width / 2,
+            y: hoveredCodePillRect.midY - labelSize.height / 2
+        )
+        label.draw(at: labelOrigin, withAttributes: attributes)
+    }
+
+    /// Copies the hovered code block's raw source (sliced from the retained source markdown, since
+    /// `apply(text:profile:)` keeps `renderedText == text`) to the pasteboard and briefly flips the
+    /// pill label to "Copied". Read-only — never mutates the document.
+    private func copyHoveredCodeBlock() {
+        guard
+            let sourceRange = hoveredCodeBlockSourceRange,
+            let source = renderedText as NSString?,
+            NSMaxRange(sourceRange) <= source.length
+        else {
+            return
+        }
+        let code = source.substring(with: sourceRange)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(code, forType: .string)
+
+        isShowingCopiedFeedback = true
+        needsDisplay = true
+        copyFeedbackGeneration += 1
+        let generation = copyFeedbackGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.copiedFeedbackDuration) { [weak self] in
+            guard let self, self.copyFeedbackGeneration == generation else { return }
+            self.isShowingCopiedFeedback = false
+            self.needsDisplay = true
+        }
+    }
+
     // MARK: - Checkbox click handling
 
     override func mouseDown(with event: NSEvent) {
+        if hoveredCodeBlockSourceRange != nil {
+            let point = convert(event.locationInWindow, from: nil)
+            if hoveredCodePillRect.contains(point) {
+                copyHoveredCodeBlock()
+                return
+            }
+        }
         if let range = checkboxSourceRange(at: event) {
             onCheckboxToggle(range)
             return
