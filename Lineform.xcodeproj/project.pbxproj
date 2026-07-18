@@ -131,8 +131,11 @@
 		1F00000100000000000003B2 /* CrossFileSearchResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */; };
 		1F00000100000000000003B3 /* CrossFileSearchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B3 /* CrossFileSearchModel.swift */; };
 		1F00000100000000000003B4 /* CrossFileSearchModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */; };
+		1F00000100000000000004A6 /* QuickLookMarkdownRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */; };
 		1F00000100000000000003B5 /* CrossFileSearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */; };
 		1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */; };
+		1F00000100000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
+		1F00000300000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
 		1F00000100000000000004A2 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A2 /* Info.plist */; };
 		1F00000100000000000004A3 /* LineformQuickLook.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A3 /* LineformQuickLook.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -279,8 +282,10 @@
 		1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResolverTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000003B3 /* CrossFileSearchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchModel.swift; sourceTree = "<group>"; };
 		1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchModelTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookMarkdownRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResultsView.swift; sourceTree = "<group>"; };
  		1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewProvider.swift; sourceTree = "<group>"; };
+		1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookMarkdownRenderer.swift; sourceTree = "<group>"; };
  		1F00000200000000000004A2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
  		1F00000200000000000004A3 /* LineformQuickLook.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LineformQuickLook.appex; sourceTree = BUILT_PRODUCTS_DIR; };
  		1F00000200000000000004A4 /* LineformQuickLook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformQuickLook.entitlements; sourceTree = "<group>"; };
@@ -517,6 +522,7 @@
 				1F00000200000000000003A7 /* QuickOpenIndexTests.swift */,
 				1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */,
 				1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */,
+				1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */,
 				1F0000020000000000000330 /* EditorTabStoreTests.swift */,
 				1F000002000000000000032E /* OutlineInfoContrastTests.swift */,
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
@@ -529,6 +535,7 @@
  			isa = PBXGroup;
  			children = (
  				1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */,
+ 				1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */,
  				1F00000200000000000004A2 /* Info.plist */,
  				1F00000200000000000004A4 /* LineformQuickLook.entitlements */,
  			);
@@ -780,6 +787,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1F0000010000000000000001 /* LineformDocumentTests.swift in Sources */,
+				1F00000300000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */,
 				1F0000010000000000000002 /* ReadingProfileTests.swift in Sources */,
 				1F0000010000000000000021 /* MarkdownRangeAnalyzerTests.swift in Sources */,
 				1F0000010000000000000327 /* ScopedSyntaxHighlightingTests.swift in Sources */,
@@ -822,6 +830,7 @@
 				1F00000100000000000003A7 /* QuickOpenIndexTests.swift in Sources */,
 				1F00000100000000000003B2 /* CrossFileSearchResolverTests.swift in Sources */,
 				1F00000100000000000003B4 /* CrossFileSearchModelTests.swift in Sources */,
+				1F00000100000000000004A6 /* QuickLookMarkdownRendererTests.swift in Sources */,
 				1F0000010000000000000330 /* EditorTabStoreTests.swift in Sources */,
 				1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */,
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
@@ -834,6 +843,7 @@
  			buildActionMask = 2147483647;
  			files = (
  				1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */,
+				1F00000100000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */,
  			);
  			runOnlyForDeploymentPostprocessing = 0;
  		};
