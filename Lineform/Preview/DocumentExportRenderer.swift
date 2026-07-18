@@ -84,10 +84,16 @@ enum DocumentExportRenderer {
     }
 
     /// Content rect size = paper minus margins on all sides. This is the prose wrap width and
-    /// the diagram/math image cap width.
-    static func contentSize(for paper: ExportPaperSize) -> NSSize {
+    /// the diagram/math image cap width. `preset` supplies the margins (`.standard`'s are the
+    /// same flat 72pt as `margin` on every edge, so the default is byte-identical to before
+    /// presets existed).
+    static func contentSize(for paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> NSSize {
         let paperSize = paper.sizeInPoints
-        return NSSize(width: paperSize.width - margin * 2, height: paperSize.height - margin * 2)
+        let insets = preset.pageMargins
+        return NSSize(
+            width: paperSize.width - insets.left - insets.right,
+            height: paperSize.height - insets.top - insets.bottom
+        )
     }
 
     // MARK: - Rendering
@@ -97,11 +103,16 @@ enum DocumentExportRenderer {
     /// hand-rolled CGContext pagination means table cells, attachments, and pagination are
     /// handled by AppKit exactly as on screen — fidelity is inherited, not re-implemented.
     @MainActor
-    static func makeExportTextView(text: String, profile: ReadingProfile, paper: ExportPaperSize) -> NSTextView {
-        let content = contentSize(for: paper)
+    static func makeExportTextView(
+        text: String,
+        profile: ReadingProfile,
+        paper: ExportPaperSize,
+        preset: ExportTypographyPreset = .standard
+    ) -> NSTextView {
+        let content = contentSize(for: paper, preset: preset)
         let attributed = MarkdownPreviewRenderer().render(
             text,
-            profile: exportProfile(from: profile),
+            profile: preset.exportReadingProfile(basedOn: profile),
             columnWidth: content.width,
             mermaidProvider: MermaidImageProvider(),
             mathProvider: MathImageProvider(),
@@ -114,7 +125,8 @@ enum DocumentExportRenderer {
             fitTablesToWidth: true,
             // Exported/printed code stays monochrome — a deliberate product decision (see the
             // "highlightsCode" parameter above).
-            highlightsCode: false
+            highlightsCode: false,
+            headingScale: preset.headingScale
         )
 
         // Classic TextKit 1 stack, matching the on-screen preview view — the renderer's
@@ -142,16 +154,19 @@ enum DocumentExportRenderer {
         return textView
     }
 
-    /// `NSPrintInfo` configured for `paper` with the shared margins. Natural-size pagination
-    /// (`.automatic`) — never `.fit`, which would scale the type off the inherited point size.
+    /// `NSPrintInfo` configured for `paper` with `preset`'s margins (`.standard`'s are the same
+    /// flat 72pt as the old fixed `margin` on every edge, so the default is unchanged). Natural-
+    /// size pagination (`.automatic`) — never `.fit`, which would scale the type off the
+    /// inherited point size.
     @MainActor
-    static func makePrintInfo(for paper: ExportPaperSize) -> NSPrintInfo {
+    static func makePrintInfo(for paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> NSPrintInfo {
         let info = NSPrintInfo()
+        let insets = preset.pageMargins
         info.paperSize = paper.sizeInPoints
-        info.leftMargin = margin
-        info.rightMargin = margin
-        info.topMargin = margin
-        info.bottomMargin = margin
+        info.leftMargin = insets.left
+        info.rightMargin = insets.right
+        info.topMargin = insets.top
+        info.bottomMargin = insets.bottom
         info.horizontalPagination = .automatic
         info.verticalPagination = .automatic
         info.scalingFactor = 1
@@ -173,10 +188,11 @@ enum DocumentExportRenderer {
         text: String,
         profile: ReadingProfile,
         paper: ExportPaperSize,
+        preset: ExportTypographyPreset = .standard,
         printInfo: NSPrintInfo,
         showsPanel: Bool
     ) -> Bool {
-        let view = makeExportTextView(text: text, profile: profile, paper: paper)
+        let view = makeExportTextView(text: text, profile: profile, paper: paper, preset: preset)
         let window = NSWindow(
             contentRect: view.frame,
             styleMask: [.borderless],
@@ -194,30 +210,30 @@ enum DocumentExportRenderer {
 
     /// Presents the interactive print panel (paper size, copies, and the OS "Save as PDF").
     @MainActor
-    static func runInteractivePrint(text: String, profile: ReadingProfile, paper: ExportPaperSize) {
-        runOperation(text: text, profile: profile, paper: paper, printInfo: makePrintInfo(for: paper), showsPanel: true)
+    static func runInteractivePrint(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) {
+        runOperation(text: text, profile: profile, paper: paper, preset: preset, printInfo: makePrintInfo(for: paper, preset: preset), showsPanel: true)
     }
 
     /// Renders a paginated PDF directly to `url` (Export as PDF's chosen destination). Returns
     /// whether the operation succeeded.
     @MainActor
     @discardableResult
-    static func writePDF(text: String, profile: ReadingProfile, paper: ExportPaperSize, to url: URL) -> Bool {
-        let info = makePrintInfo(for: paper)
+    static func writePDF(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard, to url: URL) -> Bool {
+        let info = makePrintInfo(for: paper, preset: preset)
         info.jobDisposition = .save
         info.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL.rawValue] = url
-        return runOperation(text: text, profile: profile, paper: paper, printInfo: info, showsPanel: false)
+        return runOperation(text: text, profile: profile, paper: paper, preset: preset, printInfo: info, showsPanel: false)
     }
 
     /// Renders a paginated PDF and returns its bytes (writes to a temp file then reads back).
     /// Used by tests and any caller wanting the data rather than a file.
     @MainActor
-    static func pdfData(text: String, profile: ReadingProfile, paper: ExportPaperSize) -> Data {
+    static func pdfData(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> Data {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("lineform-export-\(UUID().uuidString)")
             .appendingPathExtension("pdf")
         defer { try? FileManager.default.removeItem(at: tempURL) }
-        writePDF(text: text, profile: profile, paper: paper, to: tempURL)
+        writePDF(text: text, profile: profile, paper: paper, preset: preset, to: tempURL)
         return (try? Data(contentsOf: tempURL)) ?? Data()
     }
 }
@@ -230,11 +246,11 @@ extension DocumentExportRenderer {
     /// The rendered export attributed string for RTF (text-only: math/mermaid become caption/source
     /// text). Reuses the export ReadingProfile and content width; no attachments.
     @MainActor
-    static func makeRTFAttributedString(text: String, profile: ReadingProfile, paper: ExportPaperSize) -> NSAttributedString {
-        let content = contentSize(for: paper)
+    static func makeRTFAttributedString(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> NSAttributedString {
+        let content = contentSize(for: paper, preset: preset)
         return MarkdownPreviewRenderer().render(
             text,
-            profile: exportProfile(from: profile),
+            profile: preset.exportReadingProfile(basedOn: profile),
             columnWidth: content.width,
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
@@ -242,14 +258,15 @@ extension DocumentExportRenderer {
             reportRegistry: DiagramReportRegistry(),
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             fitTablesToWidth: true,
-            imagesAsText: true
+            imagesAsText: true,
+            headingScale: preset.headingScale
         )
     }
 
     /// Rendered document as RTF data. Pure NSAttributedString serialization — no print subsystem.
     @MainActor
-    static func rtfData(for document: LineformDocument, profile: ReadingProfile, paper: ExportPaperSize) throws -> Data {
-        let attributed = makeRTFAttributedString(text: document.text, profile: profile, paper: paper)
+    static func rtfData(for document: LineformDocument, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) throws -> Data {
+        let attributed = makeRTFAttributedString(text: document.text, profile: profile, paper: paper, preset: preset)
         return try attributed.data(
             from: NSRange(location: 0, length: attributed.length),
             documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]

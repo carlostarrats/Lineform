@@ -87,7 +87,11 @@ struct MarkdownPreviewRenderer {
         // Local-image-file loading seam (mirrors mermaidProvider/mathProvider). Defaults to a
         // provider that never loads, so callers that don't care about images (tests, export)
         // get the placeholder fallback for free.
-        imageProvider: ImageAttachmentProviding = DisabledImageAttachmentProvider()
+        imageProvider: ImageAttachmentProviding = DisabledImageAttachmentProvider(),
+        // Export/print's Style presets scale heading sizes over body (multiplier on the
+        // per-level boost). Not a `ReadingProfile` field. Defaults to a no-op so on-screen
+        // Read/Preview rendering is byte-identical.
+        headingScale: CGFloat = 1.0
     ) -> NSAttributedString {
         reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
@@ -119,7 +123,8 @@ struct MarkdownPreviewRenderer {
                     bodyAttributes: bodyAttributes,
                     bodyBlockSpacingAttributes: bodyBlockSpacingAttributes,
                     blockSpacingLineIndexes: blockSpacingLineIndexes,
-                    imagesAsText: imagesAsText
+                    imagesAsText: imagesAsText,
+                    headingScale: headingScale
                 )
             case .singleLineMath(let latex, let lineIndex):
                 appendMathBlock(
@@ -569,7 +574,8 @@ struct MarkdownPreviewRenderer {
         bodyAttributes: [NSAttributedString.Key: Any],
         bodyBlockSpacingAttributes: [NSAttributedString.Key: Any],
         blockSpacingLineIndexes: Set<Int>,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        headingScale: CGFloat = 1.0
     ) {
         for index in range {
             let line = lines[index]
@@ -581,7 +587,8 @@ struct MarkdownPreviewRenderer {
                 var activeHeadingAttributes = headingAttributes(
                     level: heading.level,
                     profile: profile,
-                    usesBlockSpacing: usesBlockSpacing
+                    usesBlockSpacing: usesBlockSpacing,
+                    headingScale: headingScale
                 )
                 if range.contains(index) {
                     activeHeadingAttributes[.headingSourceRange] = NSValue(range: lineRanges[index])
@@ -898,12 +905,12 @@ struct MarkdownPreviewRenderer {
         MarkdownHeadingParser.heading(in: line)
     }
 
-    private func headingAttributes(level: Int, profile: ReadingProfile, usesBlockSpacing: Bool) -> [NSAttributedString.Key: Any] {
+    private func headingAttributes(level: Int, profile: ReadingProfile, usesBlockSpacing: Bool, headingScale: CGFloat = 1.0) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
         let bodyFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
         let sizeBoost = Self.headingSizeBoosts[level] ?? 0
         let headingFont = NSFontManager.shared.convert(bodyFont, toHaveTrait: .boldFontMask)
-        let resolvedHeadingFont = NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost) ?? headingFont
+        let resolvedHeadingFont = NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost * headingScale) ?? headingFont
         let paragraphStyle = usesBlockSpacing
             ? MarkdownSyntaxHighlighter.blockSpacingParagraphStyle(for: profile, font: resolvedHeadingFont, additionalSpacing: 4)
             : MarkdownSyntaxHighlighter.paragraphStyle(for: profile, font: resolvedHeadingFont)
