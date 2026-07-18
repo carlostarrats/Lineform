@@ -262,6 +262,59 @@ final class DocumentExportRendererTests: XCTestCase {
         XCTAssertTrue(sawIndent, "list/blockquote indent carries into RTF paragraph styles")
     }
 
+    func testRTFRoundTripPreservesHeadingFormatting() throws {
+        // Reviewer coverage gap: the original testRTFDataIsNonEmptyAndReadableRTF only checks that
+        // "Heading" text is present, NOT that it survives as a styled (bold/larger-font) run.
+        let doc = LineformDocument(text: "# Heading\n\nBody paragraph.")
+        let data = try DocumentExportRenderer.rtfData(for: doc, profile: .original, paper: .usLetter)
+        let reread = try XCTUnwrap(NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil))
+
+        // Verify the heading text is present.
+        let ns = reread.string as NSString
+        let headingRange = ns.range(of: "Heading")
+        XCTAssertNotEqual(headingRange.location, NSNotFound, "Heading text must be present in RTF")
+
+        // Find a body run to compare sizes.
+        let bodyRange = ns.range(of: "Body paragraph")
+        XCTAssertNotEqual(bodyRange.location, NSNotFound, "Body text must be present in RTF")
+
+        var headingFont: NSFont?
+        var bodyFont: NSFont?
+
+        reread.enumerateAttribute(.font, in: headingRange) { value, _, _ in
+            if let font = value as? NSFont { headingFont = font }
+        }
+        reread.enumerateAttribute(.font, in: bodyRange) { value, _, _ in
+            if let font = value as? NSFont { bodyFont = font }
+        }
+
+        let heading = try XCTUnwrap(headingFont, "Heading run must have a font")
+        let body = try XCTUnwrap(bodyFont, "Body run must have a font")
+
+        // Assert heading is either bold or larger than body (common heading styling patterns).
+        let isBold = heading.fontDescriptor.symbolicTraits.contains(.bold)
+        let isLarger = heading.pointSize > body.pointSize
+        XCTAssertTrue(isBold || isLarger, "Heading must be styled as bold or larger point size than body; heading=\(heading.pointSize)pt, body=\(body.pointSize)pt")
+    }
+
+    func testRTFRoundTripPreservesCallouts() throws {
+        // Reviewer coverage gap: no callout (> [!NOTE] ...) round-trip test existed; only plain
+        // blockquotes were covered. Callouts render a title row + body, both of which must survive RTF.
+        let doc = LineformDocument(text: "> [!NOTE] Remember\n> body text")
+        let data = try DocumentExportRenderer.rtfData(for: doc, profile: .original, paper: .usLetter)
+        let reread = try XCTUnwrap(NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil))
+
+        // Both the callout title ("Remember" or the default "Note" + marker) and body must survive.
+        XCTAssertTrue(reread.string.contains("Remember"), "Callout custom title must survive RTF round-trip")
+        XCTAssertTrue(reread.string.contains("body text"), "Callout body text must survive RTF round-trip")
+        // Callout indentation survives like blockquotes (non-zero paragraph indent).
+        var sawIndent = false
+        reread.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: reread.length)) { value, _, _ in
+            if let p = value as? NSParagraphStyle, p.headIndent > 0 || p.firstLineHeadIndent > 0 { sawIndent = true }
+        }
+        XCTAssertTrue(sawIndent, "Callout indent carries into RTF paragraph styles")
+    }
+
     // Draws a view into a bitmap so a pixel can be sampled (used to assert the white page fill).
     private func renderToImage(_ view: NSView) -> NSBitmapImageRep {
         let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
