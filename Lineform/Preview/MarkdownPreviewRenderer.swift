@@ -504,6 +504,9 @@ struct MarkdownPreviewRenderer {
         case .skipped:
             // Size-guard skip: not a render failure, so no report affordance.
             appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
+        case .unsupported:
+            // Recognized-but-unrenderable mermaid type: clean fallback, not a bug — no log, no report.
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
         case .failed(let error):
             diagramLog.record(source: source, error: error, appVersion: appVersion)
             let hash = DiagramLog.sourceHash(source)

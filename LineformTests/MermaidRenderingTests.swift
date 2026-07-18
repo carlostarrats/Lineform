@@ -191,4 +191,59 @@ final class MermaidRenderingTests: XCTestCase {
         XCTAssertTrue(output.contains("graph TD; A-->B"))
         XCTAssertEqual(log.records.count, 0)
     }
+
+    // MARK: - Part 1: unsupported types fall back cleanly (no library call, no log/report)
+
+    func testProviderReturnsUnsupportedForGanttWithoutCallingLibrary() {
+        let provider = MermaidImageProvider()
+        let outcome = provider.outcome(source: "gantt\n title Project\n section A\n Task :a1, 2024-01-01, 30d",
+                                       background: .white, foreground: .black, scale: 2)
+        guard case .unsupported = outcome else { return XCTFail("expected .unsupported, got \(outcome)") }
+    }
+
+    func testProviderStillAttemptsSupportedType() {
+        let provider = MermaidImageProvider()
+        let outcome = provider.outcome(source: "flowchart TD\n A-->B",
+                                       background: .white, foreground: .black, scale: 2)
+        // Supported types route to BeautifulMermaid: image or a genuine failure, never .unsupported.
+        if case .unsupported = outcome { XCTFail("supported type must not be .unsupported") }
+    }
+
+    @MainActor
+    func testUnsupportedMermaidFallsBackWithoutLoggingOrReport() {
+        let log = FakeLog()
+        let registry = DiagramReportRegistry()
+        let text = "before\n```mermaid\ngantt\n title Project\n```\nafter"
+        let output = MarkdownPreviewRenderer().render(
+            text,
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: FakeProvider(.unsupported("gantt")),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: log,
+            reportRegistry: registry,
+            appVersion: "1.0"
+        ).string
+        XCTAssertTrue(output.contains("Mermaid diagram (source)"))
+        XCTAssertTrue(output.contains("gantt"))
+        XCTAssertFalse(output.contains("Report this"))   // not a bug → no report affordance
+        XCTAssertEqual(log.records.count, 0)             // not logged
+    }
+
+    // MARK: - Part 2: native pie rendering
+
+    func testProviderRendersPieNatively() {
+        let provider = MermaidImageProvider()
+        let outcome = provider.outcome(source: "pie title Fruit\n \"Apples\" : 30\n \"Pears\" : 10",
+                                       background: .clear, foreground: .black, scale: 2)
+        guard case .image(let img) = outcome else { return XCTFail("expected .image, got \(outcome)") }
+        XCTAssertGreaterThan(img.size.width, 0)
+    }
+
+    func testProviderFallsBackForMalformedPie() {
+        let provider = MermaidImageProvider()
+        let outcome = provider.outcome(source: "pie title Empty",
+                                       background: .clear, foreground: .black, scale: 2)
+        guard case .unsupported = outcome else { return XCTFail("expected .unsupported, got \(outcome)") }
+    }
 }

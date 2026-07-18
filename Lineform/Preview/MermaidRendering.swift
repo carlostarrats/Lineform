@@ -84,11 +84,61 @@ enum MermaidImageOrientation {
     }
 }
 
+/// Which renderer, if any, handles a mermaid block.
+enum MermaidDiagramKind: Equatable {
+    case supported     // BeautifulMermaid renders it
+    case pie           // Lineform renders it natively (MermaidPieChart)
+    case unsupported   // recognized-but-unrenderable → clean captioned fallback
+}
+
+/// Classifies a mermaid block by its declared type WITHOUT invoking BeautifulMermaid.
+///
+/// BeautifulMermaid 1.0.4's `Parser.parse` matches a fixed prefix set and DEFAULTS everything
+/// else to flowchart, so an unsupported type (pie/gantt/mindmap/…) is silently mis-drawn as a
+/// garbage flowchart instead of degrading to our clean fallback. This mirrors that parser's
+/// supported prefixes exactly. If the BeautifulMermaid pin is bumped, re-check its parser and
+/// update this list (same discipline as the orientation-flip note above).
+enum MermaidTypeClassifier {
+    /// Prefixes BeautifulMermaid 1.0.4 actually renders (lowercased, matched on the first line).
+    private static let supportedPrefixes = [
+        "sequencediagram", "classdiagram", "erdiagram", "xychart", "statediagram",
+        "flowchart", "graph"
+    ]
+
+    static func classify(_ source: String) -> MermaidDiagramKind {
+        guard let first = firstSignificantLine(source) else { return .unsupported }
+        let lower = first.lowercased()
+        if lower.hasPrefix("pie") { return .pie }
+        if supportedPrefixes.contains(where: { lower.hasPrefix($0) }) { return .supported }
+        return .unsupported
+    }
+
+    /// First line that isn't blank, a `%%` comment, or inside a leading `---`/`---` front-matter block.
+    private static func firstSignificantLine(_ source: String) -> String? {
+        var inFrontMatter = false
+        var seenFirstLine = false
+        for raw in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { seenFirstLine = true; continue }
+            if !seenFirstLine, line == "---" { inFrontMatter = true; seenFirstLine = true; continue }
+            seenFirstLine = true
+            if inFrontMatter {
+                if line == "---" { inFrontMatter = false }
+                continue
+            }
+            if line.hasPrefix("%%") { continue }
+            return line
+        }
+        return nil
+    }
+}
+
 /// The result of attempting to render a mermaid block.
 enum MermaidRenderOutcome {
     case image(NSImage)
-    case skipped          // size guard tripped
-    case failed(String)   // render threw or produced no image
+    case skipped               // size guard tripped
+    case unsupported(String)   // recognized-but-unrenderable type (e.g. "gantt"); clean fallback, no report/log
+    case failed(String)        // render threw or produced no image
 }
 
 /// Abstracts diagram image production so the preview renderer's fallback path is testable
@@ -122,6 +172,9 @@ final class MermaidImageProvider: MermaidImageProviding {
     func outcome(source: String, background: NSColor, foreground: NSColor, scale: CGFloat) -> MermaidRenderOutcome {
         guard MermaidBlockPolicy.shouldAttemptRender(source: source) else { return .skipped }
 
+        let kind = MermaidTypeClassifier.classify(source)
+        if kind == .unsupported { return .unsupported("unsupported mermaid type") }
+
         let key = MermaidCacheKey.key(
             source: source,
             backgroundHex: MermaidHexColor.string(from: background),
@@ -131,6 +184,17 @@ final class MermaidImageProvider: MermaidImageProviding {
         if let cached = cache.object(forKey: key) { return .image(cached) }
         if let failure = failureCache.object(forKey: key) { return .failed(failure as String) }
 
+        if kind == .pie {
+            guard let model = MermaidPieChart.parse(source) else { return .unsupported("malformed pie") }
+            guard let image = MermaidPieRenderer.image(model: model, background: background,
+                                                       foreground: foreground, scale: scale) else {
+                return .failed("Pie render produced no image")   // transient; not neg-cached
+            }
+            cache.setObject(image, forKey: key, cost: RasterImageCost.bytes(for: image))
+            return .image(image)
+        }
+
+        // .supported → BeautifulMermaid (existing do/catch, unchanged).
         do {
             let theme = DiagramTheme(background: background, foreground: foreground)
             if let image = try MermaidRenderer.renderImage(source: source, theme: theme, scale: scale) {
