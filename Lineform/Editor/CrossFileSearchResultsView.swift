@@ -32,6 +32,12 @@ struct CrossFileSearchResultsView: View {
     private var primaryColor: Color { Color(nsColor: theme.textColor) }
     private var secondaryColor: Color { usesDarkChrome ? primaryColor.opacity(0.55) : Self.mutedTextColor }
 
+    /// The sidebar's "Sort folders by" label color — the card's match count and folder
+    /// line share its grey and weight so the two surfaces read as one system.
+    private var sortLabelColor: Color {
+        OutlineSidebarView.tabTextColor(usesDarkChrome: usesDarkChrome, isSelected: false, isHovered: false)
+    }
+
     private var cardFill: Color {
         usesDarkChrome ? Color(white: 0.15) : Self.lightCardFill
     }
@@ -44,8 +50,16 @@ struct CrossFileSearchResultsView: View {
         usesDarkChrome ? Color.white.opacity(0.08) : Self.lightPillFill
     }
 
-    /// Below this content width the two-column grid stacks to a single column.
-    static let twoColumnMinimumWidth: CGFloat = 560
+    /// Rows of four on a roomy window, stepping down responsively to a single stacked
+    /// column as the window narrows.
+    static func columnCount(for availableWidth: CGFloat) -> Int {
+        switch availableWidth {
+        case ..<560: return 1
+        case ..<820: return 2
+        case ..<1080: return 3
+        default: return 4
+        }
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -94,12 +108,12 @@ struct CrossFileSearchResultsView: View {
         } else if results.isEmpty && !isSearching {
             hint("No matches in any file.")
         } else {
-            // Rows of TWO equal-width cards (user request — four across was too dense),
-            // stacking to one column when the window narrows.
+            // Rows of four equal-width cards, stepping down to fewer columns (and
+            // eventually one) as the window narrows.
             LazyVGrid(
                 columns: Array(
                     repeating: GridItem(.flexible(), spacing: 12),
-                    count: availableWidth >= Self.twoColumnMinimumWidth ? 2 : 1
+                    count: Self.columnCount(for: availableWidth)
                 ),
                 alignment: .leading,
                 spacing: 12
@@ -123,8 +137,8 @@ struct CrossFileSearchResultsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 cardHeader(result)
                 Text(locationText(result))
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(secondaryColor)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(sortLabelColor)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -189,8 +203,8 @@ struct CrossFileSearchResultsView: View {
                 .truncationMode(.middle)
             Spacer(minLength: 0)
             Text(result.matchCount == 1 ? "1 match" : "\(result.matchCount) matches")
-                .font(.system(size: 10.5))
-                .foregroundStyle(secondaryColor)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(sortLabelColor)
         }
     }
 
