@@ -93,6 +93,15 @@ struct TabBarView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Text(tab.title))
             .accessibilityValue(isSelected ? Text("selected") : Text(""))
+            // The visible × is deliberately pointer-hover-only (design: no close affordance
+            // at rest). VoiceOver / Switch Control users reach close through this custom
+            // action instead — same gating as the visible ×: only when more than one tab is
+            // open (closing a lone tab is not a tab operation).
+            .accessibilityActions {
+                if tabStore.tabCount > 1 {
+                    Button("Close tab") { onCloseTab(tab.id) }
+                }
+            }
 
             // Centered title cluster (title is centered regardless of the left ×).
             HStack(spacing: 6) {

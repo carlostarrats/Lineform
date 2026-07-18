@@ -503,6 +503,17 @@ struct EditorContainerView: View {
         .onChange(of: isSearchFocused) { _, focused in
             handleSearchFocusChange(focused)
         }
+        // When the deferred Workspace/iCloud scans land, the roots republish. If the user is
+        // in All Files with a live query, re-issue the cross-file search so first-ever All
+        // Files results are not stale against the pre-scan (empty) snapshot. The model is
+        // debounced + latest-wins, so a burst of republishes collapses to one fresh scan.
+        // Bundled in a ViewModifier so this large body expression gains only one modifier
+        // (the two observers were tipping the type-checker's budget over).
+        .modifier(ReissueCrossFileSearchOnRootChange(
+            iCloudRoot: fileBrowserStore.iCloudRoot,
+            workspaceRoot: fileBrowserStore.workspaceRoot,
+            action: reissueCrossFileSearchIfActive
+        ))
         .onSubmit(of: .search) {
             handleSearchSubmit()
         }
@@ -1063,6 +1074,10 @@ struct EditorContainerView: View {
             backingDocument.updateChangeCount(.changeCleared)
         }
         activeWindow?.isDocumentEdited = isEdited
+        // KNOWN LIMITATION (intentional): tabs share the window's single undo manager, so
+        // switching tabs clears undo history — a user cannot ⌘Z edits made in a tab after
+        // switching away and back. Per-tab undo stacks are a large, regression-prone change
+        // deliberately out of scope. See docs/superpowers/specs/2026-07-18-review-followups-design.md.
         backingDocument.undoManager?.removeAllActions()
 
         activeWindow?.representedURL = tab.fileURL
@@ -1457,6 +1472,16 @@ struct EditorContainerView: View {
         )
     }
 
+    /// Re-runs the All Files scan when the scanned roots change, but only while All Files is
+    /// the active scope with a non-empty query — otherwise there is nothing to refresh.
+    private func reissueCrossFileSearchIfActive() {
+        guard searchScope == .allFiles,
+              !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        updateCrossFileSearch()
+    }
+
     private func advanceToNextSearchMatch() {
         guard
             let next = EditorSearchResolver.nextIndex(
@@ -1715,4 +1740,19 @@ struct TabCloseDialog: Identifiable {
     let id = UUID()
     let tabID: UUID
     let tabTitle: String
+}
+
+/// Re-runs the cross-file search when either scanned root changes. Bundled as a modifier so
+/// EditorContainerView's very large `body` expression takes only one added modifier rather
+/// than two `.onChange`s inline (which pushed the type-checker over its budget).
+private struct ReissueCrossFileSearchOnRootChange: ViewModifier {
+    let iCloudRoot: OutlineFileRoot
+    let workspaceRoot: OutlineFileRoot
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: iCloudRoot) { _, _ in action() }
+            .onChange(of: workspaceRoot) { _, _ in action() }
+    }
 }

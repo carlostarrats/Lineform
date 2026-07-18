@@ -55,6 +55,23 @@ final class CrossFileSearchModelTests: XCTestCase {
         XCTAssertEqual(model.results.map(\.name), ["new.md"])
     }
 
+    // Reproduces the All Files "stale during first scan" bug at the model boundary: the
+    // first search runs before the deferred scan has populated the roots (empty entries →
+    // no results); when the roots publish, the view re-issues the search with the full
+    // entry set and results appear — without the user editing the query.
+    func testReSearchWithNewlyPopulatedEntriesSupersedesEmptyInitial() async {
+        let reader = StubReader(texts: ["/found.md": "needle here"])
+        let model = CrossFileSearchModel(reader: reader, debounceInterval: 0)
+
+        // Scan not done yet: no entries → no results.
+        await model.search(query: "needle", entries: [])?.value
+        XCTAssertEqual(model.results, [])
+
+        // Roots populated: re-issued search finds the file.
+        await model.search(query: "needle", entries: [entry("/found.md")])?.value
+        XCTAssertEqual(model.results.map(\.name), ["found.md"])
+    }
+
     func testResetClearsResultsAndCancelsInFlightWork() async {
         let reader = StubReader(texts: ["/a.md": "needle"])
         let model = CrossFileSearchModel(reader: reader, debounceInterval: 0)
