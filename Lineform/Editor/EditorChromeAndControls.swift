@@ -555,10 +555,16 @@ struct EditorModeSegmentedControl: View {
 struct WindowChromeReader: NSViewRepresentable {
     @Binding var windowNumber: Int?
     var usesDarkChrome: Bool
+    // The theme's page color, applied as the WINDOW background. The translucent toolbar shows
+    // the window background wherever no content extends beneath it — which is the tab-bar case:
+    // the tab strip stops AppKit's under-titlebar scroll-view extension, so without this the nav
+    // band washed to neutral (Paper's cream nav went white the moment a second tab opened).
+    var pageBackground: NSColor?
 
     func makeNSView(context: Context) -> ChromeView {
         let view = ChromeView()
         view.usesDarkChrome = usesDarkChrome
+        view.pageBackground = pageBackground
         view.onWindowChanged = { window in
             // Read the window number a runloop LATER: an off-screen window (before it is
             // ordered front) reports 0/-1, and the @Binding write must not happen during
@@ -574,12 +580,19 @@ struct WindowChromeReader: NSViewRepresentable {
 
     func updateNSView(_ nsView: ChromeView, context: Context) {
         nsView.usesDarkChrome = usesDarkChrome
+        nsView.pageBackground = pageBackground
         nsView.applyChrome()
     }
 
     static func dismantleNSView(_ nsView: ChromeView, coordinator: ()) {
-        nsView.window?.appearance = nil
-        nsView.window?.contentView?.appearance = nil
+        // Deliberately do NOT reset the window/contentView appearance here. SwiftUI can dismantle
+        // and recreate this background view during detail-hierarchy rebuilds (the tab bar
+        // appearing/disappearing), and the teardown order vs. the replacement view's apply is not
+        // guaranteed: clearing the appearance on dismantle either flashed the nav light for a
+        // frame (cleared, then healed) or left the whole window chrome stuck light on a dark
+        // theme when the clear landed last (2026-07-18, Quiet + tabs: light nav band, black
+        // sidebar-toggle glyph). A window that keeps its themed appearance while briefly ownerless
+        // is always correct — every live editor window re-asserts through its own ChromeView.
     }
 
     /// Applies the window appearance SYNCHRONOUSLY the moment it joins a window (and on
@@ -590,9 +603,11 @@ struct WindowChromeReader: NSViewRepresentable {
     /// empty-state placeholder — flashed dark-on-dark in the Quiet theme.
     final class ChromeView: NSView {
         var usesDarkChrome = false
+        var pageBackground: NSColor?
         var onWindowChanged: ((NSWindow?) -> Void)?
         private weak var appliedWindow: NSWindow?
         private var appliedDarkChrome: Bool?
+        private var appliedPageBackground: NSColor?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -626,11 +641,13 @@ struct WindowChromeReader: NSViewRepresentable {
             if let window {
                 let desiredName = EditorWindowChrome.appearanceName(usesDarkChrome: usesDarkChrome)
                 let appearanceDrifted = window.appearance?.name != desiredName
-                if window !== appliedWindow || appliedDarkChrome != usesDarkChrome || appearanceDrifted {
+                if window !== appliedWindow || appliedDarkChrome != usesDarkChrome
+                    || appliedPageBackground != pageBackground || appearanceDrifted {
                     appliedWindow = window
                     appliedDarkChrome = usesDarkChrome
+                    appliedPageBackground = pageBackground
                     window.animationBehavior = .none
-                    EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome)
+                    EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome, pageBackground: pageBackground)
                 }
             }
             // Report the (possibly nil) window every time so the deferred reader converges
@@ -650,9 +667,18 @@ struct EditorWindowChrome {
     }
 
     @MainActor
-    static func apply(to window: NSWindow?, usesDarkChrome: Bool) {
+    static func apply(to window: NSWindow?, usesDarkChrome: Bool, pageBackground: NSColor? = nil) {
         let resolvedAppearance = appearance(usesDarkChrome: usesDarkChrome)
         window?.appearance = resolvedAppearance
         window?.contentView?.appearance = resolvedAppearance
+        // The translucent toolbar shows the WINDOW background wherever no content extends
+        // beneath it. Without tabs, AppKit extends the detail's root scroll view under the
+        // titlebar and the nav samples the page; with the tab strip topmost, that extension
+        // stops and the band showed the default (neutral) window background instead — so
+        // Paper/Calm tints vanished from the nav whenever a second tab opened. Keeping the
+        // window background AT the theme page color makes the band themed in both layouts.
+        if let pageBackground {
+            window?.backgroundColor = pageBackground
+        }
     }
 }

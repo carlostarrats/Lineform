@@ -106,27 +106,16 @@ struct EditorContainerView: View {
                     max: OutlineSidebarView.maximumColumnWidth
                 )
         } detail: {
-            VStack(spacing: 0) {
-                if tabStore.shouldShowTabBar {
-                    TabBarView(
-                        tabStore: tabStore,
-                        documentSaveStatus: documentSaveStatus,
-                        usesDarkChrome: currentTheme.usesDarkChrome,
-                        onSelectTab: switchToTab,
-                        onCloseTab: requestCloseTab
-                    )
-                }
-                editorShell
-            }
-            // Without an explicit width, NavigationSplitView applies its own default detail-column
-            // minimum (~500pt, measured 2026-07-17), which — added to the sidebar column — forced
-            // the whole window out to ~756pt whenever the sidebar opened on a small window. Our
-            // content already carries its real minimum (EditorLayout.minimumContentWidth).
-            .navigationSplitViewColumnWidth(
-                min: EditorLayout.minimumContentWidth,
-                ideal: 640,
-                max: .infinity
-            )
+            editorShell
+                // Without an explicit width, NavigationSplitView applies its own default detail-column
+                // minimum (~500pt, measured 2026-07-17), which — added to the sidebar column — forced
+                // the whole window out to ~756pt whenever the sidebar opened on a small window. Our
+                // content already carries its real minimum (EditorLayout.minimumContentWidth).
+                .navigationSplitViewColumnWidth(
+                    min: EditorLayout.minimumContentWidth,
+                    ideal: 640,
+                    max: .infinity
+                )
         }
         .navigationSplitViewStyle(.balanced)
         // A single native SwiftUI alert (title + message + text field + buttons) — the
@@ -196,7 +185,22 @@ struct EditorContainerView: View {
         }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
-        .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
+        // The nav band must read as the SAME surface as the page — no darker strip, no shade
+        // shift when tabs appear. Two pieces make that exact: the window's backgroundColor is
+        // pinned to the theme page color (EditorWindowChrome.apply), and the toolbar MATERIAL
+        // is hidden here so the band shows that backdrop directly instead of tinting it (the
+        // dark material read visibly darker than the page on Quiet/Night; the light material
+        // washed Paper's cream toward neutral). Visibility.hidden is spelled explicitly — the
+        // bare `.hidden` overload is ambiguous against ShapeStyle and blows up type-checking.
+        // An OPAQUE painted band was also tried and rejected: it covers the sidebar/drawer
+        // divider hairlines at the toolbar edge. Do not reintroduce the material: with it, the
+        // band can never equal the page color in dark themes.
+        .toolbarBackground(Visibility.hidden, for: .windowToolbar)
+        .background(WindowChromeReader(
+            windowNumber: $windowNumber,
+            usesDarkChrome: theme.usesDarkChrome,
+            pageBackground: theme.backgroundColor
+        ))
         .searchable(text: $searchQuery, placement: .toolbar, prompt: "Search")
         .searchScopes($searchScope) {
             Text("This File").tag(EditorSearchScope.thisFile)
@@ -352,9 +356,13 @@ struct EditorContainerView: View {
             // the window's explicit appearance to the default (light) aqua — leaving a dark theme
             // with a light toolbar/title bar. Re-assert the themed appearance on the next runloop
             // tick, after AppKit's reset settles. (WindowChromeReader also self-heals on drift.)
-            let usesDarkChrome = currentTheme.usesDarkChrome
+            let theme = currentTheme
             DispatchQueue.main.async {
-                EditorWindowChrome.apply(to: activeWindow, usesDarkChrome: usesDarkChrome)
+                EditorWindowChrome.apply(
+                    to: activeWindow,
+                    usesDarkChrome: theme.usesDarkChrome,
+                    pageBackground: theme.backgroundColor
+                )
             }
         }
         .onChange(of: currentFileURL) { _, newValue in
@@ -557,8 +565,34 @@ struct EditorContainerView: View {
     private var editorShell: some View {
         let theme = currentTheme
 
+        // The tab bar lives INSIDE the view the inspector attaches to, so the Reading drawer
+        // presents as a full-height trailing column beside (tab bar + editor) — rising up under
+        // the toolbar/search exactly like the no-tab case, with the tab strip ending at the
+        // drawer's edge. When the tab bar instead sat ABOVE the inspector's anchor (the old
+        // structure), the drawer was pushed below the tab strip and drew its own rounded
+        // corner + hairline (a floating panel with "a line around it"), while the toolbar's
+        // native inspector section still tinted the area behind the search field — leaving a
+        // hard-edged dark patch up there aligned with nothing beneath it.
         return ZStack {
-            editorPrimaryShell
+            VStack(spacing: 0) {
+                if tabStore.shouldShowTabBar {
+                    TabBarView(
+                        tabStore: tabStore,
+                        documentSaveStatus: documentSaveStatus,
+                        usesDarkChrome: theme.usesDarkChrome,
+                        onSelectTab: switchToTab,
+                        onCloseTab: requestCloseTab
+                    )
+                }
+                editorPrimaryShell
+            }
+                // NOTE: no SwiftUI background here can theme the nav band. Without tabs the nav
+                // color comes from AppKit extending the detail's root SCROLL VIEW under the
+                // titlebar; with the tab strip as the topmost view that extension stops, and a
+                // `.background(color)` — with or without .ignoresSafeArea(.top) — never reaches
+                // the titlebar region from inside the inspector container (both pixel-verified
+                // 2026-07-18). The themed band with tabs comes from the WINDOW's backgroundColor,
+                // set to the theme page color in EditorWindowChrome.apply.
                 .inspector(isPresented: $isShowingReadingInspector) {
                     ReadingExperienceInspector(
                         store: readingProfileStore,

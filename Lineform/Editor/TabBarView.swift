@@ -31,8 +31,16 @@ struct TabBarView: View {
         .padding(.vertical, Self.capsuleVerticalInset)
         .frame(height: Self.barHeight)
         .frame(maxWidth: .infinity)
+        // ignoresSafeAreaEdges: [] is load-bearing: as the topmost view in the detail column,
+        // a default .background(color) BLEEDS into the top safe area — under the translucent
+        // toolbar — so the nav sampled this strip's grey instead of the theme page color the
+        // moment a second tab appeared (pixel-verified 2026-07-18: Paper's cream nav went
+        // neutral white with tabs, identical no-tab nav stayed cream). Constrained to the
+        // bar's own bounds, the page-color background on editorShell's wrapper owns the
+        // under-toolbar region, so the nav is identical with or without tabs.
         .background(
-            Color(nsColor: Self.barBackgroundColor(usesDarkChrome: usesDarkChrome))
+            Color(nsColor: Self.barBackgroundColor(usesDarkChrome: usesDarkChrome)),
+            ignoresSafeAreaEdges: []
         )
     }
 
