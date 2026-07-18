@@ -13,9 +13,15 @@ final class MarkdownReferenceTests: XCTestCase {
     func testBasicsIncludesCoreSyntax() {
         let basics = MarkdownReference.sections.first { $0.title == "Markdown Basics" }
         let syntaxes = basics?.rows.map(\.syntax) ?? []
-        for expected in ["# Title", "**bold**", "- [x] done", "| a | b |"] {
+        for expected in ["# Title", "**bold**", "- [x] done", "| a | b |", "> [!NOTE]"] {
             XCTAssertTrue(syntaxes.contains(expected), "missing \(expected)")
         }
+    }
+
+    func testBasicsIncludesCalloutSyntax() {
+        let basics = MarkdownReference.sections.first { $0.title == "Markdown Basics" }
+        let syntaxes = basics?.rows.map(\.syntax) ?? []
+        XCTAssertTrue(syntaxes.contains("> [!NOTE]"), "missing callout row")
     }
 
     // Guards the narrow-column rewrite: a future edit can't silently re-bloat copy.

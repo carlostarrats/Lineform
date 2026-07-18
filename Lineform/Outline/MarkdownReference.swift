@@ -36,6 +36,7 @@ struct MarkdownReference {
             Row(syntax: "- [ ] to do", explanation: "Task, not done."),
             Row(syntax: "- [x] done", explanation: "Task, done. Click to toggle."),
             Row(syntax: "> quote", explanation: "Blockquote."),
+            Row(syntax: "> [!NOTE]", explanation: "Callout. Also TIP, IMPORTANT, WARNING, CAUTION. Add a title after the marker."),
             Row(syntax: "~~text~~", explanation: "Strikethrough."),
             Row(syntax: "`code`", explanation: "Inline code."),
             Row(syntax: "---", explanation: "Divider."),
