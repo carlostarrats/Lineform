@@ -44,16 +44,21 @@ struct CrossFileSearchResultsView: View {
         usesDarkChrome ? Color.white.opacity(0.08) : Self.lightPillFill
     }
 
+    /// Below this content width the two-column grid stacks to a single column.
+    static let twoColumnMinimumWidth: CGFloat = 560
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                content
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    content(availableWidth: geometry.size.width)
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 28)
+                .padding(.bottom, 40)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 28)
-            .padding(.bottom, 40)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: theme.backgroundColor))
@@ -82,15 +87,20 @@ struct CrossFileSearchResultsView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(availableWidth: CGFloat) -> some View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             hint("Type to search all files…")
         } else if results.isEmpty && !isSearching {
             hint("No matches in any file.")
         } else {
+            // Rows of TWO equal-width cards (user request — four across was too dense),
+            // stacking to one column when the window narrows.
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 230, maximum: 360), spacing: 12)],
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: 12),
+                    count: availableWidth >= Self.twoColumnMinimumWidth ? 2 : 1
+                ),
                 alignment: .leading,
                 spacing: 12
             ) {
