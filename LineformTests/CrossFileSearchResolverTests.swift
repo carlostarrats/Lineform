@@ -57,6 +57,19 @@ final class CrossFileSearchResolverTests: XCTestCase {
         XCTAssertEqual(result?.snippet.lineText, "first needle line")
     }
 
+    func testMatchLongerThanSnippetCapYieldsValidInBoundsRange() {
+        let longWord = String(repeating: "z", count: 150)
+        let text = "prefix " + longWord + " suffix"
+        let result = CrossFileSearchResolver.result(for: entry(), text: text, query: longWord)
+        XCTAssertNotNil(result)
+        let snippet = result!.snippet
+        XCTAssertGreaterThanOrEqual(snippet.matchRange.location, 0)
+        XCTAssertLessThanOrEqual(NSMaxRange(snippet.matchRange), (snippet.lineText as NSString).length)
+        XCTAssertGreaterThan(snippet.matchRange.length, 0)
+        let shown = (snippet.lineText as NSString).substring(with: snippet.matchRange)
+        XCTAssertTrue(shown.allSatisfy { $0 == "z" })
+    }
+
     func testRankedOrdersByMatchCountThenNameThenPath() {
         func make(_ name: String, _ path: String, _ count: Int) -> CrossFileSearchResult {
             CrossFileSearchResult(

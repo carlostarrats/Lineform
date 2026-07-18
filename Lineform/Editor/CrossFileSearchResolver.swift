@@ -77,22 +77,36 @@ enum CrossFileSearchResolver {
             return CrossFileSearchSnippet(lineText: line as String, matchRange: matchInLine)
         }
 
-        // Center a window of snippetMaximumLength characters on the match.
-        let half = (snippetMaximumLength - matchInLine.length) / 2
+        // Center a window of snippetMaximumLength characters on the match. When the match
+        // itself is longer than the cap, `half` would go negative — clamp it so `start`
+        // never lands past the match's own start.
+        let half = max(0, (snippetMaximumLength - matchInLine.length) / 2)
         var start = max(0, matchInLine.location - half)
         if start + snippetMaximumLength > line.length {
             start = max(0, line.length - snippetMaximumLength)
         }
         let window = NSRange(location: start, length: min(snippetMaximumLength, line.length - start))
         var display = line.substring(with: window)
-        var shifted = NSRange(location: matchInLine.location - start, length: matchInLine.length)
+
+        // Overlap the match with the window in original-line coordinates first — when the
+        // match is longer than the window (the match-longer-than-cap case), only the part
+        // of the match that actually falls inside the window should be reported, so this
+        // must not simply reuse `matchInLine.length` un-clamped.
+        let windowEnd = window.location + window.length
+        let matchEnd = matchInLine.location + matchInLine.length
+        let overlapStart = max(matchInLine.location, window.location)
+        let overlapEnd = min(matchEnd, windowEnd)
+        let overlapLength = max(0, overlapEnd - overlapStart)
+        var shifted = NSRange(location: overlapStart - start, length: overlapLength)
+
         if start > 0 {
             display = "…" + display
             shifted.location += 1
         }
-        if window.location + window.length < line.length {
+        if windowEnd < line.length {
             display += "…"
         }
+        shifted.location = max(0, shifted.location)
         shifted.length = min(shifted.length, max(0, (display as NSString).length - shifted.location))
         return CrossFileSearchSnippet(lineText: display, matchRange: shifted)
     }
