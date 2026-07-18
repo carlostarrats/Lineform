@@ -7,21 +7,17 @@ struct TabBarView: View {
     let onSelectTab: (UUID) -> Void
     let onCloseTab: (UUID) -> Void
 
+    @State private var hoveredTabID: UUID?
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(Array(tabStore.tabs.enumerated()), id: \.element.id) { index, tab in
-                    if index > 0 {
-                        Rectangle()
-                            .fill(Color(nsColor: Self.separatorColor(usesDarkChrome: usesDarkChrome)))
-                            .frame(width: 0.5)
-                            .padding(.vertical, 6)
-                    }
+            HStack(spacing: Self.tabSpacing) {
+                ForEach(tabStore.tabs) { tab in
                     tabButton(for: tab)
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 0)
+            .padding(.vertical, Self.pillVerticalInset)
         }
         .frame(height: Self.barHeight)
         .background(
@@ -35,19 +31,25 @@ struct TabBarView: View {
         )
     }
 
-    static let barHeight: CGFloat = 28
+    static let barHeight: CGFloat = 30
+    static let tabSpacing: CGFloat = 4
+    static let pillVerticalInset: CGFloat = 4
+    static let pillCornerRadius: CGFloat = 6
 
     @ViewBuilder
     private func tabButton(for tab: DocumentTab) -> some View {
         let isSelected = tab.id == tabStore.selectedTabID
+        let isHovered = hoveredTabID == tab.id
         let isDirty = documentSaveStatus.isDirty(
             documentID: tab.document.id,
             currentText: tab.document.text
         )
-        let showsClose = tabStore.tabCount > 1
+        // Safari shows the close affordance on the tab under the pointer (and keeps the
+        // active tab's visible); a lone tab never shows one.
+        let showsClose = tabStore.tabCount > 1 && (isSelected || isHovered)
 
         ZStack {
-            // Selection tap area: covers the whole row so the close button can be a
+            // Selection tap area: covers the whole pill so the close button can be a
             // sibling Button instead of nested inside another Button. A real Button
             // (rather than onTapGesture) because onTapGesture loses the gesture-priority
             // race to the enclosing horizontal ScrollView's own click/pan handling on
@@ -56,12 +58,19 @@ struct TabBarView: View {
             Button {
                 onSelectTab(tab.id)
             } label: {
-                Rectangle()
+                RoundedRectangle(cornerRadius: Self.pillCornerRadius, style: .continuous)
                     .fill(Color(nsColor: Self.tabBackgroundColor(
                         isSelected: isSelected,
+                        isHovered: isHovered,
                         usesDarkChrome: usesDarkChrome
                     )))
-                    .contentShape(Rectangle())
+                    // The active pill floats a hair above the bar, Safari-style; hover
+                    // and inactive pills stay flat.
+                    .shadow(
+                        color: Color.black.opacity(isSelected ? (usesDarkChrome ? 0.30 : 0.10) : 0),
+                        radius: 2, x: 0, y: 1
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: Self.pillCornerRadius, style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(tab.title))
@@ -92,11 +101,12 @@ struct TabBarView: View {
                     closeButton(for: tab.id, isSelected: isSelected)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 0)
-            .frame(height: Self.barHeight)
+            .padding(.horizontal, 12)
         }
-        .frame(height: Self.barHeight)
+        .frame(height: Self.barHeight - Self.pillVerticalInset * 2)
+        .onHover { hovering in
+            hoveredTabID = hovering ? tab.id : (hoveredTabID == tab.id ? nil : hoveredTabID)
+        }
     }
 
     @ViewBuilder
@@ -123,11 +133,16 @@ struct TabBarView: View {
             : NSColor(calibratedWhite: 0.96, alpha: 1)
     }
 
-    static func tabBackgroundColor(isSelected: Bool, usesDarkChrome: Bool) -> NSColor {
+    static func tabBackgroundColor(isSelected: Bool, isHovered: Bool, usesDarkChrome: Bool) -> NSColor {
         if isSelected {
             return usesDarkChrome
-                ? NSColor(calibratedWhite: 0.22, alpha: 1)
+                ? NSColor(calibratedWhite: 0.28, alpha: 1)
                 : NSColor(calibratedWhite: 1.0, alpha: 1)
+        }
+        if isHovered {
+            return usesDarkChrome
+                ? NSColor(calibratedWhite: 0.23, alpha: 1)
+                : NSColor(calibratedWhite: 0.915, alpha: 1)
         }
         return .clear
     }
@@ -158,12 +173,6 @@ struct TabBarView: View {
         return usesDarkChrome
             ? NSColor(calibratedWhite: 0.50, alpha: 1)
             : NSColor(calibratedWhite: 0.55, alpha: 1)
-    }
-
-    static func separatorColor(usesDarkChrome: Bool) -> NSColor {
-        usesDarkChrome
-            ? NSColor.white.withAlphaComponent(0.10)
-            : NSColor.black.withAlphaComponent(0.10)
     }
 
     static func bottomBorderColor(usesDarkChrome: Bool) -> NSColor {
