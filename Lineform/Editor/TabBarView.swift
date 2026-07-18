@@ -23,10 +23,7 @@ struct TabBarView: View {
 
     var body: some View {
         HStack(spacing: Self.tabGap) {
-            ForEach(Array(tabStore.tabs.enumerated()), id: \.element.id) { index, tab in
-                if index > 0 {
-                    separator(beforeTabAt: index)
-                }
+            ForEach(Array(tabStore.tabs.enumerated()), id: \.element.id) { _, tab in
                 tabButton(for: tab)
             }
         }
@@ -52,22 +49,6 @@ struct TabBarView: View {
     static let capsuleVerticalInset: CGFloat = 4
     static let tabGap: CGFloat = 3
     static let barHorizontalPadding: CGFloat = 4
-    static let separatorHeight: CGFloat = 14
-
-    /// Separators only divide two RESTING tabs — hidden beside the selected capsule and
-    /// the hovered tab (both per the design's hover frame).
-    @ViewBuilder
-    private func separator(beforeTabAt index: Int) -> some View {
-        let leadingTab = tabStore.tabs[index - 1]
-        let trailingTab = tabStore.tabs[index]
-        let touchesSelection = leadingTab.id == tabStore.selectedTabID
-            || trailingTab.id == tabStore.selectedTabID
-        let touchesHover = leadingTab.id == hoveredTabID || trailingTab.id == hoveredTabID
-        Rectangle()
-            .fill(Color(nsColor: Self.separatorColor(usesDarkChrome: usesDarkChrome, pageBackground: pageBackground)))
-            .frame(width: 0.5, height: Self.separatorHeight)
-            .opacity(touchesSelection || touchesHover ? 0 : 1)
-    }
 
     @ViewBuilder
     private func tabButton(for tab: DocumentTab) -> some View {
@@ -122,7 +103,7 @@ struct TabBarView: View {
                     .kerning(0.3)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .foregroundStyle(Color(nsColor: Self.textColor(usesDarkChrome: usesDarkChrome)))
+                    .foregroundStyle(Color(nsColor: Self.textColor(usesDarkChrome: usesDarkChrome, isSelected: isSelected, isHovered: isHovered)))
                     // Text still consumes hits at its own bounds even with no gesture
                     // attached, which silently blocks the selection Button stacked behind
                     // it. Let clicks fall through to the Button underneath.
@@ -204,37 +185,58 @@ struct TabBarView: View {
         )
     }
 
+    // The strip is the PAGE surface itself (QA 2026-07-18): the bar carries no tone of its
+    // own in any theme, so the tab capsules float directly on one continuous page-colored
+    // surface with the nav above and the page below. Nil (tests/previews) falls back to
+    // the page-equivalent defaults.
     static func barBackgroundColor(usesDarkChrome: Bool, pageBackground: NSColor? = nil) -> NSColor {
-        usesDarkChrome
-            ? NSColor(calibratedWhite: 0.18, alpha: 1)
-            : lightTone(0xE3 / 255, page: pageBackground)
+        pageBackground ?? (usesDarkChrome ? NSColor(calibratedWhite: 0.19, alpha: 1) : .white)
     }
 
     static func tabBackgroundColor(isSelected: Bool, isHovered: Bool, usesDarkChrome: Bool, pageBackground: NSColor? = nil) -> NSColor {
         if isSelected {
             if isHovered {
-                // A slight tint only — the first pass (#E6E6E6) read as too dark in QA.
+                // 0xBE is the darkest hover step that keeps the #444444 title ≥4.5:1 on Paper.
                 return usesDarkChrome
-                    ? NSColor(calibratedWhite: 0.31, alpha: 1)
-                    : lightTone(0xED / 255, page: pageBackground)
+                    ? NSColor(calibratedWhite: 0.27, alpha: 1)
+                    : lightTone(0xBE / 255, page: pageBackground)
             }
-            // Lightened from the design file's #EBEBEB, per QA.
+            // Light SELECTED is the DARK capsule (QA 2026-07-18, reversed from the original
+            // design): 0xC6 is the darkest tone that keeps the selected title (#444444, see
+            // textColor) at ≥4.5:1 WCAG AA on the dimmest light page (Paper's cream) — fill
+            // ≈0.49 luminance vs text ≈0.058 → 5.0:1 there, 5.5:1 on a white page. Darkening
+            // further drops Paper below AA. Dark selected stepped 0.30 → 0.26 per QA.
             return usesDarkChrome
-                ? NSColor(calibratedWhite: 0.30, alpha: 1)
-                : lightTone(0xF0 / 255, page: pageBackground)
+                ? NSColor(calibratedWhite: 0.26, alpha: 1)
+                : lightTone(0xC6 / 255, page: pageBackground)
         }
         if isHovered {
+            // Light hover mirrors dark's clearly-visible shift (QA 2026-07-18): 0xF0 → 0xE0
+            // (0xDA read a touch too dark in QA), with the hovered title darkening to
+            // #444444 (see textColor) so the pair holds ≥6:1.
             return usesDarkChrome
                 ? NSColor(calibratedWhite: 0.13, alpha: 1)
-                : lightTone(0xD3 / 255, page: pageBackground)
+                : lightTone(0xE0 / 255, page: pageBackground)
         }
-        return .clear
+        // Resting INACTIVE tabs (QA 2026-07-18, reversed from the original design): the
+        // LIGHT capsule (0xF0 — the tone the selected tab used to carry; #636363 text holds
+        // 4.8:1 on Paper). Dark chrome: 0.16 against the ~0.19 page — clearly darker than
+        // the background without vanishing into it.
+        return usesDarkChrome
+            ? NSColor(calibratedWhite: 0.16, alpha: 1)
+            : lightTone(0xF0 / 255, page: pageBackground)
     }
 
-    static func textColor(usesDarkChrome: Bool) -> NSColor {
-        // A step lighter than the design file's #4C4C4C, per QA.
-        usesDarkChrome
-            ? NSColor(calibratedWhite: 0.78, alpha: 1)
+    static func textColor(usesDarkChrome: Bool, isSelected: Bool = false, isHovered: Bool = false) -> NSColor {
+        if usesDarkChrome {
+            return NSColor(calibratedWhite: 0.78, alpha: 1)
+        }
+        // Selected rides the DARK 0xC6 capsule and needs the darker #444444 to hold WCAG AA
+        // (see tabBackgroundColor); a HOVERED inactive tab darkens to its 0xDA fill and takes
+        // the same darker title (reads as a selection preview and keeps ≥6:1). Resting
+        // inactive keeps the quieter #636363 on its light capsule.
+        return (isSelected || isHovered)
+            ? NSColor(srgbRed: 0x44 / 255, green: 0x44 / 255, blue: 0x44 / 255, alpha: 1)
             : NSColor(srgbRed: 0x63 / 255, green: 0x63 / 255, blue: 0x63 / 255, alpha: 1)
     }
 
@@ -247,14 +249,7 @@ struct TabBarView: View {
     static func closeButtonColor(usesDarkChrome: Bool) -> NSColor {
         usesDarkChrome
             ? NSColor(calibratedWhite: 0.60, alpha: 1)
-            : NSColor(srgbRed: 0x7A / 255, green: 0x7A / 255, blue: 0x7A / 255, alpha: 1)
-    }
-
-    static func separatorColor(usesDarkChrome: Bool, pageBackground: NSColor? = nil) -> NSColor {
-        // A step darker than the design file's #CDCDCD, per QA.
-        usesDarkChrome
-            ? NSColor.white.withAlphaComponent(0.24)
-            : lightTone(0xBB / 255, page: pageBackground)
+            : NSColor(srgbRed: 0x5E / 255, green: 0x5E / 255, blue: 0x5E / 255, alpha: 1)
     }
 
     /// An × as exact geometry: both diagonals of the given rect.
