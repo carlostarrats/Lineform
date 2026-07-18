@@ -190,6 +190,71 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertNil(MarkdownBlockquote.quoteLine("no quote"))
     }
 
+    // MARK: - Callouts
+
+    func testCalloutMarkerBecomesCalloutBlockWithBodySplit() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["> [!NOTE]", "> body one", "> body two"]),
+            [
+                .callout(
+                    kind: .note,
+                    title: nil,
+                    body: [
+                        MarkdownQuoteLine(depth: 1, text: "body one"),
+                        MarkdownQuoteLine(depth: 1, text: "body two")
+                    ],
+                    lastLineIndex: 2
+                )
+            ]
+        )
+    }
+
+    func testCalloutCapturesCustomTitleAndEmptyBody() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["> [!TIP] Do this"]),
+            [.callout(kind: .tip, title: "Do this", body: [], lastLineIndex: 0)]
+        )
+    }
+
+    func testUnknownTypeStaysBlockquote() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["> [!FOO]", "> body"]),
+            [.blockquote(lines: [
+                MarkdownQuoteLine(depth: 1, text: "[!FOO]"),
+                MarkdownQuoteLine(depth: 1, text: "body")
+            ], lastLineIndex: 1)]
+        )
+    }
+
+    func testPlainBlockquoteStaysBlockquote() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["> just a quote"]),
+            [.blockquote(lines: [MarkdownQuoteLine(depth: 1, text: "just a quote")], lastLineIndex: 0)]
+        )
+    }
+
+    func testCalloutMarkerInsideCodeFenceIsNotACallout() {
+        // A plain ``` fence is already its own `.fencedCode` block (Feature C routing) before the
+        // blockquote/callout checks ever run, so the marker text inside it is never even
+        // considered for callout parsing — it stays part of the fenced code body verbatim.
+        XCTAssertEqual(
+            markdownBlocks(in: ["```", "> [!NOTE]", "```"]),
+            [.fencedCode(language: "", body: "> [!NOTE]", openingIndex: 0, closingIndex: 2)]
+        )
+    }
+
+    func testTextBeforeAndAfterCalloutRoutesUnchanged() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["intro", "> [!WARNING]", "> careful", "outro"]),
+            [
+                .lines(0..<1),
+                .callout(kind: .warning, title: nil,
+                         body: [MarkdownQuoteLine(depth: 1, text: "careful")], lastLineIndex: 2),
+                .lines(3..<4)
+            ]
+        )
+    }
+
     // MARK: - Lists
 
     func testUnorderedListGroupsItems() {

@@ -28,6 +28,10 @@ enum MarkdownBlock: Equatable {
     /// A contiguous run of `>`-quoted lines (markers stripped, per-line nesting depth kept).
     /// `lastLineIndex` is the last original line the block covers, for the trailing-newline rule.
     case blockquote(lines: [MarkdownQuoteLine], lastLineIndex: Int)
+    /// A blockquote whose first line is a GitHub callout marker (`> [!TYPE]`). `title` is the optional
+    /// custom title from the marker line; `body` is the remaining quote lines (markers stripped).
+    /// `lastLineIndex` is the last original line the block covers, for the trailing-newline rule.
+    case callout(kind: CalloutKind, title: String?, body: [MarkdownQuoteLine], lastLineIndex: Int)
     /// A contiguous run of list items (bulleted and/or numbered), with resolved ordinals and
     /// nesting levels. `lastLineIndex` is the last original line the block covers.
     case list(items: [MarkdownListItem], lastLineIndex: Int)
@@ -424,7 +428,17 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
                 quoteLines.append(quote)
                 cursor += 1
             }
-            blocks.append(.blockquote(lines: quoteLines, lastLineIndex: cursor - 1))
+            if let firstText = quoteLines.first?.text,
+               let callout = MarkdownCallout.parse(firstQuoteText: firstText) {
+                blocks.append(.callout(
+                    kind: callout.kind,
+                    title: callout.title,
+                    body: Array(quoteLines.dropFirst()),
+                    lastLineIndex: cursor - 1
+                ))
+            } else {
+                blocks.append(.blockquote(lines: quoteLines, lastLineIndex: cursor - 1))
+            }
             index = cursor
             continue
         }

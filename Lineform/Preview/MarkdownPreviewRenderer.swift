@@ -143,6 +143,12 @@ struct MarkdownPreviewRenderer {
             case .blockquote(let quoteLines, let lastLineIndex):
                 appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            case .callout(_, _, let body, let lastLineIndex):
+                // TODO(Task 4): render as a distinct callout card (icon, label, tinted rule). Until
+                // then, render the callout's body lines as a plain blockquote so the document still
+                // renders something reasonable and the block-dispatch switch stays exhaustive.
+                appendBlockquote(body, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .list(let items, let lastLineIndex):
                 appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
