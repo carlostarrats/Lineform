@@ -12,6 +12,9 @@ struct TabBarView: View {
     @ObservedObject var tabStore: EditorTabStore
     @ObservedObject var documentSaveStatus: DocumentSaveStatus
     let usesDarkChrome: Bool
+    // The theme's page color; light-chrome fills derive from it so Paper/Calm tint the
+    // strip and tabs (see lightTone). Nil (tests/previews) falls back to the design greys.
+    var pageBackground: NSColor?
     let onSelectTab: (UUID) -> Void
     let onCloseTab: (UUID) -> Void
 
@@ -39,7 +42,7 @@ struct TabBarView: View {
         // bar's own bounds, the page-color background on editorShell's wrapper owns the
         // under-toolbar region, so the nav is identical with or without tabs.
         .background(
-            Color(nsColor: Self.barBackgroundColor(usesDarkChrome: usesDarkChrome)),
+            Color(nsColor: Self.barBackgroundColor(usesDarkChrome: usesDarkChrome, pageBackground: pageBackground)),
             ignoresSafeAreaEdges: []
         )
     }
@@ -61,7 +64,7 @@ struct TabBarView: View {
             || trailingTab.id == tabStore.selectedTabID
         let touchesHover = leadingTab.id == hoveredTabID || trailingTab.id == hoveredTabID
         Rectangle()
-            .fill(Color(nsColor: Self.separatorColor(usesDarkChrome: usesDarkChrome)))
+            .fill(Color(nsColor: Self.separatorColor(usesDarkChrome: usesDarkChrome, pageBackground: pageBackground)))
             .frame(width: 0.5, height: Self.separatorHeight)
             .opacity(touchesSelection || touchesHover ? 0 : 1)
     }
@@ -91,7 +94,8 @@ struct TabBarView: View {
                     .fill(Color(nsColor: Self.tabBackgroundColor(
                         isSelected: isSelected,
                         isHovered: isHovered,
-                        usesDarkChrome: usesDarkChrome
+                        usesDarkChrome: usesDarkChrome,
+                        pageBackground: pageBackground
                     )))
                     // Design: 0/1/2 (spread 1) black 8% under the selected capsule only.
                     .shadow(
@@ -183,29 +187,46 @@ struct TabBarView: View {
     // share it; hover #D3D3D3; selected #EBEBEB (+slight tint when also hovered);
     // text #4C4C4C everywhere; separator #CDCDCD; × glyph #7A7A7A. Dark chrome maps
     // the same relationships onto the app's dark bar tones.
-    static func barBackgroundColor(usesDarkChrome: Bool) -> NSColor {
-        usesDarkChrome
-            ? NSColor(calibratedWhite: 0.18, alpha: 1)
-            : NSColor(srgbRed: 0xE3 / 255, green: 0xE3 / 255, blue: 0xE3 / 255, alpha: 1)
+    //
+    // In light chrome the fills are derived from the theme PAGE color, not fixed greys:
+    // each design grey becomes `page × (grey/255)`, so a pure-white page (Original)
+    // yields exactly the designed grey while Paper's cream and Calm's cool tint carry
+    // into the strip and tabs instead of reading as neutral grey on a tinted page.
+    private static func lightTone(_ factor: CGFloat, page: NSColor?) -> NSColor {
+        guard let rgb = page?.usingColorSpace(.sRGB) else {
+            return NSColor(srgbRed: factor, green: factor, blue: factor, alpha: 1)
+        }
+        return NSColor(
+            srgbRed: rgb.redComponent * factor,
+            green: rgb.greenComponent * factor,
+            blue: rgb.blueComponent * factor,
+            alpha: 1
+        )
     }
 
-    static func tabBackgroundColor(isSelected: Bool, isHovered: Bool, usesDarkChrome: Bool) -> NSColor {
+    static func barBackgroundColor(usesDarkChrome: Bool, pageBackground: NSColor? = nil) -> NSColor {
+        usesDarkChrome
+            ? NSColor(calibratedWhite: 0.18, alpha: 1)
+            : lightTone(0xE3 / 255, page: pageBackground)
+    }
+
+    static func tabBackgroundColor(isSelected: Bool, isHovered: Bool, usesDarkChrome: Bool, pageBackground: NSColor? = nil) -> NSColor {
         if isSelected {
             if isHovered {
                 // A slight tint only — the first pass (#E6E6E6) read as too dark in QA.
                 return usesDarkChrome
                     ? NSColor(calibratedWhite: 0.31, alpha: 1)
-                    : NSColor(srgbRed: 0xED / 255, green: 0xED / 255, blue: 0xED / 255, alpha: 1)
+                    : lightTone(0xED / 255, page: pageBackground)
             }
             // Lightened from the design file's #EBEBEB, per QA.
             return usesDarkChrome
                 ? NSColor(calibratedWhite: 0.30, alpha: 1)
-                : NSColor(srgbRed: 0xF0 / 255, green: 0xF0 / 255, blue: 0xF0 / 255, alpha: 1)
+                : lightTone(0xF0 / 255, page: pageBackground)
         }
         if isHovered {
             return usesDarkChrome
                 ? NSColor(calibratedWhite: 0.13, alpha: 1)
-                : NSColor(srgbRed: 0xD3 / 255, green: 0xD3 / 255, blue: 0xD3 / 255, alpha: 1)
+                : lightTone(0xD3 / 255, page: pageBackground)
         }
         return .clear
     }
@@ -229,11 +250,11 @@ struct TabBarView: View {
             : NSColor(srgbRed: 0x7A / 255, green: 0x7A / 255, blue: 0x7A / 255, alpha: 1)
     }
 
-    static func separatorColor(usesDarkChrome: Bool) -> NSColor {
+    static func separatorColor(usesDarkChrome: Bool, pageBackground: NSColor? = nil) -> NSColor {
         // A step darker than the design file's #CDCDCD, per QA.
         usesDarkChrome
             ? NSColor.white.withAlphaComponent(0.24)
-            : NSColor(srgbRed: 0xBB / 255, green: 0xBB / 255, blue: 0xBB / 255, alpha: 1)
+            : lightTone(0xBB / 255, page: pageBackground)
     }
 
     /// An × as exact geometry: both diagonals of the given rect.

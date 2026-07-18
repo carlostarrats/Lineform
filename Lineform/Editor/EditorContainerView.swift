@@ -585,6 +585,7 @@ struct EditorContainerView: View {
                         tabStore: tabStore,
                         documentSaveStatus: documentSaveStatus,
                         usesDarkChrome: theme.usesDarkChrome,
+                        pageBackground: theme.backgroundColor,
                         onSelectTab: switchToTab,
                         onCloseTab: requestCloseTab
                     )
