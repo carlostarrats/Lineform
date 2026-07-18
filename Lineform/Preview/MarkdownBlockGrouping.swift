@@ -200,6 +200,57 @@ enum MarkdownBlockquote {
     }
 }
 
+/// The 5 GitHub-standard callout kinds. Raw values are the lowercased marker types matched
+/// case-insensitively against `> [!TYPE]`.
+enum CalloutKind: String, Equatable {
+    case note, tip, important, warning, caution
+
+    /// The default title shown when the marker line carries no custom title.
+    var displayName: String {
+        switch self {
+        case .note: return "Note"
+        case .tip: return "Tip"
+        case .important: return "Important"
+        case .warning: return "Warning"
+        case .caution: return "Caution"
+        }
+    }
+
+    /// The monochrome SF Symbol drawn in the title row (tinted to the ink tone, never colored).
+    var symbolName: String {
+        switch self {
+        case .note: return "info.circle"
+        case .tip: return "lightbulb"
+        case .important: return "exclamationmark.circle"
+        case .warning: return "exclamationmark.triangle"
+        case .caution: return "exclamationmark.octagon"
+        }
+    }
+}
+
+/// Pure callout-marker classifier. Operates on the FIRST quote line's already-stripped text
+/// (markers removed by `MarkdownBlockquote.quoteLine`), so it sees `[!NOTE]` / `[!NOTE] Title`.
+enum MarkdownCallout {
+    // Anchored at the start of the stripped text: `[!TYPE]` then optional whitespace + title.
+    // Type is 1+ letters; the trailing `.*` captures a custom title (may be empty/whitespace).
+    private static let regex = try! NSRegularExpression(pattern: #"^\[!([A-Za-z]+)\][ \t]*(.*)$"#)
+
+    /// Returns `(kind, title)` when `firstQuoteText` is `[!TYPE]` (optionally `[!TYPE] Custom title`)
+    /// with a KNOWN type. `title` is the trimmed remainder, or `nil` when absent/empty. Unknown type,
+    /// missing `!`, empty type (`[!]`), or any other shape → `nil` (caller keeps it a blockquote).
+    static func parse(firstQuoteText: String) -> (kind: CalloutKind, title: String?)? {
+        let ns = firstQuoteText as NSString
+        guard let match = regex.firstMatch(in: firstQuoteText, range: NSRange(location: 0, length: ns.length)) else {
+            return nil
+        }
+        let typeText = ns.substring(with: match.range(at: 1)).lowercased()
+        guard let kind = CalloutKind(rawValue: typeText) else { return nil }
+        let rawTitle = match.range(at: 2).location == NSNotFound ? "" : ns.substring(with: match.range(at: 2))
+        let trimmed = rawTitle.trimmingCharacters(in: .whitespaces)
+        return (kind: kind, title: trimmed.isEmpty ? nil : trimmed)
+    }
+}
+
 /// Thematic-break (horizontal-rule) detection, kept separate so its two gotchas are explicit:
 /// a leading `---` opening front matter and a `---` directly under paragraph text (a setext
 /// heading underline) are NOT rules.
