@@ -775,6 +775,25 @@ struct EditorContainerView: View {
         document.text = newText
     }
 
+    /// Reconnect a broken/unresolved image placeholder: present an image-restricted `NSOpenPanel`,
+    /// compute the new link (relative to the document's folder when the picked file is under it,
+    /// otherwise absolute), and rewrite `![alt](old)` -> `![alt](new)` at the clicked source range.
+    /// Because it mutates `document.text` through the binding like any edit, dirty-tracking,
+    /// autosave, and undo (single ⌘Z) all apply. A stale range (the text changed out from under the
+    /// render) is a no-op. The `NSOpenPanel` grant gives the app a security scope for the picked
+    /// file, so the very next re-render resolves and loads it — no network access.
+    private func reconnectImage(at range: NSRange) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .gif, .heic, .tiff, .bmp, .image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let picked = panel.url else { return }
+        let dir = currentFileURL?.deletingLastPathComponent()
+        let newPath = ImageLinkRewrite.linkPath(for: picked, documentDirectory: dir)
+        guard let newText = ImageLinkRewrite.rewritten(in: document.text, at: range, newPath: newPath) else { return }
+        document.text = newText
+    }
+
     // The Find & Replace panel. The FIND term stays in the existing native toolbar search
     // field (`searchQuery`); this adds only the replacement field + actions beside it, so the
     // settled search UX is untouched. Rendered as a compact FLOATING card over the page (see the
@@ -940,6 +959,7 @@ struct EditorContainerView: View {
                     text: document.text,
                     profile: readingProfileStore.activeProfile,
                     onCheckboxToggle: toggleCheckbox,
+                    onImageReconnect: reconnectImage,
                     onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
                     documentDirectory: currentFileURL?.deletingLastPathComponent()
                 )
@@ -954,6 +974,7 @@ struct EditorContainerView: View {
                     text: document.text,
                     profile: readingProfileStore.activeProfile,
                     onCheckboxToggle: toggleCheckbox,
+                    onImageReconnect: reconnectImage,
                     onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
                     documentDirectory: currentFileURL?.deletingLastPathComponent()
                 )

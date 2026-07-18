@@ -4,6 +4,7 @@ struct DebouncedMarkdownPreviewView: View {
     let text: String
     let profile: ReadingProfile
     var onCheckboxToggle: (NSRange) -> Void = { _ in }
+    var onImageReconnect: (NSRange) -> Void = { _ in }
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
     /// The open document's containing folder, used to resolve relative local image paths.
     var documentDirectory: URL?
@@ -15,6 +16,7 @@ struct DebouncedMarkdownPreviewView: View {
             text: resolvedPreviewText,
             profile: profile,
             onCheckboxToggle: onCheckboxToggle,
+            onImageReconnect: onImageReconnect,
             onVisibleTopRangeChanged: onVisibleTopRangeChanged,
             documentDirectory: documentDirectory
         )

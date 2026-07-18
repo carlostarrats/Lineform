@@ -7,6 +7,10 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     /// Called when the user clicks a rendered task checkbox, with the `NSRange` of its `[ ]`/`[x]`
     /// marker in the source document. The container toggles that span in `document.text`.
     var onCheckboxToggle: (NSRange) -> Void = { _ in }
+    /// Called when the user clicks the "Reconnect" pill on a broken/unresolved image placeholder,
+    /// with the `NSRange` of the `![alt](path)` syntax in the source document. The container
+    /// presents an image `NSOpenPanel` and rewrites that span in `document.text`.
+    var onImageReconnect: (NSRange) -> Void = { _ in }
     /// Called when the visible top of the rendered text changes. The range is in rendered-text
     /// coordinates; use `.headingSourceRange` attributes to map headings back to source positions.
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
@@ -26,6 +30,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.setAccessibilityLabel("Markdown read view")
         textView.setAccessibilityRole(.textArea)
         textView.onCheckboxToggle = onCheckboxToggle
+        textView.onImageReconnect = onImageReconnect
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
 
         scrollView.documentView = textView
@@ -40,6 +45,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
 
         // Re-bind the closure each update so it captures the current document binding.
         textView.onCheckboxToggle = onCheckboxToggle
+        textView.onImageReconnect = onImageReconnect
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
         textView.apply(text: text, profile: profile, documentDirectory: documentDirectory)
     }
@@ -49,6 +55,9 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     /// Set by the representable; invoked with a checkbox's source-marker range on a click that lands
     /// on a rendered checkbox glyph.
     var onCheckboxToggle: (NSRange) -> Void = { _ in }
+    /// Set by the representable; invoked with a broken/unresolved image placeholder's
+    /// `![alt](path)` source range on a click that lands on its "Reconnect" pill.
+    var onImageReconnect: (NSRange) -> Void = { _ in }
     /// Called when the visible character range changes due to scrolling. For Read/Preview mode this
     /// is a range in the rendered text; the receiver maps it back to the source via the
     /// `.headingSourceRange` attribute attached to headings.
@@ -331,6 +340,19 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private static let copyPillCornerRadius: CGFloat = 10
     private static let copiedFeedbackDuration: TimeInterval = 1.0
 
+    // MARK: - Hover "Reconnect" pill (broken/unresolved image placeholders)
+
+    /// The source range (in `renderedText`) of the currently-hovered image placeholder's
+    /// `![alt](path)` syntax, or nil when the pointer is not over one. Set by `mouseMoved`/`mouseExited`.
+    private var hoveredImageReconnectSourceRange: NSRange?
+    /// The hovered placeholder's pill hit rect, in the text view's own (document) coordinate space —
+    /// valid only while `hoveredImageReconnectSourceRange != nil`.
+    private var hoveredImageReconnectPillRect: NSRect = .zero
+
+    private static let reconnectPillSize = NSSize(width: 96, height: 20)
+    private static let reconnectPillInset: CGFloat = 4
+    private static let reconnectPillCornerRadius: CGFloat = 10
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let hoverTrackingArea {
@@ -348,11 +370,13 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
 
     override func mouseMoved(with event: NSEvent) {
         updateHoveredCodeBlock(at: event)
+        updateHoveredImageReconnect(at: event)
         super.mouseMoved(with: event)
     }
 
     override func mouseExited(with event: NSEvent) {
         clearHoveredCodeBlock()
+        clearHoveredImageReconnect()
         super.mouseExited(with: event)
     }
 
@@ -430,13 +454,93 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         needsDisplay = true
     }
 
+    /// Hit-tests the pointer to a broken/unresolved image placeholder's `.imageSourceRange` run
+    /// (only runs also tagged `.imageReconnect`), mirroring `updateHoveredCodeBlock`'s point→glyph→
+    /// character math and containment guard, and positions the "Reconnect" pill in that run's
+    /// rendered bounding rect.
+    private func updateHoveredImageReconnect(at event: NSEvent) {
+        guard let layoutManager, let textContainer, let textStorage, textStorage.length > 0 else {
+            clearHoveredImageReconnect()
+            return
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        let containerPoint = NSPoint(x: point.x - textContainerInset.width, y: point.y - textContainerInset.height)
+        guard bounds.contains(point) else {
+            clearHoveredImageReconnect()
+            return
+        }
+        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
+        guard glyphIndex < layoutManager.numberOfGlyphs else {
+            clearHoveredImageReconnect()
+            return
+        }
+        // Mirror `updateHoveredCodeBlock`'s containment guard: `glyphIndex(for:in:)` returns the
+        // nearest glyph even outside all glyph bounds, so require the point to actually land in
+        // the found glyph's rect before attributing the hover to it.
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: textContainer)
+        guard glyphRect.contains(containerPoint) else {
+            clearHoveredImageReconnect()
+            return
+        }
+        let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        guard charIndex < textStorage.length,
+              textStorage.attribute(.imageReconnect, at: charIndex, effectiveRange: nil) != nil else {
+            clearHoveredImageReconnect()
+            return
+        }
+
+        var runRange = NSRange(location: NSNotFound, length: 0)
+        guard let sourceValue = textStorage.attribute(
+            .imageSourceRange,
+            at: charIndex,
+            longestEffectiveRange: &runRange,
+            in: NSRange(location: 0, length: textStorage.length)
+        ) as? NSValue else {
+            clearHoveredImageReconnect()
+            return
+        }
+
+        let glyphRunRange = layoutManager.glyphRange(forCharacterRange: runRange, actualCharacterRange: nil)
+        let runRect = layoutManager.boundingRect(forGlyphRange: glyphRunRange, in: textContainer)
+            .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
+
+        let pillSize = Self.reconnectPillSize
+        let pillRect = NSRect(
+            x: runRect.maxX + Self.reconnectPillInset,
+            y: runRect.minY,
+            width: pillSize.width,
+            height: max(pillSize.height, runRect.height)
+        )
+
+        let sourceRange = sourceValue.rangeValue
+        if hoveredImageReconnectSourceRange == sourceRange && hoveredImageReconnectPillRect == pillRect {
+            return
+        }
+        hoveredImageReconnectSourceRange = sourceRange
+        hoveredImageReconnectPillRect = pillRect
+        needsDisplay = true
+    }
+
+    private func clearHoveredImageReconnect() {
+        guard hoveredImageReconnectSourceRange != nil else { return }
+        hoveredImageReconnectSourceRange = nil
+        needsDisplay = true
+    }
+
     /// Overlay-drawn only — never inserted into the attributed string, so it cannot affect layout,
     /// selection, wrapping, or exported/printed output (`DocumentExportRenderer` uses its own
     /// `ExportTextView`, a different class, which never installs this pill).
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        guard hoveredCodeBlockSourceRange != nil, dirtyRect.intersects(hoveredCodePillRect) else { return }
+        if hoveredCodeBlockSourceRange != nil, dirtyRect.intersects(hoveredCodePillRect) {
+            drawCopyPill()
+        }
+        if hoveredImageReconnectSourceRange != nil, dirtyRect.intersects(hoveredImageReconnectPillRect) {
+            drawReconnectPill()
+        }
+    }
 
+    private func drawCopyPill() {
         let theme = Theme.theme(for: activeProfile)
         let tint: NSColor = theme.usesDarkChrome ? .white : .black
         let path = NSBezierPath(
@@ -459,6 +563,54 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         let labelOrigin = NSPoint(
             x: hoveredCodePillRect.midX - labelSize.width / 2,
             y: hoveredCodePillRect.midY - labelSize.height / 2
+        )
+        label.draw(at: labelOrigin, withAttributes: attributes)
+    }
+
+    /// Same translucent-pill treatment as `drawCopyPill`, with an `arrow.counterclockwise` glyph
+    /// ahead of the label. Overlay-drawn only — never inserted into the attributed string, so it
+    /// cannot affect layout, selection, wrapping, or exported/printed output (`DocumentExportRenderer`
+    /// uses its own `ExportTextView`, a different class, which never installs this pill).
+    private func drawReconnectPill() {
+        let theme = Theme.theme(for: activeProfile)
+        let tint: NSColor = theme.usesDarkChrome ? .white : .black
+        let pillRect = hoveredImageReconnectPillRect
+        let path = NSBezierPath(
+            roundedRect: pillRect,
+            xRadius: Self.reconnectPillCornerRadius,
+            yRadius: Self.reconnectPillCornerRadius
+        )
+        tint.withAlphaComponent(0.12).setFill()
+        path.fill()
+        tint.withAlphaComponent(0.24).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+
+        let label = "Reconnect"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: theme.textColor
+        ]
+        let labelSize = label.size(withAttributes: attributes)
+
+        var glyphWidth: CGFloat = 0
+        if let glyph = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil) {
+            let glyphSize = NSSize(width: 11, height: 11)
+            glyphWidth = glyphSize.width + 4
+            let contentWidth = glyphSize.width + 4 + labelSize.width
+            let contentOrigin = NSPoint(x: pillRect.midX - contentWidth / 2, y: pillRect.midY - glyphSize.height / 2)
+            let tinted = NSImage(size: glyphSize, flipped: false) { rect in
+                theme.textColor.set()
+                glyph.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+                rect.fill(using: .sourceAtop)
+                return true
+            }
+            tinted.draw(in: NSRect(origin: contentOrigin, size: glyphSize))
+        }
+
+        let labelOrigin = NSPoint(
+            x: pillRect.midX - (labelSize.width + glyphWidth) / 2 + glyphWidth,
+            y: pillRect.midY - labelSize.height / 2
         )
         label.draw(at: labelOrigin, withAttributes: attributes)
     }
@@ -497,6 +649,13 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             let point = convert(event.locationInWindow, from: nil)
             if hoveredCodePillRect.contains(point) {
                 copyHoveredCodeBlock()
+                return
+            }
+        }
+        if let sourceRange = hoveredImageReconnectSourceRange {
+            let point = convert(event.locationInWindow, from: nil)
+            if hoveredImageReconnectPillRect.contains(point) {
+                onImageReconnect(sourceRange)
                 return
             }
         }
