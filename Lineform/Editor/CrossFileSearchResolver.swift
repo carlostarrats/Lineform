@@ -15,7 +15,7 @@ struct CrossFileSearchResult: Identifiable, Equatable {
     let relativePath: String
     let rootTitle: String
     let matchCount: Int
-    let snippet: CrossFileSearchSnippet
+    let snippets: [CrossFileSearchSnippet]
 }
 
 /// Pure per-file matching + ranking behind the All Files search scope. Matching reuses
@@ -26,9 +26,12 @@ enum CrossFileSearchResolver {
     /// Longest snippet line shown before eliding around the match.
     static let snippetMaximumLength = 120
 
+    /// Cap on how many per-line snippets a single file contributes to the results page.
+    static let maximumSnippetsPerFile = 8
+
     static func result(for entry: QuickOpenEntry, text: String, query: String) -> CrossFileSearchResult? {
         let matches = EditorSearchResolver.matches(in: text, query: query)
-        guard let first = matches.first else { return nil }
+        guard !matches.isEmpty else { return nil }
         return CrossFileSearchResult(
             id: entry.id,
             url: entry.url,
@@ -36,8 +39,25 @@ enum CrossFileSearchResolver {
             relativePath: entry.relativePath,
             rootTitle: entry.rootTitle,
             matchCount: matches.count,
-            snippet: snippet(in: text, around: first)
+            snippets: snippets(in: text, matches: matches)
         )
+    }
+
+    /// Builds at most one snippet per distinct source line, in document order, up to
+    /// `limit`. A later match sharing an already-represented line is skipped so the
+    /// same line's text never appears twice.
+    static func snippets(in text: String, matches: [NSRange], limit: Int = maximumSnippetsPerFile) -> [CrossFileSearchSnippet] {
+        let nsText = text as NSString
+        var result: [CrossFileSearchSnippet] = []
+        var seenLineRanges: [NSRange] = []
+        for match in matches {
+            if result.count >= limit { break }
+            let lineRange = nsText.lineRange(for: match)
+            if seenLineRanges.contains(where: { NSEqualRanges($0, lineRange) }) { continue }
+            seenLineRanges.append(lineRange)
+            result.append(snippet(in: text, around: match))
+        }
+        return result
     }
 
     /// Display order: most matches first, then name, then relative path — the

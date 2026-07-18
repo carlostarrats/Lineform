@@ -17,8 +17,8 @@ final class CrossFileSearchResolverTests: XCTestCase {
         let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "launch")
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.matchCount, 2)
-        XCTAssertEqual(result?.snippet.lineText, "The launch plan is here.")
-        XCTAssertEqual(result?.snippet.matchRange, NSRange(location: 4, length: 6))
+        XCTAssertEqual(result?.snippets.first?.lineText, "The launch plan is here.")
+        XCTAssertEqual(result?.snippets.first?.matchRange, NSRange(location: 4, length: 6))
         XCTAssertEqual(result?.name, "notes.md")
         XCTAssertEqual(result?.rootTitle, "Workspace")
     }
@@ -44,7 +44,7 @@ final class CrossFileSearchResolverTests: XCTestCase {
         let text = prefix + " needle " + suffix
         let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
         XCTAssertNotNil(result)
-        let snippet = result!.snippet
+        let snippet = result!.snippets.first!
         XCTAssertLessThanOrEqual(snippet.lineText.count, 124) // 120 cap + up to two "…"
         // The reported range must still point at "needle" within the elided line.
         let found = (snippet.lineText as NSString).substring(with: snippet.matchRange)
@@ -54,7 +54,7 @@ final class CrossFileSearchResolverTests: XCTestCase {
     func testSnippetComesFromFirstMatchingLineAndStripsTrailingNewline() {
         let text = "first needle line\nsecond needle line\n"
         let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
-        XCTAssertEqual(result?.snippet.lineText, "first needle line")
+        XCTAssertEqual(result?.snippets.first?.lineText, "first needle line")
     }
 
     func testMatchLongerThanSnippetCapYieldsValidInBoundsRange() {
@@ -62,7 +62,7 @@ final class CrossFileSearchResolverTests: XCTestCase {
         let text = "prefix " + longWord + " suffix"
         let result = CrossFileSearchResolver.result(for: entry(), text: text, query: longWord)
         XCTAssertNotNil(result)
-        let snippet = result!.snippet
+        let snippet = result!.snippets.first!
         XCTAssertGreaterThanOrEqual(snippet.matchRange.location, 0)
         XCTAssertLessThanOrEqual(NSMaxRange(snippet.matchRange), (snippet.lineText as NSString).length)
         XCTAssertGreaterThan(snippet.matchRange.length, 0)
@@ -70,12 +70,36 @@ final class CrossFileSearchResolverTests: XCTestCase {
         XCTAssertTrue(shown.allSatisfy { $0 == "z" })
     }
 
+    func testMatchesOnDistinctLinesProduceOneSnippetEachInOrder() {
+        let text = "needle one\nneedle two\nneedle three"
+        let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
+        XCTAssertEqual(result?.matchCount, 3)
+        XCTAssertEqual(result?.snippets.map(\.lineText), ["needle one", "needle two", "needle three"])
+    }
+
+    func testMatchesOnSameLineProduceOnlyOneSnippet() {
+        let text = "needle needle needle"
+        let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
+        XCTAssertEqual(result?.matchCount, 3)
+        XCTAssertEqual(result?.snippets.count, 1)
+        XCTAssertEqual(result?.snippets.first?.lineText, "needle needle needle")
+    }
+
+    func testSnippetsAreCappedAtMaximumSnippetsPerFile() {
+        let lines = (0..<(CrossFileSearchResolver.maximumSnippetsPerFile + 5)).map { "needle line \($0)" }
+        let text = lines.joined(separator: "\n")
+        let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
+        XCTAssertEqual(result?.matchCount, lines.count)
+        XCTAssertEqual(result?.snippets.count, CrossFileSearchResolver.maximumSnippetsPerFile)
+        XCTAssertEqual(result?.snippets.first?.lineText, "needle line 0")
+    }
+
     func testRankedOrdersByMatchCountThenNameThenPath() {
         func make(_ name: String, _ path: String, _ count: Int) -> CrossFileSearchResult {
             CrossFileSearchResult(
                 id: path, url: URL(fileURLWithPath: "/\(path)"), name: name,
                 relativePath: path, rootTitle: "Workspace", matchCount: count,
-                snippet: CrossFileSearchSnippet(lineText: "x", matchRange: NSRange(location: 0, length: 1))
+                snippets: [CrossFileSearchSnippet(lineText: "x", matchRange: NSRange(location: 0, length: 1))]
             )
         }
         let ranked = CrossFileSearchResolver.ranked([
