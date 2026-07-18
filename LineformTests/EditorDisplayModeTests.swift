@@ -270,6 +270,12 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])
     }
 
+    func testToggledWriteReadFlipsWriteToReadAndEverythingElseToWrite() {
+        XCTAssertEqual(EditorDisplayMode.write.toggledWriteRead, .read)
+        XCTAssertEqual(EditorDisplayMode.read.toggledWriteRead, .write)
+        XCTAssertEqual(EditorDisplayMode.split.toggledWriteRead, .write)
+    }
+
     @MainActor
     func testReadModeHidesStatusBarForCleanReading() {
         XCTAssertTrue(EditorStatusBar.isVisible(in: .write))

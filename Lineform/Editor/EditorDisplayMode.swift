@@ -16,3 +16,11 @@ enum EditorDisplayMode: String, CaseIterable, Equatable, Identifiable {
         }
     }
 }
+
+extension EditorDisplayMode {
+    /// ⌘E toggle target: `.write` flips to `.read`; every other mode (`.read`, `.split`)
+    /// flips to `.write`. So ⌘E always lands in Write unless already in Write.
+    var toggledWriteRead: EditorDisplayMode {
+        self == .write ? .read : .write
+    }
+}
