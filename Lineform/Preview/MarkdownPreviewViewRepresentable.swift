@@ -288,15 +288,22 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         // diagram to ~1pt. Wait for a real width (the next real setFrameSize/apply refits).
         guard bounds.width > 1 else { return }
         let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: activeProfile)
+        // Real on-screen viewport height (the scroll view's visible content area), used ONLY to
+        // cap block IMAGE height on refit (`ImageFit.maxHeight`). Mermaid/math attachments pass
+        // no maxHeight (defaults to `.infinity`) and are therefore unaffected — width-only refit,
+        // byte-identical to before this cap existed.
+        let viewportHeight = enclosingScrollView?.contentView.bounds.height ?? bounds.height
+        let imageMaxHeight = ImageFit.maxHeight(visibleViewportHeight: viewportHeight)
         var didChange = false
         textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
-            // Only block diagrams/equations are refit; inline math is small, baseline-aligned, and
-            // must never be rescaled (that would break its -descent baseline offset).
+            // Only block diagrams/equations/images are refit; inline math is small, baseline-aligned,
+            // and must never be rescaled (that would break its -descent baseline offset).
             guard let attachment = value as? BlockRenderedAttachment, let image = attachment.image else { return }
             guard let newBounds = BlockAttachmentRefit.refittedBounds(
                 naturalSize: image.size,
                 currentBounds: attachment.bounds,
-                fitWidth: fitWidth
+                fitWidth: fitWidth,
+                maxHeight: attachment.appliesViewportHeightCap ? imageMaxHeight : .infinity
             ) else { return }
             attachment.bounds = newBounds
             layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)

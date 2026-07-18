@@ -1023,15 +1023,19 @@ struct MarkdownPreviewRenderer {
 
         if case .localFile(let url) = ImageResolver.resolve(path: path, documentDirectory: documentDirectory) {
             let scale = NSScreen.main?.backingScaleFactor ?? 2
-            // The renderer has no live view to measure a real viewport; approximate with the main
-            // screen's visible height (documented approximation — the height cap is enforced by the
-            // provider's fitted raster, and the width refits on window resize via
-            // `BlockAttachmentRefit`).
+            // The renderer has no live view to measure a real viewport at initial-render time;
+            // approximate with the main screen's visible height (almost always resolves near the
+            // flat 500pt ceiling). This is HARMLESS: the raster itself is downscale-only (never
+            // upscaled), and the resize-refit path (`MarkdownPreviewTextView.refitBlockAttachments`,
+            // which fires unconditionally right after this render via `apply()`) re-clamps the
+            // attachment's on-screen HEIGHT to the real viewport via `appliesViewportHeightCap`, so
+            // the initial approximation is corrected before the user ever sees it.
             let maxHeight = ImageFit.maxHeight(visibleViewportHeight: NSScreen.main?.visibleFrame.height ?? 900)
             if let image = imageProvider.image(at: url, maxSize: CGSize(width: columnWidth, height: maxHeight), scale: scale) {
                 image.accessibilityDescription = alt.isEmpty ? "Image" : alt
                 let attachment = BlockRenderedAttachment()
                 attachment.image = image
+                attachment.appliesViewportHeightCap = true
                 let natural = image.size
                 let width = min(natural.width, max(columnWidth, 1))
                 let height = natural.width > 0 ? natural.height * (width / natural.width) : natural.height

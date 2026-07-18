@@ -92,19 +92,40 @@ enum CodeSyntaxPalette {
 /// so the resize refit rescales only block content and never disturbs inline math's baseline. A
 /// bare subclass with no overrides — it behaves identically to `NSTextAttachment` in every other
 /// respect (accessibility, copy, layout).
-final class BlockRenderedAttachment: NSTextAttachment {}
+final class BlockRenderedAttachment: NSTextAttachment {
+    /// True only for block-image attachments (`appendImageBlock`). When true, the resize refit
+    /// path additionally clamps the attachment's HEIGHT to the real viewport's cap
+    /// (`ImageFit.maxHeight`), so a tall image shrinks to fit a short window. Mermaid/math
+    /// attachments leave this false and are refit by width only, unchanged.
+    var appliesViewportHeightCap = false
+}
 
 /// Pure geometry for the resize refit nit: given a block attachment's natural raster size, its
 /// current bounds, and the available fit width, return the bounds it should adopt — or nil when
 /// nothing changes. Scales the raster to the fit width preserving aspect ratio, never upscales
 /// past the natural size, and preserves the baseline origin (inline math sits on the text
-/// baseline via a `-descent` y-offset, which must survive a resize).
+/// baseline via a `-descent` y-offset, which must survive a resize). `maxHeight` (default
+/// `.infinity`, i.e. no cap — byte-identical to the pre-existing behavior for callers that don't
+/// pass it, namely mermaid/math) additionally downscales the fitted size, aspect preserved, so
+/// the resulting height never exceeds it — used only for block images, which must shrink on a
+/// short window per the viewport-adaptive height cap.
 enum BlockAttachmentRefit {
-    static func refittedBounds(naturalSize: CGSize, currentBounds: CGRect, fitWidth: CGFloat) -> CGRect? {
+    static func refittedBounds(
+        naturalSize: CGSize,
+        currentBounds: CGRect,
+        fitWidth: CGFloat,
+        maxHeight: CGFloat = .infinity
+    ) -> CGRect? {
         guard naturalSize.width > 0 else { return nil }
         let target = min(naturalSize.width, max(fitWidth, 1))
-        guard abs(currentBounds.width - target) > 0.5 else { return nil }
-        let height = naturalSize.height * (target / naturalSize.width)
-        return CGRect(x: 0, y: currentBounds.origin.y, width: target, height: height)
+        var width = target
+        var height = naturalSize.height * (target / naturalSize.width)
+        if height > maxHeight, maxHeight.isFinite, maxHeight > 0 {
+            let scale = maxHeight / height
+            width *= scale
+            height = maxHeight
+        }
+        guard abs(currentBounds.width - width) > 0.5 || abs(currentBounds.height - height) > 0.5 else { return nil }
+        return CGRect(x: 0, y: currentBounds.origin.y, width: width, height: height)
     }
 }

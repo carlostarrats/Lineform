@@ -102,6 +102,56 @@ final class DiagramCardAndCacheTests: XCTestCase {
         XCTAssertEqual(bounds.width, 1000, accuracy: 0.001)
     }
 
+    // MARK: - Viewport-adaptive height cap on refit (block images only)
+
+    func testRefitWithFiniteMaxHeightClampsTallImageAspectPreserved() throws {
+        // A tall, narrow image: width-fit alone (620) would produce height 1240 (2x aspect),
+        // which overshoots a short window's cap. maxHeight clamps height and rescales width to match.
+        let bounds = try XCTUnwrap(BlockAttachmentRefit.refittedBounds(
+            naturalSize: CGSize(width: 600, height: 1200),
+            currentBounds: CGRect(x: 0, y: 0, width: 300, height: 600),
+            fitWidth: 620,
+            maxHeight: 300
+        ))
+        XCTAssertEqual(bounds.height, 300, accuracy: 0.001)
+        XCTAssertEqual(bounds.width, 150, accuracy: 0.001)   // aspect ratio (0.5) preserved
+    }
+
+    func testRefitWithFiniteMaxHeightLeavesShortImageUnchangedByHeight() {
+        // Width-fit height (310) already sits under the cap (500): no additional height clamp,
+        // identical to the uncapped width-fit result.
+        let bounds = BlockAttachmentRefit.refittedBounds(
+            naturalSize: CGSize(width: 1200, height: 600),
+            currentBounds: CGRect(x: 0, y: 0, width: 820, height: 410),
+            fitWidth: 620,
+            maxHeight: 500
+        )
+        XCTAssertEqual(bounds?.width ?? -1, 620, accuracy: 0.001)
+        XCTAssertEqual(bounds?.height ?? -1, 310, accuracy: 0.001)
+    }
+
+    func testRefitDefaultMaxHeightIsInfinityAndMatchesUncappedBehavior() throws {
+        // Omitting maxHeight (mermaid/math call sites) must be byte-identical to a call with an
+        // explicit .infinity — proving existing callers are unaffected by the new parameter.
+        let withDefault = try XCTUnwrap(BlockAttachmentRefit.refittedBounds(
+            naturalSize: CGSize(width: 1200, height: 600),
+            currentBounds: CGRect(x: 0, y: 0, width: 820, height: 410),
+            fitWidth: 620
+        ))
+        let withExplicitInfinity = try XCTUnwrap(BlockAttachmentRefit.refittedBounds(
+            naturalSize: CGSize(width: 1200, height: 600),
+            currentBounds: CGRect(x: 0, y: 0, width: 820, height: 410),
+            fitWidth: 620,
+            maxHeight: .infinity
+        ))
+        XCTAssertEqual(withDefault, withExplicitInfinity)
+    }
+
+    func testBlockRenderedAttachmentDefaultsToNoViewportHeightCap() {
+        // Mermaid/math attachments never set the marker; it must default false.
+        XCTAssertFalse(BlockRenderedAttachment().appliesViewportHeightCap)
+    }
+
     func testBlockAttachmentFitWidthShrinksOnNarrowWindow() {
         var profile = ReadingProfile.original
         profile.columnWidth = 820
