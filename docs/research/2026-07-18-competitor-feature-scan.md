@@ -60,13 +60,17 @@ Ranked by fit + impact. All are file-based, local, network-free, and calm — co
 - **Why:** Pure text, degrades gracefully in other editors, teaches well in the Info tab. Fits the blockquote machinery already in the block-grouping layer.
 - **Risk:** low. Natural extension of existing blockquote rendering.
 
-### C. Code block enhancements: syntax highlighting + copy button + line numbers
+### C. Code block enhancements: language syntax highlighting + copy button (line numbers: skip)
 - **Who has it:** Clearly (line numbers, diff), Mud, MWeb, Ink MD; Byword notably *lacks* code highlighting and gets dinged for it.
-- **Today:** Verify whether Read/Preview fenced code is actually syntax-highlighted or just monospaced. If not, this is a common expectation.
-- **Why:** Long-form technical writing is a real audience; a hover "copy" button on code blocks is a small, well-loved touch.
-- **Risk:** low–medium (a highlighter grammar set adds weight; keep it native/light).
+- **Today (verified 2026-07-18):** Fenced code is **flat monospace, one color — NOT syntax-highlighted**, in every mode. What Lineform has is *Markdown* highlighting (markup only: heading/list/blockquote markers, the ` ``` ` fence delimiters), NOT *code-language* highlighting. The fence's language tag (` ```swift `) is parsed but unused: in Write mode code content gets one uniform inline-code color (`MarkdownSyntaxHighlighter.swift:263`); in Read/Preview it's uniform `codeAttributes`, no tokens at all (`MarkdownPreviewRenderer.swift:431`). No line-number gutter anywhere.
+- **Decision (2026-07-18):**
+  - **DO — language syntax highlighting.** The flat one-color code block is the weakest part of Lineform's code rendering and technical writers notice it. The real feature of this group; worth the weight. Keep the tokenizer native/light.
+  - **DO — hover "copy" button** on each code block. Small, universally loved, low risk. Ship alongside the highlighting.
+  - **SKIP — line numbers.** A numbered gutter reads "code IDE," fights Lineform's calm feel, and needs fiddly layout so numbers don't break copy-paste or wrapping. Low payoff for a writing app. Parked; revisit only as an explicit opt-in if ever requested.
+- **Why:** Long-form technical writing is a real audience; highlighting + copy is the on-brand slice.
+- **Risk:** low–medium (a highlighter grammar set adds weight; keep it native/light). Copy button is low.
 
-### D. More export formats: Word (.docx) and RTF
+### D. More export formats: Word (.docx) and RTF and PDF (Saving as a pdf should be moved into save as, and these others should be there as well)
 - **Who has it:** Byword, iA Writer, Ink MD (both), MWeb, Bear.
 - **Why:** Portability is a *core* Lineform principle ("documents outlive the app"). PDF already ships; DOCX/RTF export is the natural next portability step and is frequently requested by writers who hand work to editors/collaborators on Word.
 - **Risk:** low. Reuses the export renderer seam; DOCX is the fiddly one.
@@ -81,10 +85,11 @@ Ranked by fit + impact. All are file-based, local, network-free, and calm — co
 - **Why:** Calm, personal, one-time-configure. Could ship as a curated set first (like the reader themes) before user-editable.
 - **Risk:** medium (scope creep risk — start curated, not a plugin system).
 
-### G. Spacebar quick raw↔rendered toggle
-- **Who has it:** Markdown Peek, Mud (both center it as *the* feature).
-- **Why:** Lineform has Write/Read/Split; a single-key flip between source and rendered (when not editing) is a beloved micro-interaction and cheap.
-- **Risk:** low. Watch for conflict with typing/scroll.
+### G. Keyboard shortcut to switch view modes (`⌘E` toggles Write↔Read)
+- **Who has it:** the spacebar raw↔rendered flip in Markdown Peek/Mud inspired this, but those are *read-only viewers* with no caret — spacebar is free there. In an editor, spacebar must type a space, so the viewer idiom does NOT transplant. The real, on-brand version is an ordinary modifier shortcut on the existing Mode picker.
+- **Today:** Lineform has Write/Read/Split, but mode switching is **mouse-only** — the toolbar segmented control and a `Picker("Mode")` in the View menu (`AppCommands.swift:402`) with **no `.keyboardShortcut`**. This is the conspicuous gap: every adjacent View-menu item already has a key (Toggle Outline `⌥⌘0`, Reading Experience `⌥⌘R`).
+- **Decision (2026-07-18):** add **`⌘E`** as a toggle between **Write ↔ Read** (matches Obsidian's edit/reading toggle — a recognized convention; `⌘E` is free in-app and doesn't collide with any editor navigation key). **Split stays on the toolbar/menu** — it's the rarely-used third state and folding it into a cycle would be a non-standard behavior that surprises Obsidian muscle memory. Considered and rejected: `⌃1/2/3` (slow pinky-stretch; `⌘1/⌘2` already taken by Format Title/Section), `fn`+arrows (= Home/End on macOS), `⌃`+arrows (= Mission Control Spaces), and a one-key 3-way cycle (not a common convention).
+- **Risk:** low. Single key on the existing picker; no caret/typing collision.
 
 ### H. Writing session stats / word-count goal
 - **Who has it:** implicit in iA Writer, Byword (live counts), writing-app norm.
@@ -139,6 +144,6 @@ If picking a small, high-fit batch that keeps Lineform *Lineform*:
 2. **Callouts** — cheap, expected, on-brand.
 3. **DOCX/RTF export** — extends the portability principle.
 4. **Read-aloud (TTS)** — serves the readability + accessibility mission.
-5. **Spacebar raw↔rendered toggle** — delightful, tiny.
+5. **`⌘E` view-mode shortcut** (toggle Write↔Read; Split stays on toolbar) — closes the mouse-only mode-switch gap; tiny.
 
 Everything else: note and defer. Resist the notes-database and AI gravity that pulls this whole category away from what Lineform is.
