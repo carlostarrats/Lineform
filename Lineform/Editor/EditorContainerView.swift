@@ -573,6 +573,11 @@ struct EditorContainerView: View {
         // corner + hairline (a floating panel with "a line around it"), while the toolbar's
         // native inspector section still tinted the area behind the search field — leaving a
         // hard-edged dark patch up there aligned with nothing beneath it.
+        // The modal layers (Settings, ⌘K) live INSIDE the inspector's anchor, so their
+        // GeometryReader spans only the page column — the card centers between the sidebar
+        // edge and the drawer edge, exactly as it already centers beside the sidebar. As
+        // ZStack siblings OUTSIDE the inspector they spanned the full detail width, so an
+        // open Reading drawer visibly pushed the "centered" card off the page's midline.
         return ZStack {
             VStack(spacing: 0) {
                 if tabStore.shouldShowTabBar {
@@ -586,28 +591,6 @@ struct EditorContainerView: View {
                 }
                 editorPrimaryShell
             }
-                // NOTE: no SwiftUI background here can theme the nav band. Without tabs the nav
-                // color comes from AppKit extending the detail's root SCROLL VIEW under the
-                // titlebar; with the tab strip as the topmost view that extension stops, and a
-                // `.background(color)` — with or without .ignoresSafeArea(.top) — never reaches
-                // the titlebar region from inside the inspector container (both pixel-verified
-                // 2026-07-18). The themed band with tabs comes from the WINDOW's backgroundColor,
-                // set to the theme page color in EditorWindowChrome.apply.
-                .inspector(isPresented: $isShowingReadingInspector) {
-                    ReadingExperienceInspector(
-                        store: readingProfileStore,
-                        usesDarkChrome: theme.usesDarkChrome,
-                        pageBackground: theme.backgroundColor,
-                        onClose: { setReadingInspectorVisible(false) }
-                    )
-                        .inspectorColumnWidth(
-                            min: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
-                            ideal: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
-                            max: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380
-                        )
-                        .id(theme.usesDarkChrome)
-                        .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
-                }
 
             // Settings uses the shared Muse modal language: scrim + centered light
             // card + Esc/outside-click dismissal.
@@ -639,6 +622,28 @@ struct EditorContainerView: View {
                     )
                 }
             }
+        }
+        // NOTE: no SwiftUI background on the anchor can theme the nav band. Without tabs the
+        // nav color comes from AppKit extending the detail's root SCROLL VIEW under the
+        // titlebar; with the tab strip as the topmost view that extension stops, and a
+        // `.background(color)` — with or without .ignoresSafeArea(.top) — never reaches
+        // the titlebar region from inside the inspector container (both pixel-verified
+        // 2026-07-18). The themed band with tabs comes from the WINDOW's backgroundColor,
+        // set to the theme page color in EditorWindowChrome.apply.
+        .inspector(isPresented: $isShowingReadingInspector) {
+            ReadingExperienceInspector(
+                store: readingProfileStore,
+                usesDarkChrome: theme.usesDarkChrome,
+                pageBackground: theme.backgroundColor,
+                onClose: { setReadingInspectorVisible(false) }
+            )
+                .inspectorColumnWidth(
+                    min: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
+                    ideal: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
+                    max: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380
+                )
+                .id(theme.usesDarkChrome)
+                .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
         }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
