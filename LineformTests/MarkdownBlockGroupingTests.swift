@@ -434,4 +434,63 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         let blocks = markdownBlocks(in: ["| a | b | c |", "|---|---|"])
         XCTAssertFalse(blocks.contains { if case .table = $0 { return true } else { return false } })
     }
+
+    // MARK: - Image blocks
+
+    func testOwnLineImageBecomesImageBlock() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["![cat](cat.png)"]),
+            [.image(alt: "cat", path: "cat.png", sourceRange: NSRange(location: 0, length: 15))]
+        )
+    }
+
+    func testImageBlockBracketedByLinesRuns() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["intro", "![cat](cat.png)", "outro"]),
+            [.lines(0..<1),
+             .image(alt: "cat", path: "cat.png", sourceRange: NSRange(location: 6, length: 15)),
+             .lines(2..<3)]
+        )
+    }
+
+    func testImageWithSurroundingWhitespaceStillOwnLine() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["  ![a](a.png)  "]),
+            [.image(alt: "a", path: "a.png", sourceRange: NSRange(location: 0, length: 15))]
+        )
+    }
+
+    func testEmptyAltOwnLineImageBecomesImageBlock() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["![](pic.jpg)"]),
+            [.image(alt: "", path: "pic.jpg", sourceRange: NSRange(location: 0, length: 12))]
+        )
+    }
+
+    func testMidTextImageStaysInLinesRun() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["see ![cat](cat.png) here"]),
+            [.lines(0..<1)]
+        )
+    }
+
+    func testImageInsideFencedCodeIsNotImageBlock() {
+        // Plain fences are consumed wholesale into `.fencedCode` before any inner line is
+        // inspected (mirrors `testPipesInsideCodeFenceAreNotATable`), so the image line inside
+        // never becomes `.image`.
+        XCTAssertEqual(
+            markdownBlocks(in: ["```", "![cat](cat.png)", "```"]),
+            [.fencedCode(language: "", body: "![cat](cat.png)", openingIndex: 0, closingIndex: 2)]
+        )
+    }
+
+    func testWholeLineImageParsesAltAndPath() {
+        let result = MarkdownImageLine.wholeLineImage("![cat](cat.png)")
+        XCTAssertEqual(result?.alt, "cat")
+        XCTAssertEqual(result?.path, "cat.png")
+    }
+
+    func testWholeLineImageRejectsMidText() {
+        XCTAssertNil(MarkdownImageLine.wholeLineImage("see ![cat](cat.png) here"))
+    }
 }

@@ -179,6 +179,16 @@ struct MarkdownPreviewRenderer {
                     totalLines: lines.count,
                     attributes: separatorAttributes
                 )
+            case .image(let alt, let path, let sourceRange):
+                // Compile-safe stub: real `.image` emission (local file → block attachment, else
+                // placeholder + Reconnect marker) is a later task. Until then, reproduce the
+                // EXISTING inline-placeholder text (byte-identical to the pre-`.image`-routing
+                // output) so an own-line image still renders "🖼 label" instead of silently
+                // vanishing, and existing placeholder tests stay green. No file access, no
+                // network, no attachment, no Reconnect keys — those land with `appendImageBlock`.
+                appendImagePlaceholderStub(alt: alt, path: path, to: output, bodyAttributes: bodyAttributes)
+                let lineIndex = lineRanges.firstIndex { $0.location == sourceRange.location }
+                appendBlockSeparator(afterLine: lineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             }
         }
 
@@ -967,6 +977,30 @@ struct MarkdownPreviewRenderer {
             label = filename.isEmpty ? "Image" : filename
         }
         return InlineToken(kind: .image, text: "🖼 \(label)", range: match.range)
+    }
+
+    /// Compile-safe stub for the `.image` block dispatch arm (see the call site): emits the same
+    /// "🖼 label" quiet placeholder as the inline `imageToken`, styled identically (foreground at
+    /// 0.6 alpha). File-free, network-free — only the alt/path STRINGS already in the document are
+    /// read. Superseded by `appendImageBlock` in a later task (real local-file loading + Reconnect).
+    private func appendImagePlaceholderStub(
+        alt: String,
+        path: String,
+        to output: NSMutableAttributedString,
+        bodyAttributes: [NSAttributedString.Key: Any]
+    ) {
+        let label: String
+        if !alt.isEmpty {
+            label = alt
+        } else {
+            let filename = Self.imageFilename(from: path)
+            label = filename.isEmpty ? "Image" : filename
+        }
+        var attributes = bodyAttributes
+        if let color = bodyAttributes[.foregroundColor] as? NSColor {
+            attributes[.foregroundColor] = color.withAlphaComponent(0.6)
+        }
+        output.append(NSAttributedString(string: "🖼 \(label)", attributes: attributes))
     }
 
     /// The last path component of an image URL/path (the filename), stripped of any query or

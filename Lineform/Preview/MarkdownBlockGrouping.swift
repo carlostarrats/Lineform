@@ -42,6 +42,32 @@ enum MarkdownBlock: Equatable {
     /// inner lines joined by "\n", `openingIndex` is the opening fence line, and `closingIndex` is
     /// the closing fence line or `nil` when the block ran to end-of-document unclosed.
     case fencedCode(language: String, body: String, openingIndex: Int, closingIndex: Int?)
+    /// A line whose ENTIRE trimmed content is a single `![alt](path)` image (own-line image).
+    /// Mid-text images (text before/after) never produce this case — they stay in `.lines` and
+    /// flow through the existing inline `imageToken` placeholder. `sourceRange` spans the WHOLE
+    /// source line (UTF-16), including any surrounding whitespace, so Reconnect's rewrite can
+    /// re-verify the exact `![…](…)` substring inside it.
+    case image(alt: String, path: String, sourceRange: NSRange)
+}
+
+/// Pure detection of a line that is solely a single `![alt](path)` image, with no other text.
+enum MarkdownImageLine {
+    private static let wholeLineImageRegex = try! NSRegularExpression(
+        pattern: #"^!\[([^\]\n]*)\]\(([^\)\n]+)\)$"#
+    )
+
+    /// Returns `(alt, path)` when the TRIMMED line is entirely one image reference, else `nil`.
+    static func wholeLineImage(_ line: String) -> (alt: String, path: String)? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let nsTrimmed = trimmed as NSString
+        guard let match = wholeLineImageRegex.firstMatch(
+            in: trimmed,
+            range: NSRange(location: 0, length: nsTrimmed.length)
+        ) else { return nil }
+        let alt = nsTrimmed.substring(with: match.range(at: 1))
+        let path = nsTrimmed.substring(with: match.range(at: 2))
+        return (alt, path)
+    }
 }
 
 /// Per-column text alignment for a table, read from the delimiter row's colons.
@@ -454,6 +480,14 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             let items = resolveListItems(parsed, firstLineIndex: index, lineStartOffsets: lineStartOffsets)
             blocks.append(.list(items: items, lastLineIndex: cursor - 1))
             index = cursor
+            continue
+        }
+
+        if let (alt, path) = MarkdownImageLine.wholeLineImage(lines[index]) {
+            flushLines(upTo: index)
+            let sourceRange = NSRange(location: lineStartOffsets[index], length: (lines[index] as NSString).length)
+            blocks.append(.image(alt: alt, path: path, sourceRange: sourceRange))
+            index += 1
             continue
         }
 
