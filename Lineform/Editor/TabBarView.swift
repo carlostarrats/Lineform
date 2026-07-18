@@ -16,6 +16,7 @@ struct TabBarView: View {
     let onCloseTab: (UUID) -> Void
 
     @State private var hoveredTabID: UUID?
+    @State private var hoveredCloseTabID: UUID?
 
     var body: some View {
         HStack(spacing: Self.tabGap) {
@@ -124,13 +125,18 @@ struct TabBarView: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, 8)
+                .transition(.opacity)
             }
         }
         // Equal-width distribution: every tab takes the same share of the full bar.
         .frame(maxWidth: .infinity)
         .frame(height: Self.barHeight - Self.capsuleVerticalInset * 2)
         .onHover { hovering in
-            hoveredTabID = hovering ? tab.id : (hoveredTabID == tab.id ? nil : hoveredTabID)
+            // Same quiet transition as the Write/Read/Preview control's hover fill —
+            // the capsule tint, separator fade, and × appearance all ride this animation.
+            withAnimation(.easeInOut(duration: 0.12)) {
+                hoveredTabID = hovering ? tab.id : (hoveredTabID == tab.id ? nil : hoveredTabID)
+            }
         }
     }
 
@@ -143,9 +149,19 @@ struct TabBarView: View {
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(Color(nsColor: Self.closeButtonColor(usesDarkChrome: usesDarkChrome)))
                 .frame(width: 16, height: 16)
+                .background(
+                    Circle()
+                        .fill(Color(nsColor: Self.closeButtonHoverCircleColor(usesDarkChrome: usesDarkChrome)))
+                        .opacity(hoveredCloseTabID == tabID ? 1 : 0)
+                )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                hoveredCloseTabID = hovering ? tabID : (hoveredCloseTabID == tabID ? nil : hoveredCloseTabID)
+            }
+        }
         .accessibilityLabel("Close tab")
     }
 
@@ -162,9 +178,10 @@ struct TabBarView: View {
     static func tabBackgroundColor(isSelected: Bool, isHovered: Bool, usesDarkChrome: Bool) -> NSColor {
         if isSelected {
             if isHovered {
+                // A slight tint only — the first pass (#E6E6E6) read as too dark in QA.
                 return usesDarkChrome
-                    ? NSColor(calibratedWhite: 0.30, alpha: 1)
-                    : NSColor(srgbRed: 0xE6 / 255, green: 0xE6 / 255, blue: 0xE6 / 255, alpha: 1)
+                    ? NSColor(calibratedWhite: 0.29, alpha: 1)
+                    : NSColor(srgbRed: 0xE9 / 255, green: 0xE9 / 255, blue: 0xE9 / 255, alpha: 1)
             }
             return usesDarkChrome
                 ? NSColor(calibratedWhite: 0.28, alpha: 1)
@@ -179,9 +196,10 @@ struct TabBarView: View {
     }
 
     static func textColor(usesDarkChrome: Bool) -> NSColor {
+        // A step lighter than the design file's #4C4C4C, per QA.
         usesDarkChrome
-            ? NSColor(calibratedWhite: 0.85, alpha: 1)
-            : NSColor(srgbRed: 0x4C / 255, green: 0x4C / 255, blue: 0x4C / 255, alpha: 1)
+            ? NSColor(calibratedWhite: 0.78, alpha: 1)
+            : NSColor(srgbRed: 0x63 / 255, green: 0x63 / 255, blue: 0x63 / 255, alpha: 1)
     }
 
     static func dirtyDotColor(usesDarkChrome: Bool) -> NSColor {
@@ -197,8 +215,15 @@ struct TabBarView: View {
     }
 
     static func separatorColor(usesDarkChrome: Bool) -> NSColor {
+        // A step darker than the design file's #CDCDCD, per QA.
         usesDarkChrome
-            ? NSColor.white.withAlphaComponent(0.18)
-            : NSColor(srgbRed: 0xCD / 255, green: 0xCD / 255, blue: 0xCD / 255, alpha: 1)
+            ? NSColor.white.withAlphaComponent(0.24)
+            : NSColor(srgbRed: 0xBB / 255, green: 0xBB / 255, blue: 0xBB / 255, alpha: 1)
+    }
+
+    static func closeButtonHoverCircleColor(usesDarkChrome: Bool) -> NSColor {
+        usesDarkChrome
+            ? NSColor.white.withAlphaComponent(0.12)
+            : NSColor.black.withAlphaComponent(0.08)
     }
 }
