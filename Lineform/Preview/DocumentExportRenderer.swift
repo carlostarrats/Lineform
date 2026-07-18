@@ -222,6 +222,41 @@ enum DocumentExportRenderer {
     }
 }
 
+/// Pure RTF serialization — no `NSPrintOperation`, no offscreen window. Reuses the same export
+/// `ReadingProfile` and content width as the PDF path, but with `imagesAsText: true` since plain
+/// RTF cannot portably embed rasterized math/mermaid images (they degrade to caption + source
+/// text instead).
+extension DocumentExportRenderer {
+    /// The rendered export attributed string for RTF (text-only: math/mermaid become caption/source
+    /// text). Reuses the export ReadingProfile and content width; no attachments.
+    @MainActor
+    static func makeRTFAttributedString(text: String, profile: ReadingProfile, paper: ExportPaperSize) -> NSAttributedString {
+        let content = contentSize(for: paper)
+        return MarkdownPreviewRenderer().render(
+            text,
+            profile: exportProfile(from: profile),
+            columnWidth: content.width,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+            fitTablesToWidth: true,
+            imagesAsText: true
+        )
+    }
+
+    /// Rendered document as RTF data. Pure NSAttributedString serialization — no print subsystem.
+    @MainActor
+    static func rtfData(for document: LineformDocument, profile: ReadingProfile, paper: ExportPaperSize) throws -> Data {
+        let attributed = makeRTFAttributedString(text: document.text, profile: profile, paper: paper)
+        return try attributed.data(
+            from: NSRange(location: 0, length: attributed.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        )
+    }
+}
+
 /// An `NSTextView` that paints its page white before drawing text. NSTextView's `backgroundColor`
 /// is not carried into the print graphics context, so a white page must be drawn explicitly —
 /// otherwise the exported PDF is transparent (renders black on dark viewers) despite the white

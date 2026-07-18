@@ -190,6 +190,78 @@ final class DocumentExportRendererTests: XCTestCase {
         XCTAssertTrue(pct.allSatisfy { $0 > 0 })
     }
 
+    // MARK: - RTF export (pure serialization, no NSPrintOperation)
+
+    func testRTFDataIsNonEmptyAndReadableRTF() throws {
+        let doc = LineformDocument(text: "# Heading\n\nBody paragraph.")
+        let data = try DocumentExportRenderer.rtfData(for: doc, profile: .original, paper: .usLetter)
+        XCTAssertFalse(data.isEmpty)
+        // RTF documents start with the "{\rtf" control word.
+        let prefix = String(data: data.prefix(5), encoding: .ascii)
+        XCTAssertEqual(prefix, "{\\rtf")
+        // Round-trips back into an attributed string.
+        let reread = try XCTUnwrap(NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil))
+        XCTAssertTrue(reread.string.contains("Heading"))
+        XCTAssertTrue(reread.string.contains("Body paragraph."))
+    }
+
+    func testRTFRoundTripPreservesBoldItalicAndInlineCode() throws {
+        // Lineform's italic syntax is single underscores (`_italic_`), not asterisks — matching
+        // MarkdownPreviewRenderer.italicRegex, not the brief's generic `*italic*` sketch.
+        let doc = LineformDocument(text: "This is **bold** and _italic_ and `code` text.")
+        let data = try DocumentExportRenderer.rtfData(for: doc, profile: .original, paper: .usLetter)
+        let reread = try XCTUnwrap(NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil))
+
+        func hasTrait(_ trait: NSFontDescriptor.SymbolicTraits, around substring: String) -> Bool {
+            let ns = reread.string as NSString
+            let r = ns.range(of: substring)
+            guard r.location != NSNotFound else { return false }
+            var found = false
+            reread.enumerateAttribute(.font, in: r) { value, _, _ in
+                if let font = value as? NSFont, font.fontDescriptor.symbolicTraits.contains(trait) { found = true }
+            }
+            return found
+        }
+        XCTAssertTrue(hasTrait(.bold, around: "bold"), "bold run survives RTF round-trip")
+        XCTAssertTrue(hasTrait(.italic, around: "italic"), "italic run survives RTF round-trip")
+        // Inline code renders in a monospaced face.
+        let ns = reread.string as NSString
+        let codeRange = ns.range(of: "code")
+        var monospaced = false
+        reread.enumerateAttribute(.font, in: codeRange) { value, _, _ in
+            if let font = value as? NSFont, font.fontDescriptor.symbolicTraits.contains(.monoSpace) { monospaced = true }
+        }
+        XCTAssertTrue(monospaced, "inline code keeps a monospaced font through RTF")
+    }
+
+    func testRTFHasNoImageAttachmentsForMathAndMermaid() throws {
+        let doc = LineformDocument(text: "$$x^2$$\n\n```mermaid\nflowchart TD\nA-->B\n```")
+        let data = try DocumentExportRenderer.rtfData(for: doc, profile: .original, paper: .usLetter)
+        let reread = try XCTUnwrap(NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil))
+        var attachmentCount = 0
+        reread.enumerateAttribute(.attachment, in: NSRange(location: 0, length: reread.length)) { value, _, _ in
+            if value != nil { attachmentCount += 1 }
+        }
+        XCTAssertEqual(attachmentCount, 0, "RTF must contain no image attachments")
+        XCTAssertTrue(reread.string.contains("x^2"), "math source present as text")
+        XCTAssertTrue(reread.string.contains("flowchart TD"), "mermaid source present as text")
+    }
+
+    func testRTFRoundTripPreservesListsAndBlockquotes() throws {
+        let doc = LineformDocument(text: "- first\n- second\n\n> quoted line")
+        let data = try DocumentExportRenderer.rtfData(for: doc, profile: .original, paper: .usLetter)
+        let reread = try XCTUnwrap(NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil))
+        XCTAssertTrue(reread.string.contains("first"))
+        XCTAssertTrue(reread.string.contains("second"))
+        XCTAssertTrue(reread.string.contains("quoted line"))
+        // Blockquote indentation survives as a non-zero paragraph indent somewhere in the doc.
+        var sawIndent = false
+        reread.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: reread.length)) { value, _, _ in
+            if let p = value as? NSParagraphStyle, p.headIndent > 0 || p.firstLineHeadIndent > 0 { sawIndent = true }
+        }
+        XCTAssertTrue(sawIndent, "list/blockquote indent carries into RTF paragraph styles")
+    }
+
     // Draws a view into a bitmap so a pixel can be sampled (used to assert the white page fill).
     private func renderToImage(_ view: NSView) -> NSBitmapImageRep {
         let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
