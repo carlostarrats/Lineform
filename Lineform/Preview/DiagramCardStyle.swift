@@ -32,6 +32,13 @@ enum MathCacheBudget {
     static let totalCostLimitBytes = 64 * 1024 * 1024    // 64 MB ceiling
 }
 
+/// Memory-sized bounds for the block-image attachment cache (downscaled rasters of local files
+/// referenced by `![alt](path)`), sibling of `DiagramCacheBudget`/`MathCacheBudget`.
+enum ImageCacheBudget {
+    static let countLimit = 256
+    static let totalCostLimitBytes = 128 * 1024 * 1024   // 128 MB ceiling
+}
+
 /// Fixed two-variant INK for block MATH, keyed only on light-vs-dark (never the specific theme) so
 /// block math — which renders transparent — never re-renders on a theme switch. Block Mermaid
 /// diagrams instead use the actual per-theme page color (they must, so Mermaid's node boxes get a
