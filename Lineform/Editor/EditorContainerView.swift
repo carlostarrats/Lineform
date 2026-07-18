@@ -492,6 +492,9 @@ struct EditorContainerView: View {
         .onChange(of: searchScope) { _, newScope in
             handleSearchScopeChange(newScope)
         }
+        .onChange(of: isSearchFocused) { _, focused in
+            handleSearchFocusChange(focused)
+        }
         .onSubmit(of: .search) {
             handleSearchSubmit()
         }
@@ -522,6 +525,19 @@ struct EditorContainerView: View {
             crossFileSearchModel.reset()
             refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: false)
         }
+    }
+
+    /// The full-bleed All Files results page must never outlive the search session it belongs
+    /// to. The system search scope bar is only shown while `.searchable` is active/focused; if
+    /// the user clears the query and defocuses the search field without explicitly navigating
+    /// back to This File, the scope bar disappears but the page would otherwise stay stranded
+    /// over the document with no visible search UI (final-review finding; spec "Backing out"
+    /// clause — no search residue after dismissing search). A non-empty query keeps the page up,
+    /// since the field still shows the query and search is still considered active in that case.
+    private func handleSearchFocusChange(_ focused: Bool) {
+        guard !focused, searchScope == .allFiles else { return }
+        guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        clearAllSearchState()
     }
 
     private func handleSearchSubmit() {
