@@ -120,4 +120,20 @@ final class CodeSyntaxHighlighterTests: XCTestCase {
             cursor = NSMaxRange(t.range)
         }
     }
+
+    func testUnterminatedStringWithTrailingBackslashProducesValidRanges() {
+        // Regression test: backslash-escape advance must not exceed source length.
+        // When source is "ab\ (4 chars: quote, a, b, backslash), the escape logic
+        // used to advance by 2, sending i past the end and creating out-of-bounds ranges.
+        let source = "\"ab\\"   // unterminated string ending in backslash
+        let ns = source as NSString
+        let tokens = highlighter.tokens(for: source, language: "swift")
+
+        // All tokens must have ranges within [0, source.length].
+        for token in tokens {
+            XCTAssertGreaterThanOrEqual(token.range.location, 0)
+            XCTAssertLessThanOrEqual(NSMaxRange(token.range), ns.length,
+                                     "Token range [\(token.range.location), \(NSMaxRange(token.range))) exceeds source length \(ns.length)")
+        }
+    }
 }

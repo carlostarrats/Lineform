@@ -172,7 +172,7 @@ enum ScriptScanner {
                 i += 1
                 while i < n {
                     let d = s.character(at: i)
-                    if d == 0x5C { i += 2; continue }   // backslash escape
+                    if d == 0x5C { i = min(i + 2, n); continue }   // backslash escape
                     i += 1
                     if d == c { break }
                 }
