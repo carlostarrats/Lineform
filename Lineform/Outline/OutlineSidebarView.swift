@@ -906,6 +906,11 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// installs (mostly real users with iCloud) don't flash either.
     @Published private(set) var lastKnownICloudAvailable = true
 
+    /// True once refreshICloud() has run this session. Quick-open (⌘K) reads this to
+    /// trigger the deferred iCloud scan exactly once per session instead of on every
+    /// palette open — the Files tab's every-appearance refresh is unchanged.
+    private(set) var hasPerformedICloudScan = false
+
     private func recordICloudAvailability(_ available: Bool) {
         guard available != lastKnownICloudAvailable else { return }
         lastKnownICloudAvailable = available
@@ -1052,6 +1057,7 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// Performs the live iCloud container scan. Call this when the Files tab
     /// becomes visible (or from tests); it is intentionally not run at init.
     func refreshICloud() {
+        hasPerformedICloudScan = true
         refreshICloudRoot()
     }
 

@@ -263,6 +263,27 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testICloudScanFlagFlipsOnFirstRefreshOnly() {
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = OutlineFileBrowserStore(
+            defaults: defaults,
+            fileManager: .default,
+            iCloudDocumentsURLProvider: { _ in nil }
+        )
+        // Init scans the workspace and loads snapshots but must NOT count as an
+        // iCloud scan (the deferred-scan invariant).
+        XCTAssertFalse(store.hasPerformedICloudScan)
+
+        store.refreshICloud()
+        XCTAssertTrue(store.hasPerformedICloudScan)
+    }
+
+    @MainActor
     func testFilesTabListsLineformICloudContainerWhenAccessible() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)

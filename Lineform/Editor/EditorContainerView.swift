@@ -52,7 +52,10 @@ struct EditorContainerView: View {
     /// Intercepts window close to guard against losing non-active dirty tabs.
     @State private var windowCloseController: WindowCloseController?
 
-    private let injectedFileBrowserStore: OutlineFileBrowserStore?
+    /// Owned here (not in the sidebar) so quick-open can read the scanned tree even with
+    /// the sidebar closed. Passed down to OutlineSidebarView, which adopts an injected
+    /// store instead of creating its own — one store per window either way.
+    @StateObject private var fileBrowserStore: OutlineFileBrowserStore
     /// Held so the sidebar (Files tab) observes the SAME store this window was built
     /// with — tests inject an isolated store and it governs the whole view tree.
     private let settings: LineformSettingsStore
@@ -66,7 +69,9 @@ struct EditorContainerView: View {
         _document = document
         _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
         _tabStore = StateObject(wrappedValue: EditorTabStore(initialDocument: document.wrappedValue))
-        injectedFileBrowserStore = fileBrowserStore
+        _fileBrowserStore = StateObject(
+            wrappedValue: fileBrowserStore ?? OutlineFileBrowserStore(runsScanInBackground: true)
+        )
         self.settings = settings
         // New windows open with the sidebar in the user's preferred launch state
         // (Settings › Show sidebar on launch, default on). Initial value only;
@@ -84,7 +89,7 @@ struct EditorContainerView: View {
                 jumpToHeading: jumpToHeading,
                 openFile: openSidebarFile,
                 currentFileURL: currentFileURL,
-                fileBrowserStore: injectedFileBrowserStore,
+                fileBrowserStore: fileBrowserStore,
                 settings: settings,
                 renameItem: { renameSidebarItem(at: $0.url, isDirectory: $0.isDirectory) },
                 deleteItem: { deleteSidebarItem(at: $0.url) },
