@@ -6,9 +6,56 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertEqual(markdownBlocks(in: ["a", "b", "c"]), [.lines(0..<3)])
     }
 
-    func testFencedCodeStaysInsideALinesRun() {
-        // A regular ``` fence toggles fence state but is rendered per line, so it stays in `.lines`.
-        XCTAssertEqual(markdownBlocks(in: ["before", "```", "code", "```", "after"]), [.lines(0..<5)])
+    func testPlainCodeFenceBecomesFencedCodeBlock() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["before", "```", "code", "```", "after"]),
+            [.lines(0..<1),
+             .fencedCode(language: "", body: "code", openingIndex: 1, closingIndex: 3),
+             .lines(4..<5)]
+        )
+    }
+
+    func testCodeFenceCarriesLanguageTag() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["```swift", "let x = 1", "```"]),
+            [.fencedCode(language: "swift", body: "let x = 1", openingIndex: 0, closingIndex: 2)]
+        )
+    }
+
+    func testMultiLineCodeBodyIsJoinedByNewline() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["```js", "a", "b", "```"]),
+            [.fencedCode(language: "js", body: "a\nb", openingIndex: 0, closingIndex: 3)]
+        )
+    }
+
+    func testUnclosedCodeFenceHasNilClosingIndex() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["```py", "x = 1"]),
+            [.fencedCode(language: "py", body: "x = 1", openingIndex: 0, closingIndex: nil)]
+        )
+    }
+
+    func testEmptyCodeFenceHasEmptyBody() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["```", "```"]),
+            [.fencedCode(language: "", body: "", openingIndex: 0, closingIndex: 1)]
+        )
+    }
+
+    func testNonCodeConstructsRouteUnchangedAlongsideCode() {
+        let blocks = markdownBlocks(in: [
+            "intro",
+            "```mermaid", "graph TD;A-->B;", "```",
+            "```swift", "let x = 1", "```",
+            "$$", "y^2", "$$",
+            "- item"
+        ])
+        XCTAssertEqual(blocks[0], .lines(0..<1))
+        XCTAssertEqual(blocks[1], .mermaid(source: "graph TD;A-->B;", closingIndex: 3))
+        XCTAssertEqual(blocks[2], .fencedCode(language: "swift", body: "let x = 1", openingIndex: 4, closingIndex: 6))
+        XCTAssertEqual(blocks[3], .fencedMath(latex: "y^2", closingIndex: 9))
+        guard case .list = blocks[4] else { return XCTFail("expected a list") }
     }
 
     func testMermaidFenceBecomesMermaidBlockWithoutDelimiters() {
@@ -53,11 +100,11 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         )
     }
 
-    func testDollarInsideRegularCodeFenceIsNotMath() {
-        // `$$` inside a regular ``` fence must not open a math block — it stays in `.lines`.
+    func testDollarInsideCodeFenceIsNotMath() {
+        // `$$` inside a code fence stays code, not a math block.
         XCTAssertEqual(
             markdownBlocks(in: ["```", "$$", "```"]),
-            [.lines(0..<3)]
+            [.fencedCode(language: "", body: "$$", openingIndex: 0, closingIndex: 2)]
         )
     }
 
@@ -93,8 +140,10 @@ final class MarkdownBlockGroupingTests: XCTestCase {
     }
 
     func testDashesInsideCodeFenceAreNotRule() {
-        let blocks = markdownBlocks(in: ["```", "---", "```"])
-        XCTAssertEqual(blocks, [.lines(0..<3)])
+        XCTAssertEqual(
+            markdownBlocks(in: ["```", "---", "```"]),
+            [.fencedCode(language: "", body: "---", openingIndex: 0, closingIndex: 2)]
+        )
     }
 
     func testDashesAfterListOrQuoteAreRuleNotSetext() {
@@ -129,7 +178,10 @@ final class MarkdownBlockGroupingTests: XCTestCase {
     }
 
     func testBlockquoteInsideCodeFenceIsNotAQuote() {
-        XCTAssertEqual(markdownBlocks(in: ["```", "> a", "```"]), [.lines(0..<3)])
+        XCTAssertEqual(
+            markdownBlocks(in: ["```", "> a", "```"]),
+            [.fencedCode(language: "", body: "> a", openingIndex: 0, closingIndex: 2)]
+        )
     }
 
     func testBlockquoteLineParsingHandlesSpacedNesting() {
@@ -300,8 +352,10 @@ final class MarkdownBlockGroupingTests: XCTestCase {
     }
 
     func testPipesInsideCodeFenceAreNotATable() {
-        let blocks = markdownBlocks(in: ["```", "| a | b |", "|---|---|", "```"])
-        XCTAssertEqual(blocks, [.lines(0..<4)])
+        XCTAssertEqual(
+            markdownBlocks(in: ["```", "| a | b |", "|---|---|", "```"]),
+            [.fencedCode(language: "", body: "| a | b |\n|---|---|", openingIndex: 0, closingIndex: 3)]
+        )
     }
 
     func testPipeLineOverBareDashesIsNotATable() {

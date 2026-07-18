@@ -143,6 +143,16 @@ struct MarkdownPreviewRenderer {
             case .table(let table, let lastLineIndex):
                 appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, fitToWidth: fitTablesToWidth)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
+            case .fencedCode(_, let body, let openingIndex, let closingIndex):
+                // TEMPORARY stub for Task 4 (routing only): plain monospace body, no token
+                // highlighting and no copy-pill range yet. Replaced by `appendCodeBlock` in Task 5.
+                output.append(NSAttributedString(string: body, attributes: codeAttributes))
+                appendBlockSeparator(
+                    afterLine: closingIndex ?? openingIndex,
+                    to: output,
+                    totalLines: lines.count,
+                    attributes: bodyAttributes
+                )
             }
         }
 

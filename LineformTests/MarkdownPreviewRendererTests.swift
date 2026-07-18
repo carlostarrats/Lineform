@@ -37,9 +37,11 @@ final class MarkdownPreviewRendererTests: XCTestCase {
     }
 
     func testDoesNotTreatHeadingsInsideFencedCodeAsHeadings() {
+        // Fence delimiter lines are no longer emitted (Task 4: fenced code is its own
+        // `.fencedCode` block, consumed before any inner line is inspected for headings).
         let rendered = MarkdownPreviewRenderer().render("# Real\n```\n# Not a heading\n```", profile: .original)
 
-        XCTAssertEqual(rendered.string, "Real\n```\n# Not a heading\n```")
+        XCTAssertEqual(rendered.string, "Real\n# Not a heading")
     }
 
     func testPreviewUsesSharedHeadingRules() {
@@ -241,14 +243,18 @@ final class MarkdownPreviewRendererTests: XCTestCase {
     }
 
     func testBlockSpacingDoesNotTreatFencedCodeContentsAsMarkdownBlocks() throws {
+        // A `# heading`-looking line inside a code fence must not pick up heading paragraph
+        // spacing; it renders as plain fenced-code body. The fence delimiters themselves are no
+        // longer emitted (Task 4: fenced code is its own `.fencedCode` block, not `.lines`), so
+        // this no longer checks spacing on the (now-absent) closing-fence text — the Task 4 stub
+        // emitter doesn't thread `codeBlockSpacingAttributes`; that lands with `appendCodeBlock`
+        // in Task 5.
         var profile = ReadingProfile.original
         profile.paragraphSpacing = 18
         let rendered = MarkdownPreviewRenderer().render("```\n# Not a heading\n\n```\n\nBody", profile: profile)
         let fencedHeadingStyle = try paragraphStyle(in: rendered, searchText: "# Not a heading")
-        let closingFenceStyle = try paragraphStyle(in: rendered, searchText: "```", occurrence: 2)
 
         XCTAssertEqual(fencedHeadingStyle.paragraphSpacing, 0)
-        XCTAssertEqual(closingFenceStyle.paragraphSpacing, 18)
     }
 
     @MainActor

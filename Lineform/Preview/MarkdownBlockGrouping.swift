@@ -33,6 +33,11 @@ enum MarkdownBlock: Equatable {
     case list(items: [MarkdownListItem], lastLineIndex: Int)
     /// A GFM pipe table (header + delimiter + body rows). `lastLineIndex` is the last covered line.
     case table(MarkdownTable, lastLineIndex: Int)
+    /// A plain ``` / ~~~ fenced code block (NOT mermaid — that is routed separately above).
+    /// `language` is the fence's info tag (lowercased first word, "" when absent), `body` is the
+    /// inner lines joined by "\n", `openingIndex` is the opening fence line, and `closingIndex` is
+    /// the closing fence line or `nil` when the block ran to end-of-document unclosed.
+    case fencedCode(language: String, body: String, openingIndex: Int, closingIndex: Int?)
 }
 
 /// Per-column text alignment for a table, read from the delimiter row's colons.
@@ -235,13 +240,13 @@ enum MarkdownHorizontalRule {
     }
 }
 
-/// Group already-split lines into blocks. Mirrors the detection order and fence-state tracking of
-/// the original renderer loop (single-line `$$…$$`, then a `$$` fence, then a ```mermaid fence,
-/// each only when **not** inside a regular code fence; regular ``` / ~~~ fences toggle the fence
-/// state and stay within a `.lines` run). Pure — no AppKit, no rendering.
+/// Group already-split lines into blocks. Mirrors the detection order of the original renderer loop
+/// (single-line `$$…$$`, then a `$$` fence, then a ```mermaid fence, then a plain ``` / ~~~ code
+/// fence). A plain code fence is consumed wholesale (opening → closing) into its own `.fencedCode`
+/// block before any inner line is inspected, so `$$` / `---` / `>` / `|` lines inside it are never
+/// re-parsed as math/rule/quote/table. Pure — no AppKit, no rendering.
 func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
     var blocks: [MarkdownBlock] = []
-    var inFence = false
     var linesStart: Int?
     var index = 0
 
@@ -264,14 +269,14 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
     while index < lines.count {
         let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
 
-        if !inFence, let inner = MathBlockFence.singleLineBlock(trimmed) {
+        if let inner = MathBlockFence.singleLineBlock(trimmed) {
             flushLines(upTo: index)
             blocks.append(.singleLineMath(latex: inner, lineIndex: index))
             index += 1
             continue
         }
 
-        if !inFence, MathBlockFence.blockDelimiterOnly(trimmed) {
+        if MathBlockFence.blockDelimiterOnly(trimmed) {
             flushLines(upTo: index)
             var body: [String] = []
             var cursor = index + 1
@@ -289,7 +294,7 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             continue
         }
 
-        if !inFence, MermaidFence.isMermaidOpening(trimmed) {
+        if MermaidFence.isMermaidOpening(trimmed) {
             flushLines(upTo: index)
             var body: [String] = []
             var cursor = index + 1
@@ -307,8 +312,33 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             continue
         }
 
-        if !inFence,
-           index + 1 < lines.count,
+        if MermaidFence.isFenceDelimiter(trimmed) {
+            // A plain code fence: consume to the next fence delimiter as its own block so it renders
+            // through appendCodeBlock (highlighting + copy pill), parallel to mermaid/math routing.
+            flushLines(upTo: index)
+            let language = CodeFence.language(fromOpening: trimmed)
+            var body: [String] = []
+            var cursor = index + 1
+            var closing: Int?
+            while cursor < lines.count {
+                if MermaidFence.isFenceDelimiter(lines[cursor].trimmingCharacters(in: .whitespaces)) {
+                    closing = cursor
+                    break
+                }
+                body.append(lines[cursor])
+                cursor += 1
+            }
+            blocks.append(.fencedCode(
+                language: language,
+                body: body.joined(separator: "\n"),
+                openingIndex: index,
+                closingIndex: closing
+            ))
+            index = (closing ?? lines.count - 1) + 1
+            continue
+        }
+
+        if index + 1 < lines.count,
            MarkdownTableParser.looksLikeRow(lines[index]),
            MarkdownTableParser.isDelimiterRow(lines[index + 1]),
            // GFM requires the header and delimiter rows to have the same column count. This gate
@@ -328,14 +358,14 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             continue
         }
 
-        if !inFence, MarkdownHorizontalRule.isRule(lines: lines, index: index) {
+        if MarkdownHorizontalRule.isRule(lines: lines, index: index) {
             flushLines(upTo: index)
             blocks.append(.horizontalRule(lineIndex: index))
             index += 1
             continue
         }
 
-        if !inFence, let firstQuote = MarkdownBlockquote.quoteLine(lines[index]) {
+        if let firstQuote = MarkdownBlockquote.quoteLine(lines[index]) {
             flushLines(upTo: index)
             var quoteLines = [firstQuote]
             var cursor = index + 1
@@ -348,7 +378,7 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             continue
         }
 
-        if !inFence, let firstItem = MarkdownList.parse(lines[index]) {
+        if let firstItem = MarkdownList.parse(lines[index]) {
             flushLines(upTo: index)
             var parsed = [firstItem]
             var cursor = index + 1
@@ -362,11 +392,6 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             continue
         }
 
-        // A regular code fence stays inside the current `.lines` run; track the state so the
-        // special blocks above are correctly ignored while inside it.
-        if MermaidFence.isFenceDelimiter(trimmed) {
-            inFence.toggle()
-        }
         if linesStart == nil {
             linesStart = index
         }
