@@ -77,17 +77,7 @@ final class CrossFileSearchModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
             }
             guard !Task.isCancelled else { return }
-            let found = await Task.detached(priority: .userInitiated) { () -> [CrossFileSearchResult] in
-                var collected: [CrossFileSearchResult] = []
-                for entry in entries {
-                    guard !Task.isCancelled else { return collected }
-                    guard let text = reader.readSearchableText(at: entry.url) else { continue }
-                    if let result = CrossFileSearchResolver.result(for: entry, text: text, query: trimmed) {
-                        collected.append(result)
-                    }
-                }
-                return CrossFileSearchResolver.ranked(collected)
-            }.value
+            let found = await Self.scan(entries: entries, query: trimmed, reader: reader)
             guard let self, !Task.isCancelled else { return }
             guard self.generation == expected else { return }
             self.results = found
@@ -103,5 +93,27 @@ final class CrossFileSearchModel: ObservableObject {
         pendingTask = nil
         results = []
         isSearching = false
+    }
+
+    /// Reads and matches each candidate file. `nonisolated` (not `Task.detached`) so this
+    /// still runs off the @MainActor — file reads stay off the main thread — but, unlike
+    /// `Task.detached`, a `nonisolated` async function DOES inherit the calling task's
+    /// cancellation, so `Task.isCancelled` here actually trips when `pendingTask?.cancel()`
+    /// fires (a newer search, or `reset()`), stopping the read loop instead of only letting
+    /// the generation guard discard an already-completed scan.
+    private nonisolated static func scan(
+        entries: [QuickOpenEntry],
+        query: String,
+        reader: CrossFileSearchFileReading
+    ) async -> [CrossFileSearchResult] {
+        var collected: [CrossFileSearchResult] = []
+        for entry in entries {
+            guard !Task.isCancelled else { return collected }
+            guard let text = reader.readSearchableText(at: entry.url) else { continue }
+            if let result = CrossFileSearchResolver.result(for: entry, text: text, query: query) {
+                collected.append(result)
+            }
+        }
+        return CrossFileSearchResolver.ranked(collected)
     }
 }
