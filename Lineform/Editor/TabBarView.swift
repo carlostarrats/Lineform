@@ -145,14 +145,16 @@ struct TabBarView: View {
         Button {
             onCloseTab(tabID)
         } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(Color(nsColor: Self.closeButtonColor(usesDarkChrome: usesDarkChrome)))
+            // Circle first, glyph overlaid dead-center — backgrounding the circle on the
+            // framed Image let the symbol's own optical bearings nudge it off-center.
+            Circle()
+                .fill(Color(nsColor: Self.closeButtonHoverCircleColor(usesDarkChrome: usesDarkChrome)))
+                .opacity(hoveredCloseTabID == tabID ? 1 : 0)
                 .frame(width: 16, height: 16)
-                .background(
-                    Circle()
-                        .fill(Color(nsColor: Self.closeButtonHoverCircleColor(usesDarkChrome: usesDarkChrome)))
-                        .opacity(hoveredCloseTabID == tabID ? 1 : 0)
+                .overlay(
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(Color(nsColor: Self.closeButtonColor(usesDarkChrome: usesDarkChrome)))
                 )
                 .contentShape(Rectangle())
         }
@@ -180,12 +182,13 @@ struct TabBarView: View {
             if isHovered {
                 // A slight tint only — the first pass (#E6E6E6) read as too dark in QA.
                 return usesDarkChrome
-                    ? NSColor(calibratedWhite: 0.29, alpha: 1)
-                    : NSColor(srgbRed: 0xE9 / 255, green: 0xE9 / 255, blue: 0xE9 / 255, alpha: 1)
+                    ? NSColor(calibratedWhite: 0.31, alpha: 1)
+                    : NSColor(srgbRed: 0xED / 255, green: 0xED / 255, blue: 0xED / 255, alpha: 1)
             }
+            // Lightened from the design file's #EBEBEB, per QA.
             return usesDarkChrome
-                ? NSColor(calibratedWhite: 0.28, alpha: 1)
-                : NSColor(srgbRed: 0xEB / 255, green: 0xEB / 255, blue: 0xEB / 255, alpha: 1)
+                ? NSColor(calibratedWhite: 0.30, alpha: 1)
+                : NSColor(srgbRed: 0xF0 / 255, green: 0xF0 / 255, blue: 0xF0 / 255, alpha: 1)
         }
         if isHovered {
             return usesDarkChrome
