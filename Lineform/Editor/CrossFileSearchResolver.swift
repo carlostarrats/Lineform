@@ -30,7 +30,10 @@ enum CrossFileSearchResolver {
     static let snippetMaximumLength = 60
 
     /// Cap on how many per-line snippets a single file contributes to the results page.
-    static let maximumSnippetsPerFile = 8
+    // Generous on purpose: the result card scrolls, so a heavily-matched file should
+    // list (nearly) every matching line — a cap of 8 left cards feeling truncated. This
+    // is a runaway guard, not a display budget.
+    static let maximumSnippetsPerFile = 100
 
     static func result(for entry: QuickOpenEntry, text: String, query: String) -> CrossFileSearchResult? {
         let matches = EditorSearchResolver.matches(in: text, query: query)
