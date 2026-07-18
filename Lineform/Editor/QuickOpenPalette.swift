@@ -15,8 +15,12 @@ struct QuickOpenPalette: View {
     @State private var selectionIndex = 0
     @FocusState private var isFieldFocused: Bool
 
-    static let maximumCardWidth: CGFloat = 560
-    static let listMaximumHeight: CGFloat = 320
+    static let maximumCardWidth: CGFloat = 400
+    static let listMaximumHeight: CGFloat = 300
+    /// Approximate laid-out height of one result row (13pt line + vertical padding),
+    /// used to size the scroll area to its content so the card grows with results
+    /// instead of always reserving the full maximum height.
+    static let estimatedRowHeight: CGFloat = 29
 
     private var results: [QuickOpenEntry] {
         QuickOpenIndex.search(entries, query: query)
@@ -24,22 +28,29 @@ struct QuickOpenPalette: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Jump to file…", text: $query)
-                .textFieldStyle(.plain)
-                .font(.title3)
-                .focused($isFieldFocused)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .onSubmit { openSelection() }
-                .onKeyPress(.upArrow) {
-                    moveSelection(by: -1)
-                    return .handled
-                }
-                .onKeyPress(.downArrow) {
-                    moveSelection(by: 1)
-                    return .handled
-                }
-                .accessibilityLabel("Jump to file")
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13, weight: .regular))
+                    // Matches the light tint of the rows' folder-path text.
+                    .foregroundStyle(Color.secondary.opacity(0.55))
+
+                TextField("Jump to file…", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14))
+                    .focused($isFieldFocused)
+                    .onSubmit { openSelection() }
+                    .onKeyPress(.upArrow) {
+                        moveSelection(by: -1)
+                        return .handled
+                    }
+                    .onKeyPress(.downArrow) {
+                        moveSelection(by: 1)
+                        return .handled
+                    }
+                    .accessibilityLabel("Jump to file")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
 
             Divider()
 
@@ -48,21 +59,23 @@ struct QuickOpenPalette: View {
         .frame(width: min(Self.maximumCardWidth, max(280, availableWidth - 48)))
         // Same two fixed chrome variants as the Find & Replace card, at modal weight.
         .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
+        // The Settings card's exact chrome recipe (MuseModalCard): flat background,
+        // continuous-corner clip, hairline stroke, then the soft wide shadow applied to
+        // the CLIPPED view — shadowing the background shape instead reads blurry/muddy.
         .background(
-            RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius)
-                .fill(
-                    usesDarkChrome
-                        ? Color(white: 0.15)
-                        : Color(white: MuseModalChrome.backgroundWhiteComponent)
-                )
-                .shadow(color: .black.opacity(0.28), radius: 18, y: 4)
+            usesDarkChrome
+                ? Color(white: 0.15)
+                : Color(white: MuseModalChrome.backgroundWhiteComponent)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius)
-                .strokeBorder(
-                    usesDarkChrome ? Color.white.opacity(0.14) : Color.black.opacity(0.10)
+        .clipShape(RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous)
+                .stroke(
+                    usesDarkChrome ? Color.white.opacity(0.14) : Color.black.opacity(0.08),
+                    lineWidth: 1
                 )
-        )
+        }
+        .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
         .modalArrowCursor()
         .onExitCommand { onDismiss() }
         .onAppear { isFieldFocused = true }
@@ -79,6 +92,9 @@ struct QuickOpenPalette: View {
         } else if results.isEmpty {
             hintRow("No matches")
         } else {
+            // ScrollView greedily fills its maxHeight even with two rows, which left the
+            // card tall and empty; cap the frame at the CONTENT's estimated height so the
+            // card hugs small result sets and only grows (then scrolls) as matches do.
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(results.enumerated()), id: \.element.id) { index, entry in
@@ -86,43 +102,50 @@ struct QuickOpenPalette: View {
                             .onTapGesture { onOpen(entry) }
                     }
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
             }
-            .frame(maxHeight: Self.listMaximumHeight)
+            .frame(maxHeight: min(
+                Self.listMaximumHeight,
+                CGFloat(results.count) * Self.estimatedRowHeight + 16
+            ))
         }
     }
 
     private func hintRow(_ text: String) -> some View {
         Text(text)
-            .font(.callout)
+            .font(.system(size: 12))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
     }
 
     private func resultRow(_ entry: QuickOpenEntry, isSelected: Bool) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Text(entry.name)
+                .font(.system(size: 13))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                 .lineLimit(1)
             Spacer(minLength: 8)
-            Text(entry.relativePath)
-                .font(.callout.monospaced())
-                .foregroundStyle(.secondary)
+            Text(entry.directoryDisplayPath)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(isSelected ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.55))
                 .lineLimit(1)
                 .truncationMode(.head)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
+        // The sidebar's selected-file look: soft translucent accent tint + accent text.
         .background(
             isSelected
-                ? RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.22))
+                ? RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.accentColor.opacity(OutlineSidebarView.rowSelectionFillOpacity))
                 : nil
         )
         .padding(.horizontal, 6)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.name), \(entry.relativePath)")
+        .accessibilityLabel("\(entry.name), \(entry.directoryDisplayPath)")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 

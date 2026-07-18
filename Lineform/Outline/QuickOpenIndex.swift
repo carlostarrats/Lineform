@@ -12,6 +12,13 @@ struct QuickOpenEntry: Identifiable, Equatable {
     let relativePath: String
     /// The owning root's display title ("Lineform" for iCloud, the workspace folder's name).
     let rootTitle: String
+
+    /// The containing folder within the root, for display beside the filename —
+    /// "projects" for "projects/roadmap.md", "/" for a file at the root itself.
+    var directoryDisplayPath: String {
+        guard relativePath.count > name.count else { return "/" }
+        return String(relativePath.dropLast(name.count + 1))
+    }
 }
 
 /// Pure flatten + fuzzy-rank logic behind the ⌘K palette. Operates on the trees the

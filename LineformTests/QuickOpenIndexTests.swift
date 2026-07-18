@@ -31,6 +31,8 @@ final class QuickOpenIndexTests: XCTestCase {
         XCTAssertEqual(entries.map(\.relativePath), ["notes.md", "readme.md", "projects/roadmap.md"])
         XCTAssertEqual(entries.map(\.rootTitle), ["Lineform", "Docs", "Docs"])
         XCTAssertEqual(entries.map(\.id), ["/icloud/notes.md", "/ws/readme.md", "/ws/projects/roadmap.md"])
+        // Display path beside the filename: the containing folder, "/" at the root.
+        XCTAssertEqual(entries.map(\.directoryDisplayPath), ["/", "/", "projects"])
     }
 
     func testFlattenExcludesDirectoriesThemselves() {
