@@ -419,8 +419,9 @@ struct MarkdownPreviewRenderer {
         }
     }
 
-    /// Minimal callout dispatch: renders only the body via the shared quote-line helper.
-    /// TODO(Task 4): render a distinct callout card (icon, label, tinted rule) using `kind`/`title`.
+    /// Emit a monochrome callout: a title row (tinted SF Symbol + title, medium weight, full ink)
+    /// indented like the quote body, then the body via the shared `appendQuoteLines`. No color, no
+    /// background, no bar — restraint over the multi-color admonition look, and export-safe.
     private func appendCallout(
         kind: CalloutKind,
         title: String?,
@@ -431,7 +432,49 @@ struct MarkdownPreviewRenderer {
         theme: Theme,
         mathProvider: MathImageProviding
     ) {
-        appendQuoteLines(body, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider)
+        let indentStep: CGFloat = 22
+        let paragraph = mutableParagraphStyle(from: baseBody)
+        paragraph.firstLineHeadIndent = indentStep
+        paragraph.headIndent = indentStep
+
+        let baseFont = (baseBody[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
+        let titleFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+
+        var titleAttributes = baseBody
+        titleAttributes[.paragraphStyle] = paragraph
+        titleAttributes[.foregroundColor] = theme.textColor
+        titleAttributes[.font] = titleFont
+
+        // Tinted SF Symbol, baseline-aligned to the title font, carrying the title paragraph style so
+        // the glyph shares the row's indent.
+        if let symbol = calloutSymbolImage(for: kind, color: theme.textColor, pointSize: titleFont.pointSize) {
+            let attachment = NSTextAttachment()
+            attachment.image = symbol
+            attachment.bounds = CGRect(x: 0, y: titleFont.descender, width: symbol.size.width, height: symbol.size.height)
+            let glyph = NSMutableAttributedString(attachment: attachment)
+            glyph.addAttributes(titleAttributes, range: NSRange(location: 0, length: glyph.length))
+            output.append(glyph)
+            output.append(NSAttributedString(string: " ", attributes: titleAttributes))
+        }
+
+        let titleText = title ?? kind.displayName
+        output.append(NSAttributedString(string: titleText, attributes: titleAttributes))
+
+        if !body.isEmpty {
+            output.append(NSAttributedString(string: "\n", attributes: titleAttributes))
+            appendQuoteLines(body, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider)
+        }
+    }
+
+    /// A monochrome SF Symbol image tinted to `color` (the theme ink), sized to the body font, for the
+    /// callout title row. Returns nil if the symbol is unavailable (caller then omits the glyph).
+    private func calloutSymbolImage(for kind: CalloutKind, color: NSColor, pointSize: CGFloat) -> NSImage? {
+        guard let base = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: kind.displayName) else {
+            return nil
+        }
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+        return base.withSymbolConfiguration(config) ?? base
     }
 
     /// Emit a quiet, full-width divider as a self-sizing attachment. The line is low-contrast

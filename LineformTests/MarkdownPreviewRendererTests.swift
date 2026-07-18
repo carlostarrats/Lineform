@@ -106,8 +106,10 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertGreaterThan(deepIndent, shallowIndent)
     }
 
-    func testBlockquoteBodyMatchesSharedQuoteRendering() throws {
-        // A quote and a callout body over the same lines must render identical body runs.
+    func testCalloutBodyMatchesSharedQuoteRendering() throws {
+        // A quote and a callout body over the same lines must render identical body runs. First,
+        // the plain-blockquote sanity checks this test used to assert in isolation (kept so the
+        // baseline blockquote shape is still covered directly).
         let quote = MarkdownPreviewRenderer().render("> alpha\n> beta", profile: .original)
         XCTAssertEqual(quote.string, "alpha\nbeta")
         let firstStyle = try XCTUnwrap(quote.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
@@ -115,6 +117,79 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         // De-emphasis: quote body foreground is the theme ink at reduced alpha (not full ink).
         let color = try XCTUnwrap(quote.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
         XCTAssertLessThan(color.alphaComponent, 1.0)
+
+        // Now the genuine equivalence assertion: the callout body (everything after the title row)
+        // must be attribute-identical to a plain blockquote's body over the same lines — proving the
+        // title row was ADDED without disturbing the shared `appendQuoteLines` body rendering.
+        let callout = MarkdownPreviewRenderer().render("> [!NOTE]\n> alpha\n> beta", profile: .original)
+
+        let ns = callout.string as NSString
+        XCTAssertTrue(callout.string.hasSuffix("alpha\nbeta"))
+        let bodyStart = ns.range(of: "alpha\nbeta").location
+        XCTAssertNotEqual(bodyStart, NSNotFound)
+
+        let calloutBody = callout.attributedSubstring(from: NSRange(location: bodyStart, length: ns.length - bodyStart))
+        XCTAssertEqual(calloutBody.string, quote.string)
+
+        // Compare attributes run-by-run (paragraph style headIndent/firstLineHeadIndent, foreground
+        // color, font) at each character offset in the shared body text.
+        for offset in 0..<calloutBody.length {
+            let calloutStyle = try XCTUnwrap(calloutBody.attribute(.paragraphStyle, at: offset, effectiveRange: nil) as? NSParagraphStyle)
+            let quoteStyle = try XCTUnwrap(quote.attribute(.paragraphStyle, at: offset, effectiveRange: nil) as? NSParagraphStyle)
+            XCTAssertEqual(calloutStyle.headIndent, quoteStyle.headIndent)
+            XCTAssertEqual(calloutStyle.firstLineHeadIndent, quoteStyle.firstLineHeadIndent)
+
+            let calloutColor = try XCTUnwrap(calloutBody.attribute(.foregroundColor, at: offset, effectiveRange: nil) as? NSColor)
+            let quoteColor = try XCTUnwrap(quote.attribute(.foregroundColor, at: offset, effectiveRange: nil) as? NSColor)
+            XCTAssertEqual(calloutColor, quoteColor)
+
+            let calloutFont = try XCTUnwrap(calloutBody.attribute(.font, at: offset, effectiveRange: nil) as? NSFont)
+            let quoteFont = try XCTUnwrap(quote.attribute(.font, at: offset, effectiveRange: nil) as? NSFont)
+            XCTAssertEqual(calloutFont, quoteFont)
+        }
+    }
+
+    func testCalloutRendersDefaultTitleAndBody() throws {
+        let rendered = MarkdownPreviewRenderer().render("> [!NOTE]\n> body text", profile: .original)
+        // Title row shows the capitalized type name; body follows on its own line.
+        XCTAssertTrue(rendered.string.contains("Note"))
+        XCTAssertTrue(rendered.string.contains("body text"))
+        // A leading SF-Symbol attachment glyph (object-replacement char) precedes the title.
+        XCTAssertTrue(rendered.string.contains("\u{FFFC}"))
+        let attachment = rendered.attribute(.attachment, at: 0, effectiveRange: nil)
+        XCTAssertNotNil(attachment)
+    }
+
+    func testCalloutUsesCustomTitleWhenPresent() {
+        let rendered = MarkdownPreviewRenderer().render("> [!TIP] Pro move\n> details", profile: .original)
+        XCTAssertTrue(rendered.string.contains("Pro move"))
+        XCTAssertFalse(rendered.string.contains("Tip")) // custom title replaces the default name
+        XCTAssertTrue(rendered.string.contains("details"))
+    }
+
+    func testCalloutTitleIsFullInkNotDeemphasized() throws {
+        // Title row ink is the theme text color at full alpha (monochrome, not the 0.8 body tint).
+        let rendered = MarkdownPreviewRenderer().render("> [!WARNING]\n> body", profile: .original)
+        // Find the first title glyph (skip the attachment char at 0 and the following space).
+        let ns = rendered.string as NSString
+        let titleIndex = ns.range(of: "Warning").location
+        XCTAssertNotEqual(titleIndex, NSNotFound)
+        let color = try XCTUnwrap(rendered.attribute(.foregroundColor, at: titleIndex, effectiveRange: nil) as? NSColor)
+        XCTAssertEqual(color.alphaComponent, 1.0, accuracy: 0.001)
+    }
+
+    func testCalloutWithNoBodyRendersOnlyTitleRow() {
+        let rendered = MarkdownPreviewRenderer().render("> [!CAUTION]", profile: .original)
+        XCTAssertTrue(rendered.string.contains("Caution"))
+        XCTAssertFalse(rendered.string.contains("\n")) // no body → no separator newline
+    }
+
+    func testCalloutBodyIsIndentedLikeBlockquote() throws {
+        let rendered = MarkdownPreviewRenderer().render("> [!NOTE]\n> quoted body", profile: .original)
+        let ns = rendered.string as NSString
+        let bodyIndex = ns.range(of: "quoted body").location
+        let style = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: bodyIndex, effectiveRange: nil) as? NSParagraphStyle)
+        XCTAssertGreaterThan(style.headIndent, 0)
     }
 
     func testImageRendersQuietPlaceholderWithAltTextAndNoBangOrURL() {
