@@ -19,8 +19,30 @@ struct CrossFileSearchResultsView: View {
 
     static let cardHeight: CGFloat = 168
 
+    // User's design-file values, shared with the sidebar chrome (side-sheet background /
+    // hairline stroke / snippet-pill fill / muted text). Two fixed variants keyed on
+    // `theme.usesDarkChrome` — same approach as QuickOpenPalette / the Find & Replace card —
+    // not per-theme tinting.
+    private static let lightCardFill = Color(red: 0xFC / 255, green: 0xFC / 255, blue: 0xFC / 255)
+    private static let lightCardStroke = Color(red: 0xE4 / 255, green: 0xE4 / 255, blue: 0xE4 / 255)
+    private static let lightPillFill = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF2 / 255)
+    private static let mutedTextColor = Color(red: 0x78 / 255, green: 0x78 / 255, blue: 0x78 / 255)
+
+    private var usesDarkChrome: Bool { theme.usesDarkChrome }
     private var primaryColor: Color { Color(nsColor: theme.textColor) }
-    private var secondaryColor: Color { primaryColor.opacity(0.55) }
+    private var secondaryColor: Color { usesDarkChrome ? primaryColor.opacity(0.55) : Self.mutedTextColor }
+
+    private var cardFill: Color {
+        usesDarkChrome ? Color(white: 0.15) : Self.lightCardFill
+    }
+
+    private var cardStroke: Color {
+        usesDarkChrome ? Color.white.opacity(0.14) : Self.lightCardStroke
+    }
+
+    private var pillFill: Color {
+        usesDarkChrome ? Color.white.opacity(0.08) : Self.lightPillFill
+    }
 
     var body: some View {
         ScrollView {
@@ -82,7 +104,8 @@ struct CrossFileSearchResultsView: View {
     }
 
     private func resultCard(_ result: CrossFileSearchResult) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let isHovered = hoveredResultID == result.id
+        return VStack(alignment: .leading, spacing: 6) {
             cardHeader(result)
             Text(locationText(result))
                 .font(.system(size: 10.5))
@@ -96,6 +119,13 @@ struct CrossFileSearchResultsView: View {
                             .font(.system(size: 11.5))
                             .foregroundStyle(secondaryColor)
                             .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(pillFill)
+                            )
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -104,14 +134,20 @@ struct CrossFileSearchResultsView: View {
         .padding(12)
         .frame(height: Self.cardHeight, alignment: .top)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
+        // Same recipe as QuickOpenPalette/MuseModalCard: flat fill, clip, hairline stroke,
+        // then the shadow applied to the CLIPPED shape (shadowing the background directly
+        // reads blurry/muddy).
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(primaryColor.opacity(hoveredResultID == result.id ? 0.09 : 0.05))
+                .stroke(cardStroke, lineWidth: 1)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(primaryColor.opacity(0.08), lineWidth: 1)
+                .fill(primaryColor.opacity(isHovered ? 0.04 : 0))
         )
+        .shadow(color: Color.black.opacity(0.09), radius: 6, x: 0, y: 4)
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onTapGesture { onOpen(result) }
         .onHover { hovering in
