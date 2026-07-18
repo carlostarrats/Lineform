@@ -1000,6 +1000,88 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
         )
     }
 
+    func testImagesAsTextDefaultFalseStillProducesMathAttachment() {
+        let rendered = MarkdownPreviewRenderer().render(
+            "$$x^2$$",
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: MathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "0"
+            // imagesAsText omitted → defaults to false
+        )
+        var attachmentCount = 0
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value != nil { attachmentCount += 1 }
+        }
+        XCTAssertGreaterThan(attachmentCount, 0, "Default (imagesAsText:false) must still rasterize math to an attachment")
+    }
+
+    func testImagesAsTextSubstitutesMathSourceTextWithNoAttachment() {
+        let rendered = MarkdownPreviewRenderer().render(
+            "$$x^2$$",
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: MathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "0",
+            imagesAsText: true
+        )
+        var attachmentCount = 0
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value != nil { attachmentCount += 1 }
+        }
+        XCTAssertEqual(attachmentCount, 0, "imagesAsText:true must not emit image attachments")
+        XCTAssertTrue(rendered.string.contains("Math (source)"), "caption present")
+        XCTAssertTrue(rendered.string.contains("x^2"), "latex source present as text")
+    }
+
+    func testImagesAsTextSubstitutesMermaidSourceText() {
+        let rendered = MarkdownPreviewRenderer().render(
+            "```mermaid\nflowchart TD\nA-->B\n```",
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: MermaidImageProvider(),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "0",
+            imagesAsText: true
+        )
+        var attachmentCount = 0
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value != nil { attachmentCount += 1 }
+        }
+        XCTAssertEqual(attachmentCount, 0, "imagesAsText:true must not emit mermaid image attachments")
+        XCTAssertTrue(rendered.string.contains("Mermaid diagram (source)"))
+        XCTAssertTrue(rendered.string.contains("flowchart TD"))
+        XCTAssertFalse(rendered.string.contains("Report this"), "no report affordance in export text mode")
+    }
+
+    func testImagesAsTextSubstitutesInlineMathAsSourceText() {
+        let rendered = MarkdownPreviewRenderer().render(
+            "before $a+b$ after",
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: MathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "0",
+            imagesAsText: true
+        )
+        var attachmentCount = 0
+        rendered.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value != nil { attachmentCount += 1 }
+        }
+        XCTAssertEqual(attachmentCount, 0)
+        XCTAssertTrue(rendered.string.contains("a+b"), "inline latex rendered as text")
+    }
+
     @discardableResult
     private func writePNG(named name: String, width: Int, height: Int) throws -> URL {
         let url = tempDirectory.appendingPathComponent(name)

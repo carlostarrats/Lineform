@@ -71,6 +71,10 @@ struct MarkdownPreviewRenderer {
         // columns, cells wrap) instead of overflowing a narrow page column. On screen it stays
         // false so the wide reading column keeps content-sized columns.
         fitTablesToWidth: Bool = false,
+        // Export/print (RTF) sets this so math and mermaid blocks emit their caption + source text
+        // instead of a rasterized attachment — plain RTF can't portably embed images. On screen
+        // it stays false so math/mermaid render as images as they do today.
+        imagesAsText: Bool = false,
         // True on screen (Read/Preview) → code is syntax-highlighted; false from
         // DocumentExportRenderer → code stays MONOCHROME in PDFs (user decision).
         highlightsCode: Bool = true,
@@ -114,7 +118,8 @@ struct MarkdownPreviewRenderer {
                     mathProvider: mathProvider,
                     bodyAttributes: bodyAttributes,
                     bodyBlockSpacingAttributes: bodyBlockSpacingAttributes,
-                    blockSpacingLineIndexes: blockSpacingLineIndexes
+                    blockSpacingLineIndexes: blockSpacingLineIndexes,
+                    imagesAsText: imagesAsText
                 )
             case .singleLineMath(let latex, let lineIndex):
                 appendMathBlock(
@@ -124,7 +129,8 @@ struct MarkdownPreviewRenderer {
                     theme: theme,
                     columnWidth: columnWidth,
                     codeAttributes: codeAttributes,
-                    mathProvider: mathProvider
+                    mathProvider: mathProvider,
+                    imagesAsText: imagesAsText
                 )
                 if lineIndex < lines.count - 1 {
                     let usesBlockSpacing = blockSpacingLineIndexes.contains(lineIndex)
@@ -139,7 +145,8 @@ struct MarkdownPreviewRenderer {
                     theme: theme,
                     columnWidth: columnWidth,
                     codeAttributes: codeAttributes,
-                    mathProvider: mathProvider
+                    mathProvider: mathProvider,
+                    imagesAsText: imagesAsText
                 )
                 appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .mermaid(let source, let closingIndex):
@@ -153,20 +160,21 @@ struct MarkdownPreviewRenderer {
                     mermaidProvider: mermaidProvider,
                     diagramLog: diagramLog,
                     reportRegistry: reportRegistry,
-                    appVersion: appVersion
+                    appVersion: appVersion,
+                    imagesAsText: imagesAsText
                 )
                 appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .horizontalRule(let lineIndex):
                 appendHorizontalRule(to: output, profile: profile, theme: theme)
                 appendBlockSeparator(afterLine: lineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .blockquote(let quoteLines, let lastLineIndex):
-                appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .callout(let kind, let title, let body, let lastLineIndex):
-                appendCallout(kind: kind, title: title, body: body, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendCallout(kind: kind, title: title, body: body, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .list(let items, let lastLineIndex):
-                appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .table(let table, let lastLineIndex):
                 appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, fitToWidth: fitTablesToWidth)
@@ -337,7 +345,8 @@ struct MarkdownPreviewRenderer {
         baseAttributes baseBody: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
-        mathProvider: MathImageProviding
+        mathProvider: MathImageProviding,
+        imagesAsText: Bool = false
     ) {
         let levelStep: CGFloat = 24
         let markerColumn: CGFloat = 22
@@ -370,7 +379,8 @@ struct MarkdownPreviewRenderer {
                 baseAttributes: attributes,
                 profile: profile,
                 theme: theme,
-                mathProvider: mathProvider
+                mathProvider: mathProvider,
+                imagesAsText: imagesAsText
             ))
             if offset < items.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: attributes))
@@ -410,9 +420,10 @@ struct MarkdownPreviewRenderer {
         baseAttributes baseBody: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
-        mathProvider: MathImageProviding
+        mathProvider: MathImageProviding,
+        imagesAsText: Bool = false
     ) {
-        appendQuoteLines(quoteLines, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider)
+        appendQuoteLines(quoteLines, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
     }
 
     /// Emit a run of blockquote lines: each indented by its nesting depth (markers hidden) and gently
@@ -424,7 +435,8 @@ struct MarkdownPreviewRenderer {
         baseAttributes baseBody: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
-        mathProvider: MathImageProviding
+        mathProvider: MathImageProviding,
+        imagesAsText: Bool = false
     ) {
         let quoteColor = theme.textColor.withAlphaComponent(0.8)
         let indentStep: CGFloat = 22
@@ -444,7 +456,8 @@ struct MarkdownPreviewRenderer {
                 baseAttributes: attributes,
                 profile: profile,
                 theme: theme,
-                mathProvider: mathProvider
+                mathProvider: mathProvider,
+                imagesAsText: imagesAsText
             ))
             if offset < quoteLines.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: attributes))
@@ -463,7 +476,8 @@ struct MarkdownPreviewRenderer {
         baseAttributes baseBody: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
-        mathProvider: MathImageProviding
+        mathProvider: MathImageProviding,
+        imagesAsText: Bool = false
     ) {
         let indentStep: CGFloat = 22
         let paragraph = mutableParagraphStyle(from: baseBody)
@@ -495,7 +509,7 @@ struct MarkdownPreviewRenderer {
 
         if !body.isEmpty {
             output.append(NSAttributedString(string: "\n", attributes: titleAttributes))
-            appendQuoteLines(body, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider)
+            appendQuoteLines(body, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
         }
     }
 
@@ -554,7 +568,8 @@ struct MarkdownPreviewRenderer {
         mathProvider: MathImageProviding,
         bodyAttributes: [NSAttributedString.Key: Any],
         bodyBlockSpacingAttributes: [NSAttributedString.Key: Any],
-        blockSpacingLineIndexes: Set<Int>
+        blockSpacingLineIndexes: Set<Int>,
+        imagesAsText: Bool = false
     ) {
         for index in range {
             let line = lines[index]
@@ -582,7 +597,8 @@ struct MarkdownPreviewRenderer {
                     baseAttributes: activeBodyAttributes,
                     profile: profile,
                     theme: theme,
-                    mathProvider: mathProvider
+                    mathProvider: mathProvider,
+                    imagesAsText: imagesAsText
                 ))
             }
 
@@ -642,8 +658,13 @@ struct MarkdownPreviewRenderer {
         mermaidProvider: MermaidImageProviding,
         diagramLog: DiagramFailureLogging,
         reportRegistry: DiagramReportRegistry,
-        appVersion: String
+        appVersion: String,
+        imagesAsText: Bool = false
     ) {
+        if imagesAsText {
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
+            return
+        }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         // Block diagrams: LIGHT themes render on a TRANSPARENT canvas (no box; dark ink draws crisp
         // node borders on the light page) with a fixed ink, so switching among light themes redraws
@@ -723,8 +744,13 @@ struct MarkdownPreviewRenderer {
         theme: Theme,
         columnWidth: CGFloat,
         codeAttributes: [NSAttributedString.Key: Any],
-        mathProvider: MathImageProviding
+        mathProvider: MathImageProviding,
+        imagesAsText: Bool = false
     ) {
+        if imagesAsText {
+            appendMathFallback(latex: latex, to: output, profile: profile, codeAttributes: codeAttributes)
+            return
+        }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let pointSize = CGFloat(profile.fontSize)
         // Block math renders transparent (no canvas) with a fixed light/dark ink, so it matches
@@ -779,7 +805,8 @@ struct MarkdownPreviewRenderer {
         baseAttributes: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
-        mathProvider: MathImageProviding
+        mathProvider: MathImageProviding,
+        imagesAsText: Bool = false
     ) -> NSAttributedString {
         let mathSpans = MathDelimiters.inlineSpans(in: line)
         guard !mathSpans.isEmpty else {
@@ -814,7 +841,7 @@ struct MarkdownPreviewRenderer {
                 ))
             }
             if useMath {
-                appendInlineMath(mathSpan!, to: output, baseAttributes: baseAttributes, profile: profile, theme: theme, mathProvider: mathProvider)
+                appendInlineMath(mathSpan!, to: output, baseAttributes: baseAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
             } else {
                 let token = regexToken!
                 output.append(NSAttributedString(string: token.text, attributes: token.attributes(baseAttributes, profile)))
@@ -832,8 +859,15 @@ struct MarkdownPreviewRenderer {
         baseAttributes: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
-        mathProvider: MathImageProviding
+        mathProvider: MathImageProviding,
+        imagesAsText: Bool = false
     ) {
+        if imagesAsText {
+            var codeAttrs = baseAttributes
+            codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
+            output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
+            return
+        }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let pointSize = CGFloat(profile.fontSize)
         // Inline math stays fully theme-aware.
