@@ -635,6 +635,40 @@ final class EditorDisplayModeTests: XCTestCase {
         }
     }
 
+    // The document tab titles must stay readable on their own capsule fills in every theme.
+    // The light-mode fills are derived from each theme's page color (TabBarView.lightTone), and
+    // the active/hovered pairs were pushed as dark as WCAG AA allows — this locks that so a
+    // future retune can't silently drop a state below 4.5:1. Mirrors the status-color guard.
+    @MainActor
+    func testTabColorsMeetAAAgainstTheirFillsInEveryTheme() {
+        let states: [(name: String, isSelected: Bool, isHovered: Bool)] = [
+            ("inactive rest", false, false),
+            ("inactive hover", false, true),
+            ("selected rest", true, false),
+            ("selected hover", true, true),
+        ]
+        for theme in Theme.builtIn {
+            let dark = theme.usesDarkChrome
+            for state in states {
+                let fill = TabBarView.tabBackgroundColor(
+                    isSelected: state.isSelected,
+                    isHovered: state.isHovered,
+                    usesDarkChrome: dark,
+                    pageBackground: theme.backgroundColor
+                )
+                let text = TabBarView.textColor(
+                    usesDarkChrome: dark,
+                    isSelected: state.isSelected,
+                    isHovered: state.isHovered
+                )
+                XCTAssertGreaterThanOrEqual(
+                    Self.contrastRatio(text, fill), 4.5,
+                    "Tab \(state.name) text fails AA on theme \(theme.name) (dark=\(dark))"
+                )
+            }
+        }
+    }
+
     func testStatusBarFormatsLastSavedTimeAndDate() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

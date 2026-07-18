@@ -1,13 +1,18 @@
 import SwiftUI
 
-/// Tab bar per the user's Paper design (Surface Camera › "Tabs", Groups 762/763,
-/// 2026-07-18). Safari-like behavior, flat fills (no translucency):
+/// Document tab bar (redesigned from live QA, 2026-07-18). Flat capsule tabs, no
+/// translucency:
 /// - Equal-width capsule tabs always filling the bar edge to edge.
-/// - Resting inactive tabs share the bar's fill (they "blend in"), divided by short
-///   hairline separators; separators never touch the selected or hovered tab.
-/// - The selected tab is a lighter capsule with a soft shadow (design: 0/1/2 black 8%).
-/// - Hovering an inactive tab darkens it and reveals a close × at the capsule's LEFT;
-///   hovering the selected tab adds a slight tint and the same left ×. No × at rest.
+/// - The STRIP is the theme page color itself (no bar tone, no separators) so the capsules
+///   float on one continuous surface shared with the nav above and the page below.
+/// - Light-mode fills derive from the page color (`lightTone`), so Original stays neutral
+///   grey while Paper/Calm tint. Inactive tabs are the LIGHTER capsule, the selected tab the
+///   DARKER capsule (with a soft shadow) — the reverse of the first pass; the active/hover
+///   fills are as dark as WCAG AA allows for their titles (guarded by
+///   `testTabColorsMeetAAAgainstTheirFillsInEveryTheme`). Dark chrome keeps fixed dark tones,
+///   with inactive capsules a step darker than the page so they stay delineated.
+/// - Hovering darkens the capsule and darkens its title (a selection preview); an inactive
+///   hover also reveals a close × at the capsule's LEFT. No × at rest, none on a lone tab.
 struct TabBarView: View {
     @ObservedObject var tabStore: EditorTabStore
     @ObservedObject var documentSaveStatus: DocumentSaveStatus
