@@ -45,11 +45,7 @@ struct CrossFileSearchResultsView: View {
     }
 
     var body: some View {
-        // The page scroller is AppKit too (not a SwiftUI ScrollView): SwiftUI's native
-        // scrolling captures wheel events at the hosting level BEFORE AppKit hit-testing,
-        // which starved the per-card scrollers entirely. Nested real NSScrollViews get
-        // classic AppKit routing — wheel over a card scrolls the card, elsewhere the page.
-        AppKitVerticalScrollView(showsScroller: true) {
+        ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 content
@@ -225,12 +221,13 @@ struct CrossFileSearchResultsView: View {
     }
 }
 
-/// AppKit-backed vertical scroller used for BOTH the results page and each card's snippet
-/// pills. SwiftUI's native macOS scrolling captures wheel events at the hosting level, so
-/// a SwiftUI page scroller starves any scroller nested inside it; two real NSScrollViews
-/// restore classic AppKit routing (the deepest scroll view under the cursor gets the
-/// wheel, its ancestor gets it elsewhere). Transparent background, arrow document cursor
-/// so the page's cursor policy holds over scrollable regions too.
+/// AppKit-backed vertical scroller for each card's snippet pills. A real NSScrollView
+/// receives the wheel for the area under the cursor directly from AppKit, and — the part
+/// that actually broke — its document is sized by content (`intrinsicContentSize`), so
+/// overflowing pills genuinely scroll instead of compressing to fit the card. The page
+/// around it stays an ordinary SwiftUI ScrollView (an AppKit page scroller was tried and
+/// mis-laid-out the LazyVGrid — lazy containers don't report a usable intrinsic height).
+/// Transparent background, arrow document cursor so the page's cursor policy holds.
 private struct AppKitVerticalScrollView<Content: View>: NSViewRepresentable {
     let showsScroller: Bool
     let content: Content
