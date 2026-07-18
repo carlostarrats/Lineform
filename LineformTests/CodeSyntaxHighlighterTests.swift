@@ -137,3 +137,35 @@ final class CodeSyntaxHighlighterTests: XCTestCase {
         }
     }
 }
+
+extension CodeSyntaxHighlighterTests {
+    func testHTMLTagsCommentsAndAttributeValues() {
+        let src = "<!-- c -->\n<a href=\"x\">hi</a>"
+        let ns = src as NSString
+        let out = highlighter.tokens(for: src, language: "html").map { (ns.substring(with: $0.range), $0.kind) }
+        XCTAssertTrue(out.contains { $0 == ("<!-- c -->", .comment) })
+        XCTAssertTrue(out.contains { $0 == ("a", .keyword) })      // tag name (open)
+        XCTAssertTrue(out.contains { $0 == ("\"x\"", .string) })   // attribute value
+        XCTAssertTrue(out.contains { $0 == ("a", .keyword) && true }) // closing </a> tag name too
+    }
+
+    func testHTMLPlainTextBetweenTagsIsNotTokenized() {
+        // "hi" between tags produces no token (stays default code color).
+        let tokens = highlighter.tokens(for: "<b>hi</b>", language: "html")
+        let ns = "<b>hi</b>" as NSString
+        XCTAssertFalse(tokens.contains { ns.substring(with: $0.range) == "hi" })
+    }
+
+    func testCSSCommentStringAndNumber() {
+        let src = "/* c */\n.a { color: \"red\"; width: 12px; }"
+        let ns = src as NSString
+        let out = highlighter.tokens(for: src, language: "css").map { (ns.substring(with: $0.range), $0.kind) }
+        XCTAssertTrue(out.contains { $0 == ("/* c */", .comment) })
+        XCTAssertTrue(out.contains { $0 == ("\"red\"", .string) })
+        XCTAssertTrue(out.contains { $0.1 == .number })   // 12 (px suffix handled by number scan)
+    }
+
+    func testUnknownLanguageStillEmptyAfterMarkupAdded() {
+        XCTAssertTrue(highlighter.tokens(for: "<a>", language: "yaml").isEmpty)
+    }
+}

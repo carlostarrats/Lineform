@@ -228,13 +228,79 @@ struct CodeSyntaxHighlighter: CodeSyntaxHighlighting {
         case .python: return ScriptScanner.tokens(source: source, grammar: .python)
         case .json: return ScriptScanner.tokens(source: source, grammar: .json)
         case .bash: return ScriptScanner.tokens(source: source, grammar: .bash)
-        case .css: return ScriptScanner.tokens(source: source, grammar: CodeGrammar(lineComment: nil, blockComment: ("/*", "*/"), stringDelimiters: [0x22, 0x27]))
-        case .html: return HTMLScanner.tokens(source: source)   // Task 2
+        case .css:
+            return ScriptScanner.tokens(source: source, grammar: CodeGrammar(
+                keywords: [],
+                types: [],
+                lineComment: nil,
+                blockComment: ("/*", "*/"),
+                stringDelimiters: [0x22, 0x27],
+                capitalizedIdentifiersAreTypes: false
+            ))
+        case .html: return HTMLScanner.tokens(source: source)
         }
     }
 }
 
-// TODO(Task 2): replace this stub with the real HTML scanner in the same file.
+/// A light HTML/XML scanner: comments `<!-- -->` → `.comment`, tag names (open/close) → `.keyword`,
+/// quoted attribute values → `.string`. Text between tags stays untokenized (default code color).
 enum HTMLScanner {
-    static func tokens(source: String) -> [CodeToken] { [] }
+    static func tokens(source: String) -> [CodeToken] {
+        let s = source as NSString
+        let n = s.length
+        var tokens: [CodeToken] = []
+        var i = 0
+
+        func matches(_ literal: String, at index: Int) -> Bool {
+            let lit = literal as NSString
+            guard index + lit.length <= n else { return false }
+            return s.substring(with: NSRange(location: index, length: lit.length)) == literal
+        }
+        func isNameStart(_ c: unichar) -> Bool {
+            (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A)
+        }
+        func isNamePart(_ c: unichar) -> Bool {
+            isNameStart(c) || (c >= 0x30 && c <= 0x39) || c == 0x2D || c == 0x5F || c == 0x3A
+        }
+
+        while i < n {
+            // Comment.
+            if matches("<!--", at: i) {
+                let start = i
+                i += 4
+                while i < n && !matches("-->", at: i) { i += 1 }
+                if i < n { i += 3 }
+                tokens.append(CodeToken(range: NSRange(location: start, length: i - start), kind: .comment))
+                continue
+            }
+            // Tag: `<name ...>` or `</name>`.
+            if s.character(at: i) == 0x3C {   // '<'
+                i += 1
+                if i < n && s.character(at: i) == 0x2F { i += 1 }   // '/'
+                if i < n && isNameStart(s.character(at: i)) {
+                    let nameStart = i
+                    i += 1
+                    while i < n && isNamePart(s.character(at: i)) { i += 1 }
+                    tokens.append(CodeToken(range: NSRange(location: nameStart, length: i - nameStart), kind: .keyword))
+                }
+                // Inside the tag: emit quoted attribute values as strings until '>'.
+                while i < n && s.character(at: i) != 0x3E {   // '>'
+                    let c = s.character(at: i)
+                    if c == 0x22 || c == 0x27 {               // '"' or '\''
+                        let start = i
+                        i += 1
+                        while i < n && s.character(at: i) != c { i += 1 }
+                        if i < n { i += 1 }
+                        tokens.append(CodeToken(range: NSRange(location: start, length: i - start), kind: .string))
+                    } else {
+                        i += 1
+                    }
+                }
+                if i < n { i += 1 }   // consume '>'
+                continue
+            }
+            i += 1
+        }
+        return tokens
+    }
 }
