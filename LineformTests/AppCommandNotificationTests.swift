@@ -122,6 +122,21 @@ final class AppCommandNotificationTests: XCTestCase {
         )
     }
 
+    func testJumpToFileCommandUsesWindowScopedNotification() {
+        XCTAssertEqual(AppMenuConfiguration.jumpToFileCommandTitle, "Jump to File…")
+        XCTAssertEqual(AppMenuConfiguration.jumpToFileCommandKeyEquivalent, "k")
+        XCTAssertEqual(
+            LineformAppNotification.showQuickOpen.name.rawValue,
+            "Lineform.showQuickOpen"
+        )
+    }
+
+    func testLinkFormattingShortcutMovedToCommandL() {
+        // Cmd+K now belongs to Jump to File; Format > Link (and its context-menu hint)
+        // must claim Cmd+L instead.
+        XCTAssertEqual(AppMenuConfiguration.linkCommandKeyEquivalent, "l")
+    }
+
     func testTextFormatConversionCommandUsesWindowScopedNotification() {
         XCTAssertEqual(
             LineformAppNotification.convertTextFormat.name.rawValue,

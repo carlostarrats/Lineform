@@ -42,6 +42,11 @@ enum AppMenuConfiguration {
     // Three-period ellipsis matches the surrounding File-menu titles ("Save As...").
     static let renameFileCommandTitle = "Rename..."
     static let deleteFileCommandTitle = "Delete..."
+    static let jumpToFileCommandTitle = "Jump to File…"
+    static let jumpToFileCommandKeyEquivalent = "k"
+    /// Format > Link's shortcut letter. Was "k" until quick-open claimed Cmd+K
+    /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
+    static let linkCommandKeyEquivalent = "l"
     static let printCommandTitle = "Print..."
     static let exportPDFCommandTitle = "Export as PDF..."
     static let checkForUpdatesCommandTitle = "Check for Updates..."
@@ -369,7 +374,10 @@ struct AppCommands: Commands {
                 Button("Link") {
                     NSApp.sendAction(#selector(LineformTextView.toggleLinkMarkdown(_:)), to: nil, from: nil)
                 }
-                .keyboardShortcut("k", modifiers: .command)
+                .keyboardShortcut(
+                    KeyEquivalent(Character(AppMenuConfiguration.linkCommandKeyEquivalent)),
+                    modifiers: .command
+                )
 
                 Divider()
             }
@@ -438,6 +446,16 @@ struct AppCommands: Commands {
                 LineformAppNotification.newTab.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("t", modifiers: .command)
+
+            // Jump to File lives beside New Tab: both are "get to a document" actions,
+            // unlike the Save As/Rename/Delete group that acts on the current file.
+            Button(AppMenuConfiguration.jumpToFileCommandTitle) {
+                LineformAppNotification.showQuickOpen.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut(
+                KeyEquivalent(Character(AppMenuConfiguration.jumpToFileCommandKeyEquivalent)),
+                modifiers: .command
+            )
         }
 
         CommandGroup(after: .saveItem) {

@@ -408,7 +408,7 @@ final class LineformTextView: NSTextView {
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.italicTitle, action: #selector(toggleItalicMarkdown(_:)), keyEquivalent: "i"))
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.codeTitle, action: #selector(toggleInlineCodeMarkdown(_:)), keyEquivalent: "`"))
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.bulletedListTitle, action: #selector(toggleUnorderedListMarkdown(_:)), keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.linkTitle, action: #selector(toggleLinkMarkdown(_:)), keyEquivalent: "k"))
+            menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.linkTitle, action: #selector(toggleLinkMarkdown(_:)), keyEquivalent: AppMenuConfiguration.linkCommandKeyEquivalent))
         }
         return menu
     }
