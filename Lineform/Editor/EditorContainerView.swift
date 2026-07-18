@@ -48,6 +48,9 @@ struct EditorContainerView: View {
     /// Set when a PDF export write fails, driving a native in-window `.alert` (no app-icon
     /// NSAlert). Holds the destination file name for the message.
     @State private var pdfExportErrorFileName: String?
+    /// Set when an RTF export write fails, driving a native in-window `.alert` (no app-icon
+    /// NSAlert). Holds the destination file name for the message.
+    @State private var rtfExportErrorFileName: String?
     @State private var tabCloseDialog: TabCloseDialog?
     /// Coordinates saving a dirty tab before closing it.
     @State private var saveAndCloseCoordinator: SaveAndCloseCoordinator?
@@ -159,6 +162,18 @@ struct EditorContainerView: View {
             presenting: pdfExportErrorFileName
         ) { _ in
             Button("OK", role: .cancel) { pdfExportErrorFileName = nil }
+        } message: { fileName in
+            Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
+        }
+        .alert(
+            "Couldn\u{2019}t Export RTF",
+            isPresented: Binding(
+                get: { rtfExportErrorFileName != nil },
+                set: { if !$0 { rtfExportErrorFileName = nil } }
+            ),
+            presenting: rtfExportErrorFileName
+        ) { _ in
+            Button("OK", role: .cancel) { rtfExportErrorFileName = nil }
         } message: { fileName in
             Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
         }
@@ -328,6 +343,10 @@ struct EditorContainerView: View {
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.exportPDF.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
             exportCurrentDocumentAsPDF()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.exportRTF.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            exportCurrentDocumentAsRTF()
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.newTab.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
@@ -1619,6 +1638,41 @@ struct EditorContainerView: View {
     private var defaultExportFileName: String {
         let base = currentFileURL?.deletingPathExtension().lastPathComponent
         return ((base?.isEmpty == false ? base! : "Untitled")) + ".pdf"
+    }
+
+    private var defaultRTFExportFileName: String {
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent
+        return ((base?.isEmpty == false ? base! : "Untitled")) + ".rtf"
+    }
+
+    /// Prompts for a destination and writes the rich rendered document as RTF (styled text; math and
+    /// mermaid degrade to caption/source text — RTF can't portably embed images). No paper accessory:
+    /// RTF reflows in the target app; the export paper only sets the render wrap width.
+    private func exportCurrentDocumentAsRTF() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.rtf]
+        panel.nameFieldStringValue = defaultRTFExportFileName
+        panel.canCreateDirectories = true
+
+        let write: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let data = try DocumentExportRenderer.rtfData(
+                    for: document,
+                    profile: readingProfileStore.activeProfile,
+                    paper: defaultExportPaperSize
+                )
+                try data.write(to: url)
+            } catch {
+                rtfExportErrorFileName = url.lastPathComponent
+            }
+        }
+
+        if let window = activeWindow {
+            panel.beginSheetModal(for: window, completionHandler: write)
+        } else {
+            write(panel.runModal())
+        }
     }
 
     /// Defaults to whichever offered paper best matches the system's default (A4 in most of the

@@ -18,6 +18,7 @@ enum LineformAppNotification {
     case deleteCurrentFile
     case printDocument
     case exportPDF
+    case exportRTF
     case newTab
     case closeTab
     case selectNextTab
@@ -57,6 +58,8 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.printDocument")
         case .exportPDF:
             return Notification.Name("Lineform.exportPDF")
+        case .exportRTF:
+            return Notification.Name("Lineform.exportRTF")
         case .newTab:
             return Notification.Name("Lineform.newTab")
         case .closeTab:

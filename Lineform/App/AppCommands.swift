@@ -49,6 +49,9 @@ enum AppMenuConfiguration {
     static let linkCommandKeyEquivalent = "l"
     static let printCommandTitle = "Print..."
     static let exportPDFCommandTitle = "Export as PDF..."
+    static let exportAsMenuTitle = "Export As"
+    static let exportPDFSubmenuTitle = "PDF…"
+    static let exportRTFCommandTitle = "Rich Text (RTF)…"
     static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let privacyPolicyCommandTitle = "Privacy Policy"
@@ -307,7 +310,7 @@ struct AppCommands: Commands {
             .disabled(currentFileMenuState.currentFileURL == nil)
         }
 
-        // Print + rich PDF export live in the natural Print slot of the File menu. Both render
+        // Print + rich export live in the natural Print slot of the File menu. All render
         // the document the way Read mode does (white page, black ink), regardless of the current
         // display mode. Always enabled like Save As…; a post with no key window is a safe no-op.
         CommandGroup(replacing: .printItem) {
@@ -316,8 +319,13 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("p", modifiers: .command)
 
-            Button(AppMenuConfiguration.exportPDFCommandTitle) {
-                LineformAppNotification.exportPDF.post(object: LineformAppNotification.activeWindowPayload())
+            Menu(AppMenuConfiguration.exportAsMenuTitle) {
+                Button(AppMenuConfiguration.exportPDFSubmenuTitle) {
+                    LineformAppNotification.exportPDF.post(object: LineformAppNotification.activeWindowPayload())
+                }
+                Button(AppMenuConfiguration.exportRTFCommandTitle) {
+                    LineformAppNotification.exportRTF.post(object: LineformAppNotification.activeWindowPayload())
+                }
             }
         }
 
