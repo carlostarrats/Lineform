@@ -127,6 +127,34 @@ final class DocumentExportRendererTests: XCTestCase {
         XCTAssertEqual(view.frame.width, DocumentExportRenderer.contentSize(for: .usLetter).width, accuracy: 0.5)
     }
 
+    // Reviewer-flagged coverage gap: `testExportModeCodeIsMonochrome` (in
+    // MarkdownPreviewRendererTests) proves the mechanism (`highlightsCode: false` strips
+    // per-token color), but nothing exercised the actual export wiring — the wrapper that
+    // Print/Export as PDF call. This drives `makeExportTextView` directly with a fenced code
+    // block in a recognized language (swift) that WOULD be multi-colored on screen, and asserts
+    // the exported attributed string carries exactly one foreground color over the code body.
+    func testExportTextViewCodeBlockIsMonochrome() {
+        let view = DocumentExportRenderer.makeExportTextView(
+            text: "```swift\nlet x = 42\n```",
+            profile: .original,
+            paper: .usLetter
+        )
+
+        guard let storage = view.textStorage else {
+            XCTFail("Export text view should have backing text storage.")
+            return
+        }
+        let full = storage.string as NSString
+        let bodyRange = full.range(of: "let x = 42")
+        XCTAssertNotEqual(bodyRange.location, NSNotFound, "Code body text should be rendered (fence markers stripped).")
+
+        var colors: Set<NSColor> = []
+        storage.enumerateAttribute(.foregroundColor, in: bodyRange, options: []) { value, _, _ in
+            if let color = value as? NSColor { colors.insert(color) }
+        }
+        XCTAssertEqual(colors.count, 1, "Exported code body should use a single monochrome ink, not the multi-color CodeSyntaxPalette.")
+    }
+
     func testFitColumnPercentagesAreProportionalAndFitUnderFullWidth() {
         let rows: [(cells: [String], isHeader: Bool)] = [
             (["Construct", "Read", "PDF", "Align"], true),
