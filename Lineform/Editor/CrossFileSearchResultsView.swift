@@ -167,6 +167,12 @@ struct CrossFileSearchResultsView: View {
                 // the card opens the file" true.
                 .contentShape(Rectangle())
                 .onTapGesture { onOpen(result) }
+                // The pills live in a separate NSHostingView (AppKitVerticalScrollView), which
+                // starts a fresh SwiftUI environment seeded from that NSView's effectiveAppearance
+                // — the drift this codebase guards against elsewhere. Every pill color here is
+                // already explicit/theme-derived, but pin the scheme so a later switch to an
+                // ambient color (.primary/.secondary) can't render pills against the wrong chrome.
+                .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }

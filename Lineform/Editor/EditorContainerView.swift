@@ -1054,10 +1054,17 @@ struct EditorContainerView: View {
     }
 
     private func performCloseTab(id: UUID) {
+        // Re-activate ONLY when the closed tab was the selected one (closeTab then moves the
+        // selection to a sibling). Closing a BACKGROUND tab leaves selectedTabID unchanged, so
+        // activating again would needlessly re-run activateSelectedTab against the still-active
+        // tab — which clears its live search/Find&Replace + caret (resetTransientDocumentState)
+        // and wipes its undo stack (undoManager.removeAllActions). None of that should happen
+        // just because the user closed a different tab.
+        let wasSelected = (id == tabStore.selectedTabID)
         tabStore.closeTab(id: id)
         if tabStore.tabs.isEmpty {
             activeWindow?.performClose(nil)
-        } else {
+        } else if wasSelected {
             activateSelectedTab()
         }
     }

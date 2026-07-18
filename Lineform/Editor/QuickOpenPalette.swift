@@ -95,19 +95,28 @@ struct QuickOpenPalette: View {
             // ScrollView greedily fills its maxHeight even with two rows, which left the
             // card tall and empty; cap the frame at the CONTENT's estimated height so the
             // card hugs small result sets and only grows (then scrolls) as matches do.
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(results.enumerated()), id: \.element.id) { index, entry in
-                        resultRow(entry, isSelected: index == selectionIndex)
-                            .onTapGesture { onOpen(entry) }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(results.enumerated()), id: \.element.id) { index, entry in
+                            resultRow(entry, isSelected: index == selectionIndex)
+                                .id(entry.id)
+                                .onTapGesture { onOpen(entry) }
+                        }
                     }
+                    .padding(.vertical, 8)
                 }
-                .padding(.vertical, 8)
+                .frame(maxHeight: min(
+                    Self.listMaximumHeight,
+                    CGFloat(results.count) * Self.estimatedRowHeight + 16
+                ))
+                // Keyboard selection can move the highlighted row past the visible fold; follow
+                // it so the selection (and what Return will open) is always on screen.
+                .onChange(of: selectionIndex) { _, newIndex in
+                    guard results.indices.contains(newIndex) else { return }
+                    proxy.scrollTo(results[newIndex].id)
+                }
             }
-            .frame(maxHeight: min(
-                Self.listMaximumHeight,
-                CGFloat(results.count) * Self.estimatedRowHeight + 16
-            ))
         }
     }
 
