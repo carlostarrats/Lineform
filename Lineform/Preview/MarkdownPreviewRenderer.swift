@@ -8,6 +8,10 @@ extension NSAttributedString.Key {
     /// Attached to rendered heading text; value is an `NSValue` boxing the `NSRange` of the
     /// heading line in the source document, so the outline sidebar can sync its scroll state.
     static let headingSourceRange = NSAttributedString.Key("lineform.headingSourceRange")
+
+    /// Attached to a rendered fenced-code body; value is an `NSValue` boxing the `NSRange` of the
+    /// code body in the SOURCE document, so the hover copy pill can copy the raw code.
+    static let codeBlockSourceRange = NSAttributedString.Key("lineform.codeBlockSourceRange")
 }
 
 struct MarkdownPreviewRenderer {
@@ -56,7 +60,11 @@ struct MarkdownPreviewRenderer {
         // Export/print sets this so tables shrink to fit the page (proportional percentage
         // columns, cells wrap) instead of overflowing a narrow page column. On screen it stays
         // false so the wide reading column keeps content-sized columns.
-        fitTablesToWidth: Bool = false
+        fitTablesToWidth: Bool = false,
+        // True on screen (Read/Preview) → code is syntax-highlighted; false from
+        // DocumentExportRenderer → code stays MONOCHROME in PDFs (user decision).
+        highlightsCode: Bool = true,
+        codeHighlighter: CodeSyntaxHighlighting = CodeSyntaxHighlighter()
     ) -> NSAttributedString {
         reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
@@ -87,8 +95,6 @@ struct MarkdownPreviewRenderer {
                     mathProvider: mathProvider,
                     bodyAttributes: bodyAttributes,
                     bodyBlockSpacingAttributes: bodyBlockSpacingAttributes,
-                    codeAttributes: codeAttributes,
-                    codeBlockSpacingAttributes: codeBlockSpacingAttributes,
                     blockSpacingLineIndexes: blockSpacingLineIndexes
                 )
             case .singleLineMath(let latex, let lineIndex):
@@ -143,15 +149,32 @@ struct MarkdownPreviewRenderer {
             case .table(let table, let lastLineIndex):
                 appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, fitToWidth: fitTablesToWidth)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
-            case .fencedCode(_, let body, let openingIndex, let closingIndex):
-                // TEMPORARY stub for Task 4 (routing only): plain monospace body, no token
-                // highlighting and no copy-pill range yet. Replaced by `appendCodeBlock` in Task 5.
-                output.append(NSAttributedString(string: body, attributes: codeAttributes))
+            case .fencedCode(let language, let body, let openingIndex, let closingIndex):
+                appendCodeBlock(
+                    language: language,
+                    body: body,
+                    openingIndex: openingIndex,
+                    to: output,
+                    lineRanges: lineRanges,
+                    theme: theme,
+                    highlightsCode: highlightsCode,
+                    codeHighlighter: codeHighlighter,
+                    codeAttributes: codeAttributes
+                )
+                // When the closing fence's own source line was flagged for block spacing (a blank
+                // line follows the fence), the pre-Task-4 renderer carried that bumped spacing on
+                // the (then-rendered) closing fence line itself. That line is no longer rendered,
+                // so the same rhythm is restored on the block separator right after the code —
+                // the paragraph whose trailing spacing actually creates the gap before whatever
+                // follows.
+                let separatorAttributes = closingIndex.map { blockSpacingLineIndexes.contains($0) } == true
+                    ? codeBlockSpacingAttributes
+                    : bodyAttributes
                 appendBlockSeparator(
                     afterLine: closingIndex ?? openingIndex,
                     to: output,
                     totalLines: lines.count,
-                    attributes: bodyAttributes
+                    attributes: separatorAttributes
                 )
             }
         }
@@ -407,10 +430,12 @@ struct MarkdownPreviewRenderer {
         return ranges
     }
 
-    /// Render a maximal run of ordinary lines (body, headings, fenced code) exactly as the original
-    /// per-line loop did: fence state starts closed (every `.lines` run begins where the grouping
-    /// was outside any fence), each line emits its content plus a trailing newline unless it is the
-    /// document's last line, and block-spacing attributes are looked up by original line index.
+    /// Render a maximal run of ordinary lines (body, headings) exactly as the original per-line
+    /// loop did: each line emits its content plus a trailing newline unless it is the document's
+    /// last line, and block-spacing attributes are looked up by original line index. Fence
+    /// delimiter lines can never reach this function — `.fencedCode` consumes them wholesale at
+    /// the grouping layer (`markdownBlocks(in:)`) before `.lines` runs are formed, and every
+    /// fenced-code body is rendered by `appendCodeBlock` instead.
     private func appendLines(
         _ range: Range<Int>,
         to output: NSMutableAttributedString,
@@ -421,27 +446,15 @@ struct MarkdownPreviewRenderer {
         mathProvider: MathImageProviding,
         bodyAttributes: [NSAttributedString.Key: Any],
         bodyBlockSpacingAttributes: [NSAttributedString.Key: Any],
-        codeAttributes: [NSAttributedString.Key: Any],
-        codeBlockSpacingAttributes: [NSAttributedString.Key: Any],
         blockSpacingLineIndexes: Set<Int>
     ) {
-        var inFence = false
         for index in range {
             let line = lines[index]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
             let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
             let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
-            let activeCodeAttributes = usesBlockSpacing ? codeBlockSpacingAttributes : codeAttributes
             var lineTerminatorAttributes = activeBodyAttributes
 
-            if MermaidFence.isFenceDelimiter(trimmed) {
-                inFence.toggle()
-                output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
-                lineTerminatorAttributes = activeCodeAttributes
-            } else if inFence {
-                output.append(NSAttributedString(string: line, attributes: activeCodeAttributes))
-                lineTerminatorAttributes = activeCodeAttributes
-            } else if let heading = heading(in: line) {
+            if let heading = heading(in: line) {
                 var activeHeadingAttributes = headingAttributes(
                     level: heading.level,
                     profile: profile,
@@ -469,6 +482,44 @@ struct MarkdownPreviewRenderer {
                 output.append(NSAttributedString(string: "\n", attributes: lineTerminatorAttributes))
             }
         }
+    }
+
+    /// Emit a fenced code block: monospace body (fence delimiter lines hidden, like other markup),
+    /// optionally syntax-highlighted. Highlighting is pure foreground color over token ranges —
+    /// display-only, no rasters, nothing written to disk. The whole body carries a
+    /// `.codeBlockSourceRange` attribute (the body's range in the SOURCE document) so the hover copy
+    /// pill can copy the raw code.
+    private func appendCodeBlock(
+        language: String,
+        body: String,
+        openingIndex: Int,
+        to output: NSMutableAttributedString,
+        lineRanges: [NSRange],
+        theme: Theme,
+        highlightsCode: Bool,
+        codeHighlighter: CodeSyntaxHighlighting,
+        codeAttributes: [NSAttributedString.Key: Any]
+    ) {
+        guard !body.isEmpty else { return }   // empty fence → nothing to render or copy
+
+        let coded = NSMutableAttributedString(string: body, attributes: codeAttributes)
+
+        // Syntax colors only on screen (highlightsCode) and only for a recognized language; export
+        // and unknown languages stay monochrome (the codeAttributes foreground is untouched).
+        if highlightsCode {
+            for token in codeHighlighter.tokens(for: body, language: language) where token.kind != .plain {
+                guard NSMaxRange(token.range) <= (body as NSString).length else { continue }
+                coded.addAttribute(.foregroundColor, value: CodeSyntaxPalette.color(for: token.kind, theme: theme), range: token.range)
+            }
+        }
+
+        // The body's range in the ORIGINAL document = the first body line's source start + body
+        // length (body lines are contiguous, separated by "\n", exactly as joined during grouping).
+        let bodyStart = openingIndex + 1 < lineRanges.count ? lineRanges[openingIndex + 1].location : lineRanges[openingIndex].location
+        let sourceRange = NSRange(location: bodyStart, length: (body as NSString).length)
+        coded.addAttribute(.codeBlockSourceRange, value: NSValue(range: sourceRange), range: NSRange(location: 0, length: coded.length))
+
+        output.append(coded)
     }
 
     /// Emit a mermaid block: a rendered diagram image (constrained to the column width, with a

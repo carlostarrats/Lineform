@@ -245,16 +245,28 @@ final class MarkdownPreviewRendererTests: XCTestCase {
     func testBlockSpacingDoesNotTreatFencedCodeContentsAsMarkdownBlocks() throws {
         // A `# heading`-looking line inside a code fence must not pick up heading paragraph
         // spacing; it renders as plain fenced-code body. The fence delimiters themselves are no
-        // longer emitted (Task 4: fenced code is its own `.fencedCode` block, not `.lines`), so
-        // this no longer checks spacing on the (now-absent) closing-fence text — the Task 4 stub
-        // emitter doesn't thread `codeBlockSpacingAttributes`; that lands with `appendCodeBlock`
-        // in Task 5.
+        // longer emitted (Task 4: fenced code is its own `.fencedCode` block, not `.lines`).
         var profile = ReadingProfile.original
         profile.paragraphSpacing = 18
         let rendered = MarkdownPreviewRenderer().render("```\n# Not a heading\n\n```\n\nBody", profile: profile)
         let fencedHeadingStyle = try paragraphStyle(in: rendered, searchText: "# Not a heading")
 
         XCTAssertEqual(fencedHeadingStyle.paragraphSpacing, 0)
+
+        // A block AFTER the fenced code resumes correct paragraph spacing. Paragraph spacing is a
+        // property of the PRECEDING paragraph (space *after* it), so the gap before "Body" is
+        // carried by the lone separator newline emitted right after the code block, not by "Body"
+        // itself or by the code content (which must stay at 0, per the assertion above). The
+        // source has a blank line right after the closing fence, so that boundary is flagged for
+        // block spacing and Task 5's `appendCodeBlock`/dispatch threads `codeBlockSpacingAttributes`
+        // onto that separator, restoring the pre-Task-4 rhythm.
+        // Rendered string is "# Not a heading\n\n\nBody": the code body's own trailing "\n", the
+        // block separator's "\n" (the boundary this asserts on), then the blank source line's own
+        // "\n" (rendered by the following `.lines` run) before "Body".
+        let full = rendered.string as NSString
+        let bodyLocation = full.range(of: "Body").location
+        let separatorStyle = try paragraphStyle(in: rendered, location: bodyLocation - 2)
+        XCTAssertEqual(separatorStyle.paragraphSpacing, 18)
     }
 
     @MainActor
@@ -731,5 +743,67 @@ final class MarkdownPreviewRendererMathTests: XCTestCase {
         XCTAssertFalse(rendered.string.contains("$"), "no stray dollar signs around inline display math")
         XCTAssertTrue(rendered.string.contains("the famous "))
         XCTAssertTrue(rendered.string.contains(" equation"))
+    }
+}
+
+extension MarkdownPreviewRendererTests {
+    private func renderReadMode(_ text: String, highlightsCode: Bool = true) -> NSAttributedString {
+        MarkdownPreviewRenderer().render(
+            text,
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "0",
+            highlightsCode: highlightsCode
+        )
+    }
+
+    /// The set of distinct non-nil foreground colors applied over the rendered code body.
+    private func codeForegroundColors(in attributed: NSAttributedString, bodySubstring: String) -> Set<NSColor> {
+        let full = attributed.string as NSString
+        let bodyRange = full.range(of: bodySubstring)
+        guard bodyRange.location != NSNotFound else { return [] }
+        var colors: Set<NSColor> = []
+        attributed.enumerateAttribute(.foregroundColor, in: bodyRange, options: []) { value, _, _ in
+            if let c = value as? NSColor { colors.insert(c) }
+        }
+        return colors
+    }
+
+    func testReadModeCodeIsMultiColored() {
+        let out = renderReadMode("```swift\nlet x = 42\n```")
+        // Highlighted code uses more than one foreground color (keyword + number + plain).
+        XCTAssertGreaterThan(codeForegroundColors(in: out, bodySubstring: "let x = 42").count, 1)
+    }
+
+    func testExportModeCodeIsMonochrome() {
+        let out = renderReadMode("```swift\nlet x = 42\n```", highlightsCode: false)
+        // No coloring: the body is a single foreground color (the theme's code ink).
+        XCTAssertEqual(codeForegroundColors(in: out, bodySubstring: "let x = 42").count, 1)
+    }
+
+    func testUnknownLanguageCodeIsMonochromeEvenInReadMode() {
+        let out = renderReadMode("```yaml\nkey: value\n```")
+        XCTAssertEqual(codeForegroundColors(in: out, bodySubstring: "key: value").count, 1)
+    }
+
+    func testFenceDelimitersAreNotRendered() {
+        let out = renderReadMode("```swift\nlet x = 1\n```")
+        XCTAssertFalse(out.string.contains("```"))
+    }
+
+    func testCodeBlockCarriesSourceRangeAttribute() {
+        let out = renderReadMode("```swift\nlet x = 1\n```")
+        let full = out.string as NSString
+        let bodyRange = full.range(of: "let x = 1")
+        var found: NSRange?
+        out.enumerateAttribute(.codeBlockSourceRange, in: bodyRange, options: []) { value, _, stop in
+            if let v = value as? NSValue { found = v.rangeValue; stop.pointee = true }
+        }
+        // Source range points at the body within the ORIGINAL text ("```swift\n" is 9 UTF-16 units).
+        XCTAssertEqual(found, NSRange(location: 9, length: ("let x = 1" as NSString).length))
     }
 }

@@ -111,7 +111,10 @@ enum DocumentExportRenderer {
             reportRegistry: DiagramReportRegistry(),
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             // Tables shrink to fit the fixed page column rather than overflowing off the right edge.
-            fitTablesToWidth: true
+            fitTablesToWidth: true,
+            // Exported/printed code stays monochrome — a deliberate product decision (see the
+            // "highlightsCode" parameter above).
+            highlightsCode: false
         )
 
         // Classic TextKit 1 stack, matching the on-screen preview view — the renderer's
