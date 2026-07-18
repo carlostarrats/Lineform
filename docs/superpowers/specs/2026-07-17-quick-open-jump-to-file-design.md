@@ -73,8 +73,11 @@ deep nested folders where tree-hunting is slower than typing a few fuzzy charact
   window reuse it without re-scanning (see the file-watcher note under Risks). This scan
   trigger is functionally the same one the Files tab's `.onAppear` uses, just reached via a
   different explicit user gesture — it does **not** weaken the iCloud-laziness invariant
-  (never scan at launch/construction), since ⌘K is itself on-demand. If a scan is still in
-  flight when results are needed, show a quiet "Scanning…" row (see Error handling below).
+  (never scan at launch/construction), since ⌘K is itself on-demand. No scan-in-flight
+  indicator: the store loads cached snapshots at init and scans the workspace
+  synchronously, so an in-flight-scan-with-empty-results state only exists on a
+  first-ever launch before iCloud has ever scanned — "No matches" is acceptable there and
+  the list fills in when the background scan publishes.
 
 ### The palette
 

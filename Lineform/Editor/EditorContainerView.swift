@@ -23,6 +23,8 @@ struct EditorContainerView: View {
     @State private var activeSearchIndex: Int?
     @FocusState private var isSearchFocused: Bool
     @State private var isShowingFindReplace = false
+    @State private var isShowingQuickOpen = false
+    @State private var quickOpenQuery = ""
     @State private var replaceText = ""
     @State private var requestedReplacement: MarkdownEdit?
     @FocusState private var isReplaceFocused: Bool
@@ -238,6 +240,22 @@ struct EditorContainerView: View {
             }
             isShowingFindReplace = true
             isSearchFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showQuickOpen.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else {
+                return
+            }
+            // First ⌘K of a session triggers the deferred iCloud scan — the same
+            // user-gesture trigger the Files tab uses, so the iCloud-laziness
+            // invariant (never scan at launch/construction) holds. Workspace was
+            // already scanned at store init; refresh it here too so a session-old
+            // tree gets one catch-up walk (background-scanning store, no hitch).
+            if !fileBrowserStore.hasPerformedICloudScan {
+                fileBrowserStore.refreshICloud()
+                fileBrowserStore.refreshWorkspace()
+            }
+            quickOpenQuery = ""
+            isShowingQuickOpen = true
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.setDisplayMode.name)) { notification in
             guard
@@ -508,10 +526,35 @@ struct EditorContainerView: View {
                     }
                 }
             }
+
+            // Quick open (⌘K) uses the same shared Muse modal language as Settings:
+            // scrim + centered card + Esc/outside-click dismissal.
+            if isShowingQuickOpen {
+                museModalLayer(scrimZIndex: 5, modalZIndex: 6, onDismiss: { dismissQuickOpen() }) { geometry in
+                    QuickOpenPalette(
+                        entries: QuickOpenIndex.flatten(
+                            iCloudRoot: fileBrowserStore.iCloudRoot,
+                            workspaceRoot: fileBrowserStore.workspaceRoot
+                        ),
+                        query: $quickOpenQuery,
+                        usesDarkChrome: theme.usesDarkChrome,
+                        availableWidth: geometry.size.width,
+                        onOpen: { entry in
+                            openSidebarFile(entry.url)
+                            dismissQuickOpen()
+                        },
+                        onDismiss: { dismissQuickOpen() }
+                    )
+                }
+            }
         }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
             value: isShowingSettings
+        )
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
+            value: isShowingQuickOpen
         )
     }
 
@@ -691,6 +734,11 @@ struct EditorContainerView: View {
     private func dismissFindReplace() {
         isShowingFindReplace = false
         isReplaceFocused = false
+    }
+
+    private func dismissQuickOpen() {
+        isShowingQuickOpen = false
+        quickOpenQuery = ""
     }
 
     // Replace the current active match with the replacement text, then move to the next match
@@ -1235,6 +1283,8 @@ struct EditorContainerView: View {
         isReplaceFocused = false
         replaceText = ""
         requestedReplacement = nil
+        isShowingQuickOpen = false
+        quickOpenQuery = ""
     }
 
     private func refreshSearchMatches(selectFirstWhenNeeded: Bool, navigatesToActiveMatch: Bool = true) {
