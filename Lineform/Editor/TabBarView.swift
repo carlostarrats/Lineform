@@ -48,25 +48,31 @@ struct TabBarView: View {
 
         ZStack {
             // Selection tap area: covers the whole row so the close button can be a
-            // sibling Button instead of nested inside another Button.
-            Rectangle()
-                .fill(Color(nsColor: Self.tabBackgroundColor(
-                    isSelected: isSelected,
-                    usesDarkChrome: usesDarkChrome
-                )))
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    onSelectTab(tab.id)
-                }
-                .accessibilityLabel(Text(tab.title))
-                .accessibilityValue(isSelected ? Text("selected") : Text(""))
-                .accessibilityAddTraits(.isButton)
+            // sibling Button instead of nested inside another Button. A real Button
+            // (rather than onTapGesture) because onTapGesture loses the gesture-priority
+            // race to the enclosing horizontal ScrollView's own click/pan handling on
+            // macOS, silently swallowing clicks — Button routes through AppKit's normal
+            // control click handling instead and doesn't have this problem.
+            Button {
+                onSelectTab(tab.id)
+            } label: {
+                Rectangle()
+                    .fill(Color(nsColor: Self.tabBackgroundColor(
+                        isSelected: isSelected,
+                        usesDarkChrome: usesDarkChrome
+                    )))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(tab.title))
+            .accessibilityValue(isSelected ? Text("selected") : Text(""))
 
             HStack(spacing: 6) {
                 if isDirty {
                     Circle()
                         .fill(Color(nsColor: Self.dirtyDotColor(usesDarkChrome: usesDarkChrome)))
                         .frame(width: 6, height: 6)
+                        .allowsHitTesting(false)
                 }
 
                 Text(tab.title)
@@ -76,6 +82,11 @@ struct TabBarView: View {
                         isSelected: isSelected,
                         usesDarkChrome: usesDarkChrome
                     )))
+                    // Text still consumes hits at its own bounds even with no gesture
+                    // attached, which silently blocks the selection Button stacked behind
+                    // it (the tab title sits right where a user naturally clicks). Let
+                    // clicks fall through to the Button underneath.
+                    .allowsHitTesting(false)
 
                 if showsClose {
                     closeButton(for: tab.id, isSelected: isSelected)

@@ -402,8 +402,13 @@ struct EditorContainerView: View {
             documentStatistics = DocumentStatistics(text: document.text)
             outlineItems = MarkdownOutlineParser().items(in: document.text)
             // Registration fallback: covers a view recreated with windowNumber already set
-            // (no nil→value transition). Idempotent with the windowNumber onChange below.
+            // (no nil→value transition) — e.g. the detail hierarchy rebuild that fires when
+            // tabStore.shouldShowTabBar toggles (see the onChange below) tears down and
+            // recreates this view's host, running onDisappear (which restores the window's
+            // original delegate) without a matching windowNumber change to re-trigger the
+            // onChange install below. Idempotent with the windowNumber onChange below.
             registerReloadWatcher()
+            installWindowCloseControllerIfNeeded()
         }
         .onChange(of: document.textFormat) { _, newValue in
             LineformTextFormatMenuState.shared.setTextFormat(newValue)
