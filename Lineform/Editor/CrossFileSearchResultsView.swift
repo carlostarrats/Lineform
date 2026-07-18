@@ -204,14 +204,20 @@ struct CrossFileSearchResultsView: View {
         var attributed = AttributedString(snippet.lineText)
         attributed.font = .system(size: 11.5)
         attributed.foregroundColor = secondaryColor
+        // Bold EVERY occurrence in the visible line, not just the one the resolver
+        // anchored the snippet on: the card header counts occurrences, so a line with
+        // two hits showing one bold read as "missing matches" in QA. Same matcher as
+        // search, so the emphasized runs are exactly what search counted.
         let nsLine = snippet.lineText as NSString
-        guard snippet.matchRange.location != NSNotFound,
-              NSMaxRange(snippet.matchRange) <= nsLine.length,
-              let range = Range(snippet.matchRange, in: attributed) else {
-            return attributed
+        var ranges = EditorSearchResolver.matches(in: snippet.lineText, query: query)
+        if ranges.isEmpty { ranges = [snippet.matchRange] }
+        for matchRange in ranges {
+            guard matchRange.location != NSNotFound,
+                  NSMaxRange(matchRange) <= nsLine.length,
+                  let range = Range(matchRange, in: attributed) else { continue }
+            attributed[range].font = .system(size: 11.5, weight: .semibold)
+            attributed[range].foregroundColor = primaryColor
         }
-        attributed[range].font = .system(size: 11.5, weight: .semibold)
-        attributed[range].foregroundColor = primaryColor
         return attributed
     }
 
