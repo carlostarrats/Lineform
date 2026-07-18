@@ -49,21 +49,12 @@ enum CrossFileSearchResolver {
         )
     }
 
-    /// Builds at most one snippet per distinct source line, in document order, up to
-    /// `limit`. A later match sharing an already-represented line is skipped so the
-    /// same line's text never appears twice.
+    /// Builds ONE snippet per match, in document order, up to `limit` — the card lists
+    /// exactly as many pills as the header's match count (QA: "8 matches" showing 5
+    /// per-line pills read as missing items). A line with several hits appears once per
+    /// hit, each snippet elided around its own match.
     static func snippets(in text: String, matches: [NSRange], limit: Int = maximumSnippetsPerFile) -> [CrossFileSearchSnippet] {
-        let nsText = text as NSString
-        var result: [CrossFileSearchSnippet] = []
-        var seenLineRanges: [NSRange] = []
-        for match in matches {
-            if result.count >= limit { break }
-            let lineRange = nsText.lineRange(for: match)
-            if seenLineRanges.contains(where: { NSEqualRanges($0, lineRange) }) { continue }
-            seenLineRanges.append(lineRange)
-            result.append(snippet(in: text, around: match))
-        }
-        return result
+        matches.prefix(limit).map { snippet(in: text, around: $0) }
     }
 
     /// Display order: most matches first, then name, then relative path — the

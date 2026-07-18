@@ -100,11 +100,16 @@ final class CrossFileSearchResolverTests: XCTestCase {
         XCTAssertEqual(result?.snippets.map(\.lineText), ["needle one", "needle two", "needle three"])
     }
 
-    func testMatchesOnSameLineProduceOnlyOneSnippet() {
+    func testMatchesOnSameLineProduceOneSnippetPerMatch() {
+        // One pill per MATCH, not per line: the card's pill count must equal the
+        // header's match count, so a triple-hit line yields three snippets, each
+        // anchored (matchRange) on its own occurrence.
         let text = "needle needle needle"
         let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
         XCTAssertEqual(result?.matchCount, 3)
-        XCTAssertEqual(result?.snippets.count, 1)
+        XCTAssertEqual(result?.snippets.count, 3)
+        let anchors = result!.snippets.map(\.matchRange.location)
+        XCTAssertEqual(anchors, [0, 7, 14])
         XCTAssertEqual(result?.snippets.first?.lineText, "needle needle needle")
     }
 
