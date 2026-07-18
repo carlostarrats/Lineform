@@ -1597,11 +1597,12 @@ struct EditorContainerView: View {
         DocumentExportRenderer.runInteractivePrint(
             text: document.text,
             profile: readingProfileStore.activeProfile,
-            paper: defaultExportPaperSize
+            paper: defaultExportPaperSize,
+            preset: ExportStylePreference.selectedPreset()
         )
     }
 
-    /// Prompts for a destination (with a Letter/A4 accessory) and writes the rich rendered PDF.
+    /// Prompts for a destination (with a Letter/A4 + Style accessory) and writes the rich rendered PDF.
     private func exportCurrentDocumentAsPDF() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.pdf]
@@ -1609,7 +1610,8 @@ struct EditorContainerView: View {
         panel.canCreateDirectories = true
 
         let paperPopup = makePaperSizePopup()
-        panel.accessoryView = makePaperSizeAccessory(popup: paperPopup)
+        let stylePopup = makeStylePopup()
+        panel.accessoryView = makeExportAccessory(paperPopup: paperPopup, stylePopup: stylePopup)
 
         let write: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else { return }
@@ -1617,10 +1619,16 @@ struct EditorContainerView: View {
             let paper = ExportPaperSize.allCases.indices.contains(selection)
                 ? ExportPaperSize.allCases[selection]
                 : .usLetter
+            let styleSelection = stylePopup.indexOfSelectedItem
+            let preset = ExportTypographyPreset.all.indices.contains(styleSelection)
+                ? ExportTypographyPreset.all[styleSelection]
+                : .standard
+            ExportStylePreference.setSelectedPresetID(preset.id)
             let succeeded = DocumentExportRenderer.writePDF(
                 text: document.text,
                 profile: readingProfileStore.activeProfile,
                 paper: paper,
+                preset: preset,
                 to: url
             )
             if !succeeded {
@@ -1701,21 +1709,49 @@ struct EditorContainerView: View {
         return popup
     }
 
-    private func makePaperSizeAccessory(popup: NSPopUpButton) -> NSView {
-        let label = NSTextField(labelWithString: "Paper Size:")
-        label.translatesAutoresizingMaskIntoConstraints = false
-        popup.translatesAutoresizingMaskIntoConstraints = false
+    /// Style popup for the export accessory, listing every typography preset by display name and
+    /// seeding the selection from the persisted choice (`ExportStylePreference`).
+    private func makeStylePopup() -> NSPopUpButton {
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 160, height: 25))
+        for preset in ExportTypographyPreset.all {
+            popup.addItem(withTitle: preset.displayName)
+        }
+        let currentID = ExportStylePreference.selectedPresetID()
+        if let index = ExportTypographyPreset.all.firstIndex(where: { $0.id == currentID }) {
+            popup.selectItem(at: index)
+        }
+        return popup
+    }
+
+    /// Two labeled rows ("Paper Size:" / "Style:") stacked in the PDF export save-panel accessory.
+    private func makeExportAccessory(paperPopup: NSPopUpButton, stylePopup: NSPopUpButton) -> NSView {
+        let paperLabel = NSTextField(labelWithString: "Paper Size:")
+        let styleLabel = NSTextField(labelWithString: "Style:")
+        paperLabel.translatesAutoresizingMaskIntoConstraints = false
+        styleLabel.translatesAutoresizingMaskIntoConstraints = false
+        paperPopup.translatesAutoresizingMaskIntoConstraints = false
+        stylePopup.translatesAutoresizingMaskIntoConstraints = false
 
         let container = NSView()
-        container.addSubview(label)
-        container.addSubview(popup)
+        container.addSubview(paperLabel)
+        container.addSubview(paperPopup)
+        container.addSubview(styleLabel)
+        container.addSubview(stylePopup)
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            popup.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
-            popup.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            popup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-            container.heightAnchor.constraint(equalToConstant: 48)
+            paperLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            paperLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
+            paperPopup.leadingAnchor.constraint(equalTo: paperLabel.trailingAnchor, constant: 8),
+            paperPopup.centerYAnchor.constraint(equalTo: paperLabel.centerYAnchor),
+            paperPopup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+
+            styleLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            styleLabel.topAnchor.constraint(equalTo: paperLabel.bottomAnchor, constant: 12),
+            styleLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
+            stylePopup.leadingAnchor.constraint(equalTo: styleLabel.trailingAnchor, constant: 8),
+            stylePopup.centerYAnchor.constraint(equalTo: styleLabel.centerYAnchor),
+            stylePopup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+
+            container.heightAnchor.constraint(equalToConstant: 84)
         ])
         return container
     }
