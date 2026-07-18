@@ -47,6 +47,8 @@
 		1F0000240000000000000001 /* ImageLinkRewriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000240000000000000002 /* ImageLinkRewriteTests.swift */; };
 		1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */; };
 		1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000326 /* DocumentExportRendererTests.swift */; };
+		1F00000100000000000004A7 /* ExportTypographyPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A7 /* ExportTypographyPreset.swift */; };
+		1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */; };
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
 		1F0000010000000000000233 /* DiagramLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000233 /* DiagramLogTests.swift */; };
@@ -220,6 +222,8 @@
 		1F0000240000000000000002 /* ImageLinkRewriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLinkRewriteTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGroupingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000326 /* DocumentExportRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRendererTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004A7 /* ExportTypographyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTypographyPreset.swift; sourceTree = "<group>"; };
+		1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTypographyPresetTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000233 /* DiagramLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLogTests.swift; sourceTree = "<group>"; };
@@ -459,6 +463,7 @@
 			children = (
 				1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */,
 				1F0000020000000000000325 /* DocumentExportRenderer.swift */,
+				1F00000200000000000004A7 /* ExportTypographyPreset.swift */,
 				1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */,
 				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
 				1F0000020000000000000230 /* MermaidRendering.swift */,
@@ -530,6 +535,7 @@
 				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
 				1F0000020000000000000326 /* DocumentExportRendererTests.swift */,
+				1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */,
 				1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */,
 				1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */,
 				1F0000020000000000000063 /* AppCommandNotificationTests.swift */,
@@ -803,6 +809,7 @@
 				1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */,
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */,
+				1F00000100000000000004A7 /* ExportTypographyPreset.swift in Sources */,
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
 				1F0000010000000000000230 /* MermaidRendering.swift in Sources */,
@@ -853,6 +860,7 @@
 				1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */,
 				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,
 				1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */,
+				1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */,
 				1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */,
 				1F0000010000000000000062 /* ReadingAssistPreferenceTests.swift in Sources */,
 				1F0000010000000000000063 /* AppCommandNotificationTests.swift in Sources */,
