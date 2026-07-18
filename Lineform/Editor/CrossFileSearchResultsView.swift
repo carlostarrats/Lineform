@@ -237,8 +237,38 @@ private struct AppKitVerticalScrollView<Content: View>: NSViewRepresentable {
         self.content = content()
     }
 
+    final class Coordinator {
+        var monitor: Any?
+        deinit {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
+        // SwiftUI's native page ScrollView claims wheel events at hit-test level before
+        // AppKit routing ever reaches this nested scroll view (verified empirically: the
+        // event lands in SwiftUI's PlatformGroupContainer and the page scrolls; the card
+        // never does). A local monitor sees the event first: if it is over this card and
+        // the card can scroll in that direction, the card consumes it; otherwise the
+        // event passes through untouched and the page scrolls as usual.
+        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak scrollView] event in
+            guard let scrollView, let window = scrollView.window, event.window === window else { return event }
+            let locationInScroll = scrollView.convert(event.locationInWindow, from: nil)
+            guard scrollView.bounds.contains(locationInScroll),
+                  let documentView = scrollView.documentView else { return event }
+            let clipView = scrollView.contentView
+            let maxOffset = max(0, documentView.frame.height - clipView.bounds.height)
+            guard maxOffset > 0 else { return event }
+            let current = clipView.bounds.origin.y
+            let scrollingDown = event.scrollingDeltaY < 0
+            let canConsume = scrollingDown ? current < maxOffset : current > 0
+            guard canConsume else { return event }
+            scrollView.scrollWheel(with: event)
+            return nil
+        }
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = showsScroller
         scrollView.autohidesScrollers = true
