@@ -358,6 +358,15 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             clearHoveredCodeBlock()
             return
         }
+        // `glyphIndex(for:in:)` returns the NEAREST glyph to any point, even points outside all
+        // glyph bounds (e.g. the paragraph-spacing gap above/below a code block, or below the last
+        // block). Mirror `checkboxSourceRange(at:)`'s containment guard so hovering blank space
+        // doesn't get attributed to the nearest code block's glyph.
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: textContainer)
+        guard glyphRect.contains(containerPoint) else {
+            clearHoveredCodeBlock()
+            return
+        }
         let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
         guard charIndex < textStorage.length else {
             clearHoveredCodeBlock()
