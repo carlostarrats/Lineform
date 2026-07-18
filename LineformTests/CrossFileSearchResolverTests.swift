@@ -52,6 +52,12 @@ final class CrossFileSearchResolverTests: XCTestCase {
         // The reported range must still point at "needle" within the elided line.
         let found = (snippet.lineText as NSString).substring(with: snippet.matchRange)
         XCTAssertEqual(found.lowercased(), "needle")
+        // Left-bias guarantee: the match must sit near the snippet's START (leading
+        // context + one possible "…"), so it is visible at any card width.
+        XCTAssertLessThanOrEqual(
+            snippet.matchRange.location,
+            CrossFileSearchResolver.snippetLeadingContextLength + 1
+        )
     }
 
     func testSnippetComesFromFirstMatchingLineAndStripsTrailingNewline() {

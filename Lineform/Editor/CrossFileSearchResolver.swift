@@ -73,9 +73,15 @@ enum CrossFileSearchResolver {
         }
     }
 
+    /// How many characters of leading context an elided snippet keeps before the match.
+    /// Small on purpose: the match must land near the START of the pill so it is visible
+    /// at any card width — a centered window pushed it past narrow pills' truncation.
+    static let snippetLeadingContextLength = 12
+
     /// The first match's line, whitespace-trimmed, elided to `snippetMaximumLength`
-    /// characters centered on the match when the line is longer. The returned range
-    /// re-locates the match within the (possibly elided) snippet text.
+    /// characters when longer, with the window LEFT-BIASED to the match (at most
+    /// `snippetLeadingContextLength` characters before it). The returned range re-locates
+    /// the match within the (possibly elided) snippet text.
     static func snippet(in text: String, around match: NSRange) -> CrossFileSearchSnippet {
         let nsText = text as NSString
         let lineRange = nsText.lineRange(for: match)
@@ -100,14 +106,14 @@ enum CrossFileSearchResolver {
             return CrossFileSearchSnippet(lineText: line as String, matchRange: matchInLine)
         }
 
-        // Center a window of snippetMaximumLength characters on the match. When the match
-        // itself is longer than the cap, `half` would go negative — clamp it so `start`
-        // never lands past the match's own start.
-        let half = max(0, (snippetMaximumLength - matchInLine.length) / 2)
-        var start = max(0, matchInLine.location - half)
+        // Left-bias the window: at most `snippetLeadingContextLength` characters before
+        // the match, the rest of the cap spent on the match and what follows — so the
+        // match always sits near the pill's visible start regardless of card width.
+        var start = max(0, matchInLine.location - snippetLeadingContextLength)
         if start + snippetMaximumLength > line.length {
             start = max(0, line.length - snippetMaximumLength)
         }
+        start = min(start, matchInLine.location)
         let window = NSRange(location: start, length: min(snippetMaximumLength, line.length - start))
         var display = line.substring(with: window)
 

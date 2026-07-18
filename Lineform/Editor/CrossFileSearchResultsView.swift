@@ -45,7 +45,11 @@ struct CrossFileSearchResultsView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // The page scroller is AppKit too (not a SwiftUI ScrollView): SwiftUI's native
+        // scrolling captures wheel events at the hosting level BEFORE AppKit hit-testing,
+        // which starved the per-card scrollers entirely. Nested real NSScrollViews get
+        // classic AppKit routing — wheel over a card scrolls the card, elsewhere the page.
+        AppKitVerticalScrollView(showsScroller: true) {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 content
@@ -119,11 +123,9 @@ struct CrossFileSearchResultsView: View {
                     .truncationMode(.middle)
             }
             .padding(.bottom, 12)
-            // A real NSScrollView, not a SwiftUI ScrollView: this card scroller is nested
-            // inside the page's own vertical ScrollView, and SwiftUI's nested same-axis
-            // scroll views on macOS route the wheel to the outer one — the pills were
-            // unscrollable. AppKit delivers the wheel to the scroll view under the cursor.
-            CardPillScrollView {
+            // A real NSScrollView (see the page-level comment): AppKit delivers the wheel
+            // to the scroll view under the cursor, so pills scroll inside the card.
+            AppKitVerticalScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(result.snippets.enumerated()), id: \.offset) { _, snippet in
                         Text(snippetText(snippet))
@@ -223,23 +225,26 @@ struct CrossFileSearchResultsView: View {
     }
 }
 
-/// AppKit-backed vertical scroller for a result card's snippet pills. Exists because the
-/// cards sit inside the page's own SwiftUI ScrollView, and SwiftUI's nested same-axis
-/// scroll views on macOS never hand the wheel to the inner one; a real NSScrollView gets
-/// wheel events for the area under the cursor directly from AppKit. Transparent, no
-/// scrollers drawn (content is a short pill list), arrow document cursor so the page's
-/// cursor policy holds over the scrollable region too.
-private struct CardPillScrollView<Content: View>: NSViewRepresentable {
+/// AppKit-backed vertical scroller used for BOTH the results page and each card's snippet
+/// pills. SwiftUI's native macOS scrolling captures wheel events at the hosting level, so
+/// a SwiftUI page scroller starves any scroller nested inside it; two real NSScrollViews
+/// restore classic AppKit routing (the deepest scroll view under the cursor gets the
+/// wheel, its ancestor gets it elsewhere). Transparent background, arrow document cursor
+/// so the page's cursor policy holds over scrollable regions too.
+private struct AppKitVerticalScrollView<Content: View>: NSViewRepresentable {
+    let showsScroller: Bool
     let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(showsScroller: Bool = false, @ViewBuilder content: () -> Content) {
+        self.showsScroller = showsScroller
         self.content = content()
     }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = false
+        scrollView.hasVerticalScroller = showsScroller
+        scrollView.autohidesScrollers = true
         scrollView.hasHorizontalScroller = false
         scrollView.horizontalScrollElasticity = .none
         scrollView.verticalScrollElasticity = .automatic
