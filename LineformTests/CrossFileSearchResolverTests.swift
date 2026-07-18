@@ -60,6 +60,20 @@ final class CrossFileSearchResolverTests: XCTestCase {
         )
     }
 
+    func testMatchAtEndOfLongLineStaysNearSnippetStart() {
+        // A match at the END of an over-cap line: the window must still lead with the
+        // match (no backward fill to spend the cap), or narrow pills re-hide the match.
+        let text = String(repeating: "a", count: 100) + " needle"
+        let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
+        XCTAssertNotNil(result)
+        let snippet = result!.snippets.first!
+        XCTAssertEqual((snippet.lineText as NSString).substring(with: snippet.matchRange), "needle")
+        XCTAssertLessThanOrEqual(
+            snippet.matchRange.location,
+            CrossFileSearchResolver.snippetLeadingContextLength + 1
+        )
+    }
+
     func testSnippetComesFromFirstMatchingLineAndStripsTrailingNewline() {
         let text = "first needle line\nsecond needle line\n"
         let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")

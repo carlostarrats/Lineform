@@ -109,11 +109,10 @@ enum CrossFileSearchResolver {
         // Left-bias the window: at most `snippetLeadingContextLength` characters before
         // the match, the rest of the cap spent on the match and what follows — so the
         // match always sits near the pill's visible start regardless of card width.
-        var start = max(0, matchInLine.location - snippetLeadingContextLength)
-        if start + snippetMaximumLength > line.length {
-            start = max(0, line.length - snippetMaximumLength)
-        }
-        start = min(start, matchInLine.location)
+        // Deliberately NO backward fill when the match is near the line's end (a shorter
+        // window is fine): pulling `start` back to fill the cap re-hid end-of-line
+        // matches past the pill's visible width — the exact bug this bias exists to fix.
+        let start = max(0, matchInLine.location - snippetLeadingContextLength)
         let window = NSRange(location: start, length: min(snippetMaximumLength, line.length - start))
         var display = line.substring(with: window)
 

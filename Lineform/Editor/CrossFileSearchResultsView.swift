@@ -251,6 +251,11 @@ private struct AppKitVerticalScrollView<Content: View>: NSViewRepresentable {
         scrollView.contentView.documentCursor = .arrow
 
         let hostingView = NSHostingView(rootView: content)
+        // The document must be sized by its CONTENT height, not fitted to available
+        // bounds: the default sizing options let the hosting view compress to the clip
+        // view's height, which left every card with document == viewport (nothing to
+        // scroll — the pills silently dropped instead of overflowing).
+        hostingView.sizingOptions = [.intrinsicContentSize]
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = hostingView
         // Pin the document to the clip view's edges (top-anchored; NSHostingView is
