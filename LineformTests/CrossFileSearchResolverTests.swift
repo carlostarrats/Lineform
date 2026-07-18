@@ -45,7 +45,10 @@ final class CrossFileSearchResolverTests: XCTestCase {
         let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
         XCTAssertNotNil(result)
         let snippet = result!.snippets.first!
-        XCTAssertLessThanOrEqual(snippet.lineText.count, 124) // 120 cap + up to two "…"
+        XCTAssertLessThanOrEqual(
+            snippet.lineText.count,
+            CrossFileSearchResolver.snippetMaximumLength + 2 // cap + up to two "…"
+        )
         // The reported range must still point at "needle" within the elided line.
         let found = (snippet.lineText as NSString).substring(with: snippet.matchRange)
         XCTAssertEqual(found.lowercased(), "needle")

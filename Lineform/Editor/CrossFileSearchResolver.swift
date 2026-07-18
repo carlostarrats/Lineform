@@ -24,7 +24,10 @@ struct CrossFileSearchResult: Identifiable, Equatable {
 /// callers supply the file text. The `EditorSearchResolver` pattern: fully unit-testable.
 enum CrossFileSearchResolver {
     /// Longest snippet line shown before eliding around the match.
-    static let snippetMaximumLength = 120
+    // Short enough that the elided window (centered on the match) fits a result-card
+    // pill's single visible line — with the old 120 cap, a match past ~45 characters sat
+    // beyond the pill's own trailing truncation, so its bold emphasis was never visible.
+    static let snippetMaximumLength = 60
 
     /// Cap on how many per-line snippets a single file contributes to the results page.
     static let maximumSnippetsPerFile = 8
