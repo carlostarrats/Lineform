@@ -46,8 +46,9 @@ enum MarkdownBlock: Equatable {
     /// Mid-text images (text before/after) never produce this case — they stay in `.lines` and
     /// flow through the existing inline `imageToken` placeholder. `sourceRange` spans the WHOLE
     /// source line (UTF-16), including any surrounding whitespace, so Reconnect's rewrite can
-    /// re-verify the exact `![…](…)` substring inside it.
-    case image(alt: String, path: String, sourceRange: NSRange)
+    /// re-verify the exact `![…](…)` substring inside it. `lineIndex` is the original line index,
+    /// for the trailing-newline rule (mirrors `.horizontalRule`).
+    case image(alt: String, path: String, sourceRange: NSRange, lineIndex: Int)
 }
 
 /// Pure detection of a line that is solely a single `![alt](path)` image, with no other text.
@@ -486,7 +487,7 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
         if let (alt, path) = MarkdownImageLine.wholeLineImage(lines[index]) {
             flushLines(upTo: index)
             let sourceRange = NSRange(location: lineStartOffsets[index], length: (lines[index] as NSString).length)
-            blocks.append(.image(alt: alt, path: path, sourceRange: sourceRange))
+            blocks.append(.image(alt: alt, path: path, sourceRange: sourceRange, lineIndex: index))
             index += 1
             continue
         }

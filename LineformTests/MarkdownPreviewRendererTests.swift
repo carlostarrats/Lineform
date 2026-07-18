@@ -893,3 +893,135 @@ extension MarkdownPreviewRendererTests {
         XCTAssertEqual(found, NSRange(location: 9, length: ("let x = 1" as NSString).length))
     }
 }
+
+// MARK: - Image blocks
+
+final class MarkdownPreviewRendererImageTests: XCTestCase {
+    private var tempDirectory: URL!
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        if let tempDirectory {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+        tempDirectory = nil
+        try super.tearDownWithError()
+    }
+
+    func testUnresolvedImageEmitsPlaceholderWithReconnectMarker() {
+        let out = render("![cat](missing.png)", documentDirectory: nil, imageProvider: DisabledImageAttachmentProvider())
+        XCTAssertTrue(out.string.contains("🖼 cat"))
+
+        var foundSourceRange = false
+        var foundReconnect = false
+        out.enumerateAttribute(.imageSourceRange, in: NSRange(location: 0, length: out.length)) { value, _, _ in
+            if value is NSValue { foundSourceRange = true }
+        }
+        out.enumerateAttribute(.imageReconnect, in: NSRange(location: 0, length: out.length)) { value, _, _ in
+            if value is NSNumber { foundReconnect = true }
+        }
+        XCTAssertTrue(foundSourceRange)
+        XCTAssertTrue(foundReconnect)
+    }
+
+    func testRemoteImageStaysPlaceholder() {
+        let out = render("![c](https://x/y.png)", documentDirectory: nil, imageProvider: DisabledImageAttachmentProvider())
+        XCTAssertTrue(out.string.contains("🖼 c"))
+
+        var foundReconnect = false
+        var foundAttachment = false
+        out.enumerateAttributes(in: NSRange(location: 0, length: out.length)) { attrs, _, _ in
+            if attrs[.imageReconnect] is NSNumber { foundReconnect = true }
+            if attrs[.attachment] is BlockRenderedAttachment { foundAttachment = true }
+        }
+        XCTAssertTrue(foundReconnect)
+        XCTAssertFalse(foundAttachment)
+    }
+
+    func testResolvedLocalImageEmitsBlockAttachment() throws {
+        let url = try writePNG(named: "pic.png", width: 400, height: 200)
+        let out = render("![cat](pic.png)", documentDirectory: tempDirectory, imageProvider: ImageAttachmentProvider())
+
+        var foundAttachment: BlockRenderedAttachment?
+        out.enumerateAttribute(.attachment, in: NSRange(location: 0, length: out.length)) { value, _, _ in
+            if let attachment = value as? BlockRenderedAttachment { foundAttachment = attachment }
+        }
+        var foundReconnect = false
+        out.enumerateAttribute(.imageReconnect, in: NSRange(location: 0, length: out.length)) { value, _, _ in
+            if value is NSNumber { foundReconnect = true }
+        }
+
+        let attachment = try XCTUnwrap(foundAttachment)
+        XCTAssertEqual(attachment.image?.accessibilityDescription, "cat")
+        XCTAssertFalse(foundReconnect)
+        _ = url
+    }
+
+    func testPlaceholderAndImageUseSameBlockSpacing() throws {
+        let url = try writePNG(named: "pic2.png", width: 400, height: 200)
+        let resolved = render("![cat](pic2.png)", documentDirectory: tempDirectory, imageProvider: ImageAttachmentProvider())
+        let unresolved = render("![cat](missing2.png)", documentDirectory: nil, imageProvider: DisabledImageAttachmentProvider())
+
+        // Both blocks are single-run documents: read the paragraph spacing at location 0.
+        let resolvedStyle = try XCTUnwrap(resolved.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        let unresolvedStyle = try XCTUnwrap(unresolved.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+
+        let expected = max(12, CGFloat(ReadingProfile.original.paragraphSpacing) + 6)
+        XCTAssertEqual(resolvedStyle.paragraphSpacing, expected, accuracy: 0.01)
+        XCTAssertEqual(unresolvedStyle.paragraphSpacing, expected, accuracy: 0.01)
+        _ = url
+    }
+
+    func testOtherConstructsUnchanged() {
+        let out = render("# H\n\nBody", documentDirectory: nil, imageProvider: DisabledImageAttachmentProvider())
+        XCTAssertEqual(out.string, "H\n\nBody")
+    }
+
+    // MARK: - Helpers
+
+    private func render(_ text: String, documentDirectory: URL?, imageProvider: ImageAttachmentProviding) -> NSAttributedString {
+        MarkdownPreviewRenderer().render(
+            text,
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "0",
+            documentDirectory: documentDirectory,
+            imageProvider: imageProvider
+        )
+    }
+
+    @discardableResult
+    private func writePNG(named name: String, width: Int, height: Int) throws -> URL {
+        let url = tempDirectory.appendingPathComponent(name)
+        let rep = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width,
+            pixelsHigh: height,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        NSColor.white.setFill()
+        NSRect(x: 0, y: 0, width: width, height: height).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+        try data.write(to: url)
+        return url
+    }
+}

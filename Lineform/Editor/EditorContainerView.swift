@@ -940,7 +940,8 @@ struct EditorContainerView: View {
                     text: document.text,
                     profile: readingProfileStore.activeProfile,
                     onCheckboxToggle: toggleCheckbox,
-                    onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
+                    onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
+                    documentDirectory: currentFileURL?.deletingLastPathComponent()
                 )
                 .frame(maxHeight: .infinity)
             }
@@ -953,7 +954,8 @@ struct EditorContainerView: View {
                     text: document.text,
                     profile: readingProfileStore.activeProfile,
                     onCheckboxToggle: toggleCheckbox,
-                    onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
+                    onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
+                    documentDirectory: currentFileURL?.deletingLastPathComponent()
                 )
             }
         }

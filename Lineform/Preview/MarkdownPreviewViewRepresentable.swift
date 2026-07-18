@@ -10,6 +10,9 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     /// Called when the visible top of the rendered text changes. The range is in rendered-text
     /// coordinates; use `.headingSourceRange` attributes to map headings back to source positions.
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
+    /// The open document's containing folder, used to resolve relative local image paths. `nil`
+    /// for an unsaved/untitled document (relative image references stay unresolved).
+    var documentDirectory: URL?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -26,7 +29,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
 
         scrollView.documentView = textView
-        textView.apply(text: text, profile: profile)
+        textView.apply(text: text, profile: profile, documentDirectory: documentDirectory)
         return scrollView
     }
 
@@ -38,7 +41,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         // Re-bind the closure each update so it captures the current document binding.
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
-        textView.apply(text: text, profile: profile)
+        textView.apply(text: text, profile: profile, documentDirectory: documentDirectory)
     }
 }
 
@@ -53,8 +56,10 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private var activeProfile = ReadingProfile.original
     private var renderedText: String?
     private var renderedProfile: ReadingProfile?
+    private var renderedDocumentDirectory: URL?
     private let mermaidProvider = MermaidImageProvider()
     private let mathProvider = MathImageProvider()
+    private let imageProvider = ImageAttachmentProvider()
     private let diagramLog = DiagramLogStore()
     private let reportRegistry = DiagramReportRegistry()
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
@@ -239,14 +244,16 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         }
     }
 
-    func apply(text: String, profile: ReadingProfile) {
+    func apply(text: String, profile: ReadingProfile, documentDirectory: URL? = nil) {
         activeProfile = profile
         let theme = Theme.theme(for: profile)
         backgroundColor = theme.backgroundColor
         textColor = theme.textColor
         updateTextContainerLayout()
 
-        guard text != renderedText || profile != renderedProfile else {
+        guard
+            text != renderedText || profile != renderedProfile || documentDirectory != renderedDocumentDirectory
+        else {
             return
         }
 
@@ -259,11 +266,14 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
                 mathProvider: mathProvider,
                 diagramLog: diagramLog,
                 reportRegistry: reportRegistry,
-                appVersion: appVersion
+                appVersion: appVersion,
+                documentDirectory: documentDirectory,
+                imageProvider: imageProvider
             )
         )
         renderedText = text
         renderedProfile = profile
+        renderedDocumentDirectory = documentDirectory
         // The renderer fits diagrams/equations to the reading column; refit to the current window
         // width so a fresh render on a narrow window doesn't overflow until the next resize.
         refitBlockAttachments()

@@ -12,6 +12,16 @@ extension NSAttributedString.Key {
     /// Attached to a rendered fenced-code body; value is an `NSValue` boxing the `NSRange` of the
     /// code body in the SOURCE document, so the hover copy pill can copy the raw code.
     static let codeBlockSourceRange = NSAttributedString.Key("lineform.codeBlockSourceRange")
+
+    /// Attached to a rendered "🖼 label" image placeholder run; value is an `NSValue` boxing the
+    /// `NSRange` of the WHOLE image line in the source document (an own-line `![alt](path)`), so a
+    /// Reconnect affordance can re-verify and rewrite the exact source substring.
+    static let imageSourceRange = NSAttributedString.Key("lineform.imageSourceRange")
+
+    /// A marker (`NSNumber(true)`) on an image placeholder run indicating a Reconnect pill should be
+    /// offered — set whenever the image did NOT resolve to a rendered `BlockRenderedAttachment`
+    /// (remote, unresolved, or a local file that failed to load).
+    static let imageReconnect = NSAttributedString.Key("lineform.imageReconnect")
 }
 
 struct MarkdownPreviewRenderer {
@@ -64,7 +74,16 @@ struct MarkdownPreviewRenderer {
         // True on screen (Read/Preview) → code is syntax-highlighted; false from
         // DocumentExportRenderer → code stays MONOCHROME in PDFs (user decision).
         highlightsCode: Bool = true,
-        codeHighlighter: CodeSyntaxHighlighting = CodeSyntaxHighlighter()
+        codeHighlighter: CodeSyntaxHighlighting = CodeSyntaxHighlighter(),
+        // The open document's containing folder, used to resolve relative local image paths
+        // (`ImageResolver.resolve(path:documentDirectory:)`). nil → relative paths stay
+        // unresolved (placeholder). Export/print omits this (nil default), so images stay
+        // placeholders in PDFs (v1 decision).
+        documentDirectory: URL? = nil,
+        // Local-image-file loading seam (mirrors mermaidProvider/mathProvider). Defaults to a
+        // provider that never loads, so callers that don't care about images (tests, export)
+        // get the placeholder fallback for free.
+        imageProvider: ImageAttachmentProviding = DisabledImageAttachmentProvider()
     ) -> NSAttributedString {
         reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
@@ -179,15 +198,19 @@ struct MarkdownPreviewRenderer {
                     totalLines: lines.count,
                     attributes: separatorAttributes
                 )
-            case .image(let alt, let path, let sourceRange):
-                // Compile-safe stub: real `.image` emission (local file → block attachment, else
-                // placeholder + Reconnect marker) is a later task. Until then, reproduce the
-                // EXISTING inline-placeholder text (byte-identical to the pre-`.image`-routing
-                // output) so an own-line image still renders "🖼 label" instead of silently
-                // vanishing, and existing placeholder tests stay green. No file access, no
-                // network, no attachment, no Reconnect keys — those land with `appendImageBlock`.
-                appendImagePlaceholderStub(alt: alt, path: path, to: output, bodyAttributes: bodyAttributes)
-                let lineIndex = lineRanges.firstIndex { $0.location == sourceRange.location }
+            case .image(let alt, let path, let sourceRange, let lineIndex):
+                appendImageBlock(
+                    alt: alt,
+                    path: path,
+                    sourceRange: sourceRange,
+                    to: output,
+                    profile: profile,
+                    theme: theme,
+                    columnWidth: columnWidth,
+                    documentDirectory: documentDirectory,
+                    imageProvider: imageProvider,
+                    bodyAttributes: bodyAttributes
+                )
                 appendBlockSeparator(afterLine: lineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             }
         }
@@ -979,15 +1002,61 @@ struct MarkdownPreviewRenderer {
         return InlineToken(kind: .image, text: "🖼 \(label)", range: match.range)
     }
 
-    /// Compile-safe stub for the `.image` block dispatch arm (see the call site): emits the same
-    /// "🖼 label" quiet placeholder as the inline `imageToken`, styled identically (foreground at
-    /// 0.6 alpha). File-free, network-free — only the alt/path STRINGS already in the document are
-    /// read. Superseded by `appendImageBlock` in a later task (real local-file loading + Reconnect).
-    private func appendImagePlaceholderStub(
+    /// Emit an own-line `![alt](path)` image block: a left-aligned rendered picture
+    /// (`BlockRenderedAttachment`, like mermaid — no centering paragraph style) for a resolved
+    /// local file, or the quiet "🖼 label" placeholder — tagged `.imageSourceRange` +
+    /// `.imageReconnect` so a later Reconnect affordance can act on it — for anything else
+    /// (remote, unresolved, or a local file that failed to load). No network access ever.
+    private func appendImageBlock(
         alt: String,
         path: String,
+        sourceRange: NSRange,
         to output: NSMutableAttributedString,
+        profile: ReadingProfile,
+        theme: Theme,
+        columnWidth: CGFloat,
+        documentDirectory: URL?,
+        imageProvider: ImageAttachmentProviding,
         bodyAttributes: [NSAttributedString.Key: Any]
+    ) {
+        let spacedAttributes = imageBlockSpacing(bodyAttributes, profile: profile)
+
+        if case .localFile(let url) = ImageResolver.resolve(path: path, documentDirectory: documentDirectory) {
+            let scale = NSScreen.main?.backingScaleFactor ?? 2
+            // The renderer has no live view to measure a real viewport; approximate with the main
+            // screen's visible height (documented approximation — the height cap is enforced by the
+            // provider's fitted raster, and the width refits on window resize via
+            // `BlockAttachmentRefit`).
+            let maxHeight = ImageFit.maxHeight(visibleViewportHeight: NSScreen.main?.visibleFrame.height ?? 900)
+            if let image = imageProvider.image(at: url, maxSize: CGSize(width: columnWidth, height: maxHeight), scale: scale) {
+                image.accessibilityDescription = alt.isEmpty ? "Image" : alt
+                let attachment = BlockRenderedAttachment()
+                attachment.image = image
+                let natural = image.size
+                let width = min(natural.width, max(columnWidth, 1))
+                let height = natural.width > 0 ? natural.height * (width / natural.width) : natural.height
+                attachment.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+                let attachmentString = NSMutableAttributedString(attachment: attachment)
+                attachmentString.addAttributes(spacedAttributes, range: NSRange(location: 0, length: attachmentString.length))
+                output.append(attachmentString)
+                return
+            }
+        }
+
+        // Remote, unresolved, or a local file that failed to load: quiet placeholder + Reconnect tag.
+        appendImagePlaceholder(alt: alt, path: path, sourceRange: sourceRange, to: output, attributes: spacedAttributes)
+    }
+
+    /// The "🖼 label" placeholder run for an image that did not resolve to a rendered picture:
+    /// styled like the inline `imageToken` (foreground at 0.6 alpha), tagged with the image's
+    /// SOURCE range and a Reconnect marker. File-free, network-free — only the alt/path STRINGS
+    /// already in the document are read.
+    private func appendImagePlaceholder(
+        alt: String,
+        path: String,
+        sourceRange: NSRange,
+        to output: NSMutableAttributedString,
+        attributes: [NSAttributedString.Key: Any]
     ) {
         let label: String
         if !alt.isEmpty {
@@ -996,11 +1065,39 @@ struct MarkdownPreviewRenderer {
             let filename = Self.imageFilename(from: path)
             label = filename.isEmpty ? "Image" : filename
         }
-        var attributes = bodyAttributes
-        if let color = bodyAttributes[.foregroundColor] as? NSColor {
-            attributes[.foregroundColor] = color.withAlphaComponent(0.6)
+        var placeholderAttributes = attributes
+        if let color = attributes[.foregroundColor] as? NSColor {
+            placeholderAttributes[.foregroundColor] = color.withAlphaComponent(0.6)
         }
-        output.append(NSAttributedString(string: "🖼 \(label)", attributes: attributes))
+        placeholderAttributes[.imageSourceRange] = NSValue(range: sourceRange)
+        placeholderAttributes[.imageReconnect] = NSNumber(value: true)
+        output.append(NSAttributedString(string: "🖼 \(label)", attributes: placeholderAttributes))
+    }
+
+    /// Paragraph spacing for an image block (rendered picture OR placeholder): a bit more
+    /// breathing room than ordinary block spacing, and never collapsing below `floor` even at the
+    /// tightest line-height — so images always read as visually set apart. `extra` is the margin
+    /// added over the profile's own block spacing. Applied identically to both the resolved and
+    /// unresolved forms so spacing never jumps when an image resolves ↔ falls back.
+    private func imageBlockSpacing(
+        _ base: [NSAttributedString.Key: Any],
+        profile: ReadingProfile
+    ) -> [NSAttributedString.Key: Any] {
+        let floor: CGFloat = 12
+        let extra: CGFloat = 6
+
+        let spacedBase = blockSpacingAttributes(base, profile: profile)
+        guard let paragraph = (spacedBase[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else {
+            return spacedBase
+        }
+
+        let value = max(floor, paragraph.paragraphSpacing + extra)
+        paragraph.paragraphSpacing = value
+        paragraph.paragraphSpacingBefore = value
+
+        var result = spacedBase
+        result[.paragraphStyle] = paragraph
+        return result
     }
 
     /// The last path component of an image URL/path (the filename), stripped of any query or

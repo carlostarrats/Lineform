@@ -5,6 +5,8 @@ struct DebouncedMarkdownPreviewView: View {
     let profile: ReadingProfile
     var onCheckboxToggle: (NSRange) -> Void = { _ in }
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
+    /// The open document's containing folder, used to resolve relative local image paths.
+    var documentDirectory: URL?
     @State private var previewText = ""
     @State private var pendingUpdate: DispatchWorkItem?
 
@@ -13,7 +15,8 @@ struct DebouncedMarkdownPreviewView: View {
             text: resolvedPreviewText,
             profile: profile,
             onCheckboxToggle: onCheckboxToggle,
-            onVisibleTopRangeChanged: onVisibleTopRangeChanged
+            onVisibleTopRangeChanged: onVisibleTopRangeChanged,
+            documentDirectory: documentDirectory
         )
         .accessibilityLabel("Markdown read view")
             .onAppear {

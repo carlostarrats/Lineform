@@ -440,7 +440,7 @@ final class MarkdownBlockGroupingTests: XCTestCase {
     func testOwnLineImageBecomesImageBlock() {
         XCTAssertEqual(
             markdownBlocks(in: ["![cat](cat.png)"]),
-            [.image(alt: "cat", path: "cat.png", sourceRange: NSRange(location: 0, length: 15))]
+            [.image(alt: "cat", path: "cat.png", sourceRange: NSRange(location: 0, length: 15), lineIndex: 0)]
         )
     }
 
@@ -448,7 +448,7 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         XCTAssertEqual(
             markdownBlocks(in: ["intro", "![cat](cat.png)", "outro"]),
             [.lines(0..<1),
-             .image(alt: "cat", path: "cat.png", sourceRange: NSRange(location: 6, length: 15)),
+             .image(alt: "cat", path: "cat.png", sourceRange: NSRange(location: 6, length: 15), lineIndex: 1),
              .lines(2..<3)]
         )
     }
@@ -456,14 +456,14 @@ final class MarkdownBlockGroupingTests: XCTestCase {
     func testImageWithSurroundingWhitespaceStillOwnLine() {
         XCTAssertEqual(
             markdownBlocks(in: ["  ![a](a.png)  "]),
-            [.image(alt: "a", path: "a.png", sourceRange: NSRange(location: 0, length: 15))]
+            [.image(alt: "a", path: "a.png", sourceRange: NSRange(location: 0, length: 15), lineIndex: 0)]
         )
     }
 
     func testEmptyAltOwnLineImageBecomesImageBlock() {
         XCTAssertEqual(
             markdownBlocks(in: ["![](pic.jpg)"]),
-            [.image(alt: "", path: "pic.jpg", sourceRange: NSRange(location: 0, length: 12))]
+            [.image(alt: "", path: "pic.jpg", sourceRange: NSRange(location: 0, length: 12), lineIndex: 0)]
         )
     }
 
