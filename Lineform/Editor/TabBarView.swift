@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// Safari-style tab bar (user-directed, 2026-07-17): tabs are EQUAL-WIDTH and always
+/// fill the bar edge to edge (no left-packed pills, no horizontal scrolling); the active
+/// tab is a capsule with a hairline outline; inactive tabs are flat with a thin vertical
+/// separator between adjacent inactive tabs (never beside the active capsule, matching
+/// Safari); titles centered. Deliberately FLAT fills — no translucency/material ("liquid
+/// glass" is Safari's look, not this app's).
 struct TabBarView: View {
     @ObservedObject var tabStore: EditorTabStore
     @ObservedObject var documentSaveStatus: DocumentSaveStatus
@@ -10,16 +16,18 @@ struct TabBarView: View {
     @State private var hoveredTabID: UUID?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Self.tabSpacing) {
-                ForEach(tabStore.tabs) { tab in
-                    tabButton(for: tab)
+        HStack(spacing: 0) {
+            ForEach(Array(tabStore.tabs.enumerated()), id: \.element.id) { index, tab in
+                if index > 0 {
+                    separator(beforeTabAt: index)
                 }
+                tabButton(for: tab)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, Self.pillVerticalInset)
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, Self.pillVerticalInset)
         .frame(height: Self.barHeight)
+        .frame(maxWidth: .infinity)
         .background(
             Color(nsColor: Self.barBackgroundColor(usesDarkChrome: usesDarkChrome))
         )
@@ -31,10 +39,24 @@ struct TabBarView: View {
         )
     }
 
-    static let barHeight: CGFloat = 30
-    static let tabSpacing: CGFloat = 4
+    static let barHeight: CGFloat = 32
     static let pillVerticalInset: CGFloat = 4
-    static let pillCornerRadius: CGFloat = 6
+
+    /// Safari hides the separator on both sides of the active capsule (and under the
+    /// hovered tab's fill); it only divides two flat, resting tabs.
+    @ViewBuilder
+    private func separator(beforeTabAt index: Int) -> some View {
+        let leadingTab = tabStore.tabs[index - 1]
+        let trailingTab = tabStore.tabs[index]
+        let touchesSelection = leadingTab.id == tabStore.selectedTabID
+            || trailingTab.id == tabStore.selectedTabID
+        let touchesHover = leadingTab.id == hoveredTabID || trailingTab.id == hoveredTabID
+        Rectangle()
+            .fill(Color(nsColor: Self.separatorColor(usesDarkChrome: usesDarkChrome)))
+            .frame(width: 1)
+            .padding(.vertical, 5)
+            .opacity(touchesSelection || touchesHover ? 0 : 1)
+    }
 
     @ViewBuilder
     private func tabButton(for tab: DocumentTab) -> some View {
@@ -44,38 +66,40 @@ struct TabBarView: View {
             documentID: tab.document.id,
             currentText: tab.document.text
         )
-        // Safari shows the close affordance on the tab under the pointer (and keeps the
-        // active tab's visible); a lone tab never shows one.
+        // Close affordance on the pointer's tab (and the active one), Safari-style; a
+        // lone tab never shows one.
         let showsClose = tabStore.tabCount > 1 && (isSelected || isHovered)
 
         ZStack {
-            // Selection tap area: covers the whole pill so the close button can be a
+            // Selection tap area: covers the whole capsule so the close button can be a
             // sibling Button instead of nested inside another Button. A real Button
-            // (rather than onTapGesture) because onTapGesture loses the gesture-priority
-            // race to the enclosing horizontal ScrollView's own click/pan handling on
-            // macOS, silently swallowing clicks — Button routes through AppKit's normal
-            // control click handling instead and doesn't have this problem.
+            // (rather than onTapGesture) because onTapGesture can lose gesture-priority
+            // races on macOS, silently swallowing clicks — Button routes through AppKit's
+            // normal control click handling instead.
             Button {
                 onSelectTab(tab.id)
             } label: {
-                RoundedRectangle(cornerRadius: Self.pillCornerRadius, style: .continuous)
+                Capsule(style: .continuous)
                     .fill(Color(nsColor: Self.tabBackgroundColor(
                         isSelected: isSelected,
                         isHovered: isHovered,
                         usesDarkChrome: usesDarkChrome
                     )))
-                    // The active pill floats a hair above the bar, Safari-style; hover
-                    // and inactive pills stay flat.
-                    .shadow(
-                        color: Color.black.opacity(isSelected ? (usesDarkChrome ? 0.30 : 0.10) : 0),
-                        radius: 2, x: 0, y: 1
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(
+                                Color(nsColor: Self.activeStrokeColor(usesDarkChrome: usesDarkChrome)),
+                                lineWidth: 1
+                            )
+                            .opacity(isSelected ? 1 : 0)
                     )
-                    .contentShape(RoundedRectangle(cornerRadius: Self.pillCornerRadius, style: .continuous))
+                    .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(tab.title))
             .accessibilityValue(isSelected ? Text("selected") : Text(""))
 
+            // Centered title cluster, Safari-style.
             HStack(spacing: 6) {
                 if isDirty {
                     Circle()
@@ -87,22 +111,24 @@ struct TabBarView: View {
                 Text(tab.title)
                     .font(.system(size: 11))
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .foregroundStyle(Color(nsColor: Self.textColor(
                         isSelected: isSelected,
                         usesDarkChrome: usesDarkChrome
                     )))
                     // Text still consumes hits at its own bounds even with no gesture
                     // attached, which silently blocks the selection Button stacked behind
-                    // it (the tab title sits right where a user naturally clicks). Let
-                    // clicks fall through to the Button underneath.
+                    // it. Let clicks fall through to the Button underneath.
                     .allowsHitTesting(false)
 
                 if showsClose {
                     closeButton(for: tab.id, isSelected: isSelected)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
         }
+        // Equal-width distribution: every tab takes the same share of the full bar.
+        .frame(maxWidth: .infinity)
         .frame(height: Self.barHeight - Self.pillVerticalInset * 2)
         .onHover { hovering in
             hoveredTabID = hovering ? tab.id : (hoveredTabID == tab.id ? nil : hoveredTabID)
@@ -136,15 +162,23 @@ struct TabBarView: View {
     static func tabBackgroundColor(isSelected: Bool, isHovered: Bool, usesDarkChrome: Bool) -> NSColor {
         if isSelected {
             return usesDarkChrome
-                ? NSColor(calibratedWhite: 0.28, alpha: 1)
+                ? NSColor(calibratedWhite: 0.26, alpha: 1)
                 : NSColor(calibratedWhite: 1.0, alpha: 1)
         }
         if isHovered {
             return usesDarkChrome
-                ? NSColor(calibratedWhite: 0.23, alpha: 1)
-                : NSColor(calibratedWhite: 0.915, alpha: 1)
+                ? NSColor(calibratedWhite: 0.22, alpha: 1)
+                : NSColor(calibratedWhite: 0.92, alpha: 1)
         }
         return .clear
+    }
+
+    /// The active capsule's hairline outline — the Safari cue that reads "current tab"
+    /// without any translucency.
+    static func activeStrokeColor(usesDarkChrome: Bool) -> NSColor {
+        usesDarkChrome
+            ? NSColor.white.withAlphaComponent(0.25)
+            : NSColor.black.withAlphaComponent(0.12)
     }
 
     static func textColor(isSelected: Bool, usesDarkChrome: Bool) -> NSColor {
@@ -173,6 +207,12 @@ struct TabBarView: View {
         return usesDarkChrome
             ? NSColor(calibratedWhite: 0.50, alpha: 1)
             : NSColor(calibratedWhite: 0.55, alpha: 1)
+    }
+
+    static func separatorColor(usesDarkChrome: Bool) -> NSColor {
+        usesDarkChrome
+            ? NSColor.white.withAlphaComponent(0.12)
+            : NSColor.black.withAlphaComponent(0.12)
     }
 
     static func bottomBorderColor(usesDarkChrome: Bool) -> NSColor {
