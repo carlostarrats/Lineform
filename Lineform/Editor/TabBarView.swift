@@ -145,16 +145,20 @@ struct TabBarView: View {
         Button {
             onCloseTab(tabID)
         } label: {
-            // Circle first, glyph overlaid dead-center — backgrounding the circle on the
-            // framed Image let the symbol's own optical bearings nudge it off-center.
+            // The × is drawn as raw geometry, not an SF Symbol — the symbol's internal
+            // bearings kept it optically off-center inside the hover circle no matter
+            // how it was stacked. Two strokes in a square, centered by construction.
             Circle()
                 .fill(Color(nsColor: Self.closeButtonHoverCircleColor(usesDarkChrome: usesDarkChrome)))
                 .opacity(hoveredCloseTabID == tabID ? 1 : 0)
                 .frame(width: 16, height: 16)
                 .overlay(
-                    Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(Color(nsColor: Self.closeButtonColor(usesDarkChrome: usesDarkChrome)))
+                    TabCloseGlyph()
+                        .stroke(
+                            Color(nsColor: Self.closeButtonColor(usesDarkChrome: usesDarkChrome)),
+                            style: StrokeStyle(lineWidth: 1.2, lineCap: .round)
+                        )
+                        .frame(width: 7, height: 7)
                 )
                 .contentShape(Rectangle())
         }
@@ -222,6 +226,18 @@ struct TabBarView: View {
         usesDarkChrome
             ? NSColor.white.withAlphaComponent(0.24)
             : NSColor(srgbRed: 0xBB / 255, green: 0xBB / 255, blue: 0xBB / 255, alpha: 1)
+    }
+
+    /// An × as exact geometry: both diagonals of the given rect.
+    struct TabCloseGlyph: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            return path
+        }
     }
 
     static func closeButtonHoverCircleColor(usesDarkChrome: Bool) -> NSColor {
