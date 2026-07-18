@@ -24,7 +24,9 @@ struct CrossFileSearchResultsView: View {
     // `theme.usesDarkChrome` — same approach as QuickOpenPalette / the Find & Replace card —
     // not per-theme tinting.
     private static let lightCardFill = Color(red: 0xFC / 255, green: 0xFC / 255, blue: 0xFC / 255)
-    private static let lightCardStroke = Color(red: 0xE4 / 255, green: 0xE4 / 255, blue: 0xE4 / 255)
+    // A step lighter than the design file's #E4E4E4 — QA read the full-strength
+    // hairline as too heavy against the #FCFCFC card.
+    private static let lightCardStroke = Color(red: 0xEB / 255, green: 0xEB / 255, blue: 0xEB / 255)
     private static let lightPillFill = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF2 / 255)
     private static let mutedTextColor = Color(red: 0x78 / 255, green: 0x78 / 255, blue: 0x78 / 255)
 
@@ -43,7 +45,7 @@ struct CrossFileSearchResultsView: View {
     }
 
     private var cardStroke: Color {
-        usesDarkChrome ? Color.white.opacity(0.14) : Self.lightCardStroke
+        usesDarkChrome ? Color.white.opacity(0.10) : Self.lightCardStroke
     }
 
     private var pillFill: Color {
@@ -142,7 +144,7 @@ struct CrossFileSearchResultsView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, 16)
             // A real NSScrollView (see the page-level comment): AppKit delivers the wheel
             // to the scroll view under the cursor, so pills scroll inside the card.
             AppKitVerticalScrollView {
