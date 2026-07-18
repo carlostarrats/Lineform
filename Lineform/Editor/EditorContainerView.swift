@@ -1618,7 +1618,13 @@ struct EditorContainerView: View {
     /// whole document (Read / no caret).
     private func speechSource(for payload: LineformAppNotification.Payload) -> String {
         let ns = document.text as NSString
-        if let range = payload.selectedRange, range.length > 0, NSMaxRange(range) <= ns.length {
+        // In Read mode the selection range comes from the rendered preview text view
+        // (rendered coordinates — markup stripped, images become attachments), while
+        // `document.text` is in SOURCE coordinates. The two are not comparable, so a
+        // Read-mode selection must never be used to substring source text (it would
+        // speak the wrong passage or fail the bounds guard) — fall through to the
+        // whole-document branch below. Write/Split selections ARE source-coordinate.
+        if displayMode != .read, let range = payload.selectedRange, range.length > 0, NSMaxRange(range) <= ns.length {
             return ns.substring(with: range)
         }
         if displayMode != .read, let range = payload.selectedRange, range.location <= ns.length {

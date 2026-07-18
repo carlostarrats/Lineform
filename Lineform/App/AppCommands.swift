@@ -48,7 +48,6 @@ enum AppMenuConfiguration {
     /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
     static let linkCommandKeyEquivalent = "l"
     static let printCommandTitle = "Print..."
-    static let exportPDFCommandTitle = "Export as PDF..."
     static let exportAsMenuTitle = "Export As"
     static let exportPDFSubmenuTitle = "PDF…"
     static let exportRTFCommandTitle = "Rich Text (RTF)…"

@@ -1,5 +1,4 @@
 import Foundation
-import UniformTypeIdentifiers
 
 /// Classification of an image reference found in a Markdown document.
 enum ImageReferenceKind: Equatable {
