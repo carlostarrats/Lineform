@@ -3,6 +3,11 @@ import SwiftUI
 struct ReadingExperienceInspector: View {
     @ObservedObject var store: ReadingProfileStore
     var usesDarkChrome = false
+    // The active theme's page color. When provided, the drawer inherits it as its background —
+    // Paper's cream and Calm's tint carry into the panel (and the nav band above it matches,
+    // since the window background is pinned to the same color) instead of the drawer always
+    // rendering the fixed near-white/dark chrome. Nil (tests/previews) keeps the fixed colors.
+    var pageBackground: NSColor?
     var onClose: () -> Void = {}
     @State private var isCloseHovered = false
 
@@ -52,7 +57,7 @@ struct ReadingExperienceInspector: View {
             header
             controls
         }
-        .background(Color(nsColor: Self.backgroundColor(usesDarkChrome: usesDarkChrome)))
+        .background(Color(nsColor: pageBackground ?? Self.backgroundColor(usesDarkChrome: usesDarkChrome)))
         .font(Self.inspectorUIFont())
         .environment(\.colorScheme, Self.colorScheme(usesDarkChrome: usesDarkChrome))
         .accessibilityElement(children: .contain)

@@ -597,6 +597,7 @@ struct EditorContainerView: View {
                     ReadingExperienceInspector(
                         store: readingProfileStore,
                         usesDarkChrome: theme.usesDarkChrome,
+                        pageBackground: theme.backgroundColor,
                         onClose: { setReadingInspectorVisible(false) }
                     )
                         .inspectorColumnWidth(
