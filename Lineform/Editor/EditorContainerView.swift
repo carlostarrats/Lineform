@@ -19,6 +19,8 @@ struct EditorContainerView: View {
     @State private var requestedSelection: NSRange?
     @State private var requestedScrollToTopRange: NSRange?
     @State private var searchQuery = ""
+    @State private var searchScope: EditorSearchScope = .thisFile
+    @StateObject private var crossFileSearchModel = CrossFileSearchModel()
     @State private var searchMatches: [NSRange] = []
     @State private var activeSearchIndex: Int?
     @FocusState private var isSearchFocused: Bool
@@ -196,6 +198,10 @@ struct EditorContainerView: View {
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
         .background(WindowChromeReader(windowNumber: $windowNumber, usesDarkChrome: theme.usesDarkChrome))
         .searchable(text: $searchQuery, placement: .toolbar, prompt: "Search")
+        .searchScopes($searchScope) {
+            Text("This File").tag(EditorSearchScope.thisFile)
+            Text("All Files").tag(EditorSearchScope.allFiles)
+        }
         .searchFocusedCompat($isSearchFocused)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -481,11 +487,46 @@ struct EditorContainerView: View {
             windowCloseController = nil
         }
         .onChange(of: searchQuery) { _, _ in
-            refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
+            handleSearchQueryChange()
+        }
+        .onChange(of: searchScope) { _, newScope in
+            handleSearchScopeChange(newScope)
         }
         .onSubmit(of: .search) {
-            advanceToNextSearchMatch()
+            handleSearchSubmit()
         }
+    }
+
+    private func handleSearchQueryChange() {
+        if searchScope == .allFiles {
+            updateCrossFileSearch()
+        } else {
+            refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: true)
+        }
+    }
+
+    private func handleSearchScopeChange(_ newScope: EditorSearchScope) {
+        switch newScope {
+        case .allFiles:
+            // Entering All Files: stop the in-file highlight machinery and, first time
+            // in this window session, trigger the deferred scans — the same explicit
+            // user-gesture trigger ⌘K uses, so the iCloud-laziness invariant holds.
+            searchMatches = []
+            activeSearchIndex = nil
+            if !fileBrowserStore.hasPerformedICloudScan {
+                fileBrowserStore.refreshICloud()
+                fileBrowserStore.refreshWorkspace()
+            }
+            updateCrossFileSearch()
+        case .thisFile:
+            crossFileSearchModel.reset()
+            refreshSearchMatches(selectFirstWhenNeeded: true, navigatesToActiveMatch: false)
+        }
+    }
+
+    private func handleSearchSubmit() {
+        guard searchScope == .thisFile else { return }
+        advanceToNextSearchMatch()
     }
 
     private var outlineVisibility: Binding<NavigationSplitViewVisibility> {
@@ -623,6 +664,24 @@ struct EditorContainerView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.top, 10)
                     .padding(.trailing, 14)
+            }
+
+            // All Files search results: a transient READ-ONLY page over the content area
+            // (spec: never a floating card, never a laid-out top strip — as a full-bleed
+            // opaque layer inside the existing ZStack it leaves the top-edge hierarchy
+            // unchanged, so the translucent toolbar's sampled color cannot shift).
+            if searchScope == .allFiles {
+                CrossFileSearchResultsView(
+                    query: searchQuery,
+                    results: crossFileSearchModel.results,
+                    isSearching: crossFileSearchModel.isSearching,
+                    theme: currentTheme,
+                    onOpen: { result in
+                        openSidebarFile(result.url)
+                        clearAllSearchState()
+                    },
+                    onDismiss: { clearAllSearchState() }
+                )
             }
         }
         .background(Color(nsColor: currentTheme.backgroundColor))
@@ -1285,6 +1344,21 @@ struct EditorContainerView: View {
         requestedReplacement = nil
         isShowingQuickOpen = false
         quickOpenQuery = ""
+        searchScope = .thisFile
+        crossFileSearchModel.reset()
+    }
+
+    /// Locked spec behavior: after opening a cross-file result (or backing out), NO search
+    /// residue may remain anywhere — empty query, no highlights, scope back to This File
+    /// (which also dismisses the results page and, because search deactivates, the system
+    /// scope bar), search focus resigned.
+    private func clearAllSearchState() {
+        searchQuery = ""
+        searchMatches = []
+        activeSearchIndex = nil
+        searchScope = .thisFile
+        crossFileSearchModel.reset()
+        isSearchFocused = false
     }
 
     private func refreshSearchMatches(selectFirstWhenNeeded: Bool, navigatesToActiveMatch: Bool = true) {
@@ -1305,6 +1379,18 @@ struct EditorContainerView: View {
             }
             self.requestedSelection = requestedSelection
         }
+    }
+
+    /// Kicks off (or re-kicks, debounced inside the model) an All Files scan against the
+    /// current sidebar-scanned tree — the same entries ⌘K's QuickOpenPalette uses.
+    private func updateCrossFileSearch() {
+        crossFileSearchModel.search(
+            query: searchQuery,
+            entries: QuickOpenIndex.flatten(
+                iCloudRoot: fileBrowserStore.iCloudRoot,
+                workspaceRoot: fileBrowserStore.workspaceRoot
+            )
+        )
     }
 
     private func advanceToNextSearchMatch() {
