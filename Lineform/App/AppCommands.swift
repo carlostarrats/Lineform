@@ -405,6 +405,15 @@ struct AppCommands: Commands {
                 }
             }
 
+            Button("Toggle Write / Read") {
+                let target = displayModeMenuState.displayMode.toggledWriteRead
+                displayModeMenuState.setDisplayMode(target)
+                LineformAppNotification.setDisplayMode.post(
+                    object: LineformAppNotification.activeWindowPayload(value: target.rawValue)
+                )
+            }
+            .keyboardShortcut("e", modifiers: .command)
+
             Button("Toggle Outline") {
                 LineformAppNotification.toggleOutline.post(object: LineformAppNotification.activeWindowPayload())
             }
