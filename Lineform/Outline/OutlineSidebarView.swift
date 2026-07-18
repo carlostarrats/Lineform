@@ -91,15 +91,10 @@ struct OutlineSidebarView: View {
         var id: String { item.id }
     }
 
-    static let emptyStateTitle = "No headings yet"
-    static let emptyStatePossibilityMessage = "No sections. No hierarchy. Just possibilities."
     static let emptyStateInstruction = "Add # Title or ## Section to build an outline."
-    static let emptyStateTopPadding: CGFloat = 10
-    static let emptyStateHorizontalPadding: CGFloat = 16
-    static let emptyStateTitleBodySpacing: CGFloat = 7
-    static let emptyStateMessageInstructionSpacing: CGFloat = 24
-    static let emptyStateTitleFontSize: CGFloat = 13
-    static let emptyStateBodyFontSize: CGFloat = 12
+    /// Matches the Markdown Basics section header exactly: size 12 medium, inactive-tab grey,
+    /// same leading x (pillHorizontalInset + 10) and same y below the divider (tabDividerGap + 4).
+    static let emptyStateFontSize: CGFloat = 12
     static let titleShowsIcon = false
     static let usesSubtleGradientBackground = false
     static let usesThemeIndependentLightChrome = false
@@ -531,25 +526,15 @@ struct OutlineSidebarView: View {
     @ViewBuilder
     private var outlineContent: some View {
         if items.isEmpty {
-            VStack(alignment: .leading, spacing: Self.emptyStateTitleBodySpacing) {
-                Text(Self.emptyStateTitle)
-                    .font(.system(size: Self.emptyStateTitleFontSize, weight: .semibold))
-                    .foregroundStyle(Self.primaryTextColor(usesDarkChrome: usesDarkChrome))
-
-                VStack(alignment: .leading, spacing: Self.emptyStateMessageInstructionSpacing) {
-                    Text(Self.emptyStatePossibilityMessage)
-                        .foregroundStyle(Self.primaryTextColor(usesDarkChrome: usesDarkChrome))
-
-                    Text(Self.emptyStateInstruction)
-                        .foregroundStyle(Self.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                }
-                .font(.system(size: Self.emptyStateBodyFontSize))
+            Text(Self.emptyStateInstruction)
+                .font(.system(size: Self.emptyStateFontSize, weight: .medium))
+                .foregroundStyle(Self.tabTextColor(usesDarkChrome: usesDarkChrome, isSelected: false, isHovered: false))
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, Self.emptyStateHorizontalPadding)
-            .padding(.top, Self.emptyStateTopPadding)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.leading, Self.pillHorizontalInset + 10)
+                .padding(.trailing, Self.pillHorizontalInset)
+                .padding(.top, Self.tabDividerGap + 4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 1) {
