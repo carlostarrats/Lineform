@@ -140,6 +140,264 @@ final class EditorTabStoreTests: XCTestCase {
         XCTAssertNil(store.tabs[index].fileURL) // became untitled-with-content
         XCTAssertNotNil(store.tabIndex(for: url("/tmp/stay.md")))
     }
+
+    // MARK: - Save As destination conflicts
+
+    func testSaveAsOntoAnotherOpenTabIsAConflict() {
+        let store = makeStore()
+        store.openTab(document: makeDocument("victim"), fileURL: url("/tmp/other.md"))
+        let active = store.openTab(document: makeDocument("active"), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/other.md"), tabs: store.tabs, activeTabID: active),
+            "other.md")
+    }
+
+    func testSaveAsOntoTheActiveTabsOwnFileIsNotAConflict() {
+        let store = makeStore()
+        let active = store.openTab(document: makeDocument("active"), fileURL: url("/tmp/active.md"))
+        // Re-saving over yourself is an ordinary Save As; only OTHER tabs can be clobbered.
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: url("/tmp/active.md"), tabs: store.tabs, activeTabID: active))
+    }
+
+    func testSaveAsToAFreshPathIsNotAConflict() {
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/other.md"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: url("/tmp/new.md"), tabs: store.tabs, activeTabID: active))
+    }
+
+    func testConflictMatchesNonStandardizedPaths() {
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/other.md"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/sub/../other.md"), tabs: store.tabs, activeTabID: active),
+            "other.md")
+    }
+
+    func testConflictMatchesTheSameFileReachedThroughASymlinkedParent() throws {
+        // The same file spelled through a symlinked parent directory (the shape of /tmp →
+        // /private/tmp). A plain string compare misses it and lets the clobbering save through.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        let realDir = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: realDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let linkDir = root.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: linkDir, withDestinationURL: realDir)
+
+        let real = realDir.appendingPathComponent("note.md")
+        try Data("hi".utf8).write(to: real)
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: real)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: linkDir.appendingPathComponent("note.md"),
+                tabs: store.tabs, activeTabID: active),
+            "note.md")
+    }
+
+    func testSavingOntoYourOwnFileIsAllowedEvenWhenItIsOpenInAnotherWindow() throws {
+        // Nothing stops the same file being open in two windows. ⌘⇧S → keep the same name is the
+        // most routine Save As there is; matching the OTHER window's tab by ID alone would refuse
+        // it with no way to proceed. Excluding the active tab's own PATH is what prevents that.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let shared = root.appendingPathComponent("shared.md")
+        try Data("hi".utf8).write(to: shared)
+
+        let windowA = makeStore()
+        let activeInA = windowA.openTab(document: makeDocument(), fileURL: shared)
+        let windowB = makeStore()
+        windowB.openTab(document: makeDocument(), fileURL: shared)
+
+        XCTAssertNil(
+            SaveAsConflict.conflictingTabTitle(
+                destination: shared,
+                tabs: windowA.tabs + windowB.tabs,
+                activeTabID: activeInA),
+            "Re-saving a document onto its own file must never be refused.")
+    }
+
+    func testConflictMatchesAFileReachedThroughASymlinkedFileName() throws {
+        // canonicalPath resolves symlinked DIRECTORIES but hands back the link's own path for the
+        // last component, and fileResourceIdentifier reports the link's OWN inode — so this case
+        // rests entirely on both sides being put through resolvingSymlinksInPath() first.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let real = root.appendingPathComponent("note.md")
+        try Data("hi".utf8).write(to: real)
+        let alias = root.appendingPathComponent("alias.md")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: real)
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: alias)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: real, tabs: store.tabs, activeTabID: active),
+            "alias.md",
+            "Writing note.md overwrites what the open alias.md tab is showing.")
+    }
+
+    func testConflictFoldsParentDirectoryCaseWhenTheFileIsNotOnDiskYet() throws {
+        // Exercises the parent-canonicalization fallback specifically: neither URL exists, so there
+        // is no file identity and no whole-path canonicalPath — only the DIRECTORY resolves.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        let sub = root.appendingPathComponent("Sub")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let lowercasedParent = root.appendingPathComponent("sub")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: lowercasedParent.path),
+            "Volume is case-sensitive; Sub/ and sub/ are distinct directories here.")
+
+        let store = makeStore()
+        let absent = sub.appendingPathComponent("ghost.md")
+        store.openTab(document: makeDocument(), fileURL: absent)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: lowercasedParent.appendingPathComponent("ghost.md"),
+                tabs: store.tabs, activeTabID: active),
+            "ghost.md")
+    }
+
+    func testHardLinksToOneInodeAreNotAConflict() throws {
+        // Tempting to treat as the same file, but every write here is a safe-save (temp + rename),
+        // which replaces the directory entry and BREAKS the link instead of overwriting shared
+        // bytes — the other tab's file keeps its contents. Refusing would block a harmless save.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = root.appendingPathComponent("note.md")
+        try Data("original".utf8).write(to: first)
+        let second = root.appendingPathComponent("same-inode.md")
+        try FileManager.default.linkItem(at: first, to: second)
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: first)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: second, tabs: store.tabs, activeTabID: active))
+
+        // The premise, asserted rather than assumed. This covers the Data.write(.atomic) path used
+        // by PDF/RTF export; NSDocument's save/autosave (the Markdown branch) was measured to break
+        // the link the same way, but isn't reachable from a unit test.
+        try Data("rewritten".utf8).write(to: second, options: .atomic)
+        XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "original")
+    }
+
+    func testConflictMatchesAPrivateTmpSpellingWhenNeitherSideExists() {
+        // The exact regression the two-branch normalization warning exists to prevent: /tmp and
+        // /private/tmp name one directory, and with NEITHER file on disk there is no file identity
+        // to fall back on — only the parent canonicalization can fold them together.
+        let name = "ghost-\(UUID().uuidString).md"
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/\(name)"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/private/tmp/\(name)"), tabs: store.tabs, activeTabID: active),
+            name)
+    }
+
+    func testConflictMatchesACaseOnlyDifferenceOnCaseInsensitiveVolumes() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let real = dir.appendingPathComponent("Notes.md")
+        try Data("hi".utf8).write(to: real)
+
+        let otherCase = dir.appendingPathComponent("notes.md")
+        // On a case-SENSITIVE volume these are genuinely two files and refusing would be wrong,
+        // so the guarantee under test only exists where the volume folds case.
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: otherCase.path),
+            "Volume is case-sensitive; Notes.md and notes.md are distinct files here.")
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: real)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: otherCase, tabs: store.tabs, activeTabID: active),
+            "Notes.md",
+            "Saving over \u{201C}notes.md\u{201D} would overwrite the open \u{201C}Notes.md\u{201D}.")
+    }
+
+    func testUntitledTabsAreNeverTheConflictingTab() {
+        let store = makeStore() // initial tab has no fileURL
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        // A tab with no file on disk can't be the thing we'd overwrite, whatever the destination.
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: url("/tmp/new.md"), tabs: store.tabs, activeTabID: active))
+    }
+
+    func testSavingAnUntitledActiveTabOntoAnotherTabsFileIsAConflict() {
+        // The likeliest real path into this: an Untitled draft being given a name that happens to
+        // be a file already open. The active tab having no URL must not disable the guard.
+        let store = makeStore()
+        store.openTab(document: makeDocument("existing"), fileURL: url("/tmp/other.md"))
+        let untitled = store.tabs.first { $0.fileURL == nil }!.id
+        store.selectTab(id: untitled)
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/other.md"), tabs: store.tabs, activeTabID: untitled),
+            "other.md")
+    }
+
+    func testConflictSeesTabsFromEveryOpenWindow() {
+        EditorTabStore.resetRegistryForTesting()
+        // Each window owns its own store; a Save As in one window must still see the other's tabs,
+        // because that window has no idea its file was rewritten underneath it.
+        let windowA = makeStore()
+        let windowB = makeStore()
+        windowB.openTab(document: makeDocument("B's work"), fileURL: url("/tmp/in-window-b.md"))
+        let activeInA = windowA.openTab(document: makeDocument(), fileURL: url("/tmp/in-window-a.md"))
+
+        XCTAssertNil(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/in-window-b.md"), tabs: windowA.tabs, activeTabID: activeInA),
+            "Window A's own tabs alone cannot see the conflict — hence the app-wide registry.")
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/in-window-b.md"),
+                tabs: EditorTabStore.allOpenTabs, activeTabID: activeInA),
+            "in-window-b.md")
+    }
+
+    func testClosedWindowsDropOutOfTheAppWideTabRegistry() {
+        EditorTabStore.resetRegistryForTesting()
+        let path = "/tmp/registry-\(UUID().uuidString).md"
+        autoreleasepool {
+            let closing = makeStore()
+            closing.openTab(document: makeDocument(), fileURL: url(path))
+            XCTAssertTrue(EditorTabStore.allOpenTabs.contains { $0.fileURL?.path == path })
+        }
+        // The store is weakly held, so a closed window stops causing phantom conflicts.
+        XCTAssertFalse(EditorTabStore.allOpenTabs.contains { $0.fileURL?.path == path })
+    }
 }
 
 @MainActor

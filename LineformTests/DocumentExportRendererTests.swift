@@ -412,6 +412,102 @@ final class DocumentExportRendererTests: XCTestCase {
         XCTAssertTrue(view.textStorage!.string.contains("![cat](pic.png)"))
         XCTAssertEqual(attachmentCount(view), 0)
     }
+
+    // MARK: - Atomic staged write (crash-safe overwrite)
+
+    private func makeScratchDir() -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-atomic-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    func testStagedWriteDeliversProducedBytesToDestination() {
+        let dir = makeScratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.pdf")
+
+        let ok = AtomicFileWrite.write(to: destination) { temp in
+            (try? Data("rendered".utf8).write(to: temp)) != nil
+        }
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(try? Data(contentsOf: destination), Data("rendered".utf8))
+    }
+
+    func testStagedWriteLeavesAnExistingFileIntactWhenProductionFails() {
+        let dir = makeScratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.pdf")
+        let original = Data("the user's previous export".utf8)
+        try! original.write(to: destination)
+
+        // The renderer half-wrote the staging file and then failed (disk full, print error).
+        let ok = AtomicFileWrite.write(to: destination) { temp in
+            try? Data("truncated gar".utf8).write(to: temp)
+            return false
+        }
+
+        XCTAssertFalse(ok)
+        XCTAssertEqual(try? Data(contentsOf: destination), original,
+            "A failed export must never damage the file it was overwriting.")
+    }
+
+    func testStagedWriteFailsWithoutTouchingDestinationWhenNothingWasProduced() {
+        let dir = makeScratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.pdf")
+        let original = Data("previous".utf8)
+        try! original.write(to: destination)
+
+        // Claims success but produced no file at all.
+        XCTAssertFalse(AtomicFileWrite.write(to: destination) { _ in true })
+        XCTAssertEqual(try? Data(contentsOf: destination), original)
+
+        // Claims success but produced a 0-byte file — an empty PDF is a failed render.
+        XCTAssertFalse(AtomicFileWrite.write(to: destination) { temp in
+            (try? Data().write(to: temp)) != nil
+        })
+        XCTAssertEqual(try? Data(contentsOf: destination), original)
+    }
+
+    func testStagedWriteCreatesNoFileWhenTheDestinationDidNotExist() {
+        let dir = makeScratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.pdf")
+
+        XCTAssertFalse(AtomicFileWrite.write(to: destination) { _ in false })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path),
+            "A failed export must not leave a stub behind.")
+    }
+
+    func testStagedWriteHandlesAnExtensionlessDestination() {
+        let dir = makeScratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("no-extension")
+
+        XCTAssertTrue(AtomicFileWrite.write(to: destination) { temp in
+            XCTAssertFalse(temp.lastPathComponent.hasSuffix("."), "No dangling dot on the staging name.")
+            return (try? Data("bytes".utf8).write(to: temp)) != nil
+        })
+        XCTAssertEqual(try? Data(contentsOf: destination), Data("bytes".utf8))
+    }
+
+    func testStagedWriteRemovesItsStagingFile() {
+        let dir = makeScratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.pdf")
+        var stagingURL: URL?
+
+        _ = AtomicFileWrite.write(to: destination) { temp in
+            stagingURL = temp
+            return (try? Data("x".utf8).write(to: temp)) != nil
+        }
+
+        let staging = try! XCTUnwrap(stagingURL)
+        XCTAssertNotEqual(staging.standardizedFileURL, destination.standardizedFileURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staging.path))
+    }
 }
 
 /// PDF-byte generation via `NSPrintOperation` — HOSTED plan only (see the class note above and
@@ -428,6 +524,25 @@ final class DocumentExportPDFHostedTests: XCTestCase {
         )
         XCTAssertTrue(data.starts(with: Data("%PDF".utf8)))
         XCTAssertGreaterThan(data.count, 100)
+    }
+
+    /// The staged export path end-to-end: a real print job renders into staging and the finished
+    /// PDF replaces whatever the user chose to overwrite.
+    func testAtomicPDFExportReplacesAnExistingFileWithARealPDF() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-atomic-pdf-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.pdf")
+        try Data("an older export the user is replacing".utf8).write(to: destination)
+
+        let ok = DocumentExportRenderer.writePDFAtomically(
+            text: "# Title\n\nBody paragraph.\n", profile: .original, paper: .usLetter, to: destination)
+
+        XCTAssertTrue(ok)
+        let written = try Data(contentsOf: destination)
+        XCTAssertTrue(written.starts(with: Data("%PDF".utf8)))
+        XCTAssertGreaterThan(written.count, 100)
     }
 
     func testPDFPaginatesLongDocuments() throws {

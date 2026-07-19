@@ -6,10 +6,32 @@ final class EditorTabStore: ObservableObject {
     @Published var tabs: [DocumentTab]
     @Published var selectedTabID: UUID?
 
+    /// Every live store, so a Save As in one window can see the tabs open in the OTHER windows and
+    /// refuse to overwrite one of them (`SaveAsConflict`) — the hazard is identical across windows,
+    /// and the window that owns the file has no idea another window just wrote over it. Weak, so a
+    /// closed window's store drops out on dealloc with no unregister bookkeeping.
+    private static let liveStores = NSHashTable<EditorTabStore>.weakObjects()
+
+    /// The tabs open across every window, in no particular order. Callers identify their own active
+    /// tab by ID, which is unique app-wide.
+    static var allOpenTabs: [DocumentTab] {
+        liveStores.allObjects.flatMap(\.tabs)
+    }
+
+    #if DEBUG
+    /// Test-only. The registry is process-global and the suite runs every test in one process, so a
+    /// test asserting that something is ABSENT from `allOpenTabs` would otherwise depend on whether
+    /// an earlier test's store had been deallocated yet.
+    static func resetRegistryForTesting() {
+        liveStores.removeAllObjects()
+    }
+    #endif
+
     init(initialDocument: LineformDocument, fileURL: URL? = nil) {
         let tab = DocumentTab(document: initialDocument, fileURL: fileURL)
         tabs = [tab]
         selectedTabID = tab.id
+        Self.liveStores.add(self)
     }
 
     var selectedTabIndex: Int? {

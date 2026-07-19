@@ -54,6 +54,9 @@ struct EditorContainerView: View {
     @State private var rtfExportErrorFileName: String?
     /// Set when a Save As → Markdown save fails, driving a native in-window `.alert`.
     @State private var markdownSaveErrorFileName: String?
+    /// Set when Save As targets a file already open in another tab of this window. Holds that
+    /// tab's title for the refusal alert (see `SaveAsConflict`).
+    @State private var saveAsConflictTabTitle: String?
     @State private var tabCloseDialog: TabCloseDialog?
     /// Coordinates saving a dirty tab before closing it.
     @State private var saveAndCloseCoordinator: SaveAndCloseCoordinator?
@@ -191,6 +194,18 @@ struct EditorContainerView: View {
             Button("OK", role: .cancel) { markdownSaveErrorFileName = nil }
         } message: { fileName in
             Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
+        }
+        .alert(
+            "File Already Open",
+            isPresented: Binding(
+                get: { saveAsConflictTabTitle != nil },
+                set: { if !$0 { saveAsConflictTabTitle = nil } }
+            ),
+            presenting: saveAsConflictTabTitle
+        ) { _ in
+            Button("OK", role: .cancel) { saveAsConflictTabTitle = nil }
+        } message: { tabTitle in
+            Text("\u{201C}\(tabTitle)\u{201D} is open in another tab, so saving over it would discard that tab\u{2019}s contents. Close that tab first, or choose a different name.")
         }
         .alert(
             "Close Tab",
@@ -1743,6 +1758,16 @@ struct EditorContainerView: View {
 
         let write: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else { return }
+            // The panel's own "Replace?" warning is about the file on DISK; it says nothing about
+            // that file also being open in another tab, whose stale snapshot would autosave right
+            // back over whatever we write here. Refuse and name the tab instead of clobbering.
+            // Checked against EVERY window's tabs, not just this one's: the other window has no idea
+            // its file was rewritten, so a cross-window save is the same data loss.
+            if let conflictingTab = SaveAsConflict.conflictingTabTitle(
+                destination: url, tabs: EditorTabStore.allOpenTabs, activeTabID: tabStore.selectedTabID) {
+                saveAsConflictTabTitle = conflictingTab
+                return
+            }
             let format = controller.selectedFormat
             let paperIndex = controller.paperPopup.indexOfSelectedItem
             let paper = ExportPaperSize.allCases.indices.contains(paperIndex) ? ExportPaperSize.allCases[paperIndex] : .usLetter
@@ -1768,12 +1793,12 @@ struct EditorContainerView: View {
             case .pdf, .styledPDF:
                 let preset: ExportTypographyPreset = (format == .styledPDF) ? .styled : .standard
                 let dir = currentFileURL?.deletingLastPathComponent()
-                // NSPrintOperation writes straight to the target, so a mid-write failure (disk full)
-                // can leave a truncated/0-byte PDF. Only remove it if we CREATED it this export —
-                // never delete a file that already existed (the user may have chosen to overwrite).
-                let pdfPreexisted = FileManager.default.fileExists(atPath: url.path)
+                // NSPrintOperation writes straight to its target, so a mid-write failure (disk full,
+                // render error, crash) would leave a truncated PDF — and when overwriting, it would
+                // have already destroyed the file that was there. Staging the render and moving it
+                // into place on success means a failed export leaves the destination untouched.
                 let runExport = {
-                    let succeeded = DocumentExportRenderer.writePDF(
+                    let succeeded = DocumentExportRenderer.writePDFAtomically(
                         text: document.text,
                         profile: readingProfileStore.activeProfile,
                         paper: paper,
@@ -1783,7 +1808,6 @@ struct EditorContainerView: View {
                     )
                     if !succeeded {
                         pdfExportErrorFileName = url.lastPathComponent
-                        if !pdfPreexisted { try? FileManager.default.removeItem(at: url) }
                     }
                 }
                 if format == .styledPDF {

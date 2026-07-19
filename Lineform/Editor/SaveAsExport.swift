@@ -47,6 +47,97 @@ enum SaveAsFormat: Int, CaseIterable {
     var usesPaper: Bool { self == .pdf || self == .styledPDF }
 }
 
+/// Guards the one way Save As can still lose work: choosing a destination that is ALREADY open in
+/// another tab of this window. macOS's own "Replace?" warning is about the file on disk and says
+/// nothing about the other tab, whose stale in-memory snapshot would then autosave straight over the
+/// text just written. Rather than dedupe/merge tabs (invasive, and it would silently close a tab the
+/// user is looking at), Lineform refuses the save and names the conflicting tab — matching AppKit's
+/// own refusal to save one document onto another open document's file.
+enum SaveAsConflict {
+    /// The display title of another tab already pointing at `destination`, or nil when the save is
+    /// safe. `tabs` is every tab in every window; the active tab is identified by `activeTabID`.
+    static func conflictingTabTitle(destination: URL, tabs: [DocumentTab], activeTabID: UUID?) -> String? {
+        let activeTab = tabs.first { $0.id == activeTabID }
+        // Saving a document back onto the file it already occupies is an ordinary Save As, never the
+        // hazard this guards. It must be excluded by PATH and not merely by tab ID: nothing stops
+        // the same file being open in a second window, and matching that tab would refuse the most
+        // routine Save As there is ("keep the same name") with no way for the user to proceed.
+        //
+        // ACCEPTED RESIDUAL: that exclusion also permits the case where the destination is the
+        // active tab's own file AND a second window has the same file open — the other window's
+        // stale snapshot can still autosave over the write. That is not this guard's hole to plug:
+        // the app has no cross-window open-file dedupe (`EditorTabStore.tabIndex(for:)` is
+        // per-window), so plain ⌘S races exactly the same way, and refusing here would block a
+        // routine save while leaving the identical race one keystroke away. Closing it properly
+        // means deduping on OPEN — focusing the window that already has the file — not refusing
+        // saves.
+        if let activeURL = activeTab?.fileURL, isSameFile(activeURL, destination) {
+            return nil
+        }
+        return tabs.first { tab in
+            guard tab.id != activeTabID, let url = tab.fileURL else { return false }
+            return isSameFile(url, destination)
+        }?.title
+    }
+
+    /// Whether two URLs name the same bytes on disk.
+    ///
+    /// Both sides are first put through `resolvingSymlinksInPath()`, which is the only thing that
+    /// follows a symlink at the LAST path component — `canonicalPath` resolves symlinked ancestors
+    /// but hands back the link's own path for the leaf, so without this an `alias.md` tab and the
+    /// `note.md` it points at look like two files and the clobber goes through. It is safe to use
+    /// here, unlike inside `comparisonKey`, precisely because it is applied to BOTH sides before
+    /// anything else, so it can't pull the two keys in opposite directions.
+    ///
+    /// Sameness is deliberately decided by PATH and not by file identity (inode): two HARD LINKS to
+    /// one inode are not a clobber. Every write here is a safe-save — `Data.write(.atomic)` and
+    /// `NSDocument`'s save alike write a temp file and rename it into place — which REPLACES the
+    /// directory entry and breaks the link rather than overwriting shared bytes, so the other tab's
+    /// file is left untouched. Verified by measurement across every write this guard fronts:
+    /// `.saveOperation`, `.saveAsOperation`, autosave-in-place, and `Data.write(.atomic)` all leave
+    /// a new inode with the sibling intact. Matching on inode would refuse that save for no reason,
+    /// and a wrong refusal has no in-app override.
+    private static func isSameFile(_ lhs: URL, _ rhs: URL) -> Bool {
+        let lhsResolved = lhs.standardizedFileURL.resolvingSymlinksInPath()
+        let rhsResolved = rhs.standardizedFileURL.resolvingSymlinksInPath()
+        return comparisonKey(for: lhsResolved) == comparisonKey(for: rhsResolved)
+    }
+
+    /// A path normalized far enough that two spellings of one file compare equal. Plain path
+    /// comparison is not enough: macOS volumes are case-INSENSITIVE by default, so `Notes.md` and
+    /// `notes.md` are one file and a string compare would miss the clobber.
+    ///
+    /// `canonicalPath` returns the true on-disk casing and resolves symlinked ancestors, so a
+    /// case-only difference matches on a case-insensitive volume and does NOT match on a
+    /// case-sensitive one (where they really are two files). It exists only for a file that is on
+    /// disk, so a not-yet-created destination normalizes its PARENT directory instead and re-attaches
+    /// the file name.
+    ///
+    /// The parent is resolved through symlinks BEFORE being canonicalized, because `canonicalPath`
+    /// will not resolve a symlinked directory that is the last component it is handed — so `/tmp`
+    /// would stay `/tmp` and `/tmp/ghost.md` vs `/private/tmp/ghost.md` (one directory, two
+    /// spellings) would produce two keys. The `canonicalPath` call on the already-resolved parent is
+    /// belt-and-braces: no case is known where it changes the result, since `resolvingSymlinksInPath`
+    /// also folds case for components that exist.
+    ///
+    /// KNOWN GAPS (accepted), all requiring NEITHER side to exist: a difference only in the FILE
+    /// NAME's case; a last component that is itself a symlink; and a parent chain that isn't on disk
+    /// either (`/tmp/nope/x.md` vs `/private/tmp/nope/x.md`). Every one needs a destination that
+    /// isn't on disk — and overwriting means it is, and `NSSavePanel` only ever yields an existing
+    /// parent — so none is reachable for the clobber this guards. Do not "fix" the case gap by
+    /// lowercasing: that would wrongly refuse legitimate saves on a case-sensitive volume, and a
+    /// wrong refusal has no in-app override.
+    private static func comparisonKey(for url: URL) -> String {
+        let standardized = url.standardizedFileURL
+        if let canonical = try? standardized.resourceValues(forKeys: [.canonicalPathKey]).canonicalPath {
+            return canonical
+        }
+        let parent = standardized.deletingLastPathComponent().resolvingSymlinksInPath()
+        let canonicalParent = (try? parent.resourceValues(forKeys: [.canonicalPathKey]).canonicalPath) ?? parent.path
+        return canonicalParent + "/" + standardized.lastPathComponent
+    }
+}
+
 /// Owns the Format (and Paper) popups in the Save As… panel's accessory view and keeps the panel's
 /// filename extension + allowed type in sync as the user changes the format. An `NSObject` so it can
 /// be the popup's target/action.
