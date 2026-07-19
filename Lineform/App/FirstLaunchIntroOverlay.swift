@@ -407,6 +407,7 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
         configuration.userContentController.add(context.coordinator, name: "lineformIntro")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsBackForwardNavigationGestures = false
 
@@ -419,7 +420,7 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
 
     func updateNSView(_ nsView: WKWebView, context: Context) {}
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let dismiss: () -> Void
 
         init(dismiss: @escaping () -> Void) {
@@ -429,6 +430,26 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "lineformIntro" {
                 dismiss()
+            }
+        }
+
+        // Defense-in-depth for a bundled, in-process web view: only the local file load is allowed
+        // to navigate the overlay. A real web link opens in the user's browser; anything else is
+        // blocked — bundled JS can never point this view at remote content.
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.cancel)
+                return
+            }
+            if url.isFileURL {
+                decisionHandler(.allow)
+            } else {
+                if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                    NSWorkspace.shared.open(url)
+                }
+                decisionHandler(.cancel)
             }
         }
     }

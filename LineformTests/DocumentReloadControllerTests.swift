@@ -60,6 +60,23 @@ final class DocumentReloadControllerTests: XCTestCase {
         XCTAssertEqual(controller.lastReload?.modificationDate, Date(timeIntervalSince1970: 100))
     }
 
+    func testActivatingCleanTabReconcilesNewFileWithDisk() {
+        // A tab switch repoints the one per-window controller to a DIFFERENT file (register with a
+        // new URL). If that background tab's file was rewritten externally while it was unwatched,
+        // register alone would bless the tab's stale in-memory snapshot as the synced baseline. The
+        // follow-up fileDidChange() that activateSelectedTab triggers for a CLEAN tab must pick up
+        // the newer disk content instead — otherwise the next keystroke autosaves over the rewrite.
+        let controller = DocumentReloadController(
+            diskReader: FakeReader(text: "disk-new", date: Date(timeIntervalSince1970: 200)),
+            debounceInterval: 0
+        )
+        controller.update(url: url(), syncedText: "first file")           // active tab = file A
+        let other = URL(fileURLWithPath: "/tmp/lineform-test-other.md")
+        controller.register(url: other, syncedText: "stale in-memory")    // switch to clean tab B (new URL)
+        controller.fileDidChange()                                        // the reconcile the fix adds
+        waitUntil("clean tab reconciles with disk on activation") { controller.lastReload?.text == "disk-new" }
+    }
+
     func testUnsavedInMemoryEditsAreNotClobbered() {
         let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
         controller.update(url: url(), syncedText: "old")

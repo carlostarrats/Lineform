@@ -1174,6 +1174,16 @@ struct EditorContainerView: View {
         }
 
         registerReloadWatcher()
+        // A background tab is not watched while inactive, so its file may have been rewritten on
+        // disk (Lineform's core use case: an agent edits the .md). registerReloadWatcher just
+        // blessed the tab's in-memory snapshot as the synced baseline WITHOUT reading disk, so —
+        // for a CLEAN incoming tab — reconcile with disk now. Without this, switching to a clean
+        // tab whose file changed externally shows stale content, and the next keystroke autosaves
+        // over the external rewrite (silent data loss). A dirty tab is deliberately left untouched:
+        // its unsaved edits win, exactly like live reload's .ignoreDirty policy.
+        if !isEdited {
+            reloadController.fileDidChange()
+        }
         LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
         LineformDisplayModeMenuState.shared.setDisplayMode(displayMode)
     }
@@ -1739,7 +1749,7 @@ struct EditorContainerView: View {
                     }
                 } else {
                     do {
-                        try Data(document.text.utf8).write(to: url)
+                        try Data(document.text.utf8).write(to: url, options: .atomic)
                     } catch {
                         markdownSaveErrorFileName = url.lastPathComponent
                     }
@@ -1747,6 +1757,10 @@ struct EditorContainerView: View {
             case .pdf, .styledPDF:
                 let preset: ExportTypographyPreset = (format == .styledPDF) ? .styled : .standard
                 let dir = currentFileURL?.deletingLastPathComponent()
+                // NSPrintOperation writes straight to the target, so a mid-write failure (disk full)
+                // can leave a truncated/0-byte PDF. Only remove it if we CREATED it this export —
+                // never delete a file that already existed (the user may have chosen to overwrite).
+                let pdfPreexisted = FileManager.default.fileExists(atPath: url.path)
                 let runExport = {
                     let succeeded = DocumentExportRenderer.writePDF(
                         text: document.text,
@@ -1756,7 +1770,10 @@ struct EditorContainerView: View {
                         documentDirectory: dir,
                         to: url
                     )
-                    if !succeeded { pdfExportErrorFileName = url.lastPathComponent }
+                    if !succeeded {
+                        pdfExportErrorFileName = url.lastPathComponent
+                        if !pdfPreexisted { try? FileManager.default.removeItem(at: url) }
+                    }
                 }
                 if format == .styledPDF {
                     withImageAccessGrantsIfNeeded(documentDirectory: dir, perform: runExport)
@@ -1766,7 +1783,9 @@ struct EditorContainerView: View {
             case .rtf:
                 do {
                     let data = try DocumentExportRenderer.rtfData(for: document, profile: readingProfileStore.activeProfile, paper: paper)
-                    try data.write(to: url)
+                    // Atomic: a failed write leaves no partial file, and any file being overwritten
+                    // is preserved intact unless the write fully succeeds.
+                    try data.write(to: url, options: .atomic)
                 } catch {
                     rtfExportErrorFileName = url.lastPathComponent
                 }

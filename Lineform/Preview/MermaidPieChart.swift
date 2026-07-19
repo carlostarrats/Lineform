@@ -36,9 +36,16 @@ enum MermaidPieChart {
             guard let slice = parseSlice(line) else { return nil }  // any malformed data line → whole block fails
             slices.append(slice)
         }
-        guard !slices.isEmpty, slices.allSatisfy({ $0.value > 0 }) else { return nil }
+        // A legend row per slice sizes the raster; hundreds of slices is both unreadable and a
+        // large one-shot bitmap allocation (row height × scale). Bail to the captioned-source
+        // fallback rather than draw a giant, useless chart.
+        guard !slices.isEmpty, slices.count <= maxSlices, slices.allSatisfy({ $0.value > 0 }) else { return nil }
         return MermaidPieModel(title: title, slices: slices)
     }
+
+    /// Upper bound on renderable slices (see `parse`). A real pie chart has a handful; this only
+    /// rejects pathological input.
+    static let maxSlices = 100
 
     /// `pie [showData] [title <text>]` → the title text, or nil.
     private static func parseTitle(fromHeader header: String) -> String? {
