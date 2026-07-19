@@ -448,4 +448,46 @@ final class DocumentExportPDFHostedTests: XCTestCase {
         }
     }
 
+    func testStyledPDFEmbedsResolvableLocalImage() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pdf-img-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // A 240x240 deterministic-noise PNG: poorly compressible, so the embedded raster adds an
+        // unambiguous number of bytes to the PDF (a tiny flat-color image compresses to almost
+        // nothing and would give a flaky margin).
+        let side = 240
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side,
+            bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        for y in 0..<side {
+            for x in 0..<side {
+                let v = (x * 31 + y * 17) & 0xFF
+                rep.setColor(NSColor(
+                    deviceRed: CGFloat(v) / 255.0,
+                    green: CGFloat((v &* 7) & 0xFF) / 255.0,
+                    blue: CGFloat((v &* 13) & 0xFF) / 255.0,
+                    alpha: 1), atX: x, y: y)
+            }
+        }
+        let png = rep.representation(using: .png, properties: [:])!
+        try! png.write(to: dir.appendingPathComponent("pic.png"))
+
+        // Image doc vs an image-FREE doc (no `![...]`, so no 🖼 placeholder / emoji-font subset to
+        // confound the size). The only difference is the embedded raster, so the image doc must be
+        // larger. This proves the resolvable local image survives into the actual PDF bytes.
+        let withImage = DocumentExportRenderer.pdfData(
+            text: "# Title\n\n![cat](pic.png)\n",
+            profile: .original, paper: .usLetter, preset: .styled, documentDirectory: dir)
+        let noImage = DocumentExportRenderer.pdfData(
+            text: "# Title\n\nplain paragraph text\n",
+            profile: .original, paper: .usLetter, preset: .styled, documentDirectory: nil)
+
+        XCTAssertFalse(withImage.isEmpty)
+        XCTAssertGreaterThan(withImage.count, noImage.count,
+            "A rendered raster image should add bytes over an image-free document.")
+    }
+
 }
