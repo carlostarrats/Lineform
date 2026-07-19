@@ -440,6 +440,10 @@ struct EditorContainerView: View {
                 LineformCurrentFileMenuState.shared.setCurrentFileURL(newValue)
             }
             tabStore.updateActiveTabFileURL(newValue)
+            // A window opened by ⌘O/Finder/CLI/App Intents for a file another window already holds
+            // hands it back and closes, instead of becoming a second live copy that autosaves over
+            // it. This is the edge that carries the URL — onAppear runs before it is known.
+            handOffToExistingWindowIfDuplicate()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             guard (notification.object as? NSWindow)?.windowNumber == windowNumber else {
@@ -1181,6 +1185,42 @@ struct EditorContainerView: View {
             whenOpenedHere()
         } catch {
             // Unreadable file: nothing opened anywhere, so the caller keeps its state.
+        }
+    }
+
+    /// Hands this window's file back to the window that already had it, then closes this one — the
+    /// after-the-fact half of open dedupe, covering ⌘O/Finder/CLI/App Intents, which build their
+    /// window through DocumentGroup before any of our code can intervene.
+    ///
+    /// Called from the `currentFileURL` change rather than `onAppear`: a freshly opened window runs
+    /// onAppear with BOTH its window number and its file still nil (verified by trace), so there is
+    /// nothing to decide on yet.
+    ///
+    /// Deferred a runloop turn so AppKit has finished opening this window before it is closed, and
+    /// re-checked after the hop — closing a window is destructive, so every condition is confirmed
+    /// twice and `shouldHandOff` refuses anything but a single-tab, unedited window that lost the
+    /// window-number tie-break.
+    private func handOffToExistingWindowIfDuplicate() {
+        DispatchQueue.main.async {
+            guard let url = currentFileURL,
+                  let myWindow = activeWindow,
+                  let other = EditorTabStore.locate(url, excluding: tabStore),
+                  let otherWindow = other.store.window,
+                  DuplicateWindowMerge.shouldHandOff(
+                    incomingTabCount: tabStore.tabCount,
+                    incomingIsEdited: myWindow.isDocumentEdited,
+                    incomingWindowNumber: myWindow.windowNumber,
+                    existingWindowNumber: otherWindow.windowNumber
+                  )
+            else { return }
+
+            other.store.selectTab(id: other.tabID)
+            if otherWindow.isMiniaturized { otherWindow.deminiaturize(nil) }
+            otherWindow.makeKeyAndOrderFront(nil)
+            // Close the DOCUMENT, not just the window: this window came from DocumentGroup and its
+            // NSDocument would otherwise outlive it. Safe without a save prompt because the guard
+            // established the window is unedited and holds nothing but this one file.
+            (myWindow.windowController?.document as? NSDocument)?.close()
         }
     }
 

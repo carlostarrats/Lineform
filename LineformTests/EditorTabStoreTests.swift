@@ -217,6 +217,69 @@ final class EditorTabStoreTests: XCTestCase {
         // repo quarantines window-hosting tests to LineformHosted. Verified by hand instead.
     }
 
+    func testLocateCanExcludeTheAskingStore() {
+        // The duplicate-window handoff asks "does ANOTHER window have this?", so it must be able to
+        // exclude itself — otherwise a window would always find its own tab and hand off to itself.
+        EditorTabStore.resetRegistryForTesting()
+        let incoming = makeStore()
+        incoming.openTab(document: makeDocument(), fileURL: url("/tmp/dup.md"))
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/dup.md"), excluding: incoming))
+
+        let existing = makeStore()
+        let tab = existing.openTab(document: makeDocument(), fileURL: url("/tmp/dup.md"))
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/dup.md"), excluding: incoming)?.tabID, tab)
+    }
+
+    func testExcludedStoreIsNotReturnedEvenWhenAlsoPreferred() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/dup.md"))
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/dup.md"), preferring: store, excluding: store))
+    }
+
+    // MARK: - Duplicate-window handoff (⌘O / Finder / CLI opening a file already in a background tab)
+
+    func testHandsOffASingleTabUneditedDuplicateToTheOlderWindow() {
+        XCTAssertTrue(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testNeverClosesAWindowThatHoldsOtherTabs() {
+        // Closing it would discard whatever else the user had open in it.
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 2, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testNeverClosesAWindowWithUnsavedEdits() {
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: true,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testTheOLDERWindowNeverHandsOffToTheNEWERONE() {
+        // The tie-break that stops two windows restoring the same file at launch from closing each
+        // other: only the higher window number yields. Symmetric inputs, one direction survives.
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 10, existingWindowNumber: 20))
+        XCTAssertTrue(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testDoesNotHandOffWithoutBothWindowNumbers() {
+        // An unresolved window number means we can't order the two windows, so we can't safely pick
+        // which one closes.
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: nil, existingWindowNumber: 10))
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: nil))
+    }
+
     // MARK: - Sidebar open routing
 
     func testRouteSelectsInPlaceWhenTheFileIsOpenInThisWindow() {

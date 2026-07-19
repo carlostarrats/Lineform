@@ -27,6 +27,33 @@ enum SidebarOpenRoute: Equatable {
     }
 }
 
+/// Whether a window that just opened a file is a redundant SECOND copy of a file another window
+/// already has, and should hand off to that window rather than stay open.
+///
+/// `openSidebarFile` prevents duplicates for in-app opens, but ⌘O, Finder, the CLI and App Intents
+/// all create their window through `DocumentGroup` before any of our code runs, and AppKit's own
+/// dedupe misses them: a window has ONE `NSDocument`, repointed to whichever tab is ACTIVE, so a
+/// file sitting in a BACKGROUND tab is invisible to it and opens as a second live copy (verified —
+/// the duplicate really is a distinct NSDocument in the same process). Merging after the fact is the
+/// only hook that covers those paths: SwiftUI's `PlatformDocumentController` must be the shared
+/// document controller, and installing an NSDocumentController subclass crashes at launch (verified).
+enum DuplicateWindowMerge {
+    /// Deliberately strict, because closing a window is destructive if any of these are wrong:
+    /// only a window with a SINGLE tab (nothing else would be discarded with it), holding no
+    /// unsaved edits, and only when the other window's number is LOWER — an ordering tie-break, so
+    /// two windows restoring the same file at launch can never close each other.
+    static func shouldHandOff(
+        incomingTabCount: Int,
+        incomingIsEdited: Bool,
+        incomingWindowNumber: Int?,
+        existingWindowNumber: Int?
+    ) -> Bool {
+        guard incomingTabCount == 1, !incomingIsEdited else { return false }
+        guard let incomingWindowNumber, let existingWindowNumber else { return false }
+        return existingWindowNumber < incomingWindowNumber
+    }
+}
+
 @MainActor
 final class EditorTabStore: ObservableObject {
     @Published var tabs: [DocumentTab]
@@ -65,13 +92,17 @@ final class EditorTabStore: ObservableObject {
     /// it a window holding the file in one of its own tabs could non-deterministically send the user
     /// to a DIFFERENT window that also has it open (duplicates are reduced, not eliminated: see the
     /// residual note in `SaveAsConflict`). Always prefer where the user already is.
-    static func locate(_ url: URL, preferring preferred: EditorTabStore? = nil) -> (store: EditorTabStore, tabID: UUID)? {
+    static func locate(
+        _ url: URL,
+        preferring preferred: EditorTabStore? = nil,
+        excluding excluded: EditorTabStore? = nil
+    ) -> (store: EditorTabStore, tabID: UUID)? {
         // Resolved once, not per candidate tab: FileIdentity hits the file system.
         let target = FileIdentity.key(for: url)
-        if let preferred, let tabID = preferred.tabID(matchingKey: target) {
+        if let preferred, preferred !== excluded, let tabID = preferred.tabID(matchingKey: target) {
             return (preferred, tabID)
         }
-        for store in liveStores.allObjects where store !== preferred {
+        for store in liveStores.allObjects where store !== preferred && store !== excluded {
             if let tabID = store.tabID(matchingKey: target) {
                 return (store, tabID)
             }
@@ -219,3 +250,4 @@ final class EditorTabStore: ObservableObject {
         }
     }
 }
+
