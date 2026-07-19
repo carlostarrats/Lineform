@@ -48,6 +48,7 @@
 		1F0000200000000000000001 /* ImageFitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000200000000000000002 /* ImageFitTests.swift */; };
 		1F0000220000000000000001 /* ImageAttachmentProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000220000000000000002 /* ImageAttachmentProviderTests.swift */; };
 		1F0000240000000000000001 /* ImageLinkRewriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000240000000000000002 /* ImageLinkRewriteTests.swift */; };
+		1F00002D0000000000000001 /* ImageInsertionTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002D0000000000000002 /* ImageInsertionTextTests.swift */; };
 		1F0000260000000000000001 /* MarkdownPreviewRendererHeadingScaleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */; };
 		1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */; };
 		1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000326 /* DocumentExportRendererTests.swift */; };
@@ -114,6 +115,7 @@
 		1F00001F0000000000000001 /* ImageFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001F0000000000000002 /* ImageFit.swift */; };
 		1F0000210000000000000001 /* ImageRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000210000000000000002 /* ImageRendering.swift */; };
 		1F0000230000000000000001 /* ImageLinkRewrite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000230000000000000002 /* ImageLinkRewrite.swift */; };
+		1F00002C0000000000000001 /* ImageInsertionText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002C0000000000000002 /* ImageInsertionText.swift */; };
 		1F00000100000000000002B0 /* MathRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B0 /* MathRendering.swift */; };
 		1F00000100000000000002B1 /* DiagramCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B1 /* DiagramCardStyle.swift */; };
 		1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */; };
@@ -233,8 +235,10 @@
 		1F0000200000000000000002 /* ImageFitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFitTests.swift; sourceTree = "<group>"; };
 		1F0000210000000000000002 /* ImageRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRendering.swift; sourceTree = "<group>"; };
 		1F0000230000000000000002 /* ImageLinkRewrite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLinkRewrite.swift; sourceTree = "<group>"; };
+		1F00002C0000000000000002 /* ImageInsertionText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageInsertionText.swift; sourceTree = "<group>"; };
 		1F0000220000000000000002 /* ImageAttachmentProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAttachmentProviderTests.swift; sourceTree = "<group>"; };
 		1F0000240000000000000002 /* ImageLinkRewriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLinkRewriteTests.swift; sourceTree = "<group>"; };
+		1F00002D0000000000000002 /* ImageInsertionTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageInsertionTextTests.swift; sourceTree = "<group>"; };
 		1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRendererHeadingScaleTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGroupingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000326 /* DocumentExportRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRendererTests.swift; sourceTree = "<group>"; };
@@ -457,6 +461,7 @@
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
 				1F0000020000000000000016 /* LineformTextView.swift */,
 				1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */,
+				1F00002C0000000000000002 /* ImageInsertionText.swift */,
 				1F0000280000000000000002 /* SaveAsExport.swift */,
 				1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */,
 				1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */,
@@ -597,6 +602,7 @@
 				1F0000200000000000000002 /* ImageFitTests.swift */,
 				1F0000220000000000000002 /* ImageAttachmentProviderTests.swift */,
 				1F0000240000000000000002 /* ImageLinkRewriteTests.swift */,
+				1F00002D0000000000000002 /* ImageInsertionTextTests.swift */,
 				1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */,
 				1F00000200000000000002B2 /* MathRenderingTests.swift */,
 				1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */,
@@ -812,6 +818,7 @@
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
 				1F0000010000000000000016 /* LineformTextView.swift in Sources */,
 				1F0000270000000000000001 /* LineformTextView+ImageInsertion.swift in Sources */,
+				1F00002C0000000000000001 /* ImageInsertionText.swift in Sources */,
 				1F0000280000000000000001 /* SaveAsExport.swift in Sources */,
 				1F0000010000000000000017 /* ReadingProfile.swift in Sources */,
 				1F0000010000000000000031 /* MarkdownRangeAnalyzer.swift in Sources */,
@@ -932,6 +939,7 @@
 				1F0000200000000000000001 /* ImageFitTests.swift in Sources */,
 				1F0000220000000000000001 /* ImageAttachmentProviderTests.swift in Sources */,
 				1F0000240000000000000001 /* ImageLinkRewriteTests.swift in Sources */,
+				1F00002D0000000000000001 /* ImageInsertionTextTests.swift in Sources */,
 				1F0000260000000000000001 /* MarkdownPreviewRendererHeadingScaleTests.swift in Sources */,
 				1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */,
 				1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */,

@@ -42,8 +42,23 @@ extension LineformTextView {
             return super.performDragOperation(sender)
         }
         let point = convert(sender.draggingLocation, from: nil)
+        // A drop BELOW the last line must append at the end of the document — otherwise the
+        // line-start snap would place the new image ABOVE a trailing image (you could never drop
+        // under the last one). On-line drops keep the snap-to-line-start behavior.
+        if isImageDropBelowLastLine(at: point) {
+            return insertImage(from: pasteboard, at: (string as NSString).length, appendAtEnd: true)
+        }
         let dropIndex = characterIndexForInsertion(at: point)
         return insertImage(from: pasteboard, at: dropIndex)
+    }
+
+    /// True when `point` (view coordinates) sits below the bottom of the laid-out text, i.e. in the
+    /// empty area under the last line — where a dropped image should append at the end, not snap to
+    /// the last line's start.
+    private func isImageDropBelowLastLine(at point: NSPoint) -> Bool {
+        guard let layoutManager, let textContainer, layoutManager.numberOfGlyphs > 0 else { return false }
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        return point.y >= usedRect.maxY + textContainerOrigin.y
     }
 
     // MARK: - Drop indicator
@@ -56,6 +71,10 @@ extension LineformTextView {
         let indicatorY: CGFloat
         if layoutManager.numberOfGlyphs == 0 {
             indicatorY = origin.y
+        } else if isImageDropBelowLastLine(at: point) {
+            // Below the last line → the image will append at the end, so draw the rule at the very
+            // bottom of the text (the new image lands beneath everything, not above the last line).
+            indicatorY = layoutManager.usedRect(for: textContainer).maxY + origin.y
         } else {
             let index = min(max(0, characterIndexForInsertion(at: point)), length)
             let glyphIndex = min(layoutManager.glyphIndexForCharacter(at: index), layoutManager.numberOfGlyphs - 1)
@@ -126,7 +145,7 @@ extension LineformTextView {
 
     // MARK: - Write + insert
 
-    private func insertImage(from pasteboard: NSPasteboard, at index: Int) -> Bool {
+    private func insertImage(from pasteboard: NSPasteboard, at index: Int, appendAtEnd: Bool = false) -> Bool {
         if let source = imageFileURL(from: pasteboard) {
             let ext = source.pathExtension.isEmpty ? "png" : source.pathExtension
             let base = source.deletingPathExtension().lastPathComponent
@@ -141,13 +160,13 @@ extension LineformTextView {
             } catch {
                 return false
             }
-            insertImageLink(path: dest.link, at: index)
+            insertImageLink(path: dest.link, at: index, appendAtEnd: appendAtEnd)
             return true
         }
         if let payload = imageData(from: pasteboard) {
             guard let dest = destination(preferredName: "image", ext: payload.ext) else { return false }
             do { try payload.data.write(to: dest.url) } catch { return false }
-            insertImageLink(path: dest.link, at: index)
+            insertImageLink(path: dest.link, at: index, appendAtEnd: appendAtEnd)
             return true
         }
         return false
@@ -212,27 +231,21 @@ extension LineformTextView {
         return trimmed.isEmpty ? "image" : trimmed
     }
 
-    /// Insert `![](path)` on its OWN line. The drop index is snapped to the START of the line it
-    /// falls on (a paragraph boundary) so the image lands BETWEEN whole lines and never splits a
-    /// word or sentence — matching the drop indicator, which is drawn at that same line's top edge.
-    /// Goes through `insertText(_:replacementRange:)` so undo + the document binding sync normally.
-    private func insertImageLink(path: String, at index: Int) {
-        let text = string as NSString
-        let clamped = max(0, min(index, text.length))
-        // Snap to the beginning of the drop line. Inserting `![](path)\n` here places the image as
-        // its own line and pushes the existing line down; no leading newline is needed because we're
-        // already at a line boundary.
-        let lineStart = text.lineRange(for: NSRange(location: clamped, length: 0)).location
-        // Insert the image as its own line at the drop line's start. The renderer gives the image
-        // block symmetric spacing, so no blank-line wrapping is needed here.
-        let snippet = "![](\(path))\n"
-        let range = NSRange(location: lineStart, length: 0)
-        // Use the shouldChangeText → mutate textStorage → didChangeText path (the same one the
-        // formatting commands use). A bare `insertText` during a drag session does not reliably
-        // sync back to the SwiftUI document binding, so the inserted link was being lost.
-        guard shouldChangeText(in: range, replacementString: snippet) else { return }
-        textStorage?.replaceCharacters(in: range, with: snippet)
+    /// Insert `![](path)` on its OWN line. For an on-line drop / paste the index is snapped to the
+    /// START of the line it falls on (a paragraph boundary) so the image lands BETWEEN whole lines
+    /// and never splits a word; for `appendAtEnd` (a drop below the last line) it lands at the end
+    /// of the document, AFTER any trailing image, with a leading newline only when needed. The
+    /// placement rules live in the pure `ImageInsertionText` helper. Applied via the
+    /// `shouldChangeText → replaceCharacters → didChangeText` path so undo + the document binding
+    /// sync normally (a bare `insertText` during a drag session does not reliably sync the binding).
+    private func insertImageLink(path: String, at index: Int, appendAtEnd: Bool = false) {
+        let edit = appendAtEnd
+            ? ImageInsertionText.appendingAtEnd(into: string, path: path)
+            : ImageInsertionText.insertingOnLine(into: string, at: index, path: path)
+        let range = NSRange(location: edit.location, length: 0)
+        guard shouldChangeText(in: range, replacementString: edit.snippet) else { return }
+        textStorage?.replaceCharacters(in: range, with: edit.snippet)
         didChangeText()
-        setSelectedRange(NSRange(location: lineStart + (snippet as NSString).length, length: 0))
+        setSelectedRange(NSRange(location: edit.caret, length: 0))
     }
 }
