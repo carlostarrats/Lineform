@@ -16,6 +16,17 @@ enum SaveAsFormat: Int, CaseIterable {
         }
     }
 
+    /// One-line explanation shown under the Format popup in the Save As panel, so the difference
+    /// between PDF and Styled PDF is legible before choosing.
+    var description: String {
+        switch self {
+        case .markdown: return "The editable source file."
+        case .pdf: return "Plain markdown source — shows #, ** as typed."
+        case .styledPDF: return "Rendered like Read mode — with images, tables, math & diagrams."
+        case .rtf: return "Styled text for Word, Pages & Google Docs."
+        }
+    }
+
     var pathExtension: String {
         switch self {
         case .markdown: return "md"
@@ -45,6 +56,16 @@ final class SaveAsPanelController: NSObject {
     private let baseName: String
     private let formatPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 25))
     let paperPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 150, height: 25))
+    private let descriptionLabel: NSTextField = {
+        let field = NSTextField(wrappingLabelWithString: "")
+        field.textColor = .secondaryLabelColor
+        field.font = .systemFont(ofSize: 11)
+        field.alignment = .center
+        field.isSelectable = false
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.preferredMaxLayoutWidth = 280
+        return field
+    }()
 
     var selectedFormat: SaveAsFormat {
         SaveAsFormat(rawValue: formatPopup.indexOfSelectedItem) ?? .markdown
@@ -76,6 +97,7 @@ final class SaveAsPanelController: NSObject {
         panel?.nameFieldStringValue = "\(baseName).\(format.pathExtension)"
         panel?.allowedContentTypes = [format.contentType]
         paperRow.isHidden = !format.usesPaper
+        descriptionLabel.stringValue = format.description
     }
 
     private var paperRow = NSView()
@@ -90,7 +112,7 @@ final class SaveAsPanelController: NSObject {
         // The accessory HUGS its content (no fixed width, no edge-pinning to a full-width container);
         // NSSavePanel then centers the hugging accessory horizontally, like TextEdit's format popup.
         // `.centerX` centers the two rows relative to each other.
-        let stack = NSStackView(views: [formatRow, paperRow])
+        let stack = NSStackView(views: [formatRow, descriptionLabel, paperRow])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 10
