@@ -1413,6 +1413,17 @@ struct EditorContainerView: View {
     }
 
     private func applyReload(_ result: ReloadResult) {
+        // Defensive identity re-check at APPLY time. applyDiskSnapshot guards snapshotURL==url at
+        // PUBLISH time and sets lastSyncedText to exactly the published text, but a tab switch
+        // interleaving between the @Published mutation and this onChange delivery resets
+        // lastSyncedText to the incoming tab's text (via register→update). If that happened this
+        // result belongs to a file we're no longer showing, so dropping it prevents writing the
+        // previous tab's disk content into the now-active document. (The per-tab activation
+        // reconcile fires a disk read on every clean switch, widening this window.)
+        guard result.text == reloadController.lastSyncedText else {
+            reloadController.clearLastReload()
+            return
+        }
         // No selection request is pending in the common case, so the text replacement takes
         // MarkdownTextViewRepresentable's scroll-preserving branch (requestedSelection == nil).
         // A pending outline/search jump is deliberately left alone — the user's navigation wins.
