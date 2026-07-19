@@ -140,6 +140,477 @@ final class EditorTabStoreTests: XCTestCase {
         XCTAssertNil(store.tabs[index].fileURL) // became untitled-with-content
         XCTAssertNotNil(store.tabIndex(for: url("/tmp/stay.md")))
     }
+
+    // MARK: - App-wide open dedupe
+
+    func testLocateFindsAnAlreadyOpenFileInAnotherWindow() {
+        EditorTabStore.resetRegistryForTesting()
+        let windowA = makeStore()
+        // A populated non-matching store, so the search must actually keep scanning past it.
+        windowA.openTab(document: makeDocument("A"), fileURL: url("/tmp/only-in-a.md"))
+        let windowB = makeStore()
+        let opened = windowB.openTab(document: makeDocument("B"), fileURL: url("/tmp/shared-b.md"))
+
+        let located = EditorTabStore.locate(url("/tmp/shared-b.md"))
+        XCTAssertTrue(located?.store === windowB)
+        XCTAssertEqual(located?.tabID, opened)
+    }
+
+    func testLocateIgnoresUntitledTabs() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore() // initial tab is untitled
+        store.openTab(document: makeDocument("draft"), fileURL: nil)
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/anything.md")))
+
+        // And an untitled tab in the PREFERRED store must not short-circuit the wider search.
+        let other = makeStore()
+        let real = other.openTab(document: makeDocument(), fileURL: url("/tmp/real.md"))
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/real.md"), preferring: store)?.tabID, real)
+    }
+
+    func testLocateReturnsTheTabMatchingTheRequestedURL() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        let a = store.openTab(document: makeDocument(), fileURL: url("/tmp/a.md"))
+        let b = store.openTab(document: makeDocument(), fileURL: url("/tmp/b.md"))
+
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/a.md"))?.tabID, a)
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/b.md"))?.tabID, b)
+    }
+
+    func testLocatePrefersTheCallingWindowWhenBothHaveTheFileOpen() {
+        // NSHashTable enumeration order is unspecified, so without an explicit preference the same
+        // click could send the user to a different window run to run.
+        EditorTabStore.resetRegistryForTesting()
+        let windowA = makeStore()
+        let windowB = makeStore()
+        let inB = windowB.openTab(document: makeDocument("B"), fileURL: url("/tmp/both.md"))
+        let inA = windowA.openTab(document: makeDocument("A"), fileURL: url("/tmp/both.md"))
+
+        let fromA = EditorTabStore.locate(url("/tmp/both.md"), preferring: windowA)
+        XCTAssertTrue(fromA?.store === windowA)
+        XCTAssertEqual(fromA?.tabID, inA)
+
+        let fromB = EditorTabStore.locate(url("/tmp/both.md"), preferring: windowB)
+        XCTAssertTrue(fromB?.store === windowB)
+        XCTAssertEqual(fromB?.tabID, inB)
+    }
+
+    func testLocateFallsBackToAnotherWindowWhenThePreferredOneLacksTheFile() {
+        EditorTabStore.resetRegistryForTesting()
+        let windowA = makeStore()
+        let windowB = makeStore()
+        let inB = windowB.openTab(document: makeDocument(), fileURL: url("/tmp/only-in-b.md"))
+
+        let located = EditorTabStore.locate(url("/tmp/only-in-b.md"), preferring: windowA)
+        XCTAssertTrue(located?.store === windowB)
+        XCTAssertEqual(located?.tabID, inB)
+    }
+
+    func testWindowResolutionYieldsNilForAnUnsetOrDeadWindowNumber() {
+        let store = makeStore()
+        XCTAssertNil(store.window, "No window number recorded yet.")
+        store.windowNumber = Int.max // no NSWindow will ever carry this
+        XCTAssertNil(store.window)
+        // The positive case (a real number resolving to its NSWindow) is deliberately NOT tested
+        // here: building an NSWindow in the default plan crashes the test host, which is why this
+        // repo quarantines window-hosting tests to LineformHosted. Verified by hand instead.
+    }
+
+    func testLocateCanExcludeTheAskingStore() {
+        // The duplicate-window handoff asks "does ANOTHER window have this?", so it must be able to
+        // exclude itself — otherwise a window would always find its own tab and hand off to itself.
+        EditorTabStore.resetRegistryForTesting()
+        let incoming = makeStore()
+        incoming.openTab(document: makeDocument(), fileURL: url("/tmp/dup.md"))
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/dup.md"), excluding: incoming))
+
+        let existing = makeStore()
+        let tab = existing.openTab(document: makeDocument(), fileURL: url("/tmp/dup.md"))
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/dup.md"), excluding: incoming)?.tabID, tab)
+    }
+
+    func testExcludedStoreIsNotReturnedEvenWhenAlsoPreferred() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/dup.md"))
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/dup.md"), preferring: store, excluding: store))
+    }
+
+    // MARK: - Duplicate-window handoff (⌘O / Finder / CLI opening a file already in a background tab)
+
+    func testHandsOffASingleTabUneditedDuplicateToTheOlderWindow() {
+        XCTAssertTrue(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testNeverClosesAWindowThatHoldsOtherTabs() {
+        // Closing it would discard whatever else the user had open in it.
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 2, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testNeverClosesAWindowWithUnsavedEdits() {
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: true,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testTheOLDERWindowNeverHandsOffToTheNEWERONE() {
+        // The tie-break that stops two windows restoring the same file at launch from closing each
+        // other: only the higher window number yields. Symmetric inputs, one direction survives.
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 10, existingWindowNumber: 20))
+        XCTAssertTrue(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: 10))
+    }
+
+    func testDoesNotHandOffWithoutBothWindowNumbers() {
+        // An unresolved window number means we can't order the two windows, so we can't safely pick
+        // which one closes.
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: nil, existingWindowNumber: 10))
+        XCTAssertFalse(DuplicateWindowMerge.shouldHandOff(
+            incomingTabCount: 1, incomingIsEdited: false,
+            incomingWindowNumber: 20, existingWindowNumber: nil))
+    }
+
+    // MARK: - Sidebar open routing
+
+    func testRouteSelectsInPlaceWhenTheFileIsOpenInThisWindow() {
+        let tab = UUID()
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: tab, isOwnStore: true, revealWindowAvailable: false, canRetry: true),
+            .selectHere(tab),
+            "Own-store hits never depend on window resolution.")
+    }
+
+    func testRouteRevealsWhenTheOwningWindowIsOnScreen() {
+        let tab = UUID()
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: tab, isOwnStore: false, revealWindowAvailable: true, canRetry: true),
+            .reveal(tab))
+    }
+
+    func testRouteRetriesRatherThanOpeningADuplicateWhenTheWindowIsMissing() {
+        // The window number is published a runloop late and goes nil across detail-hierarchy
+        // rebuilds; opening here instead would create the exact duplicate this routing prevents.
+        let tab = UUID()
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: tab, isOwnStore: false, revealWindowAvailable: false, canRetry: true),
+            .retryReveal(tab))
+    }
+
+    func testRouteOpensLocallyOnceTheRetryHasAlreadyFailed() {
+        // A genuinely dead store must not swallow the click forever.
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: UUID(), isOwnStore: false, revealWindowAvailable: false, canRetry: false),
+            .openHere)
+    }
+
+    func testRouteOpensLocallyWhenTheFileIsNotOpenAnywhere() {
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: nil, isOwnStore: false, revealWindowAvailable: false, canRetry: true),
+            .openHere)
+    }
+
+    func testLocateReturnsNilForAFileThatIsNotOpen() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/open.md"))
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/not-open.md")))
+    }
+
+    func testLocateUsesTheSameFileIdentityAsTheSaveAsGuard() throws {
+        // If dedupe were a weaker comparison than the Save As guard, a file could slip past dedupe
+        // into a second window and then be refused at save — the two must agree by construction.
+        EditorTabStore.resetRegistryForTesting()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-locate-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let real = root.appendingPathComponent("note.md")
+        try Data("hi".utf8).write(to: real)
+        let alias = root.appendingPathComponent("alias.md")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: real)
+
+        let store = makeStore()
+        let opened = store.openTab(document: makeDocument(), fileURL: real)
+
+        XCTAssertEqual(EditorTabStore.locate(alias)?.tabID, opened,
+            "Opening the symlink must reveal the tab already showing its target.")
+
+        // The actual invariant: dedupe and the save guard must agree, or a file could slip past
+        // dedupe into a second window and then be refused at save.
+        let otherTab = store.openTab(document: makeDocument(), fileURL: url("/tmp/elsewhere.md"))
+        XCTAssertNotNil(
+            SaveAsConflict.conflictingTabTitle(destination: alias, tabs: store.tabs, activeTabID: otherTab),
+            "Both sides must call the alias and its target the same file.")
+    }
+
+    // MARK: - Save As destination conflicts
+
+    func testSaveAsOntoAnotherOpenTabIsAConflict() {
+        let store = makeStore()
+        store.openTab(document: makeDocument("victim"), fileURL: url("/tmp/other.md"))
+        let active = store.openTab(document: makeDocument("active"), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/other.md"), tabs: store.tabs, activeTabID: active),
+            "other.md")
+    }
+
+    func testSaveAsOntoTheActiveTabsOwnFileIsNotAConflict() {
+        let store = makeStore()
+        let active = store.openTab(document: makeDocument("active"), fileURL: url("/tmp/active.md"))
+        // Re-saving over yourself is an ordinary Save As; only OTHER tabs can be clobbered.
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: url("/tmp/active.md"), tabs: store.tabs, activeTabID: active))
+    }
+
+    func testSaveAsToAFreshPathIsNotAConflict() {
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/other.md"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: url("/tmp/new.md"), tabs: store.tabs, activeTabID: active))
+    }
+
+    func testConflictMatchesNonStandardizedPaths() {
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/other.md"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/sub/../other.md"), tabs: store.tabs, activeTabID: active),
+            "other.md")
+    }
+
+    func testConflictMatchesTheSameFileReachedThroughASymlinkedParent() throws {
+        // The same file spelled through a symlinked parent directory (the shape of /tmp →
+        // /private/tmp). A plain string compare misses it and lets the clobbering save through.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        let realDir = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: realDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let linkDir = root.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: linkDir, withDestinationURL: realDir)
+
+        let real = realDir.appendingPathComponent("note.md")
+        try Data("hi".utf8).write(to: real)
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: real)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: linkDir.appendingPathComponent("note.md"),
+                tabs: store.tabs, activeTabID: active),
+            "note.md")
+    }
+
+    func testSavingOntoYourOwnFileIsAllowedEvenWhenItIsOpenInAnotherWindow() throws {
+        // ⌘⇧S → keep the same name is the most routine Save As there is; matching a tab by ID alone
+        // would refuse it with no way to proceed. Excluding the active tab's own PATH prevents that.
+        // Open-time dedupe makes the two-windows-one-file setup below unreachable in practice; this
+        // pins the guard's behavior anyway, since the exclusion is what makes dedupe's absence safe.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let shared = root.appendingPathComponent("shared.md")
+        try Data("hi".utf8).write(to: shared)
+
+        let windowA = makeStore()
+        let activeInA = windowA.openTab(document: makeDocument(), fileURL: shared)
+        let windowB = makeStore()
+        windowB.openTab(document: makeDocument(), fileURL: shared)
+
+        XCTAssertNil(
+            SaveAsConflict.conflictingTabTitle(
+                destination: shared,
+                tabs: windowA.tabs + windowB.tabs,
+                activeTabID: activeInA),
+            "Re-saving a document onto its own file must never be refused.")
+    }
+
+    func testConflictMatchesAFileReachedThroughASymlinkedFileName() throws {
+        // canonicalPath resolves symlinked DIRECTORIES but hands back the link's own path for the
+        // last component, and fileResourceIdentifier reports the link's OWN inode — so this case
+        // rests entirely on both sides being put through resolvingSymlinksInPath() first.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let real = root.appendingPathComponent("note.md")
+        try Data("hi".utf8).write(to: real)
+        let alias = root.appendingPathComponent("alias.md")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: real)
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: alias)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: real, tabs: store.tabs, activeTabID: active),
+            "alias.md",
+            "Writing note.md overwrites what the open alias.md tab is showing.")
+    }
+
+    func testConflictFoldsParentDirectoryCaseWhenTheFileIsNotOnDiskYet() throws {
+        // Exercises the parent-canonicalization fallback specifically: neither URL exists, so there
+        // is no file identity and no whole-path canonicalPath — only the DIRECTORY resolves.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        let sub = root.appendingPathComponent("Sub")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let lowercasedParent = root.appendingPathComponent("sub")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: lowercasedParent.path),
+            "Volume is case-sensitive; Sub/ and sub/ are distinct directories here.")
+
+        let store = makeStore()
+        let absent = sub.appendingPathComponent("ghost.md")
+        store.openTab(document: makeDocument(), fileURL: absent)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: lowercasedParent.appendingPathComponent("ghost.md"),
+                tabs: store.tabs, activeTabID: active),
+            "ghost.md")
+    }
+
+    func testHardLinksToOneInodeAreNotAConflict() throws {
+        // Tempting to treat as the same file, but every write here is a safe-save (temp + rename),
+        // which replaces the directory entry and BREAKS the link instead of overwriting shared
+        // bytes — the other tab's file keeps its contents. Refusing would block a harmless save.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = root.appendingPathComponent("note.md")
+        try Data("original".utf8).write(to: first)
+        let second = root.appendingPathComponent("same-inode.md")
+        try FileManager.default.linkItem(at: first, to: second)
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: first)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: second, tabs: store.tabs, activeTabID: active))
+
+        // The premise, asserted rather than assumed. This covers the Data.write(.atomic) path used
+        // by PDF/RTF export; NSDocument's save/autosave (the Markdown branch) was measured to break
+        // the link the same way, but isn't reachable from a unit test.
+        try Data("rewritten".utf8).write(to: second, options: .atomic)
+        XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "original")
+    }
+
+    func testConflictMatchesAPrivateTmpSpellingWhenNeitherSideExists() {
+        // The exact regression the two-branch normalization warning exists to prevent: /tmp and
+        // /private/tmp name one directory, and with NEITHER file on disk there is no file identity
+        // to fall back on — only the parent canonicalization can fold them together.
+        let name = "ghost-\(UUID().uuidString).md"
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/\(name)"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/private/tmp/\(name)"), tabs: store.tabs, activeTabID: active),
+            name)
+    }
+
+    func testConflictMatchesACaseOnlyDifferenceOnCaseInsensitiveVolumes() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let real = dir.appendingPathComponent("Notes.md")
+        try Data("hi".utf8).write(to: real)
+
+        let otherCase = dir.appendingPathComponent("notes.md")
+        // On a case-SENSITIVE volume these are genuinely two files and refusing would be wrong,
+        // so the guarantee under test only exists where the volume folds case.
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: otherCase.path),
+            "Volume is case-sensitive; Notes.md and notes.md are distinct files here.")
+
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: real)
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: otherCase, tabs: store.tabs, activeTabID: active),
+            "Notes.md",
+            "Saving over \u{201C}notes.md\u{201D} would overwrite the open \u{201C}Notes.md\u{201D}.")
+    }
+
+    func testUntitledTabsAreNeverTheConflictingTab() {
+        let store = makeStore() // initial tab has no fileURL
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        // A tab with no file on disk can't be the thing we'd overwrite, whatever the destination.
+        XCTAssertNil(SaveAsConflict.conflictingTabTitle(
+            destination: url("/tmp/new.md"), tabs: store.tabs, activeTabID: active))
+    }
+
+    func testSavingAnUntitledActiveTabOntoAnotherTabsFileIsAConflict() {
+        // The likeliest real path into this: an Untitled draft being given a name that happens to
+        // be a file already open. The active tab having no URL must not disable the guard.
+        let store = makeStore()
+        store.openTab(document: makeDocument("existing"), fileURL: url("/tmp/other.md"))
+        let untitled = store.tabs.first { $0.fileURL == nil }!.id
+        store.selectTab(id: untitled)
+
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/other.md"), tabs: store.tabs, activeTabID: untitled),
+            "other.md")
+    }
+
+    func testConflictSeesTabsFromEveryOpenWindow() {
+        EditorTabStore.resetRegistryForTesting()
+        // Each window owns its own store; a Save As in one window must still see the other's tabs,
+        // because that window has no idea its file was rewritten underneath it.
+        let windowA = makeStore()
+        let windowB = makeStore()
+        windowB.openTab(document: makeDocument("B's work"), fileURL: url("/tmp/in-window-b.md"))
+        let activeInA = windowA.openTab(document: makeDocument(), fileURL: url("/tmp/in-window-a.md"))
+
+        XCTAssertNil(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/in-window-b.md"), tabs: windowA.tabs, activeTabID: activeInA),
+            "Window A's own tabs alone cannot see the conflict — hence the app-wide registry.")
+        XCTAssertEqual(
+            SaveAsConflict.conflictingTabTitle(
+                destination: url("/tmp/in-window-b.md"),
+                tabs: EditorTabStore.allOpenTabs, activeTabID: activeInA),
+            "in-window-b.md")
+    }
+
+    func testClosedWindowsDropOutOfTheAppWideTabRegistry() {
+        EditorTabStore.resetRegistryForTesting()
+        let path = "/tmp/registry-\(UUID().uuidString).md"
+        autoreleasepool {
+            let closing = makeStore()
+            closing.openTab(document: makeDocument(), fileURL: url(path))
+            XCTAssertTrue(EditorTabStore.allOpenTabs.contains { $0.fileURL?.path == path })
+        }
+        // The store is weakly held, so a closed window stops causing phantom conflicts.
+        XCTAssertFalse(EditorTabStore.allOpenTabs.contains { $0.fileURL?.path == path })
+    }
 }
 
 @MainActor

@@ -1,5 +1,47 @@
 import AppKit
 
+/// Stages a file write so an interrupted or failed producer can never damage the destination.
+///
+/// Exists because `NSPrintOperation` renders STRAIGHT into its `jobSavingURL`: overwriting an
+/// existing PDF truncates it the moment the job starts, so a disk-full/render failure (or a crash)
+/// leaves the user with a corrupt file where a good one used to be. The producer writes into a
+/// staging file in the app's own temporary directory — deliberately NOT a sibling of the
+/// destination, since an `NSSavePanel` grant covers only the chosen path — and the finished bytes
+/// are then copied into place with a single atomic write.
+///
+/// It copies through memory rather than moving the file: `moveItem` fails outright when the
+/// destination exists, and overwrite is the whole point. `Data.write(options: .atomic)` is chosen
+/// over `replaceItemAt` because it is the exact pattern the RTF branch of this same export already
+/// ships against an `NSSavePanel` URL — both stage a sibling temp and rename, so the choice is
+/// proven-in-production rather than a difference in sandbox capability. (The Markdown branch is not
+/// a precedent either way: it goes through `NSDocument`'s own safe-save.) The cost is holding one PDF in
+/// memory briefly — tens of MB for a long illustrated document, acceptable for a user-initiated
+/// export and the price of a write that cannot half-land. Note the atomic rename gives an
+/// overwritten file a new inode, so Finder tags/xattrs on the REPLACED file don't carry over (the
+/// same trade the RTF branch already makes).
+enum AtomicFileWrite {
+    /// Runs `produce` against a staging URL and, only if it reports success AND left a non-empty
+    /// file, atomically writes those bytes to `destination`. Returns whether `destination` was
+    /// updated; on any failure `destination` is left exactly as it was (including not existing).
+    @discardableResult
+    static func write(to destination: URL, produce: (URL) -> Bool) -> Bool {
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-staged-\(UUID().uuidString)")
+            .appendingPathExtension(destination.pathExtension)
+        defer { try? FileManager.default.removeItem(at: staging) }
+
+        guard produce(staging) else { return false }
+        // An empty file is a failed render even when the producer claims success.
+        guard let data = try? Data(contentsOf: staging), !data.isEmpty else { return false }
+        do {
+            try data.write(to: destination, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+}
+
 /// Paper sizes offered for PDF export / print. Sizes are in PostScript points (1/72"). Covers the
 /// common US (Letter/Legal/Tabloid) and ISO (A3/A4/A5) sheets printers use.
 enum ExportPaperSize: CaseIterable {
@@ -245,6 +287,11 @@ enum DocumentExportRenderer {
 
     /// Renders a paginated PDF directly to `url` (Export as PDF's chosen destination). Returns
     /// whether the operation succeeded.
+    ///
+    /// NOTE: this writes STRAIGHT to `url` — a mid-render failure leaves a truncated file, and
+    /// overwriting an existing PDF destroys it before the new one is complete. Callers exporting to
+    /// a user-chosen destination must go through `writePDFAtomically` instead; this stays public for
+    /// the temp-file callers (`pdfData`) where there is nothing to lose.
     @MainActor
     @discardableResult
     static func writePDF(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard, documentDirectory: URL? = nil, to url: URL) -> Bool {
@@ -252,6 +299,17 @@ enum DocumentExportRenderer {
         info.jobDisposition = .save
         info.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL.rawValue] = url
         return runOperation(text: text, profile: profile, paper: paper, preset: preset, printInfo: info, showsPanel: false, documentDirectory: documentDirectory)
+    }
+
+    /// Crash-safe PDF export: renders to a staging file and only replaces `url` once a non-empty
+    /// PDF exists. A failed or interrupted render can therefore never truncate the file the user
+    /// chose to overwrite. Returns whether the destination now holds the new PDF.
+    @MainActor
+    @discardableResult
+    static func writePDFAtomically(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard, documentDirectory: URL? = nil, to url: URL) -> Bool {
+        AtomicFileWrite.write(to: url) { staging in
+            writePDF(text: text, profile: profile, paper: paper, preset: preset, documentDirectory: documentDirectory, to: staging)
+        }
     }
 
     /// Renders a paginated PDF and returns its bytes (writes to a temp file then reads back).

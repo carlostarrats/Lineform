@@ -54,6 +54,9 @@ struct EditorContainerView: View {
     @State private var rtfExportErrorFileName: String?
     /// Set when a Save As → Markdown save fails, driving a native in-window `.alert`.
     @State private var markdownSaveErrorFileName: String?
+    /// Set when Save As targets a file already open in another tab of this window. Holds that
+    /// tab's title for the refusal alert (see `SaveAsConflict`).
+    @State private var saveAsConflictTabTitle: String?
     @State private var tabCloseDialog: TabCloseDialog?
     /// Coordinates saving a dirty tab before closing it.
     @State private var saveAndCloseCoordinator: SaveAndCloseCoordinator?
@@ -97,7 +100,10 @@ struct EditorContainerView: View {
                 items: outlineItems,
                 activeSourceRange: activeOutlineSourceRange,
                 jumpToHeading: jumpToHeading,
-                openFile: openSidebarFile,
+                // Explicit closure, not a bare method reference: openSidebarFile carries defaulted
+                // parameters now, and letting SwiftUI infer a function value through those times
+                // out this body's type-checker.
+                openFile: { url in openSidebarFile(url) },
                 currentFileURL: currentFileURL,
                 fileBrowserStore: fileBrowserStore,
                 settings: settings,
@@ -191,6 +197,18 @@ struct EditorContainerView: View {
             Button("OK", role: .cancel) { markdownSaveErrorFileName = nil }
         } message: { fileName in
             Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
+        }
+        .alert(
+            "File Already Open",
+            isPresented: Binding(
+                get: { saveAsConflictTabTitle != nil },
+                set: { if !$0 { saveAsConflictTabTitle = nil } }
+            ),
+            presenting: saveAsConflictTabTitle
+        ) { _ in
+            Button("OK", role: .cancel) { saveAsConflictTabTitle = nil }
+        } message: { tabTitle in
+            Text("\u{201C}\(tabTitle)\u{201D} is open in another tab, so saving over it would discard that tab\u{2019}s contents. Close that tab first, or choose a different name.")
         }
         .alert(
             "Close Tab",
@@ -422,6 +440,10 @@ struct EditorContainerView: View {
                 LineformCurrentFileMenuState.shared.setCurrentFileURL(newValue)
             }
             tabStore.updateActiveTabFileURL(newValue)
+            // A window opened by ⌘O/Finder/CLI/App Intents for a file another window already holds
+            // hands it back and closes, instead of becoming a second live copy that autosaves over
+            // it. This is the edge that carries the URL — onAppear runs before it is known.
+            handOffToExistingWindowIfDuplicate()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             guard (notification.object as? NSWindow)?.windowNumber == windowNumber else {
@@ -500,6 +522,7 @@ struct EditorContainerView: View {
             // recreates this view's host, running onDisappear (which restores the window's
             // original delegate) without a matching windowNumber change to re-trigger the
             // onChange install below. Idempotent with the windowNumber onChange below.
+            tabStore.windowNumber = windowNumber
             registerReloadWatcher()
             installWindowCloseControllerIfNeeded()
         }
@@ -519,7 +542,10 @@ struct EditorContainerView: View {
             // after a brief typing pause instead of on every keystroke.
             scheduleDerivedRefresh(for: newValue)
         }
-        .onChange(of: windowNumber) { _, _ in
+        .onChange(of: windowNumber) { _, newValue in
+            // The store can't discover its own window; the view is what learns it. Needed so
+            // app-wide open dedupe (EditorTabStore.locate) can bring the owning window forward.
+            tabStore.windowNumber = newValue
             registerReloadWatcher()
             installWindowCloseControllerIfNeeded()
         }
@@ -801,8 +827,10 @@ struct EditorContainerView: View {
                     isSearching: crossFileSearchModel.isSearching,
                     theme: currentTheme,
                     onOpen: { result in
-                        openSidebarFile(result.url)
-                        clearAllSearchState()
+                        // Only wipe THIS window's results when the document actually landed here.
+                        // If it was revealed in another window, the user is still looking at this
+                        // results list and will want to click a second hit.
+                        openSidebarFile(result.url, whenOpenedHere: clearAllSearchState)
                     },
                     onDismiss: { clearAllSearchState() }
                 )
@@ -1093,10 +1121,57 @@ struct EditorContainerView: View {
         // the reader out of Read mode into Write.
     }
 
-    private func openSidebarFile(_ url: URL) {
-        if let existingIndex = tabStore.tabIndex(for: url) {
-            tabStore.selectTab(id: tabStore.tabs[existingIndex].id)
+    /// `whenOpenedHere` runs only if the document ends up in THIS window, so a caller clearing
+    /// window-local state (the cross-file search results page) doesn't wipe it when the document was
+    /// revealed in another window. It is a callback rather than a return value because the reveal
+    /// path can defer a tick (`.retryReveal`) — a Bool would have to be returned before that
+    /// resolves, and the deferred outcome would be silently dropped.
+    private func openSidebarFile(
+        _ url: URL,
+        revealAttemptsRemaining: Int = revealRetryBudget,
+        whenOpenedHere: @escaping () -> Void = {}
+    ) {
+        // Already open somewhere? Reveal it instead of opening a second copy. Two windows holding
+        // one file means two in-memory snapshots autosaving over each other — the same data loss the
+        // Save As guard refuses, reached from the other direction — so dedupe is app-wide, not just
+        // within this window. `preferring: tabStore` keeps a file this window already has from
+        // sending the user to some other window that also has it.
+        let located = EditorTabStore.locate(url, preferring: tabStore)
+        // Resolved ONCE and reused below: re-reading `.window` inside the case would scan
+        // NSApp.windows again and could disagree with the decision just made, which would drop the
+        // click entirely (no open here, no reveal there).
+        let revealWindow = located?.store === tabStore ? nil : located?.store.window
+        switch SidebarOpenRoute.route(
+            locatedTabID: located?.tabID,
+            isOwnStore: located?.store === tabStore,
+            revealWindowAvailable: revealWindow != nil,
+            canRetry: revealAttemptsRemaining > 0
+        ) {
+        case .selectHere(let tabID):
+            tabStore.selectTab(id: tabID)
+            whenOpenedHere()
             return
+        case .reveal(let tabID):
+            located?.store.selectTab(id: tabID)
+            // makeKeyAndOrderFront alone leaves a MINIMIZED window in the Dock, so the click would
+            // produce no visible result at all — the file neither opening here nor appearing there.
+            if revealWindow?.isMiniaturized == true { revealWindow?.deminiaturize(nil) }
+            revealWindow?.makeKeyAndOrderFront(nil)
+            return
+        case .retryReveal:
+            // Re-locates from scratch next tick (deliberately not caching this result): if a second
+            // click already opened the file here, the retry finds THAT tab and selects it instead of
+            // adding a duplicate.
+            DispatchQueue.main.async {
+                openSidebarFile(
+                    url,
+                    revealAttemptsRemaining: revealAttemptsRemaining - 1,
+                    whenOpenedHere: whenOpenedHere
+                )
+            }
+            return
+        case .openHere:
+            break
         }
         do {
             let loadedDocument = try LineformDocument(contentsOf: url)
@@ -1107,10 +1182,55 @@ struct EditorContainerView: View {
                 text: loadedDocument.text
             )
             tabStore.openTab(document: loadedDocument, fileURL: url)
+            whenOpenedHere()
         } catch {
-            return
+            // Unreadable file: nothing opened anywhere, so the caller keeps its state.
         }
     }
+
+    /// Hands this window's file back to the window that already had it, then closes this one — the
+    /// after-the-fact half of open dedupe, covering ⌘O/Finder/CLI/App Intents, which build their
+    /// window through DocumentGroup before any of our code can intervene.
+    ///
+    /// Called from the `currentFileURL` change rather than `onAppear`: a freshly opened window runs
+    /// onAppear with BOTH its window number and its file still nil (verified by trace), so there is
+    /// nothing to decide on yet.
+    ///
+    /// Deferred a runloop turn so AppKit has finished opening this window before it is closed, and
+    /// re-checked after the hop — closing a window is destructive, so every condition is confirmed
+    /// twice and `shouldHandOff` refuses anything but a single-tab, unedited window that lost the
+    /// window-number tie-break.
+    private func handOffToExistingWindowIfDuplicate() {
+        DispatchQueue.main.async {
+            guard let url = currentFileURL,
+                  let myWindow = activeWindow,
+                  let other = EditorTabStore.locate(url, excluding: tabStore),
+                  let otherWindow = other.store.window,
+                  DuplicateWindowMerge.shouldHandOff(
+                    incomingTabCount: tabStore.tabCount,
+                    incomingIsEdited: myWindow.isDocumentEdited,
+                    incomingWindowNumber: myWindow.windowNumber,
+                    existingWindowNumber: otherWindow.windowNumber
+                  )
+            else { return }
+
+            other.store.selectTab(id: other.tabID)
+            if otherWindow.isMiniaturized { otherWindow.deminiaturize(nil) }
+            otherWindow.makeKeyAndOrderFront(nil)
+            // Close the DOCUMENT, not just the window: this window came from DocumentGroup and its
+            // NSDocument would otherwise outlive it. Safe without a save prompt because the guard
+            // established the window is unedited and holds nothing but this one file.
+            (myWindow.windowController?.document as? NSDocument)?.close()
+        }
+    }
+
+    /// How many runloop turns a reveal will wait for the owning window to resolve before giving up
+    /// and opening the file here. The store learns its window from a binding SwiftUI publishes a
+    /// tick or more after the view re-attaches, and re-attach happens on every detail-hierarchy
+    /// rebuild (tab bar appearing, reading inspector opening) — one tick is not reliably enough.
+    /// Exhausting the budget opens a duplicate, which is the failure this trades against a click
+    /// that appears to do nothing; more attempts make that outcome rarer without ever hanging.
+    private static let revealRetryBudget = 3
 
     private func switchToTab(id: UUID) {
         guard id != tabStore.selectedTabID else { return }
@@ -1743,6 +1863,16 @@ struct EditorContainerView: View {
 
         let write: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else { return }
+            // The panel's own "Replace?" warning is about the file on DISK; it says nothing about
+            // that file also being open in another tab, whose stale snapshot would autosave right
+            // back over whatever we write here. Refuse and name the tab instead of clobbering.
+            // Checked against EVERY window's tabs, not just this one's: the other window has no idea
+            // its file was rewritten, so a cross-window save is the same data loss.
+            if let conflictingTab = SaveAsConflict.conflictingTabTitle(
+                destination: url, tabs: EditorTabStore.allOpenTabs, activeTabID: tabStore.selectedTabID) {
+                saveAsConflictTabTitle = conflictingTab
+                return
+            }
             let format = controller.selectedFormat
             let paperIndex = controller.paperPopup.indexOfSelectedItem
             let paper = ExportPaperSize.allCases.indices.contains(paperIndex) ? ExportPaperSize.allCases[paperIndex] : .usLetter
@@ -1768,12 +1898,12 @@ struct EditorContainerView: View {
             case .pdf, .styledPDF:
                 let preset: ExportTypographyPreset = (format == .styledPDF) ? .styled : .standard
                 let dir = currentFileURL?.deletingLastPathComponent()
-                // NSPrintOperation writes straight to the target, so a mid-write failure (disk full)
-                // can leave a truncated/0-byte PDF. Only remove it if we CREATED it this export —
-                // never delete a file that already existed (the user may have chosen to overwrite).
-                let pdfPreexisted = FileManager.default.fileExists(atPath: url.path)
+                // NSPrintOperation writes straight to its target, so a mid-write failure (disk full,
+                // render error, crash) would leave a truncated PDF — and when overwriting, it would
+                // have already destroyed the file that was there. Staging the render and moving it
+                // into place on success means a failed export leaves the destination untouched.
                 let runExport = {
-                    let succeeded = DocumentExportRenderer.writePDF(
+                    let succeeded = DocumentExportRenderer.writePDFAtomically(
                         text: document.text,
                         profile: readingProfileStore.activeProfile,
                         paper: paper,
@@ -1783,7 +1913,6 @@ struct EditorContainerView: View {
                     )
                     if !succeeded {
                         pdfExportErrorFileName = url.lastPathComponent
-                        if !pdfPreexisted { try? FileManager.default.removeItem(at: url) }
                     }
                 }
                 if format == .styledPDF {
