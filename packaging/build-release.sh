@@ -137,6 +137,17 @@ if [[ "$RESIGN_WITH_DEVELOPER_ID" == "YES" ]]; then
   cp "$DEVELOPER_ID_PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 
   sign_release_item "$APP_PATH/Contents/Helpers/lineform"
+  # The Quick Look extension is a nested bundle and must be re-signed with Developer ID
+  # too — Xcode signs it with the Apple Development cert, and notarization rejects the
+  # whole archive for it ("binary is not signed with a valid Developer ID certificate",
+  # "signature does not include a secure timestamp"). It keeps its own sandbox
+  # entitlements, so it cannot be signed with the bare sign_release_item helper.
+  codesign --force \
+    --sign "$CODE_SIGN_IDENTITY" \
+    --options runtime \
+    --timestamp \
+    --entitlements "$REPO_ROOT/LineformQuickLook/LineformQuickLook.entitlements" \
+    "$APP_PATH/Contents/PlugIns/LineformQuickLook.appex"
   sign_release_item "$SPARKLE_VERSION_PATH/Autoupdate"
   sign_release_item "$SPARKLE_VERSION_PATH/XPCServices/Downloader.xpc"
   sign_release_item "$SPARKLE_VERSION_PATH/XPCServices/Installer.xpc"
