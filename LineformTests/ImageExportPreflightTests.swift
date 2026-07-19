@@ -42,11 +42,31 @@ final class ImageExportPreflightTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
-    func testMultipleUnresolvedAreAllReturned() {
+    func testMultipleOwnLineUnresolvedAreAllReturned() {
         let dir = makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
+        // Two images, each ALONE on its own line → both render, both flagged when missing.
         let result = ImageExportPreflight.unresolvedLocalReferences(
-            in: "![a](a.png) inline ![b](sub/b.jpg)", documentDirectory: dir)
+            in: "![a](a.png)\n![b](sub/b.jpg)", documentDirectory: dir)
         XCTAssertEqual(result.map(\.path).sorted(), ["a.png", "sub/b.jpg"])
+    }
+
+    func testMidSentenceImageIsNotFlagged() {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // An image NOT alone on its line renders as the inline placeholder, never a real picture —
+        // so granting access would accomplish nothing. It must not trigger the prompt.
+        let result = ImageExportPreflight.unresolvedLocalReferences(
+            in: "See ![x](/abs/desktop.png) in the middle.", documentDirectory: dir)
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testImageInsideCodeFenceIsNotFlagged() {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // An own-line image reference inside a fenced code block is CODE, not a rendered image.
+        let text = "```\n![x](missing.png)\n```"
+        let result = ImageExportPreflight.unresolvedLocalReferences(in: text, documentDirectory: dir)
+        XCTAssertTrue(result.isEmpty)
     }
 }
