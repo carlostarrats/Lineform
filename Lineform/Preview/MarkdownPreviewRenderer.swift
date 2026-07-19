@@ -23,11 +23,14 @@ extension NSAttributedString.Key {
     /// (remote, unresolved, or a local file that failed to load).
     static let imageReconnect = NSAttributedString.Key("lineform.imageReconnect")
 
-    /// Attached to every rendered run; value is an `NSNumber` boxing the SOURCE character offset of
-    /// the source line that produced it. Gives a full rendered→source position map (finer than
-    /// `.headingSourceRange`, which only marks headings), so Read/Preview can report and restore
-    /// the EXACT reading position across a display-mode switch, not just the nearest heading.
-    static let sourceLineLocation = NSAttributedString.Key("lineform.sourceLineLocation")
+    /// Attached to every rendered run; value is an `NSValue` boxing the SOURCE `NSRange` that the run
+    /// maps back to — a single source line for prose/heading runs (from `appendLines`), or the whole
+    /// source span of a multi-line block (blockquote/list/table/callout/…). Gives a full
+    /// rendered→source position map (finer than `.headingSourceRange`, which only marks headings) so
+    /// Read/Preview can report and restore the reading position across a display-mode switch. The
+    /// span's LENGTH bounds the sub-line offset the reader adds, so a position inside a multi-line
+    /// block can never overshoot past the block (which would mis-restore and mis-bold the outline).
+    static let sourceSpan = NSAttributedString.Key("lineform.sourceSpan")
 }
 
 struct MarkdownPreviewRenderer {
@@ -115,8 +118,14 @@ struct MarkdownPreviewRenderer {
         // display-math blocks reuse the same emitters and the same trailing-newline rules as
         // before — byte-identical for the existing constructs. New block constructs become new
         // cases here plus their own emitter.
+        // Running cursor over source line indices. `markdownBlocks` is a strict contiguous partition
+        // of the lines (ordinary lines are flushed as `.lines` between special blocks), so each
+        // block's FIRST source line is the line after the previous block's last — which lets a
+        // `lastLineIndex`-only block still know its full source span.
+        var sourceLineCursor = 0
         for block in markdownBlocks(in: lines) {
             let blockRenderStart = output.length
+            let blockFirstLine = sourceLineCursor
             switch block {
             case .lines(let range):
                 appendLines(
@@ -234,16 +243,23 @@ struct MarkdownPreviewRenderer {
                 )
             }
 
-            // `.lines` blocks attach per-line source offsets themselves (finest granularity). Every
-            // other block gets one representative source offset across its whole rendered range, so
-            // cross-mode scroll restore has an anchor inside it too.
+            // Advance the cursor past this block, then tag it. `.lines` blocks attach a precise
+            // per-line source span themselves (in `appendLines`); every OTHER block gets ONE span —
+            // its FULL source range (first line start … last line end) — over its whole rendered
+            // range, so a position inside it is anchored within the block and can't overshoot past
+            // it (the multi-line-block overshoot bug).
+            let blockLastLine = Self.blockLastLine(block, totalLines: lines.count)
+            sourceLineCursor = blockLastLine + 1
             if case .lines = block {} else if
-                let location = Self.blockSourceLocation(block, lineRanges: lineRanges),
+                lines.indices.contains(blockFirstLine),
+                lines.indices.contains(blockLastLine),
                 output.length > blockRenderStart
             {
+                let start = lineRanges[blockFirstLine].location
+                let span = NSRange(location: start, length: max(0, NSMaxRange(lineRanges[blockLastLine]) - start))
                 output.addAttribute(
-                    .sourceLineLocation,
-                    value: NSNumber(value: location),
+                    .sourceSpan,
+                    value: NSValue(range: span),
                     range: NSRange(location: blockRenderStart, length: output.length - blockRenderStart)
                 )
             }
@@ -252,37 +268,32 @@ struct MarkdownPreviewRenderer {
         return output
     }
 
-    /// A representative SOURCE character offset for a non-`.lines` block, used to tag its rendered
-    /// range with `.sourceLineLocation`. Prefers the block's opening line; multi-line blocks that
-    /// only carry their last line index use it (bounded imprecision, well within the block).
-    private static func blockSourceLocation(_ block: MarkdownBlock, lineRanges: [NSRange]) -> Int? {
-        func location(forLine index: Int) -> Int? {
-            guard index >= 0, index < lineRanges.count else { return nil }
-            return lineRanges[index].location
-        }
+    /// The last SOURCE line index a block covers — must mirror `markdownBlocks`' line consumption
+    /// exactly, so the running `sourceLineCursor` stays aligned with the partition.
+    private static func blockLastLine(_ block: MarkdownBlock, totalLines: Int) -> Int {
         switch block {
         case .lines(let range):
-            return location(forLine: range.lowerBound)
+            return range.upperBound - 1
         case .singleLineMath(_, let lineIndex):
-            return location(forLine: lineIndex)
+            return lineIndex
         case .fencedMath(_, let closingIndex):
-            return closingIndex.flatMap(location(forLine:))
+            return closingIndex ?? (totalLines - 1)
         case .mermaid(_, let closingIndex):
-            return closingIndex.flatMap(location(forLine:))
+            return closingIndex ?? (totalLines - 1)
         case .horizontalRule(let lineIndex):
-            return location(forLine: lineIndex)
+            return lineIndex
         case .blockquote(_, let lastLineIndex):
-            return location(forLine: lastLineIndex)
+            return lastLineIndex
         case .callout(_, _, _, let lastLineIndex):
-            return location(forLine: lastLineIndex)
+            return lastLineIndex
         case .list(_, let lastLineIndex):
-            return location(forLine: lastLineIndex)
+            return lastLineIndex
         case .table(_, let lastLineIndex):
-            return location(forLine: lastLineIndex)
-        case .fencedCode(_, _, let openingIndex, _):
-            return location(forLine: openingIndex)
-        case .image(_, _, let sourceRange, _):
-            return sourceRange.location
+            return lastLineIndex
+        case .fencedCode(_, _, _, let closingIndex):
+            return closingIndex ?? (totalLines - 1)
+        case .image(_, _, _, let lineIndex):
+            return lineIndex
         }
     }
 
@@ -638,7 +649,7 @@ struct MarkdownPreviewRenderer {
             let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
             var lineTerminatorAttributes = activeBodyAttributes
             // Everything this source line emits carries its source offset, for exact cross-mode
-            // scroll restore (see `.sourceLineLocation`).
+            // scroll restore (see `.sourceSpan`).
             let renderedLineStart = output.length
 
             if let heading = heading(in: line) {
@@ -673,8 +684,8 @@ struct MarkdownPreviewRenderer {
 
             if output.length > renderedLineStart {
                 output.addAttribute(
-                    .sourceLineLocation,
-                    value: NSNumber(value: lineRanges[index].location),
+                    .sourceSpan,
+                    value: NSValue(range: lineRanges[index]),
                     range: NSRange(location: renderedLineStart, length: output.length - renderedLineStart)
                 )
             }

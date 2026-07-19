@@ -137,16 +137,23 @@ enum LineformShortcutSupport {
 
     private static func pruneOldNotes(in directory: URL) {
         let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .contentAccessDateKey]
         guard let items = try? FileManager.default.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey],
+            includingPropertiesForKeys: Array(keys),
             options: [.skipsHiddenFiles]
         ) else {
             return
         }
         for item in items {
-            let modified = (try? item.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            if let modified, modified < cutoff {
+            let values = try? item.resourceValues(forKeys: keys)
+            // Prune only when the file has been untouched — neither modified NOR accessed — since the
+            // cutoff, so a staged note still open in a window (its file was read when opened, which
+            // refreshes the access date) is never deleted out from under the document.
+            let lastTouched = [values?.contentModificationDate, values?.contentAccessDate]
+                .compactMap { $0 }
+                .max()
+            if let lastTouched, lastTouched < cutoff {
                 try? FileManager.default.removeItem(at: item)
             }
         }

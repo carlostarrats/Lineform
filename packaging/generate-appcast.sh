@@ -55,7 +55,7 @@ if (( ${#dmgs[@]} )); then
       echo "[notes] embedded release notes for $base" >&2
     fi
   done
-  newest_base="$(printf '%s\n' "${dmgs[@]}" | sort -V | tail -1 | xargs basename | sed 's/\.dmg$//')"
+  newest_base="$(basename "$(printf '%s\n' "${dmgs[@]}" | sort -V | tail -1)" .dmg)"
   if [[ ! -f "$RELEASE_NOTES_DIR/$newest_base.html" ]]; then
     echo "[notes] WARNING: no release notes at docs/release-notes/$newest_base.html — the in-app updater's What's New pane will be EMPTY for $newest_base. Copy docs/release-notes/TEMPLATE.html to that name, write user-facing notes, and re-run." >&2
   fi

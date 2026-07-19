@@ -987,6 +987,51 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
         XCTAssertEqual(out.string, "H\n\nBody")
     }
 
+    // MARK: - Cross-mode scroll-restore source spans
+
+    /// A multi-line block's `.sourceSpan` must cover its WHOLE source range — not just its last
+    /// line — so a reader parked inside it restores within the block instead of overshooting past
+    /// it (the multi-line-block overshoot bug). Two adjacent blocks also verify the running
+    /// `sourceLineCursor` stays aligned: the blockquote's span starting at the right offset proves
+    /// the cursor advanced correctly past the preceding list.
+    func testSourceSpanCoversWholeMultiLineBlockAndCursorStaysAligned() throws {
+        // Source offsets (each line + "\n"):
+        //   "- apple"  0..7   "- banana" 8..16   "> cherry" 17..25   "> date" 26..32
+        let rendered = MarkdownPreviewRenderer().render("- apple\n- banana\n> cherry\n> date", profile: .original)
+        let ns = rendered.string as NSString
+
+        func span(at substring: String) throws -> NSRange {
+            let location = ns.range(of: substring).location
+            XCTAssertNotEqual(location, NSNotFound, "\(substring) not found in rendered output")
+            let value = try XCTUnwrap(rendered.attribute(.sourceSpan, at: location, effectiveRange: nil) as? NSValue)
+            return value.rangeValue
+        }
+
+        // The list (source lines 0-1) spans 0..<16 — first list line start through last list line end.
+        let appleSpan = try span(at: "apple")
+        XCTAssertEqual(appleSpan.location, 0)
+        XCTAssertEqual(NSMaxRange(appleSpan), 16)
+        XCTAssertEqual(try span(at: "banana"), appleSpan, "whole list run shares one span")
+
+        // The blockquote (source lines 2-3) spans 17..<32. location==17 proves the cursor advanced
+        // exactly past the two list lines; NSMaxRange==32 proves it doesn't overshoot into anything.
+        let cherrySpan = try span(at: "cherry")
+        XCTAssertEqual(cherrySpan.location, 17)
+        XCTAssertEqual(NSMaxRange(cherrySpan), 32)
+        XCTAssertEqual(try span(at: "date"), cherrySpan)
+    }
+
+    /// A prose line gets a precise per-line span (its own source-line range), so single-line
+    /// restore is exact rather than block-coarse.
+    func testSourceSpanIsPerLineForProse() throws {
+        let rendered = MarkdownPreviewRenderer().render("first line\nsecond line", profile: .original)
+        let ns = rendered.string as NSString
+        let secondLocation = ns.range(of: "second").location
+        let value = try XCTUnwrap(rendered.attribute(.sourceSpan, at: secondLocation, effectiveRange: nil) as? NSValue)
+        // "second line" is source line 1 → starts at 11 ("first line\n" is 11 UTF-16 units).
+        XCTAssertEqual(value.rangeValue.location, 11)
+    }
+
     // MARK: - Helpers
 
     private func render(_ text: String, documentDirectory: URL?, imageProvider: ImageAttachmentProviding) -> NSAttributedString {

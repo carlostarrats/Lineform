@@ -272,7 +272,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
 
     /// Scrolls so the source line at or above `sourceRange.location` parks at the top of the
     /// viewport. The argument is in SOURCE-document coordinates; it is mapped back to the rendered
-    /// text via the `.sourceLineLocation` attribute the renderer attaches to every run — so the
+    /// text via the `.sourceSpan` attribute the renderer attaches to every run — so the
     /// restore is exact to the source line, not just the nearest heading. Used for outline jumps in
     /// Read/Preview and for restoring the EXACT reading position across a display-mode switch. If no
     /// tagged run is at or above the target, scrolls to the very top. Never selects text.
@@ -310,16 +310,16 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         }
         layoutManager.ensureLayout(for: textContainer)
 
-        // Find the rendered run of the nearest source line whose SOURCE offset is <= the target.
+        // Find the rendered run whose SOURCE span starts nearest at/below the target.
         var bestRenderedRange: NSRange?
         var bestSourceLocation = -1
         textStorage.enumerateAttribute(
-            .sourceLineLocation,
+            .sourceSpan,
             in: NSRange(location: 0, length: textStorage.length),
             options: []
         ) { value, renderedRange, _ in
-            guard let value = value as? NSNumber else { return }
-            let location = value.intValue
+            guard let value = value as? NSValue else { return }
+            let location = value.rangeValue.location
             if location <= target, location > bestSourceLocation {
                 bestSourceLocation = location
                 bestRenderedRange = renderedRange
@@ -328,10 +328,11 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
 
         let targetY: CGFloat
         if let bestRenderedRange {
-            // Sub-line precision: land at how far into the line the target source offset sits, not
-            // the line start (symmetric with the report side). Clamped within the rendered run.
-            let offsetWithinLine = max(0, target - bestSourceLocation)
-            let renderedChar = min(bestRenderedRange.location + offsetWithinLine, NSMaxRange(bestRenderedRange) - 1)
+            // Sub-line precision: land at how far into the run the target source offset sits, not the
+            // run start (symmetric with the report side). Clamped within the rendered run, so a
+            // target inside a multi-line block can't scroll past the block.
+            let offsetIntoSource = max(0, target - bestSourceLocation)
+            let renderedChar = min(bestRenderedRange.location + offsetIntoSource, NSMaxRange(bestRenderedRange) - 1)
             let glyphRange = layoutManager.glyphRange(
                 forCharacterRange: NSRange(location: renderedChar, length: 1),
                 actualCharacterRange: nil
@@ -764,7 +765,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     }
 
     /// Returns the EXACT source-document offset (as a length-1 range) of the run at the top of the
-    /// viewport, read from the `.sourceLineLocation` attribute the renderer attaches to every run.
+    /// viewport, read from the `.sourceSpan` attribute the renderer attaches to every run.
     /// This drives two things: the outline sidebar bolds the enclosing heading (its `activeItemID`
     /// maps any source offset to the last heading at/above it, exactly as it already does for Write
     /// mode's exact reporting), and a mode switch restores this exact position rather than the
@@ -786,22 +787,25 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
         let topChar = min(max(0, charRange.location), textStorage.length - 1)
         guard let info = sourceLineInfo(at: topChar, in: textStorage) else { return nil }
-        // Sub-line precision: add how far into the line's RENDERED run the viewport top sits, so a
-        // reader parked mid-paragraph restores to that spot in Write, not the paragraph start. Exact
-        // for plain prose; a close approximation when inline markup was stripped from the line.
-        let offsetWithinLine = max(0, topChar - info.renderedRange.location)
-        return NSRange(location: info.sourceLineLocation + offsetWithinLine, length: 1)
+        // Sub-line precision: add how far into the run's RENDERED range the viewport top sits, so a
+        // reader parked mid-paragraph restores to that spot in Write, not the paragraph start. The
+        // offset is CLAMPED to the run's SOURCE span length, so a position deep inside a multi-line
+        // block (blockquote/list/table) stays inside that block instead of overshooting past it
+        // (which would mis-restore and bold the wrong outline heading). Exact for plain prose.
+        let renderedOffset = max(0, topChar - info.renderedRange.location)
+        let clampedOffset = min(renderedOffset, max(0, info.sourceSpan.length - 1))
+        return NSRange(location: info.sourceSpan.location + clampedOffset, length: 1)
     }
 
-    /// The `.sourceLineLocation` value at `charIndex` and the rendered run it belongs to — or, if
-    /// that exact run lacks one (rare), the nearest tagged run before it. Walks backward by
-    /// attribute-run so it never scans char by char.
-    private func sourceLineInfo(at charIndex: Int, in textStorage: NSTextStorage) -> (sourceLineLocation: Int, renderedRange: NSRange)? {
+    /// The `.sourceSpan` value at `charIndex` and the rendered run it belongs to — or, if that exact
+    /// run lacks one (rare), the nearest tagged run before it. Walks backward by attribute-run so it
+    /// never scans char by char.
+    private func sourceLineInfo(at charIndex: Int, in textStorage: NSTextStorage) -> (sourceSpan: NSRange, renderedRange: NSRange)? {
         var index = min(max(0, charIndex), textStorage.length - 1)
         while index >= 0 {
             var effectiveRange = NSRange(location: 0, length: 0)
-            if let value = textStorage.attribute(.sourceLineLocation, at: index, effectiveRange: &effectiveRange) as? NSNumber {
-                return (value.intValue, effectiveRange)
+            if let value = textStorage.attribute(.sourceSpan, at: index, effectiveRange: &effectiveRange) as? NSValue {
+                return (value.rangeValue, effectiveRange)
             }
             index = effectiveRange.location - 1
         }
