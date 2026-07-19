@@ -80,9 +80,13 @@ final class SaveAsPanelController: NSObject {
         formatPopup.selectItem(at: initialFormat.rawValue)
         formatPopup.target = self
         formatPopup.action = #selector(formatChanged)
+        // The adjacent "Format:" text field is not programmatically associated, so VoiceOver would
+        // otherwise announce only the selected value with no field name.
+        formatPopup.setAccessibilityLabel("Format")
 
         for title in paperTitles { paperPopup.addItem(withTitle: title) }
         if paperTitles.indices.contains(selectedPaper) { paperPopup.selectItem(at: selectedPaper) }
+        paperPopup.setAccessibilityLabel("Paper Size")
 
         panel.accessoryView = makeAccessory()
         syncPanel()

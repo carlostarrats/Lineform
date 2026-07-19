@@ -378,11 +378,13 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
 
         if MermaidFence.isMermaidOpening(trimmed) {
             flushLines(upTo: index)
+            let marker = MermaidFence.openingMarker(trimmed)
             var body: [String] = []
             var cursor = index + 1
             var closing: Int?
             while cursor < lines.count {
-                if MermaidFence.isFenceDelimiter(lines[cursor].trimmingCharacters(in: .whitespaces)) {
+                if let marker,
+                   MermaidFence.isClosingFence(lines[cursor].trimmingCharacters(in: .whitespaces), matching: marker) {
                     closing = cursor
                     break
                 }
@@ -394,16 +396,18 @@ func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
             continue
         }
 
-        if MermaidFence.isFenceDelimiter(trimmed) {
-            // A plain code fence: consume to the next fence delimiter as its own block so it renders
-            // through appendCodeBlock (highlighting + copy pill), parallel to mermaid/math routing.
+        if let marker = MermaidFence.openingMarker(trimmed) {
+            // A plain code fence: consume to its matching closing fence (same delimiter char, run
+            // length >= the opener's) as its own block so it renders through appendCodeBlock
+            // (highlighting + copy pill), parallel to mermaid/math routing. Matching the delimiter
+            // keeps an inner `~~~` (or literal fence-like code line) from truncating the block.
             flushLines(upTo: index)
             let language = CodeFence.language(fromOpening: trimmed)
             var body: [String] = []
             var cursor = index + 1
             var closing: Int?
             while cursor < lines.count {
-                if MermaidFence.isFenceDelimiter(lines[cursor].trimmingCharacters(in: .whitespaces)) {
+                if MermaidFence.isClosingFence(lines[cursor].trimmingCharacters(in: .whitespaces), matching: marker) {
                     closing = cursor
                     break
                 }

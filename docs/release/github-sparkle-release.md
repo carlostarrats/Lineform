@@ -29,6 +29,8 @@ See `docs/superpowers/specs/2026-07-01-diagram-report-design.md`. This step is o
 6. Publish the DMG on GitHub Releases and commit `docs/appcast.xml`.
 7. Confirm the public README and website download link point at the current release.
 
+**Version bump reminder:** `CURRENT_PROJECT_VERSION` and `MARKETING_VERSION` appear in **four** places in `Lineform.xcodeproj/project.pbxproj` — the app target (Debug + Release) **and** the `LineformQuickLook` extension target (Debug + Release). Bump all four together: an embedded app extension whose `CFBundleVersion` doesn't match the parent app fails validation ("CFBundleVersion … must match that of its containing parent app"). The main-app `Info.plist` and the QuickLook `Info.plist` both read these via `$(…)`, so only the pbxproj numbers change.
+
 ## Test gates before building
 
 Two test plans exist (see `Claude.md` › Verification Commands). Before any release:

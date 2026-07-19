@@ -64,8 +64,13 @@ final class SpeechController: ObservableObject {
 /// no network, no entitlement. Not unit-tested — it is the real audio path; the state machine it
 /// drives is tested via `SpeechSynthesizing`.
 final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpeechSynthesizerDelegate {
-    var onFinish: (() -> Void)?
-    private let synthesizer = AVSpeechSynthesizer()
+    // Set exactly once by `SpeechController.init` before any speech starts, then only read from the
+    // didFinish callback (which hops to main before invoking). No concurrent mutation, so the
+    // Sendable-mutable-state check is safe to opt out of here.
+    nonisolated(unsafe) var onFinish: (() -> Void)?
+    // Control methods are driven from the @MainActor `SpeechController`; AVSpeechSynthesizer is not
+    // Sendable but is only ever touched through those main-actor-serialized calls.
+    private nonisolated(unsafe) let synthesizer = AVSpeechSynthesizer()
 
     override init() {
         super.init()

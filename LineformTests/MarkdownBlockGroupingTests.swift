@@ -43,6 +43,31 @@ final class MarkdownBlockGroupingTests: XCTestCase {
         )
     }
 
+    func testBacktickFenceIsNotClosedByTildeLineOrLiteralFenceText() {
+        // An inner `~~~` (a different delimiter) and a code line containing a fence string must NOT
+        // truncate a ```-opened block; only a matching ``` closer ends it.
+        XCTAssertEqual(
+            markdownBlocks(in: ["```python", "x = \"~~~\"", "y = 2", "```"]),
+            [.fencedCode(language: "python", body: "x = \"~~~\"\ny = 2", openingIndex: 0, closingIndex: 3)]
+        )
+    }
+
+    func testTildeFenceIsNotClosedByBacktickLine() {
+        XCTAssertEqual(
+            markdownBlocks(in: ["~~~", "```", "code", "```", "~~~"]),
+            [.fencedCode(language: "", body: "```\ncode\n```", openingIndex: 0, closingIndex: 4)]
+        )
+    }
+
+    func testClosingFenceMustBeAtLeastAsLongAsOpener() {
+        // A 4-backtick opener isn't closed by a 3-backtick line (shorter run), so an inner ``` that
+        // is itself fenced content survives.
+        XCTAssertEqual(
+            markdownBlocks(in: ["````", "```", "````"]),
+            [.fencedCode(language: "", body: "```", openingIndex: 0, closingIndex: 2)]
+        )
+    }
+
     func testNonCodeConstructsRouteUnchangedAlongsideCode() {
         let blocks = markdownBlocks(in: [
             "intro",

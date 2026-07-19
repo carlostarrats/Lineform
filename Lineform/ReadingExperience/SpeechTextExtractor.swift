@@ -13,7 +13,6 @@ enum SpeechTextExtractor {
     private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
     private static let imageRegex = try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
     private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
-    private static let calloutRegex = try! NSRegularExpression(pattern: #"^\[![^\]\n]+\][ \t]*"#)
 
     static func spokenText(from markdown: String) -> String {
         let lines = markdown.components(separatedBy: "\n")
@@ -25,8 +24,11 @@ enum SpeechTextExtractor {
             case .lines(let range):
                 appendLineRun(lines, range, into: &units)
             case .blockquote(let quoteLines, _):
+                // Only recognized callouts become `.callout` blocks; a plain blockquote reaching here
+                // has no callout token, and an UNRECOGNIZED `[!type]` renders literally, so speak the
+                // text verbatim to match what's on screen.
                 for quote in quoteLines {
-                    append(stripCallout(quote.text), into: &units)
+                    append(quote.text, into: &units)
                 }
             case .callout(_, let title, let body, _):
                 if let title {
@@ -111,15 +113,6 @@ enum SpeechTextExtractor {
     private static func appendRaw(_ text: String, into units: inout [String]) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         if !trimmed.isEmpty { units.append(trimmed) }
-    }
-
-    /// Drop a leading GitHub callout token (`[!NOTE]`, `[!WARNING]`, …) from a blockquote line.
-    private static func stripCallout(_ text: String) -> String {
-        let ns = text as NSString
-        guard let match = calloutRegex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else {
-            return text
-        }
-        return ns.substring(from: match.range.length)
     }
 
     /// A standalone `.image` block's spoken text: the alt text, stripped of inline markers, or —

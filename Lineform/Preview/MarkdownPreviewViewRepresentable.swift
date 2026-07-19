@@ -627,17 +627,25 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     /// Copies a code block's raw source (sliced from the retained source markdown, since
     /// `apply(text:profile:)` keeps `renderedText == text`) to the pasteboard and briefly shows a
     /// checkmark on its pill. Read-only — never mutates the document.
-    private func copyCodeBlock(sourceRange: NSRange, pillRect: NSRect) {
+    /// Writes a code block's raw source to the general pasteboard. Returns false if the range is
+    /// stale (out of bounds), so the accessibility action can report failure. Read-only.
+    @discardableResult
+    private func copyCodeBlockToPasteboard(sourceRange: NSRange) -> Bool {
         guard
             let source = renderedText as NSString?,
             NSMaxRange(sourceRange) <= source.length
         else {
-            return
+            return false
         }
         let code = source.substring(with: sourceRange)
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(code, forType: .string)
+        return true
+    }
+
+    private func copyCodeBlock(sourceRange: NSRange, pillRect: NSRect) {
+        guard copyCodeBlockToPasteboard(sourceRange: sourceRange) else { return }
 
         copiedFeedbackRect = pillRect
         needsDisplay = true
@@ -688,6 +696,53 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         return value.rangeValue
     }
 
+    // MARK: - Accessibility for overlay pills + checkboxes
+    //
+    // The copy pill, Reconnect pill, and rendered task checkboxes are drawn as overlay geometry and
+    // activated only via `mouseDown` hit-testing — invisible and unreachable to VoiceOver / keyboard
+    // users. Surface each as a custom action so assistive tech can trigger it (VoiceOver actions
+    // rotor). Ranges are captured now and re-validated when invoked, so a stale range is a safe no-op.
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        guard let textStorage, textStorage.length > 0 else { return super.accessibilityCustomActions() }
+        var actions: [NSAccessibilityCustomAction] = []
+        let full = NSRange(location: 0, length: textStorage.length)
+        let string = textStorage.string as NSString
+
+        var codeBlockNumber = 0
+        textStorage.enumerateAttribute(.codeBlockSourceRange, in: full, options: []) { value, _, _ in
+            guard let value = value as? NSValue else { return }
+            codeBlockNumber += 1
+            let sourceRange = value.rangeValue
+            actions.append(NSAccessibilityCustomAction(name: "Copy code block \(codeBlockNumber)") { [weak self] in
+                self?.copyCodeBlockToPasteboard(sourceRange: sourceRange) ?? false
+            })
+        }
+
+        textStorage.enumerateAttribute(.imageReconnect, in: full, options: []) { value, range, _ in
+            guard value != nil,
+                  let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue else { return }
+            let sourceRange = sourceValue.rangeValue
+            actions.append(NSAccessibilityCustomAction(name: "Reconnect image") { [weak self] in
+                self?.onImageReconnect(sourceRange)
+                return true
+            })
+        }
+
+        textStorage.enumerateAttribute(.checkboxSourceRange, in: full, options: []) { value, range, _ in
+            guard let value = value as? NSValue else { return }
+            let sourceRange = value.rangeValue
+            let lineText = string.substring(with: string.lineRange(for: range))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = lineText.isEmpty ? "Toggle task" : "Toggle task: \(lineText)"
+            actions.append(NSAccessibilityCustomAction(name: name) { [weak self] in
+                self?.onCheckboxToggle(sourceRange)
+                return true
+            })
+        }
+
+        return actions.isEmpty ? super.accessibilityCustomActions() : actions
+    }
+
     // MARK: - "Report this" link handling
 
     func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
@@ -733,6 +788,13 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         updateScrollBoundsObservation()
         // A restore requested before the view had a window/size retries now that it does.
         applyPendingScrollIfPossible()
+    }
+
+    deinit {
+        // Symmetry with LineformTextView. Selector-based observers are zeroing-weak on modern macOS
+        // so this is defensive, not load-bearing; also drop any queued scroll-report perform.
+        NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
+        NSObject.cancelPreviousPerformRequests(withTarget: self)
     }
 
     private func updateScrollBoundsObservation() {

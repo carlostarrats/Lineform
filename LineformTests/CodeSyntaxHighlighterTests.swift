@@ -43,6 +43,19 @@ final class CodeSyntaxHighlighterTests: XCTestCase {
         XCTAssertEqual(CodeFence.language(fromOpening: "``` js  extra"), "js")
         XCTAssertEqual(CodeFence.language(fromOpening: "```"), "")
         XCTAssertEqual(CodeFence.language(fromOpening: "not a fence"), "")
+        // A 4+ delimiter run has no language — the extra tick is part of the fence, not the info string.
+        XCTAssertEqual(CodeFence.language(fromOpening: "````"), "")
+        XCTAssertEqual(CodeFence.language(fromOpening: "````swift"), "swift")
+    }
+
+    func testNumberScanDoesNotSwallowTrailingLetters() {
+        // `123abc` colors as `123` (number) + `abc` (identifier), not one over-long number token,
+        // while a real hex literal keeps its a-f digits.
+        let decimal = slices("x = 123abc", "swift")
+        XCTAssertTrue(decimal.contains { $0 == ("123", .number) })
+        XCTAssertFalse(decimal.contains { $0 == ("123abc", .number) })
+        let hex = slices("x = 0xFF", "swift")
+        XCTAssertTrue(hex.contains { $0 == ("0xFF", .number) })
     }
 
     // MARK: - Swift

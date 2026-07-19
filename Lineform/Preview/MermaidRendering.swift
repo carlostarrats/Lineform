@@ -29,6 +29,24 @@ enum MermaidFence {
     static func isFenceDelimiter(_ trimmedLine: String) -> Bool {
         trimmedLine.hasPrefix("```") || trimmedLine.hasPrefix("~~~")
     }
+
+    /// The opening-fence marker (delimiter character + run length) for a trimmed line, or nil if it
+    /// isn't a fence opener. A fence run is 3+ of the same `` ` `` or `~`.
+    static func openingMarker(_ trimmedLine: String) -> (character: Character, length: Int)? {
+        guard let first = trimmedLine.first, first == "`" || first == "~" else { return nil }
+        let length = trimmedLine.prefix { $0 == first }.count
+        return length >= 3 ? (first, length) : nil
+    }
+
+    /// True when a trimmed line closes a fence opened by `marker`, per CommonMark: the same
+    /// delimiter character, a run at least as long as the opener's, and nothing but whitespace after
+    /// the run. This is what stops a ```` ``` ```` block from being truncated by an inner `~~~` line
+    /// (or vice-versa), and stops a code line like `x = "~~~"` from closing a code block.
+    static func isClosingFence(_ trimmedLine: String, matching marker: (character: Character, length: Int)) -> Bool {
+        let run = trimmedLine.prefix { $0 == marker.character }
+        guard run.count >= marker.length else { return false }
+        return trimmedLine.dropFirst(run.count).allSatisfy { $0 == " " || $0 == "\t" }
+    }
 }
 
 /// Decides whether a mermaid block is safe to attempt rendering (size guard → fallback).

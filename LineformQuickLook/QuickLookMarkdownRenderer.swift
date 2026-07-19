@@ -362,7 +362,11 @@ enum QuickLookMarkdownRenderer {
             let inner = applyInlineFormatting(to: match.inner, baseAttributes: baseAttributes)
             let styled = NSMutableAttributedString(attributedString: inner)
             let full = NSRange(location: 0, length: styled.length)
-            if let urlString = match.url, let url = URL(string: urlString) {
+            // Quick Look previews render in Finder/Spotlight, an unattended context, so only
+            // make web/mail links clickable — never file:// or other schemes from doc content.
+            if let urlString = match.url, let url = URL(string: urlString),
+               let scheme = url.scheme?.lowercased(),
+               scheme == "http" || scheme == "https" || scheme == "mailto" {
                 styled.addAttribute(.link, value: url, range: full)
             }
             styled.addAttribute(.foregroundColor, value: NSColor.controlAccentColor, range: full)

@@ -105,6 +105,13 @@ final class SpeechTextExtractorTests: XCTestCase {
         XCTAssertEqual(SpeechTextExtractor.spokenText(from: md), "Before.\na lovely diagram\nAfter.")
     }
 
+    func testUnknownCalloutTokenIsSpokenVerbatim() {
+        // An unrecognized `[!type]` degrades to an ordinary blockquote and renders the token
+        // literally, so speech must read it verbatim rather than silently dropping it.
+        let md = "> [!UNKNOWN] hello there"
+        XCTAssertEqual(SpeechTextExtractor.spokenText(from: md), "[!UNKNOWN] hello there")
+    }
+
     func testStandaloneImageBlockWithNoAltReadsFilename() {
         let md = "![](photos/cat.png)"
         XCTAssertEqual(SpeechTextExtractor.spokenText(from: md), "cat.png")

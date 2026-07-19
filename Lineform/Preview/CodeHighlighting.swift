@@ -45,11 +45,12 @@ enum CodeLanguageResolver {
 /// Extracts the first word of a fence's info string (the language tag), lowercased. "" when absent.
 enum CodeFence {
     static func language(fromOpening trimmedLine: String) -> String {
-        let marker: String
-        if trimmedLine.hasPrefix("```") { marker = "```" }
-        else if trimmedLine.hasPrefix("~~~") { marker = "~~~" }
-        else { return "" }
-        let info = trimmedLine.dropFirst(marker.count).trimmingCharacters(in: .whitespaces)
+        guard let first = trimmedLine.first, first == "`" || first == "~" else { return "" }
+        // Strip the FULL delimiter run (3+), so a 4-backtick fence's extra tick isn't read as the
+        // language. Matches MermaidFence.openingMarker's run computation.
+        let runLength = trimmedLine.prefix { $0 == first }.count
+        guard runLength >= 3 else { return "" }
+        let info = trimmedLine.dropFirst(runLength).trimmingCharacters(in: .whitespaces)
         return info.split(whereSeparator: { $0 == " " || $0 == "\t" }).first.map(String.init)?.lowercased() ?? ""
     }
 }
@@ -180,15 +181,20 @@ enum ScriptScanner {
                 continue
             }
 
-            // Number (integer/float/hex-ish; a leading identifier char never starts a number).
+            // Number (integer/float/hex; a leading identifier char never starts a number). Hex digits
+            // (a-f) are only consumed when the literal actually opens `0x`/`0X`, so a token like
+            // `123abc` colors as `123` + identifier rather than one over-long number.
             if isDigit(c) {
                 let start = i
                 i += 1
+                let isHex = c == 0x30 /* 0 */ && i < n && (s.character(at: i) == 0x78 || s.character(at: i) == 0x58)
+                if isHex { i += 1 } // consume the x/X
                 while i < n {
                     let d = s.character(at: i)
-                    if isDigit(d) || d == 0x2E || d == 0x5F
-                        || (d >= 0x61 && d <= 0x66) || (d >= 0x41 && d <= 0x46) // a-f / A-F (hex)
-                        || d == 0x78 || d == 0x58 { i += 1 } else { break }      // x / X
+                    let accepted = isHex
+                        ? (isDigit(d) || d == 0x5F || (d >= 0x61 && d <= 0x66) || (d >= 0x41 && d <= 0x46))
+                        : (isDigit(d) || d == 0x2E || d == 0x5F)
+                    if accepted { i += 1 } else { break }
                 }
                 tokens.append(CodeToken(range: NSRange(location: start, length: i - start), kind: .number))
                 continue

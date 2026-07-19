@@ -28,6 +28,7 @@
 		1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F00000100000000000004AF /* LineformAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AF /* LineformAppIntents.swift */; };
+		1F00000100000000000004B0 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B0 /* AppIntents.framework */; };
 		1F0000010000000000000320 /* LineformSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000320 /* LineformSettings.swift */; };
 		1F0000010000000000000321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000321 /* SettingsView.swift */; };
 		1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000322 /* LineformSettingsTests.swift */; };
@@ -166,7 +167,6 @@
 		1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */; };
 		1F00000100000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
 		1F00000300000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
-		1F00000100000000000004A2 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A2 /* Info.plist */; };
 		1F00000100000000000004A3 /* LineformQuickLook.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A3 /* LineformQuickLook.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -212,6 +212,7 @@
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000011 /* LineformApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformApp.swift; sourceTree = "<group>"; };
 		1F00000200000000000004AF /* LineformAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformAppIntents.swift; sourceTree = "<group>"; };
+		1F00000200000000000004B0 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		1F0000020000000000000320 /* LineformSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettings.swift; sourceTree = "<group>"; };
 		1F0000020000000000000321 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000322 /* LineformSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettingsTests.swift; sourceTree = "<group>"; };
@@ -359,6 +360,7 @@
 				1F0000010000000000000202 /* Sparkle in Frameworks */,
 				1F0000010000000000000203 /* BeautifulMermaid in Frameworks */,
 				1F00000100000000000002A1 /* SwiftMath in Frameworks */,
+				1F00000100000000000004B0 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -780,7 +782,6 @@
  			isa = PBXResourcesBuildPhase;
  			buildActionMask = 2147483647;
  			files = (
- 				1F00000100000000000004A2 /* Info.plist in Resources */,
  			);
  			runOnlyForDeploymentPostprocessing = 0;
  		};
@@ -1179,6 +1180,7 @@
  			buildSettings = {
  				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
  				CODE_SIGN_STYLE = Automatic;
+ 				CURRENT_PROJECT_VERSION = 17;
  				DEVELOPMENT_TEAM = "";
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1190,6 +1192,7 @@
  					"@executable_path/../../../../Frameworks",
  				);
  				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
+ 				MARKETING_VERSION = 1.2.0;
  				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug.quicklook;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				SKIP_INSTALL = YES;
@@ -1202,6 +1205,7 @@
  			buildSettings = {
  				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
  				CODE_SIGN_STYLE = Automatic;
+ 				CURRENT_PROJECT_VERSION = 17;
  				DEVELOPMENT_TEAM = "";
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1213,6 +1217,7 @@
  					"@executable_path/../../../../Frameworks",
  				);
  				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
+ 				MARKETING_VERSION = 1.2.0;
  				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.quicklook;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				SKIP_INSTALL = YES;
