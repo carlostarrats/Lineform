@@ -27,6 +27,7 @@
 		1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */; };
 		1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
+		1F00000100000000000004AF /* LineformAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AF /* LineformAppIntents.swift */; };
 		1F0000010000000000000320 /* LineformSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000320 /* LineformSettings.swift */; };
 		1F0000010000000000000321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000321 /* SettingsView.swift */; };
 		1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000322 /* LineformSettingsTests.swift */; };
@@ -205,6 +206,7 @@
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000011 /* LineformApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformApp.swift; sourceTree = "<group>"; };
+		1F00000200000000000004AF /* LineformAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformAppIntents.swift; sourceTree = "<group>"; };
 		1F0000020000000000000320 /* LineformSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettings.swift; sourceTree = "<group>"; };
 		1F0000020000000000000321 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000322 /* LineformSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettingsTests.swift; sourceTree = "<group>"; };
@@ -397,6 +399,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000011 /* LineformApp.swift */,
+				1F00000200000000000004AF /* LineformAppIntents.swift */,
 				1F0000020000000000000320 /* LineformSettings.swift */,
 				1F0000020000000000000321 /* SettingsView.swift */,
 				1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */,
@@ -788,6 +791,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1F0000010000000000000011 /* LineformApp.swift in Sources */,
+				1F00000100000000000004AF /* LineformAppIntents.swift in Sources */,
 				1F0000010000000000000320 /* LineformSettings.swift in Sources */,
 				1F0000010000000000000321 /* SettingsView.swift in Sources */,
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
