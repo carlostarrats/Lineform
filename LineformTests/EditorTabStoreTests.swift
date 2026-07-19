@@ -141,6 +141,155 @@ final class EditorTabStoreTests: XCTestCase {
         XCTAssertNotNil(store.tabIndex(for: url("/tmp/stay.md")))
     }
 
+    // MARK: - App-wide open dedupe
+
+    func testLocateFindsAnAlreadyOpenFileInAnotherWindow() {
+        EditorTabStore.resetRegistryForTesting()
+        let windowA = makeStore()
+        // A populated non-matching store, so the search must actually keep scanning past it.
+        windowA.openTab(document: makeDocument("A"), fileURL: url("/tmp/only-in-a.md"))
+        let windowB = makeStore()
+        let opened = windowB.openTab(document: makeDocument("B"), fileURL: url("/tmp/shared-b.md"))
+
+        let located = EditorTabStore.locate(url("/tmp/shared-b.md"))
+        XCTAssertTrue(located?.store === windowB)
+        XCTAssertEqual(located?.tabID, opened)
+    }
+
+    func testLocateIgnoresUntitledTabs() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore() // initial tab is untitled
+        store.openTab(document: makeDocument("draft"), fileURL: nil)
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/anything.md")))
+
+        // And an untitled tab in the PREFERRED store must not short-circuit the wider search.
+        let other = makeStore()
+        let real = other.openTab(document: makeDocument(), fileURL: url("/tmp/real.md"))
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/real.md"), preferring: store)?.tabID, real)
+    }
+
+    func testLocateReturnsTheTabMatchingTheRequestedURL() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        let a = store.openTab(document: makeDocument(), fileURL: url("/tmp/a.md"))
+        let b = store.openTab(document: makeDocument(), fileURL: url("/tmp/b.md"))
+
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/a.md"))?.tabID, a)
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/b.md"))?.tabID, b)
+    }
+
+    func testLocatePrefersTheCallingWindowWhenBothHaveTheFileOpen() {
+        // NSHashTable enumeration order is unspecified, so without an explicit preference the same
+        // click could send the user to a different window run to run.
+        EditorTabStore.resetRegistryForTesting()
+        let windowA = makeStore()
+        let windowB = makeStore()
+        let inB = windowB.openTab(document: makeDocument("B"), fileURL: url("/tmp/both.md"))
+        let inA = windowA.openTab(document: makeDocument("A"), fileURL: url("/tmp/both.md"))
+
+        let fromA = EditorTabStore.locate(url("/tmp/both.md"), preferring: windowA)
+        XCTAssertTrue(fromA?.store === windowA)
+        XCTAssertEqual(fromA?.tabID, inA)
+
+        let fromB = EditorTabStore.locate(url("/tmp/both.md"), preferring: windowB)
+        XCTAssertTrue(fromB?.store === windowB)
+        XCTAssertEqual(fromB?.tabID, inB)
+    }
+
+    func testLocateFallsBackToAnotherWindowWhenThePreferredOneLacksTheFile() {
+        EditorTabStore.resetRegistryForTesting()
+        let windowA = makeStore()
+        let windowB = makeStore()
+        let inB = windowB.openTab(document: makeDocument(), fileURL: url("/tmp/only-in-b.md"))
+
+        let located = EditorTabStore.locate(url("/tmp/only-in-b.md"), preferring: windowA)
+        XCTAssertTrue(located?.store === windowB)
+        XCTAssertEqual(located?.tabID, inB)
+    }
+
+    func testWindowResolutionYieldsNilForAnUnsetOrDeadWindowNumber() {
+        let store = makeStore()
+        XCTAssertNil(store.window, "No window number recorded yet.")
+        store.windowNumber = Int.max // no NSWindow will ever carry this
+        XCTAssertNil(store.window)
+        // The positive case (a real number resolving to its NSWindow) is deliberately NOT tested
+        // here: building an NSWindow in the default plan crashes the test host, which is why this
+        // repo quarantines window-hosting tests to LineformHosted. Verified by hand instead.
+    }
+
+    // MARK: - Sidebar open routing
+
+    func testRouteSelectsInPlaceWhenTheFileIsOpenInThisWindow() {
+        let tab = UUID()
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: tab, isOwnStore: true, revealWindowAvailable: false, canRetry: true),
+            .selectHere(tab),
+            "Own-store hits never depend on window resolution.")
+    }
+
+    func testRouteRevealsWhenTheOwningWindowIsOnScreen() {
+        let tab = UUID()
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: tab, isOwnStore: false, revealWindowAvailable: true, canRetry: true),
+            .reveal(tab))
+    }
+
+    func testRouteRetriesRatherThanOpeningADuplicateWhenTheWindowIsMissing() {
+        // The window number is published a runloop late and goes nil across detail-hierarchy
+        // rebuilds; opening here instead would create the exact duplicate this routing prevents.
+        let tab = UUID()
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: tab, isOwnStore: false, revealWindowAvailable: false, canRetry: true),
+            .retryReveal(tab))
+    }
+
+    func testRouteOpensLocallyOnceTheRetryHasAlreadyFailed() {
+        // A genuinely dead store must not swallow the click forever.
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: UUID(), isOwnStore: false, revealWindowAvailable: false, canRetry: false),
+            .openHere)
+    }
+
+    func testRouteOpensLocallyWhenTheFileIsNotOpenAnywhere() {
+        XCTAssertEqual(
+            SidebarOpenRoute.route(locatedTabID: nil, isOwnStore: false, revealWindowAvailable: false, canRetry: true),
+            .openHere)
+    }
+
+    func testLocateReturnsNilForAFileThatIsNotOpen() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        store.openTab(document: makeDocument(), fileURL: url("/tmp/open.md"))
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/not-open.md")))
+    }
+
+    func testLocateUsesTheSameFileIdentityAsTheSaveAsGuard() throws {
+        // If dedupe were a weaker comparison than the Save As guard, a file could slip past dedupe
+        // into a second window and then be refused at save — the two must agree by construction.
+        EditorTabStore.resetRegistryForTesting()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lineform-locate-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let real = root.appendingPathComponent("note.md")
+        try Data("hi".utf8).write(to: real)
+        let alias = root.appendingPathComponent("alias.md")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: real)
+
+        let store = makeStore()
+        let opened = store.openTab(document: makeDocument(), fileURL: real)
+
+        XCTAssertEqual(EditorTabStore.locate(alias)?.tabID, opened,
+            "Opening the symlink must reveal the tab already showing its target.")
+
+        // The actual invariant: dedupe and the save guard must agree, or a file could slip past
+        // dedupe into a second window and then be refused at save.
+        let otherTab = store.openTab(document: makeDocument(), fileURL: url("/tmp/elsewhere.md"))
+        XCTAssertNotNil(
+            SaveAsConflict.conflictingTabTitle(destination: alias, tabs: store.tabs, activeTabID: otherTab),
+            "Both sides must call the alias and its target the same file.")
+    }
+
     // MARK: - Save As destination conflicts
 
     func testSaveAsOntoAnotherOpenTabIsAConflict() {
@@ -206,9 +355,10 @@ final class EditorTabStoreTests: XCTestCase {
     }
 
     func testSavingOntoYourOwnFileIsAllowedEvenWhenItIsOpenInAnotherWindow() throws {
-        // Nothing stops the same file being open in two windows. ⌘⇧S → keep the same name is the
-        // most routine Save As there is; matching the OTHER window's tab by ID alone would refuse
-        // it with no way to proceed. Excluding the active tab's own PATH is what prevents that.
+        // ⌘⇧S → keep the same name is the most routine Save As there is; matching a tab by ID alone
+        // would refuse it with no way to proceed. Excluding the active tab's own PATH prevents that.
+        // Open-time dedupe makes the two-windows-one-file setup below unreachable in practice; this
+        // pins the guard's behavior anyway, since the exclusion is what makes dedupe's absence safe.
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("lineform-conflict-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

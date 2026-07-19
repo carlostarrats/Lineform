@@ -100,7 +100,10 @@ struct EditorContainerView: View {
                 items: outlineItems,
                 activeSourceRange: activeOutlineSourceRange,
                 jumpToHeading: jumpToHeading,
-                openFile: openSidebarFile,
+                // Explicit closure, not a bare method reference: openSidebarFile carries defaulted
+                // parameters now, and letting SwiftUI infer a function value through those times
+                // out this body's type-checker.
+                openFile: { url in openSidebarFile(url) },
                 currentFileURL: currentFileURL,
                 fileBrowserStore: fileBrowserStore,
                 settings: settings,
@@ -515,6 +518,7 @@ struct EditorContainerView: View {
             // recreates this view's host, running onDisappear (which restores the window's
             // original delegate) without a matching windowNumber change to re-trigger the
             // onChange install below. Idempotent with the windowNumber onChange below.
+            tabStore.windowNumber = windowNumber
             registerReloadWatcher()
             installWindowCloseControllerIfNeeded()
         }
@@ -534,7 +538,10 @@ struct EditorContainerView: View {
             // after a brief typing pause instead of on every keystroke.
             scheduleDerivedRefresh(for: newValue)
         }
-        .onChange(of: windowNumber) { _, _ in
+        .onChange(of: windowNumber) { _, newValue in
+            // The store can't discover its own window; the view is what learns it. Needed so
+            // app-wide open dedupe (EditorTabStore.locate) can bring the owning window forward.
+            tabStore.windowNumber = newValue
             registerReloadWatcher()
             installWindowCloseControllerIfNeeded()
         }
@@ -816,8 +823,10 @@ struct EditorContainerView: View {
                     isSearching: crossFileSearchModel.isSearching,
                     theme: currentTheme,
                     onOpen: { result in
-                        openSidebarFile(result.url)
-                        clearAllSearchState()
+                        // Only wipe THIS window's results when the document actually landed here.
+                        // If it was revealed in another window, the user is still looking at this
+                        // results list and will want to click a second hit.
+                        openSidebarFile(result.url, whenOpenedHere: clearAllSearchState)
                     },
                     onDismiss: { clearAllSearchState() }
                 )
@@ -1108,10 +1117,57 @@ struct EditorContainerView: View {
         // the reader out of Read mode into Write.
     }
 
-    private func openSidebarFile(_ url: URL) {
-        if let existingIndex = tabStore.tabIndex(for: url) {
-            tabStore.selectTab(id: tabStore.tabs[existingIndex].id)
+    /// `whenOpenedHere` runs only if the document ends up in THIS window, so a caller clearing
+    /// window-local state (the cross-file search results page) doesn't wipe it when the document was
+    /// revealed in another window. It is a callback rather than a return value because the reveal
+    /// path can defer a tick (`.retryReveal`) — a Bool would have to be returned before that
+    /// resolves, and the deferred outcome would be silently dropped.
+    private func openSidebarFile(
+        _ url: URL,
+        revealAttemptsRemaining: Int = revealRetryBudget,
+        whenOpenedHere: @escaping () -> Void = {}
+    ) {
+        // Already open somewhere? Reveal it instead of opening a second copy. Two windows holding
+        // one file means two in-memory snapshots autosaving over each other — the same data loss the
+        // Save As guard refuses, reached from the other direction — so dedupe is app-wide, not just
+        // within this window. `preferring: tabStore` keeps a file this window already has from
+        // sending the user to some other window that also has it.
+        let located = EditorTabStore.locate(url, preferring: tabStore)
+        // Resolved ONCE and reused below: re-reading `.window` inside the case would scan
+        // NSApp.windows again and could disagree with the decision just made, which would drop the
+        // click entirely (no open here, no reveal there).
+        let revealWindow = located?.store === tabStore ? nil : located?.store.window
+        switch SidebarOpenRoute.route(
+            locatedTabID: located?.tabID,
+            isOwnStore: located?.store === tabStore,
+            revealWindowAvailable: revealWindow != nil,
+            canRetry: revealAttemptsRemaining > 0
+        ) {
+        case .selectHere(let tabID):
+            tabStore.selectTab(id: tabID)
+            whenOpenedHere()
             return
+        case .reveal(let tabID):
+            located?.store.selectTab(id: tabID)
+            // makeKeyAndOrderFront alone leaves a MINIMIZED window in the Dock, so the click would
+            // produce no visible result at all — the file neither opening here nor appearing there.
+            if revealWindow?.isMiniaturized == true { revealWindow?.deminiaturize(nil) }
+            revealWindow?.makeKeyAndOrderFront(nil)
+            return
+        case .retryReveal:
+            // Re-locates from scratch next tick (deliberately not caching this result): if a second
+            // click already opened the file here, the retry finds THAT tab and selects it instead of
+            // adding a duplicate.
+            DispatchQueue.main.async {
+                openSidebarFile(
+                    url,
+                    revealAttemptsRemaining: revealAttemptsRemaining - 1,
+                    whenOpenedHere: whenOpenedHere
+                )
+            }
+            return
+        case .openHere:
+            break
         }
         do {
             let loadedDocument = try LineformDocument(contentsOf: url)
@@ -1122,10 +1178,19 @@ struct EditorContainerView: View {
                 text: loadedDocument.text
             )
             tabStore.openTab(document: loadedDocument, fileURL: url)
+            whenOpenedHere()
         } catch {
-            return
+            // Unreadable file: nothing opened anywhere, so the caller keeps its state.
         }
     }
+
+    /// How many runloop turns a reveal will wait for the owning window to resolve before giving up
+    /// and opening the file here. The store learns its window from a binding SwiftUI publishes a
+    /// tick or more after the view re-attaches, and re-attach happens on every detail-hierarchy
+    /// rebuild (tab bar appearing, reading inspector opening) — one tick is not reliably enough.
+    /// Exhausting the budget opens a duplicate, which is the failure this trades against a click
+    /// that appears to do nothing; more attempts make that outcome rarer without ever hanging.
+    private static let revealRetryBudget = 3
 
     private func switchToTab(id: UUID) {
         guard id != tabStore.selectedTabID else { return }

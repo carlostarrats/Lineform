@@ -1,5 +1,31 @@
+import AppKit
 import Foundation
 import SwiftUI
+
+/// What clicking a file in the sidebar (or ⌘K, or a search result) should do. Split out as a pure
+/// value so all four branches are testable — `openSidebarFile` lives on a `View` and can't be
+/// exercised directly, and the `revealUnavailable` branch in particular is easy to get wrong.
+enum SidebarOpenRoute: Equatable {
+    /// Already open in this window — just select it.
+    case selectHere(UUID)
+    /// Open in another window that is on screen: select it there and bring that window forward.
+    case reveal(UUID)
+    /// Open in another window whose window can't be resolved right now. SwiftUI tears down and
+    /// rebuilds the detail hierarchy (tab bar appearing, reading inspector opening), and the
+    /// window number the store reads is published a runloop late — so this is usually a transient
+    /// gap for a window that is about to come back, not a dead store. Opening a second copy here
+    /// is exactly the duplicate this routing exists to prevent, so try once more next tick.
+    case retryReveal(UUID)
+    /// Not open anywhere (or the retry already failed) — load it into this window.
+    case openHere
+
+    static func route(locatedTabID: UUID?, isOwnStore: Bool, revealWindowAvailable: Bool, canRetry: Bool) -> SidebarOpenRoute {
+        guard let locatedTabID else { return .openHere }
+        if isOwnStore { return .selectHere(locatedTabID) }
+        if revealWindowAvailable { return .reveal(locatedTabID) }
+        return canRetry ? .retryReveal(locatedTabID) : .openHere
+    }
+}
 
 @MainActor
 final class EditorTabStore: ObservableObject {
@@ -18,10 +44,51 @@ final class EditorTabStore: ObservableObject {
         liveStores.allObjects.flatMap(\.tabs)
     }
 
+    /// Which window this store belongs to, so `locate` can bring that window forward. Kept current
+    /// by `EditorContainerView` (the view is what learns its window). Not weak — it's an Int
+    /// identifier, resolved against `NSApp.windows` on use, so a closed window just resolves to nil.
+    var windowNumber: Int?
+
+    var window: NSWindow? {
+        guard let windowNumber else { return nil }
+        return NSApp.windows.first { $0.windowNumber == windowNumber }
+    }
+
+    /// The tab already showing `url`, anywhere in the app. Opening routes through this so a file
+    /// open in another window is REVEALED rather than opened a second time — two windows on one file
+    /// means two in-memory snapshots autosaving over each other, which is the same data loss the
+    /// Save As guard refuses, just arrived at from the other direction.
+    ///
+    /// Uses `FileIdentity` rather than `tabIndex(for:)`'s string compare so "already open" means
+    /// exactly what the Save As guard means by it.
+    /// `preferring` is searched FIRST — `NSHashTable` enumeration order is unspecified, so without
+    /// it a window holding the file in one of its own tabs could non-deterministically send the user
+    /// to a DIFFERENT window that also has it open (duplicates are reduced, not eliminated: see the
+    /// residual note in `SaveAsConflict`). Always prefer where the user already is.
+    static func locate(_ url: URL, preferring preferred: EditorTabStore? = nil) -> (store: EditorTabStore, tabID: UUID)? {
+        // Resolved once, not per candidate tab: FileIdentity hits the file system.
+        let target = FileIdentity.key(for: url)
+        if let preferred, let tabID = preferred.tabID(matchingKey: target) {
+            return (preferred, tabID)
+        }
+        for store in liveStores.allObjects where store !== preferred {
+            if let tabID = store.tabID(matchingKey: target) {
+                return (store, tabID)
+            }
+        }
+        return nil
+    }
+
+    private func tabID(matchingKey key: String) -> UUID? {
+        tabs.first { tab in
+            guard let url = tab.fileURL else { return false }
+            return FileIdentity.key(for: url) == key
+        }?.id
+    }
+
     #if DEBUG
-    /// Test-only. The registry is process-global and the suite runs every test in one process, so a
-    /// test asserting that something is ABSENT from `allOpenTabs` would otherwise depend on whether
-    /// an earlier test's store had been deallocated yet.
+    /// Test-only. `locate` is process-global; a test asserting a file is NOT open would otherwise
+    /// depend on whether an earlier test's store had deallocated yet.
     static func resetRegistryForTesting() {
         liveStores.removeAllObjects()
     }
@@ -48,9 +115,22 @@ final class EditorTabStore: ObservableObject {
 
     var shouldShowTabBar: Bool { tabs.count > 1 }
 
+    /// Uses `FileIdentity`, so the three places that decide "is this file already open" — this,
+    /// `locate`, and the Save As guard — apply one test. A plain path compare here would let a
+    /// symlink alias (or a case-only spelling on a case-insensitive volume) open a second tab on a
+    /// file already showing.
+    ///
+    /// `retargetFileURL`/`markFileDeleted` deliberately still compare raw paths: they answer a
+    /// different question ("which tabs does this rename/trash broadcast name"), their prefix match
+    /// is inherently path-shaped, and by the time they run the source file is gone — so there is
+    /// nothing left on disk for `FileIdentity` to resolve. Known consequence: a tab opened via a
+    /// symlink is not retargeted when its TARGET is renamed in the sidebar.
     func tabIndex(for url: URL) -> Int? {
-        let standardized = url.standardizedFileURL
-        return tabs.firstIndex { $0.fileURL?.standardizedFileURL == standardized }
+        let target = FileIdentity.key(for: url)
+        return tabs.firstIndex { tab in
+            guard let tabURL = tab.fileURL else { return false }
+            return FileIdentity.key(for: tabURL) == target
+        }
     }
 
     @discardableResult
