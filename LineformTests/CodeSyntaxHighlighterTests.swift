@@ -144,9 +144,10 @@ extension CodeSyntaxHighlighterTests {
         let ns = src as NSString
         let out = highlighter.tokens(for: src, language: "html").map { (ns.substring(with: $0.range), $0.kind) }
         XCTAssertTrue(out.contains { $0 == ("<!-- c -->", .comment) })
-        XCTAssertTrue(out.contains { $0 == ("a", .keyword) })      // tag name (open)
         XCTAssertTrue(out.contains { $0 == ("\"x\"", .string) })   // attribute value
-        XCTAssertTrue(out.contains { $0 == ("a", .keyword) && true }) // closing </a> tag name too
+        // Two "a" tag-name keyword tokens: the open <a and the close </a — proves the
+        // closing-tag name is scanned, not just the opener.
+        XCTAssertEqual(out.filter { $0 == ("a", .keyword) }.count, 2)
     }
 
     func testHTMLPlainTextBetweenTagsIsNotTokenized() {
