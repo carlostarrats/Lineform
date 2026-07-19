@@ -10,7 +10,7 @@ Public-facing links:
 
 - Product website: `https://lineform-site.vercel.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
-- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.2.0.dmg`
+- Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.3.0.dmg`
 
 Core product principles:
 
@@ -93,6 +93,8 @@ file named after it carries the full story and the reasoning.
 
 **Build config** (`app-integration.md`)
 - `AppIntents.framework` must stay LINKED in the app target's Frameworks phase. `import AppIntents` alone is not enough: without the link no `Metadata.appintents` is emitted and the Shortcuts/Spotlight/Siri actions silently never register. **This already shipped broken once.** Verify `Contents/Resources/Metadata.appintents` exists after any build-config change.
+- EVERY nested bundle must be re-signed with Developer ID in `packaging/build-release.sh` — Xcode signs them with the Apple Development cert and the notary rejects the whole archive ("binary is not signed with a valid Developer ID certificate"). Adding an app extension or embedded binary means adding it to that re-sign list; the Quick Look appex needs `--entitlements LineformQuickLook/LineformQuickLook.entitlements` because it keeps its own sandbox. This failed notarization once for 1.3.0.
+- Releases must build from a CLEAN `Release/Lineform.app`. `Contents/Helpers/lineform` is written after `xcodebuild`, so a leftover copy from a previous run makes the next build's CodeSign step fail with "code object is not signed at all".
 
 **Verification**
 - The two test plans' quarantine lists must stay in lockstep (`TestPlanGuardTests`).
