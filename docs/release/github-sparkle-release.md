@@ -155,12 +155,31 @@ SPARKLE_PUBLIC_ED_KEY="SPARKLE_PUBLIC_ED_KEY" packaging/build-release.sh
 
 That DMG is suitable for manual download testing, but **Check for Updates...** will show that updates are not configured until a real Sparkle public key and signed appcast are published.
 
-Generate the appcast after the signed DMG exists:
+Write the release notes (shown in the in-app updater's "What's New" pane):
+
+Copy `docs/release-notes/TEMPLATE.html` to `docs/release-notes/Lineform-<version>.html`
+— the name **must** match the DMG (`Lineform-1.3.0.dmg` → `Lineform-1.3.0.html`) — and write
+a few **user-facing** highlights: what a person notices and benefits from, most useful first,
+in plain language. It is not a changelog — skip internal refactors, renamed files, tests, and
+docs. A small fix release can be a single honest line. Commit the file so notes are versioned
+with the release.
+
+`packaging/generate-appcast.sh` stages the matching file next to the DMG and Sparkle's
+`generate_appcast` embeds it **inline** into `docs/appcast.xml` as the item's `<description>`
+(via `--embed-release-notes`), so there is nothing extra to host and no app code change. If the
+newest DMG has no matching notes file, the script prints a `[notes] WARNING …` and the update
+would ship with an empty pane — add the file and re-run. Older DMGs (present only to build
+deltas) do not need notes.
+
+Generate the appcast after the signed DMG **and** the release-notes file exist:
 
 ```sh
 DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.1.0" \
   packaging/generate-appcast.sh dist
 ```
+
+When hand-merging only the new top `<item>` into `docs/appcast.xml` (see the URL-prefix note
+below), carry its `<description>…</description>` along — that is the embedded release notes.
 
 Commit the generated `docs/appcast.xml` after each release so Sparkle can fetch the latest appcast over GitHub's HTTPS raw-content URL.
 
