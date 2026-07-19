@@ -52,6 +52,8 @@ struct EditorContainerView: View {
     /// Set when an RTF export write fails, driving a native in-window `.alert` (no app-icon
     /// NSAlert). Holds the destination file name for the message.
     @State private var rtfExportErrorFileName: String?
+    /// Set when a Save As → Markdown save fails, driving a native in-window `.alert`.
+    @State private var markdownSaveErrorFileName: String?
     @State private var tabCloseDialog: TabCloseDialog?
     /// Coordinates saving a dirty tab before closing it.
     @State private var saveAndCloseCoordinator: SaveAndCloseCoordinator?
@@ -175,6 +177,18 @@ struct EditorContainerView: View {
             presenting: rtfExportErrorFileName
         ) { _ in
             Button("OK", role: .cancel) { rtfExportErrorFileName = nil }
+        } message: { fileName in
+            Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
+        }
+        .alert(
+            "Couldn\u{2019}t Save",
+            isPresented: Binding(
+                get: { markdownSaveErrorFileName != nil },
+                set: { if !$0 { markdownSaveErrorFileName = nil } }
+            ),
+            presenting: markdownSaveErrorFileName
+        ) { _ in
+            Button("OK", role: .cancel) { markdownSaveErrorFileName = nil }
         } message: { fileName in
             Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
         }
@@ -344,14 +358,6 @@ struct EditorContainerView: View {
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.saveAsDocument.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
             saveAsDocument()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.exportPDF.name)) { notification in
-            guard notificationMatchesActiveWindow(notification) else { return }
-            exportCurrentDocumentAsPDF()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.exportRTF.name)) { notification in
-            guard notificationMatchesActiveWindow(notification) else { return }
-            exportCurrentDocumentAsRTF()
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.newTab.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
@@ -1639,11 +1645,13 @@ struct EditorContainerView: View {
     }
 
     private func printCurrentDocument() {
+        // Print renders the document the way Read mode does (the "Styled" preset uses the user's
+        // selected reading profile at document size) — printing what you read, not the raw source.
         DocumentExportRenderer.runInteractivePrint(
             text: document.text,
             profile: readingProfileStore.activeProfile,
             paper: defaultExportPaperSize,
-            preset: .standard
+            preset: .styled
         )
     }
 
@@ -1668,10 +1676,22 @@ struct EditorContainerView: View {
             let paper = ExportPaperSize.allCases.indices.contains(paperIndex) ? ExportPaperSize.allCases[paperIndex] : .usLetter
             switch format {
             case .markdown:
-                do {
-                    try Data(document.text.utf8).write(to: url)
-                } catch {
-                    pdfExportErrorFileName = url.lastPathComponent
+                // A real macOS "Save As": drive the backing document's own save-as so the write goes
+                // through the FileDocument machinery (recordWrite → the savedAt observer re-points the
+                // reload watcher and currentFileURL), and AppKit retargets NSDocument.fileURL — so the
+                // open document (and an Untitled one) actually BECOMES this file, autosave following it.
+                // A raw Data.write would leave the in-app document detached from the file on disk.
+                if let backingDocument = activeWindow?.windowController?.document as? NSDocument {
+                    let fileType = LineformDocument.contentType(for: url).identifier
+                    backingDocument.save(to: url, ofType: fileType, for: .saveAsOperation) { error in
+                        if error != nil { markdownSaveErrorFileName = url.lastPathComponent }
+                    }
+                } else {
+                    do {
+                        try Data(document.text.utf8).write(to: url)
+                    } catch {
+                        markdownSaveErrorFileName = url.lastPathComponent
+                    }
                 }
             case .pdf, .styledPDF:
                 let preset: ExportTypographyPreset = (format == .styledPDF) ? .styled : .standard
@@ -1700,87 +1720,6 @@ struct EditorContainerView: View {
         }
     }
 
-    /// Prompts for a destination (with a Letter/A4 + Style accessory) and writes the rich rendered PDF.
-    private func exportCurrentDocumentAsPDF() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.pdf]
-        panel.nameFieldStringValue = defaultExportFileName
-        panel.canCreateDirectories = true
-
-        let paperPopup = makePaperSizePopup()
-        let stylePopup = makeStylePopup()
-        panel.accessoryView = makeExportAccessory(paperPopup: paperPopup, stylePopup: stylePopup)
-
-        let write: (NSApplication.ModalResponse) -> Void = { response in
-            guard response == .OK, let url = panel.url else { return }
-            let selection = paperPopup.indexOfSelectedItem
-            let paper = ExportPaperSize.allCases.indices.contains(selection)
-                ? ExportPaperSize.allCases[selection]
-                : .usLetter
-            let styleSelection = stylePopup.indexOfSelectedItem
-            let preset = ExportTypographyPreset.all.indices.contains(styleSelection)
-                ? ExportTypographyPreset.all[styleSelection]
-                : .standard
-            ExportStylePreference.setSelectedPresetID(preset.id)
-            let succeeded = DocumentExportRenderer.writePDF(
-                text: document.text,
-                profile: readingProfileStore.activeProfile,
-                paper: paper,
-                preset: preset,
-                to: url
-            )
-            if !succeeded {
-                pdfExportErrorFileName = url.lastPathComponent
-            }
-        }
-
-        if let window = activeWindow {
-            panel.beginSheetModal(for: window, completionHandler: write)
-        } else {
-            write(panel.runModal())
-        }
-    }
-
-    private var defaultExportFileName: String {
-        let base = currentFileURL?.deletingPathExtension().lastPathComponent
-        return ((base?.isEmpty == false ? base! : "Untitled")) + ".pdf"
-    }
-
-    private var defaultRTFExportFileName: String {
-        let base = currentFileURL?.deletingPathExtension().lastPathComponent
-        return ((base?.isEmpty == false ? base! : "Untitled")) + ".rtf"
-    }
-
-    /// Prompts for a destination and writes the rich rendered document as RTF (styled text; math and
-    /// mermaid degrade to caption/source text — RTF can't portably embed images). No paper accessory:
-    /// RTF reflows in the target app; the export paper only sets the render wrap width.
-    private func exportCurrentDocumentAsRTF() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.rtf]
-        panel.nameFieldStringValue = defaultRTFExportFileName
-        panel.canCreateDirectories = true
-
-        let write: (NSApplication.ModalResponse) -> Void = { response in
-            guard response == .OK, let url = panel.url else { return }
-            do {
-                let data = try DocumentExportRenderer.rtfData(
-                    for: document,
-                    profile: readingProfileStore.activeProfile,
-                    paper: defaultExportPaperSize
-                )
-                try data.write(to: url)
-            } catch {
-                rtfExportErrorFileName = url.lastPathComponent
-            }
-        }
-
-        if let window = activeWindow {
-            panel.beginSheetModal(for: window, completionHandler: write)
-        } else {
-            write(panel.runModal())
-        }
-    }
-
     /// Defaults to whichever offered paper best matches the system's default (A4 in most of the
     /// world, Letter in the US/Canada). Compared on portrait dimensions so a landscape default
     /// printer isn't misread.
@@ -1794,64 +1733,6 @@ struct EditorContainerView: View {
             let db = abs(sb.width - width) + abs(sb.height - height)
             return da < db
         }) ?? .usLetter
-    }
-
-    private func makePaperSizePopup() -> NSPopUpButton {
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 140, height: 25))
-        for size in ExportPaperSize.allCases {
-            popup.addItem(withTitle: size.displayName)
-        }
-        if let index = ExportPaperSize.allCases.firstIndex(of: defaultExportPaperSize) {
-            popup.selectItem(at: index)
-        }
-        return popup
-    }
-
-    /// Style popup for the export accessory, listing every typography preset by display name and
-    /// seeding the selection from the persisted choice (`ExportStylePreference`).
-    private func makeStylePopup() -> NSPopUpButton {
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 160, height: 25))
-        for preset in ExportTypographyPreset.all {
-            popup.addItem(withTitle: preset.displayName)
-        }
-        let currentID = ExportStylePreference.selectedPresetID()
-        if let index = ExportTypographyPreset.all.firstIndex(where: { $0.id == currentID }) {
-            popup.selectItem(at: index)
-        }
-        return popup
-    }
-
-    /// Two labeled rows ("Paper Size:" / "Style:") stacked in the PDF export save-panel accessory.
-    private func makeExportAccessory(paperPopup: NSPopUpButton, stylePopup: NSPopUpButton) -> NSView {
-        let paperLabel = NSTextField(labelWithString: "Paper Size:")
-        let styleLabel = NSTextField(labelWithString: "Style:")
-        paperLabel.translatesAutoresizingMaskIntoConstraints = false
-        styleLabel.translatesAutoresizingMaskIntoConstraints = false
-        paperPopup.translatesAutoresizingMaskIntoConstraints = false
-        stylePopup.translatesAutoresizingMaskIntoConstraints = false
-
-        let container = NSView()
-        container.addSubview(paperLabel)
-        container.addSubview(paperPopup)
-        container.addSubview(styleLabel)
-        container.addSubview(stylePopup)
-        NSLayoutConstraint.activate([
-            paperLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            paperLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
-            paperPopup.leadingAnchor.constraint(equalTo: paperLabel.trailingAnchor, constant: 8),
-            paperPopup.centerYAnchor.constraint(equalTo: paperLabel.centerYAnchor),
-            paperPopup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-
-            styleLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            styleLabel.topAnchor.constraint(equalTo: paperLabel.bottomAnchor, constant: 12),
-            styleLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
-            stylePopup.leadingAnchor.constraint(equalTo: styleLabel.trailingAnchor, constant: 8),
-            stylePopup.centerYAnchor.constraint(equalTo: styleLabel.centerYAnchor),
-            stylePopup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
-
-            container.heightAnchor.constraint(equalToConstant: 84)
-        ])
-        return container
     }
 
     private func notificationPayloadValue(_ notification: Notification) -> String? {

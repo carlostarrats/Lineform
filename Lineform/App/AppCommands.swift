@@ -38,7 +38,6 @@ enum AppMenuConfiguration {
     static let saveCommandTitle = "Save"
     static let saveAsCommandTitle = "Save As..."
     static let saveAsCommandKeyEquivalent = "S"
-    static let saveAsCommandSelector = NSSelectorFromString("saveDocumentAs:")
     // Three-period ellipsis matches the surrounding File-menu titles ("Save As...").
     static let renameFileCommandTitle = "Rename..."
     static let deleteFileCommandTitle = "Delete..."
@@ -48,9 +47,6 @@ enum AppMenuConfiguration {
     /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
     static let linkCommandKeyEquivalent = "l"
     static let printCommandTitle = "Print..."
-    static let exportAsMenuTitle = "Export As"
-    static let exportPDFSubmenuTitle = "PDF…"
-    static let exportRTFCommandTitle = "Rich Text (RTF)…"
     static let checkForUpdatesCommandTitle = "Check for Updates..."
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let privacyPolicyCommandTitle = "Privacy Policy"

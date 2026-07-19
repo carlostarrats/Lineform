@@ -104,14 +104,18 @@ final class DocumentExportRendererTests: XCTestCase {
     // MARK: - Export text view (rich render, no printing)
 
     func testExportTextViewRendersDocumentOnAWhitePageAtContentWidth() {
+        // `.styled` renders the document Read-mode style (markers stripped). `.standard` prints the
+        // raw markdown source — covered separately by `testStandardPresetPrintsRawMarkdownSource`.
         let view = DocumentExportRenderer.makeExportTextView(
             text: "# Export Heading\n\nBody paragraph text.",
             profile: .original,
-            paper: .usLetter
+            paper: .usLetter,
+            preset: .styled
         )
 
         let contents = view.textStorage?.string ?? ""
         XCTAssertTrue(contents.contains("Export Heading"), "Heading text should be rendered (marker stripped).")
+        XCTAssertFalse(contents.contains("# Export Heading"), "Styled render strips the heading marker.")
         XCTAssertTrue(contents.contains("Body paragraph text."))
 
         // The page is painted white by ExportTextView.draw (NSTextView's own background is not
@@ -137,7 +141,8 @@ final class DocumentExportRendererTests: XCTestCase {
         let view = DocumentExportRenderer.makeExportTextView(
             text: "```swift\nlet x = 42\n```",
             profile: .original,
-            paper: .usLetter
+            paper: .usLetter,
+            preset: .styled
         )
 
         guard let storage = view.textStorage else {
@@ -153,6 +158,29 @@ final class DocumentExportRendererTests: XCTestCase {
             if let color = value as? NSColor { colors.insert(color) }
         }
         XCTAssertEqual(colors.count, 1, "Exported code body should use a single monochrome ink, not the multi-color CodeSyntaxPalette.")
+    }
+
+    func testStandardPresetPrintsRawMarkdownSource() {
+        // "Normal" (the `.standard` preset) prints the raw markdown SOURCE verbatim — the #, **, and
+        // fence markers stay visible — in a monospaced document face, not the rendered version.
+        let source = "# Heading\n\nSome **bold** text.\n\n```swift\nlet x = 42\n```"
+        let view = DocumentExportRenderer.makeExportTextView(
+            text: source,
+            profile: .original,
+            paper: .usLetter,
+            preset: .standard
+        )
+        let contents = view.textStorage?.string ?? ""
+        XCTAssertEqual(contents, source, "Normal export must print the raw markdown source unchanged.")
+
+        // The whole source is one monospaced font in a single ink color — no rendering, no palette.
+        guard let storage = view.textStorage, storage.length > 0 else {
+            XCTFail("Export text view should have backing text storage.")
+            return
+        }
+        let font = storage.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        XCTAssertTrue(font?.fontDescriptor.symbolicTraits.contains(.monoSpace) ?? false,
+                      "Raw-source export should use a monospaced face.")
     }
 
     func testFitColumnPercentagesAreProportionalAndFitUnderFullWidth() {

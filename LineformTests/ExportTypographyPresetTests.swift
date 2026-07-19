@@ -2,13 +2,58 @@ import XCTest
 @testable import Lineform
 
 final class ExportTypographyPresetTests: XCTestCase {
-    func testStandardExportProfileEqualsCurrentFixedExportProfile() {
-        let original = ReadingProfile.original
-        XCTAssertEqual(
-            ExportTypographyPreset.standard.exportReadingProfile(basedOn: original),
-            DocumentExportRenderer.exportProfile(from: original)
-        )
+    // MARK: - Declared fields
 
+    func testStandardIsPlainMarkdownSource() {
+        let standard = ExportTypographyPreset.standard
+        XCTAssertEqual(standard.id, "standard")
+        XCTAssertEqual(standard.displayName, "Normal")
+        XCTAssertEqual(standard.bodyFace, .system)
+        XCTAssertEqual(standard.bodyPointSize, 10)
+        XCTAssertEqual(standard.lineHeightMultiple, 1.2)
+        XCTAssertEqual(standard.headingScale, 1.0)
+        // "Normal" prints the raw markdown source and ignores the user's reading profile.
+        XCTAssertFalse(standard.rendersMarkdown)
+        XCTAssertFalse(standard.inheritsUserProfile)
+    }
+
+    func testStyledRendersWithUserProfile() {
+        let styled = ExportTypographyPreset.styled
+        XCTAssertEqual(styled.id, "styled")
+        XCTAssertEqual(styled.displayName, "Styled")
+        XCTAssertNil(styled.bodyFace)          // inherit the user's font face
+        XCTAssertEqual(styled.bodyPointSize, 10)
+        XCTAssertNil(styled.lineHeightMultiple) // inherit the user's line height
+        XCTAssertEqual(styled.headingScale, 1.0)
+        // "Styled" renders Read-mode style from the user's SELECTED profile.
+        XCTAssertTrue(styled.rendersMarkdown)
+        XCTAssertTrue(styled.inheritsUserProfile)
+    }
+
+    // MARK: - Export profile resolution
+
+    func testStandardIgnoresUserProfileAndUsesNeutralDefaults() {
+        var customized = ReadingProfile.original
+        customized.themeID = .night
+        customized.highContrastEnabled = true
+        customized.fontID = .newYork
+        customized.fontSize = 21
+        customized.lineHeightMultiple = 1.7
+
+        let profile = ExportTypographyPreset.standard.exportReadingProfile(basedOn: customized)
+        // None of the user's customization survives: Normal builds from `.original`, pins the
+        // light `.system` page + no high contrast, the system face, the small body size, and the
+        // document line height.
+        XCTAssertEqual(profile.fontID, .sfPro)
+        XCTAssertEqual(profile.fontSize, 10)
+        XCTAssertEqual(profile.lineHeightMultiple, 1.2)
+        XCTAssertEqual(profile.themeID, .system)
+        XCTAssertFalse(profile.highContrastEnabled)
+        // A profile field the preset never touches follows `.original`, not the user's value.
+        XCTAssertEqual(profile.letterSpacing, ReadingProfile.original.letterSpacing)
+    }
+
+    func testStyledInheritsUserFaceAndLineHeight() {
         var customized = ReadingProfile.original
         customized.themeID = .night
         customized.highContrastEnabled = true
@@ -16,42 +61,19 @@ final class ExportTypographyPresetTests: XCTestCase {
         customized.fontSize = 21
         customized.lineHeightMultiple = 1.7
         customized.letterSpacing = 1.5
-        customized.paragraphSpacing = 13
-        XCTAssertEqual(
-            ExportTypographyPreset.standard.exportReadingProfile(basedOn: customized),
-            DocumentExportRenderer.exportProfile(from: customized)
-        )
-    }
 
-    func testEachPresetYieldsItsDeclaredFields() {
-        let manuscript = ExportTypographyPreset.manuscript
-        XCTAssertEqual(manuscript.bodyFace, .serif)
-        XCTAssertEqual(manuscript.bodyPointSize, 12)
-        XCTAssertEqual(manuscript.lineHeightMultiple, 2.0)
-        XCTAssertEqual(manuscript.headingScale, 1.0)
-        XCTAssertEqual(manuscript.pageMargins.left, 90)
-
-        let compact = ExportTypographyPreset.compact
-        XCTAssertEqual(compact.bodyFace, .system)
-        XCTAssertEqual(compact.bodyPointSize, 10)
-        XCTAssertEqual(compact.lineHeightMultiple, 1.2)
-        XCTAssertEqual(compact.headingScale, 0.85)
-        XCTAssertEqual(compact.pageMargins.top, 54)
-
-        let article = ExportTypographyPreset.article
-        XCTAssertEqual(article.bodyFace, .serif)
-        XCTAssertEqual(article.headingScale, 1.25)
-        XCTAssertEqual(article.bodyPointSize, 12)
-    }
-
-    func testExportReadingProfileAppliesFaceSizeAndLineHeightFromPreset() {
-        let profile = ExportTypographyPreset.manuscript.exportReadingProfile(basedOn: .original)
+        let profile = ExportTypographyPreset.styled.exportReadingProfile(basedOn: customized)
+        // The user's face + line height + other rhythm carry through; only the page, contrast, and
+        // body size are pinned for a document-style PDF.
         XCTAssertEqual(profile.fontID, .newYork)
-        XCTAssertEqual(profile.fontSize, 12)
-        XCTAssertEqual(profile.lineHeightMultiple, 2.0)
+        XCTAssertEqual(profile.lineHeightMultiple, 1.7)
+        XCTAssertEqual(profile.letterSpacing, 1.5)
+        XCTAssertEqual(profile.fontSize, 10)
         XCTAssertEqual(profile.themeID, .system)
-        XCTAssertEqual(profile.highContrastEnabled, false)
+        XCTAssertFalse(profile.highContrastEnabled)
     }
+
+    // MARK: - Font faces + list + lookup
 
     func testExportFontFaceMapsToExistingFontIDs() {
         XCTAssertEqual(ExportFontFace.system.fontID, .sfPro)
@@ -60,12 +82,12 @@ final class ExportTypographyPresetTests: XCTestCase {
         XCTAssertEqual(ExportFontFace.openDyslexic.fontID, .openDyslexic)
     }
 
-    func testAllListsFourPresetsStandardFirst() {
-        XCTAssertEqual(ExportTypographyPreset.all.map(\.id), ["standard", "manuscript", "compact", "article"])
+    func testAllListsTwoPresetsStandardFirst() {
+        XCTAssertEqual(ExportTypographyPreset.all.map(\.id), ["standard", "styled"])
     }
 
     func testPresetWithIDResolvesKnownAndFallsBackToStandard() {
-        XCTAssertEqual(ExportTypographyPreset.preset(withID: "compact").id, "compact")
+        XCTAssertEqual(ExportTypographyPreset.preset(withID: "styled").id, "styled")
         XCTAssertEqual(ExportTypographyPreset.preset(withID: "bogus").id, "standard")
         XCTAssertEqual(ExportTypographyPreset.preset(withID: nil).id, "standard")
     }

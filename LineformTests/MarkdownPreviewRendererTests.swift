@@ -963,7 +963,7 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
         _ = url
     }
 
-    func testPlaceholderAndImageUseSameBlockSpacing() throws {
+    func testResolvedImageAndPlaceholderUseTheirOwnBlockSpacing() throws {
         let url = try writePNG(named: "pic2.png", width: 400, height: 200)
         let resolved = render("![cat](pic2.png)", documentDirectory: tempDirectory, imageProvider: ImageAttachmentProvider())
         let unresolved = render("![cat](missing2.png)", documentDirectory: nil, imageProvider: DisabledImageAttachmentProvider())
@@ -972,9 +972,13 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
         let resolvedStyle = try XCTUnwrap(resolved.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
         let unresolvedStyle = try XCTUnwrap(unresolved.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
 
-        let expected = max(12, CGFloat(ReadingProfile.original.paragraphSpacing) + 6)
-        XCTAssertEqual(resolvedStyle.paragraphSpacing, expected, accuracy: 0.01)
-        XCTAssertEqual(unresolvedStyle.paragraphSpacing, expected, accuracy: 0.01)
+        // The RESOLVED picture bakes equal breathing room into the attachment image itself, so its
+        // paragraph carries NO paragraph spacing (and lineHeightMultiple 1 so the tall image line
+        // isn't inflated). The PLACEHOLDER is a plain text line, so it gets the same one-sided block
+        // spacing every other block uses (profile.paragraphSpacing).
+        XCTAssertEqual(resolvedStyle.paragraphSpacing, 0, accuracy: 0.01)
+        XCTAssertEqual(resolvedStyle.lineHeightMultiple, 1, accuracy: 0.01)
+        XCTAssertEqual(unresolvedStyle.paragraphSpacing, CGFloat(ReadingProfile.original.paragraphSpacing), accuracy: 0.01)
         _ = url
     }
 

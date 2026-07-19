@@ -50,8 +50,6 @@
 		1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000326 /* DocumentExportRendererTests.swift */; };
 		1F00000100000000000004A7 /* ExportTypographyPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A7 /* ExportTypographyPreset.swift */; };
 		1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */; };
-		1F00000100000000000004A9 /* ExportStylePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A9 /* ExportStylePreference.swift */; };
-		1F00000100000000000004AA /* ExportStylePreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AA /* ExportStylePreferenceTests.swift */; };
 		1F00000100000000000004AB /* SpeechTextExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AB /* SpeechTextExtractor.swift */; };
 		1F00000100000000000004AC /* SpeechTextExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AC /* SpeechTextExtractorTests.swift */; };
 		1F00000100000000000004AD /* SpeechController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AD /* SpeechController.swift */; };
@@ -234,8 +232,6 @@
 		1F0000020000000000000326 /* DocumentExportRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004A7 /* ExportTypographyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTypographyPreset.swift; sourceTree = "<group>"; };
 		1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTypographyPresetTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004A9 /* ExportStylePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportStylePreference.swift; sourceTree = "<group>"; };
-		1F00000200000000000004AA /* ExportStylePreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportStylePreferenceTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004AB /* SpeechTextExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTextExtractor.swift; sourceTree = "<group>"; };
 		1F00000200000000000004AC /* SpeechTextExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTextExtractorTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004AD /* SpeechController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechController.swift; sourceTree = "<group>"; };
@@ -486,7 +482,6 @@
 				1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */,
 				1F0000020000000000000325 /* DocumentExportRenderer.swift */,
 				1F00000200000000000004A7 /* ExportTypographyPreset.swift */,
-				1F00000200000000000004A9 /* ExportStylePreference.swift */,
 				1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */,
 				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
 				1F0000020000000000000230 /* MermaidRendering.swift */,
@@ -559,7 +554,6 @@
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
 				1F0000020000000000000326 /* DocumentExportRendererTests.swift */,
 				1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */,
-				1F00000200000000000004AA /* ExportStylePreferenceTests.swift */,
 				1F00000200000000000004AC /* SpeechTextExtractorTests.swift */,
 				1F00000200000000000004AE /* SpeechControllerTests.swift */,
 				1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */,
@@ -841,7 +835,6 @@
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */,
 				1F00000100000000000004A7 /* ExportTypographyPreset.swift in Sources */,
-				1F00000100000000000004A9 /* ExportStylePreference.swift in Sources */,
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
 				1F0000010000000000000230 /* MermaidRendering.swift in Sources */,
@@ -893,7 +886,6 @@
 				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,
 				1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */,
 				1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */,
-				1F00000100000000000004AA /* ExportStylePreferenceTests.swift in Sources */,
 				1F00000100000000000004AC /* SpeechTextExtractorTests.swift in Sources */,
 				1F00000100000000000004AE /* SpeechControllerTests.swift in Sources */,
 				1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */,
