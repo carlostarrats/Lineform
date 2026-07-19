@@ -56,8 +56,10 @@ enum ExportPaperSize: CaseIterable {
 ///     printed output does not carry `backgroundColor`, so the fill must be drawn);
 ///   * prose wraps to the paper's content width, not the on-screen reading-column width.
 ///
-/// Real image files stay the `🖼 alt` placeholder (Task 6 deferred image rendering); mermaid and
-/// math already render as images and so appear in the PDF.
+/// The **Styled** preset renders resolvable local image files (given a `documentDirectory` and an
+/// `imageProvider`), matching Read mode; the **Normal** (raw-source) preset and RTF export still
+/// show the `🖼 alt` placeholder / caption text. Mermaid and math already render as images and so
+/// appear in the PDF regardless of preset.
 enum DocumentExportRenderer {
     /// 1-inch margins on every side — print convention.
     static let margin: CGFloat = 72
@@ -107,7 +109,9 @@ enum DocumentExportRenderer {
         text: String,
         profile: ReadingProfile,
         paper: ExportPaperSize,
-        preset: ExportTypographyPreset = .standard
+        preset: ExportTypographyPreset = .standard,
+        documentDirectory: URL? = nil,
+        imageProvider: ImageAttachmentProviding = ImageAttachmentProvider()
     ) -> NSTextView {
         let content = contentSize(for: paper, preset: preset)
         let attributed: NSAttributedString
@@ -128,6 +132,8 @@ enum DocumentExportRenderer {
                 // Exported/printed code stays monochrome — a deliberate product decision (see the
                 // "highlightsCode" parameter above).
                 highlightsCode: false,
+                documentDirectory: documentDirectory,
+                imageProvider: imageProvider,
                 headingScale: preset.headingScale
             )
         } else {
@@ -212,9 +218,10 @@ enum DocumentExportRenderer {
         paper: ExportPaperSize,
         preset: ExportTypographyPreset = .standard,
         printInfo: NSPrintInfo,
-        showsPanel: Bool
+        showsPanel: Bool,
+        documentDirectory: URL? = nil
     ) -> Bool {
-        let view = makeExportTextView(text: text, profile: profile, paper: paper, preset: preset)
+        let view = makeExportTextView(text: text, profile: profile, paper: paper, preset: preset, documentDirectory: documentDirectory)
         let window = NSWindow(
             contentRect: view.frame,
             styleMask: [.borderless],
@@ -232,30 +239,30 @@ enum DocumentExportRenderer {
 
     /// Presents the interactive print panel (paper size, copies, and the OS "Save as PDF").
     @MainActor
-    static func runInteractivePrint(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) {
-        runOperation(text: text, profile: profile, paper: paper, preset: preset, printInfo: makePrintInfo(for: paper, preset: preset), showsPanel: true)
+    static func runInteractivePrint(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard, documentDirectory: URL? = nil) {
+        runOperation(text: text, profile: profile, paper: paper, preset: preset, printInfo: makePrintInfo(for: paper, preset: preset), showsPanel: true, documentDirectory: documentDirectory)
     }
 
     /// Renders a paginated PDF directly to `url` (Export as PDF's chosen destination). Returns
     /// whether the operation succeeded.
     @MainActor
     @discardableResult
-    static func writePDF(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard, to url: URL) -> Bool {
+    static func writePDF(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard, documentDirectory: URL? = nil, to url: URL) -> Bool {
         let info = makePrintInfo(for: paper, preset: preset)
         info.jobDisposition = .save
         info.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL.rawValue] = url
-        return runOperation(text: text, profile: profile, paper: paper, preset: preset, printInfo: info, showsPanel: false)
+        return runOperation(text: text, profile: profile, paper: paper, preset: preset, printInfo: info, showsPanel: false, documentDirectory: documentDirectory)
     }
 
     /// Renders a paginated PDF and returns its bytes (writes to a temp file then reads back).
     /// Used by tests and any caller wanting the data rather than a file.
     @MainActor
-    static func pdfData(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> Data {
+    static func pdfData(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard, documentDirectory: URL? = nil) -> Data {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("lineform-export-\(UUID().uuidString)")
             .appendingPathExtension("pdf")
         defer { try? FileManager.default.removeItem(at: tempURL) }
-        writePDF(text: text, profile: profile, paper: paper, preset: preset, to: tempURL)
+        writePDF(text: text, profile: profile, paper: paper, preset: preset, documentDirectory: documentDirectory, to: tempURL)
         return (try? Data(contentsOf: tempURL)) ?? Data()
     }
 }

@@ -2,6 +2,14 @@ import AppKit
 import XCTest
 @testable import Lineform
 
+/// A stub provider that returns a fixed image for any URL, so the export wiring can be proven
+/// without decoding a real image file (ImageResolver only checks existence + extension).
+private final class StubImageProvider: ImageAttachmentProviding {
+    func image(at url: URL, maxSize: CGSize, scale: CGFloat) -> NSImage? {
+        NSImage(size: NSSize(width: 10, height: 10))
+    }
+}
+
 /// Pure, print-free coverage of the export renderer — runs in the DEFAULT plan.
 ///
 /// The tests that actually invoke `NSPrintOperation` to produce PDF bytes live in
@@ -355,6 +363,54 @@ final class DocumentExportRendererTests: XCTestCase {
         let y = Int(CGFloat(rep.pixelsHigh) * f.y)
         let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB)
         return (color?.redComponent ?? 0, color?.greenComponent ?? 0, color?.blueComponent ?? 0)
+    }
+
+    // --- image export coverage (added for Styled PDF image rendering) ---
+    private func makeDirWithImage() -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export-img-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("pic.png").path, contents: Data())
+        return dir
+    }
+
+    private func attachmentCount(_ view: NSTextView) -> Int {
+        var count = 0
+        let storage = view.textStorage!
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
+            if value is NSTextAttachment { count += 1 }
+        }
+        return count
+    }
+
+    func testStyledExportRendersResolvableLocalImage() {
+        let dir = makeDirWithImage()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let view = DocumentExportRenderer.makeExportTextView(
+            text: "![cat](pic.png)", profile: .original, paper: .usLetter,
+            preset: .styled, documentDirectory: dir, imageProvider: StubImageProvider())
+        XCTAssertGreaterThanOrEqual(attachmentCount(view), 1)
+        XCTAssertFalse(view.textStorage!.string.contains("🖼"))
+    }
+
+    func testStyledExportWithDisabledProviderKeepsPlaceholder() {
+        let dir = makeDirWithImage()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let view = DocumentExportRenderer.makeExportTextView(
+            text: "![cat](pic.png)", profile: .original, paper: .usLetter,
+            preset: .styled, documentDirectory: dir, imageProvider: DisabledImageAttachmentProvider())
+        XCTAssertTrue(view.textStorage!.string.contains("🖼"))
+    }
+
+    func testNormalExportNeverRendersImage() {
+        let dir = makeDirWithImage()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let view = DocumentExportRenderer.makeExportTextView(
+            text: "![cat](pic.png)", profile: .original, paper: .usLetter,
+            preset: .standard, documentDirectory: dir, imageProvider: StubImageProvider())
+        // Normal prints raw source: the literal reference text is present, no image attachment.
+        XCTAssertTrue(view.textStorage!.string.contains("![cat](pic.png)"))
+        XCTAssertEqual(attachmentCount(view), 0)
     }
 }
 
