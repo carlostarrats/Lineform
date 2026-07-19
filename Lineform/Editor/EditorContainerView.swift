@@ -1663,15 +1663,47 @@ struct EditorContainerView: View {
         return document.text
     }
 
+    /// Styled export/print pre-flight: if the document references local images the app can't
+    /// currently read, present ONE NSOpenPanel (its `message` is the whole explanation; Cancel =
+    /// "continue without") so the user can grant access to include them. Retains the granted
+    /// security scopes for the duration of `perform`, then releases them. In-scope documents (the
+    /// common case) never see a prompt.
+    private func withImageAccessGrantsIfNeeded(documentDirectory: URL?, perform: () -> Void) {
+        let unresolved = ImageExportPreflight.unresolvedLocalReferences(
+            in: document.text, documentDirectory: documentDirectory)
+        var granted: [URL] = []
+        if !unresolved.isEmpty {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = true
+            panel.prompt = "Grant Access"
+            panel.message = "This document uses \(unresolved.count) image\(unresolved.count == 1 ? "" : "s") "
+                + "stored outside the folders Lineform can access. Choose the folder or files to "
+                + "include them in the PDF, or Cancel to export without them."
+            if panel.runModal() == .OK {
+                for url in panel.urls where url.startAccessingSecurityScopedResource() {
+                    granted.append(url)
+                }
+            }
+        }
+        defer { granted.forEach { $0.stopAccessingSecurityScopedResource() } }
+        perform()
+    }
+
     private func printCurrentDocument() {
         // Print renders the document the way Read mode does (the "Styled" preset uses the user's
         // selected reading profile at document size) — printing what you read, not the raw source.
-        DocumentExportRenderer.runInteractivePrint(
-            text: document.text,
-            profile: readingProfileStore.activeProfile,
-            paper: defaultExportPaperSize,
-            preset: .styled
-        )
+        let dir = currentFileURL?.deletingLastPathComponent()
+        withImageAccessGrantsIfNeeded(documentDirectory: dir) {
+            DocumentExportRenderer.runInteractivePrint(
+                text: document.text,
+                profile: readingProfileStore.activeProfile,
+                paper: defaultExportPaperSize,
+                preset: .styled,
+                documentDirectory: dir
+            )
+        }
     }
 
     /// One "Save As…" panel with a Format picker: Markdown writes the real `.md`; PDF / Styled PDF /
@@ -1714,14 +1746,23 @@ struct EditorContainerView: View {
                 }
             case .pdf, .styledPDF:
                 let preset: ExportTypographyPreset = (format == .styledPDF) ? .styled : .standard
-                let succeeded = DocumentExportRenderer.writePDF(
-                    text: document.text,
-                    profile: readingProfileStore.activeProfile,
-                    paper: paper,
-                    preset: preset,
-                    to: url
-                )
-                if !succeeded { pdfExportErrorFileName = url.lastPathComponent }
+                let dir = currentFileURL?.deletingLastPathComponent()
+                let runExport = {
+                    let succeeded = DocumentExportRenderer.writePDF(
+                        text: document.text,
+                        profile: readingProfileStore.activeProfile,
+                        paper: paper,
+                        preset: preset,
+                        documentDirectory: dir,
+                        to: url
+                    )
+                    if !succeeded { pdfExportErrorFileName = url.lastPathComponent }
+                }
+                if format == .styledPDF {
+                    withImageAccessGrantsIfNeeded(documentDirectory: dir, perform: runExport)
+                } else {
+                    runExport()
+                }
             case .rtf:
                 do {
                     let data = try DocumentExportRenderer.rtfData(for: document, profile: readingProfileStore.activeProfile, paper: paper)
