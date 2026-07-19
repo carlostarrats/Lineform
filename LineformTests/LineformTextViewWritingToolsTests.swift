@@ -325,6 +325,10 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         let scrollView = LineformEditorScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
         scrollView.contentView = LineformEditorClipView()
         scrollView.hasVerticalScroller = true
+        // Pin overlay scrollers: legacy scrollers (the default on headless CI runners) inset the
+        // document view by the scroller width (~17pt), so the clip/text view resizes to 623 instead
+        // of 640 and the width assertions below fail on CI while passing locally (overlay = no inset).
+        scrollView.scrollerStyle = .overlay
         let textView = LineformTextView()
         scrollView.documentView = textView
         textView.string = (0..<40)
@@ -395,6 +399,10 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         let scrollView = LineformEditorScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
         scrollView.contentView = LineformEditorClipView()
         scrollView.hasVerticalScroller = true
+        // Pin overlay scrollers: legacy scrollers (the default on headless CI runners) inset the
+        // document view by the scroller width (~17pt), so the clip/text view resizes to 623 instead
+        // of 640 and the width assertions below fail on CI while passing locally (overlay = no inset).
+        scrollView.scrollerStyle = .overlay
         let textView = LineformTextView()
         scrollView.documentView = textView
         textView.string = (0..<40)

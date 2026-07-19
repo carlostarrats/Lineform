@@ -411,6 +411,10 @@ final class MarkdownPreviewRendererTests: XCTestCase {
 
         let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
         scrollView.hasVerticalScroller = true
+        // Pin overlay scrollers: legacy scrollers (the default on headless CI runners) inset the
+        // document view by the scroller width (~17pt), so the clip/text view resizes to 623 instead
+        // of 640 and the width assertions below fail on CI while passing locally (overlay = no inset).
+        scrollView.scrollerStyle = .overlay
         let textView = MarkdownPreviewTextView()
         scrollView.documentView = textView
         textView.apply(text: text, profile: .original)
@@ -466,6 +470,10 @@ final class MarkdownPreviewRendererTests: XCTestCase {
 
         let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
         scrollView.hasVerticalScroller = true
+        // Pin overlay scrollers: legacy scrollers (the default on headless CI runners) inset the
+        // document view by the scroller width (~17pt), so the clip/text view resizes to 623 instead
+        // of 640 and the width assertions below fail on CI while passing locally (overlay = no inset).
+        scrollView.scrollerStyle = .overlay
         let textView = MarkdownPreviewTextView()
         scrollView.documentView = textView
         textView.apply(text: text, profile: .original)
@@ -521,6 +529,10 @@ final class MarkdownPreviewRendererTests: XCTestCase {
 
         let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 600))
         scrollView.hasVerticalScroller = true
+        // Pin overlay scrollers: legacy scrollers (the default on headless CI runners) inset the
+        // document view by the scroller width (~17pt), so the clip/text view resizes to 623 instead
+        // of 640 and the width assertions below fail on CI while passing locally (overlay = no inset).
+        scrollView.scrollerStyle = .overlay
         let textView = MarkdownPreviewTextView()
         scrollView.documentView = textView
         textView.apply(text: text, profile: .original)
