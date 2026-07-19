@@ -60,6 +60,11 @@ file named after it carries the full story and the reasoning.
 - `activateSelectedTab` must reconcile a CLEAN incoming tab with disk. Without it, switching to a background tab whose file changed externally shows a stale snapshot and the next keystroke autosaves over the external rewrite (silent data loss).
 - Closing a BACKGROUND tab must not re-run `activateSelectedTab` (guard on `wasSelected`) — it would wipe the still-active tab's search state and undo stack.
 - `FileIdentity` is the single definition of "already open", shared by tab dedupe, `EditorTabStore.locate`, and the Save As guard. If they disagree, a file slips past dedupe and is then refused at save.
+- The toolbar material is hidden with an explicit `Visibility.hidden` — the bare `.hidden` is ambiguous against `ShapeStyle` and TIMES OUT type-checking (build-blocking, not cosmetic).
+
+**Editor motion** (`editor-behavior.md`)
+- A NESTED layout-preservation pass must never schedule deferred restores or clear the outer anchor. Doing so reintroduces the live-drag text jump that only reproduces under a real HID drag — every automated test stayed green while users saw it.
+- The cross-mode scroll restore must re-assert its target across several runloop ticks and bypass the clip view's transition lock. A single set is silently clobbered by the fresh view's own restore.
 
 **Files sidebar and iCloud** (`files-sidebar.md`)
 - Keep the file tree FLAT and LAZY (`visibleFileRows` + `LazyVStack`). Recursive `VStack`/`ForEach` froze large workspaces — the scan was never the bottleneck, view layout was.
@@ -67,6 +72,11 @@ file named after it carries the full story and the reasoning.
 - `directoryRescanDebounceInterval` MUST exceed `DirectoryEventMonitor.coalescingLatency`, or autosave churn hitches typing.
 - The expensive iCloud scan runs ONLY when the Files tab appears — never at launch or view construction. Preserve this laziness.
 - Never add an iCloud entitlement to Debug: it cannot be satisfied under ad-hoc signing and the test host stops launching (CI red).
+- `@Published` didSet observers DO fire for assignments in `OutlineFileBrowserStore.init`, so persisted prefs must load via `Published(initialValue:)` backing storage — a plain assignment runs the init-forbidden iCloud scan.
+- Sidebar rename/trash are deliberately UNCOORDINATED. A main-thread `NSFileCoordinator` write against the open document's own presenters can deadlock, and a presenter-observed trash makes `NSDocument` follow the file into the Trash where autosave resurrects it.
+
+**Privacy** (`rendering.md`, `app-integration.md`)
+- Remote `http(s)`/`data:` image URLs are NEVER fetched — always a placeholder. The app's network-free invariant is a product promise, not an optimization.
 
 **Editor** (`editor-behavior.md`)
 - `MarkdownRangeAnalyzer` must stay strictly LINE-LOCAL. Visible-window-scoped highlighting is only correct because of it; a cross-line construct silently breaks scoping.
@@ -80,6 +90,9 @@ file named after it carries the full story and the reasoning.
 - `com.apple.security.print` must stay in BOTH entitlements files or printing fails outright.
 - Save As → Markdown must drive `NSDocument.save(to:ofType:for:.saveAsOperation)`. A raw `Data.write` leaves the in-app document detached from the file.
 - PDF export must go through `writePDFAtomically`. `NSPrintOperation` writes straight into its target, so a direct write truncates the file being overwritten.
+
+**Build config** (`app-integration.md`)
+- `AppIntents.framework` must stay LINKED in the app target's Frameworks phase. `import AppIntents` alone is not enough: without the link no `Metadata.appintents` is emitted and the Shortcuts/Spotlight/Siri actions silently never register. **This already shipped broken once.** Verify `Contents/Resources/Metadata.appintents` exists after any build-config change.
 
 **Verification**
 - The two test plans' quarantine lists must stay in lockstep (`TestPlanGuardTests`).
