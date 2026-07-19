@@ -90,8 +90,9 @@ struct MarkdownPreviewRenderer {
         codeHighlighter: CodeSyntaxHighlighting = CodeSyntaxHighlighter(),
         // The open document's containing folder, used to resolve relative local image paths
         // (`ImageResolver.resolve(path:documentDirectory:)`). nil → relative paths stay
-        // unresolved (placeholder). Export/print omits this (nil default), so images stay
-        // placeholders in PDFs (v1 decision).
+        // unresolved (placeholder). On-screen Read/Preview and RTF/Normal-source export leave
+        // this nil (placeholder). The Styled PDF/Print export path passes the document's real
+        // directory so resolvable local images render (see `DocumentExportRenderer`).
         documentDirectory: URL? = nil,
         // Local-image-file loading seam (mirrors mermaidProvider/mathProvider). Defaults to a
         // provider that never loads, so callers that don't care about images (tests, export)

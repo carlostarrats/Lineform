@@ -619,7 +619,9 @@ git commit -m "Pre-flight grant prompt for out-of-scope images in Styled export/
 
 - [ ] **Step 1: Add the test**
 
-Append to `DocumentExportPDFHostedTests`:
+Append to `DocumentExportPDFHostedTests` (which lives at the bottom of `LineformTests/DocumentExportRendererTests.swift`).
+
+**IMPORTANT (learned during execution):** the baseline must be an image-FREE document, NOT the same document rendered with `documentDirectory: nil`. The `🖼` placeholder path embeds a color-emoji font subset that inflates the "no image" PDF *beyond* a small raster (measured: placeholder ≈ 68 KB vs a 40×40 raster ≈ 15 KB), so comparing image-vs-placeholder is inverted and unsound. Compare image-doc vs a plain-text doc with no `![...]` at all, and use a larger deterministic-noise raster for an unambiguous byte margin:
 
 ```swift
     func testStyledPDFEmbedsResolvableLocalImage() {
@@ -627,26 +629,41 @@ Append to `DocumentExportPDFHostedTests`:
             .appendingPathComponent("pdf-img-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        // A real (tiny) PNG so the ImageAttachmentProvider decodes and embeds it.
-        let png = NSImage(size: NSSize(width: 40, height: 40))
-        png.lockFocus(); NSColor.red.setFill(); NSRect(x: 0, y: 0, width: 40, height: 40).fill(); png.unlockFocus()
-        let tiff = png.tiffRepresentation!
-        let data = NSBitmapImageRep(data: tiff)!.representation(using: .png, properties: [:])!
-        try! data.write(to: dir.appendingPathComponent("pic.png"))
 
-        let text = "# Title\n\n![cat](pic.png)\n"
+        // A 240x240 deterministic-noise PNG: poorly compressible, so the embedded raster adds an
+        // unambiguous number of bytes (a tiny flat-color image compresses to ~nothing → flaky margin).
+        let side = 240
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side,
+            bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        for y in 0..<side {
+            for x in 0..<side {
+                let v = (x * 31 + y * 17) & 0xFF
+                rep.setColor(NSColor(
+                    deviceRed: CGFloat(v) / 255.0,
+                    green: CGFloat((v &* 7) & 0xFF) / 255.0,
+                    blue: CGFloat((v &* 13) & 0xFF) / 255.0, alpha: 1), atX: x, y: y)
+            }
+        }
+        let png = rep.representation(using: .png, properties: [:])!
+        try! png.write(to: dir.appendingPathComponent("pic.png"))
+
+        // Image doc vs an image-FREE doc (no `![...]`, so no 🖼 placeholder / emoji-font subset to
+        // confound the size). The only difference is the embedded raster, so the image doc must be
+        // larger — proving the resolvable local image survives into the actual PDF bytes.
         let withImage = DocumentExportRenderer.pdfData(
-            text: text, profile: .original, paper: .usLetter, preset: .styled, documentDirectory: dir)
-        let withoutDir = DocumentExportRenderer.pdfData(
-            text: text, profile: .original, paper: .usLetter, preset: .styled, documentDirectory: nil)
+            text: "# Title\n\n![cat](pic.png)\n",
+            profile: .original, paper: .usLetter, preset: .styled, documentDirectory: dir)
+        let noImage = DocumentExportRenderer.pdfData(
+            text: "# Title\n\nplain paragraph text\n",
+            profile: .original, paper: .usLetter, preset: .styled, documentDirectory: nil)
 
         XCTAssertFalse(withImage.isEmpty)
-        XCTAssertGreaterThan(withImage.count, withoutDir.count,
-            "A rendered image should make the Styled PDF larger than the placeholder version.")
+        XCTAssertGreaterThan(withImage.count, noImage.count,
+            "A rendered raster image should add bytes over an image-free document.")
     }
 ```
-
-(Use whatever default `ReadingProfile` the sibling hosted tests already use if `.original` is not correct.)
 
 - [ ] **Step 2: Run the hosted plan (Xcode quit, quiet machine)**
 
