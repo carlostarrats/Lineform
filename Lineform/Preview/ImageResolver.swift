@@ -14,7 +14,7 @@ enum ImageResolver {
     /// Explicit allow-list of common raster image extensions. Used as the primary gate
     /// so classification is deterministic in tests regardless of the host's UTI database.
     private static let imageExtensions: Set<String> = [
-        "png", "jpg", "jpeg", "gif", "heic", "heif", "tiff", "tif", "bmp", "webp"
+        "png", "jpg", "jpeg", "gif", "heic", "heif", "tiff", "tif", "bmp", "webp", "svg"
     ]
 
     static func resolve(path: String, documentDirectory: URL?) -> ImageReferenceKind {

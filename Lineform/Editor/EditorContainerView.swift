@@ -1025,6 +1025,7 @@ struct EditorContainerView: View {
             requestedReplacement: $requestedReplacement,
             requestedScrollToTopRange: $requestedScrollToTopRange,
             profile: readingProfileStore.activeProfile,
+            documentDirectory: currentFileURL?.deletingLastPathComponent(),
             smoothsHorizontalInsetChanges: false,
             searchRanges: searchMatches,
             activeSearchRange: activeSearchRange,

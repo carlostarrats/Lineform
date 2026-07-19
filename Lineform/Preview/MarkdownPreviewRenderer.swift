@@ -222,9 +222,9 @@ struct MarkdownPreviewRenderer {
                     columnWidth: columnWidth,
                     documentDirectory: documentDirectory,
                     imageProvider: imageProvider,
-                    bodyAttributes: bodyAttributes
+                    bodyAttributes: bodyAttributes,
+                    isLastLine: lineIndex >= lines.count - 1
                 )
-                appendBlockSeparator(afterLine: lineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             }
         }
 
@@ -1058,9 +1058,18 @@ struct MarkdownPreviewRenderer {
         columnWidth: CGFloat,
         documentDirectory: URL?,
         imageProvider: ImageAttachmentProviding,
-        bodyAttributes: [NSAttributedString.Key: Any]
+        bodyAttributes: [NSAttributedString.Key: Any],
+        isLastLine: Bool
     ) {
         let spacedAttributes = imageBlockSpacing(bodyAttributes, profile: profile)
+        // Terminate the image's paragraph with ITS OWN attributes (not the body's), so the whole
+        // paragraph shares one paragraph style. A body-attributed "\n" (line-height ×multiple) here
+        // would inflate the image line's bottom and make the gap below the image bigger than above.
+        defer {
+            if !isLastLine {
+                output.append(NSAttributedString(string: "\n", attributes: spacedAttributes))
+            }
+        }
 
         if case .localFile(let url) = ImageResolver.resolve(path: path, documentDirectory: documentDirectory) {
             let scale = NSScreen.main?.backingScaleFactor ?? 2
@@ -1072,15 +1081,33 @@ struct MarkdownPreviewRenderer {
             // attachment's on-screen HEIGHT to the real viewport via `appliesViewportHeightCap`, so
             // the initial approximation is corrected before the user ever sees it.
             let maxHeight = ImageFit.maxHeight(visibleViewportHeight: NSScreen.main?.visibleFrame.height ?? 900)
-            if let image = imageProvider.image(at: url, maxSize: CGSize(width: columnWidth, height: maxHeight), scale: scale) {
-                image.accessibilityDescription = alt.isEmpty ? "Image" : alt
-                let attachment = BlockRenderedAttachment()
-                attachment.image = image
-                attachment.appliesViewportHeightCap = true
-                let natural = image.size
+            if let baseImage = imageProvider.image(at: url, maxSize: CGSize(width: columnWidth, height: maxHeight), scale: scale) {
+                let natural = baseImage.size
                 let width = min(natural.width, max(columnWidth, 1))
                 let height = natural.width > 0 ? natural.height * (width / natural.width) : natural.height
-                attachment.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+                // Bake an EQUAL transparent vertical margin into the attachment image itself, so the
+                // picture has identical visual space above and below it regardless of TextKit's
+                // paragraph-spacing behaviour (which is why `imageBlockSpacing` no longer adds any).
+                // Transparent margin baked above and below the picture for calm, symmetric breathing
+                // room. The text line AFTER the image gets its line-height leading added ABOVE it,
+                // which enlarges the visual gap BELOW the image; compensate by adding that same
+                // leading to the TOP margin so the picture ends up with EQUAL space above and below.
+                let baseMargin = max(18, CGFloat(profile.paragraphSpacing))
+                let font = (bodyAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: max(1, CGFloat(profile.fontSize)))
+                let naturalLineHeight = max(font.ascender - font.descender + font.leading, font.pointSize)
+                let leadingExtra = max(0, naturalLineHeight * (CGFloat(profile.lineHeightMultiple) - 1))
+                let topMargin = baseMargin + leadingExtra
+                let bottomMargin = baseMargin
+                let padded = NSImage(size: NSSize(width: width, height: height + topMargin + bottomMargin))
+                padded.lockFocus()
+                NSGraphicsContext.current?.imageInterpolation = .high
+                baseImage.draw(in: NSRect(x: 0, y: bottomMargin, width: width, height: height))
+                padded.unlockFocus()
+                padded.accessibilityDescription = alt.isEmpty ? "Image" : alt
+                let attachment = BlockRenderedAttachment()
+                attachment.image = padded
+                attachment.appliesViewportHeightCap = true
+                attachment.bounds = CGRect(x: 0, y: 0, width: width, height: height + topMargin + bottomMargin)
                 let attachmentString = NSMutableAttributedString(attachment: attachment)
                 attachmentString.addAttributes(spacedAttributes, range: NSRange(location: 0, length: attachmentString.length))
                 output.append(attachmentString)
@@ -1119,28 +1146,33 @@ struct MarkdownPreviewRenderer {
         output.append(NSAttributedString(string: "🖼 \(label)", attributes: placeholderAttributes))
     }
 
-    /// Paragraph spacing for an image block (rendered picture OR placeholder): a bit more
-    /// breathing room than ordinary block spacing, and never collapsing below `floor` even at the
-    /// tightest line-height — so images always read as visually set apart. `extra` is the margin
-    /// added over the profile's own block spacing. Applied identically to both the resolved and
-    /// unresolved forms so spacing never jumps when an image resolves ↔ falls back.
+    /// Paragraph spacing for an image block (rendered picture OR placeholder). Images use the SAME
+    /// one-sided block spacing as every other block — `paragraphSpacing` (after) only, NO
+    /// `paragraphSpacingBefore`. Setting a spacing-BEFORE would COMPOUND with the preceding block's
+    /// spacing-after, making the gap ABOVE the image roughly double the gap below it (the "crazy
+    /// gap above" bug). One-sided spacing keeps the gaps above and below symmetric and consistent
+    /// with the rest of the document's rhythm. Applied identically to the resolved picture and the
+    /// placeholder so spacing never jumps when an image resolves ↔ falls back.
     private func imageBlockSpacing(
         _ base: [NSAttributedString.Key: Any],
         profile: ReadingProfile
     ) -> [NSAttributedString.Key: Any] {
-        let floor: CGFloat = 12
-        let extra: CGFloat = 6
-
-        let spacedBase = blockSpacingAttributes(base, profile: profile)
-        guard let paragraph = (spacedBase[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else {
-            return spacedBase
-        }
-
-        let value = max(floor, paragraph.paragraphSpacing + extra)
-        paragraph.paragraphSpacing = value
-        paragraph.paragraphSpacingBefore = value
-
-        var result = spacedBase
+        // Build a paragraph style specifically for the image line. CRUCIAL: do NOT apply the
+        // reading profile's `lineHeightMultiple` here. That multiplier (~1.5–1.7) is meant to open
+        // up readable TEXT line height, but applied to a tall image-attachment line it multiplies
+        // the ~image-height line into a much taller one, and the extra height renders as a large
+        // gap ABOVE the image. `lineHeightMultiple = 1` makes the line exactly the image's height.
+        // Spacing between the image and neighbours comes only from `paragraphSpacing` (after), the
+        // same one-sided model every other block uses, so gaps stay symmetric.
+        // No paragraph spacing and no line-height multiple: the equal gap above and below the image
+        // is baked into the attachment image as transparent padding (see `appendImageBlock`), which
+        // is reliable regardless of TextKit's paragraph-spacing quirks. lineHeightMultiple must be 1
+        // so a tall attachment line isn't inflated.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineHeightMultiple = 1
+        paragraph.lineSpacing = 0
+        paragraph.paragraphSpacing = 0
+        var result = base
         result[.paragraphStyle] = paragraph
         return result
     }

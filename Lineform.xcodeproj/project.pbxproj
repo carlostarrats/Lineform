@@ -75,6 +75,7 @@
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
 		1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */; };
 		1F0000010000000000000016 /* LineformTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000016 /* LineformTextView.swift */; };
+		1F0000270000000000000001 /* LineformTextView+ImageInsertion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */; };
 		1F0000010000000000000017 /* ReadingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000017 /* ReadingProfile.swift */; };
 		1F0000010000000000000031 /* MarkdownRangeAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */; };
 		1F0000010000000000000032 /* MarkdownSyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */; };
@@ -257,6 +258,7 @@
 		1F0000020000000000000014 /* EditorContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorContainerView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTextViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000016 /* LineformTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextView.swift; sourceTree = "<group>"; };
+		1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+ImageInsertion.swift"; sourceTree = "<group>"; };
 		1F0000020000000000000017 /* ReadingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfile.swift; sourceTree = "<group>"; };
 		1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRangeAnalyzer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSyntaxHighlighter.swift; sourceTree = "<group>"; };
@@ -447,6 +449,7 @@
 				1F0000020000000000000141 /* EditorStatusPresentation.swift */,
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
 				1F0000020000000000000016 /* LineformTextView.swift */,
+				1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */,
 				1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */,
 				1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */,
 				1F0000020000000000000033 /* MarkdownFormattingCommand.swift */,
@@ -798,6 +801,7 @@
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
 				1F0000010000000000000016 /* LineformTextView.swift in Sources */,
+				1F0000270000000000000001 /* LineformTextView+ImageInsertion.swift in Sources */,
 				1F0000010000000000000017 /* ReadingProfile.swift in Sources */,
 				1F0000010000000000000031 /* MarkdownRangeAnalyzer.swift in Sources */,
 				1F0000010000000000000032 /* MarkdownSyntaxHighlighter.swift in Sources */,

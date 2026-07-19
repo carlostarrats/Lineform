@@ -43,6 +43,22 @@ final class LineformTextView: NSTextView {
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
     var smoothsHorizontalInsetChanges = false
     var correctsEmptyInsertionPointToFinalColumn = false
+    /// The open document's containing folder, threaded from the coordinator. A dragged or pasted
+    /// image is written here (into an `images/` subfolder) so the inserted `![](images/name)` link
+    /// is relative and portable; nil (untitled doc) or an unwritable folder falls back to the app's
+    /// own container with an absolute link. See `LineformTextView+ImageInsertion.swift`.
+    var imageInsertionDocumentDirectory: URL?
+    /// A thin horizontal rule shown while dragging an image over the editor, marking the line where
+    /// the image will drop (images always land on their own line). Managed in
+    /// `LineformTextView+ImageInsertion.swift`.
+    private(set) lazy var imageDropIndicatorLine: NSView = {
+        let line = NSView(frame: .zero)
+        line.wantsLayer = true
+        line.layer?.cornerRadius = 1
+        line.isHidden = true
+        addSubview(line)
+        return line
+    }()
     var horizontalInsetAnimationDuration: TimeInterval {
         EditorInspectorTextResponse.horizontalInsetAnimationDuration
     }
@@ -518,6 +534,10 @@ final class LineformTextView: NSTextView {
         setAccessibilityLabel("Markdown editor")
         setAccessibilityRole(.textArea)
         setAccessibilityHelp(emptyStatePlaceholder)
+        // Accept image drops (a file URL, or raw PNG/TIFF data from another app) so an image can be
+        // dragged straight into the doc. `isRichText`/`importsGraphics` stay false — we intercept
+        // in `performDragOperation` and insert a Markdown link, never a rich-text attachment.
+        registerForDraggedTypes([.fileURL, .png, .tiff])
         configureWritingTools()
         applyDefaultTypography()
     }

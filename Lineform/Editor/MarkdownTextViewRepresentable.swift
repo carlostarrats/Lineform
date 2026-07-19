@@ -9,6 +9,9 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var requestedReplacement: MarkdownEdit?
     @Binding var requestedScrollToTopRange: NSRange?
     var profile: ReadingProfile
+    /// The open document's containing folder, so a dragged/pasted image can be written next to the
+    /// document (portable relative link). nil for an untitled document.
+    var documentDirectory: URL?
     var smoothsHorizontalInsetChanges = false
     var searchRanges: [NSRange] = []
     var activeSearchRange: NSRange?
@@ -44,6 +47,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.string = text
         context.coordinator.noteSyncedText(text)
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
+        textView.imageInsertionDocumentDirectory = documentDirectory
         textView.delegate = context.coordinator
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
@@ -65,6 +69,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
 
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         textView.correctsEmptyInsertionPointToFinalColumn = text.isEmpty
+        textView.imageInsertionDocumentDirectory = documentDirectory
         textView.applyTypography(profile)
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange

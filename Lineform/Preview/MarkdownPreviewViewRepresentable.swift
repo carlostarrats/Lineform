@@ -257,7 +257,6 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         activeProfile = profile
         let theme = Theme.theme(for: profile)
         backgroundColor = theme.backgroundColor
-        textColor = theme.textColor
         updateTextContainerLayout()
 
         guard
@@ -265,6 +264,14 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         else {
             return
         }
+
+        // Set the blanket text color ONLY on the re-render path, right before we replace the
+        // storage. `NSTextView.textColor` flattens EVERY per-character foreground attribute, so
+        // running it on the no-change early-return path above would wipe the code-syntax colors a
+        // beat after they're drawn (SwiftUI calls apply() repeatedly). The rendered attributed
+        // string already carries the body ink on every run, so this is only a backstop for any
+        // unattributed glyph — and it must never run without a following setAttributedString.
+        textColor = theme.textColor
 
         textStorage?.setAttributedString(
             MarkdownPreviewRenderer().render(
