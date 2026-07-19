@@ -432,6 +432,56 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     @MainActor
+    func testWindowChromeReaderHealsWindowAppearanceDrift() {
+        // Regression: AppKit can reset the window's explicit appearance to the default
+        // (light) aqua when the detail hierarchy rebuilds (tab bar / inspector / theme
+        // switch). If that drift went unanswered, appearance-derived native controls —
+        // the NavigationSplitView sidebar-toggle glyph, the search field — rendered
+        // BLACK on the dark Quiet nav. The reader must re-assert the themed appearance
+        // the instant the drift reaches it (viewDidChangeEffectiveAppearance).
+        let window = NSWindow()
+        window.contentView = NSView(frame: .zero)
+
+        let view = WindowChromeReader.ChromeView()
+        view.usesDarkChrome = true
+        window.contentView?.addSubview(view)
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+
+        // Simulate AppKit's rebuild-time reset.
+        window.appearance = NSAppearance(named: .aqua)
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
+
+        // The drift notification re-asserts the themed appearance synchronously.
+        view.viewDidChangeEffectiveAppearance()
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+        XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+
+        // Idempotent: a second notification with no drift must not churn (no loop).
+        view.viewDidChangeEffectiveAppearance()
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+    }
+
+    @MainActor
+    func testWindowChromeReaderDismantleKeepsThemedWindowAppearance() {
+        // Regression: dismantling the reader must NOT clear the window appearance.
+        // SwiftUI dismantles/recreates the background view during the same hierarchy
+        // rebuilds that reset the appearance, with no guaranteed ordering vs. the
+        // replacement view's apply — a clear here was what left the Quiet nav stuck
+        // light (black sidebar-toggle glyph) when it landed last.
+        let window = NSWindow()
+        window.contentView = NSView(frame: .zero)
+
+        let view = WindowChromeReader.ChromeView()
+        view.usesDarkChrome = true
+        window.contentView?.addSubview(view)
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+
+        WindowChromeReader.dismantleNSView(view, coordinator: ())
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+        XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+    }
+
+    @MainActor
     func testEditorMinimumWidthAllowsOutlineAndInspectorWithoutForcingWideWindow() {
         XCTAssertLessThanOrEqual(EditorLayout.minimumContentWidth, 240)
 
