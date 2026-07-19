@@ -1225,7 +1225,9 @@ struct MarkdownPreviewRenderer {
         placeholderAttributes[.foregroundColor] = NSColor.linkColor
         placeholderAttributes[.imageSourceRange] = NSValue(range: sourceRange)
         placeholderAttributes[.imageReconnect] = NSNumber(value: true)
-        output.append(NSAttributedString(string: "🖼 \(label)", attributes: placeholderAttributes))
+        // A broken-heart glyph between the frame and the label signals "this image didn't
+        // resolve" (remote/missing/unloadable) at a glance — the Reconnect pill is the fix.
+        output.append(NSAttributedString(string: "🖼 💔 \(label)", attributes: placeholderAttributes))
     }
 
     /// Paragraph spacing for an image block (rendered picture OR placeholder). Images use the SAME
