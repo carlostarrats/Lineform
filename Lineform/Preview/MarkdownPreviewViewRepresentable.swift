@@ -451,6 +451,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private static let pillInset: CGFloat = 8
     private static let pillCornerRadius: CGFloat = 11
     private static let reconnectPillHeight: CGFloat = 22
+    private static let reconnectPillVerticalNudge: CGFloat = 6
     private static let reconnectPillGap: CGFloat = 5
     private static let copiedFeedbackDuration: TimeInterval = 1.0
     private static let pillLabelFont = NSFont.systemFont(ofSize: 11, weight: .medium)
@@ -517,8 +518,13 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
                 .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
             let size = Self.copyPillSize
+            // Pin the pill to the far-right of the reading column, not the end of the code text:
+            // a short code line's glyph bounds end mid-column, so `blockRect.maxX` would sit the
+            // pill on top of the code. The container's usable right edge is stable regardless of
+            // how long the code line is.
+            let columnRightEdge = textContainerOrigin.x + textContainer.size.width - textContainer.lineFragmentPadding
             let rect = NSRect(
-                x: blockRect.maxX - size.width - Self.pillInset,
+                x: columnRightEdge - size.width - Self.pillInset,
                 y: blockRect.minY + Self.pillInset,
                 width: size.width,
                 height: size.height
@@ -535,7 +541,10 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
                 .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
             let rect = NSRect(
                 x: runRect.maxX + 8,
-                y: runRect.midY - Self.reconnectPillHeight / 2,
+                // Nudge down: the placeholder run's line fragment carries leading above the glyph
+                // baseline, so a raw midY centering sits the pill visibly high relative to the
+                // emoji/text next to it.
+                y: runRect.midY - Self.reconnectPillHeight / 2 + Self.reconnectPillVerticalNudge,
                 width: reconnectWidth,
                 height: Self.reconnectPillHeight
             )

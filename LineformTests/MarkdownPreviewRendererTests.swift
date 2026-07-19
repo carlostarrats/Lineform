@@ -928,7 +928,10 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
 
     func testUnresolvedImageEmitsPlaceholderWithReconnectMarker() {
         let out = render("![cat](missing.png)", documentDirectory: nil, imageProvider: DisabledImageAttachmentProvider())
-        XCTAssertTrue(out.string.contains("🖼 cat"))
+        // Placeholder = frame glyph + a broken-heart "didn't resolve" marker + the alt label.
+        XCTAssertTrue(out.string.contains("🖼"))
+        XCTAssertTrue(out.string.contains("💔"))
+        XCTAssertTrue(out.string.contains("cat"))
 
         var foundSourceRange = false
         var foundReconnect = false
@@ -944,7 +947,9 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
 
     func testRemoteImageStaysPlaceholder() {
         let out = render("![c](https://x/y.png)", documentDirectory: nil, imageProvider: DisabledImageAttachmentProvider())
-        XCTAssertTrue(out.string.contains("🖼 c"))
+        // Remote images are never fetched → the same broken-heart placeholder as a missing local one.
+        XCTAssertTrue(out.string.contains("🖼"))
+        XCTAssertTrue(out.string.contains("💔"))
 
         var foundReconnect = false
         var foundAttachment = false
