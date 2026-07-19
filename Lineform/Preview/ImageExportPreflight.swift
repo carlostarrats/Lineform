@@ -32,6 +32,13 @@ enum ImageExportPreflight {
                 continue // remote — never fetched, never prompted
             }
             guard ImageResolver.hasImageExtension(path) else { continue } // not an image target
+            // A relative path with no document directory (an untitled/never-saved doc) can never
+            // resolve — there is no base to resolve it against, and granting a folder can't supply
+            // one — so prompting would be hollow (the image stays a placeholder regardless). Only an
+            // absolute / file:// path can be made readable by a grant, so only those are worth a prompt.
+            if documentDirectory == nil, !(path.hasPrefix("/") || lowered.hasPrefix("file://")) {
+                continue
+            }
             if case .localFile = ImageResolver.resolve(path: path, documentDirectory: documentDirectory) {
                 continue // already readable → will render, no prompt
             }

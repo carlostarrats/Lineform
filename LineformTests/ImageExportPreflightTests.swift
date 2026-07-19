@@ -61,6 +61,23 @@ final class ImageExportPreflightTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    func testUntitledDocRelativeImageIsNotFlagged() {
+        // No document directory (untitled doc): a relative-path image can never resolve, and
+        // granting a folder can't change that — so prompting would be hollow (the image stays a
+        // placeholder in the export regardless). It must not be flagged.
+        let result = ImageExportPreflight.unresolvedLocalReferences(
+            in: "![x](images/pic.png)", documentDirectory: nil)
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testUntitledDocAbsoluteImageIsStillFlagged() {
+        // An absolute path CAN be made resolvable by granting its containing folder, so it should
+        // still prompt even with no document directory.
+        let result = ImageExportPreflight.unresolvedLocalReferences(
+            in: "![x](/Users/nobody/Desktop/pic.png)", documentDirectory: nil)
+        XCTAssertEqual(result.map(\.path), ["/Users/nobody/Desktop/pic.png"])
+    }
+
     func testImageInsideCodeFenceIsNotFlagged() {
         let dir = makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
