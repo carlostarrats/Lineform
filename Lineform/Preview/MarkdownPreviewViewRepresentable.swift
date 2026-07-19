@@ -293,6 +293,8 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         // The renderer fits diagrams/equations to the reading column; refit to the current window
         // width so a fresh render on a narrow window doesn't overflow until the next resize.
         refitBlockAttachments()
+        // Pills moved with the new content; recompute their pointing-hand cursor rects.
+        window?.invalidateCursorRects(for: self)
     }
 
     /// Scale block diagram/equation attachments to the current window's available width, in place,
@@ -330,35 +332,32 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         }
     }
 
-    // MARK: - Hover "Copy" pill (code blocks)
+    // MARK: - Overlay pills — a copy icon on every code block, a Reconnect pill on every broken
+    // image. Always visible (not hover-gated); the pill under the cursor draws in a hover state and
+    // shows a pointing-hand cursor. Overlay-drawn only — never inserted into the attributed string,
+    // so they can't affect layout/selection/wrapping/export (export uses a different text view).
 
-    /// The source range (in `renderedText`, the raw source markdown) of the currently-hovered code
-    /// block, or nil when the pointer is not over one. Set by `mouseMoved`/`mouseExited`.
-    private var hoveredCodeBlockSourceRange: NSRange?
-    /// The hovered block's pill hit rect, in the text view's own (document) coordinate space —
-    /// valid only while `hoveredCodeBlockSourceRange != nil`.
-    private var hoveredCodePillRect: NSRect = .zero
-    private var isShowingCopiedFeedback = false
+    private enum PreviewPillKind { case copy, reconnect }
+    private struct PreviewPill {
+        let kind: PreviewPillKind
+        let rect: NSRect
+        let sourceRange: NSRange
+    }
+
+    /// The pill rect under the cursor (drawn in the hover state), or nil.
+    private var hoveredPillRect: NSRect?
+    /// The rect of the copy pill currently showing its "copied" checkmark, or nil.
+    private var copiedFeedbackRect: NSRect?
     private var copyFeedbackGeneration = 0
     private var hoverTrackingArea: NSTrackingArea?
 
-    private static let copyPillSize = NSSize(width: 58, height: 20)
-    private static let copyPillInset: CGFloat = 8
-    private static let copyPillCornerRadius: CGFloat = 10
+    private static let copyPillSize = NSSize(width: 26, height: 26) // square → drawn as a circle
+    private static let pillInset: CGFloat = 8
+    private static let pillCornerRadius: CGFloat = 11
+    private static let reconnectPillHeight: CGFloat = 22
+    private static let reconnectPillGap: CGFloat = 5
     private static let copiedFeedbackDuration: TimeInterval = 1.0
-
-    // MARK: - Hover "Reconnect" pill (broken/unresolved image placeholders)
-
-    /// The source range (in `renderedText`) of the currently-hovered image placeholder's
-    /// `![alt](path)` syntax, or nil when the pointer is not over one. Set by `mouseMoved`/`mouseExited`.
-    private var hoveredImageReconnectSourceRange: NSRange?
-    /// The hovered placeholder's pill hit rect, in the text view's own (document) coordinate space —
-    /// valid only while `hoveredImageReconnectSourceRange != nil`.
-    private var hoveredImageReconnectPillRect: NSRect = .zero
-
-    private static let reconnectPillSize = NSSize(width: 96, height: 20)
-    private static let reconnectPillInset: CGFloat = 4
-    private static let reconnectPillCornerRadius: CGFloat = 10
+    private static let pillLabelFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -367,7 +366,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+            options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
@@ -376,258 +375,164 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        updateHoveredCodeBlock(at: event)
-        updateHoveredImageReconnect(at: event)
+        let point = convert(event.locationInWindow, from: nil)
+        let overPill = pill(at: point) != nil
+        if (overPill ? pill(at: point)?.rect : nil) != hoveredPillRect {
+            hoveredPillRect = overPill ? pill(at: point)?.rect : nil
+            needsDisplay = true
+        }
         super.mouseMoved(with: event)
+        // Set the cursor AFTER super: NSTextView sets its I-beam programmatically inside
+        // super.mouseMoved, so this must run last to win. cursorUpdate covers the stationary case.
+        if overPill { NSCursor.arrow.set() }
+    }
+
+    /// The pills are buttons, so show a pointing-hand cursor over them. Driven by the tracking
+    /// area's `.cursorUpdate` (covers the mouse-stationary-over-pill case; the post-super set in
+    /// `mouseMoved` covers the moving case).
+    override func cursorUpdate(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if pill(at: point) != nil {
+            NSCursor.arrow.set()
+        } else {
+            super.cursorUpdate(with: event)
+        }
     }
 
     override func mouseExited(with event: NSEvent) {
-        clearHoveredCodeBlock()
-        clearHoveredImageReconnect()
+        if hoveredPillRect != nil {
+            hoveredPillRect = nil
+            needsDisplay = true
+        }
         super.mouseExited(with: event)
     }
 
-    /// Hit-tests the pointer to a code block's full `.codeBlockSourceRange` attribute run (mirrors
-    /// `checkboxSourceRange(at:)`'s point→glyph→character math) and, when found, positions the
-    /// "Copy" pill in that run's rendered bounding rect.
-    private func updateHoveredCodeBlock(at event: NSEvent) {
-        guard let layoutManager, let textContainer, let textStorage, textStorage.length > 0 else {
-            clearHoveredCodeBlock()
-            return
-        }
-        let point = convert(event.locationInWindow, from: nil)
-        let containerPoint = NSPoint(x: point.x - textContainerInset.width, y: point.y - textContainerInset.height)
-        guard bounds.contains(point) else {
-            clearHoveredCodeBlock()
-            return
-        }
-        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
-        guard glyphIndex < layoutManager.numberOfGlyphs else {
-            clearHoveredCodeBlock()
-            return
-        }
-        // `glyphIndex(for:in:)` returns the NEAREST glyph to any point, even points outside all
-        // glyph bounds (e.g. the paragraph-spacing gap above/below a code block, or below the last
-        // block). Mirror `checkboxSourceRange(at:)`'s containment guard so hovering blank space
-        // doesn't get attributed to the nearest code block's glyph.
-        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: textContainer)
-        guard glyphRect.contains(containerPoint) else {
-            clearHoveredCodeBlock()
-            return
-        }
-        let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
-        guard charIndex < textStorage.length else {
-            clearHoveredCodeBlock()
-            return
+    /// Every pill currently laid out: one copy pill per `.codeBlockSourceRange` run (top-right of the
+    /// block) and one Reconnect pill per `.imageReconnect` placeholder run (trailing it). Enumerating
+    /// the two attributes is O(number of blocks) — a handful per document.
+    private func previewPills() -> [PreviewPill] {
+        guard let layoutManager, let textContainer, let textStorage, textStorage.length > 0 else { return [] }
+        var pills: [PreviewPill] = []
+        let full = NSRange(location: 0, length: textStorage.length)
+
+        textStorage.enumerateAttribute(.codeBlockSourceRange, in: full, options: []) { value, range, _ in
+            guard let value = value as? NSValue else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
+            let size = Self.copyPillSize
+            let rect = NSRect(
+                x: blockRect.maxX - size.width - Self.pillInset,
+                y: blockRect.minY + Self.pillInset,
+                width: size.width,
+                height: size.height
+            )
+            pills.append(PreviewPill(kind: .copy, rect: rect, sourceRange: value.rangeValue))
         }
 
-        var runRange = NSRange(location: NSNotFound, length: 0)
-        guard let sourceValue = textStorage.attribute(
-            .codeBlockSourceRange,
-            at: charIndex,
-            longestEffectiveRange: &runRange,
-            in: NSRange(location: 0, length: textStorage.length)
-        ) as? NSValue else {
-            clearHoveredCodeBlock()
-            return
+        let reconnectWidth = Self.reconnectPillWidth
+        textStorage.enumerateAttribute(.imageReconnect, in: full, options: []) { value, range, _ in
+            guard value != nil,
+                  let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let runRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
+            let rect = NSRect(
+                x: runRect.maxX + 8,
+                y: runRect.midY - Self.reconnectPillHeight / 2,
+                width: reconnectWidth,
+                height: Self.reconnectPillHeight
+            )
+            pills.append(PreviewPill(kind: .reconnect, rect: rect, sourceRange: sourceValue.rangeValue))
         }
-
-        let glyphRunRange = layoutManager.glyphRange(forCharacterRange: runRange, actualCharacterRange: nil)
-        let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRunRange, in: textContainer)
-            .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
-
-        let pillSize = Self.copyPillSize
-        let pillRect = NSRect(
-            x: blockRect.maxX - pillSize.width - Self.copyPillInset,
-            y: blockRect.minY + Self.copyPillInset,
-            width: pillSize.width,
-            height: pillSize.height
-        )
-
-        let sourceRange = sourceValue.rangeValue
-        if hoveredCodeBlockSourceRange == sourceRange && hoveredCodePillRect == pillRect {
-            return
-        }
-        hoveredCodeBlockSourceRange = sourceRange
-        hoveredCodePillRect = pillRect
-        isShowingCopiedFeedback = false
-        needsDisplay = true
+        return pills
     }
 
-    private func clearHoveredCodeBlock() {
-        guard hoveredCodeBlockSourceRange != nil else { return }
-        hoveredCodeBlockSourceRange = nil
-        isShowingCopiedFeedback = false
-        needsDisplay = true
+    private static let reconnectPillWidth: CGFloat = {
+        let labelWidth = ("Reconnect" as NSString).size(withAttributes: [.font: pillLabelFont]).width
+        return ceil(labelWidth + reconnectPillGap + 11 + 24) // label + gap + glyph + horizontal padding
+    }()
+
+    private func pill(at point: NSPoint) -> PreviewPill? {
+        previewPills().first { $0.rect.contains(point) }
     }
 
-    /// Hit-tests the pointer to a broken/unresolved image placeholder's `.imageSourceRange` run
-    /// (only runs also tagged `.imageReconnect`), mirroring `updateHoveredCodeBlock`'s point→glyph→
-    /// character math and containment guard, and positions the "Reconnect" pill in that run's
-    /// rendered bounding rect.
-    private func updateHoveredImageReconnect(at event: NSEvent) {
-        guard let layoutManager, let textContainer, let textStorage, textStorage.length > 0 else {
-            clearHoveredImageReconnect()
-            return
-        }
-        let point = convert(event.locationInWindow, from: nil)
-        let containerPoint = NSPoint(x: point.x - textContainerInset.width, y: point.y - textContainerInset.height)
-        guard bounds.contains(point) else {
-            clearHoveredImageReconnect()
-            return
-        }
-        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
-        guard glyphIndex < layoutManager.numberOfGlyphs else {
-            clearHoveredImageReconnect()
-            return
-        }
-        // Mirror `updateHoveredCodeBlock`'s containment guard: `glyphIndex(for:in:)` returns the
-        // nearest glyph even outside all glyph bounds, so require the point to actually land in
-        // the found glyph's rect before attributing the hover to it.
-        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: textContainer)
-        guard glyphRect.contains(containerPoint) else {
-            clearHoveredImageReconnect()
-            return
-        }
-        let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
-        guard charIndex < textStorage.length,
-              textStorage.attribute(.imageReconnect, at: charIndex, effectiveRange: nil) != nil else {
-            clearHoveredImageReconnect()
-            return
-        }
-
-        var runRange = NSRange(location: NSNotFound, length: 0)
-        guard let sourceValue = textStorage.attribute(
-            .imageSourceRange,
-            at: charIndex,
-            longestEffectiveRange: &runRange,
-            in: NSRange(location: 0, length: textStorage.length)
-        ) as? NSValue else {
-            clearHoveredImageReconnect()
-            return
-        }
-
-        let glyphRunRange = layoutManager.glyphRange(forCharacterRange: runRange, actualCharacterRange: nil)
-        let runRect = layoutManager.boundingRect(forGlyphRange: glyphRunRange, in: textContainer)
-            .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
-
-        let pillSize = Self.reconnectPillSize
-        let pillRect = NSRect(
-            x: runRect.maxX + Self.reconnectPillInset,
-            y: runRect.minY,
-            width: pillSize.width,
-            height: max(pillSize.height, runRect.height)
-        )
-
-        let sourceRange = sourceValue.rangeValue
-        if hoveredImageReconnectSourceRange == sourceRange && hoveredImageReconnectPillRect == pillRect {
-            return
-        }
-        hoveredImageReconnectSourceRange = sourceRange
-        hoveredImageReconnectPillRect = pillRect
-        needsDisplay = true
-    }
-
-    private func clearHoveredImageReconnect() {
-        guard hoveredImageReconnectSourceRange != nil else { return }
-        hoveredImageReconnectSourceRange = nil
-        needsDisplay = true
-    }
-
-    /// Overlay-drawn only — never inserted into the attributed string, so it cannot affect layout,
-    /// selection, wrapping, or exported/printed output (`DocumentExportRenderer` uses its own
-    /// `ExportTextView`, a different class, which never installs this pill).
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        if hoveredCodeBlockSourceRange != nil, dirtyRect.intersects(hoveredCodePillRect) {
-            drawCopyPill()
-        }
-        if hoveredImageReconnectSourceRange != nil, dirtyRect.intersects(hoveredImageReconnectPillRect) {
-            drawReconnectPill()
-        }
-    }
-
-    private func drawCopyPill() {
-        let theme = Theme.theme(for: activeProfile)
-        let tint: NSColor = theme.usesDarkChrome ? .white : .black
-        let path = NSBezierPath(
-            roundedRect: hoveredCodePillRect,
-            xRadius: Self.copyPillCornerRadius,
-            yRadius: Self.copyPillCornerRadius
-        )
-        tint.withAlphaComponent(isShowingCopiedFeedback ? 0.18 : 0.12).setFill()
-        path.fill()
-        tint.withAlphaComponent(0.24).setStroke()
-        path.lineWidth = 1
-        path.stroke()
-
-        let label = isShowingCopiedFeedback ? "Copied" : "Copy"
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: theme.textColor
-        ]
-        let labelSize = label.size(withAttributes: attributes)
-        let labelOrigin = NSPoint(
-            x: hoveredCodePillRect.midX - labelSize.width / 2,
-            y: hoveredCodePillRect.midY - labelSize.height / 2
-        )
-        label.draw(at: labelOrigin, withAttributes: attributes)
-    }
-
-    /// Same translucent-pill treatment as `drawCopyPill`, with an `arrow.counterclockwise` glyph
-    /// ahead of the label. Overlay-drawn only — never inserted into the attributed string, so it
-    /// cannot affect layout, selection, wrapping, or exported/printed output (`DocumentExportRenderer`
-    /// uses its own `ExportTextView`, a different class, which never installs this pill).
-    private func drawReconnectPill() {
-        let theme = Theme.theme(for: activeProfile)
-        let tint: NSColor = theme.usesDarkChrome ? .white : .black
-        let pillRect = hoveredImageReconnectPillRect
-        let path = NSBezierPath(
-            roundedRect: pillRect,
-            xRadius: Self.reconnectPillCornerRadius,
-            yRadius: Self.reconnectPillCornerRadius
-        )
-        tint.withAlphaComponent(0.12).setFill()
-        path.fill()
-        tint.withAlphaComponent(0.24).setStroke()
-        path.lineWidth = 1
-        path.stroke()
-
-        let label = "Reconnect"
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: theme.textColor
-        ]
-        let labelSize = label.size(withAttributes: attributes)
-
-        var glyphWidth: CGFloat = 0
-        if let glyph = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil) {
-            let glyphSize = NSSize(width: 11, height: 11)
-            glyphWidth = glyphSize.width + 4
-            let contentWidth = glyphSize.width + 4 + labelSize.width
-            let contentOrigin = NSPoint(x: pillRect.midX - contentWidth / 2, y: pillRect.midY - glyphSize.height / 2)
-            let tinted = NSImage(size: glyphSize, flipped: false) { rect in
-                theme.textColor.set()
-                glyph.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
-                rect.fill(using: .sourceAtop)
-                return true
+        for pill in previewPills() where dirtyRect.intersects(pill.rect) {
+            let hovered = hoveredPillRect == pill.rect
+            switch pill.kind {
+            case .copy:
+                drawCopyPill(in: pill.rect, hovered: hovered, showingCopied: copiedFeedbackRect == pill.rect)
+            case .reconnect:
+                drawReconnectPill(in: pill.rect, hovered: hovered)
             }
-            tinted.draw(in: NSRect(origin: contentOrigin, size: glyphSize))
         }
-
-        let labelOrigin = NSPoint(
-            x: pillRect.midX - (labelSize.width + glyphWidth) / 2 + glyphWidth,
-            y: pillRect.midY - labelSize.height / 2
-        )
-        label.draw(at: labelOrigin, withAttributes: attributes)
     }
 
-    /// Copies the hovered code block's raw source (sliced from the retained source markdown, since
-    /// `apply(text:profile:)` keeps `renderedText == text`) to the pasteboard and briefly flips the
-    /// pill label to "Copied". Read-only — never mutates the document.
-    private func copyHoveredCodeBlock() {
+    /// A quiet, theme-aware pill background: a light grey in light chrome (lighter still at rest,
+    /// brighter on hover), a translucent white in dark chrome.
+    private func fillPill(_ rect: NSRect, cornerRadius: CGFloat, hovered: Bool, dark: Bool) {
+        let tint: NSColor = dark ? .white : .black
+        let restAlpha: CGFloat = dark ? 0.13 : 0.05
+        let hoverAlpha: CGFloat = dark ? 0.22 : 0.11
+        let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+        tint.withAlphaComponent(hovered ? hoverAlpha : restAlpha).setFill()
+        path.fill()
+        tint.withAlphaComponent(dark ? 0.22 : 0.10).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+
+    private func drawTintedSymbol(_ name: String, in rect: NSRect, color: NSColor) {
+        guard let glyph = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return }
+        let tinted = NSImage(size: rect.size, flipped: false) { bounds in
+            color.set()
+            glyph.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1)
+            bounds.fill(using: .sourceAtop)
+            return true
+        }
+        tinted.draw(in: rect)
+    }
+
+    private func drawCopyPill(in rect: NSRect, hovered: Bool, showingCopied: Bool) {
+        let theme = Theme.theme(for: activeProfile)
+        fillPill(rect, cornerRadius: rect.height / 2, hovered: hovered, dark: theme.usesDarkChrome)
+        let symbol = showingCopied ? "checkmark" : "doc.on.doc"
+        let size = NSSize(width: 13, height: 13)
+        drawTintedSymbol(
+            symbol,
+            in: NSRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height),
+            color: theme.textColor.withAlphaComponent(0.85)
+        )
+    }
+
+    /// The "Reconnect" label with the `arrow.counterclockwise` glyph AFTER it.
+    private func drawReconnectPill(in rect: NSRect, hovered: Bool) {
+        let theme = Theme.theme(for: activeProfile)
+        fillPill(rect, cornerRadius: Self.pillCornerRadius, hovered: hovered, dark: theme.usesDarkChrome)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: Self.pillLabelFont,
+            .foregroundColor: theme.textColor.withAlphaComponent(0.85)
+        ]
+        let label = "Reconnect" as NSString
+        let labelSize = label.size(withAttributes: attributes)
+        let glyphSize = NSSize(width: 11, height: 11)
+        let contentWidth = labelSize.width + Self.reconnectPillGap + glyphSize.width
+        let startX = rect.midX - contentWidth / 2
+        label.draw(at: NSPoint(x: startX, y: rect.midY - labelSize.height / 2), withAttributes: attributes)
+        drawTintedSymbol(
+            "arrow.counterclockwise",
+            in: NSRect(x: startX + labelSize.width + Self.reconnectPillGap, y: rect.midY - glyphSize.height / 2, width: glyphSize.width, height: glyphSize.height),
+            color: theme.textColor.withAlphaComponent(0.85)
+        )
+    }
+
+    /// Copies a code block's raw source (sliced from the retained source markdown, since
+    /// `apply(text:profile:)` keeps `renderedText == text`) to the pasteboard and briefly shows a
+    /// checkmark on its pill. Read-only — never mutates the document.
+    private func copyCodeBlock(sourceRange: NSRange, pillRect: NSRect) {
         guard
-            let sourceRange = hoveredCodeBlockSourceRange,
             let source = renderedText as NSString?,
             NSMaxRange(sourceRange) <= source.length
         else {
@@ -638,13 +543,13 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         pasteboard.clearContents()
         pasteboard.setString(code, forType: .string)
 
-        isShowingCopiedFeedback = true
+        copiedFeedbackRect = pillRect
         needsDisplay = true
         copyFeedbackGeneration += 1
         let generation = copyFeedbackGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.copiedFeedbackDuration) { [weak self] in
             guard let self, self.copyFeedbackGeneration == generation else { return }
-            self.isShowingCopiedFeedback = false
+            self.copiedFeedbackRect = nil
             self.needsDisplay = true
         }
     }
@@ -652,19 +557,13 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     // MARK: - Checkbox click handling
 
     override func mouseDown(with event: NSEvent) {
-        if hoveredCodeBlockSourceRange != nil {
-            let point = convert(event.locationInWindow, from: nil)
-            if hoveredCodePillRect.contains(point) {
-                copyHoveredCodeBlock()
-                return
+        let point = convert(event.locationInWindow, from: nil)
+        if let pill = pill(at: point) {
+            switch pill.kind {
+            case .copy: copyCodeBlock(sourceRange: pill.sourceRange, pillRect: pill.rect)
+            case .reconnect: onImageReconnect(pill.sourceRange)
             }
-        }
-        if let sourceRange = hoveredImageReconnectSourceRange {
-            let point = convert(event.locationInWindow, from: nil)
-            if hoveredImageReconnectPillRect.contains(point) {
-                onImageReconnect(sourceRange)
-                return
-            }
+            return
         }
         if let range = checkboxSourceRange(at: event) {
             onCheckboxToggle(range)

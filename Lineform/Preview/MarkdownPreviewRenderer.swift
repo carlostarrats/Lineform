@@ -1062,14 +1062,6 @@ struct MarkdownPreviewRenderer {
         isLastLine: Bool
     ) {
         let spacedAttributes = imageBlockSpacing(bodyAttributes, profile: profile)
-        // Terminate the image's paragraph with ITS OWN attributes (not the body's), so the whole
-        // paragraph shares one paragraph style. A body-attributed "\n" (line-height ×multiple) here
-        // would inflate the image line's bottom and make the gap below the image bigger than above.
-        defer {
-            if !isLastLine {
-                output.append(NSAttributedString(string: "\n", attributes: spacedAttributes))
-            }
-        }
 
         if case .localFile(let url) = ImageResolver.resolve(path: path, documentDirectory: documentDirectory) {
             let scale = NSScreen.main?.backingScaleFactor ?? 2
@@ -1111,12 +1103,26 @@ struct MarkdownPreviewRenderer {
                 let attachmentString = NSMutableAttributedString(attachment: attachment)
                 attachmentString.addAttributes(spacedAttributes, range: NSRange(location: 0, length: attachmentString.length))
                 output.append(attachmentString)
+                // Terminate the image's paragraph with ITS OWN attributes (not the body's), so the
+                // whole paragraph shares one paragraph style. A body-attributed "\n" (line-height
+                // ×multiple) here would inflate the image line's bottom and make the gap below the
+                // image bigger than above. The equal above/below gap is baked into the padded image.
+                if !isLastLine {
+                    output.append(NSAttributedString(string: "\n", attributes: spacedAttributes))
+                }
                 return
             }
         }
 
         // Remote, unresolved, or a local file that failed to load: quiet placeholder + Reconnect tag.
-        appendImagePlaceholder(alt: alt, path: path, sourceRange: sourceRange, to: output, attributes: spacedAttributes)
+        // Unlike the rendered picture (which bakes its breathing room into the image), the "🖼 label"
+        // placeholder is a plain TEXT line, so it needs the SAME one-sided block spacing every other
+        // block uses — otherwise it butts straight up against the surrounding paragraphs.
+        let placeholderSpacing = blockSpacingAttributes(bodyAttributes, profile: profile)
+        appendImagePlaceholder(alt: alt, path: path, sourceRange: sourceRange, to: output, attributes: placeholderSpacing)
+        if !isLastLine {
+            output.append(NSAttributedString(string: "\n", attributes: placeholderSpacing))
+        }
     }
 
     /// The "🖼 label" placeholder run for an image that did not resolve to a rendered picture:

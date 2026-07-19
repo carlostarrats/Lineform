@@ -306,10 +306,19 @@ struct AppCommands: Commands {
             }
         }
 
-        CommandGroup(after: .saveItem) {
+        // Replace the native save group (Save + Duplicate/Rename/Move/Revert) so Save As sits
+        // directly under Save and owns ⌘⇧S — macOS otherwise binds ⌘⇧S to Duplicate and pushes a
+        // custom Save As below the native items.
+        CommandGroup(replacing: .saveItem) {
+            Button("Save") {
+                DocumentSaveStatus.shared.noteManualSaveIntent()
+                NSApp.sendAction(NSSelectorFromString("saveDocument:"), to: nil, from: nil)
+            }
+            .keyboardShortcut("s", modifiers: .command)
+
             Button(AppMenuConfiguration.saveAsCommandTitle) {
                 DocumentSaveStatus.shared.noteManualSaveIntent()
-                NSApp.sendAction(AppMenuConfiguration.saveAsCommandSelector, to: nil, from: nil)
+                LineformAppNotification.saveAsDocument.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut(
                 KeyEquivalent(Character(AppMenuConfiguration.saveAsCommandKeyEquivalent)),
@@ -341,14 +350,6 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("p", modifiers: .command)
 
-            Menu(AppMenuConfiguration.exportAsMenuTitle) {
-                Button(AppMenuConfiguration.exportPDFSubmenuTitle) {
-                    LineformAppNotification.exportPDF.post(object: LineformAppNotification.activeWindowPayload())
-                }
-                Button(AppMenuConfiguration.exportRTFCommandTitle) {
-                    LineformAppNotification.exportRTF.post(object: LineformAppNotification.activeWindowPayload())
-                }
-            }
         }
 
         CommandMenu("Format") {

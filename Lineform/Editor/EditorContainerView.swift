@@ -341,6 +341,10 @@ struct EditorContainerView: View {
             guard notificationMatchesActiveWindow(notification) else { return }
             printCurrentDocument()
         }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.saveAsDocument.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            saveAsDocument()
+        }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.exportPDF.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
             exportCurrentDocumentAsPDF()
@@ -1639,8 +1643,61 @@ struct EditorContainerView: View {
             text: document.text,
             profile: readingProfileStore.activeProfile,
             paper: defaultExportPaperSize,
-            preset: ExportStylePreference.selectedPreset()
+            preset: .standard
         )
+    }
+
+    /// One "Save As…" panel with a Format picker: Markdown writes the real `.md`; PDF / Styled PDF /
+    /// RTF export the rendered document. Replaces the old separate "Export As" submenu.
+    private func saveAsDocument() {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        let controller = SaveAsPanelController(
+            panel: panel,
+            baseName: base,
+            paperTitles: ExportPaperSize.allCases.map(\.displayName),
+            selectedPaper: ExportPaperSize.allCases.firstIndex(of: defaultExportPaperSize) ?? 0,
+            initialFormat: .markdown
+        )
+
+        let write: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else { return }
+            let format = controller.selectedFormat
+            let paperIndex = controller.paperPopup.indexOfSelectedItem
+            let paper = ExportPaperSize.allCases.indices.contains(paperIndex) ? ExportPaperSize.allCases[paperIndex] : .usLetter
+            switch format {
+            case .markdown:
+                do {
+                    try Data(document.text.utf8).write(to: url)
+                } catch {
+                    pdfExportErrorFileName = url.lastPathComponent
+                }
+            case .pdf, .styledPDF:
+                let preset: ExportTypographyPreset = (format == .styledPDF) ? .styled : .standard
+                let succeeded = DocumentExportRenderer.writePDF(
+                    text: document.text,
+                    profile: readingProfileStore.activeProfile,
+                    paper: paper,
+                    preset: preset,
+                    to: url
+                )
+                if !succeeded { pdfExportErrorFileName = url.lastPathComponent }
+            case .rtf:
+                do {
+                    let data = try DocumentExportRenderer.rtfData(for: document, profile: readingProfileStore.activeProfile, paper: paper)
+                    try data.write(to: url)
+                } catch {
+                    rtfExportErrorFileName = url.lastPathComponent
+                }
+            }
+        }
+
+        if let window = activeWindow {
+            panel.beginSheetModal(for: window, completionHandler: write)
+        } else {
+            write(panel.runModal())
+        }
     }
 
     /// Prompts for a destination (with a Letter/A4 + Style accessory) and writes the rich rendered PDF.

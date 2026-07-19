@@ -110,24 +110,31 @@ enum DocumentExportRenderer {
         preset: ExportTypographyPreset = .standard
     ) -> NSTextView {
         let content = contentSize(for: paper, preset: preset)
-        let attributed = MarkdownPreviewRenderer().render(
-            text,
-            profile: preset.exportReadingProfile(basedOn: profile),
-            columnWidth: content.width,
-            mermaidProvider: MermaidImageProvider(),
-            mathProvider: MathImageProvider(),
-            // Export never writes to the diagram failure log — a failed diagram just prints its
-            // captioned-source fallback.
-            diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-            // Tables shrink to fit the fixed page column rather than overflowing off the right edge.
-            fitTablesToWidth: true,
-            // Exported/printed code stays monochrome — a deliberate product decision (see the
-            // "highlightsCode" parameter above).
-            highlightsCode: false,
-            headingScale: preset.headingScale
-        )
+        let attributed: NSAttributedString
+        if preset.rendersMarkdown {
+            attributed = MarkdownPreviewRenderer().render(
+                text,
+                profile: preset.exportReadingProfile(basedOn: profile),
+                columnWidth: content.width,
+                mermaidProvider: MermaidImageProvider(),
+                mathProvider: MathImageProvider(),
+                // Export never writes to the diagram failure log — a failed diagram just prints its
+                // captioned-source fallback.
+                diagramLog: NullDiagramFailureLog(),
+                reportRegistry: DiagramReportRegistry(),
+                appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+                // Tables shrink to fit the fixed page column rather than overflowing off the right edge.
+                fitTablesToWidth: true,
+                // Exported/printed code stays monochrome — a deliberate product decision (see the
+                // "highlightsCode" parameter above).
+                highlightsCode: false,
+                headingScale: preset.headingScale
+            )
+        } else {
+            // "Normal": print the RAW markdown SOURCE (visible #, **, etc.) as a plain monospaced
+            // document — never run through the renderer, so the reader sees the actual markdown text.
+            attributed = rawSourceAttributedString(text, preset: preset)
+        }
 
         // Classic TextKit 1 stack, matching the on-screen preview view — the renderer's
         // NSTextTable / NSTextAttachment output is TextKit-1 shaped.
@@ -152,6 +159,21 @@ enum DocumentExportRenderer {
         let used = layoutManager.usedRect(for: container)
         textView.setFrameSize(NSSize(width: content.width, height: max(content.height, used.height)))
         return textView
+    }
+
+    /// The RAW markdown source laid out as a plain document: a monospaced face at the preset body
+    /// size, dark ink on the white page, with the preset's line height. No markdown parsing — the
+    /// `#`, `**`, backticks, etc. print verbatim, exactly as typed in Write mode.
+    @MainActor
+    private static func rawSourceAttributedString(_ text: String, preset: ExportTypographyPreset) -> NSAttributedString {
+        let font = NSFont.monospacedSystemFont(ofSize: preset.bodyPointSize, weight: .regular)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineHeightMultiple = preset.lineHeightMultiple ?? 1.2
+        return NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: DiagramPalette.ink(isDark: false),
+            .paragraphStyle: paragraph
+        ])
     }
 
     /// `NSPrintInfo` configured for `paper` with `preset`'s margins (`.standard`'s are the same

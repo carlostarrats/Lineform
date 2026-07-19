@@ -17,6 +17,7 @@ enum LineformAppNotification {
     case renameCurrentFile
     case deleteCurrentFile
     case printDocument
+    case saveAsDocument
     case exportPDF
     case exportRTF
     case newTab
@@ -59,6 +60,8 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.deleteCurrentFile")
         case .printDocument:
             return Notification.Name("Lineform.printDocument")
+        case .saveAsDocument:
+            return Notification.Name("Lineform.saveAsDocument")
         case .exportPDF:
             return Notification.Name("Lineform.exportPDF")
         case .exportRTF:
