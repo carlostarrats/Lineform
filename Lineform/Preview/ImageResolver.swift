@@ -45,6 +45,15 @@ enum ImageResolver {
         return .localFile(resolvedURL)
     }
 
+    /// True when `path`'s extension is one of the recognized raster image extensions.
+    /// Lets the export pre-flight tell "image reference we couldn't resolve" apart from
+    /// "link to a non-image file" without duplicating the extension set.
+    static func hasImageExtension(_ path: String) -> Bool {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ext = (trimmed as NSString).pathExtension
+        return isImageExtension(ext)
+    }
+
     private static func isImageExtension(_ pathExtension: String) -> Bool {
         imageExtensions.contains(pathExtension.lowercased())
     }
