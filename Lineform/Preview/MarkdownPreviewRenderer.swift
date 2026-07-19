@@ -22,6 +22,12 @@ extension NSAttributedString.Key {
     /// offered — set whenever the image did NOT resolve to a rendered `BlockRenderedAttachment`
     /// (remote, unresolved, or a local file that failed to load).
     static let imageReconnect = NSAttributedString.Key("lineform.imageReconnect")
+
+    /// Attached to every rendered run; value is an `NSNumber` boxing the SOURCE character offset of
+    /// the source line that produced it. Gives a full rendered→source position map (finer than
+    /// `.headingSourceRange`, which only marks headings), so Read/Preview can report and restore
+    /// the EXACT reading position across a display-mode switch, not just the nearest heading.
+    static let sourceLineLocation = NSAttributedString.Key("lineform.sourceLineLocation")
 }
 
 struct MarkdownPreviewRenderer {
@@ -110,6 +116,7 @@ struct MarkdownPreviewRenderer {
         // before — byte-identical for the existing constructs. New block constructs become new
         // cases here plus their own emitter.
         for block in markdownBlocks(in: lines) {
+            let blockRenderStart = output.length
             switch block {
             case .lines(let range):
                 appendLines(
@@ -226,9 +233,57 @@ struct MarkdownPreviewRenderer {
                     isLastLine: lineIndex >= lines.count - 1
                 )
             }
+
+            // `.lines` blocks attach per-line source offsets themselves (finest granularity). Every
+            // other block gets one representative source offset across its whole rendered range, so
+            // cross-mode scroll restore has an anchor inside it too.
+            if case .lines = block {} else if
+                let location = Self.blockSourceLocation(block, lineRanges: lineRanges),
+                output.length > blockRenderStart
+            {
+                output.addAttribute(
+                    .sourceLineLocation,
+                    value: NSNumber(value: location),
+                    range: NSRange(location: blockRenderStart, length: output.length - blockRenderStart)
+                )
+            }
         }
 
         return output
+    }
+
+    /// A representative SOURCE character offset for a non-`.lines` block, used to tag its rendered
+    /// range with `.sourceLineLocation`. Prefers the block's opening line; multi-line blocks that
+    /// only carry their last line index use it (bounded imprecision, well within the block).
+    private static func blockSourceLocation(_ block: MarkdownBlock, lineRanges: [NSRange]) -> Int? {
+        func location(forLine index: Int) -> Int? {
+            guard index >= 0, index < lineRanges.count else { return nil }
+            return lineRanges[index].location
+        }
+        switch block {
+        case .lines(let range):
+            return location(forLine: range.lowerBound)
+        case .singleLineMath(_, let lineIndex):
+            return location(forLine: lineIndex)
+        case .fencedMath(_, let closingIndex):
+            return closingIndex.flatMap(location(forLine:))
+        case .mermaid(_, let closingIndex):
+            return closingIndex.flatMap(location(forLine:))
+        case .horizontalRule(let lineIndex):
+            return location(forLine: lineIndex)
+        case .blockquote(_, let lastLineIndex):
+            return location(forLine: lastLineIndex)
+        case .callout(_, _, _, let lastLineIndex):
+            return location(forLine: lastLineIndex)
+        case .list(_, let lastLineIndex):
+            return location(forLine: lastLineIndex)
+        case .table(_, let lastLineIndex):
+            return location(forLine: lastLineIndex)
+        case .fencedCode(_, _, let openingIndex, _):
+            return location(forLine: openingIndex)
+        case .image(_, _, let sourceRange, _):
+            return sourceRange.location
+        }
     }
 
     /// Emit a GFM table as a native `NSTextTable`: live, selectable, theme-colored text that lays
@@ -582,6 +637,9 @@ struct MarkdownPreviewRenderer {
             let usesBlockSpacing = blockSpacingLineIndexes.contains(index)
             let activeBodyAttributes = usesBlockSpacing ? bodyBlockSpacingAttributes : bodyAttributes
             var lineTerminatorAttributes = activeBodyAttributes
+            // Everything this source line emits carries its source offset, for exact cross-mode
+            // scroll restore (see `.sourceLineLocation`).
+            let renderedLineStart = output.length
 
             if let heading = heading(in: line) {
                 var activeHeadingAttributes = headingAttributes(
@@ -611,6 +669,14 @@ struct MarkdownPreviewRenderer {
 
             if index < lines.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: lineTerminatorAttributes))
+            }
+
+            if output.length > renderedLineStart {
+                output.addAttribute(
+                    .sourceLineLocation,
+                    value: NSNumber(value: lineRanges[index].location),
+                    range: NSRange(location: renderedLineStart, length: output.length - renderedLineStart)
+                )
             }
         }
     }
@@ -1126,9 +1192,9 @@ struct MarkdownPreviewRenderer {
     }
 
     /// The "🖼 label" placeholder run for an image that did not resolve to a rendered picture:
-    /// styled like the inline `imageToken` (foreground at 0.6 alpha), tagged with the image's
-    /// SOURCE range and a Reconnect marker. File-free, network-free — only the alt/path STRINGS
-    /// already in the document are read.
+    /// styled like the inline `imageToken` (link color), tagged with the image's SOURCE range and a
+    /// Reconnect marker. File-free, network-free — only the alt/path STRINGS already in the document
+    /// are read.
     private func appendImagePlaceholder(
         alt: String,
         path: String,
@@ -1144,9 +1210,7 @@ struct MarkdownPreviewRenderer {
             label = filename.isEmpty ? "Image" : filename
         }
         var placeholderAttributes = attributes
-        if let color = attributes[.foregroundColor] as? NSColor {
-            placeholderAttributes[.foregroundColor] = color.withAlphaComponent(0.6)
-        }
+        placeholderAttributes[.foregroundColor] = NSColor.linkColor
         placeholderAttributes[.imageSourceRange] = NSValue(range: sourceRange)
         placeholderAttributes[.imageReconnect] = NSNumber(value: true)
         output.append(NSAttributedString(string: "🖼 \(label)", attributes: placeholderAttributes))
@@ -1223,9 +1287,9 @@ private struct InlineToken {
         case .strikethrough:
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         case .image:
-            if let color = base[.foregroundColor] as? NSColor {
-                attributes[.foregroundColor] = color.withAlphaComponent(0.6)
-            }
+            // Color the placeholder like a link so a not-yet-rendered image reference reads clearly
+            // as a reference rather than dim body text.
+            attributes[.foregroundColor] = NSColor.linkColor
         case .link:
             attributes[.foregroundColor] = NSColor.linkColor
         }

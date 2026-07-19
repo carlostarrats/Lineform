@@ -17,6 +17,10 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     /// The open document's containing folder, used to resolve relative local image paths. `nil`
     /// for an unsaved/untitled document (relative image references stay unresolved).
     var documentDirectory: URL?
+    /// A one-shot request (in SOURCE-document coordinates) to scroll the section at/above that
+    /// location to the top of the viewport — set by an outline click or a mode-switch position
+    /// restore, then cleared. Mirrors the Write-mode editor's `requestedScrollToTopRange`.
+    @Binding var requestedScrollToTopRange: NSRange?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -48,6 +52,16 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.onImageReconnect = onImageReconnect
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
         textView.apply(text: text, profile: profile, documentDirectory: documentDirectory)
+
+        if let range = requestedScrollToTopRange {
+            // A SOURCE range (heading or arbitrary caret position). Do NOT clamp against the
+            // rendered `textView.string` length — rendered and source offsets differ. The text
+            // view maps it back to a rendered heading itself.
+            textView.scrollSourceRangeToTop(range)
+            DispatchQueue.main.async {
+                requestedScrollToTopRange = nil
+            }
+        }
     }
 }
 
@@ -123,6 +137,9 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         if let reflowAnchor {
             restoreReflowAnchor(reflowAnchor)
         }
+        // A cross-mode scroll restore requested before this view was sized applies now (and wins
+        // over the reflow anchor, since it is an explicit move, not a rewrap-preservation).
+        applyPendingScrollIfPossible()
     }
 
     /// The character at the top of the viewport and its offset from the viewport top, captured
@@ -251,6 +268,84 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             self.blockRefitScheduled = false
             self.refitBlockAttachments()
         }
+    }
+
+    /// Scrolls so the source line at or above `sourceRange.location` parks at the top of the
+    /// viewport. The argument is in SOURCE-document coordinates; it is mapped back to the rendered
+    /// text via the `.sourceLineLocation` attribute the renderer attaches to every run — so the
+    /// restore is exact to the source line, not just the nearest heading. Used for outline jumps in
+    /// Read/Preview and for restoring the EXACT reading position across a display-mode switch. If no
+    /// tagged run is at or above the target, scrolls to the very top. Never selects text.
+    /// Set while a scroll-to-source request is waiting for the view to be laid out. On a display-mode
+    /// switch the incoming preview is created and asked to scroll BEFORE it has a real viewport size,
+    /// so the first attempt can't stick; it is retried from `setFrameSize`/`viewDidMoveToWindow`
+    /// until the view is sized, then cleared.
+    private var pendingScrollSourceLocation: Int?
+
+    func scrollSourceRangeToTop(_ sourceRange: NSRange) {
+        pendingScrollSourceLocation = sourceRange.location
+        applyPendingScrollIfPossible()
+    }
+
+    private func applyPendingScrollIfPossible() {
+        guard let target = pendingScrollSourceLocation else { return }
+        // Need a real viewport size, or a bounds-origin change won't hold through the next layout.
+        guard let scrollView = enclosingScrollView, scrollView.contentView.bounds.height > 1, bounds.width > 1 else {
+            return
+        }
+        if performScrollToSourceLine(target, scrollView: scrollView) {
+            pendingScrollSourceLocation = nil
+        }
+    }
+
+    @discardableResult
+    private func performScrollToSourceLine(_ target: Int, scrollView: NSScrollView) -> Bool {
+        guard
+            let layoutManager,
+            let textContainer,
+            let textStorage,
+            textStorage.length > 0
+        else {
+            return false
+        }
+        layoutManager.ensureLayout(for: textContainer)
+
+        // Find the rendered run of the nearest source line whose SOURCE offset is <= the target.
+        var bestRenderedRange: NSRange?
+        var bestSourceLocation = -1
+        textStorage.enumerateAttribute(
+            .sourceLineLocation,
+            in: NSRange(location: 0, length: textStorage.length),
+            options: []
+        ) { value, renderedRange, _ in
+            guard let value = value as? NSNumber else { return }
+            let location = value.intValue
+            if location <= target, location > bestSourceLocation {
+                bestSourceLocation = location
+                bestRenderedRange = renderedRange
+            }
+        }
+
+        let targetY: CGFloat
+        if let bestRenderedRange {
+            // Sub-line precision: land at how far into the line the target source offset sits, not
+            // the line start (symmetric with the report side). Clamped within the rendered run.
+            let offsetWithinLine = max(0, target - bestSourceLocation)
+            let renderedChar = min(bestRenderedRange.location + offsetWithinLine, NSMaxRange(bestRenderedRange) - 1)
+            let glyphRange = layoutManager.glyphRange(
+                forCharacterRange: NSRange(location: renderedChar, length: 1),
+                actualCharacterRange: nil
+            )
+            var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            rect.origin.y += textContainerOrigin.y
+            let topMargin: CGFloat = 8
+            targetY = max(0, rect.minY - topMargin)
+        } else {
+            targetY = 0
+        }
+        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: targetY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        return true
     }
 
     func apply(text: String, profile: ReadingProfile, documentDirectory: URL? = nil) {
@@ -635,6 +730,8 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         super.viewDidMoveToWindow()
         updateTextContainerLayout()
         updateScrollBoundsObservation()
+        // A restore requested before the view had a window/size retries now that it does.
+        applyPendingScrollIfPossible()
     }
 
     private func updateScrollBoundsObservation() {
@@ -666,9 +763,12 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         onVisibleTopRangeChanged?(sourceRange)
     }
 
-    /// Returns the source-document range of the heading nearest the top of the viewport, or the
-    /// top of the visible rect if no heading is there. The outline sidebar uses this to bold the
-    /// active heading in all display modes.
+    /// Returns the EXACT source-document offset (as a length-1 range) of the run at the top of the
+    /// viewport, read from the `.sourceLineLocation` attribute the renderer attaches to every run.
+    /// This drives two things: the outline sidebar bolds the enclosing heading (its `activeItemID`
+    /// maps any source offset to the last heading at/above it, exactly as it already does for Write
+    /// mode's exact reporting), and a mode switch restores this exact position rather than the
+    /// nearest heading. Returns nil if no tagged run is found (leaves the previous state untouched).
     private func sourceRangeAtTopOfViewport() -> NSRange? {
         guard
             let layoutManager,
@@ -684,37 +784,28 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         visibleRect.origin.y -= textContainerOrigin.y
         let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
         let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
-        // Prefer the first heading whose rendered text intersects the top of the viewport.
-        var headingSourceRange: NSRange?
-        textStorage.enumerateAttribute(.headingSourceRange, in: charRange, options: []) { value, _, stop in
-            if let value = value as? NSValue {
-                headingSourceRange = value.rangeValue
-                stop.pointee = true
-            }
-        }
-        if let headingSourceRange {
-            return headingSourceRange
-        }
+        let topChar = min(max(0, charRange.location), textStorage.length - 1)
+        guard let info = sourceLineInfo(at: topChar, in: textStorage) else { return nil }
+        // Sub-line precision: add how far into the line's RENDERED run the viewport top sits, so a
+        // reader parked mid-paragraph restores to that spot in Write, not the paragraph start. Exact
+        // for plain prose; a close approximation when inline markup was stripped from the line.
+        let offsetWithinLine = max(0, topChar - info.renderedRange.location)
+        return NSRange(location: info.sourceLineLocation + offsetWithinLine, length: 1)
+    }
 
-        // No heading is on screen (scrolled into a section's body): report the SOURCE range of
-        // the most recent heading ABOVE the viewport top. The old code fell back to the rendered
-        // `charRange` here, but the outline compares `.location` against SOURCE offsets
-        // (OutlineSidebarView.activeItemID), and rendered offsets differ from source offsets
-        // (stripped syntax, single-char math/mermaid/image attachments) — so the wrong item was
-        // bolded whenever the reader scrolled between headings. Returning nil (before the first
-        // heading) simply leaves the previous highlight untouched.
-        guard charRange.location > 0 else { return nil }
-        var lastHeadingAbove: NSRange?
-        textStorage.enumerateAttribute(
-            .headingSourceRange,
-            in: NSRange(location: 0, length: charRange.location),
-            options: []
-        ) { value, _, _ in
-            if let value = value as? NSValue {
-                lastHeadingAbove = value.rangeValue
+    /// The `.sourceLineLocation` value at `charIndex` and the rendered run it belongs to — or, if
+    /// that exact run lacks one (rare), the nearest tagged run before it. Walks backward by
+    /// attribute-run so it never scans char by char.
+    private func sourceLineInfo(at charIndex: Int, in textStorage: NSTextStorage) -> (sourceLineLocation: Int, renderedRange: NSRange)? {
+        var index = min(max(0, charIndex), textStorage.length - 1)
+        while index >= 0 {
+            var effectiveRange = NSRange(location: 0, length: 0)
+            if let value = textStorage.attribute(.sourceLineLocation, at: index, effectiveRange: &effectiveRange) as? NSNumber {
+                return (value.intValue, effectiveRange)
             }
+            index = effectiveRange.location - 1
         }
-        return lastHeadingAbove
+        return nil
     }
 
     private func configure() {

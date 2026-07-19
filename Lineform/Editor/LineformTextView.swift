@@ -53,8 +53,14 @@ final class LineformTextView: NSTextView {
     /// `LineformTextView+ImageInsertion.swift`.
     private(set) lazy var imageDropIndicatorLine: NSView = {
         let line = NSView(frame: .zero)
+        let shape = CAShapeLayer()
+        shape.strokeColor = NSColor.controlAccentColor.cgColor
+        shape.fillColor = NSColor.clear.cgColor
+        shape.lineWidth = 2
+        // Dashed rule (6pt dash, 4pt gap) so the drop guide reads as a placement hint, not a divider.
+        shape.lineDashPattern = [6, 4]
+        line.layer = shape
         line.wantsLayer = true
-        line.layer?.cornerRadius = 1
         line.isHidden = true
         addSubview(line)
         return line
@@ -195,6 +201,35 @@ final class LineformTextView: NSTextView {
         )
     }
 
+    private var persistentScrollTarget: NSRange?
+    private var persistentScrollReassertsRemaining = 0
+
+    /// Scroll `range` to the top and KEEP it there across the next few runloop ticks. A freshly
+    /// created editor (a display-mode switch back to Write) runs its layout-preservation machinery,
+    /// which schedules a DEFERRED restore pinning the new view to the TOP — that fires a tick or two
+    /// after `scrollCharacterRangeToTop` lands and silently clobbers a cross-mode position restore
+    /// (diagnosed from a scroll trace: the origin was set correctly, then reset to 0). Cancelling the
+    /// pending restore isn't enough (its second pass captured the top anchor locally), so we
+    /// re-assert the target — and cancel the competing restores — for a short settling window.
+    func scrollCharacterRangeToTopPersistently(_ range: NSRange) {
+        persistentScrollTarget = range
+        persistentScrollReassertsRemaining = 5
+        reassertPersistentScrollIfNeeded()
+    }
+
+    private func reassertPersistentScrollIfNeeded() {
+        guard let range = persistentScrollTarget, persistentScrollReassertsRemaining > 0 else {
+            persistentScrollTarget = nil
+            return
+        }
+        persistentScrollReassertsRemaining -= 1
+        cancelPendingDeferredScrollRestores()
+        scrollCharacterRangeToTop(range)
+        DispatchQueue.main.async { [weak self] in
+            self?.reassertPersistentScrollIfNeeded()
+        }
+    }
+
     /// Scrolls so the start of `range` lands at the top of the viewport (with a small top
     /// margin), used by the outline sidebar so jumps put the heading at the top of the page
     /// rather than centered.
@@ -207,7 +242,16 @@ final class LineformTextView: NSTextView {
         rect.origin.y += textContainerOrigin.y
         let topMargin: CGFloat = 8
         let targetY = max(0, rect.minY - topMargin)
-        scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: targetY))
+        let origin = NSPoint(x: 0, y: targetY)
+        // An explicit navigation (outline jump, cross-mode position restore) must land even if the
+        // clip view's transition lock is engaged — bypass it and re-point the lock at the corrected
+        // origin, exactly as the anchor restore does. A freshly created editor (mode switch) is
+        // still inside its creation lock window, so a plain setBoundsOrigin would be clamped to 0.
+        if let clipView = scrollView.contentView as? LineformEditorClipView {
+            clipView.setBoundsOriginBypassingVerticalLock(origin)
+        } else {
+            scrollView.contentView.setBoundsOrigin(origin)
+        }
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 

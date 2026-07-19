@@ -62,8 +62,16 @@ extension LineformTextView {
             let lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
             indicatorY = lineRect.minY + origin.y
         }
-        imageDropIndicatorLine.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
-        imageDropIndicatorLine.frame = NSRect(x: origin.x, y: indicatorY - 1, width: max(0, textContainer.size.width), height: 2)
+        let width = max(0, textContainer.size.width)
+        imageDropIndicatorLine.frame = NSRect(x: origin.x, y: indicatorY - 1, width: width, height: 2)
+        if let shape = imageDropIndicatorLine.layer as? CAShapeLayer {
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 0, y: 1))
+            path.addLine(to: CGPoint(x: width, y: 1))
+            shape.path = path
+            // Re-assert the accent stroke each time (it follows the user's System Settings accent).
+            shape.strokeColor = NSColor.controlAccentColor.cgColor
+        }
         imageDropIndicatorLine.isHidden = false
     }
 

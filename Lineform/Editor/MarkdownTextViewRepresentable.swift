@@ -132,7 +132,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             context.coordinator.performWithoutSelectionUpdates {
                 textView.setSelectedRange(NSRange(location: safeRange.location, length: 0))
             }
-            textView.scrollCharacterRangeToTop(safeRange)
+            textView.scrollCharacterRangeToTopPersistently(safeRange)
             DispatchQueue.main.async {
                 requestedScrollToTopRange = nil
             }

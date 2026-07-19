@@ -323,6 +323,18 @@ struct EditorContainerView: View {
             // Settle any pending debounced work so the outline/count are correct the
             // instant the user switches modes (rather than a debounce interval later).
             flushDerivedRefresh()
+            // Remember the reading position across the switch: scroll the newly shown view to the
+            // exact source line that was at the top of the outgoing view, so toggling Write/Read/
+            // Split resumes where the reader was instead of jumping to the top. Tab switches clear
+            // `activeOutlineSourceRange` first (resetTransientDocumentState) so a stale position is
+            // never restored into a different document. Deferred one runloop tick: the incoming
+            // view is created fresh by the mode switch and isn't sized yet this cycle, so a scroll
+            // request applied now wouldn't stick — by the next tick it has a real viewport.
+            if let target = activeOutlineSourceRange {
+                DispatchQueue.main.async {
+                    requestedScrollToTopRange = target
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.toggleOutline.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else {
@@ -1005,7 +1017,8 @@ struct EditorContainerView: View {
                     onCheckboxToggle: toggleCheckbox,
                     onImageReconnect: reconnectImage,
                     onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
-                    documentDirectory: currentFileURL?.deletingLastPathComponent()
+                    documentDirectory: currentFileURL?.deletingLastPathComponent(),
+                    requestedScrollToTopRange: $requestedScrollToTopRange
                 )
                 .frame(maxHeight: .infinity)
             }
@@ -1020,7 +1033,8 @@ struct EditorContainerView: View {
                     onCheckboxToggle: toggleCheckbox,
                     onImageReconnect: reconnectImage,
                     onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
-                    documentDirectory: currentFileURL?.deletingLastPathComponent()
+                    documentDirectory: currentFileURL?.deletingLastPathComponent(),
+                    requestedScrollToTopRange: $requestedScrollToTopRange
                 )
             }
         }
@@ -1074,9 +1088,9 @@ struct EditorContainerView: View {
         // the report then confirms the same heading (it now parks at the viewport top), so the
         // selection never flickers to a neighbor.
         activeOutlineSourceRange = item.characterRange
-        if displayMode == .read {
-            displayMode = .write
-        }
+        // No mode switch: the Read/Preview view honors the scroll request in place (it maps the
+        // source heading range back to rendered position), so an outline click no longer kicks
+        // the reader out of Read mode into Write.
     }
 
     private func openSidebarFile(_ url: URL) {
@@ -1493,6 +1507,11 @@ struct EditorContainerView: View {
         quickOpenQuery = ""
         searchScope = .thisFile
         crossFileSearchModel.reset()
+        // Drop the cross-mode scroll anchor so a mode switch in the incoming tab never restores
+        // the previous document's reading position (activateSelectedTab calls this before setting
+        // the tab's displayMode, so the onChange restore sees a cleared anchor).
+        activeOutlineSourceRange = nil
+        requestedScrollToTopRange = nil
     }
 
     /// Locked spec behavior: after opening a cross-file result (or backing out), NO search

@@ -269,6 +269,11 @@ final class MarkdownSyntaxHighlighter {
             return [.foregroundColor: NSColor.linkColor]
         case .linkDestination:
             return [.foregroundColor: markerColor]
+        case .imageText, .imageDestination:
+            // Image links read in link blue (both alt and path) so they're easy to spot as
+            // references — unlike ordinary links, the path is colored too, since image links
+            // often have an empty alt (`![](path)`) and the path is the only visible content.
+            return [.foregroundColor: NSColor.linkColor]
         }
     }
 }

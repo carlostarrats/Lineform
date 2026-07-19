@@ -8,6 +8,8 @@ struct DebouncedMarkdownPreviewView: View {
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
     /// The open document's containing folder, used to resolve relative local image paths.
     var documentDirectory: URL?
+    /// One-shot scroll request (in SOURCE coordinates), forwarded to the underlying preview.
+    @Binding var requestedScrollToTopRange: NSRange?
     @State private var previewText = ""
     @State private var pendingUpdate: DispatchWorkItem?
 
@@ -18,7 +20,8 @@ struct DebouncedMarkdownPreviewView: View {
             onCheckboxToggle: onCheckboxToggle,
             onImageReconnect: onImageReconnect,
             onVisibleTopRangeChanged: onVisibleTopRangeChanged,
-            documentDirectory: documentDirectory
+            documentDirectory: documentDirectory,
+            requestedScrollToTopRange: $requestedScrollToTopRange
         )
         .accessibilityLabel("Markdown read view")
             .onAppear {

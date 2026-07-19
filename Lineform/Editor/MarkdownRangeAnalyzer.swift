@@ -9,6 +9,10 @@ enum MarkdownTokenKind: String, Hashable {
     case codeFence
     case linkText
     case linkDestination
+    /// An image link's alt text / path (`![alt](path)`). Colored like a link so image references
+    /// stand out from body text even when the alt is empty (`![](path)`) — the common case.
+    case imageText
+    case imageDestination
 }
 
 struct MarkdownTokenRange: Equatable, Hashable {
@@ -24,8 +28,14 @@ struct MarkdownRangeAnalyzer {
     private static let codeSpanRegex = try? NSRegularExpression(pattern: "`[^`\\n]+`")
     // Newline-excluded so links are strictly single-line: keeps the analyzer fully line-local,
     // which is what lets scoped (visible-window) highlighting stay byte-identical to a whole-doc
-    // pass (see MarkdownSyntaxHighlighter.tokens(in:scope:)).
-    private static let linkRegex = try? NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
+    // pass (see MarkdownSyntaxHighlighter.tokens(in:scope:)). The `(?<!!)` lookbehind makes this
+    // match ordinary links only — an `![...]` image link is handled by `imageRegex` instead, so
+    // the two never double-match the same span.
+    private static let linkRegex = try? NSRegularExpression(pattern: #"(?<!!)\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
+    // Image links `![alt](path)`. Alt is `*` (may be empty — `![](path)` is common), so this
+    // colors image references that `linkRegex` (which requires a non-empty label) never matched.
+    // Also line-local (no `\n` in any class).
+    private static let imageRegex = try? NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
 
     func ranges(in text: String) -> [MarkdownTokenRange] {
         var tokens: [MarkdownTokenRange] = []
@@ -38,6 +48,7 @@ struct MarkdownRangeAnalyzer {
 
         tokens.append(contentsOf: regexTokens(regex: Self.codeSpanRegex, kind: .codeSpan, text: text))
         tokens.append(contentsOf: linkTokens(in: text))
+        tokens.append(contentsOf: imageTokens(in: text))
 
         return tokens.sorted { lhs, rhs in
             if lhs.range.location == rhs.range.location {
@@ -83,6 +94,21 @@ struct MarkdownRangeAnalyzer {
                 MarkdownTokenRange(kind: .linkText, range: match.range(at: 1)),
                 MarkdownTokenRange(kind: .linkDestination, range: match.range(at: 2))
             ]
+        }
+    }
+
+    private func imageTokens(in text: String) -> [MarkdownTokenRange] {
+        let nsText = text as NSString
+        let matches = Self.imageRegex?.matches(in: text, range: NSRange(location: 0, length: nsText.length)) ?? []
+
+        return matches.flatMap { match -> [MarkdownTokenRange] in
+            var tokens: [MarkdownTokenRange] = []
+            let altRange = match.range(at: 1)
+            if altRange.length > 0 {
+                tokens.append(MarkdownTokenRange(kind: .imageText, range: altRange))
+            }
+            tokens.append(MarkdownTokenRange(kind: .imageDestination, range: match.range(at: 2)))
+            return tokens
         }
     }
 
