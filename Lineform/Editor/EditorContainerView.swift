@@ -420,20 +420,19 @@ struct EditorContainerView: View {
             guard newID != nil else { return }
             activateSelectedTab()
         }
-        .onChange(of: tabStore.shouldShowTabBar) { _, _ in
-            // The tab bar appearing/disappearing rebuilds the detail hierarchy, which can reset
-            // the window's explicit appearance to the default (light) aqua — leaving a dark theme
-            // with a light toolbar/title bar. Re-assert the themed appearance on the next runloop
-            // tick, after AppKit's reset settles. (WindowChromeReader also self-heals on drift.)
-            let theme = currentTheme
-            DispatchQueue.main.async {
+        // Both chrome-rebuild appearance re-asserts bundled as a modifier (same
+        // type-checker-budget rationale as SpeechNotificationHandlers below).
+        .modifier(ReassertWindowChromeOnHierarchyRebuild(
+            isShowingOutline: isShowingOutline,
+            shouldShowTabBar: tabStore.shouldShowTabBar,
+            apply: {
                 EditorWindowChrome.apply(
                     to: activeWindow,
-                    usesDarkChrome: theme.usesDarkChrome,
-                    pageBackground: theme.backgroundColor
+                    usesDarkChrome: currentTheme.usesDarkChrome,
+                    pageBackground: currentTheme.backgroundColor
                 )
             }
-        }
+        ))
         .onChange(of: currentFileURL) { _, newValue in
             // Keep the File-menu Rename…/Delete… enabled state tracking the key window.
             if activeWindow?.isKeyWindow == true {
@@ -2103,5 +2102,36 @@ private struct ReissueCrossFileSearchOnRootChange: ViewModifier {
         content
             .onChange(of: iCloudRoot) { _, _ in action() }
             .onChange(of: workspaceRoot) { _, _ in action() }
+    }
+}
+
+/// Re-asserts the themed window appearance after the two hierarchy rebuilds that can make
+/// AppKit reset it to the default (light) aqua: the tab bar appearing/disappearing and the
+/// sidebar column collapsing/expanding. (WindowChromeReader also self-heals on drift.)
+///
+/// The tab-bar reset settles within a runloop tick, so one deferred apply covers it. The
+/// sidebar's reset lands anywhere INSIDE the column's slide animation, so a single next-tick
+/// apply races it (ChromeView's drift self-heal also fires only while its own
+/// effectiveAppearance changes, which a mid-animation reset can skip). The sidebar-toggle
+/// glyph is the one native, appearance-derived control in the nav band, so a stuck light
+/// appearance shows as a black glyph on the dark toolbar while every explicitly-colored
+/// SwiftUI control stays correct (2026-07-25, Quiet theme, rapid ⌥⌘0 toggling — never
+/// caught by tests; it needs the real HID-driven animation timing). The sidebar path
+/// re-asserts on the next tick AND after the animation settles so the LAST write is always
+/// the themed appearance.
+private struct ReassertWindowChromeOnHierarchyRebuild: ViewModifier {
+    let isShowingOutline: Bool
+    let shouldShowTabBar: Bool
+    let apply: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: shouldShowTabBar) { _, _ in
+                DispatchQueue.main.async { apply() }
+            }
+            .onChange(of: isShowingOutline) { _, _ in
+                DispatchQueue.main.async { apply() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { apply() }
+            }
     }
 }
