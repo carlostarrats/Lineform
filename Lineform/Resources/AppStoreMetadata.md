@@ -10,11 +10,15 @@ Calm Markdown writing for Mac
 
 ## Description
 
-Lineform is a free native Mac Markdown editor designed for readability, accessibility, and calm writing. It uses real Markdown files, native document behavior, typography-focused reading controls, write/read/preview modes, outline navigation, search, Markdown formatting, PDF export, and Apple-native writing assistance where available.
+Lineform is a free native Mac Markdown editor designed for readability, accessibility, and calm writing. It uses real Markdown files, native document behavior, typography-focused reading controls, write/read/preview modes, multi-document tabs, outline navigation, document and cross-file search, Markdown formatting, and Apple-native writing assistance where available.
+
+Read and Preview render tables, task checkboxes, callouts, fenced code with syntax highlighting, Mermaid diagrams, LaTeX math, and images stored on your Mac — all drawn natively, with no web view. Images at a web address are never downloaded. Documents export to PDF, Styled PDF, and Rich Text, print natively, preview in Finder through Quick Look, and can be read aloud.
+
+No account, no analytics, no document upload, and no AI.
 
 ## Keywords
 
-Markdown, writing, editor, accessibility, reading, notes, focus, read, outline
+Markdown, writing, editor, accessibility, reading, notes, focus, read, outline, mermaid, math, latex, dyslexia
 
 ## Privacy Summary
 
