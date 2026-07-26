@@ -33,6 +33,7 @@ extension NSAttributedString.Key {
     static let sourceSpan = NSAttributedString.Key("lineform.sourceSpan")
 }
 
+@MainActor
 struct MarkdownPreviewRenderer {
     private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
     private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)

@@ -128,6 +128,7 @@
 		1F0000010000000000000234 /* DiagramReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000234 /* DiagramReportService.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
 		1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */; };
+		1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */; };
 		1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */; };
 		1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000116 /* OutlineSidebarViewTests.swift */; };
 		1F0000010000000000000108 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000108 /* Assets.xcassets */; };
@@ -317,6 +318,7 @@
 		1F0000020000000000000234 /* DiagramReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewEmptyStateTests.swift; sourceTree = "<group>"; };
+		1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewInsetAnimationTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentPerformanceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000116 /* OutlineSidebarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarViewTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -590,6 +592,7 @@
 				1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
+				1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
 				1F0000020000000000000116 /* OutlineSidebarViewTests.swift */,
 				1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */,
@@ -928,6 +931,7 @@
 				1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
+				1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
 				1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */,
 				1F0000010000000000000311 /* OutlineFileSortOrderTests.swift in Sources */,

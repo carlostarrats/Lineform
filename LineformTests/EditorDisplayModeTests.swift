@@ -520,9 +520,11 @@ final class EditorDisplayModeTests: XCTestCase {
         window.contentView?.addSubview(view)
         XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
 
-        // Simulate AppKit's rebuild-time reset.
+        // Simulate AppKit's rebuild-time reset. (The direct window-appearance observation
+        // already heals this synchronously — see the test below; this case covers the OTHER
+        // entry point, a drift that arrives as an effectiveAppearance change, e.g. a system
+        // light/dark switch under an unpinned window.)
         window.appearance = NSAppearance(named: .aqua)
-        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
 
         // The drift notification re-asserts the themed appearance synchronously.
         view.viewDidChangeEffectiveAppearance()
@@ -532,6 +534,43 @@ final class EditorDisplayModeTests: XCTestCase {
         // Idempotent: a second notification with no drift must not churn (no loop).
         view.viewDidChangeEffectiveAppearance()
         XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+    }
+
+    @MainActor
+    func testWindowChromeReaderHealsWindowAppearanceDriftWithoutAnEffectiveAppearanceChange() {
+        // Regression (2026-07-25, round 2): the drift self-heal above was reachable ONLY
+        // through viewDidChangeEffectiveAppearance, and that callback can never fire for
+        // this drift — EditorWindowChrome.apply pins window.contentView.appearance, so the
+        // reader (a descendant of contentView) inherits the PINNED appearance and its
+        // effectiveAppearance is unchanged when window.appearance alone is reset. The
+        // sidebar-toggle glyph is drawn by the titlebar, which follows window.appearance,
+        // so it turned black on dark themes and STUCK. The reader must observe the window's
+        // appearance directly. No manual callback invocation here — that is the point.
+        let window = NSWindow()
+        window.contentView = NSView(frame: .zero)
+
+        let view = WindowChromeReader.ChromeView()
+        view.usesDarkChrome = true
+        window.contentView?.addSubview(view)
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+
+        // Simulate AppKit's rebuild-time reset of the WINDOW appearance only.
+        window.appearance = NSAppearance(named: .aqua)
+
+        XCTAssertEqual(
+            window.appearance?.bestMatch(from: [.darkAqua, .aqua]),
+            .darkAqua,
+            "window appearance drift must self-heal without an effectiveAppearance change"
+        )
+
+        // Clearing it entirely (the other shape of AppKit's reset) also heals.
+        window.appearance = nil
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
+
+        // Detaching stops the observation: the window is free to change without churn.
+        view.removeFromSuperview()
+        window.appearance = NSAppearance(named: .aqua)
+        XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
     }
 
     @MainActor

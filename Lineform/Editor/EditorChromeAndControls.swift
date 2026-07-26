@@ -768,10 +768,41 @@ struct WindowChromeReader: NSViewRepresentable {
         private weak var appliedWindow: NSWindow?
         private var appliedDarkChrome: Bool?
         private var appliedPageBackground: NSColor?
+        private var appearanceObservation: NSKeyValueObservation?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            observeWindowAppearance()
             applyChrome()
+        }
+
+        // The DIRECT self-heal, and the only one that covers the sidebar collapse/expand reset.
+        //
+        // viewDidChangeEffectiveAppearance below can NEVER fire for that drift: apply() pins
+        // `window.contentView.appearance`, and this view is a descendant of the content view, so
+        // it inherits the PINNED appearance — resetting `window.appearance` alone leaves this
+        // view's effectiveAppearance untouched. The titlebar does NOT inherit the content view's
+        // pin; it follows `window.appearance`. That asymmetry is exactly the reported symptom:
+        // the nav band still looks themed (it is painted by `window.backgroundColor`, which the
+        // reset does not touch) while the one native, appearance-derived control in it — the
+        // NavigationSplitView sidebar-toggle glyph — turns black on a dark theme and STICKS.
+        //
+        // Observing `window.appearance` directly makes the heal deterministic and timing-free,
+        // replacing the earlier next-tick + 0.35s re-assert pair, which merely raced the column's
+        // slide animation (any reset landing after the last timer still stuck).
+        //
+        // Cannot loop: the observer re-applies only while drifted, and our own write re-enters
+        // once with no drift left to correct.
+        private func observeWindowAppearance() {
+            // `MainActor.assumeIsolated` would TRAP if AppKit ever delivered this off-main; a
+            // chrome touch-up is never worth a crash, so hop instead of asserting.
+            appearanceObservation = window?.observe(\.appearance, options: [.new]) { [weak self] _, _ in
+                if Thread.isMainThread {
+                    MainActor.assumeIsolated { self?.applyChrome() }
+                } else {
+                    DispatchQueue.main.async { self?.applyChrome() }
+                }
+            }
         }
 
         // AppKit resets the window's explicit appearance to the default (light) aqua whenever the

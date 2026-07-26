@@ -2,6 +2,7 @@ import AppKit
 import XCTest
 @testable import Lineform
 
+@MainActor
 final class MarkdownPreviewRendererTests: XCTestCase {
     func testRendersMarkdownToNativeAttributedString() {
         let rendered = MarkdownPreviewRenderer().render("# Heading\n\nParagraph", profile: .original)
@@ -355,7 +356,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(separatorStyle.paragraphSpacing, 18)
     }
 
-    @MainActor
     func testPreviewTextViewRecalculatesColumnInsetWhenResized() {
         let textView = MarkdownPreviewTextView()
         var profile = ReadingProfile.original
@@ -372,7 +372,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(textView.textContainerInset.width, 40)
     }
 
-    @MainActor
     func testResizingNarrowerShrinksAWideBlockAttachment() throws {
         let textView = MarkdownPreviewTextView()
         var profile = ReadingProfile.original
@@ -398,7 +397,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
     /// rewraps but the scroll offset used to stay at its old pixel value, so the passage being
     /// read visibly shifted. The view must keep the top visible character at the same viewport
     /// offset across a width change, mirroring Write mode's visual-anchor preservation.
-    @MainActor
     func testNarrowingPreviewKeepsTopVisibleTextAnchoredWhileRewrapping() throws {
         let text = (0..<40)
             .map { index in
@@ -457,7 +455,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
     /// Same invariant, driven the way a MANUAL WINDOW RESIZE reaches the text view: through the
     /// scroll view's own frame change (clip view resize → documentView autoresizing), not a direct
     /// `setFrameSize` on the text view.
-    @MainActor
     func testNarrowingScrollViewKeepsTopVisibleTextAnchoredWhileRewrapping() throws {
         let text = (0..<40)
             .map { index in
@@ -516,7 +513,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
 
     /// Top-of-document pin for Read/Preview: a view at the very top stays at exactly the top
     /// through width changes (see the Write-mode counterpart for rationale).
-    @MainActor
     func testNarrowingPreviewAtTopStaysPinnedToTop() throws {
         let text = (0..<40)
             .map { index in
@@ -558,7 +554,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         }
     }
 
-    @MainActor
     private func topVisibleCharacterIndex(in textView: MarkdownPreviewTextView) throws -> Int {
         let layoutManager = try XCTUnwrap(textView.layoutManager)
         let container = try XCTUnwrap(textView.textContainer)
@@ -570,7 +565,6 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         return layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil).location
     }
 
-    @MainActor
     private func containerY(ofCharacterAt characterIndex: Int, in textView: MarkdownPreviewTextView) throws -> CGFloat {
         let layoutManager = try XCTUnwrap(textView.layoutManager)
         let container = try XCTUnwrap(textView.textContainer)
@@ -581,14 +575,12 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         return layoutManager.boundingRect(forGlyphRange: glyphRange, in: container).minY
     }
 
-    @MainActor
     private func viewportOffset(ofCharacterAt characterIndex: Int, in textView: MarkdownPreviewTextView) throws -> CGFloat {
         let clipView = try XCTUnwrap(textView.enclosingScrollView?.contentView)
         let yInContainer = try containerY(ofCharacterAt: characterIndex, in: textView)
         return yInContainer + textView.textContainerOrigin.y - clipView.bounds.origin.y
     }
 
-    @MainActor
     func testPreviewTextViewDoesNotRerenderUnchangedContent() {
         let textView = MarkdownPreviewTextView()
 
@@ -656,6 +648,7 @@ private final class SpyMermaidProvider: MermaidImageProviding {
 
 // MARK: - Block diagram/math background + fixed ink (Task 3b)
 
+@MainActor
 final class MarkdownPreviewRendererBackgroundTests: XCTestCase {
     private func renderMermaid(profile: ReadingProfile, provider: SpyMermaidProvider) {
         _ = MarkdownPreviewRenderer().render(
@@ -730,6 +723,7 @@ final class MarkdownPreviewRendererBackgroundTests: XCTestCase {
     }
 }
 
+@MainActor
 final class MarkdownPreviewRendererMathTests: XCTestCase {
     private func render(_ text: String, math: MathRenderOutcome) -> NSAttributedString {
         MarkdownPreviewRenderer().render(
@@ -844,6 +838,7 @@ final class MarkdownPreviewRendererMathTests: XCTestCase {
     }
 }
 
+@MainActor
 extension MarkdownPreviewRendererTests {
     private func renderReadMode(_ text: String, highlightsCode: Bool = true) -> NSAttributedString {
         MarkdownPreviewRenderer().render(
@@ -908,6 +903,7 @@ extension MarkdownPreviewRendererTests {
 
 // MARK: - Image blocks
 
+@MainActor
 final class MarkdownPreviewRendererImageTests: XCTestCase {
     private var tempDirectory: URL!
 
