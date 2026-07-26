@@ -125,4 +125,89 @@ final class MarkdownWritingToolsProtectionTests: XCTestCase {
         let text = "  ```\n- milk\n  ```"
         XCTAssertTrue(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 6, in: text))
     }
+
+    // MARK: - Scoped block regions (live spell check)
+
+    func testScopedProtectedRangesFindsFenceOpenedBeforeScope() {
+        let text = "```swift\nlet a = 1\nlet b = 2\n```\nprose here\n" as NSString
+        let scope = text.range(of: "let b")
+        let ranges = MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: scope)
+        XCTAssertEqual(ranges, [scope], "a fence opened before the scope must still protect inside it")
+    }
+
+    func testScopedProtectedRangesExcludesProseOutsideFence() {
+        let text = "```\ncode\n```\nprose here\n" as NSString
+        let scope = text.range(of: "prose")
+        let ranges = MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: scope)
+        XCTAssertTrue(ranges.isEmpty, "prose after a closed fence is not protected")
+    }
+
+    func testScopedProtectedRangesCoversFrontMatter() {
+        let text = "---\ntitle: teh\n---\nprose\n" as NSString
+        let scope = text.range(of: "title: teh")
+        let ranges = MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: scope)
+        XCTAssertEqual(ranges, [scope])
+    }
+
+    func testScopedProtectedRangesCoversDisplayMathOpenedBeforeScope() {
+        let text = "prose\n$$\nx = y\n$$\nmore\n" as NSString
+        let scope = text.range(of: "x = y")
+        let ranges = MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: scope)
+        XCTAssertEqual(ranges, [scope])
+    }
+
+    func testScopedProtectedRangesIsEmptyForAnEmptyScope() {
+        let text = "```\ncode\n```\n" as NSString
+        XCTAssertTrue(MarkdownWritingToolsProtection
+            .protectedRanges(in: text, intersecting: NSRange(location: 0, length: 0)).isEmpty)
+    }
+
+    /// The equivalence that makes the scoped path safe to substitute for the whole-document one.
+    func testScopedProtectedRangesMatchesWholeDocumentIntersection() {
+        let text = """
+        ---
+        title: Doc
+        ---
+        prose one $x+y$ tail
+        ```swift
+        let a = 1
+        ```
+        prose two
+        $$
+        a = b
+        $$
+        prose three with $5 in it
+        """ as NSString
+        let full = NSRange(location: 0, length: text.length)
+
+        var scope = NSRange(location: 0, length: 0)
+        while scope.location < text.length {
+            scope = text.lineRange(for: NSRange(location: scope.location, length: 0))
+            let scoped = MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: scope)
+            let expected = MarkdownWritingToolsProtection
+                .ignoredRanges(in: text as String, enclosingRange: full)
+                .map { NSIntersectionRange($0, scope) }
+                .filter { $0.length > 0 }
+            XCTAssertEqual(
+                normalizedRanges(scoped), normalizedRanges(expected),
+                "scoped result diverged from the whole-document pass at \(NSStringFromRange(scope))"
+            )
+            scope.location = NSMaxRange(scope)
+        }
+    }
+
+    /// Merges touching/overlapping ranges so the two paths compare on coverage, not on how
+    /// each happened to split it.
+    private func normalizedRanges(_ ranges: [NSRange]) -> [NSRange] {
+        let sorted = ranges.filter { $0.length > 0 }.sorted { $0.location < $1.location }
+        var merged: [NSRange] = []
+        for range in sorted {
+            if let last = merged.last, range.location <= NSMaxRange(last) {
+                merged[merged.count - 1] = NSUnionRange(last, range)
+            } else {
+                merged.append(range)
+            }
+        }
+        return merged
+    }
 }

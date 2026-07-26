@@ -98,6 +98,183 @@ enum MarkdownWritingToolsProtection {
         return ranges
     }
 
+    /// Block-level protected ranges (front matter, fenced code, math) intersecting `scope`,
+    /// clipped to it.
+    ///
+    /// Load-bearing: this exists so live spell checking never pays for the whole-document
+    /// `ignoredRanges` pass (18 ms at 730 KB — see the note on `isInsideCodeOrFrontMatter`).
+    /// It reproduces exactly what `protectedRanges(in:)` computes, clipped to `scope`, but:
+    ///
+    /// - **one** walk, not the two `fencedCodeRanges` + `mathRanges` make, so the document
+    ///   prefix is traversed once;
+    /// - lines before `scope` are classified by reading UTF-16 units directly, with **no
+    ///   substring or trimmed-copy allocation** — the prefix only contributes fence and
+    ///   `$$`-block *state*, never output;
+    /// - the real predicates (`MathBlockFence`, `MathDelimiters`) run only on lines that can
+    ///   actually produce a range, and the walk stops once past `scope`.
+    ///
+    /// A naive version calling the two whole-document passes measured **14.97 ms** per call at
+    /// 730 KB — barely better than the pass it was meant to avoid, and it FAILED the gate in
+    /// `MarkdownSpellCheckPerformanceTests`. Do not reintroduce that shape.
+    ///
+    /// Equivalence with `protectedRanges(in:)` is guarded by
+    /// `testScopedProtectedRangesMatchesWholeDocumentIntersection`.
+    ///
+    /// See `docs/superpowers/specs/2026-07-26-live-spell-check-design.md`.
+    static func protectedRanges(in text: NSString, intersecting scope: NSRange) -> [NSRange] {
+        let full = NSRange(location: 0, length: text.length)
+        let clampedScope = NSIntersectionRange(scope, full)
+        guard clampedScope.length > 0 else { return [] }
+
+        let limit = NSMaxRange(clampedScope)
+        let scopeStart = clampedScope.location
+        var ranges: [NSRange] = []
+
+        if let frontMatter = frontMatterRange(in: text) {
+            ranges.append(frontMatter)
+        }
+
+        // fencedCodeRanges state (marker-matched) and mathRanges state (toggled) are tracked
+        // separately because the two whole-document passes track them differently — matching
+        // that difference is what keeps this equivalent.
+        var openFenceStart: Int?
+        var openFenceMarker: String?
+        var mathBlockStart: Int?
+        var inCodeFence = false
+
+        let dollar = UInt16(UnicodeScalar("$").value)
+        let backtick = UInt16(UnicodeScalar("`").value)
+        let tilde = UInt16(UnicodeScalar("~").value)
+        let newlineUnit = UInt16(UnicodeScalar("\n").value)
+        let length = text.length
+        var offset = 0
+
+        // Reading UTF-16 units through an inline buffer rather than `character(at:)` /
+        // `range(of:)`: those are one Objective-C dispatch each, and the prefix walk performs
+        // tens of thousands of them on a large document. Measured 2.69 ms → see the note above.
+        var buffer = CFStringInlineBuffer()
+        CFStringInitInlineBuffer(text as CFString, &buffer, CFRangeMake(0, length))
+
+        @inline(__always)
+        func unit(_ index: Int) -> UInt16 {
+            CFStringGetCharacterFromInlineBuffer(&buffer, index)
+        }
+
+        while offset <= length {
+            var scan = offset
+            while scan < length, unit(scan) != newlineUnit {
+                scan += 1
+            }
+            let isLast = scan >= length
+            let contentsEnd = scan
+            let contentLength = contentsEnd - offset
+            let storedLength = contentLength + (isLast ? 0 : 1)
+
+            // ONE leading-whitespace scan, shared by both classifications below. Deliberately
+            // not `fenceMarker`, which skips only space/tab: this must match
+            // `trimmingCharacters(in: .whitespaces)` for the equivalence to hold.
+            var lower = offset
+            while lower < contentsEnd, isWhitespace(unit(lower)) {
+                lower += 1
+            }
+
+            var marker: String?
+            if contentsEnd - lower >= 3 {
+                let first = unit(lower)
+                if first == backtick || first == tilde,
+                   unit(lower + 1) == first,
+                   unit(lower + 2) == first {
+                    marker = first == backtick ? "```" : "~~~"
+                }
+            }
+
+            // Trailing trim is only needed to recognise a `$$`-only line, so pay for it only
+            // when the line actually starts with `$`. Ordinary prose exits on one comparison.
+            var isBlockDelimiterOnly = false
+            if lower < contentsEnd, unit(lower) == dollar {
+                var upper = contentsEnd
+                while upper > lower, isWhitespace(unit(upper - 1)) {
+                    upper -= 1
+                }
+                isBlockDelimiterOnly = upper - lower == 2 && unit(lower + 1) == dollar
+            }
+
+            // --- fencedCodeRanges ---
+            if let marker {
+                if let start = openFenceStart, marker == openFenceMarker {
+                    ranges.append(NSRange(location: start, length: offset + storedLength - start))
+                    openFenceStart = nil
+                    openFenceMarker = nil
+                } else if openFenceStart == nil {
+                    openFenceStart = offset
+                    openFenceMarker = marker
+                }
+            }
+
+            // --- mathRanges ---
+            if mathBlockStart == nil, marker != nil {
+                inCodeFence.toggle()
+            } else if inCodeFence {
+                // Inside a fence: `$`/`$$` are not math.
+            } else if let start = mathBlockStart {
+                if isBlockDelimiterOnly {
+                    ranges.append(NSRange(location: start, length: offset + storedLength - start))
+                    mathBlockStart = nil
+                }
+            } else if isBlockDelimiterOnly {
+                mathBlockStart = offset
+            } else if contentsEnd > scopeStart {
+                // The ONLY allocating branch, and only for lines that can produce output.
+                let line = text.substring(with: NSRange(location: offset, length: contentLength))
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if MathBlockFence.singleLineBlock(trimmed) != nil {
+                    ranges.append(NSRange(location: offset, length: contentLength))
+                } else {
+                    ranges.append(contentsOf: MathDelimiters.inlineMathRanges(in: line, lineOffset: offset))
+                }
+            }
+
+            if isLast || offset + storedLength >= limit {
+                break
+            }
+            offset += storedLength
+        }
+
+        // Unterminated constructs protect through end of text, exactly as the whole-document
+        // passes do. Clipping to `scope` (which ends at or before `limit`) then makes an
+        // early-stopped walk indistinguishable from a complete one.
+        if let start = openFenceStart {
+            ranges.append(NSRange(location: start, length: max(0, length - start)))
+        }
+        if let start = mathBlockStart {
+            ranges.append(NSRange(location: start, length: max(0, length - start)))
+        }
+
+        return ranges
+            .map { NSIntersectionRange($0, clampedScope) }
+            .filter { $0.length > 0 }
+    }
+
+    /// `CharacterSet.whitespaces` membership for one UTF-16 unit, with an ASCII fast path.
+    ///
+    /// Must agree with `String.trimmingCharacters(in: .whitespaces)` exactly — the scoped walk's
+    /// equivalence to the whole-document passes depends on classifying lines the same way. The
+    /// fast path is only an optimization: space and tab are in the set, every other ASCII
+    /// character is not, and anything non-ASCII falls through to the real set.
+    @inline(__always)
+    private static func isWhitespace(_ unit: UInt16) -> Bool {
+        if unit == 0x20 || unit == 0x09 {
+            return true
+        }
+        if unit < 0x80 {
+            return false
+        }
+        guard let scalar = UnicodeScalar(unit) else {
+            return false
+        }
+        return CharacterSet.whitespaces.contains(scalar)
+    }
+
     /// Ranges of LaTeX math regions — inline `$…$` and display `$$…$$` blocks — so Writing Tools
     /// does not rewrite the source, exactly as it leaves fenced code alone. Uses the same `$`
     /// rules as the renderer, so prose dollar signs ("$5") are never protected.
@@ -152,11 +329,16 @@ enum MarkdownWritingToolsProtection {
     }
 
     private static func frontMatterRange(in text: String) -> NSRange? {
-        guard text.hasPrefix("---\n") else {
+        frontMatterRange(in: text as NSString)
+    }
+
+    /// Identical to the `String` overload, which delegates here — so the scoped path can avoid
+    /// bridging the whole document just to test a four-character prefix.
+    private static func frontMatterRange(in nsText: NSString) -> NSRange? {
+        guard nsText.hasPrefix("---\n") else {
             return nil
         }
 
-        let nsText = text as NSString
         // The opening delimiter occupies positions 0...3 ("---\n"). Search from the
         // trailing newline (position 3) so a closing "\n---" that immediately follows
         // the opening — i.e. empty front matter ("---\n---") — is still detected.

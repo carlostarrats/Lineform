@@ -33,6 +33,32 @@ final class LineformSettingsTests: XCTestCase {
         XCTAssertFalse(restored.showICloudInSidebar)
     }
 
+    // MARK: - Spell checking
+
+    func testChecksSpellingWhileTypingDefaultsToTrue() {
+        let store = LineformSettingsStore(defaults: freshDefaults("LineformSpellCheckDefault"))
+        XCTAssertTrue(store.checksSpellingWhileTyping, "live spell check ships on")
+    }
+
+    func testChecksSpellingWhileTypingPersistsAcrossStoreInstances() {
+        let defaults = freshDefaults("LineformSpellCheckPersist")
+        let store = LineformSettingsStore(defaults: defaults)
+        store.checksSpellingWhileTyping = false
+
+        let restored = LineformSettingsStore(defaults: defaults)
+        XCTAssertFalse(restored.checksSpellingWhileTyping, "the user's choice must survive relaunch")
+    }
+
+    func testChecksSpellingWhileTypingWritesThroughToDefaults() {
+        let defaults = freshDefaults("LineformSpellCheckWriteThrough")
+        let store = LineformSettingsStore(defaults: defaults)
+        store.checksSpellingWhileTyping = false
+        XCTAssertEqual(
+            defaults.object(forKey: LineformSettingsStore.checksSpellingWhileTypingKey) as? Bool,
+            false
+        )
+    }
+
     func testStoreRecordsPersistedICloudAvailability() {
         // Optimistic default: never recorded → assume available (fresh installs are
         // mostly real users with iCloud; avoids a locked-geometry flash).

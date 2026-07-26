@@ -829,4 +829,146 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         rect.origin.y += textView.textContainerOrigin.y
         return textView.convert(rect, to: scrollView).midY
     }
+
+    // MARK: - Spelling context menu safety
+
+    func testRightClickSelectsTheMisspelledWordWithNoSelection() {
+        XCTAssertTrue(LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: NSRange(location: 10, length: 4),
+            existingSelection: NSRange(location: 10, length: 0)
+        ))
+    }
+
+    func testRightClickKeepsAnExistingSelectionThatCoversTheWord() {
+        // Bold/Italic/Link share this menu and act on the selection: collapsing a selected
+        // phrase onto one word would silently change what they do.
+        XCTAssertFalse(LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: NSRange(location: 10, length: 4),
+            existingSelection: NSRange(location: 4, length: 20)
+        ))
+    }
+
+    func testRightClickSelectsTheWordWhenTheSelectionIsElsewhere() {
+        XCTAssertTrue(LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: NSRange(location: 40, length: 4),
+            existingSelection: NSRange(location: 0, length: 10)
+        ))
+    }
+
+    func testSpellingCorrectionIsValidWhenTheWordIsUnchanged() {
+        XCTAssertTrue(LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: NSRange(location: 6, length: 3),
+            word: "teh",
+            in: "hello teh world" as NSString
+        ))
+    }
+
+    /// A live reload can replace the document while the menu is open; the stale range would
+    /// otherwise replace the wrong text or throw NSRangeException.
+    func testSpellingCorrectionIsInvalidWhenTheTextChangedUnderneath() {
+        XCTAssertFalse(LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: NSRange(location: 6, length: 3),
+            word: "teh",
+            in: "hello the world" as NSString
+        ))
+    }
+
+    func testSpellingCorrectionIsInvalidWhenTheRangeIsNowOutOfBounds() {
+        XCTAssertFalse(LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: NSRange(location: 6, length: 3),
+            word: "teh",
+            in: "hi" as NSString
+        ))
+    }
+
+    func testSelectionAfterCorrectionPlacesCaretAfterTheNewWord() {
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: nil,
+            wordRange: NSRange(location: 6, length: 3),   // "teh"
+            replacementLength: 3,                          // "the"
+            textLength: 15
+        )
+        XCTAssertEqual(selection, NSRange(location: 9, length: 0))
+    }
+
+    /// The menu preserves a selection so Bold/Italic/Link still act on it; applying a
+    /// correction must not then throw that selection away.
+    func testSelectionAfterCorrectionKeepsAPreservedSelectionAndResizesIt() {
+        // "befor" (5) -> "before" (6): the surrounding selection grows by one.
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 0, length: 20),
+            wordRange: NSRange(location: 9, length: 5),
+            replacementLength: 6,
+            textLength: 40
+        )
+        XCTAssertEqual(selection, NSRange(location: 0, length: 21))
+    }
+
+    func testSelectionAfterCorrectionShrinksAPreservedSelectionWhenTheWordGetsShorter() {
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 0, length: 20),
+            wordRange: NSRange(location: 9, length: 5),
+            replacementLength: 2,
+            textLength: 40
+        )
+        XCTAssertEqual(selection, NSRange(location: 0, length: 17))
+    }
+
+    func testSelectionAfterCorrectionFallsBackToCaretOnAPartialOverlap() {
+        // Selection covers only the tail of the word, so the replacement moves its start too —
+        // there is no exact adjustment, so do not pretend otherwise.
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 11, length: 9),
+            wordRange: NSRange(location: 9, length: 5),
+            replacementLength: 6,
+            textLength: 40
+        )
+        XCTAssertEqual(selection, NSRange(location: 15, length: 0))
+    }
+
+    func testSelectionAfterCorrectionClampsAPreservedSelectionToTheText() {
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 0, length: 100),
+            wordRange: NSRange(location: 0, length: 3),
+            replacementLength: 3,
+            textLength: 10
+        )
+        XCTAssertEqual(selection, NSRange(location: 0, length: 10), "must never exceed the text")
+    }
+
+    // MARK: - Spelling suggestions
+
+    /// One confident answer beats a phonetic dump. These are the real values
+    /// NSSpellChecker returns for "teh".
+    func testSpellingSuggestionsShowsOnlyTheConfidentCorrection() {
+        let suggestions = LineformTextContextMenuPresentation.spellingSuggestions(
+            correction: "the",
+            guesses: ["the", "ten", "tbh", "tex", "feh", "yeh", "tea", "ted"]
+        )
+        XCTAssertEqual(suggestions, ["the"], "a confident correction is shown alone")
+    }
+
+    func testSpellingSuggestionsFallsBackToTheTopGuessWithoutACorrection() {
+        // `correction` is nil whenever the system-wide autocorrect setting is off, which is the
+        // common case — so the fallback is the path that usually runs, not an edge case.
+        let suggestions = LineformTextContextMenuPresentation.spellingSuggestions(
+            correction: nil,
+            guesses: ["the", "ten", "tbh", "tex", "feh"]
+        )
+        XCTAssertEqual(suggestions, ["the"], "guesses are ranked; only the first is a real candidate")
+    }
+
+    func testSpellingSuggestionsSkipsEmptyGuesses() {
+        let suggestions = LineformTextContextMenuPresentation.spellingSuggestions(
+            correction: nil,
+            guesses: ["", "before"]
+        )
+        XCTAssertEqual(suggestions, ["before"])
+    }
+
+    func testSpellingSuggestionsIsEmptyWhenTheCheckerOffersNothing() {
+        XCTAssertTrue(
+            LineformTextContextMenuPresentation.spellingSuggestions(correction: nil, guesses: []).isEmpty
+        )
+    }
 }

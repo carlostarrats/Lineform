@@ -524,6 +524,14 @@ final class LineformTextView: NSTextView {
         textFormat = contextMenuTextFormat
         let menu = NSMenu()
         menu.allowsContextMenuPlugIns = LineformTextContextMenuPresentation.allowsContextMenuPlugIns
+
+        // This menu REPLACES AppKit's, which is where spelling guesses, Learn, and Ignore
+        // normally live — so enabling spell checking without adding them here leaves a
+        // misspelled word with no way to act on it. Added at the TOP, matching every other
+        // macOS text view, and the word is selected so the correction is visible before it
+        // is applied.
+        addSpellingItemsIfNeeded(to: menu, for: event)
+
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.cutTitle, action: #selector(cut(_:)), keyEquivalent: "x"))
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.copyTitle, action: #selector(copy(_:)), keyEquivalent: "c"))
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.pasteTitle, action: #selector(paste(_:)), keyEquivalent: "v"))
@@ -538,6 +546,178 @@ final class LineformTextView: NSTextView {
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.linkTitle, action: #selector(toggleLinkMarkdown(_:)), keyEquivalent: AppMenuConfiguration.linkCommandKeyEquivalent))
         }
         return menu
+    }
+
+    /// The misspelled word the context menu is acting on, captured when the menu is built
+    /// because the click location is not available by the time an item fires. The word is kept
+    /// alongside the range so the range can be revalidated — see `applySpellingGuess` — and
+    /// `preservedSelection` records a selection that was deliberately left intact, so applying a
+    /// correction does not destroy the very selection the menu went out of its way to keep.
+    private var spellingCorrection: (range: NSRange, word: String, preservedSelection: NSRange?)?
+
+    private func addSpellingItemsIfNeeded(to menu: NSMenu, for event: NSEvent) {
+        spellingCorrection = nil
+        guard isContinuousSpellCheckingEnabled,
+              let wordRange = misspelledWordRange(at: event) else {
+            return
+        }
+
+        let word = (string as NSString).substring(with: wordRange)
+
+        // Right-clicking a misspelling normally selects it, so the correction is visible before
+        // it is applied — but NOT when that would steal an existing selection the user is about
+        // to act on. This menu also carries Bold/Italic/Link, which operate on the selection, so
+        // collapsing a selected phrase to one word silently changes what those commands do.
+        let existingSelection = selectedRange()
+        let selectsWord = LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: wordRange,
+            existingSelection: existingSelection
+        )
+        spellingCorrection = (wordRange, word, selectsWord ? nil : existingSelection)
+        if selectsWord {
+            setSelectedRange(wordRange)
+        }
+        let guesses = LineformTextContextMenuPresentation.spellingSuggestions(
+            correction: NSSpellChecker.shared.correction(
+                forWordRange: wordRange,
+                in: string,
+                language: NSSpellChecker.shared.language(),
+                inSpellDocumentWithTag: spellCheckerDocumentTag
+            ),
+            guesses: NSSpellChecker.shared.guesses(
+                forWordRange: wordRange,
+                in: string,
+                language: nil,
+                inSpellDocumentWithTag: spellCheckerDocumentTag
+            ) ?? []
+        )
+
+        if guesses.isEmpty {
+            let item = NSMenuItem(
+                title: LineformTextContextMenuPresentation.noGuessesTitle,
+                action: nil,
+                keyEquivalent: ""
+            )
+            item.isEnabled = false
+            menu.addItem(item)
+        } else {
+            for guess in guesses {
+                let item = NSMenuItem(
+                    title: guess,
+                    action: #selector(applySpellingGuess(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                menu.addItem(item)
+            }
+        }
+
+        menu.addItem(.separator())
+
+        let learn = NSMenuItem(
+            title: LineformTextContextMenuPresentation.learnSpellingTitle,
+            action: #selector(learnSpellingFromContextMenu(_:)),
+            keyEquivalent: ""
+        )
+        learn.target = self
+        learn.representedObject = word
+        menu.addItem(learn)
+
+        let ignore = NSMenuItem(
+            title: LineformTextContextMenuPresentation.ignoreSpellingTitle,
+            action: #selector(ignoreSpellingFromContextMenu(_:)),
+            keyEquivalent: ""
+        )
+        ignore.target = self
+        ignore.representedObject = word
+        menu.addItem(ignore)
+
+        menu.addItem(.separator())
+    }
+
+    /// The flagged-word range under `event`, or nil. Reads the `.spellingState` temporary
+    /// attribute the checker already applied, so this agrees with what is drawn rather than
+    /// re-running a check.
+    private func misspelledWordRange(at event: NSEvent) -> NSRange? {
+        guard let layoutManager, let textContainer else { return nil }
+        let nsText = string as NSString
+        guard nsText.length > 0 else { return nil }
+
+        var point = convert(event.locationInWindow, from: nil)
+        point.x -= textContainerOrigin.x
+        point.y -= textContainerOrigin.y
+
+        var fraction: CGFloat = 0
+        let glyphIndex = layoutManager.glyphIndex(
+            for: point,
+            in: textContainer,
+            fractionOfDistanceThroughGlyph: &fraction
+        )
+        let characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        guard characterIndex < nsText.length else { return nil }
+
+        var effectiveRange = NSRange(location: 0, length: 0)
+        let value = layoutManager.temporaryAttribute(
+            .spellingState,
+            atCharacterIndex: characterIndex,
+            longestEffectiveRange: &effectiveRange,
+            in: NSRange(location: 0, length: nsText.length)
+        )
+        guard let raw = value as? Int,
+              raw & NSAttributedString.SpellingState.spelling.rawValue != 0,
+              effectiveRange.length > 0 else {
+            return nil
+        }
+        return effectiveRange
+    }
+
+    @objc private func applySpellingGuess(_ sender: NSMenuItem) {
+        guard let pending = spellingCorrection else { return }
+        spellingCorrection = nil
+
+        // Revalidate before editing. The document CAN change while the menu is open: live
+        // reload is a debounced async dispatch, and menu tracking runs in a common run-loop
+        // mode, so an external rewrite lands underneath an open menu. A stale range would
+        // either replace the wrong text or throw NSRangeException.
+        guard LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: pending.range,
+            word: pending.word,
+            in: string as NSString
+        ) else {
+            return
+        }
+
+        let replacement = sender.title
+        // The localized, undoable edit path — one ⌘Z reverses the correction. Never
+        // `applyWholeTextReplacement`, which rewrites the whole document.
+        guard shouldChangeText(in: pending.range, replacementString: replacement) else { return }
+        textStorage?.replaceCharacters(in: pending.range, with: replacement)
+        didChangeText()
+        setSelectedRange(LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: pending.preservedSelection,
+            wordRange: pending.range,
+            replacementLength: (replacement as NSString).length,
+            textLength: (string as NSString).length
+        ))
+    }
+
+    @objc private func learnSpellingFromContextMenu(_ sender: NSMenuItem) {
+        guard let word = sender.representedObject as? String else { return }
+        NSSpellChecker.shared.learnWord(word)
+        recheckSpellingAfterDictionaryChange()
+    }
+
+    @objc private func ignoreSpellingFromContextMenu(_ sender: NSMenuItem) {
+        guard let word = sender.representedObject as? String else { return }
+        NSSpellChecker.shared.ignoreWord(word, inSpellDocumentWithTag: spellCheckerDocumentTag)
+        recheckSpellingAfterDictionaryChange()
+    }
+
+    /// Learning or ignoring a word does not retract underlines already drawn, so clear the
+    /// spelling attributes and re-check — the same work a toggle needs.
+    private func recheckSpellingAfterDictionaryChange() {
+        guard isContinuousSpellCheckingEnabled else { return }
+        applySpellCheckingEnabled(true)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -629,7 +809,25 @@ final class LineformTextView: NSTextView {
         isAutomaticQuoteSubstitutionEnabled = false
         isAutomaticDashSubstitutionEnabled = false
         isAutomaticTextReplacementEnabled = false
-        isAutomaticSpellingCorrectionEnabled = true
+        // Squiggles, not silent rewrites: the app points at problems and lets the writer decide.
+        // Autocorrect is actively wrong for Markdown, where identifiers, paths, and URLs are
+        // ordinary content. Grammar checking is off DELIBERATELY (set, not omitted) — it flags
+        // headings, list items, and captions as fragments, which fights calm writing.
+        isAutomaticSpellingCorrectionEnabled = false
+        isGrammarCheckingEnabled = false
+        isContinuousSpellCheckingEnabled = LineformSettingsStore.shared.checksSpellingWhileTyping
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(spellCheckingPreferenceDidChange),
+            name: Self.spellCheckingDidChangeNotification,
+            object: nil
+        )
+        // The inline candidate list — a floating pill of alternatives that appears near the
+        // caret on a flagged word. It defaults to ON and only becomes visible once continuous
+        // checking is enabled, so turning checking on silently introduces it. It is an
+        // unfamiliar, hover-revealed control that fights calm writing; corrections belong in
+        // the right-click menu, where `menu(for:)` now puts them.
+        isAutomaticTextCompletionEnabled = false
         usesFindPanel = true
         isIncrementalSearchingEnabled = true
         isVerticallyResizable = true
@@ -798,6 +996,85 @@ final class LineformTextView: NSTextView {
 
     func writingToolsDidEnd() {
         isLineformWritingToolsSessionActive = false
+    }
+
+    /// Spell-checks only the prose parts of `range`, calling `super` once per checkable
+    /// sub-range so a paragraph containing `inlineCode` still gets its real typos flagged.
+    ///
+    /// This IS the as-you-type path: AppKit routes continuous checking through here (verified
+    /// 2026-07-26 — `docs/notes/2026-07-26-spell-check-probe-findings.md`), handing over roughly
+    /// the visible chunk around the caret, and `textView(_:willCheckTextIn:options:types:)`
+    /// fires downstream of each `super` call.
+    ///
+    /// Load-bearing: `MarkdownSpellCheckRegions` is scoped by construction. Do NOT substitute
+    /// `MarkdownWritingToolsProtection.ignoredRanges` or `MarkdownRangeAnalyzer.ranges(in:)`
+    /// here — both are whole-document (18 ms at 730 KB) and this runs as the user types.
+    override func checkText(
+        in range: NSRange,
+        types checkingTypes: NSTextCheckingTypes,
+        options: [NSSpellChecker.OptionKey: Any]
+    ) {
+        guard isContinuousSpellCheckingEnabled else {
+            // An explicit "Check Document Now" with continuous checking off should behave
+            // exactly as AppKit intends, unsuppressed.
+            super.checkText(in: range, types: checkingTypes, options: options)
+            return
+        }
+
+        for subRange in MarkdownSpellCheckRegions.checkableRanges(
+            in: string as NSString,
+            enclosing: range,
+            highlighter: markdownHighlighter
+        ) {
+            super.checkText(in: subRange, types: checkingTypes, options: options)
+        }
+    }
+
+    /// Broadcast when the spell-check preference is toggled, so every open text view follows —
+    /// not just the one that happened to be first responder.
+    static let spellCheckingDidChangeNotification = Notification.Name("LineformSpellCheckingDidChange")
+
+    /// Edit ▸ Spelling and Grammar ▸ Check Spelling While Typing is the only control for this
+    /// feature. AppKit flips the flag on the first responder; we persist the result and tell
+    /// every other open view, because the preference is app-wide and two windows disagreeing
+    /// reads as a bug.
+    override func toggleContinuousSpellChecking(_ sender: Any?) {
+        super.toggleContinuousSpellChecking(sender)
+        let isEnabled = isContinuousSpellCheckingEnabled
+        LineformSettingsStore.shared.checksSpellingWhileTyping = isEnabled
+        applySpellCheckingEnabled(isEnabled)
+        NotificationCenter.default.post(
+            name: Self.spellCheckingDidChangeNotification,
+            object: nil,
+            userInfo: ["enabled": isEnabled]
+        )
+    }
+
+    @objc private func spellCheckingPreferenceDidChange(_ notification: Notification) {
+        guard let isEnabled = notification.userInfo?["enabled"] as? Bool,
+              isEnabled != isContinuousSpellCheckingEnabled else {
+            return
+        }
+        isContinuousSpellCheckingEnabled = isEnabled
+        applySpellCheckingEnabled(isEnabled)
+    }
+
+    /// Turning checking on does NOT make AppKit re-examine text that is already laid out, so the
+    /// underlines would not appear until the next keystroke — the toggle would look broken.
+    /// Turning it off leaves the existing underlines drawn, for the same reason. Both directions
+    /// have to be applied by hand.
+    private func applySpellCheckingEnabled(_ isEnabled: Bool) {
+        guard let layoutManager else { return }
+        let fullRange = NSRange(location: 0, length: (string as NSString).length)
+        layoutManager.removeTemporaryAttribute(.spellingState, forCharacterRange: fullRange)
+        guard isEnabled else { return }
+
+        let visible = visibleCharacterRangeForLayoutPreservation() ?? fullRange
+        checkText(
+            in: visible,
+            types: NSTextCheckingResult.CheckingType.spelling.rawValue,
+            options: [:]
+        )
     }
 
     func writingToolsIgnoredRanges(in enclosingRange: NSRange) -> [NSValue] {
@@ -1417,6 +1694,88 @@ enum LineformTextContextMenuPresentation {
     static let linkTitle = "Link"
     static let convertToPlainTextTitle = "Convert to Plain Text"
     static let convertToMarkdownTitle = "Convert to Markdown"
+    static let learnSpellingTitle = "Learn Spelling"
+    static let ignoreSpellingTitle = "Ignore Spelling"
+    static let noGuessesTitle = "No Guesses Found"
+
+    /// The single suggestion to offer for a misspelling, or none.
+    ///
+    /// `NSSpellChecker.guesses` is a broad phonetic net, not an answer: for "teh" it returns
+    /// the, ten, tbh, tex, feh, yeh, tea, ted — one plausible fix and seven near-random words.
+    /// Listing them buries the right answer in noise and makes the menu read like a word game.
+    /// The list IS ranked, though, so the first entry is the real candidate ("the" for "teh",
+    /// "before" for "befor").
+    ///
+    /// `correction` is a separate, higher-confidence API — the fix autocorrect would apply — but
+    /// it returns nil whenever the system-wide "Correct spelling automatically" setting is off,
+    /// which is unrelated to this app and cannot be relied on. So it is preferred when present
+    /// and the top guess is the fallback.
+    ///
+    /// Anyone wanting the full list has Edit ▸ Spelling and Grammar ▸ Show Spelling and Grammar
+    /// (⌘:) — the system panel, which shows everything.
+    /// Whether right-clicking a misspelling should collapse the selection onto it.
+    ///
+    /// Yes when there is no meaningful selection — seeing the word highlighted is how the user
+    /// knows what a correction will replace. No when a non-empty selection already covers it:
+    /// this menu also carries Bold, Italic, and Link, which act on the selection, so silently
+    /// shrinking a selected phrase to one word would change what those commands do.
+    static func shouldSelectMisspelledWord(wordRange: NSRange, existingSelection: NSRange) -> Bool {
+        guard existingSelection.length > 0 else { return true }
+        return NSIntersectionRange(wordRange, existingSelection).length == 0
+    }
+
+    /// Where the selection should land after a spelling correction is applied.
+    ///
+    /// When the menu deliberately preserved an existing selection (see
+    /// `shouldSelectMisspelledWord`), that selection is kept and resized by the length the
+    /// correction changed — otherwise applying the correction would destroy the very selection
+    /// the menu went out of its way to protect, and Bold/Italic/Link would no longer act on what
+    /// the user had chosen. With no preserved selection, the caret lands after the new word,
+    /// which is what every text editor does.
+    static func selectionAfterCorrection(
+        preservedSelection: NSRange?,
+        wordRange: NSRange,
+        replacementLength: Int,
+        textLength: Int
+    ) -> NSRange {
+        let caret = NSRange(location: wordRange.location + replacementLength, length: 0)
+        guard let preserved = preservedSelection else { return caret }
+
+        // Only a selection that FULLY CONTAINS the word can be preserved correctly: resizing it
+        // by the length delta is exact. A partial overlap (half a word selected) would also have
+        // its start shifted by the replacement, so there is no honest adjustment — fall back to
+        // the caret rather than leave a subtly wrong selection.
+        guard preserved.location <= wordRange.location,
+              NSMaxRange(preserved) >= NSMaxRange(wordRange) else {
+            return caret
+        }
+
+        let delta = replacementLength - wordRange.length
+        let adjusted = NSRange(
+            location: preserved.location,
+            length: max(0, preserved.length + delta)
+        )
+        let clamped = NSIntersectionRange(adjusted, NSRange(location: 0, length: textLength))
+        return clamped.length > 0 ? clamped : caret
+    }
+
+    /// Whether a range captured when the context menu was built still refers to the same word.
+    ///
+    /// The document can change while the menu is open — live reload is a debounced async
+    /// dispatch and menu tracking runs in a common run-loop mode — so the captured range may
+    /// point past the end of the text or at different characters entirely.
+    static func isSpellingCorrectionValid(range: NSRange, word: String, in text: NSString) -> Bool {
+        guard range.length > 0, NSMaxRange(range) <= text.length else { return false }
+        return text.substring(with: range) == word
+    }
+
+    static func spellingSuggestions(correction: String?, guesses: [String]) -> [String] {
+        if let correction, !correction.isEmpty {
+            return [correction]
+        }
+        guard let best = guesses.first(where: { !$0.isEmpty }) else { return [] }
+        return [best]
+    }
     static let excludedSystemPluginTitles = ["Autofill", "AutoFill", "Services"]
 
     static func conversionTitle(for textFormat: LineformTextFormat) -> String {
