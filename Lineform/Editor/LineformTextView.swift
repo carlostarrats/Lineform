@@ -432,6 +432,59 @@ final class LineformTextView: NSTextView {
         scrollRangeToVisible(selectedRange())
     }
 
+    /// Moves between the cells of the GFM table under the caret. Outside a table — which is
+    /// almost everywhere — this falls straight through and Tab inserts a literal tab, exactly as
+    /// it did before. That fall-through is why Tab could be claimed here at all when list
+    /// continuation deliberately left it alone.
+    ///
+    /// `insertTab` / `insertBacktab` for the same reason `insertNewline` is overridden rather
+    /// than `keyDown`: they are reached only after the input context has resolved the keypress.
+    override func insertTab(_ sender: Any?) {
+        guard let outcome = MarkdownTableEditing.tabTarget(
+            in: string,
+            selectedRange: selectedRange(),
+            forward: true
+        ) else {
+            super.insertTab(sender)
+            return
+        }
+        applyTableTabOutcome(outcome)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        guard let outcome = MarkdownTableEditing.tabTarget(
+            in: string,
+            selectedRange: selectedRange(),
+            forward: false
+        ) else {
+            super.insertBacktab(sender)
+            return
+        }
+        applyTableTabOutcome(outcome)
+    }
+
+    /// `.select` edits nothing at all, so most Tabs inside a table cost no undo step and no
+    /// document write. `.appendRow` uses the same localized `replaceCharacters` path as list
+    /// continuation — NOT `applyWholeTextReplacement`, which would rewrite the whole document on
+    /// a keystroke.
+    private func applyTableTabOutcome(_ outcome: MarkdownTableEditing.TabOutcome) {
+        switch outcome {
+        case .stay:
+            return
+        case let .select(range):
+            setSelectedRange(range)
+            scrollRangeToVisible(range)
+        case let .appendRow(insertion, at, selecting):
+            let range = NSRange(location: at, length: 0)
+            guard shouldChangeText(in: range, replacementString: insertion) else { return }
+
+            textStorage?.replaceCharacters(in: range, with: insertion)
+            didChangeText()
+            setSelectedRange(selecting)
+            scrollRangeToVisible(selecting)
+        }
+    }
+
     @objc func toggleBoldMarkdown(_ sender: Any?) {
         applyFormattingCommand(.bold)
     }
@@ -466,6 +519,22 @@ final class LineformTextView: NSTextView {
 
     @objc func toggleUnorderedListMarkdown(_ sender: Any?) {
         applyFormattingCommand(.unorderedList)
+    }
+
+    @objc func insertMarkdownTable(_ sender: Any?) {
+        applyWholeTextReplacement(MarkdownTableEditing.insertion(in: string, selectedRange: selectedRange()))
+        scrollRangeToVisible(selectedRange())
+    }
+
+    /// Silently does nothing when the caret is not in a table, when the table is already aligned,
+    /// or when the region holds an escaped pipe or a backtick — see `MarkdownTableEditing`.
+    /// Bailing before `applyWholeTextReplacement` is what keeps a no-op ⌃⌘R from registering an
+    /// empty undo step.
+    @objc func reformatMarkdownTable(_ sender: Any?) {
+        guard let edit = MarkdownTableEditing.reformat(in: string, selectedRange: selectedRange()) else {
+            return
+        }
+        applyWholeTextReplacement(edit)
     }
 
     @objc func toggleLinkMarkdown(_ sender: Any?) {

@@ -255,6 +255,8 @@ enum MainMenuIconDecorator {
         "bulleted list": "list.bullet",
         "numbered list": "list.number",
         "link": "link",
+        "insert table": "tablecells",
+        "reformat table": "tablecells.badge.ellipsis",
         "convert to plain text": "arrow.left.arrow.right",
         "convert to markdown": "arrow.left.arrow.right",
         // View menu
