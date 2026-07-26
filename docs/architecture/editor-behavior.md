@@ -79,3 +79,65 @@ in this area.
   strictly line-local by invariant and cannot see a fence opened on an earlier line. The
   whole-document walk is additionally gated behind a cheap line-local prefix match, so Returns on
   ordinary prose (0.001 ms) never pay for it.
+
+## Live spell check
+
+Shipped 2026-07-26 (backlog item 2). Design:
+`docs/superpowers/specs/2026-07-26-live-spell-check-design.md`. Measurements and the AppKit
+probe that decided the shape: `docs/notes/2026-07-26-spell-check-probe-findings.md`.
+
+`configureForMarkdownEditing` turns continuous checking on (from the persisted preference),
+autocorrect **off**, and grammar checking **off** — the last two set explicitly, not omitted, so
+the omission reads as a decision. The old state was the worst of the four combinations:
+autocorrect silently rewrote words while nothing indicated what the checker objected to.
+
+**Suppression.** `checkText(in:types:options:)` splits the incoming range through
+`MarkdownSpellCheckRegions.checkableRanges` and calls `super` once per prose sub-range, so a
+paragraph containing `inlineCode` still gets its real typos flagged. Suppressed: fenced code,
+front matter, math, inline code spans, and link/image *destinations*. Link and image **text is
+checked** — it is prose.
+
+**Four things that were paid for in defects:**
+
+(1) **`checkText(in:types:options:)` is the hook, and it is the one AppKit uses for as-you-type
+checking** — verified by probe, not assumed. `textView(_:willCheckTextIn:options:types:)` fires
+downstream of it, 1:1. Note the delegate method is `willCheckTextIn`, **not** `shouldCheckTextIn`:
+the latter compiles, produces only a "nearly matches optional requirement" warning, and is never
+called. Its options dictionary is keyed by `NSSpellChecker.OptionKey`.
+
+(2) **Never call a whole-document pass from this path.** `ignoredRanges` is 18 ms at 730 KB and
+`MarkdownRangeAnalyzer.ranges(in:)` has the same shape. The first implementation used the
+whole-document passes with an `upTo` bound and measured **14.97 ms/call** — it failed the gate in
+`MarkdownSpellCheckPerformanceTests`. The shipped version is a single walk that classifies prefix
+lines by reading UTF-16 units through a `CFStringInlineBuffer` without allocating; the prefix
+contributes only fence and `$$`-block *state*, so the real predicates run only on lines that can
+emit a range. 2.26 ms in Debug, ~0.6 ms in an optimized build. **Debug measures ~3.6× slower than
+Release** here — do not read a Debug number as what users feel.
+
+(3) **AppKit provides no Spelling and Grammar menu, and this app replaces the Edit menu.** Nothing
+supplies one for free — verified by dumping the live menu over Accessibility. Without the submenu
+added to `AppCommands`, the feature has no off switch and `toggleContinuousSpellChecking` is
+unreachable. Likewise `menu(for:)` replaces AppKit's context menu, which is where guesses, Learn,
+and Ignore normally live; they have to be added by hand or a flagged word cannot be acted on.
+
+(4) **Toggling has to be applied by hand, in both directions and across windows.** Enabling
+checking does not make AppKit re-examine text that is already laid out, so underlines would not
+appear until the next keystroke and the toggle would look broken; disabling leaves existing
+underlines drawn. `applySpellCheckingEnabled` clears the `.spellingState` temporary attributes and
+re-checks the visible range, and a notification broadcasts the change to every open text view —
+the preference is app-wide, so two windows disagreeing reads as a bug.
+
+**Suggestions show one candidate, not the whole list.** `NSSpellChecker.guesses` is a broad
+phonetic net — for "teh" it returns the, ten, tbh, tex, feh, yeh, tea, ted — and listing them
+buries the answer in noise. The list is ranked, so the first entry is the real candidate.
+`NSSpellChecker.correction(forWordRange:…)` is preferred when present, but it returns nil whenever
+the **system-wide** "Correct spelling automatically" setting is off, which is unrelated to this
+app and cannot be depended on. The full list stays available at Edit ▸ Spelling and Grammar ▸ Show
+Spelling and Grammar (⌘:).
+
+The inline candidate list (`isAutomaticTextCompletionEnabled`) is **off**: it is a floating pill of
+alternatives near the caret, defaults on, and becomes visible only once continuous checking is
+enabled — so turning checking on silently introduces an unfamiliar hover-revealed control.
+
+Spell checking routes through the system `NSSpellChecker` and nothing else — on-device, no
+network. Corrections use the localized undoable path, so one ⌘Z reverses one correction.

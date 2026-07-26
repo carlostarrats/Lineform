@@ -4,9 +4,9 @@
 **Purpose:** The six items the user selected as future work after a gap review of the shipped 1.3.0-era build. **Nothing here is scheduled or started.** This is a written-down intent list, not a plan — each item needs its own design pass before code.
 **Companion:** `docs/research/2026-07-18-competitor-feature-scan.md` (whose §3 shortlist has now largely shipped; see the status pass at the top of that file).
 
-**Verification basis:** static read of the source on 2026-07-25 — greps and file reads, **no build was run and no flow was driven in the app.** Two items below (1 and 2) were behavior claims needing confirmation in a real Debug build. **Item 1's claim was confirmed and the item has since shipped (2026-07-26); item 2's is still unconfirmed.** The rest are structural absences visible in the code and are not in doubt.
+**Verification basis:** static read of the source on 2026-07-25 — greps and file reads, **no build was run and no flow was driven in the app.** Two items below (1 and 2) were behavior claims needing confirmation in a real Debug build. **Both items 1 and 2 were confirmed in a real Debug build and have since shipped (2026-07-26).** The rest are structural absences visible in the code and are not in doubt.
 
-**Status:** 1 of 6 shipped. Remaining: 2–6.
+**Status:** 2 of 6 shipped. Remaining: 3–6.
 
 ---
 
@@ -37,9 +37,27 @@ four load-bearing traps: `docs/architecture/editor-behavior.md`.
 
 ---
 
-### 2. Live spell check
+### 2. Live spell check — **SHIPPED 2026-07-26**
 
-**Today:** `Lineform/Editor/LineformTextView.swift:587-590` disables quote, dash, and text substitution — correct for Markdown, keep it — and sets `isAutomaticSpellingCorrectionEnabled = true`. It never sets `isContinuousSpellCheckingEnabled` or `isGrammarCheckingEnabled`, both of which default to `false` on `NSTextView`.
+**Shipped** as `MarkdownSpellCheckRegions` plus a `LineformTextView.checkText(in:types:options:)`
+override that splits each checked range into prose-only sub-ranges. Autocorrect is now off,
+grammar checking stays unused, and suppression covers fenced code, front matter, math, inline
+code, and link/image destinations (link *text* is still checked). Design:
+`docs/superpowers/specs/2026-07-26-live-spell-check-design.md`; implementation notes and the four
+traps: `docs/architecture/editor-behavior.md`; measurements: `docs/notes/2026-07-26-spell-check-probe-findings.md`.
+
+**Three things the plan did not anticipate**, all found in manual QA and all shipped as fixes:
+the Edit menu had no Spelling and Grammar submenu (SwiftUI builds none and this app replaces the
+Edit menu), so the feature had **no off switch**; `menu(for:)` replaces AppKit's context menu, so
+right-click offered no guesses, Learn, or Ignore; and enabling continuous checking surfaced a
+floating inline candidate pill, now disabled. Suggestions deliberately show **one** ranked
+candidate rather than the checker's full phonetic list.
+
+**Performance:** the first implementation failed its own gate at 14.97 ms/call and was rewritten;
+shipped cost is ~0.6 ms mid-document in an optimized build, against Apple's own checker at
+~0.09 ms. Guarded by `MarkdownSpellCheckPerformanceTests`.
+
+**Was true before the change:** `Lineform/Editor/LineformTextView.swift:587-590` disabled quote, dash, and text substitution — correct for Markdown, kept — and set `isAutomaticSpellingCorrectionEnabled = true`. It never set `isContinuousSpellCheckingEnabled` or `isGrammarCheckingEnabled`, both of which default to `false` on `NSTextView`.
 
 **The oddity:** autocorrect silently changes words while misspellings get no red underline. That's the least useful of the four possible combinations — the app edits your text without showing you what it thinks is wrong.
 
