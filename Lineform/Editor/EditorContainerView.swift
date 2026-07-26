@@ -689,7 +689,11 @@ struct EditorContainerView: View {
             // card + Esc/outside-click dismissal.
             if isShowingSettings {
                 museModalLayer(scrimZIndex: 3, modalZIndex: 4, onDismiss: { isShowingSettings = false }) { geometry in
-                    SettingsModal(settings: settings, availableWidth: geometry.size.width) {
+                    SettingsModal(
+                        settings: settings,
+                        usesDarkChrome: theme.usesDarkChrome,
+                        availableWidth: geometry.size.width
+                    ) {
                         isShowingSettings = false
                     }
                 }
@@ -759,7 +763,7 @@ struct EditorContainerView: View {
         onDismiss: @escaping () -> Void,
         @ViewBuilder modal: @escaping (GeometryProxy) -> Modal
     ) -> some View {
-        MuseModalScrim(dismiss: onDismiss)
+        MuseModalScrim(usesDarkChrome: currentTheme.usesDarkChrome, dismiss: onDismiss)
             .zIndex(scrimZIndex)
             .transaction { transaction in
                 transaction.animation = nil

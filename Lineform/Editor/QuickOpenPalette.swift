@@ -56,26 +56,16 @@ struct QuickOpenPalette: View {
 
             resultsList
         }
-        .frame(width: min(Self.maximumCardWidth, max(280, availableWidth - 48)))
-        // Same two fixed chrome variants as the Find & Replace card, at modal weight.
-        .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
-        // The Settings card's exact chrome recipe (MuseModalCard): flat background,
-        // continuous-corner clip, hairline stroke, then the soft wide shadow applied to
-        // the CLIPPED view — shadowing the background shape instead reads blurry/muddy.
-        .background(
-            usesDarkChrome
-                ? Color(white: 0.15)
-                : Color(white: MuseModalChrome.backgroundWhiteComponent)
+        // The SHARED modal card (MuseModalCard) — same background, radius, outline and
+        // shadow as Settings. This used to be a hand-rolled copy of that recipe, which is
+        // how the two modals drifted apart; do not re-inline it here.
+        .museModalCard(
+            width: min(Self.maximumCardWidth, max(280, availableWidth - 48)),
+            accessibilityLabel: "Jump to File",
+            // The rows and search field carry their own padding.
+            padding: 0,
+            usesDarkChrome: usesDarkChrome
         )
-        .clipShape(RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous)
-                .stroke(
-                    usesDarkChrome ? Color.white.opacity(0.14) : Color.black.opacity(0.08),
-                    lineWidth: 1
-                )
-        }
-        .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
         .modalArrowCursor()
         .onExitCommand { onDismiss() }
         .onAppear { isFieldFocused = true }

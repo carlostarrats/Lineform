@@ -48,12 +48,31 @@ enum MuseModalChrome {
     static let textRedComponent: CGFloat = 0.12
     static let secondaryTextOpacity: CGFloat = 0.74
 
+    /// Card fill, straight from the Paper design: a vertical wash, light at the top falling
+    /// to a barely-there step darker at the bottom. Values are the design's hex stops —
+    /// do not "round" them, the whole effect lives in a ~10-value range.
+    static let cardGradientTop = Color(red: 1.0, green: 1.0, blue: 1.0)             // #FFFFFF
+    static let cardGradientBottom = Color(red: 0.945, green: 0.945, blue: 0.945)    // #F1F1F1
+    static let cardGradientTopDark = Color(red: 0.192, green: 0.192, blue: 0.192)   // #313131
+    static let cardGradientBottomDark = Color(red: 0.125, green: 0.125, blue: 0.125) // #202020
+
+    /// Modal text. These mirror `OutlineSidebarView`'s components so the modal's dark text
+    /// matches the rest of the dark chrome rather than inventing a second scale.
+    static let darkPrimaryTextWhiteComponent: CGFloat = 0.90
+    static let darkSecondaryTextWhiteComponent: CGFloat = 0.68
+
+    /// 1pt stroke. This is ⌘K's outline, not the Paper card's `#F1F7FF` — the two modals
+    /// must carry the SAME outline, and the cool white all but vanished against the field.
+    static let cardStrokeColor = Color.black.opacity(0.08)
+    /// ⌘K's dark-chrome counterpart, so the shared card can serve both appearances.
+    static let cardStrokeColorDark = Color.white.opacity(0.14)
+
     /// Circular close-button fill: invisible at rest, a faint tint on hover.
     static let closeRestingFillOpacity = 0.0
     static let closeHoverFillOpacity = 0.08
 
     /// Card geometry + entrance motion (shared so both modals animate identically).
-    static let cornerRadius: CGFloat = 18
+    static let cornerRadius: CGFloat = 20
     static let animationDuration = 0.24
     static let entranceYOffset: CGFloat = 10
 
@@ -61,12 +80,33 @@ enum MuseModalChrome {
         Color(nsColor: NSColor(calibratedWhite: backgroundWhiteComponent, alpha: 1))
     }
 
-    static var primaryTextColor: Color {
-        Color(nsColor: NSColor(calibratedRed: textRedComponent, green: textRedComponent, blue: textRedComponent, alpha: 1))
+    /// The card's fill. `backgroundColor` stays as the flat token for any surface that
+    /// needs a solid match; the CARD itself uses this wash.
+    static func backgroundGradient(usesDarkChrome: Bool) -> LinearGradient {
+        LinearGradient(
+            colors: usesDarkChrome
+                ? [cardGradientTopDark, cardGradientBottomDark]
+                : [cardGradientTop, cardGradientBottom],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
-    static var secondaryTextColor: Color {
-        primaryTextColor.opacity(secondaryTextOpacity)
+    /// THREADED, never read from `@Environment(\.colorScheme)`. A nested modal control that
+    /// reads the environment renders invisible text after a tab/inspector transition — the
+    /// same failure the sidebar is documented against in `docs/architecture/files-sidebar.md`.
+    static func primaryTextColor(usesDarkChrome: Bool) -> Color {
+        if usesDarkChrome {
+            return Color(nsColor: NSColor(calibratedWhite: darkPrimaryTextWhiteComponent, alpha: 1))
+        }
+        return Color(nsColor: NSColor(calibratedRed: textRedComponent, green: textRedComponent, blue: textRedComponent, alpha: 1))
+    }
+
+    static func secondaryTextColor(usesDarkChrome: Bool) -> Color {
+        if usesDarkChrome {
+            return Color(nsColor: NSColor(calibratedWhite: darkSecondaryTextWhiteComponent, alpha: 1))
+        }
+        return primaryTextColor(usesDarkChrome: false).opacity(secondaryTextOpacity)
     }
 }
 
@@ -74,6 +114,7 @@ enum MuseModalChrome {
 /// circular, Esc-bound close button on the right (invisible until hovered).
 struct MuseModalHeader: View {
     var title: String
+    var usesDarkChrome = false
     var dismiss: () -> Void
     @State private var isCloseHovered = false
 
@@ -81,7 +122,7 @@ struct MuseModalHeader: View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.title2.weight(.semibold))
-                .foregroundStyle(MuseModalChrome.primaryTextColor)
+                .foregroundStyle(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome))
 
             Spacer()
 
@@ -90,11 +131,11 @@ struct MuseModalHeader: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(MuseModalChrome.secondaryTextColor)
+                    .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .frame(width: 28, height: 28)
                     .background(
                         Circle()
-                            .fill(MuseModalChrome.primaryTextColor.opacity(isCloseHovered ? MuseModalChrome.closeHoverFillOpacity : MuseModalChrome.closeRestingFillOpacity))
+                            .fill(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(isCloseHovered ? MuseModalChrome.closeHoverFillOpacity : MuseModalChrome.closeRestingFillOpacity))
                     )
             }
             .buttonStyle(.plain)
@@ -109,56 +150,175 @@ struct MuseModalHeader: View {
     }
 }
 
-/// The card container shared by every Muse modal: fixed inner padding, a
-/// caller-sized width, the light background, rounded clip + hairline stroke, drop
-/// shadow, and a forced-light color scheme so the card matches in either appearance.
+/// The card container shared by EVERY Muse modal (Settings, ⌘K): inner padding, a
+/// caller-sized width, the gradient background, rounded clip + hairline stroke, drop
+/// shadow, and a pinned color scheme.
+///
+/// ⌘K used to hand-roll a copy of this recipe, which is exactly how the two modals drifted
+/// apart. Both go through here now — a modal that needs different chrome should add a
+/// parameter, not a second copy.
 private struct MuseModalCard: ViewModifier {
     var width: CGFloat
     var accessibilityLabel: String
+    /// ⌘K supplies its own per-section padding (search field, divider, list), so it opts out.
+    var padding: CGFloat
+    /// ⌘K tracks the theme; Settings is always light.
+    var usesDarkChrome: Bool
 
     func body(content: Content) -> some View {
         content
-            .padding(24)
+            .padding(padding)
             .frame(width: width, alignment: .leading)
-            .background(MuseModalChrome.backgroundColor)
+            .background(MuseModalChrome.backgroundGradient(usesDarkChrome: usesDarkChrome))
             .clipShape(RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: MuseModalChrome.cornerRadius, style: .continuous)
-                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                    .stroke(
+                        usesDarkChrome ? MuseModalChrome.cardStrokeColorDark : MuseModalChrome.cardStrokeColor,
+                        lineWidth: 1
+                    )
             }
-            .shadow(color: Color.black.opacity(0.16), radius: 28, x: 0, y: 14)
-            .environment(\.colorScheme, .light)
+            // Much softer than the pre-design 0.16/28/14: the field is light now, so a heavy
+            // shadow reads as dirt under the card rather than lift.
+            .shadow(color: Color.black.opacity(0.07), radius: 18, x: 0, y: 8)
+            .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(accessibilityLabel)
     }
 }
 
 extension View {
-    func museModalCard(width: CGFloat, accessibilityLabel: String) -> some View {
-        modifier(MuseModalCard(width: width, accessibilityLabel: accessibilityLabel))
+    func museModalCard(
+        width: CGFloat,
+        accessibilityLabel: String,
+        padding: CGFloat = 24,
+        usesDarkChrome: Bool = false
+    ) -> some View {
+        modifier(
+            MuseModalCard(
+                width: width,
+                accessibilityLabel: accessibilityLabel,
+                padding: padding,
+                usesDarkChrome: usesDarkChrome
+            )
+        )
     }
 }
 
 /// The dimming, tap-to-dismiss scrim behind a Muse-style modal (Settings). Shared
 /// chrome — the modal card is layered above it by `museModalLayer`.
 struct MuseModalScrim: View {
-    static let scrimOpacity = 0.32
+    /// The scrim is a light ATMOSPHERIC FIELD, per the Paper design: a cool-white wash with
+    /// two crossing diagonal grays, laid at `fieldOpacity` over a blur of the page. The
+    /// blur is what makes the remaining 10% read as depth instead of as show-through
+    /// clutter — drop it and the field looks merely dirty.
     static let scrimTransitionStyle = EditorAuxiliaryTransitionStyle.instant
 
+    /// Mostly solid: the document survives only as a faint ghost.
+    static let fieldOpacity: CGFloat = 0.90
+
+    /// Base wash: light at the top settling into the faintest blue at the bottom (dark:
+    /// near-black settling darker still).
+    static let fieldGradientTop = Color(red: 1.0, green: 1.0, blue: 1.0)            // #FFFFFF
+    static let fieldGradientBottom = Color(red: 0.945, green: 0.969, blue: 1.0)     // #F1F7FF
+    static let fieldGradientTopDark = Color(red: 0.192, green: 0.188, blue: 0.188)  // #313030
+    static let fieldGradientBottomDark = Color(red: 0.071, green: 0.071, blue: 0.071) // #121212
+
+    /// The two diagonal washes laid across the base, crossing each other. They are what
+    /// keep the field from looking like a flat vertical ramp — the soft corner shading in
+    /// the design comes entirely from their overlap.
+    static let diagonalWashTop = Color(red: 0.957, green: 0.957, blue: 0.957)       // #F4F4F4
+    static let diagonalWashBottom = Color(red: 0.835, green: 0.835, blue: 0.835)    // #D5D5D5
+    static let diagonalWashTopDark = Color(red: 0.173, green: 0.173, blue: 0.173)   // #2C2C2C
+    static let diagonalWashBottomDark = Color(red: 0.071, green: 0.071, blue: 0.071) // #121212
+    static let diagonalWashOpacity: CGFloat = 0.20
+
+    static func diagonalWash(startPoint: UnitPoint, endPoint: UnitPoint, usesDarkChrome: Bool) -> some View {
+        LinearGradient(
+            colors: usesDarkChrome
+                ? [diagonalWashTopDark, diagonalWashBottomDark]
+                : [diagonalWashTop, diagonalWashBottom],
+            startPoint: startPoint,
+            endPoint: endPoint
+        )
+        .opacity(diagonalWashOpacity)
+        .allowsHitTesting(false)
+    }
+
+    /// THREADED from the theme by the presenting container, never read from the
+    /// environment — see `MuseModalChrome.primaryTextColor(usesDarkChrome:)`.
+    var usesDarkChrome = false
     var dismiss: () -> Void
 
     var body: some View {
         ZStack {
-            Color.black.opacity(Self.scrimOpacity)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    dismiss()
-                }
+            LinearGradient(
+                colors: usesDarkChrome
+                    ? [Self.fieldGradientTopDark, Self.fieldGradientBottomDark]
+                    : [Self.fieldGradientTop, Self.fieldGradientBottom],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .overlay {
+                Self.diagonalWash(startPoint: .topLeading, endPoint: .bottomTrailing, usesDarkChrome: usesDarkChrome)
+            }
+            .overlay {
+                Self.diagonalWash(startPoint: .bottomLeading, endPoint: .topTrailing, usesDarkChrome: usesDarkChrome)
+            }
+            .opacity(Self.fieldOpacity)
+            .background(MuseModalBackdropBlur(usesDarkChrome: usesDarkChrome))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismiss()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // The editor's I-beam gets "stuck" when the modal covers the window (nothing over the
         // scrim resets it). Actively reassert the arrow as the pointer moves across the scrim.
         .modalArrowCursor()
+    }
+}
+
+/// The within-window frost behind a Muse modal's dim: blurs the editor content the modal
+/// covers, so the card reads as glass over the document rather than a panel on a gray field.
+///
+/// The within-window blur under the modal field. AppKit rather than SwiftUI's
+/// `.ultraThinMaterial` so `withinWindow` blending is explicit (SwiftUI picks it
+/// heuristically) and the appearance is PINNED — a dark reader theme must not flip the
+/// blur's tint under a field that is always light.
+struct MuseModalBackdropBlur: NSViewRepresentable {
+    var usesDarkChrome = false
+
+    /// Passes clicks through to the SwiftUI field above, which owns tap-to-dismiss.
+    final class PassthroughEffectView: NSVisualEffectView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
+    /// Context-free so the configuration is assertable without a live SwiftUI update pass.
+    static func makeBackdropView(usesDarkChrome: Bool) -> NSVisualEffectView {
+        let view = PassthroughEffectView()
+        view.material = .fullScreenUI
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.isEmphasized = false
+        view.appearance = NSAppearance(named: appearanceName(usesDarkChrome: usesDarkChrome))
+        return view
+    }
+
+    /// Matches the FIELD above it, not the window: a light blur under the dark field would
+    /// glow through the 10% the field doesn't cover.
+    static func appearanceName(usesDarkChrome: Bool) -> NSAppearance.Name {
+        usesDarkChrome ? .darkAqua : .aqua
+    }
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        Self.makeBackdropView(usesDarkChrome: usesDarkChrome)
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        // Re-assert after an appearance change; AppKit resets a pinned appearance when the
+        // effective appearance flips under it (same failure mode as the window chrome).
+        nsView.appearance = NSAppearance(named: Self.appearanceName(usesDarkChrome: usesDarkChrome))
     }
 }
 
