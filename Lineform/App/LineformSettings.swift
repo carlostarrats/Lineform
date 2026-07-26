@@ -11,6 +11,7 @@ final class LineformSettingsStore: ObservableObject {
     static let showSidebarOnLaunchKey = "Lineform.settings.showSidebarOnLaunch"
     static let allowRootFolderCollapseKey = "Lineform.settings.allowRootFolderCollapse"
     static let showICloudInSidebarKey = "Lineform.settings.showICloudInSidebar"
+    static let checksSpellingWhileTypingKey = "Lineform.settings.checksSpellingWhileTyping"
 
     @Published var showSidebarOnLaunch: Bool {
         didSet {
@@ -54,6 +55,18 @@ final class LineformSettingsStore: ObservableObject {
         }
     }
 
+    /// Live (as-you-type) spell checking. Driven solely by the standard
+    /// Edit ▸ Spelling and Grammar ▸ Check Spelling While Typing menu item — there is
+    /// deliberately no Settings row, so there is only ever one control for one Bool.
+    /// `LineformTextView` reads this at construction, which is what makes newly opened
+    /// tabs and windows inherit the choice.
+    @Published var checksSpellingWhileTyping: Bool {
+        didSet {
+            guard oldValue != checksSpellingWhileTyping else { return }
+            defaults.set(checksSpellingWhileTyping, forKey: Self.checksSpellingWhileTypingKey)
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -70,6 +83,7 @@ final class LineformSettingsStore: ObservableObject {
         // behavior can adapt to root visibility.
         _allowRootFolderCollapseChoice = Published(initialValue: defaults.object(forKey: Self.allowRootFolderCollapseKey) as? Bool)
         _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, true))
+        _checksSpellingWhileTyping = Published(initialValue: boolOrDefault(Self.checksSpellingWhileTypingKey, true))
     }
 }
 
