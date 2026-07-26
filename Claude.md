@@ -30,6 +30,11 @@ Core product principles:
 - Split/Preview mode for side-by-side writing and preview.
 - Markdown outline navigation from document headings.
 - Markdown formatting commands for common writing actions.
+- Multi-document tabs, Find & Replace, cross-file search, and ⌘K quick open.
+- Read/Preview rendering of Mermaid diagrams, LaTeX math, GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
+- Save As with a Format picker: Markdown, PDF, Styled PDF, Rich Text (.rtf), plus Print (⌘P).
+- Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
+- ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.

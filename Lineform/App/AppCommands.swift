@@ -33,7 +33,10 @@ enum ManualSaveIntentMonitor {
 enum AppMenuConfiguration {
     static let aboutCommandTitle = "About Lineform"
     static let settingsCommandTitle = "Settings…"
-    static let aboutVersionDisplay = "V1.2.0"
+    /// MUST match `MARKETING_VERSION` in the project. This is a hand-maintained string, so it
+    /// drifts silently on a version bump — it shipped as V1.2.0 while the app was 1.3.0. The
+    /// release checklist in `Lineform/Resources/ReleaseReadiness.md` now calls it out explicitly.
+    static let aboutVersionDisplay = "V1.3.0"
     static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
     static let saveCommandTitle = "Save"
     static let saveAsCommandTitle = "Save As..."

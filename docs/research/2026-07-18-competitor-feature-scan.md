@@ -4,6 +4,21 @@
 **Purpose:** Survey competing Markdown editors, note features worth adopting for Lineform (macOS), filtered against Lineform's positioning: calm, native, file-based, local-first, no AI, source-available (PolyForm Shield). Also captures the pricing landscape, since many of these charge and monetization is now on the table.
 **Status:** Research working doc. Not a commitment. Verify each idea against the current build before acting — this is a dated snapshot.
 
+> **Status pass 2026-07-25 — most of §3 has SHIPPED. Do not re-scope it.**
+> Verified against the code, not memory:
+> - **A. Local inline images** — SHIPPED (block-only, left-aligned, Reconnect pill; remote URLs still a placeholder, invariant intact).
+> - **B. Callouts** — SHIPPED (5 GitHub types, monochrome title row, custom titles).
+> - **C. Code highlighting + copy button** — SHIPPED (`Lineform/Preview/CodeHighlighting.swift`, native tokenizer: swift / js-ts / python / json / bash + script fallback). Line numbers still correctly skipped.
+> - **D. DOCX + RTF export** — **RTF shipped; DOCX deliberately DROPPED**, not deferred: no native writer, and RTF opens cleanly in Word/Pages/Google Docs/TextEdit. See `docs/architecture/export-and-print.md`. Treat D as closed.
+> - **E. Read-aloud** — SHIPPED (`SpeechController` + `SpeechTextExtractor`; skips code/math/diagrams, never reads `#`/`*`).
+> - **F. Custom preview/export themes** — shipped in a much narrower form than proposed: **two** PDF presets, **Normal** and **Styled** (`ExportTypographyPreset.all`). The 4-preset *Standard / Manuscript / Compact / Article* set described in the 2026-07-18 plan and spec **never shipped** — those two files are historical design records and were intentionally left unedited. On-screen typographic themes (as opposed to reader color themes) remain unbuilt.
+> - **G. ⌘E view-mode toggle** — SHIPPED exactly as decided (Write ↔ Read; Split stays on the toolbar).
+> - **H. Session word-count goal** — **NOT built.** `DocumentStatistics` counts words/characters and the status bar shows them, but there is no target or progress affordance.
+>
+> Everything in §4 (wiki-links, tags, scratchpad, style check, EPUB, Git history) and §5 (reject list) is unchanged and still unbuilt, by decision.
+>
+> A follow-on gap review on the same date found items this scan never covered — chiefly **list continuation on Return**, **live spell check**, **footnotes**, **table authoring**, and **HTML export**. See `docs/research/2026-07-25-feature-backlog.md`.
+
 ---
 
 ## 1. Products surveyed (18 sites, 15 distinct apps)
