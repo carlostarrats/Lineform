@@ -4,15 +4,25 @@
 **Purpose:** The six items the user selected as future work after a gap review of the shipped 1.3.0-era build. **Nothing here is scheduled or started.** This is a written-down intent list, not a plan — each item needs its own design pass before code.
 **Companion:** `docs/research/2026-07-18-competitor-feature-scan.md` (whose §3 shortlist has now largely shipped; see the status pass at the top of that file).
 
-**Verification basis:** static read of the source on 2026-07-25 — greps and file reads, **no build was run and no flow was driven in the app.** Two items below (1 and 2) are behavior claims that should be confirmed by typing in a real Debug build before any work starts. The rest are structural absences visible in the code and are not in doubt.
+**Verification basis:** static read of the source on 2026-07-25 — greps and file reads, **no build was run and no flow was driven in the app.** Two items below (1 and 2) were behavior claims needing confirmation in a real Debug build. **Item 1's claim was confirmed and the item has since shipped (2026-07-26); item 2's is still unconfirmed.** The rest are structural absences visible in the code and are not in doubt.
+
+**Status:** 1 of 6 shipped. Remaining: 2–6.
 
 ---
 
 ## Ordered by everyday impact
 
-### 1. List continuation on Return *(highest impact)*
+### 1. List continuation on Return *(highest impact)* — **SHIPPED 2026-07-26**
 
-**Today:** there is no `doCommandBy(_:)`, `insertNewline`, or `shouldChangeTextIn` override anywhere in `Lineform/Editor/`. Pressing Return after `- groceries` yields a bare empty line, not `- `.
+**Shipped** as `MarkdownListContinuation` + a `LineformTextView.insertNewline` override. Bullets,
+ordered items, task checkboxes, and blockquotes all continue; Return on an empty marker ends the
+construct. Two deliberate reductions from the scope below: **Tab/Shift-Tab indent was dropped**
+(it is the only piece that would remove existing behavior — Tab still inserts a literal tab) and
+ordered lists **increment only** rather than renumbering. Design:
+`docs/superpowers/specs/2026-07-26-list-continuation-design.md`; implementation notes and the
+four load-bearing traps: `docs/architecture/editor-behavior.md`.
+
+**Was true before the change:** there was no `doCommandBy(_:)`, `insertNewline`, or `shouldChangeTextIn` override anywhere in `Lineform/Editor/`. Pressing Return after `- groceries` yielded a bare empty line, not `- `. Confirmed on 2026-07-26 both by grep and by an AppKit probe showing `NSTextView` appends a bare newline for every marker type (its own continuation is `NSTextList`-attribute-driven and unreachable from a plain-text view).
 
 **Scope when built:**
 - Continue `-` / `*` / `+`, `1.` (renumbering), `- [ ]` (new item unchecked, never inheriting `[x]`), and `>` on Return.

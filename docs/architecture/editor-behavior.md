@@ -38,3 +38,44 @@ in this area.
   (view code and export), so the annotation changed no behavior; renderer test classes carry
   `@MainActor` to match. Do not "fix" a future isolation warning here by dropping back to
   `nonisolated` + `assumeIsolated` — that would silently permit off-main rendering.
+
+- **List continuation on Return (2026-07-26).** Return after a bullet (`-`/`*`/`+`), ordered item
+  (`1.`/`1)`), task checkbox, or blockquote continues the marker; Return on a marker the writer
+  left empty clears it and ends the construct. The decision is a pure value type,
+  `MarkdownListContinuation.outcome(for:selectedRange:)` (`Lineform/Editor/MarkdownListContinuation.swift`),
+  returning `.continue(insertion:)`, `.terminate(clearing:)`, or `nil` for "behave normally" —
+  no AppKit, so the whole decision surface is testable without a window. The marker character,
+  ordered separator, and leading indentation are preserved verbatim; a continued checkbox is
+  **always** `- [ ]` (inheriting `[x]` would silently mark new work done). Ordered items
+  **increment only** and never renumber the items below — GFM renders `1. 2. 2.` as 1, 2, 3, so
+  the cost is confined to the source text, whereas renumbering would be a multi-line edit that
+  has to stay one undo step and hold the caret still. Tab/Shift-Tab indent was deliberately left
+  out: it is the only part of the original scope that would REMOVE existing behavior (Tab inserts
+  a literal tab) and Tab is a standard accessibility focus key. See
+  `docs/superpowers/specs/2026-07-26-list-continuation-design.md`.
+
+  **Four things that are load-bearing, each a real trap:**
+  (1) It overrides **`insertNewline(_:)`, never `keyDown`.** `keyDown` fires BEFORE input-method
+  handling, so it would swallow Return while a Japanese/Chinese IME commits a composition, and
+  would fight the spelling-correction popup. `insertNewline` is only reached once the input
+  context has decided the keypress really is a newline.
+  (2) The edit goes through the **localized** `shouldChangeText → replaceCharacters → didChangeText`
+  path (`applyListContinuationEdit`), **NOT** `applyWholeTextReplacement`, which every formatting
+  command uses and which does `setAttributedString` over the ENTIRE document — a full-document
+  rewrite on every Return. Copying the nearest formatting command is the obvious wrong move.
+  One `replaceCharacters` is also what makes a single ⌘Z reverse the newline and its marker
+  together, with no explicit undo grouping.
+  (3) It deliberately does **not** re-highlight. `didChangeText` already reaches the delegate's
+  `textDidChange`, which schedules the debounced visible-window pass; forcing a synchronous
+  `refreshMarkdownHighlighting()` here re-attributes on every Return — the per-keystroke repaint
+  measured as the large-doc caret trail on 2026-07-05. The explicit `scrollRangeToVisible` stays,
+  because bypassing `super.insertNewline` also bypasses AppKit's own scroll-to-caret.
+  (4) Fence/front-matter suppression uses
+  **`MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location:in:)`**, added for this and
+  kept in that file so the fence rules stay in one place. It is NOT `ignoredRanges`: that computes
+  every protected region whole-document including a per-line inline-math regex, and measured
+  **18.37 ms** on a 730 KB file versus **1.05 ms** for the narrow check — fine for a Writing Tools
+  session, far too slow per Return. `MarkdownRangeAnalyzer` cannot answer this at all; it is
+  strictly line-local by invariant and cannot see a fence opened on an earlier line. The
+  whole-document walk is additionally gated behind a cheap line-local prefix match, so Returns on
+  ordinary prose (0.001 ms) never pay for it.

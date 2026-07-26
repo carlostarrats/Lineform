@@ -30,6 +30,7 @@ Core product principles:
 - Split/Preview mode for side-by-side writing and preview.
 - Markdown outline navigation from document headings.
 - Markdown formatting commands for common writing actions.
+- List continuation on Return for bullets, numbered items, task checkboxes, and blockquotes; Return on an empty marker ends the construct.
 - Multi-document tabs, Find & Replace, cross-file search, and ⌘K quick open.
 - Read/Preview rendering of Mermaid diagrams, LaTeX math, GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
 - Save As with a Format picker: Markdown, PDF, Styled PDF, Rich Text (.rtf), plus Print (⌘P).
@@ -87,6 +88,7 @@ file named after it carries the full story and the reasoning.
 **Editor** (`editor-behavior.md`)
 - `MarkdownRangeAnalyzer` must stay strictly LINE-LOCAL. Visible-window-scoped highlighting is only correct because of it; a cross-line construct silently breaks scoping.
 - Only real writes flash "Saved"/"Autosaved". Load and external reload call `markSaved`, never `recordWrite`.
+- Keyboard intercepts in the text view hook `insertNewline`/`doCommandBy`, NEVER `keyDown` — `keyDown` fires before input-method handling and swallows Return during IME composition. Per-keystroke edits must use the localized `replaceCharacters` path, never `applyWholeTextReplacement` (it rewrites the whole document), and must not force a synchronous re-highlight (`didChangeText` already schedules the debounced one).
 
 **Rendering** (`rendering.md`)
 - The mermaid orientation flip and the supported-type routing are coupled to the pinned BeautifulMermaid version. Re-check both if the pin moves, or diagrams render upside down or as garbage flowcharts.
