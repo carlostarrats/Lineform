@@ -629,7 +629,13 @@ final class LineformTextView: NSTextView {
         isAutomaticQuoteSubstitutionEnabled = false
         isAutomaticDashSubstitutionEnabled = false
         isAutomaticTextReplacementEnabled = false
-        isAutomaticSpellingCorrectionEnabled = true
+        // Squiggles, not silent rewrites: the app points at problems and lets the writer decide.
+        // Autocorrect is actively wrong for Markdown, where identifiers, paths, and URLs are
+        // ordinary content. Grammar checking is off DELIBERATELY (set, not omitted) — it flags
+        // headings, list items, and captions as fragments, which fights calm writing.
+        isAutomaticSpellingCorrectionEnabled = false
+        isGrammarCheckingEnabled = false
+        isContinuousSpellCheckingEnabled = LineformSettingsStore.shared.checksSpellingWhileTyping
         usesFindPanel = true
         isIncrementalSearchingEnabled = true
         isVerticallyResizable = true
@@ -798,6 +804,46 @@ final class LineformTextView: NSTextView {
 
     func writingToolsDidEnd() {
         isLineformWritingToolsSessionActive = false
+    }
+
+    /// Spell-checks only the prose parts of `range`, calling `super` once per checkable
+    /// sub-range so a paragraph containing `inlineCode` still gets its real typos flagged.
+    ///
+    /// This IS the as-you-type path: AppKit routes continuous checking through here (verified
+    /// 2026-07-26 — `docs/notes/2026-07-26-spell-check-probe-findings.md`), handing over roughly
+    /// the visible chunk around the caret, and `textView(_:willCheckTextIn:options:types:)`
+    /// fires downstream of each `super` call.
+    ///
+    /// Load-bearing: `MarkdownSpellCheckRegions` is scoped by construction. Do NOT substitute
+    /// `MarkdownWritingToolsProtection.ignoredRanges` or `MarkdownRangeAnalyzer.ranges(in:)`
+    /// here — both are whole-document (18 ms at 730 KB) and this runs as the user types.
+    override func checkText(
+        in range: NSRange,
+        types checkingTypes: NSTextCheckingTypes,
+        options: [NSSpellChecker.OptionKey: Any]
+    ) {
+        guard isContinuousSpellCheckingEnabled else {
+            // An explicit "Check Document Now" with continuous checking off should behave
+            // exactly as AppKit intends, unsuppressed.
+            super.checkText(in: range, types: checkingTypes, options: options)
+            return
+        }
+
+        for subRange in MarkdownSpellCheckRegions.checkableRanges(
+            in: string as NSString,
+            enclosing: range,
+            highlighter: markdownHighlighter
+        ) {
+            super.checkText(in: subRange, types: checkingTypes, options: options)
+        }
+    }
+
+    /// The standard Edit ▸ Spelling and Grammar ▸ Check Spelling While Typing item is the only
+    /// control for this feature. AppKit flips the flag on this view; we persist the result so it
+    /// survives relaunch and applies to newly opened tabs and windows.
+    override func toggleContinuousSpellChecking(_ sender: Any?) {
+        super.toggleContinuousSpellChecking(sender)
+        LineformSettingsStore.shared.checksSpellingWhileTyping = isContinuousSpellCheckingEnabled
     }
 
     func writingToolsIgnoredRanges(in enclosingRange: NSRange) -> [NSValue] {
