@@ -13,6 +13,7 @@
 		1F0000010000000000000327 /* ScopedSyntaxHighlightingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */; };
 		1F0000010000000000000329 /* LargeDocumentLayoutReentrancyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */; };
 		1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */; };
+		1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
 		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
@@ -86,6 +87,7 @@
 		1F0000010000000000000033 /* MarkdownFormattingCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000033 /* MarkdownFormattingCommand.swift */; };
 		1F0000010000000000000034 /* DocumentStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000034 /* DocumentStatistics.swift */; };
 		1F0000010000000000000036 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000036 /* AppCommands.swift */; };
+		1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B1 /* MainMenuIconDecorator.swift */; };
 		1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */; };
 		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
 		1F0000010000000000000122 /* LineformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000122 /* LineformColors.swift */; };
@@ -194,6 +196,7 @@
 		1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopedSyntaxHighlightingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentLayoutReentrancyTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommandTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecoratorTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
@@ -276,6 +279,7 @@
 		1F0000020000000000000033 /* MarkdownFormattingCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommand.swift; sourceTree = "<group>"; };
 		1F0000020000000000000034 /* DocumentStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatistics.swift; sourceTree = "<group>"; };
 		1F0000020000000000000036 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
+		1F00000200000000000004B1 /* MainMenuIconDecorator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecorator.swift; sourceTree = "<group>"; };
 		1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLaunchIntroOverlay.swift; sourceTree = "<group>"; };
 		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
 		1F0000020000000000000122 /* LineformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformColors.swift; sourceTree = "<group>"; };
@@ -416,6 +420,7 @@
 				1F0000020000000000000321 /* SettingsView.swift */,
 				1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */,
 				1F0000020000000000000036 /* AppCommands.swift */,
+				1F00000200000000000004B1 /* MainMenuIconDecorator.swift */,
 				1F0000020000000000000201 /* AppUpdater.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
 				1F0000020000000000000222 /* CommandLineToolInstaller.swift */,
@@ -561,6 +566,7 @@
 				1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */,
 				1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */,
 				1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */,
+				1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */,
 				1F0000020000000000000023 /* DocumentStatisticsTests.swift */,
 				1F0000020000000000000041 /* ReadingPresetTests.swift */,
 				1F0000020000000000000042 /* FontOptionTests.swift */,
@@ -827,6 +833,7 @@
 				1F0000010000000000000033 /* MarkdownFormattingCommand.swift in Sources */,
 				1F0000010000000000000034 /* DocumentStatistics.swift in Sources */,
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
+				1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */,
 				1F0000010000000000000201 /* AppUpdater.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
 				1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */,
@@ -898,6 +905,7 @@
 				1F0000010000000000000327 /* ScopedSyntaxHighlightingTests.swift in Sources */,
 				1F0000010000000000000329 /* LargeDocumentLayoutReentrancyTests.swift in Sources */,
 				1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */,
+				1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */,
 				1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */,
 				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
 				1F0000010000000000000042 /* FontOptionTests.swift in Sources */,
