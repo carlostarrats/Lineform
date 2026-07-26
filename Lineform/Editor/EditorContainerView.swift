@@ -2109,20 +2109,16 @@ private struct ReissueCrossFileSearchOnRootChange: ViewModifier {
     }
 }
 
-/// Re-asserts the themed window appearance after the two hierarchy rebuilds that can make
-/// AppKit reset it to the default (light) aqua: the tab bar appearing/disappearing and the
-/// sidebar column collapsing/expanding. (WindowChromeReader also self-heals on drift.)
+/// Re-asserts the themed window chrome after the two hierarchy rebuilds that can make AppKit
+/// reset it: the tab bar appearing/disappearing and the sidebar column collapsing/expanding.
 ///
-/// The tab-bar reset settles within a runloop tick, so one deferred apply covers it. The
-/// sidebar's reset lands anywhere INSIDE the column's slide animation, so a single next-tick
-/// apply races it (ChromeView's drift self-heal also fires only while its own
-/// effectiveAppearance changes, which a mid-animation reset can skip). The sidebar-toggle
-/// glyph is the one native, appearance-derived control in the nav band, so a stuck light
-/// appearance shows as a black glyph on the dark toolbar while every explicitly-colored
-/// SwiftUI control stays correct (2026-07-25, Quiet theme, rapid ⌥⌘0 toggling — never
-/// caught by tests; it needs the real HID-driven animation timing). The sidebar path
-/// re-asserts on the next tick AND after the animation settles so the LAST write is always
-/// the themed appearance.
+/// The window APPEARANCE is healed deterministically by `WindowChromeReader.ChromeView`'s
+/// direct `window.appearance` observation — this modifier does not race that and must never be
+/// grown back into a timing-based re-assert (a next-tick + 0.35s pair used to chase the
+/// sidebar's mid-animation reset and still lost; see the ChromeView comment for why the drift
+/// is invisible to `viewDidChangeEffectiveAppearance`). What remains here covers the rest of
+/// `EditorWindowChrome.apply` — notably the window `backgroundColor` that paints the nav band —
+/// which no observation watches.
 private struct ReassertWindowChromeOnHierarchyRebuild: ViewModifier {
     let isShowingOutline: Bool
     let shouldShowTabBar: Bool
@@ -2135,7 +2131,6 @@ private struct ReassertWindowChromeOnHierarchyRebuild: ViewModifier {
             }
             .onChange(of: isShowingOutline) { _, _ in
                 DispatchQueue.main.async { apply() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { apply() }
             }
     }
 }

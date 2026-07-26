@@ -6,6 +6,11 @@ import AppKit
 /// The line is drawn low-contrast and centered in a tall-ish cell so it reads as a calm section
 /// break with breathing room, not a heavy bar.
 final class HorizontalRuleAttachment: NSTextAttachment {
+    /// `@MainActor` because the cell it installs is an `NSCell` subclass, which is main-actor
+    /// isolated — building one from a nonisolated context is a Swift 6 error (a warning today)
+    /// and would be a genuine data race if rendering ever moved off the main thread. Every
+    /// caller is already on the main actor (`MarkdownPreviewRenderer` runs from view code).
+    @MainActor
     init(color: NSColor, height: CGFloat) {
         super.init(data: nil, ofType: nil)
         attachmentCell = HorizontalRuleAttachmentCell(color: color, height: height)

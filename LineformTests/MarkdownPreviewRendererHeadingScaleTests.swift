@@ -6,6 +6,7 @@ import XCTest
 /// field, so it is a defaulted render parameter; the default `1.0` must leave on-screen
 /// Read/Preview rendering byte-identical (proven by the existing renderer/export test suites
 /// staying green, since no call site outside these new tests passes a non-default value).
+@MainActor
 final class MarkdownPreviewRendererHeadingScaleTests: XCTestCase {
 
     private func firstHeadingFontSize(scale: CGFloat) -> CGFloat {

@@ -2,6 +2,7 @@ import AppKit
 import XCTest
 @testable import Lineform
 
+@MainActor
 final class LargeDocumentPerformanceTests: XCTestCase {
     func testLargeDocumentStatisticsAndOutlineStayPredictable() {
         let text = Self.statisticsAndOutlineDocument
@@ -23,7 +24,6 @@ final class LargeDocumentPerformanceTests: XCTestCase {
         XCTAssertTrue(rendered.string.contains("Paragraph with bold, emphasis, code, and link 1199."))
     }
 
-    @MainActor
     func testLargeDocumentHighlightingPreservesSourceText() {
         let text = Self.highlightingDocument
         let textView = LineformTextView()
@@ -69,7 +69,6 @@ final class LargeDocumentPerformanceTests: XCTestCase {
         XCTAssertGreaterThan(renderedLength, 50_000)
     }
 
-    @MainActor
     func testBenchmarkLargeSyntaxHighlighting() {
         let text = Self.highlightingDocument
         let textView = LineformTextView()
@@ -82,7 +81,6 @@ final class LargeDocumentPerformanceTests: XCTestCase {
         XCTAssertEqual((textView.string as NSString).length, (text as NSString).length)
     }
 
-    @MainActor
     func testBenchmarkRepeatedLargePreviewApplyForUnchangedContent() {
         let text = Self.previewDocument
         let textView = MarkdownPreviewTextView()

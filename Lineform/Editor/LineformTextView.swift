@@ -10,6 +10,9 @@ final class LineformTextView: NSTextView {
     static let highlightMargin = 3000
     static let scrollHighlightDebounce: TimeInterval = 0.05
     private static let maximumHorizontalInsetAnimationSpeed: CGFloat = 220
+    /// How far past its own duration the inset animation may run before the timer is force-ended.
+    /// Generous: the speed clamp legitimately extends a large jump beyond the nominal duration.
+    static let horizontalInsetAnimationGracePeriod: TimeInterval = 2
     private let markdownHighlighter = MarkdownSyntaxHighlighter()
     private var activeReadingProfile = ReadingProfile.original
     private var hasAppliedTypography = false
@@ -90,6 +93,14 @@ final class LineformTextView: NSTextView {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        // No inset-timer teardown here: the timer's `target: self` means deinit cannot run while
+        // one is scheduled. `viewDidMoveToWindow` is the real teardown point.
+    }
+
+    /// True while the horizontal-inset animation timer is scheduled. Test seam: the timer
+    /// retains this view, so "did it stop?" is not otherwise observable.
+    var isAnimatingHorizontalInset: Bool {
+        horizontalInsetAnimationTimer != nil
     }
 
     override var acceptsFirstResponder: Bool {
@@ -99,6 +110,20 @@ final class LineformTextView: NSTextView {
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
         updateScrollBoundsObservation()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // The inset animation runs on a repeating `Timer(target: self)`, which RETAINS this view
+        // and is otherwise only invalidated when the animation converges. A view torn down
+        // mid-animation — closing a tab or window, or switching Write → Read, which discards the
+        // editor — leaves that timer scheduled: `deinit` can never run (the run loop holds the
+        // last reference through the timer), so the view, its layout manager, and the document's
+        // text storage all leak, while the timer keeps doing layout at 120 Hz on a detached view.
+        // Off-screen there is nothing to animate, so snap straight to the target instead.
+        if window == nil {
+            finishHorizontalInsetAnimationImmediately()
+        }
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1041,9 +1066,32 @@ final class LineformTextView: NSTextView {
         RunLoop.main.add(timer, forMode: .common)
     }
 
+    /// Ends the animation now, at its target. Safe to call when none is running.
+    private func finishHorizontalInsetAnimationImmediately() {
+        guard let timer = horizontalInsetAnimationTimer else { return }
+        timer.invalidate()
+        horizontalInsetAnimationTimer = nil
+        textContainerInset = horizontalInsetAnimationTargetInset
+        textContainer?.containerSize = NSSize(
+            width: horizontalInsetAnimationTargetContainerWidth,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        restoreVerticalScrollOrigin(horizontalInsetAnimationVerticalScrollOrigin)
+    }
+
     @objc private func handleHorizontalInsetAnimationTimer(_ timer: Timer) {
         let updateDate = Date()
         let elapsed = updateDate.timeIntervalSince(horizontalInsetAnimationStartDate)
+
+        // Watchdog. The convergence check below compares against `textContainer?.containerSize`
+        // defaulted to 0, but the write it is checking is `textContainer?.containerSize = …` — so
+        // if the text container is ever gone the target is unreachable and the timer would spin
+        // forever, holding this view alive. Any run past the animation's own duration by this
+        // margin is a bug, not a slow frame; end it at the target.
+        if elapsed > horizontalInsetAnimationDurationValue + Self.horizontalInsetAnimationGracePeriod {
+            finishHorizontalInsetAnimationImmediately()
+            return
+        }
         let elapsedSinceLastUpdate = max(updateDate.timeIntervalSince(horizontalInsetAnimationLastUpdateDate), 0)
         horizontalInsetAnimationLastUpdateDate = updateDate
         let progress = min(max(elapsed / horizontalInsetAnimationDurationValue, 0), 1)
