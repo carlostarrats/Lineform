@@ -7,6 +7,9 @@ import SwiftUI
 struct SettingsModal: View {
     @ObservedObject var settings: LineformSettingsStore
     @StateObject private var iCloud: ICloudSettingViewModel
+    /// THREADED from the theme, never read from `@Environment(\.colorScheme)` — see
+    /// `MuseModalChrome.primaryTextColor(usesDarkChrome:)`.
+    var usesDarkChrome: Bool
     var dismiss: () -> Void
 
     static let title = "Settings"
@@ -34,6 +37,7 @@ struct SettingsModal: View {
 
     init(
         settings: LineformSettingsStore,
+        usesDarkChrome: Bool = false,
         availableWidth: CGFloat = SettingsModal.contentWidth + 24,
         // Autoclosure so the default view-model is built at most once, inside
         // StateObject's own lazy storage — not on every SettingsModal init.
@@ -41,6 +45,7 @@ struct SettingsModal: View {
         dismiss: @escaping () -> Void = {}
     ) {
         self.settings = settings
+        self.usesDarkChrome = usesDarkChrome
         self.availableWidth = availableWidth
         _iCloud = StateObject(wrappedValue: iCloudViewModel())
         self.dismiss = dismiss
@@ -48,7 +53,7 @@ struct SettingsModal: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            MuseModalHeader(title: Self.title, dismiss: dismiss)
+            MuseModalHeader(title: Self.title, usesDarkChrome: usesDarkChrome, dismiss: dismiss)
 
             VStack(alignment: .leading, spacing: 0) {
                 settingRow(
@@ -79,7 +84,8 @@ struct SettingsModal: View {
         }
         .museModalCard(
             width: Self.cardWidth(availableWidth: availableWidth),
-            accessibilityLabel: "Settings"
+            accessibilityLabel: "Settings",
+            usesDarkChrome: usesDarkChrome
         )
         .task { await iCloud.refresh() }
     }
@@ -126,10 +132,10 @@ struct SettingsModal: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(MuseModalChrome.primaryTextColor)
+                    .foregroundStyle(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome))
                 Text(note)
                     .font(.system(size: 11))
-                    .foregroundStyle(MuseModalChrome.secondaryTextColor)
+                    .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
