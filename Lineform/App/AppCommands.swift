@@ -64,6 +64,10 @@ enum AppMenuConfiguration {
     static let findCommandKeyEquivalent = "f"
     // ⌥⌘F — the macOS-standard Find & Replace shortcut (TextEdit/Pages).
     static let findReplaceCommandTitle = "Find & Replace…"
+    static let spellingMenuTitle = "Spelling and Grammar"
+    static let checkSpellingWhileTypingTitle = "Check Spelling While Typing"
+    static let showSpellingPanelTitle = "Show Spelling and Grammar"
+    static let checkDocumentNowTitle = "Check Document Now"
     static let findReplaceCommandKeyEquivalent = "f"
     static let usesTopLevelReadingMenu = false
     static let addsWritingToolsToEditMenu = false
@@ -237,6 +241,7 @@ struct AppCommands: Commands {
     @ObservedObject private var hiddenFoldersMenuState: HiddenFoldersMenuState
     @ObservedObject private var currentFileMenuState: LineformCurrentFileMenuState
     @ObservedObject private var speechMenuState: LineformSpeechMenuState
+    @ObservedObject private var settingsStore: LineformSettingsStore
     private let updaterController: LineformUpdaterController
 
     init(
@@ -245,6 +250,7 @@ struct AppCommands: Commands {
         hiddenFoldersMenuState: HiddenFoldersMenuState = .shared,
         currentFileMenuState: LineformCurrentFileMenuState = .shared,
         speechMenuState: LineformSpeechMenuState = .shared,
+        settingsStore: LineformSettingsStore = .shared,
         updaterController: LineformUpdaterController = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
@@ -252,6 +258,7 @@ struct AppCommands: Commands {
         _hiddenFoldersMenuState = ObservedObject(wrappedValue: hiddenFoldersMenuState)
         _currentFileMenuState = ObservedObject(wrappedValue: currentFileMenuState)
         _speechMenuState = ObservedObject(wrappedValue: speechMenuState)
+        _settingsStore = ObservedObject(wrappedValue: settingsStore)
         self.updaterController = updaterController
     }
 
@@ -476,6 +483,41 @@ struct AppCommands: Commands {
                 KeyEquivalent(Character(AppMenuConfiguration.findReplaceCommandKeyEquivalent)),
                 modifiers: [.command, .option]
             )
+
+            Divider()
+
+            // SwiftUI does NOT build a Spelling and Grammar submenu, and this app replaces the
+            // Edit menu, so nothing provides one for free — verified by dumping the live menu
+            // via Accessibility on 2026-07-26. Without this, live spell checking has no off
+            // switch and `toggleContinuousSpellChecking` is unreachable.
+            //
+            // Every item routes to the first responder (the text view), exactly as AppKit's own
+            // spelling menu does. `LineformTextView.toggleContinuousSpellChecking` then persists
+            // the result, so the checkmark below and the stored preference cannot drift apart.
+            Menu(AppMenuConfiguration.spellingMenuTitle) {
+                Toggle(AppMenuConfiguration.checkSpellingWhileTypingTitle, isOn: Binding(
+                    get: { settingsStore.checksSpellingWhileTyping },
+                    set: { _ in
+                        NSApp.sendAction(
+                            #selector(NSTextView.toggleContinuousSpellChecking(_:)),
+                            to: nil,
+                            from: nil
+                        )
+                    }
+                ))
+
+                Divider()
+
+                Button(AppMenuConfiguration.showSpellingPanelTitle) {
+                    NSApp.sendAction(#selector(NSText.showGuessPanel(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut(":", modifiers: .command)
+
+                Button(AppMenuConfiguration.checkDocumentNowTitle) {
+                    NSApp.sendAction(#selector(NSText.checkSpelling(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut(";", modifiers: .command)
+            }
 
             Divider()
 

@@ -829,4 +829,40 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         rect.origin.y += textView.textContainerOrigin.y
         return textView.convert(rect, to: scrollView).midY
     }
+
+    // MARK: - Spelling suggestions
+
+    /// One confident answer beats a phonetic dump. These are the real values
+    /// NSSpellChecker returns for "teh".
+    func testSpellingSuggestionsShowsOnlyTheConfidentCorrection() {
+        let suggestions = LineformTextContextMenuPresentation.spellingSuggestions(
+            correction: "the",
+            guesses: ["the", "ten", "tbh", "tex", "feh", "yeh", "tea", "ted"]
+        )
+        XCTAssertEqual(suggestions, ["the"], "a confident correction is shown alone")
+    }
+
+    func testSpellingSuggestionsFallsBackToTheTopGuessWithoutACorrection() {
+        // `correction` is nil whenever the system-wide autocorrect setting is off, which is the
+        // common case — so the fallback is the path that usually runs, not an edge case.
+        let suggestions = LineformTextContextMenuPresentation.spellingSuggestions(
+            correction: nil,
+            guesses: ["the", "ten", "tbh", "tex", "feh"]
+        )
+        XCTAssertEqual(suggestions, ["the"], "guesses are ranked; only the first is a real candidate")
+    }
+
+    func testSpellingSuggestionsSkipsEmptyGuesses() {
+        let suggestions = LineformTextContextMenuPresentation.spellingSuggestions(
+            correction: nil,
+            guesses: ["", "before"]
+        )
+        XCTAssertEqual(suggestions, ["before"])
+    }
+
+    func testSpellingSuggestionsIsEmptyWhenTheCheckerOffersNothing() {
+        XCTAssertTrue(
+            LineformTextContextMenuPresentation.spellingSuggestions(correction: nil, guesses: []).isEmpty
+        )
+    }
 }
