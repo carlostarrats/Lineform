@@ -830,6 +830,57 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         return textView.convert(rect, to: scrollView).midY
     }
 
+    // MARK: - Spelling context menu safety
+
+    func testRightClickSelectsTheMisspelledWordWithNoSelection() {
+        XCTAssertTrue(LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: NSRange(location: 10, length: 4),
+            existingSelection: NSRange(location: 10, length: 0)
+        ))
+    }
+
+    func testRightClickKeepsAnExistingSelectionThatCoversTheWord() {
+        // Bold/Italic/Link share this menu and act on the selection: collapsing a selected
+        // phrase onto one word would silently change what they do.
+        XCTAssertFalse(LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: NSRange(location: 10, length: 4),
+            existingSelection: NSRange(location: 4, length: 20)
+        ))
+    }
+
+    func testRightClickSelectsTheWordWhenTheSelectionIsElsewhere() {
+        XCTAssertTrue(LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: NSRange(location: 40, length: 4),
+            existingSelection: NSRange(location: 0, length: 10)
+        ))
+    }
+
+    func testSpellingCorrectionIsValidWhenTheWordIsUnchanged() {
+        XCTAssertTrue(LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: NSRange(location: 6, length: 3),
+            word: "teh",
+            in: "hello teh world" as NSString
+        ))
+    }
+
+    /// A live reload can replace the document while the menu is open; the stale range would
+    /// otherwise replace the wrong text or throw NSRangeException.
+    func testSpellingCorrectionIsInvalidWhenTheTextChangedUnderneath() {
+        XCTAssertFalse(LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: NSRange(location: 6, length: 3),
+            word: "teh",
+            in: "hello the world" as NSString
+        ))
+    }
+
+    func testSpellingCorrectionIsInvalidWhenTheRangeIsNowOutOfBounds() {
+        XCTAssertFalse(LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: NSRange(location: 6, length: 3),
+            word: "teh",
+            in: "hi" as NSString
+        ))
+    }
+
     // MARK: - Spelling suggestions
 
     /// One confident answer beats a phonetic dump. These are the real values

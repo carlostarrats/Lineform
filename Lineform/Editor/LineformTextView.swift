@@ -549,20 +549,30 @@ final class LineformTextView: NSTextView {
     }
 
     /// The misspelled word the context menu is acting on, captured when the menu is built
-    /// because the click location is not available by the time an item fires.
-    private var spellingCorrectionRange: NSRange?
+    /// because the click location is not available by the time an item fires. The word is kept
+    /// alongside the range so the range can be revalidated — see `applySpellingGuess`.
+    private var spellingCorrection: (range: NSRange, word: String)?
 
     private func addSpellingItemsIfNeeded(to menu: NSMenu, for event: NSEvent) {
-        spellingCorrectionRange = nil
+        spellingCorrection = nil
         guard isContinuousSpellCheckingEnabled,
               let wordRange = misspelledWordRange(at: event) else {
             return
         }
 
-        spellingCorrectionRange = wordRange
-        setSelectedRange(wordRange)
-
         let word = (string as NSString).substring(with: wordRange)
+        spellingCorrection = (wordRange, word)
+
+        // Right-clicking a misspelling normally selects it, so the correction is visible before
+        // it is applied — but NOT when that would steal an existing selection the user is about
+        // to act on. This menu also carries Bold/Italic/Link, which operate on the selection, so
+        // collapsing a selected phrase to one word silently changes what those commands do.
+        if LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+            wordRange: wordRange,
+            existingSelection: selectedRange()
+        ) {
+            setSelectedRange(wordRange)
+        }
         let guesses = LineformTextContextMenuPresentation.spellingSuggestions(
             correction: NSSpellChecker.shared.correction(
                 forWordRange: wordRange,
@@ -658,15 +668,30 @@ final class LineformTextView: NSTextView {
     }
 
     @objc private func applySpellingGuess(_ sender: NSMenuItem) {
-        guard let range = spellingCorrectionRange else { return }
+        guard let pending = spellingCorrection else { return }
+        spellingCorrection = nil
+
+        // Revalidate before editing. The document CAN change while the menu is open: live
+        // reload is a debounced async dispatch, and menu tracking runs in a common run-loop
+        // mode, so an external rewrite lands underneath an open menu. A stale range would
+        // either replace the wrong text or throw NSRangeException.
+        guard LineformTextContextMenuPresentation.isSpellingCorrectionValid(
+            range: pending.range,
+            word: pending.word,
+            in: string as NSString
+        ) else {
+            return
+        }
+
         let replacement = sender.title
         // The localized, undoable edit path — one ⌘Z reverses the correction. Never
         // `applyWholeTextReplacement`, which rewrites the whole document.
-        guard shouldChangeText(in: range, replacementString: replacement) else { return }
-        textStorage?.replaceCharacters(in: range, with: replacement)
+        guard shouldChangeText(in: pending.range, replacementString: replacement) else { return }
+        textStorage?.replaceCharacters(in: pending.range, with: replacement)
         didChangeText()
-        setSelectedRange(NSRange(location: range.location + (replacement as NSString).length, length: 0))
-        spellingCorrectionRange = nil
+        setSelectedRange(
+            NSRange(location: pending.range.location + (replacement as NSString).length, length: 0)
+        )
     }
 
     @objc private func learnSpellingFromContextMenu(_ sender: NSMenuItem) {
@@ -1681,6 +1706,27 @@ enum LineformTextContextMenuPresentation {
     ///
     /// Anyone wanting the full list has Edit ▸ Spelling and Grammar ▸ Show Spelling and Grammar
     /// (⌘:) — the system panel, which shows everything.
+    /// Whether right-clicking a misspelling should collapse the selection onto it.
+    ///
+    /// Yes when there is no meaningful selection — seeing the word highlighted is how the user
+    /// knows what a correction will replace. No when a non-empty selection already covers it:
+    /// this menu also carries Bold, Italic, and Link, which act on the selection, so silently
+    /// shrinking a selected phrase to one word would change what those commands do.
+    static func shouldSelectMisspelledWord(wordRange: NSRange, existingSelection: NSRange) -> Bool {
+        guard existingSelection.length > 0 else { return true }
+        return NSIntersectionRange(wordRange, existingSelection).length == 0
+    }
+
+    /// Whether a range captured when the context menu was built still refers to the same word.
+    ///
+    /// The document can change while the menu is open — live reload is a debounced async
+    /// dispatch and menu tracking runs in a common run-loop mode — so the captured range may
+    /// point past the end of the text or at different characters entirely.
+    static func isSpellingCorrectionValid(range: NSRange, word: String, in text: NSString) -> Bool {
+        guard range.length > 0, NSMaxRange(range) <= text.length else { return false }
+        return text.substring(with: range) == word
+    }
+
     static func spellingSuggestions(correction: String?, guesses: [String]) -> [String] {
         if let correction, !correction.isEmpty {
             return [correction]
