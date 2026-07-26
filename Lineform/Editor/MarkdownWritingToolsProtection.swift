@@ -98,34 +98,92 @@ enum MarkdownWritingToolsProtection {
         return ranges
     }
 
+    /// Block-level protected ranges (front matter, fenced code, math) intersecting `scope`,
+    /// clipped to it.
+    ///
+    /// Load-bearing: this exists so live spell checking never pays for the whole-document
+    /// `ignoredRanges` pass (18 ms at 730 KB — see the note on `isInsideCodeOrFrontMatter`).
+    /// Fence and `$$`-block state depend on the document prefix, so lines before `scope` are
+    /// still walked for state — but the walk stops once past `scope`, allocates no per-line
+    /// array, and skips the inline-math regex for lines that end before `scope` begins.
+    ///
+    /// See `docs/superpowers/specs/2026-07-26-live-spell-check-design.md`.
+    static func protectedRanges(in text: NSString, intersecting scope: NSRange) -> [NSRange] {
+        let full = NSRange(location: 0, length: text.length)
+        let clampedScope = NSIntersectionRange(scope, full)
+        guard clampedScope.length > 0 else { return [] }
+
+        let source = text as String
+        let limit = NSMaxRange(clampedScope)
+
+        var ranges: [NSRange] = []
+        if let frontMatter = frontMatterRange(in: source) {
+            ranges.append(frontMatter)
+        }
+        ranges.append(contentsOf: fencedCodeRanges(in: source, upTo: limit))
+        ranges.append(contentsOf: mathRanges(in: source, upTo: limit, collectingFrom: clampedScope.location))
+
+        return ranges
+            .map { NSIntersectionRange($0, clampedScope) }
+            .filter { $0.length > 0 }
+    }
+
+    /// Walks `text`'s lines splitting on `"\n"` ONLY — byte-for-byte what
+    /// `components(separatedBy: "\n")` does — without allocating an array of every line up
+    /// front. `body` receives the line's content (no terminator), its start offset, and its
+    /// stored length (content plus terminator). Returning `false` stops the walk.
+    ///
+    /// Load-bearing: do NOT switch this to `lineRange(for:)`. That also breaks on `\r`,
+    /// `\u{2028}`, and `\u{2029}`, which would silently change protection behavior on CRLF
+    /// documents relative to the whole-document passes this shares its predicates with.
+    private static func enumerateLines(
+        in text: String,
+        _ body: (_ line: String, _ offset: Int, _ storedLength: Int) -> Bool
+    ) {
+        let nsText = text as NSString
+        let length = nsText.length
+        var offset = 0
+
+        while offset <= length {
+            let searchRange = NSRange(location: offset, length: length - offset)
+            let newline = nsText.range(of: "\n", options: [], range: searchRange)
+            let isLast = newline.location == NSNotFound
+            let contentLength = isLast ? length - offset : newline.location - offset
+            let storedLength = contentLength + (isLast ? 0 : 1)
+            let line = nsText.substring(with: NSRange(location: offset, length: contentLength))
+
+            if !body(line, offset, storedLength) || isLast {
+                return
+            }
+            offset += storedLength
+        }
+    }
+
     /// Ranges of LaTeX math regions — inline `$…$` and display `$$…$$` blocks — so Writing Tools
     /// does not rewrite the source, exactly as it leaves fenced code alone. Uses the same `$`
     /// rules as the renderer, so prose dollar signs ("$5") are never protected.
-    private static func mathRanges(in text: String) -> [NSRange] {
-        let lines = text.components(separatedBy: "\n")
+    /// - Parameters:
+    ///   - limit: stop walking once a line ends at or past this offset. Anything still open is
+    ///     closed by the end-of-text tail below, which — after the caller clips to a scope that
+    ///     ends at or before `limit` — is identical to what the unbounded walk produces.
+    ///   - collectingFrom: skip the per-line inline-math regex for lines that end before this
+    ///     offset. Those ranges cannot intersect the caller's scope, and the regex is the
+    ///     expensive part of this function.
+    private static func mathRanges(in text: String, upTo limit: Int? = nil, collectingFrom: Int = 0) -> [NSRange] {
         var ranges: [NSRange] = []
-        var offset = 0
         var blockStart: Int?
         var inCodeFence = false
 
-        for (index, line) in lines.enumerated() {
+        enumerateLines(in: text) { line, offset, storedLineLength in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let hasNewline = index < lines.count - 1
-            let storedLineLength = (line as NSString).length + (hasNewline ? 1 : 0)
 
             // Never interpret `$`/`$$` inside a fenced code block (it is protected separately).
             // Toggle on fence delimiters only when not mid math-block.
             if blockStart == nil, trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 inCodeFence.toggle()
-                offset += storedLineLength
-                continue
-            }
-            if inCodeFence {
-                offset += storedLineLength
-                continue
-            }
-
-            if let start = blockStart {
+            } else if inCodeFence {
+                // Skipped: inside a fence.
+            } else if let start = blockStart {
                 if MathBlockFence.blockDelimiterOnly(trimmed) {
                     // Closing `$$`: protect from the opening delimiter through this line.
                     ranges.append(NSRange(location: start, length: offset + storedLineLength - start))
@@ -136,11 +194,14 @@ enum MarkdownWritingToolsProtection {
                 blockStart = offset
             } else if MathBlockFence.singleLineBlock(trimmed) != nil {
                 ranges.append(NSRange(location: offset, length: (line as NSString).length))
-            } else {
+            } else if offset + storedLineLength > collectingFrom {
                 ranges.append(contentsOf: MathDelimiters.inlineMathRanges(in: line, lineOffset: offset))
             }
 
-            offset += storedLineLength
+            if let limit, offset + storedLineLength >= limit {
+                return false
+            }
+            return true
         }
 
         // An unclosed `$$` block protects through end of text.
@@ -170,18 +231,15 @@ enum MarkdownWritingToolsProtection {
         return NSRange(location: 0, length: end)
     }
 
-    private static func fencedCodeRanges(in text: String) -> [NSRange] {
-        let lines = text.components(separatedBy: "\n")
+    /// - Parameter limit: stop walking once a line ends at or past this offset. See the note on
+    ///   `mathRanges(in:upTo:collectingFrom:)`.
+    private static func fencedCodeRanges(in text: String, upTo limit: Int? = nil) -> [NSRange] {
         var ranges: [NSRange] = []
-        var offset = 0
         var openFenceStart: Int?
         var openFenceMarker: String?
 
-        for (index, line) in lines.enumerated() {
+        enumerateLines(in: text) { line, offset, storedLineLength in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let lineLength = (line as NSString).length
-            let hasNewline = index < lines.count - 1
-            let storedLineLength = lineLength + (hasNewline ? 1 : 0)
 
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 let marker = String(trimmed.prefix(3))
@@ -196,7 +254,10 @@ enum MarkdownWritingToolsProtection {
                 }
             }
 
-            offset += storedLineLength
+            if let limit, offset + storedLineLength >= limit {
+                return false
+            }
+            return true
         }
 
         if let start = openFenceStart {
