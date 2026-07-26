@@ -88,6 +88,172 @@ enum MarkdownTableEditing {
         )
     }
 
+    static let insertedColumnCount = 3
+    static let insertedBodyRowCount = 2
+
+    /// A 3×2 starter table, written as its own block. Fixed size by design: every other Format
+    /// command acts immediately, and gaining a column is one pipe plus Reformat — cheaper than
+    /// any size dialog.
+    static func insertion(in text: String, selectedRange: NSRange) -> MarkdownEdit {
+        let ns = text as NSString
+        let caretLine = lineRange(in: ns, at: selectedRange.location)
+        let lineIsBlank = ns.substring(with: caretLine).trimmingCharacters(in: .whitespaces).isEmpty
+        let replaced = lineIsBlank ? caretLine : NSRange(location: NSMaxRange(caretLine), length: 0)
+
+        let before = ns.substring(to: replaced.location)
+        let after = ns.substring(from: NSMaxRange(replaced))
+        let leading = before.isEmpty || before.hasSuffix("\n\n") ? "" : (before.hasSuffix("\n") ? "\n" : "\n\n")
+        let trailing = after.isEmpty || after.hasPrefix("\n\n") ? "" : (after.hasPrefix("\n") ? "\n" : "\n\n")
+
+        let widths = Array(repeating: 3, count: insertedColumnCount)
+        let blank = Array(repeating: "", count: insertedColumnCount)
+        var lines = [row(cells: blank, widths: widths, indent: "")]
+        lines.append(row(cells: widths.map { String(repeating: "-", count: $0) }, widths: widths, indent: ""))
+        for _ in 0..<insertedBodyRowCount {
+            lines.append(row(cells: blank, widths: widths, indent: ""))
+        }
+
+        let replacement = leading + lines.joined(separator: "\n") + trailing
+        var edited = text
+        if let swiftRange = Range(replaced, in: edited) {
+            edited.replaceSubrange(swiftRange, with: replacement)
+        }
+
+        // Caret in the first header cell: past the leading blank lines, the opening pipe, and
+        // its following space.
+        let caret = replaced.location + (leading as NSString).length + 2
+        return MarkdownEdit(text: edited, selectedRange: NSRange(location: caret, length: 0))
+    }
+
+    /// Pads the pipes of the table under the caret so its columns line up in the source.
+    ///
+    /// Returns `nil` — a silent no-op, no undo step — when there is no table under the caret,
+    /// when the table is already aligned, or when rewriting it would be unsafe. The
+    /// already-aligned case is how idempotence is expressed: a second ⌃⌘R does nothing at all.
+    ///
+    /// The safety refusal is load-bearing. `MarkdownTableParser.cells(in:)` splits on EVERY
+    /// pipe; escaped pipes are a documented v1 limitation. That is harmless while rendering,
+    /// but Reformat rewrites the file, so the same wrong split would permanently destroy
+    /// `a \| b` or `` `a|b` ``. The backtick half of the test is deliberately over-broad: it
+    /// declines some tables it could safely rewrite, and it never corrupts one.
+    static func reformat(in text: String, selectedRange: NSRange) -> MarkdownEdit? {
+        guard let region = locate(in: text, at: selectedRange.location) else { return nil }
+
+        let ns = text as NSString
+        let original = ns.substring(with: region.range)
+        guard !original.contains("\\|"), !original.contains("`") else { return nil }
+
+        let widths = columnWidths(for: region)
+        // Read the colons off the ORIGINAL delimiter rather than `region.table.alignments`.
+        // `MarkdownTableParser.alignment(of:)` maps both `---` and `:--` to `.left` — correct for
+        // rendering, where they are identical — so rebuilding from it would silently rewrite
+        // every explicit `:--` a writer typed. Markdown handling here stays structure-preserving.
+        let delimiters = MarkdownTableParser.cells(in: ns.substring(with: region.lineRanges[1]))
+        var lines = [row(cells: region.table.headers, widths: widths, indent: region.indent)]
+        lines.append(row(
+            cells: widths.enumerated().map { column, width in
+                delimiterCell(
+                    original: delimiters.indices.contains(column) ? delimiters[column] : "-",
+                    width: width
+                )
+            },
+            widths: widths,
+            indent: region.indent
+        ))
+        lines.append(contentsOf: region.table.rows.map { row(cells: $0, widths: widths, indent: region.indent) })
+
+        let replacement = lines.joined(separator: "\n")
+        guard replacement != original else { return nil }
+
+        var edited = text
+        guard let swiftRange = Range(region.range, in: edited) else { return nil }
+        edited.replaceSubrange(swiftRange, with: replacement)
+
+        return MarkdownEdit(
+            text: edited,
+            selectedRange: NSRange(
+                location: caretAfterReformat(
+                    region: region,
+                    text: text,
+                    replacement: replacement,
+                    caret: selectedRange.location
+                ),
+                length: 0
+            )
+        )
+    }
+
+    /// Keeps the caret in the same cell, at the same offset into that cell's content, so
+    /// Reformat never yanks the writer somewhere else in the table.
+    private static func caretAfterReformat(
+        region: MarkdownTableRegion,
+        text: String,
+        replacement: String,
+        caret: Int
+    ) -> Int {
+        guard let line = region.lineRanges.firstIndex(where: {
+            caret >= $0.location && caret <= NSMaxRange($0)
+        }) else { return region.range.location }
+
+        let cells = contentRanges(ofLine: line, in: region, text: text)
+        guard let cell = cells.firstIndex(where: { caret <= NSMaxRange($0) }) else {
+            return region.range.location
+        }
+        let offset = max(0, caret - cells[cell].location)
+
+        var rebuiltText = text
+        guard let swiftRange = Range(region.range, in: rebuiltText) else { return region.range.location }
+        rebuiltText.replaceSubrange(swiftRange, with: replacement)
+
+        let rebuilt = MarkdownTableRegion(
+            range: NSRange(location: region.range.location, length: (replacement as NSString).length),
+            lineRanges: lineRanges(of: replacement, startingAt: region.range.location),
+            table: region.table,
+            indent: region.indent
+        )
+        let rebuiltCells = contentRanges(ofLine: line, in: rebuilt, text: rebuiltText)
+        guard rebuiltCells.indices.contains(cell) else { return region.range.location }
+        return min(rebuiltCells[cell].location + offset, NSMaxRange(rebuiltCells[cell]))
+    }
+
+    private static func lineRanges(of block: String, startingAt origin: Int) -> [NSRange] {
+        var ranges: [NSRange] = []
+        var location = origin
+        for line in block.components(separatedBy: "\n") {
+            let length = (line as NSString).length
+            ranges.append(NSRange(location: location, length: length))
+            location += length + 1
+        }
+        return ranges
+    }
+
+    /// `| a   | b   |` — always with outer pipes, cells right-padded to the column width.
+    static func row(cells: [String], widths: [Int], indent: String) -> String {
+        let padded = widths.enumerated().map { index, width -> String in
+            let content = cells.indices.contains(index) ? cells[index] : ""
+            return content.padding(toLength: max(width, content.count), withPad: " ", startingAt: 0)
+        }
+        return indent + "| " + padded.joined(separator: " | ") + " |"
+    }
+
+    /// Re-emits one delimiter cell at the new width, carrying over exactly the colons the writer
+    /// wrote — including an explicit-left `:--`, which renders the same as `---` but is not the
+    /// same text.
+    private static func delimiterCell(original: String, width: Int) -> String {
+        let leading = original.hasPrefix(":")
+        let trailing = original.count > 1 && original.hasSuffix(":")
+        switch (leading, trailing) {
+        case (true, true):
+            return ":" + String(repeating: "-", count: max(1, width - 2)) + ":"
+        case (true, false):
+            return ":" + String(repeating: "-", count: max(1, width - 1))
+        case (false, true):
+            return String(repeating: "-", count: max(1, width - 1)) + ":"
+        case (false, false):
+            return String(repeating: "-", count: width)
+        }
+    }
+
     /// Document-coordinate ranges of each cell's TRIMMED content on one line of the region.
     ///
     /// Mirrors `MarkdownTableParser.cells(in:)` — optional outer pipes dropped, split on every

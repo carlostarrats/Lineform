@@ -97,4 +97,93 @@ final class MarkdownTableEditingTests: XCTestCase {
         let text = "| A | B |\n| - | - |"
         XCTAssertEqual(MarkdownTableEditing.columnWidths(for: locate(text, 2)!), [3, 3])
     }
+
+    // MARK: - Insert
+
+    private static let skeleton = """
+    |     |     |     |
+    | --- | --- | --- |
+    |     |     |     |
+    |     |     |     |
+    """
+
+    func testInsertsSkeletonIntoAnEmptyDocument() {
+        let edit = MarkdownTableEditing.insertion(in: "", selectedRange: NSRange(location: 0, length: 0))
+        XCTAssertEqual(edit.text, Self.skeleton)
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 2, length: 0))
+    }
+
+    func testInsertsAfterAParagraphWithABlankLineBetween() {
+        let edit = MarkdownTableEditing.insertion(in: "intro", selectedRange: NSRange(location: 5, length: 0))
+        XCTAssertEqual(edit.text, "intro\n\n\(Self.skeleton)")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 9, length: 0))
+    }
+
+    func testInsertsOnABlankLineWithoutAddingAnother() {
+        let edit = MarkdownTableEditing.insertion(in: "intro\n\n", selectedRange: NSRange(location: 7, length: 0))
+        XCTAssertEqual(edit.text, "intro\n\n\(Self.skeleton)")
+    }
+
+    func testSeparatesFromFollowingProse() {
+        let edit = MarkdownTableEditing.insertion(in: "intro\noutro", selectedRange: NSRange(location: 5, length: 0))
+        XCTAssertEqual(edit.text, "intro\n\n\(Self.skeleton)\n\noutro")
+    }
+
+    // MARK: - Reformat
+
+    func testReformatAlignsRaggedColumns() {
+        let text = "| Fruit | Colour |\n|-|-|\n| Plum | purple |"
+        let edit = MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0))
+        XCTAssertEqual(edit?.text, """
+        | Fruit | Colour |
+        | ----- | ------ |
+        | Plum  | purple |
+        """)
+    }
+
+    func testReformatReturnsNilWhenAlreadyAligned() {
+        let text = "| Fruit | Colour |\n| ----- | ------ |\n| Plum  | purple |"
+        XCTAssertNil(MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0)))
+    }
+
+    func testReformatPreservesAlignmentColons() {
+        let text = "| A | B | C |\n|:-|-:|:-:|"
+        let edit = MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0))
+        XCTAssertEqual(edit?.text, "| A   | B   | C   |\n| :-- | --: | :-: |")
+    }
+
+    func testReformatPadsAndTruncatesRowsToTheDelimiterWidth() {
+        let text = "| A | B |\n| - | - |\n| 1 |\n| 1 | 2 | 3 |"
+        let edit = MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0))
+        XCTAssertEqual(edit?.text, "| A   | B   |\n| --- | --- |\n| 1   |     |\n| 1   | 2   |")
+    }
+
+    func testReformatPreservesIndentation() {
+        let text = "  | A | B |\n  |-|-|"
+        let edit = MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 4, length: 0))
+        XCTAssertEqual(edit?.text, "  | A   | B   |\n  | --- | --- |")
+    }
+
+    func testReformatKeepsTheCaretInItsCell() {
+        let text = "| Fruit | Colour |\n|-|-|\n| Plum | purple |"
+        // Caret inside "purple", two characters in.
+        let caret = (text as NSString).range(of: "purple").location + 2
+        let edit = MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: caret, length: 0))
+        let reformatted = edit!.text as NSString
+        XCTAssertEqual(edit?.selectedRange.location, reformatted.range(of: "purple").location + 2)
+    }
+
+    func testReformatRefusesOnEscapedPipe() {
+        let text = "| A | B |\n| - | - |\n| a \\| b | c |"
+        XCTAssertNil(MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0)))
+    }
+
+    func testReformatRefusesOnBacktick() {
+        let text = "| A | B |\n| - | - |\n| `a|b` | c |"
+        XCTAssertNil(MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0)))
+    }
+
+    func testReformatReturnsNilOutsideATable() {
+        XCTAssertNil(MarkdownTableEditing.reformat(in: "just prose", selectedRange: NSRange(location: 2, length: 0)))
+    }
 }
