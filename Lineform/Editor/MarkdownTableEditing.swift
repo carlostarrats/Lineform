@@ -88,6 +88,80 @@ enum MarkdownTableEditing {
         )
     }
 
+    /// Document-coordinate ranges of each cell's TRIMMED content on one line of the region.
+    ///
+    /// Mirrors `MarkdownTableParser.cells(in:)` — optional outer pipes dropped, split on every
+    /// remaining pipe — but keeps the positions the parser throws away, which is what Tab needs
+    /// in order to select a cell.
+    ///
+    /// An all-whitespace cell yields a zero-length range where content WOULD start in a
+    /// reformatted row — past the pipe and its following space — so Tab into an empty cell puts
+    /// the caret where a writer expects to type rather than against the pipe.
+    static func contentRanges(ofLine index: Int, in region: MarkdownTableRegion, text: String) -> [NSRange] {
+        guard region.lineRanges.indices.contains(index) else { return [] }
+        let lineRange = region.lineRanges[index]
+        let ns = text as NSString
+        let lineNS = ns.substring(with: lineRange) as NSString
+
+        var start = 0
+        while start < lineNS.length, isWhitespace(lineNS.character(at: start)) { start += 1 }
+        var end = lineNS.length
+        while end > start, isWhitespace(lineNS.character(at: end - 1)) { end -= 1 }
+        guard start < end else { return [] }
+
+        let pipe = UInt16(UnicodeScalar("|").value)
+        if lineNS.character(at: start) == pipe { start += 1 }
+        if end - 1 > start, lineNS.character(at: end - 1) == pipe { end -= 1 }
+        guard start <= end else { return [] }
+
+        var boundaries: [Int] = [start]
+        for offset in start..<end where lineNS.character(at: offset) == pipe {
+            boundaries.append(offset)
+            boundaries.append(offset + 1)
+        }
+        boundaries.append(end)
+
+        var ranges: [NSRange] = []
+        for pair in stride(from: 0, to: boundaries.count, by: 2) {
+            let segmentStart = boundaries[pair]
+            let segmentEnd = boundaries[pair + 1]
+            var contentStart = segmentStart
+            var contentEnd = segmentEnd
+            while contentStart < contentEnd, isWhitespace(lineNS.character(at: contentStart)) { contentStart += 1 }
+            while contentEnd > contentStart, isWhitespace(lineNS.character(at: contentEnd - 1)) { contentEnd -= 1 }
+
+            if contentStart == contentEnd {
+                let anchor = segmentStart + min(1, segmentEnd - segmentStart)
+                ranges.append(NSRange(location: lineRange.location + anchor, length: 0))
+            } else {
+                ranges.append(NSRange(
+                    location: lineRange.location + contentStart,
+                    length: contentEnd - contentStart
+                ))
+            }
+        }
+        return ranges
+    }
+
+    /// Per-column render width: the widest cell in that column, floored at 3 so every delimiter
+    /// cell can still spell `---`, `:--`, `--:`, or `:-:`.
+    ///
+    /// Width is measured in Characters (grapheme clusters), not display width, so CJK and emoji
+    /// cells under-pad. Pipe alignment is a source-readability nicety, not a layout guarantee.
+    static func columnWidths(for region: MarkdownTableRegion) -> [Int] {
+        let rows = [region.table.headers] + region.table.rows
+        return (0..<region.table.columnCount).map { column in
+            rows.reduce(3) { widest, row in
+                guard row.indices.contains(column) else { return widest }
+                return max(widest, row[column].count)
+            }
+        }
+    }
+
+    private static func isWhitespace(_ character: unichar) -> Bool {
+        character == UInt16(UnicodeScalar(" ").value) || character == UInt16(UnicodeScalar("\t").value)
+    }
+
     /// `NSString.lineRange(for:)` includes the terminator; every caller here measures against the
     /// line's own text, so the terminator is trimmed off.
     static func lineRange(in ns: NSString, at location: Int) -> NSRange {
