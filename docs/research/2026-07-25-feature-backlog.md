@@ -6,7 +6,7 @@
 
 **Verification basis:** static read of the source on 2026-07-25 — greps and file reads, **no build was run and no flow was driven in the app.** Two items below (1 and 2) were behavior claims needing confirmation in a real Debug build. **Both items 1 and 2 were confirmed in a real Debug build and have since shipped (2026-07-26).** The rest are structural absences visible in the code and are not in doubt.
 
-**Status:** 2 of 6 shipped. Remaining: 3–6.
+**Status:** 3 of 6 shipped. Remaining: 4–6.
 
 ---
 
@@ -69,9 +69,34 @@ shipped cost is ~0.6 ms mid-document in an optimized build, against Apple's own 
 
 ---
 
-### 3. Table authoring help
+### 3. Table authoring help — **SHIPPED 2026-07-26**
 
-**Today:** `MarkdownFormattingCommand` is title / section / bold / italic / inlineCode / strikethrough / blockquote / unorderedList / orderedList / link. No table command. Lineform *renders* GFM tables natively and well (`NSTextTable`, per-column alignment — see `docs/architecture/rendering.md`) but authoring one means hand-aligning pipes.
+**Shipped** as `MarkdownTableEditing` plus `LineformTextView.insertTab` / `insertBacktab`
+overrides and two Format menu rows. Insert Table (⌃⌘T) writes a 3×2 skeleton; Reformat Table
+(⌃⌘R) aligns the pipes of the table under the caret; Tab / Shift-Tab move between cells inside a
+table, and Tab off the last cell appends a row. Design:
+`docs/superpowers/specs/2026-07-26-table-authoring-design.md`; implementation notes and the
+load-bearing rules: `docs/architecture/editor-behavior.md`.
+
+**Deliberate reductions from the scope below:** no size picker — the size is fixed at 3×2, because
+every other Format command acts immediately and gaining a column is one pipe plus Reformat. No
+alignment commands: setting a column to `:-:` stays a two-character hand edit, which Reformat then
+preserves.
+
+**Two things the plan did not anticipate**, both found before shipping: Reformat rebuilt its
+delimiter row from the parsed alignments, which map `:--` and `---` both to `.left` — so it
+silently erased every explicit-left delimiter in the file, invisibly, because the rendered output
+was unchanged. And Tab from a caret ahead of the opening pipe (⌘←) skipped the first cell. The
+first was caught by a test, the second by code review after the tests were green.
+
+**Reformat declines rather than risks the file** on `\|` or any backtick in the region: the parser
+splits on every pipe, which is harmless while rendering but permanent once written back.
+
+**Verified:** 966 default-plan tests and 15 hosted-plan tests green, plus a driven pass in a real
+Debug build covering align, second-align-is-a-no-op, alignment-colon preservation, both refusals,
+Tab-in-table vs. Tab-in-prose, insert, append-row, and single-⌘Z undo of each.
+
+**Was true before the change:** `MarkdownFormattingCommand` was title / section / bold / italic / inlineCode / strikethrough / blockquote / unorderedList / orderedList / link. No table command. Lineform *rendered* GFM tables natively and well (`NSTextTable`, per-column alignment — see `docs/architecture/rendering.md`) but authoring one meant hand-aligning pipes.
 
 **Scope when built:** Insert Table (pick rows × columns), and Reformat/Align Table — pad the pipes of the table under the caret so columns line up in source. Possibly Tab to move between cells.
 

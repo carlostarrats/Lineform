@@ -31,6 +31,10 @@ Lineform edits real Markdown files. The app keeps the source visible so the file
       |---|---|
       | Cell   | Cell   |
 
+  Insert Table (⌃⌘T) starts one, Tab moves between cells, and Reformat Table (⌃⌘R) pads the
+  pipes so the columns line up in the file. Alignment is set by colons in the divider row —
+  `:---` left, `---:` right, `:---:` centred — and Reformat keeps whichever you wrote.
+
 - **Callouts**, written as a quote with a type marker:
 
       > [!NOTE]
