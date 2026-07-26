@@ -881,6 +881,61 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         ))
     }
 
+    func testSelectionAfterCorrectionPlacesCaretAfterTheNewWord() {
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: nil,
+            wordRange: NSRange(location: 6, length: 3),   // "teh"
+            replacementLength: 3,                          // "the"
+            textLength: 15
+        )
+        XCTAssertEqual(selection, NSRange(location: 9, length: 0))
+    }
+
+    /// The menu preserves a selection so Bold/Italic/Link still act on it; applying a
+    /// correction must not then throw that selection away.
+    func testSelectionAfterCorrectionKeepsAPreservedSelectionAndResizesIt() {
+        // "befor" (5) -> "before" (6): the surrounding selection grows by one.
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 0, length: 20),
+            wordRange: NSRange(location: 9, length: 5),
+            replacementLength: 6,
+            textLength: 40
+        )
+        XCTAssertEqual(selection, NSRange(location: 0, length: 21))
+    }
+
+    func testSelectionAfterCorrectionShrinksAPreservedSelectionWhenTheWordGetsShorter() {
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 0, length: 20),
+            wordRange: NSRange(location: 9, length: 5),
+            replacementLength: 2,
+            textLength: 40
+        )
+        XCTAssertEqual(selection, NSRange(location: 0, length: 17))
+    }
+
+    func testSelectionAfterCorrectionFallsBackToCaretOnAPartialOverlap() {
+        // Selection covers only the tail of the word, so the replacement moves its start too —
+        // there is no exact adjustment, so do not pretend otherwise.
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 11, length: 9),
+            wordRange: NSRange(location: 9, length: 5),
+            replacementLength: 6,
+            textLength: 40
+        )
+        XCTAssertEqual(selection, NSRange(location: 15, length: 0))
+    }
+
+    func testSelectionAfterCorrectionClampsAPreservedSelectionToTheText() {
+        let selection = LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: NSRange(location: 0, length: 100),
+            wordRange: NSRange(location: 0, length: 3),
+            replacementLength: 3,
+            textLength: 10
+        )
+        XCTAssertEqual(selection, NSRange(location: 0, length: 10), "must never exceed the text")
+    }
+
     // MARK: - Spelling suggestions
 
     /// One confident answer beats a phonetic dump. These are the real values

@@ -550,8 +550,10 @@ final class LineformTextView: NSTextView {
 
     /// The misspelled word the context menu is acting on, captured when the menu is built
     /// because the click location is not available by the time an item fires. The word is kept
-    /// alongside the range so the range can be revalidated — see `applySpellingGuess`.
-    private var spellingCorrection: (range: NSRange, word: String)?
+    /// alongside the range so the range can be revalidated — see `applySpellingGuess` — and
+    /// `preservedSelection` records a selection that was deliberately left intact, so applying a
+    /// correction does not destroy the very selection the menu went out of its way to keep.
+    private var spellingCorrection: (range: NSRange, word: String, preservedSelection: NSRange?)?
 
     private func addSpellingItemsIfNeeded(to menu: NSMenu, for event: NSEvent) {
         spellingCorrection = nil
@@ -561,16 +563,18 @@ final class LineformTextView: NSTextView {
         }
 
         let word = (string as NSString).substring(with: wordRange)
-        spellingCorrection = (wordRange, word)
 
         // Right-clicking a misspelling normally selects it, so the correction is visible before
         // it is applied — but NOT when that would steal an existing selection the user is about
         // to act on. This menu also carries Bold/Italic/Link, which operate on the selection, so
         // collapsing a selected phrase to one word silently changes what those commands do.
-        if LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
+        let existingSelection = selectedRange()
+        let selectsWord = LineformTextContextMenuPresentation.shouldSelectMisspelledWord(
             wordRange: wordRange,
-            existingSelection: selectedRange()
-        ) {
+            existingSelection: existingSelection
+        )
+        spellingCorrection = (wordRange, word, selectsWord ? nil : existingSelection)
+        if selectsWord {
             setSelectedRange(wordRange)
         }
         let guesses = LineformTextContextMenuPresentation.spellingSuggestions(
@@ -689,9 +693,12 @@ final class LineformTextView: NSTextView {
         guard shouldChangeText(in: pending.range, replacementString: replacement) else { return }
         textStorage?.replaceCharacters(in: pending.range, with: replacement)
         didChangeText()
-        setSelectedRange(
-            NSRange(location: pending.range.location + (replacement as NSString).length, length: 0)
-        )
+        setSelectedRange(LineformTextContextMenuPresentation.selectionAfterCorrection(
+            preservedSelection: pending.preservedSelection,
+            wordRange: pending.range,
+            replacementLength: (replacement as NSString).length,
+            textLength: (string as NSString).length
+        ))
     }
 
     @objc private func learnSpellingFromContextMenu(_ sender: NSMenuItem) {
@@ -1715,6 +1722,41 @@ enum LineformTextContextMenuPresentation {
     static func shouldSelectMisspelledWord(wordRange: NSRange, existingSelection: NSRange) -> Bool {
         guard existingSelection.length > 0 else { return true }
         return NSIntersectionRange(wordRange, existingSelection).length == 0
+    }
+
+    /// Where the selection should land after a spelling correction is applied.
+    ///
+    /// When the menu deliberately preserved an existing selection (see
+    /// `shouldSelectMisspelledWord`), that selection is kept and resized by the length the
+    /// correction changed — otherwise applying the correction would destroy the very selection
+    /// the menu went out of its way to protect, and Bold/Italic/Link would no longer act on what
+    /// the user had chosen. With no preserved selection, the caret lands after the new word,
+    /// which is what every text editor does.
+    static func selectionAfterCorrection(
+        preservedSelection: NSRange?,
+        wordRange: NSRange,
+        replacementLength: Int,
+        textLength: Int
+    ) -> NSRange {
+        let caret = NSRange(location: wordRange.location + replacementLength, length: 0)
+        guard let preserved = preservedSelection else { return caret }
+
+        // Only a selection that FULLY CONTAINS the word can be preserved correctly: resizing it
+        // by the length delta is exact. A partial overlap (half a word selected) would also have
+        // its start shifted by the replacement, so there is no honest adjustment — fall back to
+        // the caret rather than leave a subtly wrong selection.
+        guard preserved.location <= wordRange.location,
+              NSMaxRange(preserved) >= NSMaxRange(wordRange) else {
+            return caret
+        }
+
+        let delta = replacementLength - wordRange.length
+        let adjusted = NSRange(
+            location: preserved.location,
+            length: max(0, preserved.length + delta)
+        )
+        let clamped = NSIntersectionRange(adjusted, NSRange(location: 0, length: textLength))
+        return clamped.length > 0 ? clamped : caret
     }
 
     /// Whether a range captured when the context menu was built still refers to the same word.
