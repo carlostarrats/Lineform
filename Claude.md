@@ -34,6 +34,7 @@ Core product principles:
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - Local release/help resources bundled in the app.
+- SF Symbol icons on every main-menu row, matching Apple's iconed menus on macOS 26.
 
 Deep reference lives in `docs/architecture/` — verbatim, not summarized. **Read the file for an area
 before changing anything in it**; each one records decisions that were paid for in regressions.
@@ -91,9 +92,10 @@ file named after it carries the full story and the reasoning.
 - Save As → Markdown must drive `NSDocument.save(to:ofType:for:.saveAsOperation)`. A raw `Data.write` leaves the in-app document detached from the file.
 - PDF export must go through `writePDFAtomically`. `NSPrintOperation` writes straight into its target, so a direct write truncates the file being overwritten.
 
-**Build config** (`app-integration.md`)
+**Build config and app shell** (`app-integration.md`)
 - `AppIntents.framework` must stay LINKED in the app target's Frameworks phase. `import AppIntents` alone is not enough: without the link no `Metadata.appintents` is emitted and the Shortcuts/Spotlight/Siri actions silently never register. **This already shipped broken once.** Verify `Contents/Resources/Metadata.appintents` exists after any build-config change.
 - EVERY nested bundle must be re-signed with Developer ID in `packaging/build-release.sh` — Xcode signs them with the Apple Development cert and the notary rejects the whole archive ("binary is not signed with a valid Developer ID certificate"). Adding an app extension or embedded binary means adding it to that re-sign list; the Quick Look appex needs `--entitlements LineformQuickLook/LineformQuickLook.entitlements` because it keeps its own sandbox. This failed notarization once for 1.3.0.
+- Main-menu icons must be applied to the menu that posts `NSMenu.didAddItemNotification`, never by walking `NSApp.mainMenu` on a tracking hook. SwiftUI builds `CommandMenu` replacements DETACHED and swaps them in, so the walk decorates the outgoing menu while the bare one is drawn.
 - Releases must build from a CLEAN `Release/Lineform.app`. `Contents/Helpers/lineform` is written after `xcodebuild`, so a leftover copy from a previous run makes the next build's CodeSign step fail with "code object is not signed at all".
 
 **Verification**

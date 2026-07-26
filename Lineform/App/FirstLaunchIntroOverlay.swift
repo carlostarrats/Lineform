@@ -75,6 +75,8 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
             firstLaunchIntroPresenter.showIfNeeded()
         }
         ManualSaveIntentMonitor.installIfNeeded()
+        MainMenuIconDecorator.installIfNeeded()
+        MainMenuIconDecorator.dumpMainMenuIfRequested()
         // Piped-file housekeeping runs in the unsandboxed `lineform` helper (the sandboxed app
         // cannot enumerate the helper's real Application Support directory).
     }
