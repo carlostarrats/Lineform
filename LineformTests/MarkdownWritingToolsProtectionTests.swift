@@ -70,4 +70,59 @@ final class MarkdownWritingToolsProtectionTests: XCTestCase {
         XCTAssertFalse(ranges.contains { NSIntersectionRange($0, prose).length > 0 },
                        "trailing prose must not be protected by a phantom math block")
     }
+
+    // MARK: - isInsideCodeOrFrontMatter
+
+    // The per-Return cheap path used by list continuation. Kept in lockstep with the fence
+    // rules above: both answer "is this position really Markdown?", from the same file.
+
+    func testInsideCodeOrFrontMatterDetectsAnOpenFence() {
+        let text = "```\n- milk"
+        XCTAssertTrue(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 4, in: text))
+    }
+
+    func testInsideCodeOrFrontMatterDetectsAClosedFence() {
+        let text = "```\n- milk\n```"
+        XCTAssertTrue(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 4, in: text))
+    }
+
+    func testInsideCodeOrFrontMatterIsFalseAfterAClosedFence() {
+        let text = "```\ncode\n```\n- milk"
+        XCTAssertFalse(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 13, in: text))
+    }
+
+    func testInsideCodeOrFrontMatterHandlesTildeFences() {
+        let text = "~~~\n- milk"
+        XCTAssertTrue(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 4, in: text))
+    }
+
+    func testInsideCodeOrFrontMatterIgnoresAMismatchedFenceMarker() {
+        // A ``` block is not closed by ~~~, so the position stays inside code.
+        let text = "```\n~~~\n- milk"
+        XCTAssertTrue(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 8, in: text))
+    }
+
+    func testInsideCodeOrFrontMatterDetectsFrontMatter() {
+        let text = "---\n- a\n---\nBody"
+        XCTAssertTrue(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 4, in: text))
+    }
+
+    func testInsideCodeOrFrontMatterIsFalseAfterFrontMatter() {
+        let text = "---\ntitle: x\n---\n- item"
+        XCTAssertFalse(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 17, in: text))
+    }
+
+    func testInsideCodeOrFrontMatterIsFalseInPlainProse() {
+        XCTAssertFalse(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 3, in: "hello world"))
+    }
+
+    func testInsideCodeOrFrontMatterToleratesOutOfBoundsLocations() {
+        XCTAssertFalse(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 999, in: "hello"))
+        XCTAssertFalse(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: -1, in: "hello"))
+    }
+
+    func testInsideCodeOrFrontMatterMatchesIgnoredRangesForAnIndentedFence() {
+        let text = "  ```\n- milk\n  ```"
+        XCTAssertTrue(MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(location: 6, in: text))
+    }
 }

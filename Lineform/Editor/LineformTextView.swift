@@ -390,6 +390,48 @@ final class LineformTextView: NSTextView {
         centerSelectionForTypewriterModeIfNeeded()
     }
 
+    /// Continues Markdown list markers, task checkboxes, and blockquotes on Return, and ends
+    /// the construct when the writer presses Return on a marker they never filled in.
+    ///
+    /// Overriding `insertNewline` rather than `keyDown` is load-bearing. `keyDown` fires
+    /// BEFORE input-method handling, so it would swallow Return while a Japanese or Chinese
+    /// IME is committing a composition, and it would fight the spelling-correction popup.
+    /// `insertNewline` is only reached once the input context has decided the keypress really
+    /// is a newline. See `docs/architecture/editor-behavior.md`.
+    override func insertNewline(_ sender: Any?) {
+        guard let outcome = MarkdownListContinuation.outcome(for: string, selectedRange: selectedRange()) else {
+            super.insertNewline(sender)
+            return
+        }
+
+        switch outcome {
+        case let .continue(insertion):
+            applyListContinuationEdit(replacing: selectedRange(), with: insertion)
+        case let .terminate(clearing):
+            applyListContinuationEdit(replacing: clearing, with: "")
+        }
+    }
+
+    /// The localized edit path — NOT `applyWholeTextReplacement`, which does
+    /// `setAttributedString` over the entire document and would rewrite the whole file on
+    /// every Return. One `replaceCharacters` also means one ⌘Z reverses the newline and its
+    /// marker together, without explicit undo grouping.
+    ///
+    /// Deliberately does NOT re-highlight: `didChangeText` already reaches the delegate's
+    /// `textDidChange`, which schedules the debounced visible-window pass. Forcing a
+    /// synchronous whole-document `refreshMarkdownHighlighting()` here would re-attribute on
+    /// every Return — the per-keystroke repaint measured as the large-doc caret trail on
+    /// 2026-07-05. The explicit scroll stays because bypassing `super.insertNewline` also
+    /// bypasses AppKit's own scroll-to-caret.
+    private func applyListContinuationEdit(replacing range: NSRange, with replacement: String) {
+        guard shouldChangeText(in: range, replacementString: replacement) else { return }
+
+        textStorage?.replaceCharacters(in: range, with: replacement)
+        didChangeText()
+        setSelectedRange(NSRange(location: range.location + (replacement as NSString).length, length: 0))
+        scrollRangeToVisible(selectedRange())
+    }
+
     @objc func toggleBoldMarkdown(_ sender: Any?) {
         applyFormattingCommand(.bold)
     }

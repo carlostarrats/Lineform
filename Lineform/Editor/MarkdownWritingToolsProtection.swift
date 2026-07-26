@@ -13,6 +13,83 @@ enum MarkdownWritingToolsProtection {
             .filter { $0.length > 0 }
     }
 
+    /// Whether `location` sits inside fenced code or YAML front matter — the two regions where
+    /// a line that looks like Markdown is not Markdown.
+    ///
+    /// Deliberately separate from `ignoredRanges`, which computes EVERY protected region in the
+    /// whole document — including a per-line regex pass for inline math — and measured 18 ms on
+    /// a 730 KB file. That is fine for a Writing Tools session and far too slow for a check that
+    /// runs on every Return. This walks lines only as far as `location`, tracks fence state, and
+    /// allocates one substring per line instead of splitting the document. Inline math is
+    /// irrelevant here: a list marker sits at the head of a line, never inside `$…$`.
+    static func isInsideCodeOrFrontMatter(location: Int, in text: String) -> Bool {
+        let nsText = text as NSString
+        guard location >= 0, location <= nsText.length else {
+            return false
+        }
+
+        if let frontMatter = frontMatterRange(in: text), NSLocationInRange(location, frontMatter) {
+            return true
+        }
+
+        var insideFence = false
+        var openFenceMarker: String?
+        var lineStart = 0
+
+        while lineStart < location {
+            var lineEnd = 0
+            var contentsEnd = 0
+            nsText.getLineStart(
+                nil,
+                end: &lineEnd,
+                contentsEnd: &contentsEnd,
+                for: NSRange(location: lineStart, length: 0)
+            )
+
+            if let marker = fenceMarker(in: nsText, lineStart: lineStart, contentsEnd: contentsEnd) {
+                if insideFence, marker == openFenceMarker {
+                    insideFence = false
+                    openFenceMarker = nil
+                } else if !insideFence {
+                    insideFence = true
+                    openFenceMarker = marker
+                }
+            }
+
+            guard lineEnd > lineStart else { break }
+            lineStart = lineEnd
+        }
+
+        return insideFence
+    }
+
+    /// The ``` or ~~~ delimiter a line opens or closes with, or `nil`. Reads UTF-16 units
+    /// directly so the overwhelming majority of lines — ordinary prose — are rejected on their
+    /// first non-blank character without allocating a substring.
+    private static func fenceMarker(in nsText: NSString, lineStart: Int, contentsEnd: Int) -> String? {
+        let space = UInt16(UnicodeScalar(" ").value)
+        let tab = UInt16(UnicodeScalar("\t").value)
+        let backtick = UInt16(UnicodeScalar("`").value)
+        let tilde = UInt16(UnicodeScalar("~").value)
+
+        var index = lineStart
+        while index < contentsEnd {
+            let character = nsText.character(at: index)
+            guard character == space || character == tab else { break }
+            index += 1
+        }
+
+        guard contentsEnd - index >= 3 else { return nil }
+        let first = nsText.character(at: index)
+        guard first == backtick || first == tilde,
+              nsText.character(at: index + 1) == first,
+              nsText.character(at: index + 2) == first else {
+            return nil
+        }
+
+        return first == backtick ? "```" : "~~~"
+    }
+
     private static func protectedRanges(in text: String) -> [NSRange] {
         var ranges: [NSRange] = []
         ranges.append(contentsOf: frontMatterRange(in: text).map { [$0] } ?? [])
