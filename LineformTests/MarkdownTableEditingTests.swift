@@ -186,4 +186,69 @@ final class MarkdownTableEditingTests: XCTestCase {
     func testReformatReturnsNilOutsideATable() {
         XCTAssertNil(MarkdownTableEditing.reformat(in: "just prose", selectedRange: NSRange(location: 2, length: 0)))
     }
+
+    // MARK: - Tab
+
+    private let grid = "| A | B |\n| - | - |\n| 1 | 2 |"
+
+    private func tab(_ text: String, _ location: Int, forward: Bool = true, length: Int = 0)
+        -> MarkdownTableEditing.TabOutcome? {
+        MarkdownTableEditing.tabTarget(
+            in: text,
+            selectedRange: NSRange(location: location, length: length),
+            forward: forward
+        )
+    }
+
+    func testTabMovesToTheNextCellInTheRow() {
+        XCTAssertEqual(tab(grid, 2), .select(NSRange(location: 6, length: 1)))
+    }
+
+    func testTabSkipsTheDelimiterRowOnItsWayToTheBody() {
+        XCTAssertEqual(tab(grid, 6), .select(NSRange(location: 22, length: 1)))
+    }
+
+    func testShiftTabMovesBackwards() {
+        XCTAssertEqual(tab(grid, 6, forward: false), .select(NSRange(location: 2, length: 1)))
+    }
+
+    func testShiftTabSkipsTheDelimiterRowGoingBack() {
+        XCTAssertEqual(tab(grid, 22, forward: false), .select(NSRange(location: 6, length: 1)))
+    }
+
+    func testShiftTabInTheFirstHeaderCellIsAConsumedNoOp() {
+        XCTAssertEqual(tab(grid, 2, forward: false), .stay)
+    }
+
+    func testTabInTheLastCellAppendsARow() {
+        XCTAssertEqual(
+            tab(grid, 26),
+            .appendRow(
+                insertion: "\n|     |     |",
+                at: (grid as NSString).length,
+                selecting: NSRange(location: (grid as NSString).length + 3, length: 0)
+            )
+        )
+    }
+
+    func testAppendedRowMatchesCurrentColumnWidths() {
+        let wide = "| Fruit | B |\n| ----- | - |\n| Plum  | 2 |"
+        guard case let .appendRow(insertion, _, _)? = tab(wide, (wide as NSString).length - 2) else {
+            return XCTFail("expected an appended row")
+        }
+        // Column 0 is 5 wide ("Fruit"); column 1 falls back to the floor of 3.
+        XCTAssertEqual(insertion, "\n|       |     |")
+    }
+
+    func testTabOutsideATableIsNotIntercepted() {
+        XCTAssertNil(tab("just prose", 4))
+    }
+
+    func testTabInsideFencedCodeIsNotIntercepted() {
+        XCTAssertNil(tab("```\n\(grid)\n```", 8))
+    }
+
+    func testTabWithAMultiLineSelectionIsNotIntercepted() {
+        XCTAssertNil(tab(grid, 2, length: 20))
+    }
 }

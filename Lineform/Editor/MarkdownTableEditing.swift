@@ -88,6 +88,60 @@ enum MarkdownTableEditing {
         )
     }
 
+    enum TabOutcome: Equatable {
+        /// Pure selection move — edits nothing, so it costs no undo step.
+        case select(NSRange)
+        /// Tab off the last cell: the only Tab that writes. One localized insertion.
+        case appendRow(insertion: String, at: Int, selecting: NSRange)
+        /// Consume the key and do nothing — Shift-Tab at the head of a table. Inserting a
+        /// literal tab there would corrupt the table.
+        ///
+        /// Named `stay`, not `none`: `tabTarget` returns `TabOutcome?`, and a bare `return .none`
+        /// there would silently resolve to `Optional.none` — "fall through and insert a literal
+        /// tab", the exact opposite of what this case means.
+        case stay
+    }
+
+    /// `nil` means "not a table cell" — the text view should fall through to `super` and insert
+    /// an ordinary tab, exactly as it does today.
+    static func tabTarget(in text: String, selectedRange: NSRange, forward: Bool) -> TabOutcome? {
+        guard let region = locate(in: text, at: selectedRange.location) else { return nil }
+
+        let ns = text as NSString
+        // An explicit multi-line selection is the writer's, not ours to reinterpret.
+        guard NSMaxRange(selectedRange) <= NSMaxRange(region.range),
+              selectedRange.length == 0
+                || lineRange(in: ns, at: selectedRange.location)
+                    == lineRange(in: ns, at: NSMaxRange(selectedRange)) else { return nil }
+
+        let navigable = region.lineRanges.indices.filter { $0 != MarkdownTableRegion.delimiterLineIndex }
+        var cells: [NSRange] = []
+        for line in navigable {
+            cells.append(contentsOf: contentRanges(ofLine: line, in: region, text: text))
+        }
+        guard !cells.isEmpty else { return nil }
+
+        let caret = selectedRange.location
+        let current = cells.lastIndex(where: { $0.location <= caret }) ?? 0
+        let target = forward ? current + 1 : current - 1
+
+        if target < 0 { return .stay }
+        if target < cells.count { return .select(cells[target]) }
+
+        let insertion = "\n" + row(
+            cells: Array(repeating: "", count: region.table.columnCount),
+            widths: columnWidths(for: region),
+            indent: region.indent
+        )
+        let at = NSMaxRange(region.range)
+        return .appendRow(
+            insertion: insertion,
+            at: at,
+            // Past the newline, the indent, the opening pipe, and its following space.
+            selecting: NSRange(location: at + 1 + (region.indent as NSString).length + 2, length: 0)
+        )
+    }
+
     static let insertedColumnCount = 3
     static let insertedBodyRowCount = 2
 
