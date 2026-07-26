@@ -216,6 +216,16 @@ final class MarkdownTableEditingTests: XCTestCase {
         XCTAssertEqual(tab(grid, 22, forward: false), .select(NSRange(location: 6, length: 1)))
     }
 
+    /// ⌘← puts the caret at offset 0, ahead of the opening pipe. Tab from there selects the
+    /// first cell rather than skipping over it into the second.
+    func testTabFromTheStartOfTheLineSelectsTheFirstCell() {
+        XCTAssertEqual(tab(grid, 0), .select(NSRange(location: 2, length: 1)))
+    }
+
+    func testShiftTabFromTheStartOfTheLineIsAConsumedNoOp() {
+        XCTAssertEqual(tab(grid, 0, forward: false), .stay)
+    }
+
     func testShiftTabInTheFirstHeaderCellIsAConsumedNoOp() {
         XCTAssertEqual(tab(grid, 2, forward: false), .stay)
     }
@@ -250,5 +260,61 @@ final class MarkdownTableEditingTests: XCTestCase {
 
     func testTabWithAMultiLineSelectionIsNotIntercepted() {
         XCTAssertNil(tab(grid, 2, length: 20))
+    }
+
+    // MARK: - End to end
+
+    /// Reformat is presentational only: the renderer must group the rewritten source into exactly
+    /// the same `MarkdownTable` it grouped before. This is the automated half of "Read mode looks
+    /// identical after ⌃⌘R".
+    func testReformatDoesNotChangeWhatTheRendererSees() {
+        let text = "| Fruit | Colour |\n|:-|-:|\n| Plum | purple |\n| Fig |"
+        let before = markdownBlocks(in: text.components(separatedBy: "\n"))
+        let edit = MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0))
+        let after = markdownBlocks(in: edit!.text.components(separatedBy: "\n"))
+
+        guard case let .table(originalTable, _)? = before.first,
+              case let .table(reformattedTable, _)? = after.first else {
+            return XCTFail("both sides should group as a single table")
+        }
+        XCTAssertEqual(originalTable, reformattedTable)
+    }
+
+    /// Insert, then Tab across every cell and off the end, applying each outcome the way
+    /// `LineformTextView` does. Catches offsets that are individually plausible but do not
+    /// compose into a usable document.
+    func testInsertThenTabAcrossTheWholeTableProducesAValidDocument() {
+        var text = MarkdownTableEditing.insertion(in: "", selectedRange: NSRange(location: 0, length: 0)).text
+        var caret = 2
+
+        // Three header cells, then six body cells: eight forward moves stay inside the table.
+        for step in 0..<8 {
+            guard case let .select(range)? = MarkdownTableEditing.tabTarget(
+                in: text,
+                selectedRange: NSRange(location: caret, length: 0),
+                forward: true
+            ) else {
+                return XCTFail("step \(step) should have selected a cell")
+            }
+            caret = range.location
+        }
+
+        // The ninth lands on the last cell's far edge and appends a row.
+        guard case let .appendRow(insertion, at, selecting)? = MarkdownTableEditing.tabTarget(
+            in: text,
+            selectedRange: NSRange(location: caret, length: 0),
+            forward: true
+        ) else {
+            return XCTFail("the last cell should append a row")
+        }
+        text = (text as NSString).replacingCharacters(in: NSRange(location: at, length: 0), with: insertion)
+
+        XCTAssertEqual(text.components(separatedBy: "\n").count, 5)
+        XCTAssertNotNil(MarkdownTableEditing.locate(in: text, at: selecting.location))
+        guard case let .table(table, _)? = markdownBlocks(in: text.components(separatedBy: "\n")).first else {
+            return XCTFail("the result should still group as a table")
+        }
+        XCTAssertEqual(table.columnCount, 3)
+        XCTAssertEqual(table.rows.count, 3)
     }
 }

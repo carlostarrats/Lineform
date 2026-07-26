@@ -122,7 +122,12 @@ enum MarkdownTableEditing {
         guard !cells.isEmpty else { return nil }
 
         let caret = selectedRange.location
-        let current = cells.lastIndex(where: { $0.location <= caret }) ?? 0
+        // No cell starts at or before the caret means it sits ahead of the first cell's content —
+        // at the very start of the line, before the opening pipe. Tab from there belongs IN the
+        // first cell; treating it as "already in cell 0" would skip straight past it.
+        guard let current = cells.lastIndex(where: { $0.location <= caret }) else {
+            return forward ? .select(cells[0]) : .stay
+        }
         let target = forward ? current + 1 : current - 1
 
         if target < 0 { return .stay }
