@@ -155,3 +155,75 @@ enabled — so turning checking on silently introduces an unfamiliar hover-revea
 
 Spell checking routes through the system `NSSpellChecker` and nothing else — on-device, no
 network. Corrections use the localized undoable path, so one ⌘Z reverses one correction.
+
+## Table authoring
+
+Three affordances, all built on the parser the renderer already uses: **Insert Table** (⌃⌘T)
+writes a 3×2 skeleton, **Reformat Table** (⌃⌘R) aligns the pipes of the table under the caret,
+and **Tab / Shift-Tab** move between cells inside a table. The decision surface is
+`MarkdownTableEditing` — pure over `(text, selectedRange)`, no AppKit — so all of it is testable
+in the default plan without a window. `LineformTextView` only applies outcomes.
+
+**Detection delegates to `MarkdownTableParser`; it does not reimplement it.** `locate` walks the
+maximal run of pipe-bearing lines around the caret, then picks the first line whose successor is a
+delimiter row with a matching cell count — the same line `markdownBlocks` would settle on
+(`MarkdownBlockGrouping.swift:427-444`). This is the `FileIdentity` lesson applied to a different
+pair: if the editor's idea of "a table" and the renderer's ever diverge, Tab intercepts a
+construct the reader never saw as a table, and Reformat rewrites it. The maximal-run detail
+matters — a paragraph line that happens to contain a pipe can sit directly above a table, and the
+renderer treats it as prose, so `locate` must too.
+
+**Two different undo paths, deliberately.** Insert and Reformat are one-shot commands and go
+through `applyWholeTextReplacement`, like Bold and Link: one ⌃⌘T, one ⌘Z. Tab is a per-keystroke
+edit, so it must never touch that path. Most Tabs are `.select` and edit *nothing at all* — no
+write, no undo step, no autosave churn — and the only Tab that writes, appending a row off the
+last cell, uses the localized `replaceCharacters` path that list continuation established.
+
+**Guard ordering is a performance requirement, not style.** Tab fires on a key the writer uses
+constantly, so the first test is line-local `looksLikeRow`, which fails for essentially all prose
+and costs one `lineRange`. Only after that, and after the block-local delimiter check, does the
+whole-document `MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter` scan run — the same
+cheap-first ordering `MarkdownListContinuation` uses. A pipe table inside a fence is code and is
+never navigated or rewritten.
+
+**Reformat refuses rather than risks the file.** `MarkdownTableParser.cells(in:)` splits on every
+pipe; escaped pipes are a known v1 limitation. That is harmless while *rendering* — the wrong
+split shows a wrong cell and nothing is lost. Reformat **writes the result back to disk**, so the
+same wrong split is permanent. It therefore declines outright on `\|` or on any backtick in the
+region. The backtick half is deliberately over-broad: it passes up some tables it could safely
+rewrite, and it never destroys one.
+
+**Delimiter colons are re-emitted from the original row, not from `table.alignments`.** The parser
+maps both `---` and `:--` to `.left`, which is correct for rendering — they are identical there —
+so rebuilding the delimiter from the parsed alignment silently erases every explicit-left
+delimiter in the file. Caught by a test, not by QA; the rendered output would have looked fine.
+
+**Reformat returns `nil` when the table is already aligned.** That is how idempotence is
+expressed, and it is stronger than "produces the same string": a second ⌃⌘R registers no undo step
+at all. A no-table, refused, or already-aligned Reformat is silent — no alert, no disabled menu
+item. Disabling would mean `validateMenuItem:` plumbing through the responder chain for a command
+whose only failure mode is "nothing happened".
+
+**Tab geometry.** `contentRanges` mirrors `cells(in:)` but keeps the positions the parser throws
+away. Tab selects a cell's *trimmed content* so typing replaces it; an empty cell yields a
+zero-length caret where content would start in a reformatted row, not jammed against the pipe.
+Navigation skips the delimiter row in both directions — nobody wants to Tab into `---`. Shift-Tab
+at the head of the table is a consumed no-op (`.stay`), because inserting a literal tab there
+would corrupt the construct. That case is named `stay` rather than `none` on purpose: `tabTarget`
+returns `TabOutcome?`, and a bare `.none` would resolve to `Optional.none`, which means the
+opposite — fall through and insert a tab.
+
+A caret ahead of the first cell (⌘← puts it before the opening pipe) matches no cell at all. That
+must select the *first* cell, not be folded into "already in cell 0", which skipped straight to the
+second. Found in review, after the tests were green.
+
+**Tab everywhere else is untouched.** The intercept only fires inside a real table, so a literal
+tab still inserts in prose. That fall-through is the whole reason Tab could be claimed here when
+list continuation deliberately left it alone. Like list continuation, the key path is not gated on
+`textFormat` — only the menu rows are.
+
+**The padded pipes will not visually line up in Lineform itself**, because the editor renders in a
+proportional font. This is not a bug and should not be "fixed" by measuring display width: the
+payoff is the *file* — aligned source reads correctly in any monospace editor and produces clean
+Git diffs, which is the "real files" product thesis. Widths are grapheme counts, so CJK and emoji
+cells under-pad; that is a known and accepted limitation of the same kind.

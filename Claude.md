@@ -31,6 +31,7 @@ Core product principles:
 - Markdown outline navigation from document headings.
 - Markdown formatting commands for common writing actions.
 - List continuation on Return for bullets, numbered items, task checkboxes, and blockquotes; Return on an empty marker ends the construct.
+- Table authoring: Insert Table (⌃⌘T) drops a 3×2 skeleton, Reformat Table (⌃⌘R) aligns the pipes of the table under the caret, and Tab/Shift-Tab move between cells inside a table only. Reformat declines on escaped pipes and backticks, and is a silent no-op when the table is already aligned.
 - Live spell checking as you type, suppressed inside fenced code, front matter, math, inline code, and link/image destinations; autocorrect is off, grammar checking is unused, and right-click offers one ranked suggestion plus Learn/Ignore.
 - Multi-document tabs, Find & Replace, cross-file search, and ⌘K quick open.
 - Read/Preview rendering of Mermaid diagrams, LaTeX math, GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
@@ -92,7 +93,8 @@ file named after it carries the full story and the reasoning.
 - Only real writes flash "Saved"/"Autosaved". Load and external reload call `markSaved`, never `recordWrite`.
 - The spell-check path must never call `MarkdownWritingToolsProtection.ignoredRanges` or `MarkdownRangeAnalyzer.ranges(in:)` — both are whole-document (18 ms at 730 KB) and it runs as the user types. Use `MarkdownSpellCheckRegions`, guarded by `MarkdownSpellCheckPerformanceTests`; that test runs in Debug, which measures ~3.6× slower than the build that ships.
 - SwiftUI builds NO Spelling and Grammar menu and this app replaces the Edit menu, so the submenu in `AppCommands` is the only off switch; `menu(for:)` likewise replaces AppKit's context menu, so spelling guesses/Learn/Ignore only exist because they are added there by hand. Deleting either strands the feature with no way to control it.
-- Keyboard intercepts in the text view hook `insertNewline`/`doCommandBy`, NEVER `keyDown` — `keyDown` fires before input-method handling and swallows Return during IME composition. Per-keystroke edits must use the localized `replaceCharacters` path, never `applyWholeTextReplacement` (it rewrites the whole document), and must not force a synchronous re-highlight (`didChangeText` already schedules the debounced one).
+- Keyboard intercepts in the text view hook `insertNewline`/`insertTab`/`insertBacktab`/`doCommandBy`, NEVER `keyDown` — `keyDown` fires before input-method handling and swallows Return during IME composition. Per-keystroke edits must use the localized `replaceCharacters` path, never `applyWholeTextReplacement` (it rewrites the whole document), and must not force a synchronous re-highlight (`didChangeText` already schedules the debounced one).
+- Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
 
 **Rendering** (`rendering.md`)
 - The mermaid orientation flip and the supported-type routing are coupled to the pinned BeautifulMermaid version. Re-check both if the pin moves, or diagrams render upside down or as garbage flowcharts.

@@ -417,6 +417,18 @@ struct AppCommands: Commands {
                 )
 
                 Divider()
+
+                Button("Insert Table") {
+                    NSApp.sendAction(#selector(LineformTextView.insertMarkdownTable(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("t", modifiers: [.command, .control])
+
+                Button("Reformat Table") {
+                    NSApp.sendAction(#selector(LineformTextView.reformatMarkdownTable(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("r", modifiers: [.command, .control])
+
+                Divider()
             }
 
             switch activeTextFormat {
