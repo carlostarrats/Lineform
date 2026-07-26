@@ -75,7 +75,7 @@ struct TableRegion {
 enum TabOutcome: Equatable {
     case select(NSRange)                        // pure selection move, edits nothing
     case appendRow(insertion: String, at: Int, selecting: NSRange)
-    case none                                   // consume the key, do nothing
+    case stay                                   // consume the key, do nothing
 }
 
 enum MarkdownTableEditing {
@@ -163,7 +163,9 @@ and 3 (a delimiter cell needs at least `---`). Output is:
   behaviour the renderer already applies, now made visible in the source.
 - Line indentation preceding the table is preserved on every emitted line.
 
-**Reformat is idempotent.** `reformat(reformat(x)) == reformat(x)` is a test, not a hope.
+**Reformat is idempotent**, expressed as: it returns `nil` when the table is already aligned.
+That is stronger than equality — it means a second ⌃⌘R is a true no-op that registers no undo
+step at all, rather than a redundant rewrite. It is a test, not a hope.
 
 ### Known cosmetic limitation
 
@@ -210,8 +212,8 @@ one line, Tab falls through to `super`.
   yields a zero-length selection positioned one space after its opening pipe.
 - **Tab in the last cell of the last row** appends a new empty row, padded to the current
   column widths, and selects its first cell. This is `.appendRow`, the only Tab that edits.
-- **Shift-Tab in the first header cell** is a consumed no-op. Inserting a literal tab at the
-  head of a table would corrupt it, and moving focus out of the editor would be worse.
+- **Shift-Tab in the first header cell** is a consumed no-op (`.stay`). Inserting a literal tab
+  at the head of a table would corrupt it, and moving focus out of the editor would be worse.
 
 ---
 
