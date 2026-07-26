@@ -15,6 +15,7 @@
 		1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */; };
 		1F0000010000000000000085 /* MarkdownListContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000085 /* MarkdownListContinuationTests.swift */; };
 1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */; };
+1F0000010000000000000088 /* MarkdownSpellCheckPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */; };
 		1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
@@ -203,6 +204,7 @@
 		1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommandTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000085 /* MarkdownListContinuationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownListContinuationTests.swift; sourceTree = "<group>"; };
 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckRegionsTests.swift; sourceTree = "<group>"; };
+1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckPerformanceTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecoratorTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
@@ -580,6 +582,7 @@
 				1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */,
 				1F0000020000000000000085 /* MarkdownListContinuationTests.swift */,
 				1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */,
+				1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */,
 				1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */,
 				1F0000020000000000000023 /* DocumentStatisticsTests.swift */,
 				1F0000020000000000000041 /* ReadingPresetTests.swift */,
@@ -924,6 +927,7 @@
 				1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */,
 				1F0000010000000000000085 /* MarkdownListContinuationTests.swift in Sources */,
 				1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */,
+				1F0000010000000000000088 /* MarkdownSpellCheckPerformanceTests.swift in Sources */,
 				1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */,
 				1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */,
 				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
