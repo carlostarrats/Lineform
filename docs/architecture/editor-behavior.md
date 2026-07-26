@@ -127,6 +127,20 @@ underlines drawn. `applySpellCheckingEnabled` clears the `.spellingState` tempor
 re-checks the visible range, and a notification broadcasts the change to every open text view —
 the preference is app-wide, so two windows disagreeing reads as a bug.
 
+(5) **Two guards in the context-menu path, both found in code review rather than QA.** The range
+of the word being corrected is captured when the menu is BUILT (the click location is gone by the
+time an item fires) and must be **revalidated against the stored word before editing**: live
+reload is a debounced async dispatch and menu tracking runs in a common run-loop mode, so an
+external rewrite can land underneath an open menu, leaving a range that points at different
+characters or past the end of the text (`NSRangeException`). And right-click must **not** collapse
+the selection onto the word when a non-empty selection already contains it — this menu also
+carries Bold/Italic/Link, which act on the selection, so stealing it silently changes what they
+format. Applying a correction then **resizes** that preserved selection by the length delta rather
+than collapsing it, or the guard defeats itself the moment a suggestion is used. Only a selection
+that *fully contains* the word is preserved; a partial overlap has its start shifted by the
+replacement too, so it falls back to the caret rather than being subtly wrong. All three
+decisions are pure functions on `LineformTextContextMenuPresentation` with regression tests.
+
 **Suggestions show one candidate, not the whole list.** `NSSpellChecker.guesses` is a broad
 phonetic net — for "teh" it returns the, ten, tbh, tex, feh, yeh, tea, ted — and listing them
 buries the answer in noise. The list is ranked, so the first entry is the real candidate.
