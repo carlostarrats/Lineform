@@ -39,6 +39,16 @@ struct Theme: Equatable, Identifiable {
     var textColor: NSColor
     var backgroundColor: NSColor
     var caretColor: NSColor
+    /// Whether chrome may wear this theme's hue. High contrast deliberately strips theme color
+    /// from the page, so it strips it from the modal field too.
+    var usesThemeTintedChrome = true
+
+    /// Which hue the Muse modal field wears. It is NOT `id`: the high-contrast theme keeps the
+    /// user's `themeID` so the theme picker still shows their selection, which is exactly why
+    /// keying the field off `id` would tint a surface that is supposed to be neutral.
+    var chromeTintID: ThemeID {
+        usesThemeTintedChrome ? id : .system
+    }
 
     var usesDarkChrome: Bool {
         let rgb = backgroundColor.usingColorSpace(.sRGB) ?? backgroundColor
@@ -108,7 +118,8 @@ struct Theme: Equatable, Identifiable {
             name: "High Contrast",
             textColor: .textColor,
             backgroundColor: .textBackgroundColor,
-            caretColor: .textColor
+            caretColor: .textColor,
+            usesThemeTintedChrome: false
         )
     }
 }

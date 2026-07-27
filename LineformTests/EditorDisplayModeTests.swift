@@ -345,6 +345,93 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(MuseModalScrim.scrimTransitionStyle, .instant)
     }
 
+    func testMuseModalScrimFieldFollowsTheReaderThemeHue() {
+        XCTAssertEqual(
+            MuseModalScrim.fieldGradientColors(for: .paper, usesDarkChrome: false),
+            [MuseModalScrim.fieldGradientTopPaper, MuseModalScrim.fieldGradientBottomPaper]
+        )
+        XCTAssertEqual(
+            MuseModalScrim.fieldGradientColors(for: .calm, usesDarkChrome: false),
+            [MuseModalScrim.fieldGradientTopCalm, MuseModalScrim.fieldGradientBottomCalm]
+        )
+        // Original keeps the design's cool default.
+        XCTAssertEqual(
+            MuseModalScrim.fieldGradientColors(for: .system, usesDarkChrome: false),
+            [MuseModalScrim.fieldGradientTop, MuseModalScrim.fieldGradientBottom]
+        )
+        // A dark theme ignores the hue entirely.
+        XCTAssertEqual(
+            MuseModalScrim.fieldGradientColors(for: .paper, usesDarkChrome: true),
+            [MuseModalScrim.fieldGradientTopDark, MuseModalScrim.fieldGradientBottomDark]
+        )
+    }
+
+    func testMuseModalScrimThemeTintsMoveHueWithoutMovingLightness() {
+        // The point of the tinted fields: same weight, different hue. A stop that drifts in
+        // lightness makes the modal look like it dims by a different amount per theme.
+        func luminance(_ rgb: (CGFloat, CGFloat, CGFloat)) -> CGFloat {
+            (0.2126 * rgb.0) + (0.7152 * rgb.1) + (0.0722 * rgb.2)
+        }
+
+        let cool = luminance((0.945, 0.969, 1.0))
+        XCTAssertEqual(luminance((0.984, 0.965, 0.929)), cool, accuracy: 0.005)   // paper
+        XCTAssertEqual(luminance((0.925, 0.980, 0.949)), cool, accuracy: 0.005)   // calm
+
+        // Paper leans warm (red highest), Calm leans green (green highest, blue behind it).
+        XCTAssertEqual(MuseModalScrim.fieldGradientBottomPaper, Color(red: 0.984, green: 0.965, blue: 0.929))
+        XCTAssertEqual(MuseModalScrim.fieldGradientBottomCalm, Color(red: 0.925, green: 0.980, blue: 0.949))
+        // The tops stay near white — a hint of the hue, not a color.
+        XCTAssertEqual(MuseModalScrim.fieldGradientTopPaper, Color(red: 0.996, green: 0.992, blue: 0.980))
+        XCTAssertEqual(MuseModalScrim.fieldGradientTopCalm, Color(red: 0.980, green: 0.996, blue: 0.988))
+    }
+
+    func testMuseModalScrimTintSurvivesTheFieldComposite() {
+        // Only ~58% of the base wash's chroma reaches the screen: the two neutral diagonals
+        // composite to 0.64 × base, then the field is laid at 0.90 over the blurred page.
+        // Calm's first pass authored green just 3/255 above blue and arrived visually gray.
+        // Assert the AUTHORED separation is wide enough to survive that, in 0…1 units.
+        let surviving = 0.64 * MuseModalScrim.fieldOpacity
+
+        func components(_ color: Color) -> (r: CGFloat, g: CGFloat, b: CGFloat) {
+            let rgb = NSColor(color).usingColorSpace(.sRGB)!
+            return (rgb.redComponent, rgb.greenComponent, rgb.blueComponent)
+        }
+
+        // Calm: green must lead blue on screen by a margin you can actually see, and red must
+        // trail blue — otherwise the mint turns olive.
+        let calm = components(MuseModalScrim.fieldGradientBottomCalm)
+        let calmGreenOverBlue = (calm.g - calm.b) * surviving
+        XCTAssertGreaterThan(calmGreenOverBlue, 0.012)
+        XCTAssertLessThan(calm.r, calm.b)
+
+        // Paper: red must lead blue by a comparable margin, so neither theme reads stronger.
+        let paper = components(MuseModalScrim.fieldGradientBottomPaper)
+        let paperRedOverBlue = (paper.r - paper.b) * surviving
+        XCTAssertGreaterThan(paperRedOverBlue, 0.012)
+        XCTAssertEqual(paperRedOverBlue, calmGreenOverBlue, accuracy: 0.020)
+    }
+
+    func testHighContrastKeepsTheModalFieldNeutral() {
+        // High contrast strips theme color from the page, so it must strip it from the field.
+        // `Theme.theme(for:)` keeps the user's themeID under high contrast (the theme picker
+        // still shows their pick), which is why the field keys off `chromeTintID`, not `id`.
+        var profile = ReadingProfile.original
+        profile.themeID = .paper
+        profile.highContrastEnabled = true
+
+        let theme = Theme.theme(for: profile)
+        XCTAssertEqual(theme.id, .paper)
+        XCTAssertEqual(theme.chromeTintID, .system)
+        XCTAssertEqual(
+            MuseModalScrim.fieldGradientColors(for: theme.chromeTintID, usesDarkChrome: false),
+            [MuseModalScrim.fieldGradientTop, MuseModalScrim.fieldGradientBottom]
+        )
+
+        // Without high contrast the same profile does carry Paper's hue.
+        profile.highContrastEnabled = false
+        XCTAssertEqual(Theme.theme(for: profile).chromeTintID, .paper)
+    }
+
     func testMuseModalScrimMatchesTheDesignDarkFieldValues() {
         // The dark field's exact stops, same three-layer structure as light.
         XCTAssertEqual(MuseModalScrim.fieldGradientTopDark, Color(red: 0.192, green: 0.188, blue: 0.188))
