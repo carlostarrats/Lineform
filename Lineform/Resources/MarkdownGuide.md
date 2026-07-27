@@ -7,7 +7,8 @@ Lineform edits real Markdown files. The app keeps the source visible so the file
 - `# Heading` — one to six `#` set the level. ⌘1 to ⌘6 set it from the keyboard, ⌘0 turns a
   heading back into ordinary text, and pressing a line's current level clears it.
 - `**Bold**`
-- `_Italic_`
+- `_Italic_` or `*Italic*` — underscores inside a word are left alone, so `make_test_file` and
+  `__init__` stay exactly as written
 - `` `Code` ``
 - `~~Strikethrough~~`
 - `- Bullet`
@@ -17,6 +18,15 @@ Lineform edits real Markdown files. The app keeps the source visible so the file
 - `[Link](https://example.com)`
 - `![Image](picture.png)`
 - `---` for a horizontal rule
+
+Return after a bullet, numbered item, task checkbox, or quote starts the next one, and numbering
+keeps counting. Return again on an empty marker ends the list instead of leaving a stray marker
+behind.
+
+Misspelled words are underlined as you write, using the spell checker built into macOS. Right-click
+one for a suggestion, or to learn or ignore the word. Code, math, front matter, and link and image
+addresses are left alone, so a file path or a variable name is never flagged. The whole feature is
+switched off under Edit ▸ Spelling and Grammar.
 
 ## Blocks That Render in Read and Preview
 

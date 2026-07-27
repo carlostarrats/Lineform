@@ -25,6 +25,26 @@ final class MarkdownHTMLRendererTests: XCTestCase {
         )
     }
 
+    // Export has to agree with the screen: an intraword underscore is not emphasis, and a
+    // single asterisk is.
+    func testInlineLeavesUnderscoresInsideAWordAlone() {
+        XCTAssertEqual(
+            MarkdownHTMLRenderer.inlineHTML("run make_test_file and __init__ now"),
+            "run make_test_file and __init__ now"
+        )
+    }
+
+    func testInlineEmitsEmphasisForSingleAsterisks() {
+        XCTAssertEqual(
+            MarkdownHTMLRenderer.inlineHTML("an *emphasised* word"),
+            "an <em>emphasised</em> word"
+        )
+    }
+
+    func testInlineLeavesSpacedAsterisksAlone() {
+        XCTAssertEqual(MarkdownHTMLRenderer.inlineHTML("2 * 3 * 4"), "2 * 3 * 4")
+    }
+
     func testInlineEmitsLinkWithHrefExactlyAsWritten() {
         XCTAssertEqual(
             MarkdownHTMLRenderer.inlineHTML("see [the docs](../guide/index.html)"),

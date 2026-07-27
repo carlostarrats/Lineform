@@ -106,6 +106,7 @@ enum MarkdownHTMLRenderer {
         var earliest: Token?
         consider(token(MarkdownInlineSyntax.bold, .bold, line, nsLine, location), &earliest)
         consider(token(MarkdownInlineSyntax.italic, .italic, line, nsLine, location), &earliest)
+        consider(token(MarkdownInlineSyntax.italicAsterisk, .italic, line, nsLine, location), &earliest)
         consider(token(MarkdownInlineSyntax.code, .code, line, nsLine, location), &earliest)
         consider(token(MarkdownInlineSyntax.strikethrough, .strikethrough, line, nsLine, location), &earliest)
         consider(token(MarkdownInlineSyntax.image, .image, line, nsLine, location), &earliest)

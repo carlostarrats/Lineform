@@ -5,14 +5,17 @@ import Foundation
 /// code/link/image punctuation is removed but the words remain, and code / math / mermaid /
 /// thematic-rule blocks are skipped entirely (not readable long-form prose). No AV dependency.
 enum SpeechTextExtractor {
-    // Patterns are COPIED from `MarkdownPreviewRenderer` (the source of truth). If those change,
-    // mirror them here so spoken text matches the rendered text.
-    private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
-    private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
-    private static let codeRegex = try! NSRegularExpression(pattern: #"`([^`\n]+)`"#)
-    private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
-    private static let imageRegex = try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
-    private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
+    // Uses `MarkdownInlineSyntax` — the one definition every emitter scans with — rather than a
+    // private copy. These were copied constants until the intraword-underscore fix had to be made
+    // in three places at once: spoken text said "maketestfile" for `make_test_file` long after
+    // the screen was corrected. Reading from the shared source is what stops that drifting again.
+    private static let boldRegex = MarkdownInlineSyntax.bold
+    private static let italicRegex = MarkdownInlineSyntax.italic
+    private static let italicAsteriskRegex = MarkdownInlineSyntax.italicAsterisk
+    private static let codeRegex = MarkdownInlineSyntax.code
+    private static let strikethroughRegex = MarkdownInlineSyntax.strikethrough
+    private static let imageRegex = MarkdownInlineSyntax.image
+    private static let linkRegex = MarkdownInlineSyntax.link
 
     static func spokenText(from markdown: String) -> String {
         let lines = markdown.components(separatedBy: "\n")
@@ -152,6 +155,7 @@ enum SpeechTextExtractor {
 
         consider(captured(boldRegex))
         consider(captured(italicRegex))
+        consider(captured(italicAsteriskRegex))
         consider(captured(codeRegex))
         consider(captured(strikethroughRegex))
         consider(imageToken(in: line, nsLine: nsLine, from: location))

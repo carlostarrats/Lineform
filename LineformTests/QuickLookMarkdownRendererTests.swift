@@ -81,6 +81,21 @@ final class QuickLookMarkdownRendererTests: XCTestCase {
         XCTAssertFalse(hasTrait(s, .italic))
     }
 
+    // Finder's preview and the app must agree about what counts as emphasis. These two cases
+    // were the last places they disagreed: Quick Look italicised the 3 in `2 * 3 * 4`, and read
+    // `__init__` as bold "init" — a construct the app deliberately does not render at all.
+    func testSpacedAsterisksAreNotItalic() {
+        let s = QuickLookMarkdownRenderer.applyInlineFormatting(to: "2 * 3 * 4", baseAttributes: base())
+        XCTAssertEqual(s.string, "2 * 3 * 4")
+        XCTAssertFalse(hasTrait(s, .italic))
+    }
+
+    func testDoubleUnderscoreWordIsNotBold() {
+        let s = QuickLookMarkdownRenderer.applyInlineFormatting(to: "call __init__ here", baseAttributes: base())
+        XCTAssertEqual(s.string, "call __init__ here")
+        XCTAssertFalse(hasTrait(s, .bold))
+    }
+
     func testEscapedMarkerRendersLiterally() {
         let s = QuickLookMarkdownRenderer.applyInlineFormatting(to: #"a \*b\* c"#, baseAttributes: base())
         XCTAssertEqual(s.string, "a *b* c")

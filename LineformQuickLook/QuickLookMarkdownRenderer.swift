@@ -295,8 +295,10 @@ enum QuickLookMarkdownRenderer {
             (.code,          rx(#"(?<!\\)`([^`]+)`"#)),
             (.link,          rx(#"(?<!\\)\[([^\]]*)\]\(([^)]*)\)"#)),
             (.bold,          rx(#"(?<!\\)\*\*([^*]+)\*\*"#)),
-            (.bold,          rx(#"(?<!\\)__([^_]+)__"#)),
-            (.italic,        rx(#"(?<!\\)\*([^*]+)\*"#)),
+            // Deliberately no `__bold__`: the app does not render it, and reading it here made
+            // Finder show a Python `__init__` as bold "init" while the app showed the real word.
+            // Emphasis rules are mirrored from `MarkdownInlineSyntax` so the two surfaces agree.
+            (.italic,        rx(#"(?<!\\)\*([^*\s][^*]*[^*\s]|[^*\s])\*"#)),
             (.italic,        rx(#"(?<![\w\\])_([^_]+)_(?![\w])"#)),
             (.strikethrough, rx(#"(?<!\\)~~([^~]+)~~"#)),
         ]

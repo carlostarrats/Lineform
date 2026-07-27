@@ -32,10 +32,12 @@ More release files and notes are available on the [Lineform Releases page](https
 - Switch between Write, Read, and Preview modes.
 - Preview Markdown beside the source in split view.
 - Navigate documents from their headings.
-- Search inside the current file with match navigation.
-- Format headings, lists, links, emphasis, and inline code.
+- Search inside the current file with match navigation, across every file in the workspace, or jump to a file by name with ⌘K.
+- Format headings, lists, links, emphasis, and inline code — set a heading level with ⌘1 to ⌘6 (⌘0 for body text), and keep bullets, numbered items, checkboxes, and quotes going with Return.
+- Write tables without counting pipes: Insert Table (⌃⌘T), Tab between cells, and Reformat Table (⌃⌘R) to line the columns up in the source.
+- See misspellings underlined as you write, checked by macOS on your Mac — code, math, front matter, and link addresses are skipped, and nothing is autocorrected.
 - Use Apple's native Writing Tools in the editor, with Markdown structure (fenced code, front matter) protected from rewrites.
-- Save Markdown or plain text, print (⌘P), or export a formatted PDF — headings, tables, math, and diagrams included, on a clean white page at a standard document size.
+- Save Markdown or plain text, print (⌘P), or export a copy as HTML, PDF, Styled PDF, or Rich Text — headings, tables, math, and diagrams included, on a clean white page at a standard document size. Exported HTML keeps your image and link paths exactly as you wrote them.
 - Adjust reading font, size, line height, spacing, width, theme, reading ruler, and typewriter mode — including the bundled accessibility fonts Atkinson Hyperlegible and OpenDyslexic.
 
 ## Privacy
