@@ -373,3 +373,33 @@ precedent. A dead keypress must not leave an empty step on the undo stack.
 delta and the length by the deltas inside it, so `"Lineform"` selected whole stays selected whole.
 A caret keeps its offset within the line's own content; a caret sitting *inside* markers being
 rewritten is clamped to the new content start, which is the only honest place left for it.
+
+## Outline fence tracking (2026-07-27)
+
+`MarkdownOutlineParser` tracks fenced code with `MermaidFence.openingMarker` /
+`isClosingFence` — the same CommonMark matching `markdownBlocks(in:)` uses — and splits with
+`markdownSourceLines(in:)`. It is a second *caller* of that rule, never a second definition.
+
+It used to toggle a flag on any line starting with ` ``` ` or `~~~`, and that disagreed with the
+renderer on documents that are entirely ordinary: any note *about* Markdown, where a longer fence
+wraps a shorter one, or a ``` block quoting a `~~~` line. The toggle closed on the inner delimiter,
+so the rest of the block's `#` lines were listed as headings that do not exist — and, because the
+state was then inverted for the remainder of the document, every real heading after it was
+swallowed as "code" and disappeared from the sidebar. Clicking one of the phantom entries scrolled
+into the middle of a code block.
+
+Found by asserting the agreement directly rather than by reading either side:
+`OutlineAndInsertionProbeTests` fuzzes fence-shaped documents and checks **both** directions — no
+listed heading may sit inside a renderer-classified fence, and every heading the renderer treats as
+prose must be listed. Both halves failed on the first run. `characterRange` still spans the line's
+own text (excluding a CRLF `\r`), which is what the scroll restore expects.
+
+## Image insertion and line endings (2026-07-27)
+
+`ImageInsertionText` terminates the line it adds with `MarkdownLineEnding.inForce(at:in:)`, like
+every other insertion path. It wrote a bare `\n`, so dropping or pasting an image into a
+Windows-authored file left a lone LF in it — the document's endings being normalised a line at a
+time, which is the one thing insertion must never do. The line-endings class had been closed over
+Return, list continuation, and the table commands; this path was simply never in the sweep. When
+adding a new path that writes a line, add it to `testImageInsertionPreservesCRLFEndings`'s
+neighbourhood rather than trusting the invariant to be remembered.

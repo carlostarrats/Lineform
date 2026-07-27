@@ -25,3 +25,33 @@ in this area.
 - **Quick Look extension**: a bundled app extension (`LineformQuickLook.appex`) that renders Markdown files with formatted previews in Finder (Space bar) and Spotlight. Implemented as a view controller-based extension (`PreviewViewController` in `LineformQuickLook/QuickLookPreviewProvider.swift`) using `QLPreviewingController` from `QuickLookUI`. Renders Markdown **directly to an `NSAttributedString`** with a custom lightweight converter (`QuickLookMarkdownRenderer`; headings, code blocks, lists, blockquotes, inline formatting, links, horizontal rules) shown in a read-only `NSTextView` — there is **no HTML string and no web view**, so no script/HTML injection surface. Link runs are restricted to `http`/`https`/`mailto` schemes (`styledToken`) — a preview in Finder/Spotlight never makes `file://` or arbitrary-scheme links from doc content clickable. Images render as their **alt text**: the appex has no access to the document's folder and never fetches a remote URL, so there is nothing to draw. Its `.image` pattern must stay ordered before `.link` — see `rendering.md` for why omitting it left a stray `!` in the preview. The extension is sandboxed with read-only file access (`LineformQuickLook/LineformQuickLook.entitlements`). Its `CFBundleVersion`/`CFBundleShortVersionString` track the app via `$(CURRENT_PROJECT_VERSION)`/`$(MARKETING_VERSION)` (the QuickLook target sets both build settings), since an embedded extension's version must match the parent app. Bundle identifiers: `com.lineform.app.quicklook` (Release) and `com.lineform.app.debug.quicklook` (Debug), both prefixed with the parent app's identifier as required for embedded extensions. The extension is embedded in the main app via a "Embed Extensions" copy files build phase.
 
 - Diagram failure reporting (user-initiated, anonymous): a failed Mermaid block shows a quiet "Report this" link; tapping it presents a Report/Not Now dialog and, on Report, POSTs exactly `{source, error, appVersion}` to a Cloudflare Worker (`worker/`, `lineform-diagram-report`) that files/comments a private GitHub issue (`carlostarrats/lineform-reports`) via a Worker-secret token, deduped by source hash, IP-rate-limited (IPs never stored). App payload built by `DiagramReportService` (exactly 3 fields); `network.client` entitlement already present. **Live as of 2026-07-02** (see `docs/superpowers/specs/2026-07-01-diagram-report-design.md`): the `lineform` workers.dev subdomain is registered, the private `lineform-reports` repo exists, the Worker is deployed at `https://lineform-diagram-report.lineform.workers.dev`, and `GITHUB_TOKEN` (a fine-grained PAT scoped to `lineform-reports` Issues read/write only) is set as a Worker secret. Verified end-to-end (POST → issue filed; duplicate → count-bump comment). Keep the Worker name + subdomain stable — the URL is baked into shipped builds. If the Worker or its token is removed, reports fail closed → "Saved locally."
+
+## Accessibility (2026-07-27 audit)
+
+- **The first-launch intro must be dismissable without a mouse.** It is a borderless,
+  screen-saver-level window covering the display that orders every other app window out, and its
+  only control is a hand-drawn `NSView`. Two things made it a dead end: a `.borderless` `NSWindow`
+  answers `false` to `canBecomeKey`, so no key event ever reached the content
+  (`FirstLaunchIntroWindow` overrides it), and the button had no accessibility identity or key
+  handling (it is now `.button` with a label, `accessibilityPerformPress`, focus-ring drawing, and
+  Space/Return in `keyDown` — a plain `NSView` never routes keys through `interpretKeyEvents`, so
+  `insertNewline(_:)` is never sent). A VoiceOver, keyboard-only, or Switch Control user could not
+  get past first launch. Escape is deliberately not wired: leaving marks the intro complete and
+  opens the first document, so it should be a deliberate press.
+- **Do not put SwiftUI accessibility modifiers on `MarkdownTextViewRepresentable`.** `LineformTextView`
+  sets its own label, role, and help through AppKit and is a real `NSTextView`, so VoiceOver reads it
+  by character, word, and line and tracks the caret. Restating the label through SwiftUI buys nothing
+  and risks flattening that. The search summary in particular is NOT the editor's AX value — the value
+  of a text area is its text — so it is spoken as an `.announcementRequested` from
+  `announceSearchStatus`, which is also what gives a VoiceOver user any feedback at all when pressing
+  Return in the find field. Announcements are dropped when VoiceOver is off.
+- **An icon that is the only signal for a state carries a label** (the workspace-disconnected glyph).
+  Decorative icons that sit beside their own text label do not.
+- **Contrast has a gate, not an opinion.** Body text and caret vs. every theme background, and the
+  high-contrast profile over every theme, are asserted in `ThemeTests` alongside the existing code-token,
+  diagram-ink, and Info-tab checks. Body text was the one pairing that had only ever been asserted
+  "not equal".
+- Read-mode overlay affordances (code copy, image Reconnect, task checkboxes) are drawn geometry
+  activated by hit-testing, so they exist for assistive tech only through
+  `accessibilityCustomActions`; sidebar row actions are mirrored from the context menu into
+  `.accessibilityActions`. Keep both mirrors when adding an affordance of either kind.

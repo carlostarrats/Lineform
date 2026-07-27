@@ -89,6 +89,11 @@ file named after it carries the full story and the reasoning.
 - Remote `http(s)`/`data:` image URLs are NEVER fetched — always a placeholder. The app's network-free invariant is a product promise, not an optimization.
 - Spell checking routes through the system `NSSpellChecker` and nothing else — no bundled dictionary, no third-party service, no network-backed suggestions.
 
+**Accessibility** (`app-integration.md`)
+- Any window that BLOCKS the app must be operable without a mouse. The first-launch intro was not: a `.borderless` `NSWindow` cannot become key (so no key event reaches it) and its hand-drawn button had no AX identity — first launch was a dead end for VoiceOver, keyboard-only, and Switch Control users.
+- Never put SwiftUI accessibility modifiers on `MarkdownTextViewRepresentable`. The `NSTextView` under it already carries label/role/help, and a text area's AX VALUE is its text — overriding it with a search summary replaces what the user is reading. Announce transient status instead.
+- An affordance drawn as geometry and activated by hit-testing exists for assistive tech only via `accessibilityCustomActions` (Read-mode copy/Reconnect/checkbox) or `.accessibilityActions` (sidebar rows). Adding one means adding its mirror.
+
 **Editor** (`editor-behavior.md`)
 - `MarkdownRangeAnalyzer` must stay strictly LINE-LOCAL. Visible-window-scoped highlighting is only correct because of it; a cross-line construct silently breaks scoping.
 - Only real writes flash "Saved"/"Autosaved". Load and external reload call `markSaved`, never `recordWrite`.
@@ -102,7 +107,8 @@ file named after it carries the full story and the reasoning.
 - Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
 
 **Rendering** (`rendering.md`)
-- Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke).
+- Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.
+- Anything tracking fenced-code state across lines uses `MermaidFence.openingMarker`/`isClosingFence` (same delimiter character, closing run at least as long) — never a flag toggled on "starts with ``` or ~~~". A toggle disagrees with the renderer on any note *about* Markdown: it closed on an inner fence, so `MarkdownOutlineParser` listed headings that only exist inside code AND dropped every real heading after them.
 - Code reading RAW document text (where offsets matter and `markdownSourceLines` can't be used) trims with `markdownLineTrimCharacters` = whitespace + `\r`. `MarkdownWritingToolsProtection` must apply it in BOTH the whole-document passes and the scoped `isWhitespace` walk, which have to stay in agreement. Never split Markdown on `CharacterSet.newlines` — it splits `\r` and `\n` separately, so every CRLF yields an empty line (this doubled the document in Convert to Plain Text).
 - `markdownSourceLines(in:)` is the ONE splitter every renderer uses. It strips a CRLF file's `\r` (without it no code fence ever closes and the document collapses into one code block) while reporting each line's range in the ORIGINAL text (the stripped `\r` still occupies a UTF-16 unit, so recomputed offsets drift and misaim checkbox toggle, Reconnect, copy, and scroll restore). Never fix CRLF by normalising the document text — that rewrites the user's file.
 - The mermaid orientation flip and the supported-type routing are coupled to the pinned BeautifulMermaid version. Re-check both if the pin moves, or diagrams render upside down or as garbage flowcharts.

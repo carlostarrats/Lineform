@@ -96,6 +96,26 @@ final class QuickLookMarkdownRendererTests: XCTestCase {
         XCTAssertFalse(hasTrait(s, .bold))
     }
 
+    // Fences are the other place the hand-copy drifted: the appex knew only about ``` , so a
+    // `~~~` code block rendered in Finder as prose with its delimiters showing, and a ``` block
+    // quoting a `~~~` line closed early. The app matches fences per CommonMark (same delimiter
+    // character), and the preview must agree — a Finder preview that disagrees with the editor is
+    // the same document looking like two different files.
+    func testTildeFenceRendersAsCodeNotProse() {
+        let rendered = QuickLookMarkdownRenderer.render("~~~\nlet x = 1\n~~~\n").string
+        XCTAssertFalse(rendered.contains("~~~"), rendered)
+        XCTAssertTrue(rendered.contains("let x = 1"), rendered)
+    }
+
+    func testInnerTildeLineDoesNotCloseABacktickFence() {
+        let rendered = QuickLookMarkdownRenderer.render("```\n~~~\n# Not a heading\n```\nAfter\n").string
+        // The whole block, delimiters and all, stays inside the code run — so the `#` line is
+        // never promoted to a heading and "After" is still ordinary prose outside the block.
+        XCTAssertTrue(rendered.contains("~~~"), rendered)
+        XCTAssertTrue(rendered.contains("# Not a heading"), rendered)
+        XCTAssertTrue(rendered.contains("After"), rendered)
+    }
+
     func testEscapedMarkerRendersLiterally() {
         let s = QuickLookMarkdownRenderer.applyInlineFormatting(to: #"a \*b\* c"#, baseAttributes: base())
         XCTAssertEqual(s.string, "a *b* c")

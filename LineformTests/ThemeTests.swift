@@ -9,6 +9,42 @@ final class ThemeTests: XCTestCase {
         }
     }
 
+    /// Body text is the entire product, and it is the ONE pairing that was only ever asserted to
+    /// be "not equal" — code tokens, diagram ink, and the Info tab all had a real ratio gate while
+    /// the prose the reader actually looks at did not. A theme is a colour choice made by eye, and
+    /// eyes are exactly what this check exists to not rely on.
+    ///
+    /// WCAG AA for body text is 4.5:1; the themes are deliberately soft (grey-on-charcoal rather
+    /// than white-on-black) so this pins the floor, not the aesthetic.
+    func testEveryThemeMeetsAAForBodyText() {
+        for theme in Theme.builtIn {
+            let ratio = Self.contrastRatio(theme.textColor, theme.backgroundColor)
+            XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(theme.name) body text is \(ratio):1")
+        }
+    }
+
+    /// The caret is a 1–3pt sliver, which makes it the easiest colour in the app to lose against
+    /// the page — and losing it means not knowing where typing will land.
+    func testEveryThemeCaretStaysVisible() {
+        for theme in Theme.builtIn {
+            let ratio = Self.contrastRatio(theme.caretColor, theme.backgroundColor)
+            XCTAssertGreaterThanOrEqual(ratio, 3.0, "\(theme.name) caret is \(ratio):1")
+        }
+    }
+
+    /// The accessibility high-contrast profile must be a real improvement on every theme it can be
+    /// turned on over, not just a different palette.
+    func testHighContrastBeatsEveryThemeItReplaces() {
+        for id in ThemeID.allCases {
+            var profile = ReadingProfile.original
+            profile.themeID = id
+            profile.highContrastEnabled = true
+            let high = Theme.theme(for: profile)
+            let ratio = Self.contrastRatio(high.textColor, high.backgroundColor)
+            XCTAssertGreaterThanOrEqual(ratio, 7.0, "high contrast over \(id) is \(ratio):1")
+        }
+    }
+
     func testReaderThemesStaySmallAndAppleBooksStyle() {
         XCTAssertEqual(Theme.builtIn.map(\.id), [.system, .paper, .calm, .quiet, .night])
         XCTAssertEqual(Theme.builtIn.map(\.name), ["Original", "Paper", "Calm", "Quiet", "Night"])

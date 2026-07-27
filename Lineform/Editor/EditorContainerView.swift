@@ -1097,8 +1097,14 @@ struct EditorContainerView: View {
             },
             onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
         )
-        .accessibilityLabel("Markdown editor")
-        .accessibilityValue(searchAccessibilitySummary ?? "")
+        // No SwiftUI accessibility modifiers here, deliberately. `LineformTextView` sets its own
+        // label, role, and help through AppKit, and it is a real `NSTextView`: VoiceOver reads it
+        // by character, word, and line, and tracks the caret, because the system text-area
+        // implementation is intact. Wrapping it in a SwiftUI accessibility element to restate the
+        // label buys nothing and risks flattening that. The search summary especially does not
+        // belong here — the AX *value* of a text area is its text; announcing match counts through
+        // it would replace what a VoiceOver user is trying to read. It is spoken as an
+        // announcement instead (`announceSearchStatus`).
     }
 
     private var activeSearchRange: NSRange? {
@@ -1693,6 +1699,28 @@ struct EditorContainerView: View {
             }
             self.requestedSelection = requestedSelection
         }
+
+        announceSearchStatus()
+    }
+
+    /// Speak "3 matches, result 1 of 3" when the in-file search result set or the active match
+    /// changes.
+    ///
+    /// Sighted users read this off the match counter beside the field; without an announcement a
+    /// VoiceOver user pressing Return in the search field hears nothing at all and cannot tell a
+    /// jump from a dead end. It is posted as an `.announcementRequested` rather than attached to
+    /// the editor's AX value, which is the document text (see `markdownEditor`). Announcements are
+    /// dropped silently when VoiceOver is off, so this costs nothing in the common case.
+    private func announceSearchStatus() {
+        guard let summary = searchAccessibilitySummary else { return }
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: summary,
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+            ]
+        )
     }
 
     /// Kicks off (or re-kicks, debounced inside the model) an All Files scan against the
@@ -1739,6 +1767,7 @@ struct EditorContainerView: View {
             displayMode = .write
         }
         requestedSelection = searchMatches[index]
+        announceSearchStatus()
     }
 
     private var statisticsText: String {

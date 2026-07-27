@@ -6,6 +6,10 @@ import Foundation
 /// zero-length `Edit` (location + snippet), so the caller can apply it through the
 /// `shouldChangeText → replaceCharacters → didChangeText` path (undo + document-binding sync)
 /// exactly as before.
+///
+/// Both transforms terminate the line they add with `MarkdownLineEnding.inForce(at:in:)`, like
+/// every other insertion path: a bare `\n` left a lone LF in a Windows-authored file, which is the
+/// document's endings being normalised a line at a time — the one thing insertion must never do.
 enum ImageInsertionText {
 
     /// A single-point insertion: insert `snippet` at `location` (a zero-length range).
@@ -29,18 +33,20 @@ enum ImageInsertionText {
         let ns = text as NSString
         let clamped = max(0, min(index, ns.length))
         let lineStart = ns.lineRange(for: NSRange(location: clamped, length: 0)).location
-        return Edit(location: lineStart, snippet: "![](\(path))\n")
+        let ending = MarkdownLineEnding.inForce(at: lineStart, in: ns).text
+        return Edit(location: lineStart, snippet: "![](\(path))\(ending)")
     }
 
     /// Append the image on its OWN new line at the END of the document — the "dropped below the last
     /// line" case, which must land AFTER a trailing image/line rather than snapping to its start
-    /// (the bug this fixes). A leading newline is added only when the document isn't already
+    /// (the bug this fixes). A leading line ending is added only when the document isn't already
     /// newline-terminated, so the image always starts a fresh line without doubling blank lines.
     static func appendingAtEnd(into text: String, path: String) -> Edit {
         let ns = text as NSString
         let end = ns.length
         let endsWithNewline = end > 0 && ns.substring(with: NSRange(location: end - 1, length: 1)) == "\n"
-        let leading = (end > 0 && !endsWithNewline) ? "\n" : ""
-        return Edit(location: end, snippet: "\(leading)![](\(path))\n")
+        let ending = MarkdownLineEnding.inForce(at: end, in: ns).text
+        let leading = (end > 0 && !endsWithNewline) ? ending : ""
+        return Edit(location: end, snippet: "\(leading)![](\(path))\(ending)")
     }
 }

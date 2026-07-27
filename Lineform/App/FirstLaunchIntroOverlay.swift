@@ -135,7 +135,7 @@ final class FirstLaunchIntroPresenter {
 
         hideVisibleAppWindows()
 
-        let overlay = NSWindow(
+        let overlay = FirstLaunchIntroWindow(
             contentRect: screen.frame,
             styleMask: [.borderless],
             backing: .buffered,
@@ -229,6 +229,18 @@ final class FirstLaunchIntroPresenter {
     }
 }
 
+/// The intro overlay's window.
+///
+/// A `.borderless` `NSWindow` answers `false` to `canBecomeKey`, so `makeKeyAndOrderFront` orders it
+/// front without ever making it key: no key event reaches its content, and the Get Started button
+/// could not be operated from the keyboard however well the view itself behaved. Full-keyboard-access
+/// and Switch Control users drive the app through the same key-event path, so this is what makes the
+/// overlay dismissable without a mouse at all.
+final class FirstLaunchIntroWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 private enum FirstLaunchIntroOverlayMetrics {
     static let dismissAnimationDuration: TimeInterval = 0.32
     static let startButtonSize = CGSize(width: 214, height: 62)
@@ -239,6 +251,7 @@ private enum FirstLaunchIntroOverlayMetrics {
 
 struct FirstLaunchIntroOverlayView: View {
     let dismiss: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isButtonVisible = false
 
     var body: some View {
@@ -254,7 +267,10 @@ struct FirstLaunchIntroOverlayView: View {
                     )
                     .opacity(isButtonVisible ? 1 : 0)
                     .animation(
-                        .easeOut(duration: FirstLaunchIntroOverlayMetrics.startButtonRevealAnimationDuration),
+                        EditorMotionPolicy.animation(
+                            .easeOut(duration: FirstLaunchIntroOverlayMetrics.startButtonRevealAnimationDuration),
+                            reduceMotion: reduceMotion
+                        ),
                         value: isButtonVisible
                     )
                     .position(
@@ -280,6 +296,12 @@ struct FirstLaunchIntroStartButton: NSViewRepresentable {
     func updateNSView(_ nsView: FirstLaunchIntroStartButtonView, context: Context) {}
 }
 
+/// The overlay's only control. Hand-drawn rather than an `NSButton` because the intro art dictates
+/// its shape, which means every affordance `NSButton` gives for free has to be supplied here:
+/// keyboard focus, Space/Return activation, and an accessibility identity. Without them the intro
+/// was a full-screen, screen-saver-level window that hid every other app window and could be
+/// dismissed only by clicking a control VoiceOver could not find and the keyboard could not reach —
+/// a first launch that no VoiceOver, keyboard-only, or Switch Control user could get out of.
 final class FirstLaunchIntroStartButtonView: NSView {
     private let dismiss: () -> Void
     private let label = NSTextField(labelWithString: "Get Started")
@@ -310,6 +332,50 @@ final class FirstLaunchIntroStartButtonView: NSView {
         arrowLayer.lineJoin = .round
         layer?.addSublayer(arrowLayer)
         updateAppearance(animated: false)
+
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Get Started")
+        setAccessibilityHelp("Dismisses the welcome screen and opens a new document")
+        // The label is drawn text, not a child control: hide it so VoiceOver reports one button,
+        // not a button containing a static text of the same name.
+        label.setAccessibilityElement(false)
+    }
+
+    /// Keyboard focus. The overlay window is borderless with a single control, so this view is the
+    /// whole key-view loop.
+    override var acceptsFirstResponder: Bool { true }
+
+    override var canBecomeKeyView: Bool { true }
+
+    override var focusRingMaskBounds: NSRect { bounds }
+
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: bounds, xRadius: bounds.height / 2, yRadius: bounds.height / 2).fill()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+    }
+
+    /// Space and Return activate, matching a real push button. Handled in `keyDown` rather than
+    /// through `insertNewline(_:)`: a plain `NSView` never routes its key events through
+    /// `interpretKeyEvents`, so the command selectors are never sent. Escape is deliberately NOT
+    /// wired to dismiss — leaving is the same decision as starting (it marks the intro complete and
+    /// opens the first document), so it should be a deliberate press, not a reflex.
+    override func keyDown(with event: NSEvent) {
+        switch event.charactersIgnoringModifiers {
+        case " ", "\r", "\n", String(UnicodeScalar(NSEnterCharacter)!):
+            dismiss()
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        dismiss()
+        return true
     }
 
     required init?(coder: NSCoder) {

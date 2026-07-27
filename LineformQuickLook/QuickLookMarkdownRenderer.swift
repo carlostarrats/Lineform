@@ -30,6 +30,12 @@ enum QuickLookMarkdownRenderer {
         let themeTextColor = NSColor.labelColor
 
         var inCodeBlock = false
+        /// The delimiter character of the open fence, so a `~~~` block is not closed by an inner
+        /// ` ``` ` line (and vice versa) — the app matches fences per CommonMark and this file is a
+        /// hand-copy of the app's rules, which is exactly why it has to be checked rather than
+        /// assumed. `~~~` was previously not recognised as a fence at all, so a `~~~` code block
+        /// rendered in the Finder preview as prose with its delimiters showing.
+        var openFenceCharacter: Character?
         var codeBlockLines: [String] = []
         var listStack: [(type: String, indent: Int)] = []
         var listIndexCounters: [Int] = []
@@ -83,8 +89,14 @@ enum QuickLookMarkdownRenderer {
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // Code blocks
-            if trimmed.hasPrefix("```") {
+            // Code blocks. A fence is 3+ of the same ` or ~; a closing fence must use the same
+            // character as the one that opened the block.
+            let fenceCharacter: Character? = {
+                guard let first = trimmed.first, first == "`" || first == "~" else { return nil }
+                return trimmed.prefix { $0 == first }.count >= 3 ? first : nil
+            }()
+
+            if let fenceCharacter, !inCodeBlock || fenceCharacter == openFenceCharacter {
                 if inCodeBlock {
                     let codeText = codeBlockLines.joined(separator: "\n") + "\n"
                     let codeFont = NSFont.monospacedSystemFont(ofSize: bodyFontSize, weight: .regular)
@@ -95,11 +107,13 @@ enum QuickLookMarkdownRenderer {
                     attrs[.paragraphStyle] = paragraphStyle(lineHeight: lineHeightMultiple, spacing: paragraphSpacing)
                     output.append(NSAttributedString(string: codeText, attributes: attrs))
                     inCodeBlock = false
+                    openFenceCharacter = nil
                     codeBlockLines = []
                 } else {
                     flushParagraph()
                     closeAllLists()
                     inCodeBlock = true
+                    openFenceCharacter = fenceCharacter
                 }
                 continue
             }
