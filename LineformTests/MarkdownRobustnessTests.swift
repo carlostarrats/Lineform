@@ -504,11 +504,38 @@ final class MarkdownRobustnessTests: XCTestCase {
             let range = NSRange(location: location, length: random.int(ns.length - location + 1))
             let caret = NSRange(location: location, length: 0)
 
-            _ = MarkdownListContinuation.outcome(for: text, selectedRange: caret)
-            _ = MarkdownHeadingEditing.setLevel(random.int(7) == 0 ? nil : random.int(6) + 1, in: text, selectedRange: range)
-            _ = MarkdownTableEditing.tabTarget(in: text, selectedRange: range, forward: random.int(2) == 0)
-            _ = MarkdownTableEditing.reformat(in: text, selectedRange: caret)
-            _ = MarkdownTableEditing.insertion(in: text, selectedRange: caret)
+            // Every range below is handed to `setSelectedRange`, where an out-of-bounds value is a
+            // hard exception rather than a wrong caret — so the ranges are checked, not just the
+            // absence of a trap inside the transform.
+            func assertSelectable(_ selected: NSRange, in result: String, _ what: String) {
+                let length = (result as NSString).length
+                XCTAssertGreaterThanOrEqual(selected.location, 0, "\(what) location < 0 for \(text.debugDescription)")
+                XCTAssertGreaterThanOrEqual(selected.length, 0, "\(what) length < 0 for \(text.debugDescription)")
+                XCTAssertLessThanOrEqual(NSMaxRange(selected), length,
+                                         "\(what) overruns its own result for \(text.debugDescription)")
+            }
+
+            if case let .terminate(clearing)? = MarkdownListContinuation.outcome(for: text, selectedRange: caret) {
+                XCTAssertLessThanOrEqual(NSMaxRange(clearing), ns.length, "terminate range overruns the document")
+            }
+            if let edit = MarkdownHeadingEditing.setLevel(random.int(7) == 0 ? nil : random.int(6) + 1, in: text, selectedRange: range) {
+                assertSelectable(edit.selectedRange, in: edit.text, "heading")
+            }
+            switch MarkdownTableEditing.tabTarget(in: text, selectedRange: range, forward: random.int(2) == 0) {
+            case let .select(selected)?:
+                assertSelectable(selected, in: text, "tab select")
+            case let .appendRow(insertion, at, selecting)?:
+                XCTAssertLessThanOrEqual(at, ns.length, "append row inserts past the end")
+                let applied = ns.replacingCharacters(in: NSRange(location: at, length: 0), with: insertion)
+                assertSelectable(selecting, in: applied, "append row")
+            case .stay?, nil:
+                break
+            }
+            if let edit = MarkdownTableEditing.reformat(in: text, selectedRange: caret) {
+                assertSelectable(edit.selectedRange, in: edit.text, "reformat")
+            }
+            let inserted = MarkdownTableEditing.insertion(in: text, selectedRange: caret)
+            assertSelectable(inserted.selectedRange, in: inserted.text, "insert table")
             let source = markdownSourceLines(in: text)
             _ = markdownBlocks(in: source.lines, lineRanges: source.ranges)
             _ = MarkdownHTMLRenderer.body(for: text, generatedImage: { _ in nil })
