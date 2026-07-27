@@ -891,15 +891,16 @@ final class OutlineFileBrowserStore: ObservableObject {
                 refreshICloudRoot()
                 refreshWorkspaceRoot()
             } else {
-                // Toggling OFF: the last scans are supersets of the visible tree, so filter
-                // in memory instead of re-walking the disk and re-resolving the iCloud
-                // container on the main thread just to hide rows we already have.
-                if iCloudRoot.showsTree {
-                    iCloudRoot.items = filteredForDisplay(lastICloudItems)
-                }
-                if workspaceRoot.showsTree {
-                    workspaceRoot.items = filteredForDisplay(lastWorkspaceItems)
-                }
+                // Toggling OFF also re-SCANS a live root, for the same reason `applySortOrderChange`
+                // does: the 80-per-folder cap is applied in display order, BEFORE any hidden
+                // filtering, so a hidden-inclusive scan is not a superset of the hidden-off tree —
+                // hidden entries spend cap slots that would otherwise hold real files. Filtering
+                // the old scan in memory therefore DELETED ordinary Markdown files from the tree
+                // (one per hidden entry the cap retained), and the wrong tree persisted until
+                // something else forced a rescan. In-memory filtering is kept only where no live
+                // scan is possible — the cached/disconnected fallbacks in `refreshWorkspaceRoot`.
+                refreshICloudRoot()
+                refreshWorkspaceRoot()
             }
         }
     }
@@ -1042,12 +1043,26 @@ final class OutlineFileBrowserStore: ObservableObject {
         // directly. A persisted showsHiddenFolders=true would otherwise trigger the
         // init-forbidden main-thread iCloud scan via its didSet.
         _showsHiddenFolders = Published(initialValue: defaults.bool(forKey: Self.showsHiddenFoldersDefaultsKey))
-        _iCloudSortOrder = Published(
-            initialValue: OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.iCloudSortOrderDefaultsKey) ?? "") ?? .name
-        )
-        _workspaceSortOrder = Published(
-            initialValue: OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.workspaceSortOrderDefaultsKey) ?? "") ?? .name
-        )
+        // One global Sort row now drives both roots, so the two persisted keys must agree. They
+        // could disagree only on a profile carried over from 1.2.0, which had a separate row per
+        // section: the row reads the iCloud key while the workspace tree is SCANNED with the
+        // workspace key, so the label described an order the files were not in — and because the
+        // 80-per-folder cap is applied in display order, it also mis-described which files are on
+        // screen. Reconcile once at load, preferring the workspace value: a user with no iCloud
+        // root visible could only ever have set that one.
+        //
+        // Assigned through the `Published(initialValue:)` backing storage, never by plain
+        // assignment — a plain assignment here fires the didSet observers, and theirs run the
+        // init-forbidden iCloud scan.
+        let storedICloudSort = OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.iCloudSortOrderDefaultsKey) ?? "")
+        let storedWorkspaceSort = OutlineFileSortOrder(rawValue: defaults.string(forKey: Self.workspaceSortOrderDefaultsKey) ?? "")
+        let sortOrder = storedWorkspaceSort ?? storedICloudSort ?? .name
+        if storedICloudSort != storedWorkspaceSort {
+            defaults.set(sortOrder.rawValue, forKey: Self.iCloudSortOrderDefaultsKey)
+            defaults.set(sortOrder.rawValue, forKey: Self.workspaceSortOrderDefaultsKey)
+        }
+        _iCloudSortOrder = Published(initialValue: sortOrder)
+        _workspaceSortOrder = Published(initialValue: sortOrder)
         _lastKnownICloudAvailable = Published(
             initialValue: defaults.object(forKey: Self.lastKnownICloudAvailableDefaultsKey) as? Bool ?? true
         )
@@ -1292,17 +1307,27 @@ final class OutlineFileBrowserStore: ObservableObject {
         }
     }
 
+    /// Tears down the workspace FSEvents stream so the next `beginWatchingForExternalChanges`
+    /// creates one on the CURRENT `workspaceURL`.
+    ///
+    /// Every write to `workspaceURL` must call this. `DirectoryEventMonitor` binds the stream to a
+    /// path string and does not set `kFSEventStreamCreateFlagWatchRoot`, so a stream on a moved or
+    /// renamed folder is silently dead — the tab keeps looking correct while it stops refreshing.
+    private func retargetWorkspaceWatcher() {
+        workspaceMonitor?.stop()
+        workspaceMonitor = nil
+        // Drop any debounced rescan queued against the old monitor; the caller re-scans directly,
+        // so a late fire would only be redundant work.
+        pendingWorkspaceRescan?.cancel()
+        pendingWorkspaceRescan = nil
+    }
+
     private func setWorkspaceURL(_ url: URL) {
         // Retarget a live watcher at the newly chosen folder (stop now, restart after the
         // refresh below re-resolves everything). Keyed off isWatchingForExternalChanges,
         // not monitor existence — a first-ever workspace choice has no monitor yet but
         // still needs one if the Files tab is watching.
-        workspaceMonitor?.stop()
-        workspaceMonitor = nil
-        // Drop any debounced rescan queued against the old workspace's monitor; the direct
-        // refresh below re-scans the new folder, so a late fire would only be redundant work.
-        pendingWorkspaceRescan?.cancel()
-        pendingWorkspaceRescan = nil
+        retargetWorkspaceWatcher()
 
         workspaceURL = url
         saveBookmark(for: url, defaultsKey: Self.workspaceBookmarkDefaultsKey)
@@ -1481,7 +1506,16 @@ final class OutlineFileBrowserStore: ObservableObject {
            let resolvedURL = resolveBookmark(from: data, defaultsKey: Self.workspaceBookmarkDefaultsKey),
            resolvedURL != workspaceURL {
             self.workspaceURL = resolvedURL
+            // The bookmark followed the folder to a new path, so the FSEvents stream — created
+            // with the OLD path string and no `kFSEventStreamCreateFlagWatchRoot` — is now dead
+            // and will never fire again. Every `workspaceURL` write must retarget the watcher;
+            // `setWorkspaceURL` did and this path did not, so renaming the workspace in Finder
+            // killed live refresh for the rest of the session while the tree still looked right.
+            retargetWorkspaceWatcher()
             refreshWorkspaceRoot()
+            if isWatchingForExternalChanges {
+                beginWatchingForExternalChanges()
+            }
             return
         }
 

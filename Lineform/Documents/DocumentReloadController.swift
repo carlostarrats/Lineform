@@ -24,7 +24,13 @@ struct FileSystemDiskReader: DocumentDiskReading {
         var text: String?
         NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
             if let data = try? Data(contentsOf: readURL) {
-                text = String(data: data, encoding: .utf8)
+                // Same decode pair as `LineformDocument.init(markdownData:)`: validate with the
+                // failable initializer, decode with `String(decoding:as:)` so a leading U+FEFF
+                // survives. If the two disagreed, a BOM'd file would compare unequal to its own
+                // in-memory text and reload on every save.
+                text = String(data: data, encoding: .utf8) == nil
+                    ? nil
+                    : String(decoding: data, as: UTF8.self)
             }
         }
         return text

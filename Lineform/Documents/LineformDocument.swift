@@ -34,12 +34,19 @@ struct LineformDocument: FileDocument, Equatable {
     }
 
     init(markdownData: Data, id: UUID = UUID(), textFormat: LineformTextFormat = .markdown) throws {
-        guard let decodedText = String(data: markdownData, encoding: .utf8) else {
+        // Validate with `String(data:encoding:)` — it returns nil on invalid UTF-8, which is how
+        // a corrupt file is rejected rather than repaired. Decode with `String(decoding:as:)`,
+        // because the validating initializer ALSO strips a leading U+FEFF on Darwin: the BOM then
+        // never reaches `text`, `markdownData()` cannot re-emit it, and the first write silently
+        // drops three bytes from the head of every Notepad-authored file. This is the same rule
+        // as the CRLF one — Lineform never normalises a file's byte-level conventions for the
+        // writer — and it is what makes the BOM handling in the parsing layer reachable at all.
+        guard String(data: markdownData, encoding: .utf8) != nil else {
             throw CocoaError(.fileReadCorruptFile)
         }
 
         self.id = id
-        text = decodedText
+        text = String(decoding: markdownData, as: UTF8.self)
         self.textFormat = textFormat
         plainTextConversion = nil
     }
@@ -136,27 +143,33 @@ struct LineformDocument: FileDocument, Equatable {
             return edit.selectedRange
         }
 
+        // Only a document that actually holds a conversion goes back to `.markdown`. A `.txt`
+        // file opened from disk has `textFormat == .plainText` and no conversion, and flipping it
+        // here made the next write take the lossy `plainTextData()` branch — running the Markdown
+        // stripper over the user's plain-text file and deleting its fenced-code lines, link URLs,
+        // and every leading marker.
         plainTextConversion = nil
-        textFormat = .markdown
         return nil
     }
 
+    /// True when a write for `contentType` emits the in-memory `text` byte-for-byte.
+    ///
+    /// `data(for:)` and `recordsSourceSave(for:)` are two halves of one question and MUST be
+    /// derived from this single predicate. When they were written separately they disagreed for
+    /// `.markdownText` + `.plainText` — the state Convert to Plain Text leaves a `.md` document in
+    /// — so that write emitted the source verbatim while recording nothing: no "Saved" flash, a
+    /// permanently amber status bar, a frozen dirty hash, and a `lastSyncedText` baseline that
+    /// stopped updating (which disables live reload and the background-tab disk reconcile).
+    func writesSourceVerbatim(for contentType: UTType) -> Bool {
+        contentType != .plainText || textFormat == .plainText
+    }
+
     func data(for contentType: UTType) throws -> Data {
-        switch contentType {
-        case .plainText:
-            return textFormat == .plainText ? markdownData() : plainTextData()
-        default:
-            return markdownData()
-        }
+        writesSourceVerbatim(for: contentType) ? markdownData() : plainTextData()
     }
 
     func recordsSourceSave(for contentType: UTType) -> Bool {
-        switch textFormat {
-        case .markdown:
-            return contentType == .markdownText
-        case .plainText:
-            return contentType == .plainText
-        }
+        writesSourceVerbatim(for: contentType)
     }
 
     static func modificationDate(from fileWrapper: FileWrapper) -> Date? {
@@ -171,8 +184,16 @@ struct LineformDocument: FileDocument, Equatable {
         return .markdownText
     }
 
+    /// Stat through `FileManager`, never `url.resourceValues(forKeys:)`.
+    ///
+    /// `URL` caches resource values on the instance, and `DocumentReloadController` re-uses one
+    /// stored `URL` for the life of the watch. With the caching read, the modification date froze
+    /// at whatever the first stat saw, so `reloadFromDisk`'s `modificationDate == lastSeen`
+    /// pre-check short-circuited forever: live reload fired at most once per file, and every
+    /// later external rewrite produced no reload and no "Updated" flash while the editor kept
+    /// showing — and kept autosaving — the stale snapshot.
     static func modificationDate(at url: URL) -> Date? {
-        try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {

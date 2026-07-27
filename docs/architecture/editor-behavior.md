@@ -485,3 +485,44 @@ left the caret a column away from where the writer was typing.
 The rebuild now drops a trailing `\r` from each range's length while still stepping over it. The
 existing CRLF table tests all asserted the resulting *text*, which was correct throughout; only the
 selection was wrong, and nothing was checking it.
+
+## Document model and autosave (audited 2026-07-27)
+
+Four defects, all rooted in `textFormat` doing two jobs — "this file is a `.txt`" and "this text has
+been converted to plain" — plus one stat that lied.
+
+**Live reload fired at most once per file.** `LineformDocument.modificationDate(at:)` read
+`url.resourceValues(forKeys:)`. `URL` caches resource values on the instance, and
+`DocumentReloadController.startWatching` early-returns while the path is unchanged, so it stats the
+SAME `URL` value for the life of the watch. After the first applied snapshot the date never changed
+again and `reloadFromDisk`'s `modificationDate == lastSeen` pre-check skipped the read forever: an
+agent rewriting the open `.md` produced no reload and no "Updated" flash, and the editor kept showing
+— and autosaving — the stale text. Now stats through `FileManager.attributesOfItem`, which has no
+per-instance cache. The suite missed it because every `DocumentReloadControllerTests` fake returns a
+stored constant from `modificationDate(at:)`, so `FileSystemDiskReader` was never exercised;
+`testUnchangedModificationDateSkipsFullRead` actually enshrined the blind spot. There is now a test
+using the real reader against a temp file.
+
+**A UTF-8 BOM was dropped on read and never re-emitted.** `String(data:encoding:.utf8)` strips a
+leading U+FEFF on Darwin, so the mark never reached `document.text` and `markdownData()` could not
+put it back — the first write of any kind rewrote the head of every Notepad-authored file. Decoding
+now validates with the failable initializer (so invalid UTF-8 is still rejected, not repaired) and
+decodes with `String(decoding:as:)`, which preserves the mark. `FileSystemDiskReader.readText` uses
+the same pair, or a BOM'd file would compare unequal to its own in-memory text and reload on every
+save. This is also what makes the existing BOM handling in the parsing layer reachable on real files.
+
+**`data(for:)` and `recordsSourceSave(for:)` disagreed in exactly one cell.** For a `.md` document
+left in `.plainText` by Convert to Plain Text, the write emitted the source verbatim while
+`recordsSourceSave` returned false, so `recordWrite` never ran: no "Saved" flash, "Last save:" frozen
+at open time, a permanently amber status bar, and — through the `savedAt` observer —
+`lastSyncedText` never refreshed, which disables live reload and the `activateSelectedTab` disk
+reconcile. Both now derive from one `writesSourceVerbatim(for:)`. The old test asserting
+`recordsSourceSave(for: .markdownText) == false` for a plain-text document was asserting the bug and
+has been corrected; a new test iterates all four `(textFormat, contentType)` pairs and asserts the
+two agree.
+
+**Convert to Markdown corrupted a plain-text file.** `restoreConvertedMarkdown` set
+`textFormat = .markdown` even with no stored conversion. A `.txt` opened from disk has exactly one
+Format row — "Convert to Markdown" — and clicking it left the document in the state whose next write
+takes `plainTextData()`, running the Markdown stripper over the user's file: both ``` lines deleted,
+link URLs gone, every leading marker stripped. It now only flips when a conversion actually restored.

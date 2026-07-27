@@ -66,8 +66,19 @@ final class SaveAndCloseCoordinator: NSObject {
 @MainActor
 final class SaveTabsBeforeCloseCoordinator: NSObject {
     private var remaining: [UUID]
+    /// The tab whose save is currently in flight, so `didSave` can write the URL AppKit just
+    /// minted back into the store. The queue head is popped before the save starts, so it can't
+    /// serve this purpose.
+    private var savingID: UUID?
     /// Makes the tab the window's active/backing document and returns it (nil if unavailable).
     private let activateTab: (UUID) -> NSDocument?
+    /// Records where a just-saved tab now lives. Required for a tab that was UNTITLED at save
+    /// time: the save panel gives its `NSDocument` a fileURL, but the chain immediately activates
+    /// the next tab, which overwrites `backingDocument.fileURL` before the view's async
+    /// `currentFileURL` write-back can run. Without this the store keeps `fileURL == nil`, so the
+    /// tab still counts as unsaved (re-prompting the close alert and opening a second save panel
+    /// that writes a duplicate copy) and stays detached from its file for the rest of the session.
+    private let didSaveTab: (UUID, URL?) -> Void
     private weak var window: NSWindow?
     /// Retains self for the async save chain; cleared when the chain finishes or aborts.
     private var onFinish: (() -> Void)?
@@ -75,11 +86,13 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
     init(
         tabIDs: [UUID],
         activateTab: @escaping (UUID) -> NSDocument?,
+        didSaveTab: @escaping (UUID, URL?) -> Void,
         window: NSWindow?,
         onFinish: @escaping () -> Void
     ) {
         self.remaining = tabIDs
         self.activateTab = activateTab
+        self.didSaveTab = didSaveTab
         self.window = window
         self.onFinish = onFinish
         super.init()
@@ -100,6 +113,7 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
             saveNext()
             return
         }
+        savingID = nextID
         document.save(
             withDelegate: self,
             didSave: #selector(document(_:didSave:contextInfo:)),
@@ -108,10 +122,16 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
     }
 
     @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
+        let savedID = savingID
+        savingID = nil
         guard didSave else {
             // User cancelled a save panel — abort the close and leave the window open.
             finish()
             return
+        }
+        // Before activating the next tab, which clobbers `backingDocument.fileURL`.
+        if let savedID {
+            didSaveTab(savedID, document.fileURL)
         }
         saveNext()
     }

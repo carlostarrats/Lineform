@@ -109,3 +109,53 @@ Two halves, again:
   decoded out from under the writer.
 
 HTML export is untouched by this — it still emits the destination exactly as the document holds it.
+
+## Diagrams and math (audited 2026-07-27)
+
+**A pie slice value could crash the app.** `MermaidPieChart.parse` accepted any `Double > 0`,
+including `inf`, `1e400`, and 20-digit integers. `MermaidPieRenderer.formatValue` is
+`v == v.rounded() ? String(Int(v)) : …`, and every finite Double at or above 2^52 is its own
+`.rounded()` — so any value above `Double(Int.max)` took the `Int(v)` branch and TRAPPED. An infinite
+value additionally made the total infinite, so `fraction` was NaN and the percent's
+`Int((nan * 100).rounded())` trapped too. The first trap site is `legendMaxWidth`, during size
+computation, before a pixel is drawn, and the blast radius includes Export As and Print, not just
+Read/Split. The parser now requires `isFinite` and a `maximumSliceValue` bound, and the renderer's
+conversions were independently made total: the parser is the correctness gate, the renderer must not
+trap on whatever a future caller hands it. Same shape as the ordered-list `Int.max` crash.
+
+**Front-matter diagrams were reported to the user as app bugs.** `MermaidTypeClassifier` skipped a
+leading `---`/`---` block to find the diagram type; BeautifulMermaid 1.0.4 does not — it reads
+`"---"` as line one and throws `invalidHeader("---")`. So the standard Mermaid front-matter shape
+that most generators emit was classified `.supported`, failed, and took the `.failed` path: the
+captioned fallback WITH a "Report this" link, plus up to 2,000 characters of the user's diagram
+written to `~/Library/Application Support/Lineform/DiagramLog/log.json` — the path this document
+reserves for genuine library bugs, not for valid-but-unrenderable input. Every BeautifulMermaid-routed
+type was affected. The pre-scan existed twice (classifier and `MermaidPieChart`) and at neither of the
+places that mattered; it is now one `MermaidSource` type, and the front matter is stripped at the seam
+before `MermaidRenderer.renderImage`.
+
+**The 20,000-character size guard bounded nothing.** BeautifulMermaid's cost grows with node count
+and its raster area roughly quadratically with layout width, so a 3.1 KB / 200-node flowchart — one
+seventh of the character cap — rendered for ~1 s on the MAIN THREAD into a ~392 MB bitmap that
+instantly exceeded the whole `DiagramCacheBudget` and was evicted, meaning every keystroke in Split
+mode paid the full cost again: the cache gave zero protection precisely to the diagrams that needed
+it. At 600 nodes it was 22.8 s and multi-gigabyte. `MermaidBlockPolicy` now also caps significant
+lines. Separately, `MermaidImageOrientation.uprightForMacOS` returns nil instead of the input when its
+context allocation fails — returning the un-flipped raster would draw the diagram MIRRORED, which is
+the one thing that type exists to prevent.
+
+**The code-block copy pill truncated CRLF documents.** `appendCodeBlock` took the copy range's
+LOCATION from `lineRanges` (measured against the original text) but its LENGTH from the rendered
+body, which is joined from CR-STRIPPED lines. On a CRLF file the range was short by one unit per body
+line, so the pasteboard got the code with its last (bodyLines − 1) characters chopped off, silently —
+`copyCodeBlockToPasteboard` only bounds-checks, and a short range always passes. Both endpoints now
+come from `lineRanges`. This is exactly the drift the `markdownSourceLines` invariant warns about,
+and that invariant already names copy as a consumer.
+
+**`MathDelimiters.inlineSpans` was quadratic.** Each unmatched `$` rescanned the rest of the line for
+a closer. It now memoizes the two "no closer remains" outcomes, which is sound because every
+close-scan starts at `open + 1` where `chars[open]` is `$` — never mid-backslash-run — so all scans
+visit the same canonical positions and a later one covers a strict suffix of an earlier one. Note for
+the record: the audit reported this as being on the live spell-check path. It is not — spell checking
+goes through `MarkdownSpellCheckRegions`, which never touches `MathDelimiters`. The real consumers
+are `MarkdownWritingToolsProtection` and the preview renderer.

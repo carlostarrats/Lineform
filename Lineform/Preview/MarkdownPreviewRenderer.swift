@@ -210,6 +210,7 @@ struct MarkdownPreviewRenderer {
                     language: language,
                     body: body,
                     openingIndex: openingIndex,
+                    closingIndex: closingIndex,
                     to: output,
                     lineRanges: lineRanges,
                     theme: theme,
@@ -692,6 +693,7 @@ struct MarkdownPreviewRenderer {
         language: String,
         body: String,
         openingIndex: Int,
+        closingIndex: Int?,
         to output: NSMutableAttributedString,
         lineRanges: [NSRange],
         theme: Theme,
@@ -712,10 +714,25 @@ struct MarkdownPreviewRenderer {
             }
         }
 
-        // The body's range in the ORIGINAL document = the first body line's source start + body
-        // length (body lines are contiguous, separated by "\n", exactly as joined during grouping).
-        let bodyStart = openingIndex + 1 < lineRanges.count ? lineRanges[openingIndex + 1].location : lineRanges[openingIndex].location
-        let sourceRange = NSRange(location: bodyStart, length: (body as NSString).length)
+        // BOTH endpoints come from `lineRanges`, never from the rendered body. `lineRanges` is
+        // measured against the ORIGINAL text while `body` was joined from CR-STRIPPED lines, so
+        // taking the length from `body` made the range short by one unit per body line on a
+        // CRLF file — the copy pill then put the code on the pasteboard with its last
+        // (bodyLines − 1) characters chopped off, silently. This is the drift the
+        // `markdownSourceLines` invariant warns about, and it names copy as a consumer.
+        let bodyFirst = openingIndex + 1
+        let bodyLast = (closingIndex ?? lineRanges.count) - 1
+        let sourceRange: NSRange
+        if bodyFirst < lineRanges.count, bodyLast >= bodyFirst, bodyLast < lineRanges.count {
+            let start = lineRanges[bodyFirst].location
+            sourceRange = NSRange(location: start, length: NSMaxRange(lineRanges[bodyLast]) - start)
+        } else {
+            // Empty body (fence immediately closed): a zero-length range at the opening line's end.
+            let start = openingIndex < lineRanges.count
+                ? NSMaxRange(lineRanges[openingIndex])
+                : 0
+            sourceRange = NSRange(location: start, length: 0)
+        }
         coded.addAttribute(.codeBlockSourceRange, value: NSValue(range: sourceRange), range: NSRange(location: 0, length: coded.length))
 
         output.append(coded)
@@ -908,7 +925,15 @@ struct MarkdownPreviewRenderer {
             let useMath: Bool
             switch (regexToken, mathSpan) {
             case (nil, nil):
-                output.append(NSAttributedString(string: nsLine.substring(from: location), attributes: baseAttributes))
+                // `unescape` on the plain runs, exactly as the no-math fast path does. The
+                // lookbehind that stops `\*` from opening emphasis and the unescape that then
+                // removes the backslash are ONE feature; this loop had only the first half, so
+                // adding a single `$x$` to a line turned off escape processing for the whole
+                // line and printed a literal `\*` on screen and into every render-based export.
+                output.append(NSAttributedString(
+                    string: MarkdownInlineSyntax.unescape(nsLine.substring(from: location)),
+                    attributes: baseAttributes
+                ))
                 return output
             case (_, nil): useMath = false
             case (nil, _): useMath = true
@@ -917,8 +942,10 @@ struct MarkdownPreviewRenderer {
 
             let elementRange = useMath ? mathSpan!.range : regexToken!.range
             if elementRange.location > location {
+                // Unescaped for the same reason as the tail run above.
+                let plain = nsLine.substring(with: NSRange(location: location, length: elementRange.location - location))
                 output.append(NSAttributedString(
-                    string: nsLine.substring(with: NSRange(location: location, length: elementRange.location - location)),
+                    string: MarkdownInlineSyntax.unescape(plain),
                     attributes: baseAttributes
                 ))
             }

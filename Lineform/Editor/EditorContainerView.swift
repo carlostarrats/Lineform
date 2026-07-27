@@ -23,6 +23,13 @@ struct EditorContainerView: View {
     @StateObject private var crossFileSearchModel = CrossFileSearchModel()
     @State private var searchMatches: [NSRange] = []
     @State private var activeSearchIndex: Int?
+    /// Spans written by Replace during the current replace run, in live-text coordinates. Cleared
+    /// whenever the search is re-aimed (new query, new scope, tab switch, cross-file open). Both
+    /// the resolver's wrap and the debounced auto-select consult it so Replace can never re-select
+    /// text Replace itself produced.
+    @State private var replacementInsertions: [NSRange] = []
+    /// The last summary spoken by `announceSearchStatus`, so an unchanged status is not re-posted.
+    @State private var lastAnnouncedSearchSummary: String?
     @FocusState private var isSearchFocused: Bool
     @State private var isShowingFindReplace = false
     @State private var isShowingQuickOpen = false
@@ -600,6 +607,7 @@ struct EditorContainerView: View {
     }
 
     private func handleSearchQueryChange() {
+        replacementInsertions = []
         if searchScope == .allFiles {
             updateCrossFileSearch()
         } else {
@@ -615,6 +623,7 @@ struct EditorContainerView: View {
             // user-gesture trigger ⌘K uses, so the iCloud-laziness invariant holds.
             searchMatches = []
             activeSearchIndex = nil
+            replacementInsertions = []
             if !fileBrowserStore.hasPerformedICloudScan {
                 fileBrowserStore.refreshICloud()
                 fileBrowserStore.refreshWorkspace()
@@ -1002,10 +1011,17 @@ struct EditorContainerView: View {
         }
 
         let newMatches = EditorSearchResolver.matches(in: result.text, query: searchQuery)
+        let replacementLength = (replaceText as NSString).length
         let nextIndex = EditorSearchResolver.nextActiveIndexAfterReplacement(
             matches: newMatches,
             replacedLocation: matchRange.location,
-            replacementLength: (replaceText as NSString).length
+            replacementLength: replacementLength,
+            priorInsertions: replacementInsertions
+        )
+        replacementInsertions = EditorSearchResolver.insertionsAfterReplacement(
+            priorInsertions: replacementInsertions,
+            matchRange: matchRange,
+            replacementLength: replacementLength
         )
         applyReplacement(result: result, newMatches: newMatches, activeIndex: nextIndex)
     }
@@ -1510,6 +1526,7 @@ struct EditorContainerView: View {
         let coordinator = SaveTabsBeforeCloseCoordinator(
             tabIDs: ids,
             activateTab: { id in activateTabReturningDocument(id) },
+            didSaveTab: { id, url in tabStore.updateFileURL(url, forTabID: id) },
             window: activeWindow,
             onFinish: { saveTabsBeforeCloseCoordinator = nil }
         )
@@ -1598,7 +1615,15 @@ struct EditorContainerView: View {
     private func recomputeDerived(from text: String) {
         documentStatistics = DocumentStatistics(text: text)
         outlineItems = MarkdownOutlineParser().items(in: text)
-        refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil, navigatesToActiveMatch: false)
+        // A nil `activeSearchIndex` left by a replacement is a DECISION, not an absence: the
+        // resolver declined to select a match because the only ones left are inside text Replace
+        // just wrote. Auto-selecting "the first match" here re-armed exactly that match one
+        // debounce later, re-enabling Replace and reinstating the cat→cats→catss loop the nil
+        // exists to prevent. Only auto-select when no replacement is holding the index open.
+        refreshSearchMatches(
+            selectFirstWhenNeeded: activeSearchIndex == nil && replacementInsertions.isEmpty,
+            navigatesToActiveMatch: false
+        )
     }
 
     // Runs any pending derived recompute immediately (on the live text) and clears the
@@ -1653,6 +1678,8 @@ struct EditorContainerView: View {
         searchQuery = ""
         searchMatches = []
         activeSearchIndex = nil
+        replacementInsertions = []
+        lastAnnouncedSearchSummary = nil
         isShowingFindReplace = false
         isReplaceFocused = false
         replaceText = ""
@@ -1676,6 +1703,8 @@ struct EditorContainerView: View {
         searchQuery = ""
         searchMatches = []
         activeSearchIndex = nil
+        replacementInsertions = []
+        lastAnnouncedSearchSummary = nil
         searchScope = .thisFile
         crossFileSearchModel.reset()
         isSearchFocused = false
@@ -1713,6 +1742,12 @@ struct EditorContainerView: View {
     /// dropped silently when VoiceOver is off, so this costs nothing in the common case.
     private func announceSearchStatus() {
         guard let summary = searchAccessibilitySummary else { return }
+        // Only on CHANGE. `refreshSearchMatches` runs from the debounced derived refresh, so
+        // leaving a query in the toolbar field and going back to writing re-posted the identical
+        // "Search for foo. 3 matches. Result 1 of 3." after every typing pause — an unbounded
+        // stream of duplicate announcements interrupting the typing echo for the whole session.
+        guard summary != lastAnnouncedSearchSummary else { return }
+        lastAnnouncedSearchSummary = summary
         NSAccessibility.post(
             element: NSApp as Any,
             notification: .announcementRequested,

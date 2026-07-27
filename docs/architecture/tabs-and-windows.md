@@ -19,3 +19,28 @@ in this area.
   document work keeps its guard. Covered by `testRenameRetargetsABackgroundTabWhileADifferentTabIsActive`
   and `testDeleteClearsABackgroundTabWhileADifferentTabIsActive`; the handler ORDERING itself lives in
   a SwiftUI body and is not directly unit-testable, so the comment there carries the reason.
+
+## Save-All and the dirty indicator (audited 2026-07-27)
+
+**The dot and the prompt disagreed.** `TabBarView` computed its dirty dot from
+`DocumentSaveStatus.isDirty` while every other consumer — the close-tab prompt, the close-window
+sheet, the `NSDocument.isEdited` sync — used `DocumentTab.hasUnsavedWork`, which additionally treats
+`fileURL == nil && !text.isEmpty` as unsaved. Two tabs therefore held content with no indicator: an
+untitled tab with typed text (⌘T then type), and a tab whose file was trashed from the Files sidebar
+— `markFileDeleted` nils the tab's `fileURL` while the save baseline still says clean, so the tab's
+text was the only copy of the file's content anywhere and the tab bar said nothing. Worse, when that
+tab is selected the status line still reads "Last save: <time>", affirmatively implying the content
+is on disk while the file is in the Trash. The dot now reads `hasUnsavedWork`.
+
+**Save All orphaned an untitled tab from the file it had just saved.**
+`SaveTabsBeforeCloseCoordinator` drives the whole queue synchronously from its `didSave` callback,
+and `activateTab` assigns `backingDocument.fileURL = tab.fileURL` — so activating the NEXT tab
+clobbered the URL AppKit had just minted for the untitled one before the view's async
+`currentFileURL` write-back could run. The store kept `fileURL == nil`, so `windowShouldClose`
+re-ran, showed the same "1 tab with unsaved changes" alert with zero dirty dots, and a second Save
+All opened another `NSSavePanel` that wrote a duplicate copy to a second path. Cancelling that
+panel instead left the tab permanently detached: title "Untitled", and every later activation reset
+`backingDocument.fileURL` to nil, so macOS autosave had no target for the session. The coordinator
+now takes a `didSaveTab` closure wired to `EditorTabStore.updateFileURL(_:forTabID:)` and records the
+URL before advancing. It affects every tab in the queue except the last, so it needs ≥2 dirty tabs
+with the untitled one not last.
