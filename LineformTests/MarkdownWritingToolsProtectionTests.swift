@@ -267,4 +267,162 @@ final class MarkdownWritingToolsProtectionTests: XCTestCase {
         )
     }
 
+    // MARK: - Fence agreement probes
+
+    /// Markdown-about-markdown: a 4-backtick fence wrapping 3-backtick fences. The renderer
+    /// (`MermaidFence`) keeps the whole thing as ONE code block, so every other surface must too.
+    private static let nestedFenceDocument = """
+    ````markdown
+    ```swift
+    let notAWord = qqzzxx
+    ```
+    ````
+
+    Prose.
+    """
+
+    /// A ``` block whose body contains a `~~~` line.
+    private static let mixedMarkerDocument = """
+    ```text
+    ~~~
+    qqzzxx
+    ```
+
+    Prose.
+    """
+
+    private func range(of needle: String, in text: String) -> NSRange {
+        (text as NSString).range(of: needle)
+    }
+
+    private func fullyCovered(_ ranges: [NSRange], _ range: NSRange) -> Bool {
+        ranges.contains { NSIntersectionRange($0, range).length == range.length }
+    }
+
+    private func protectedRanges(in text: String) -> [NSRange] {
+        MarkdownWritingToolsProtection.ignoredRanges(
+            in: text,
+            enclosingRange: NSRange(location: 0, length: (text as NSString).length)
+        )
+    }
+
+    func testProtectionCoversBodyOfNestedBacktickFence() {
+        let text = Self.nestedFenceDocument
+        XCTAssertTrue(
+            fullyCovered(protectedRanges(in: text), range(of: "let notAWord = qqzzxx", in: text)),
+            "an inner ``` must not close a ```` fence"
+        )
+    }
+
+    func testProtectionCoversBodyWhenFenceContainsOtherMarker() {
+        let text = Self.mixedMarkerDocument
+        XCTAssertTrue(
+            fullyCovered(protectedRanges(in: text), range(of: "qqzzxx", in: text)),
+            "a ~~~ line must not close a ``` fence"
+        )
+    }
+
+    func testProtectionEndsWithTheFenceRatherThanRunningToEndOfDocument() {
+        let text = Self.nestedFenceDocument
+        XCTAssertFalse(
+            protectedRanges(in: text).contains {
+                NSIntersectionRange($0, range(of: "Prose.", in: text)).length > 0
+            },
+            "prose after the closing fence must stay unprotected"
+        )
+    }
+
+    func testIsInsideCodeAgreesWithProtectionForNestedFence() {
+        let text = Self.nestedFenceDocument
+        XCTAssertTrue(
+            MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(
+                location: range(of: "let notAWord = qqzzxx", in: text).location,
+                in: text
+            ),
+            "the per-keystroke check must agree with the whole-document pass"
+        )
+        XCTAssertFalse(
+            MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(
+                location: range(of: "Prose.", in: text).location,
+                in: text
+            ),
+            "the document must not be left permanently inside a fence"
+        )
+    }
+
+    func testIsInsideCodeAgreesWithProtectionForMixedMarkers() {
+        let text = Self.mixedMarkerDocument
+        XCTAssertTrue(
+            MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(
+                location: range(of: "qqzzxx", in: text).location,
+                in: text
+            ),
+            "a ~~~ line must not close a ``` fence for the per-keystroke check"
+        )
+    }
+
+    func testSpellCheckSkipsBodyOfNestedFence() {
+        let text = Self.nestedFenceDocument
+        let body = range(of: "let notAWord = qqzzxx", in: text)
+        let regions = MarkdownSpellCheckRegions.checkableRanges(
+            in: text as NSString,
+            enclosing: NSRange(location: 0, length: (text as NSString).length)
+        )
+        XCTAssertFalse(
+            regions.contains { NSIntersectionRange($0, body).length > 0 },
+            "spell check must not run inside a ```` fence"
+        )
+    }
+
+    /// The scoped walk classifies fences by reading UTF-16 units (`fenceRun`); the whole-document
+    /// pass calls `MermaidFence`, which is the renderer's definition. This pins the two together
+    /// on the shapes where a first-three-characters comparison used to disagree.
+    func testFenceClassificationMatchesTheRenderer() {
+        let documents = [
+            Self.nestedFenceDocument,
+            Self.mixedMarkerDocument,
+            "````\n```\n$x$\n```\n````\n",
+            "```\ncode\n````\nstill code\n```\n",
+            "~~~~\n~~~\nbody\n~~~\n~~~~\n",
+            "``` swift\nlet x = 1\n```   \nafter\n",
+            "```\nunclosed\n``\n",
+            "````markdown\r\n```\r\ncode\r\n```\r\n````\r\nProse.\r\n",
+        ]
+        for text in documents {
+            let full = NSRange(location: 0, length: (text as NSString).length)
+            func normalize(_ ranges: [NSRange]) -> [NSRange] {
+                ranges.filter { $0.length > 0 }.sorted { $0.location < $1.location }
+            }
+            XCTAssertEqual(
+                normalize(MarkdownWritingToolsProtection.ignoredRanges(in: text, enclosingRange: full)),
+                normalize(MarkdownWritingToolsProtection.protectedRanges(in: text as NSString, intersecting: full)),
+                "scoped and whole-document passes disagree on \(text.debugDescription)"
+            )
+        }
+    }
+
+    /// `isInsideCodeOrFrontMatter` is a third implementation of the same question. It must answer
+    /// like the whole-document pass at every offset, or a per-keystroke edit and the renderer
+    /// disagree about whether the caret is in code.
+    func testIsInsideCodeMatchesProtectedRangesAtEveryOffset() {
+        for text in [Self.nestedFenceDocument, Self.mixedMarkerDocument] {
+            let nsText = text as NSString
+            let fenced = MarkdownWritingToolsProtection.ignoredRanges(
+                in: text,
+                enclosingRange: NSRange(location: 0, length: nsText.length)
+            )
+            for location in 0...nsText.length {
+                // Compare only on the fenced-code question: `ignoredRanges` also covers math,
+                // which this check deliberately ignores.
+                let inRange = fenced.contains { NSLocationInRange(location, $0) }
+                let inCode = MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter(
+                    location: location,
+                    in: text
+                )
+                if inCode {
+                    XCTAssertTrue(inRange, "offset \(location) reads as code but is unprotected")
+                }
+            }
+        }
+    }
 }

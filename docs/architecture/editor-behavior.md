@@ -197,6 +197,20 @@ contributes only fence and `$$`-block *state*, so the real predicates run only o
 emit a range. 2.26 ms in Debug, ~0.6 ms in an optimized build. **Debug measures ~3.6× slower than
 Release** here — do not read a Debug number as what users feel.
 
+**The gate is a RATIO, not a wall-clock ceiling (2026-07-27).** It measures `checkableRanges` and
+the whole-document `ignoredRanges` back to back in the same run and requires the scoped path to be
+at least **4×** faster; it measures **11.7×** (2.18 ms vs 25.45 ms on a developer Mac), and the
+14.97 ms naive version it exists to reject would score barely above 1×. Measurement is best-of-N
+batches on a monotonic clock, because scheduler preemption on a shared runner can only ever add
+time — a mean absorbs one descheduled batch and reports it as a regression.
+
+It began as an absolute 5 ms ceiling, which read ~2.2 ms locally and 5.5–8.4 ms on a GitHub
+`macos-26` runner: **four CI failures in twelve runs, none of them a regression.** Raising the
+number would have swapped a flaky gate for a blind one. The ratio takes the hardware out of the
+question, so it is both stabler and stricter than any number tuned to one machine. **Do not put a
+tight absolute ceiling back** — the remaining 30 ms backstop is only there to catch "everything got
+slower at once", which a ratio cannot see.
+
 (3) **AppKit provides no Spelling and Grammar menu, and this app replaces the Edit menu.** Nothing
 supplies one for free — verified by dumping the live menu over Accessibility. Without the submenu
 added to `AppCommands`, the feature has no off switch and `toggleContinuousSpellChecking` is
@@ -393,6 +407,40 @@ Found by asserting the agreement directly rather than by reading either side:
 listed heading may sit inside a renderer-classified fence, and every heading the renderer treats as
 prose must be listed. Both halves failed on the first run. `characterRange` still spans the line's
 own text (excluding a CRLF `\r`), which is what the scroll restore expects.
+
+## Editor-side fence tracking (2026-07-27)
+
+The outline fix above closed one caller. A sweep for the same shape — *every* place that carries
+fenced-code state across lines — found four more, all on the editor side, all invisible to the
+suites because every fixture used one fence length:
+
+- `MarkdownWritingToolsProtection.fencedCodeRanges` and its unit-level twin inside
+  `protectedRanges(in:intersecting:)` compared `String(trimmed.prefix(3))`, so they matched the
+  delimiter *character* but not the run *length*.
+- `MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter` — the per-keystroke check — did the
+  same, via `fenceMarker`.
+- Both math passes toggled a plain `inCodeFence` flag on any fence line, so they did not even
+  match the character.
+- `MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes` and
+  `SpeechTextExtractor.appendLineRun` toggled the same way.
+
+The consequence is worst in the ```` ```` ````-wraps-```` ``` ```` shape, which is what every note
+about Markdown looks like. The renderer kept the block whole; these passes ended it at the first
+inner ` ``` `. So Writing Tools could rewrite embedded code, the spell checker underlined it, and
+`isInsideCodeOrFrontMatter` told the heading and list-continuation commands that a code line was
+prose — the same class of disagreement as the outline bug, reached from four more directions.
+
+All of them now go through `MermaidFence`. The two hot paths that cannot bridge a `String` per line
+use `FenceMarker`/`FenceRun`, a UTF-16 twin of the same rule; the added work is a run count on lines
+that already matched three delimiter characters, so `MarkdownSpellCheckPerformanceTests` is
+unaffected.
+
+Pinned by `MarkdownWritingToolsProtectionTests`: the scoped walk and the whole-document pass must
+agree on a corpus of fence shapes (that is what ties `FenceRun` to `MermaidFence`), and
+`isInsideCodeOrFrontMatter` must agree with `ignoredRanges` at every offset.
+`MarkdownRobustnessTests` then pins the *product* answer — for one nested-fence note, the outline,
+the block grouper, HTML export, and read-aloud must all place the end of the code block in the same
+spot.
 
 ## Image insertion and line endings (2026-07-27)
 

@@ -515,6 +515,19 @@ final class MarkdownRobustnessTests: XCTestCase {
                                          "\(what) overruns its own result for \(text.debugDescription)")
             }
 
+            /// A selection that splits a surrogate pair or a combining sequence is what makes
+            /// `Range(_:in:)` return nil downstream — the edit is then skipped while the command
+            /// still reports the range it would have produced.
+            func assertOnCharacterBoundary(_ selected: NSRange, in result: String, _ what: String) {
+                guard selected.location >= 0, NSMaxRange(selected) <= (result as NSString).length else {
+                    return // already reported by assertSelectable
+                }
+                XCTAssertNotNil(
+                    Range(selected, in: result),
+                    "\(what) returned a range that splits a character, for \(text.debugDescription)"
+                )
+            }
+
             if case let .terminate(clearing)? = MarkdownListContinuation.outcome(for: text, selectedRange: caret) {
                 XCTAssertLessThanOrEqual(NSMaxRange(clearing), ns.length, "terminate range overruns the document")
             }
@@ -536,6 +549,17 @@ final class MarkdownRobustnessTests: XCTestCase {
             }
             let inserted = MarkdownTableEditing.insertion(in: text, selectedRange: caret)
             assertSelectable(inserted.selectedRange, in: inserted.text, "insert table")
+
+            // Every formatting command, over the same adversarial range. `apply` converts through
+            // `Range(_:in:)`, which returns nil when a selection splits an emoji or a combining
+            // mark — it aligns the incoming selection to composed-character boundaries first, and
+            // this is what proves the alignment covers every command rather than the two that had
+            // tests. A returned range is handed straight to `setSelectedRange`.
+            for command in MarkdownFormattingCommand.allProbeCases {
+                let edit = command.apply(to: text, selectedRange: range)
+                assertSelectable(edit.selectedRange, in: edit.text, "format \(command)")
+                assertOnCharacterBoundary(edit.selectedRange, in: edit.text, "format \(command)")
+            }
             let source = markdownSourceLines(in: text)
             _ = markdownBlocks(in: source.lines, lineRanges: source.ranges)
             _ = MarkdownHTMLRenderer.body(for: text, generatedImage: { _ in nil })
@@ -571,5 +595,71 @@ final class MarkdownRobustnessTests: XCTestCase {
             XCTAssertEqual(after.headers, before.headers, "headers changed reformatting \(text.debugDescription)")
             XCTAssertEqual(after.rows, before.rows, "rows changed reformatting \(text.debugDescription)")
         }
+    }
+}
+
+extension MarkdownFormattingCommand {
+    /// Every case, so the fuzz sweep fails to compile when a command is added without coverage.
+    static let allProbeCases: [MarkdownFormattingCommand] = [
+        .bold, .italic, .inlineCode, .strikethrough, .blockquote, .unorderedList, .orderedList, .link,
+    ]
+}
+
+extension MarkdownRobustnessTests {
+
+    /// A note *about* Markdown: a 4-backtick fence wrapping 3-backtick fences, with a heading-
+    /// shaped line inside. Every surface must give the SAME answer about where the code block
+    /// ends — this is the shape where a first-three-characters fence comparison disagreed with
+    /// the renderer.
+    private static let nestedFenceNote = """
+    # Real Heading
+
+    ````markdown
+    ```swift
+    let x = 1
+    ```
+
+    # Not A Heading
+    ````
+
+    Prose after.
+    """
+
+    func testOutlineSkipsHeadingsInsideANestedFence() {
+        let items = MarkdownOutlineParser().items(in: Self.nestedFenceNote)
+        XCTAssertEqual(
+            items.map(\.title),
+            ["Real Heading"],
+            "a heading inside a ```` fence is code, not an outline entry"
+        )
+    }
+
+    func testGroupingKeepsANestedFenceAsOneCodeBlock() {
+        let source = markdownSourceLines(in: Self.nestedFenceNote)
+        let blocks = markdownBlocks(in: source.lines, lineRanges: source.ranges)
+        let codeBlocks = blocks.filter { if case .fencedCode = $0 { return true } else { return false } }
+        XCTAssertEqual(codeBlocks.count, 1, "the ```` block must not be split by its inner ``` lines")
+    }
+
+    func testHTMLExportEmitsOneCodeBlockForANestedFence() {
+        let html = MarkdownHTMLRenderer.body(for: Self.nestedFenceNote, generatedImage: { _ in nil })
+        XCTAssertEqual(
+            html.components(separatedBy: "<pre").count - 1,
+            1,
+            "export must emit the same single code block the app draws"
+        )
+        XCTAssertFalse(
+            html.contains("<h1>Not A Heading</h1>"),
+            "a heading inside code must never become a real heading in the export"
+        )
+        XCTAssertTrue(html.contains("Prose after."), "prose after the fence must still be exported")
+    }
+
+    func testSpeechSkipsANestedFenceButReadsAroundIt() {
+        let spoken = SpeechTextExtractor.spokenText(from: Self.nestedFenceNote)
+        XCTAssertTrue(spoken.contains("Real Heading"))
+        XCTAssertTrue(spoken.contains("Prose after."))
+        XCTAssertFalse(spoken.contains("let x = 1"), "read-aloud must skip fenced code")
+        XCTAssertFalse(spoken.contains("Not A Heading"), "read-aloud must skip code that looks like a heading")
     }
 }
