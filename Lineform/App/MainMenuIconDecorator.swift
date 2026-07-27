@@ -34,9 +34,15 @@ enum MainMenuIconDecorator {
     ///   Decorating only on `didBeginTracking` left Format as the one bare menu in the bar.
     /// - The Format menu's items also swap wholesale between the Markdown and plain-text sets.
     ///
-    /// So insertion itself is the trigger: `didAddItem` fires exactly when SwiftUI rebuilds a
-    /// menu, and it cannot feed back on itself — assigning `image` posts `didChangeItem`, a
-    /// different notification, which is deliberately not observed.
+    /// So insertion itself is a trigger: `didAddItem` fires when SwiftUI rebuilds a menu.
+    ///
+    /// Insertion alone is still not enough. When a `CommandMenu` is about to open, SwiftUI
+    /// updates its EXISTING items in place rather than inserting fresh ones — and that update
+    /// clears the image. No `didAddItem` fires for it, and it lands after `didBeginTracking`,
+    /// so Format drew bare on every row while every other menu was iconed. The only
+    /// notification that reports it is `didChangeItem`, which is why it is observed here
+    /// despite being the one our own writes post: `isDecorating` swallows the re-entrant round,
+    /// and the identity check in `decorate` means a settled row is never written twice anyway.
     static func installIfNeeded() {
         guard !installed else { return }
         installed = true
@@ -46,7 +52,11 @@ enum MainMenuIconDecorator {
         // must be decorated. SwiftUI builds a replacement Format menu DETACHED, fills it, and
         // only then swaps it in — so a walk of `NSApp.mainMenu` at insertion time decorates the
         // outgoing menu and the fresh, bare one is what gets drawn.
-        for name in [NSMenu.didAddItemNotification, NSMenu.didBeginTrackingNotification] {
+        for name in [
+            NSMenu.didAddItemNotification,
+            NSMenu.didChangeItemNotification,
+            NSMenu.didBeginTrackingNotification,
+        ] {
             NotificationCenter.default.addObserver(
                 observer,
                 selector: #selector(MenuNotificationObserver.menuChanged(_:)),
@@ -69,7 +79,20 @@ enum MainMenuIconDecorator {
         decorate(menu, recursive: true)
     }
 
+    /// Guards the `didChangeItem` observation: assigning `image` posts that same notification,
+    /// so without this every write would re-enter the walk. The identity check below already
+    /// makes the recursion terminate, but this keeps it to one pass instead of one per row.
+    private static var isDecorating = false
+
     private static func decorate(_ menu: NSMenu, recursive: Bool) {
+        guard !isDecorating else { return }
+        isDecorating = true
+        defer { isDecorating = false }
+
+        decorateItems(of: menu, recursive: recursive)
+    }
+
+    private static func decorateItems(of menu: NSMenu, recursive: Bool) {
         // The menu bar's own row (Lineform, File, Edit, …) never takes an icon — Apple's apps
         // don't, and an image there would push the titles apart.
         let isMenuBar = menu === NSApp.mainMenu
@@ -86,7 +109,7 @@ enum MainMenuIconDecorator {
             }
 
             if recursive, let submenu = item.submenu {
-                decorate(submenu, recursive: true)
+                decorateItems(of: submenu, recursive: true)
             }
         }
     }
@@ -333,7 +356,10 @@ enum MainMenuIconDecorator {
             } else {
                 let selector = item.action.map(NSStringFromSelector) ?? "-"
                 let symbol = symbolName(for: item) ?? "MISSING"
-                emit("\(indent)\(item.title) | \(selector) | \(symbol)")
+                // Resolution and application are different failures: a row can map to the right
+                // symbol and still draw bare if nothing ever assigned the image.
+                let applied = item.image == nil ? "NO IMAGE" : "image"
+                emit("\(indent)\(item.title) | \(selector) | \(symbol) | \(applied)")
             }
             if let submenu = item.submenu {
                 dump(submenu, depth: depth + 1)

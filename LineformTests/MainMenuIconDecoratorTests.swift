@@ -78,4 +78,46 @@ final class MainMenuIconDecoratorTests: XCTestCase {
     func testSeparatorsAreNeverDecorated() {
         XCTAssertNil(MainMenuIconDecorator.symbolName(for: .separator()))
     }
+
+    /// The Format menu drew bare on every row for weeks while its items provably resolved the
+    /// right symbols. Cause: when a `CommandMenu` is about to open, SwiftUI updates its EXISTING
+    /// items rather than inserting new ones, and that update clears `image`. No `didAddItem`
+    /// fires for it, so decoration never ran again and the bare menu is what got drawn.
+    ///
+    /// This pins the recovery path: a `didChangeItem` on a menu must re-apply the icons.
+    func testDidChangeItemReappliesClearedIcons() {
+        MainMenuIconDecorator.installIfNeeded()
+
+        let menu = NSMenu()
+        let item = NSMenuItem(title: "Bold", action: nil, keyEquivalent: "")
+        menu.addItem(item)
+        XCTAssertNotNil(item.image, "insertion should have decorated the row")
+
+        // Exactly what SwiftUI's update does to a row it owns.
+        item.image = nil
+        NotificationCenter.default.post(name: NSMenu.didChangeItemNotification, object: menu)
+
+        XCTAssertNotNil(item.image, "a cleared icon was never re-applied — Format renders bare")
+    }
+
+    /// Assigning `image` posts `didChangeItem`, the very notification that triggers decoration.
+    /// The re-entrancy guard plus the identity check must make that settle instead of recursing.
+    func testDecoratingDoesNotRecurseThroughItsOwnNotifications() {
+        MainMenuIconDecorator.installIfNeeded()
+
+        let menu = NSMenu()
+        for title in ["Bold", "Italic", "Link", "Blockquote"] {
+            menu.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: ""))
+        }
+        for item in menu.items {
+            item.image = nil
+        }
+
+        // Would hang or blow the stack if each write re-entered a full walk.
+        NotificationCenter.default.post(name: NSMenu.didChangeItemNotification, object: menu)
+
+        for item in menu.items {
+            XCTAssertNotNil(item.image, "\(item.title) was left bare")
+        }
+    }
 }
