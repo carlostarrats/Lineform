@@ -119,13 +119,17 @@ final class MarkdownSyntaxHighlighter {
         inLines lines: [String],
         includeTrailingBlankBoundary: Bool = true
     ) -> [Int] {
-        var inFence = false
+        // Fence state uses `MermaidFence`, the renderer's CommonMark matching, so block spacing
+        // agrees with what is actually drawn as one code block. A flag toggled on any ``` / ~~~
+        // line ended a ```` block at its first inner ``` and respaced the rest of the document.
+        var openFenceMarker: (character: Character, length: Int)?
 
         return lines.indices.compactMap { index in
             let line = lines[index]
             let trimmed = line.trimmingCharacters(in: markdownLineTrimCharacters)
-            let isFenceDelimiter = trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~")
-            let isClosingFence = inFence && isFenceDelimiter
+            let inFence = openFenceMarker != nil
+            let isClosingFence = openFenceMarker.map { MermaidFence.isClosingFence(trimmed, matching: $0) } ?? false
+            let opensFence = !inFence && MermaidFence.openingMarker(trimmed) != nil
             let nextLine = index + 1 < lines.count ? lines[index + 1] : nil
             let nextLineIsBlank = nextLine?.trimmingCharacters(in: markdownLineTrimCharacters).isEmpty == true
             let nextLineIsHeading = nextLine.map { !inFence && MarkdownHeadingParser.heading(in: $0) != nil } ?? false
@@ -139,8 +143,10 @@ final class MarkdownSyntaxHighlighter {
                         || (isClosingFence && nextLineIsBlank && blankBoundaryIsStable)
                 )
 
-            if isFenceDelimiter {
-                inFence.toggle()
+            if isClosingFence {
+                openFenceMarker = nil
+            } else if opensFence {
+                openFenceMarker = MermaidFence.openingMarker(trimmed)
             }
 
             return usesBlockSpacing ? index : nil

@@ -85,15 +85,21 @@ enum SpeechTextExtractor {
         // `markdownBlocks(in:)` before a `.lines` run is ever formed, so this should never see a
         // fence delimiter in practice. The guard is kept defensively (cheap, and matches the
         // brief's original design) in case a future grouping change reintroduces mixed content.
-        var inFence = false
+        var openFenceMarker: (character: Character, length: Int)?
         for index in range {
             let line = lines[index]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if MermaidFence.isFenceDelimiter(trimmed) {
-                inFence.toggle()
+                if let open = openFenceMarker {
+                    if MermaidFence.isClosingFence(trimmed, matching: open) {
+                        openFenceMarker = nil
+                    }
+                } else {
+                    openFenceMarker = MermaidFence.openingMarker(trimmed)
+                }
                 continue // the ``` / ~~~ delimiter itself is never spoken
             }
-            if inFence { continue } // fenced code contents are skipped
+            if openFenceMarker != nil { continue } // fenced code contents are skipped
             if let heading = MarkdownHeadingParser.heading(in: line) {
                 append(heading.title, into: &units)
             } else {

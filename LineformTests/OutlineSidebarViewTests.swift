@@ -1215,3 +1215,18 @@ extension OutlineSidebarViewTests {
         )
     }
 }
+
+extension OutlineSidebarViewTests {
+    /// The rescan debounce must EXCEED the FSEvents coalescing latency. Under continuous churn —
+    /// which is what autosave produces while the user types — FSEvents delivers a callback roughly
+    /// every `coalescingLatency`, so a debounce at or below it never coalesces and the synchronous
+    /// directory walk lands on the main thread mid-keystroke.
+    func testRescanDebounceExceedsFSEventsCoalescingLatency() {
+        XCTAssertGreaterThan(
+            OutlineFileBrowserStore.directoryRescanDebounceInterval,
+            DirectoryEventMonitor.coalescingLatency,
+            "a debounce at or below the coalescing latency never coalesces, so autosave churn "
+                + "hitches typing"
+        )
+    }
+}

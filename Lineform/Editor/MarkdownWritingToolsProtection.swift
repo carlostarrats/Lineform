@@ -32,8 +32,7 @@ enum MarkdownWritingToolsProtection {
             return true
         }
 
-        var insideFence = false
-        var openFenceMarker: String?
+        var openMarker: FenceMarker?
         var lineStart = 0
 
         while lineStart < location {
@@ -46,13 +45,13 @@ enum MarkdownWritingToolsProtection {
                 for: NSRange(location: lineStart, length: 0)
             )
 
-            if let marker = fenceMarker(in: nsText, lineStart: lineStart, contentsEnd: contentsEnd) {
-                if insideFence, marker == openFenceMarker {
-                    insideFence = false
-                    openFenceMarker = nil
-                } else if !insideFence {
-                    insideFence = true
-                    openFenceMarker = marker
+            if let fence = fenceRun(in: nsText, lineStart: lineStart, contentsEnd: contentsEnd) {
+                if let open = openMarker {
+                    if fence.closes(open) {
+                        openMarker = nil
+                    }
+                } else {
+                    openMarker = fence.marker
                 }
             }
 
@@ -60,34 +59,79 @@ enum MarkdownWritingToolsProtection {
             lineStart = lineEnd
         }
 
-        return insideFence
+        return openMarker != nil
     }
 
-    /// The ``` or ~~~ delimiter a line opens or closes with, or `nil`. Reads UTF-16 units
+    /// A fence opener's delimiter character and run length, in UTF-16 units — the unit-level twin
+    /// of `MermaidFence.openingMarker`.
+    struct FenceMarker: Equatable {
+        let unit: UInt16
+        let length: Int
+    }
+
+    /// A classified fence delimiter line: its run, plus whether the run is BARE (nothing but
+    /// whitespace follows it). Only a bare run can CLOSE a fence; an opener may carry an info
+    /// string.
+    struct FenceRun {
+        let marker: FenceMarker
+        let isBare: Bool
+
+        /// CommonMark's closing rule, and `MermaidFence.isClosingFence`'s: the same delimiter
+        /// character, a run at least as long as the opener's, and nothing after it.
+        ///
+        /// Comparing only the delimiter CHARACTER (or, worse, toggling a flag on any fence line)
+        /// is what let an inner ```` ``` ```` close an outer ```` ```` ```` fence — the shape every
+        /// note *about* Markdown has. The renderer kept the block whole while these passes ended
+        /// it early, so Writing Tools could rewrite embedded code and the spell checker underlined
+        /// it.
+        func closes(_ open: FenceMarker) -> Bool {
+            isBare && marker.unit == open.unit && marker.length >= open.length
+        }
+    }
+
+    /// The fence delimiter run a line opens or closes with, or `nil`. Reads UTF-16 units
     /// directly so the overwhelming majority of lines — ordinary prose — are rejected on their
     /// first non-blank character without allocating a substring.
-    private static func fenceMarker(in nsText: NSString, lineStart: Int, contentsEnd: Int) -> String? {
-        let space = UInt16(UnicodeScalar(" ").value)
-        let tab = UInt16(UnicodeScalar("\t").value)
+    ///
+    /// Must agree with `MermaidFence.openingMarker`/`isClosingFence`, which the renderer uses;
+    /// `testFenceClassificationMatchesTheRenderer` pins the two together.
+    private static func fenceRun(in nsText: NSString, lineStart: Int, contentsEnd: Int) -> FenceRun? {
+        var index = lineStart
+        while index < contentsEnd, isWhitespace(nsText.character(at: index)) {
+            index += 1
+        }
+        return fenceRun(from: index, to: contentsEnd) { nsText.character(at: $0) }
+    }
+
+    /// Shared run classifier over an already-trimmed line start. `unit` reads one UTF-16 unit, so
+    /// the hot scoped walk can supply its inline buffer instead of paying an ObjC dispatch each.
+    @inline(__always)
+    private static func fenceRun(from lower: Int, to contentsEnd: Int, unit: (Int) -> UInt16) -> FenceRun? {
         let backtick = UInt16(UnicodeScalar("`").value)
         let tilde = UInt16(UnicodeScalar("~").value)
 
-        var index = lineStart
-        while index < contentsEnd {
-            let character = nsText.character(at: index)
-            guard character == space || character == tab else { break }
-            index += 1
+        guard lower < contentsEnd else { return nil }
+        let first = unit(lower)
+        guard first == backtick || first == tilde else { return nil }
+
+        var end = lower
+        while end < contentsEnd, unit(end) == first {
+            end += 1
+        }
+        let length = end - lower
+        guard length >= 3 else { return nil }
+
+        var isBare = true
+        var scan = end
+        while scan < contentsEnd {
+            if !isWhitespace(unit(scan)) {
+                isBare = false
+                break
+            }
+            scan += 1
         }
 
-        guard contentsEnd - index >= 3 else { return nil }
-        let first = nsText.character(at: index)
-        guard first == backtick || first == tilde,
-              nsText.character(at: index + 1) == first,
-              nsText.character(at: index + 2) == first else {
-            return nil
-        }
-
-        return first == backtick ? "```" : "~~~"
+        return FenceRun(marker: FenceMarker(unit: first, length: length), isBare: isBare)
     }
 
     private static func protectedRanges(in text: String) -> [NSRange] {
@@ -138,13 +182,11 @@ enum MarkdownWritingToolsProtection {
         // separately because the two whole-document passes track them differently — matching
         // that difference is what keeps this equivalent.
         var openFenceStart: Int?
-        var openFenceMarker: String?
+        var openFenceMarker: FenceMarker?
         var mathBlockStart: Int?
-        var inCodeFence = false
+        var mathOpenFenceMarker: FenceMarker?
 
         let dollar = UInt16(UnicodeScalar("$").value)
-        let backtick = UInt16(UnicodeScalar("`").value)
-        let tilde = UInt16(UnicodeScalar("~").value)
         let newlineUnit = UInt16(UnicodeScalar("\n").value)
         let length = text.length
         var offset = 0
@@ -178,15 +220,7 @@ enum MarkdownWritingToolsProtection {
                 lower += 1
             }
 
-            var marker: String?
-            if contentsEnd - lower >= 3 {
-                let first = unit(lower)
-                if first == backtick || first == tilde,
-                   unit(lower + 1) == first,
-                   unit(lower + 2) == first {
-                    marker = first == backtick ? "```" : "~~~"
-                }
-            }
+            let fence = fenceRun(from: lower, to: contentsEnd, unit: unit)
 
             // Trailing trim is only needed to recognise a `$$`-only line, so pay for it only
             // when the line actually starts with `$`. Ordinary prose exits on one comparison.
@@ -200,21 +234,29 @@ enum MarkdownWritingToolsProtection {
             }
 
             // --- fencedCodeRanges ---
-            if let marker {
-                if let start = openFenceStart, marker == openFenceMarker {
-                    ranges.append(NSRange(location: start, length: offset + storedLength - start))
+            if let fence {
+                if let open = openFenceMarker, fence.closes(open) {
+                    if let start = openFenceStart {
+                        ranges.append(NSRange(location: start, length: offset + storedLength - start))
+                    }
                     openFenceStart = nil
                     openFenceMarker = nil
-                } else if openFenceStart == nil {
+                } else if openFenceMarker == nil {
                     openFenceStart = offset
-                    openFenceMarker = marker
+                    openFenceMarker = fence.marker
                 }
             }
 
             // --- mathRanges ---
-            if mathBlockStart == nil, marker != nil {
-                inCodeFence.toggle()
-            } else if inCodeFence {
+            if mathBlockStart == nil, let fence {
+                if let open = mathOpenFenceMarker {
+                    if fence.closes(open) {
+                        mathOpenFenceMarker = nil
+                    }
+                } else {
+                    mathOpenFenceMarker = fence.marker
+                }
+            } else if mathOpenFenceMarker != nil {
                 // Inside a fence: `$`/`$$` are not math.
             } else if let start = mathBlockStart {
                 if isBlockDelimiterOnly {
@@ -290,7 +332,7 @@ enum MarkdownWritingToolsProtection {
         var ranges: [NSRange] = []
         var offset = 0
         var blockStart: Int?
-        var inCodeFence = false
+        var openFenceMarker: (character: Character, length: Int)?
 
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: lineTrimCharacters)
@@ -298,13 +340,21 @@ enum MarkdownWritingToolsProtection {
             let storedLineLength = (line as NSString).length + (hasNewline ? 1 : 0)
 
             // Never interpret `$`/`$$` inside a fenced code block (it is protected separately).
-            // Toggle on fence delimiters only when not mid math-block.
-            if blockStart == nil, trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                inCodeFence.toggle()
+            // Fence state is tracked only when not mid math-block, and with `MermaidFence` rather
+            // than a toggle — a toggle ended a ```` block at its first inner ``` line and then
+            // read the code that followed as math.
+            if blockStart == nil, MermaidFence.isFenceDelimiter(trimmed) {
+                if let open = openFenceMarker {
+                    if MermaidFence.isClosingFence(trimmed, matching: open) {
+                        openFenceMarker = nil
+                    }
+                } else {
+                    openFenceMarker = MermaidFence.openingMarker(trimmed)
+                }
                 offset += storedLineLength
                 continue
             }
-            if inCodeFence {
+            if openFenceMarker != nil {
                 offset += storedLineLength
                 continue
             }
@@ -374,7 +424,7 @@ enum MarkdownWritingToolsProtection {
         var ranges: [NSRange] = []
         var offset = 0
         var openFenceStart: Int?
-        var openFenceMarker: String?
+        var openFenceMarker: (character: Character, length: Int)?
 
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: lineTrimCharacters)
@@ -382,17 +432,18 @@ enum MarkdownWritingToolsProtection {
             let hasNewline = index < lines.count - 1
             let storedLineLength = lineLength + (hasNewline ? 1 : 0)
 
-            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                let marker = String(trimmed.prefix(3))
-
-                if let start = openFenceStart, marker == openFenceMarker {
+            // `MermaidFence` is the ONE fence definition — the renderer's. Closing is checked
+            // before opening, matching `MarkdownOutlineParser`, so a bare delimiter run ends the
+            // block it can end rather than opening a new one.
+            if let open = openFenceMarker, MermaidFence.isClosingFence(trimmed, matching: open) {
+                if let start = openFenceStart {
                     ranges.append(NSRange(location: start, length: offset + storedLineLength - start))
-                    openFenceStart = nil
-                    openFenceMarker = nil
-                } else if openFenceStart == nil {
-                    openFenceStart = offset
-                    openFenceMarker = marker
                 }
+                openFenceStart = nil
+                openFenceMarker = nil
+            } else if openFenceMarker == nil, let marker = MermaidFence.openingMarker(trimmed) {
+                openFenceStart = offset
+                openFenceMarker = marker
             }
 
             offset += storedLineLength

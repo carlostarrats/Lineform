@@ -223,6 +223,35 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertTrue(script.contains("codesign --force --sign \"$DMG_CODE_SIGN_IDENTITY\" \"$FINAL_DMG\""))
     }
 
+    /// `com.apple.security.print` must be in BOTH entitlement files or printing fails outright —
+    /// a sandbox denial, not a degraded path, and one that only shows up when a user hits ⌘P.
+    func testPrintEntitlementIsPresentInBothConfigurations() throws {
+        XCTAssertEqual(
+            try releaseEntitlements()["com.apple.security.print"] as? Bool,
+            true,
+            "Release must keep com.apple.security.print or ⌘P fails outright"
+        )
+        XCTAssertEqual(
+            try debugEntitlements()["com.apple.security.print"] as? Bool,
+            true,
+            "Debug must keep com.apple.security.print or ⌘P fails outright"
+        )
+    }
+
+    /// `AppIntents.framework` must stay LINKED in the app target's Frameworks phase. `import
+    /// AppIntents` alone is not enough: without the link no `Metadata.appintents` is emitted and
+    /// the Shortcuts/Spotlight/Siri actions silently never register. That shipped broken once —
+    /// nothing else in the build fails, so only the artifact's presence catches it.
+    func testAppIntentsMetadataIsEmittedIntoTheBundle() throws {
+        let url = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Resources/Metadata.appintents")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: url.path),
+            "Metadata.appintents is missing — AppIntents.framework is no longer linked, so the "
+                + "Shortcuts/Spotlight/Siri actions will not register."
+        )
+    }
+
     private func releaseEntitlements() throws -> [String: Any] {
         let testFileURL = URL(fileURLWithPath: #filePath)
         let entitlementsURL = testFileURL

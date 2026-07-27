@@ -130,6 +130,10 @@ file named after it carries the full story and the reasoning.
 
 **Verification**
 - The two test plans' quarantine lists must stay in lockstep (`TestPlanGuardTests`).
+- Three invariants above are now asserted rather than remembered: the print entitlement in both
+  configurations and the emitted `Metadata.appintents` (`ReleaseResourceTests`), and the rescan
+  debounce exceeding the FSEvents coalescing latency (`OutlineSidebarViewTests`). Each had already
+  shipped broken or could only be caught by hand.
 - Never construct an `NSWindow` in the DEFAULT test plan — it crashes the test host. Window-hosting tests belong in `LineformHosted`.
 - When QA'ing a build by hand, open files with `open -a "$BUILT_PRODUCTS_DIR/Lineform.app" file.md`. A bare `open file.md` hands the file to whatever Lineform Launch Services prefers — usually an installed release — and reads exactly like your fix failing.
 - Do not set `applicationIconImage` at runtime.

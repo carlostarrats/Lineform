@@ -394,6 +394,40 @@ listed heading may sit inside a renderer-classified fence, and every heading the
 prose must be listed. Both halves failed on the first run. `characterRange` still spans the line's
 own text (excluding a CRLF `\r`), which is what the scroll restore expects.
 
+## Editor-side fence tracking (2026-07-27)
+
+The outline fix above closed one caller. A sweep for the same shape — *every* place that carries
+fenced-code state across lines — found four more, all on the editor side, all invisible to the
+suites because every fixture used one fence length:
+
+- `MarkdownWritingToolsProtection.fencedCodeRanges` and its unit-level twin inside
+  `protectedRanges(in:intersecting:)` compared `String(trimmed.prefix(3))`, so they matched the
+  delimiter *character* but not the run *length*.
+- `MarkdownWritingToolsProtection.isInsideCodeOrFrontMatter` — the per-keystroke check — did the
+  same, via `fenceMarker`.
+- Both math passes toggled a plain `inCodeFence` flag on any fence line, so they did not even
+  match the character.
+- `MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes` and
+  `SpeechTextExtractor.appendLineRun` toggled the same way.
+
+The consequence is worst in the ```` ```` ````-wraps-```` ``` ```` shape, which is what every note
+about Markdown looks like. The renderer kept the block whole; these passes ended it at the first
+inner ` ``` `. So Writing Tools could rewrite embedded code, the spell checker underlined it, and
+`isInsideCodeOrFrontMatter` told the heading and list-continuation commands that a code line was
+prose — the same class of disagreement as the outline bug, reached from four more directions.
+
+All of them now go through `MermaidFence`. The two hot paths that cannot bridge a `String` per line
+use `FenceMarker`/`FenceRun`, a UTF-16 twin of the same rule; the added work is a run count on lines
+that already matched three delimiter characters, so `MarkdownSpellCheckPerformanceTests` is
+unaffected.
+
+Pinned by `MarkdownWritingToolsProtectionTests`: the scoped walk and the whole-document pass must
+agree on a corpus of fence shapes (that is what ties `FenceRun` to `MermaidFence`), and
+`isInsideCodeOrFrontMatter` must agree with `ignoredRanges` at every offset.
+`MarkdownRobustnessTests` then pins the *product* answer — for one nested-fence note, the outline,
+the block grouper, HTML export, and read-aloud must all place the end of the code block in the same
+spot.
+
 ## Image insertion and line endings (2026-07-27)
 
 `ImageInsertionText` terminates the line it adds with `MarkdownLineEnding.inForce(at:in:)`, like
