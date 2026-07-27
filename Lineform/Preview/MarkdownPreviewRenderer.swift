@@ -96,7 +96,12 @@ struct MarkdownPreviewRenderer {
         // Export/print's Style presets scale heading sizes over body (multiplier on the
         // per-level boost). Not a `ReadingProfile` field. Defaults to a no-op so on-screen
         // Read/Preview rendering is byte-identical.
-        headingScale: CGFloat = 1.0
+        headingScale: CGFloat = 1.0,
+        // "Report this" on a failed diagram is an ON-SCREEN affordance: it is only actionable
+        // inside the app, where `clickedOnLink` resolves the `lineform-report:` URL against the
+        // live registry. Export/print sets this false — a shared PDF must not carry a dead link
+        // whose tooltip offers to send data to the developer.
+        offersDiagramReporting: Bool = true
     ) -> NSAttributedString {
         reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
@@ -104,8 +109,11 @@ struct MarkdownPreviewRenderer {
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
         let codeAttributes = codeAttributes(profile: profile)
         let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
-        let lines = text.components(separatedBy: "\n")
-        let lineRanges = Self.sourceRanges(forLines: lines)
+        // CR-stripped lines with ranges measured against the ORIGINAL text, so a CRLF document
+        // groups into real blocks while every source range still points at the right bytes.
+        let source = markdownSourceLines(in: text)
+        let lines = source.lines
+        let lineRanges = source.ranges
         let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: lines))
         let theme = Theme.theme(for: profile)
 
@@ -119,7 +127,7 @@ struct MarkdownPreviewRenderer {
         // block's FIRST source line is the line after the previous block's last — which lets a
         // `lastLineIndex`-only block still know its full source span.
         var sourceLineCursor = 0
-        for block in markdownBlocks(in: lines) {
+        for block in markdownBlocks(in: lines, lineRanges: lineRanges) {
             let blockRenderStart = output.length
             let blockFirstLine = sourceLineCursor
             switch block {
@@ -178,7 +186,8 @@ struct MarkdownPreviewRenderer {
                     diagramLog: diagramLog,
                     reportRegistry: reportRegistry,
                     appVersion: appVersion,
-                    imagesAsText: imagesAsText
+                    imagesAsText: imagesAsText,
+                    offersDiagramReporting: offersDiagramReporting
                 )
                 appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .horizontalRule(let lineIndex):
@@ -605,20 +614,6 @@ struct MarkdownPreviewRenderer {
         output.append(NSAttributedString(attachment: attachment))
     }
 
-    /// Computes the UTF-16 source range of each line in `lines`, assuming they are separated by
-    /// a single newline character. Used to tag rendered headings with their original position so
-    /// the outline sidebar can sync its active item to the editor scroll position.
-    private static func sourceRanges(forLines lines: [String]) -> [NSRange] {
-        var ranges: [NSRange] = []
-        var location = 0
-        for line in lines {
-            let length = (line as NSString).length
-            ranges.append(NSRange(location: location, length: length))
-            location += length + 1
-        }
-        return ranges
-    }
-
     /// Render a maximal run of ordinary lines (body, headings) exactly as the original per-line
     /// loop did: each line emits its content plus a trailing newline unless it is the document's
     /// last line, and block-spacing attributes are looked up by original line index. Fence
@@ -739,7 +734,8 @@ struct MarkdownPreviewRenderer {
         diagramLog: DiagramFailureLogging,
         reportRegistry: DiagramReportRegistry,
         appVersion: String,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        offersDiagramReporting: Bool = true
     ) {
         if imagesAsText {
             appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
@@ -781,7 +777,13 @@ struct MarkdownPreviewRenderer {
             diagramLog.record(source: source, error: error, appVersion: appVersion)
             let hash = DiagramLog.sourceHash(source)
             reportRegistry.register(hash: hash, source: source, error: error)
-            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: hash)
+            appendMermaidFallback(
+                source: source,
+                to: output,
+                profile: profile,
+                codeAttributes: codeAttributes,
+                reportHash: offersDiagramReporting ? hash : nil
+            )
         }
     }
 

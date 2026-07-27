@@ -20,7 +20,12 @@ enum QuickLookMarkdownRenderer {
 
     static func render(_ text: String) -> NSAttributedString {
         let output = NSMutableAttributedString(string: "")
-        let lines = text.components(separatedBy: "\n")
+        // CRLF endings are stripped here for the same reason the app strips them in
+        // `markdownSourceLines(in:)` — this appex cannot import that file, so it mirrors it by
+        // hand. Without it a Windows-authored file's closing ``` reads as "```\r", no fence ever
+        // closes, and Finder previews the rest of the document as one code block. No source
+        // offsets are kept here, so a plain strip is enough.
+        let lines = text.components(separatedBy: "\n").map { $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }
         let bodyFont = NSFont.systemFont(ofSize: bodyFontSize)
         let themeTextColor = NSColor.labelColor
 

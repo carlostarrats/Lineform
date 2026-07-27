@@ -15,3 +15,40 @@ in this area.
 - HTML export (2026-07-26): `MarkdownHTMLRenderer` (`Lineform/Preview/MarkdownHTMLRenderer.swift`) walks the same `[MarkdownBlock]` grouping the preview renderer uses (`markdownBlocks(in:)`) and emits semantic HTML — headings, `ul`/`ol` with disabled task checkboxes, `blockquote` (callouts as `<blockquote class="callout callout-note">`), `table` with per-column `text-align`, `<pre><code class="language-x">`, `hr`. It is pure `String` in / `String` out (Foundation only, no AppKit), so its tests live in the DEFAULT plan. **The one rule: output is ONE-TO-ONE with the source.** Image paths, link URLs, and remote `http(s)` URLs are emitted **exactly as the user wrote them** — never resolved against a document directory, never rewritten, never inlined as `data:` URIs. Someone exporting HTML is technical and their intent is what they typed; keeping the `.html` beside the `.md` keeps their relative paths working, locally and on a web server. Self-contained output is what PDF is for. An earlier design inlined local images as `data:` URIs (a constraint inherited from a paste-into-email use case that had already been cut) and consequently needed a special case for unsaved documents whose relative paths cannot resolve — **both were removed; do not reintroduce either.** Growing special cases here is the signal that a non-one-to-one default crept back in. **Math and mermaid are the only embedded bytes**, because they have no user-authored path — the picture is generated from the `$$…$$` / ```mermaid source at export time. They arrive through an INJECTED `GeneratedImageProvider` closure (real one in `DocumentExportRenderer.htmlData`, a stub in tests); calling the AppKit renderers directly would drag the whole HTML suite into the hosted plan. A provider that declines falls back to the source in a `<pre>`, so a broken diagram never loses content. Attribute values go through `escapeAttribute`, which additionally encodes newlines as `&#10;` — a mermaid source used as `alt` otherwise splits the attribute across real lines. Code fences carry a language CLASS and **no color spans**: inline colors get overridden by every destination and would bake one theme's ink into a document that outlives it. The shell is `<!doctype html>` + `charset=utf-8` + one embedded `<style>` (neutral light page, system font stack, readable measure) and references **nothing external** — no `<link>`, no `<script>`, no web fonts. There is deliberately no "Styled HTML" second variant: a `<pre>` of escaped `#` markers is strictly worse than the `.md` it came from. There is also no Copy as HTML — Read mode is already `isSelectable`, so ⌘C pastes formatted text into Gmail/Word/Pages today. Design: `docs/superpowers/specs/2026-07-26-html-export-design.md`.
 
 - Shared inline syntax: the six inline-markdown regexes (bold, italic, code, strikethrough, image, link) live once in `MarkdownInlineSyntax` (`Lineform/Preview/MarkdownInlineSyntax.swift`) and are used by BOTH `MarkdownPreviewRenderer` and `MarkdownHTMLRenderer`. They were private to the preview renderer until HTML export needed the same patterns; copying them would mean a construct added to one emitter silently not existing in the other — the exported file quietly disagreeing with what the app shows on screen. Capture group 1 is always the display text, group 2 (where present) the destination.
+
+- **Executable link schemes are dropped from HTML export (2026-07-26).** `MarkdownHTMLRenderer.isRefusedLinkScheme`
+  refuses `javascript:`, `vbscript:`, and `data:text/html` in a link destination; the link TEXT still
+  renders, so nothing the writer typed leaves the page — it just isn't a clickable piece of code.
+  This is NOT an exception to the one-to-one rule and must not be read as licence for more: that rule
+  exists so paths are never *resolved or rewritten* for convenience (`images/photo.png` survives
+  verbatim, and the tests pin that). A `javascript:` URL is not a path, it is code, and nobody writes
+  one in a note they intend to export — so emitting it has no upside and leaves a shared export
+  carrying a link that runs script on click. Keep it a CLOSED set of executable schemes, never a
+  general URL policy or sanitizer. Browsers ignore ASCII whitespace and C0 controls inside a scheme
+  (`java&#9;script:` runs), so the test normalises those away first. **Images are deliberately
+  untouched:** `javascript:` in an `img src` does not execute in any current browser, and filtering
+  there would risk a legitimate `data:image` payload — which generated math and mermaid images
+  depend on. `data:` is refused WHOLESALE in a link rather than only `data:text/html` — nobody links
+  to a data URI, and naming just the HTML form left `data:image/svg+xml` (an SVG is a document and
+  can carry script) and `data:application/xhtml+xml` open in any viewer more permissive than a
+  current browser.
+
+  **Export blocklists where the Quick Look appex allowlists (`http`/`https`/`mailto`), and that
+  difference is deliberate — not drift.** Quick Look renders unattended in Finder and only needs web
+  links to work, so it can refuse everything else. Export cannot: it has to preserve relative paths,
+  which carry no scheme at all, AND app deep links — `obsidian://`, `things:///`, `message://` are
+  things people genuinely write in notes, and an allowlist would silently turn them into plain text.
+  The normalisation is likewise deliberately broader than the URL spec (which strips only ASCII tab
+  and newline, plus leading C0/space): stripping everything at or below `0x20` anywhere can only
+  match MORE than a browser would, the same over-broad-and-safe trade `reformat` makes with
+  backticks. Guarded by `MarkdownRobustnessTests`, which pins the pass-through cases too.
+
+- **Export and print suppress the diagram "Report this" affordance (2026-07-26).** `render(…)` takes
+  `offersDiagramReporting`, false from `DocumentExportRenderer` on both the Styled and RTF paths. The
+  link is only actionable inside the app, where `MarkdownPreviewTextView.clickedOnLink` resolves the
+  `lineform-report:` URL against the live `DiagramReportRegistry`; the Styled PDF/Print path uses a
+  REAL `MermaidImageProvider`, so before this a diagram that failed to render embedded a dead
+  hyperlink into the exported file whose tooltip offered to send the diagram source to the developer
+  — in a document the user shares or prints. The captioned-source fallback still renders; only the
+  link is dropped. Guarded by `testExportSuppressesTheReportThisAffordance`, which also asserts that
+  NO `.link` attribute of any kind survives into an exported document.

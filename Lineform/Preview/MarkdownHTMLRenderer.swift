@@ -54,6 +54,56 @@ enum MarkdownHTMLRenderer {
         return out
     }
 
+    /// How many significant characters of a destination the scheme test inspects. A link
+    /// destination is `[^)\n]+` — unbounded — so without a bound a document full of long URLs
+    /// would normalise and lowercase every one of them in full, per link, on every export.
+    /// Padding cannot evade it: the filter runs lazily BEFORE the prefix, so a scheme padded with
+    /// a thousand tabs still presents its first significant characters.
+    private static let schemeInspectionLimit = 64
+
+    /// Whether a link destination names a scheme HTML export refuses to emit as an `href`.
+    ///
+    /// Named for what it DOES, not `isExecutable…`: `data:` is refused wholesale below, and a
+    /// `data:image/png` link is not executable — that name would have been a lie the next reader
+    /// had to discover by reading the body.
+    ///
+    /// This is NOT a general sanitizer and must not grow into one. The one-to-one rule exists so
+    /// paths are never *resolved or rewritten* for convenience — `images/photo.png` must survive
+    /// verbatim, and the tests pin that as hard as they pin the refusals. A `javascript:` URL is
+    /// not a path: it is code, nobody writes one in a note they intend to export, so emitting it
+    /// has no upside and leaves a shared export carrying a link that runs script on click. Keep
+    /// this a CLOSED set of refused schemes, never a policy about which URLs are acceptable.
+    ///
+    /// **A blocklist here, where `LineformQuickLook` allowlists the same question — deliberate,
+    /// not drift.** Quick Look renders unattended in Finder and only needs web links to work, so
+    /// it can allow `http`/`https`/`mailto` and refuse the rest. Export cannot: it must preserve
+    /// relative paths (no scheme at all) AND app deep links — `obsidian://`, `things:///`,
+    /// `message://` are things people genuinely write in notes, and an allowlist would silently
+    /// turn them into plain text.
+    ///
+    /// `data:` is refused WHOLESALE in a link, not just `data:text/html`: nobody links to a data
+    /// URI (you embed one as an image), browsers already refuse top-level navigation to them, and
+    /// naming only the HTML form left `data:image/svg+xml` — an SVG document, which can carry
+    /// script — and `data:application/xhtml+xml` open in any more permissive viewer. Image `src`
+    /// keeps full `data:` support, which is what generated math and mermaid rely on.
+    ///
+    /// The normalisation is deliberately BROADER than the URL spec, which strips only ASCII tab
+    /// and newline (so `java&#9;script:` runs) plus leading C0/space. Stripping every character at
+    /// or below `0x20`, anywhere, can only ever match MORE than a browser would — the same
+    /// over-broad-and-safe trade `MarkdownTableEditing.reformat` makes with backticks. The cost is
+    /// that `java script:x` is refused although no browser would run it; it still renders as text,
+    /// and no real filename looks like that.
+    static func isRefusedLinkScheme(_ destination: String) -> Bool {
+        let normalized = String(String.UnicodeScalarView(
+            destination.unicodeScalars.lazy
+                .filter { $0.value > 0x20 && $0.value != 0x7F }
+                .prefix(schemeInspectionLimit)
+        )).lowercased()
+        return normalized.hasPrefix("javascript:")
+            || normalized.hasPrefix("vbscript:")
+            || normalized.hasPrefix("data:")
+    }
+
     // MARK: Inline
 
 
@@ -98,7 +148,13 @@ enum MarkdownHTMLRenderer {
         case .code: return "<code>\(text)</code>"
         case .strikethrough: return "<del>\(text)</del>"
         case .image: return "<img src=\"\(escapeAttribute(token.destination))\" alt=\"\(escapeAttribute(token.text))\">"
-        case .link: return "<a href=\"\(escapeAttribute(token.destination))\">\(text)</a>"
+        // An executable destination is dropped rather than linked — the link TEXT still renders,
+        // so nothing the writer typed disappears from the page, it just isn't clickable code.
+        // Images are left alone on purpose: `javascript:` in an `img src` does not execute in any
+        // current browser, and filtering there would risk a legitimate `data:image` payload.
+        case .link:
+            guard !isRefusedLinkScheme(token.destination) else { return text }
+            return "<a href=\"\(escapeAttribute(token.destination))\">\(text)</a>"
         }
     }
 
@@ -146,7 +202,9 @@ enum MarkdownHTMLRenderer {
     /// The `<body>` inner HTML for a whole document. No shell — `html(for:title:generatedImage:)`
     /// wraps this.
     static func body(for text: String, generatedImage: GeneratedImageProvider) -> String {
-        let lines = text.components(separatedBy: "\n")
+        // CR-stripped, so a CRLF document exports as real blocks rather than one runaway
+        // code fence. HTML export needs no source offsets, so the ranges go unused.
+        let lines = markdownSourceLines(in: text).lines
         var out = ""
         for block in markdownBlocks(in: lines) {
             out += blockHTML(block, lines: lines, generatedImage: generatedImage)

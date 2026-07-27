@@ -56,7 +56,10 @@ enum MarkdownListContinuation {
             return .terminate(clearing: lineRange)
         }
 
-        return .continue(insertion: "\n" + prefix.continuation)
+        // Match the surrounding text's line ending, so continuing a list in a CRLF file does not
+        // leave a stray LF line in it.
+        let ending = MarkdownLineEnding.inForce(at: lineRange.location, in: nsText)
+        return .continue(insertion: ending.text + prefix.continuation)
     }
 
     /// `NSString.lineRange(for:)` includes the trailing newline; the parser wants the line's

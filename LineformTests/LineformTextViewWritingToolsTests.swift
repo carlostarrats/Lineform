@@ -971,4 +971,72 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
             LineformTextContextMenuPresentation.spellingSuggestions(correction: nil, guesses: []).isEmpty
         )
     }
+
+    // MARK: - Return: line endings and IME composition
+
+    private func editor(_ text: String, caret: Int) -> LineformTextView {
+        let textView = LineformTextView()
+        textView.string = text
+        textView.setSelectedRange(NSRange(location: caret, length: 0))
+        return textView
+    }
+
+    /// Lineform never normalises a document's endings, so Return must write the one already in
+    /// use — otherwise editing a Windows-authored file seeds LF lines and leaves it mixed.
+    func testReturnInsertsCRLFInACRLFDocument() {
+        let textView = editor("alpha\r\nbeta\r\n", caret: 13)  // end of document (CRLF is two units)
+        textView.insertNewline(nil)
+        XCTAssertEqual(textView.string, "alpha\r\nbeta\r\n\r\n")
+        XCTAssertFalse(
+            textView.string.replacingOccurrences(of: "\r\n", with: "").contains("\n"),
+            "Return seeded a bare LF into a CRLF document: \(textView.string.debugDescription)"
+        )
+    }
+
+    func testReturnInsertsLFInAnLFDocument() {
+        let textView = editor("alpha\nbeta\n", caret: 11)  // end of document
+        textView.insertNewline(nil)
+        XCTAssertEqual(textView.string, "alpha\nbeta\n\n")
+    }
+
+    func testListContinuationUsesTheDocumentLineEndingEndToEnd() {
+        let textView = editor("- one\r\n", caret: 5)
+        textView.insertNewline(nil)
+        XCTAssertEqual(textView.string, "- one\r\n- \r\n")
+    }
+
+    /// The IME question, answered by putting the view into a real composing state rather than by
+    /// argument. `insertNewline` is normally unreachable mid-composition — the input context
+    /// consumes Return to commit — but if it IS reached, the localized edit paths would rewrite
+    /// the marked range out from under the input context, so they must defer to AppKit.
+    func testReturnDuringCompositionDefersToAppKitAndLeavesTheCompositionIntact() {
+        let textView = editor("alpha\r\n", caret: 7)
+        textView.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: 7, length: 0))
+        XCTAssertTrue(textView.hasMarkedText(), "the view should be composing")
+
+        let crlfCountBefore = textView.string.components(separatedBy: "\r\n").count
+        textView.insertNewline(nil)
+
+        // What AppKit does to a live composition is AppKit's business — it may commit it, discard
+        // it, or insert its own newline, and whatever it does is by definition what every other
+        // Mac text view does. The property under test is narrower and is ours alone: the CRLF
+        // Return path must not have run, and its only artifact is an inserted "\r\n".
+        XCTAssertEqual(
+            textView.string.components(separatedBy: "\r\n").count,
+            crlfCountBefore,
+            "the CRLF Return path fired during composition: \(textView.string.debugDescription)"
+        )
+    }
+
+    /// The same guard, on the path that has carried this exposure since it shipped.
+    func testListContinuationDoesNotFireDuringComposition() {
+        let textView = editor("- one\n", caret: 5)
+        textView.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: 5, length: 0))
+        textView.insertNewline(nil)
+        XCTAssertFalse(
+            textView.string.contains("\n- "),
+            "list continuation fired mid-composition: \(textView.string.debugDescription)"
+        )
+    }
+
 }

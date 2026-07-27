@@ -21,9 +21,10 @@ struct UnresolvedImageReference: Equatable {
 /// offers access exactly for the images that would otherwise render as placeholders.
 enum ImageExportPreflight {
     static func unresolvedLocalReferences(in text: String, documentDirectory: URL?) -> [UnresolvedImageReference] {
-        let lines = text.components(separatedBy: "\n")
+        // Ranges come from the original text so a grant prompt names the right bytes.
+        let source = markdownSourceLines(in: text)
         var result: [UnresolvedImageReference] = []
-        for block in markdownBlocks(in: lines) {
+        for block in markdownBlocks(in: source.lines, lineRanges: source.ranges) {
             guard case let .image(_, rawPath, sourceRange, _) = block else { continue }
             let path = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
 

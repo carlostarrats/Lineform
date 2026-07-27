@@ -399,8 +399,34 @@ final class LineformTextView: NSTextView {
     /// `insertNewline` is only reached once the input context has decided the keypress really
     /// is a newline. See `docs/architecture/editor-behavior.md`.
     override func insertNewline(_ sender: Any?) {
-        guard let outcome = MarkdownListContinuation.outcome(for: string, selectedRange: selectedRange()) else {
+        // While an IME composition is active, every localized edit below would rewrite the marked
+        // range out from under the input context. This method is normally unreachable mid-
+        // composition — the input context consumes Return to COMMIT the composition, which is the
+        // whole reason `insertNewline` is the hook and `keyDown` is not — but that is a property of
+        // the input sources we have tried, not a guarantee, and `super` handles the case correctly.
+        // Cheap insurance, and it covers list continuation too, which has had the same exposure
+        // since it shipped.
+        guard !hasMarkedText() else {
             super.insertNewline(sender)
+            return
+        }
+
+        guard let outcome = MarkdownListContinuation.outcome(for: string, selectedRange: selectedRange()) else {
+            // An ordinary Return in a CRLF document must insert CRLF, or editing a
+            // Windows-authored file leaves stray LF lines and the file ends up mixed. AppKit's
+            // `insertNewline` always inserts a bare `\n`, so this is the only place to decide it.
+            //
+            // Bypassing `super` here carries NO new risk: `insertNewline` is reached only after
+            // the input context has resolved the keypress (that is why it, and never `keyDown`,
+            // is the hook), and list continuation above has bypassed `super` on this same path
+            // since it shipped. The LF case still goes through `super` so the overwhelmingly
+            // common path is untouched.
+            let ending = MarkdownLineEnding.inForce(at: selectedRange().location, in: string as NSString)
+            guard ending == .crlf else {
+                super.insertNewline(sender)
+                return
+            }
+            applyListContinuationEdit(replacing: selectedRange(), with: ending.text)
             return
         }
 

@@ -16,6 +16,8 @@
 		1F0000010000000000000085 /* MarkdownListContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000085 /* MarkdownListContinuationTests.swift */; };
 		1F00000100000000000004BA /* MarkdownHeadingEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004BA /* MarkdownHeadingEditingTests.swift */; };
 		1F00000100000000000004B4 /* MarkdownTableEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B4 /* MarkdownTableEditingTests.swift */; };
+		1F00000100000000000004C4 /* MarkdownLineEnding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C4 /* MarkdownLineEnding.swift */; };
+		1F00000100000000000004C0 /* MarkdownRobustnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */; };
 		1F00000100000000000004B6 /* MarkdownHTMLRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */; };
 		1F00000100000000000004B7 /* ExportMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B7 /* ExportMenuTests.swift */; };
 1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */; };
@@ -213,6 +215,8 @@
 		1F0000020000000000000085 /* MarkdownListContinuationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownListContinuationTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004BA /* MarkdownHeadingEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingEditingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B4 /* MarkdownTableEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTableEditingTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004C4 /* MarkdownLineEnding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownLineEnding.swift; sourceTree = "<group>"; };
+		1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRobustnessTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHTMLRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B7 /* ExportMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportMenuTests.swift; sourceTree = "<group>"; };
 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckRegionsTests.swift; sourceTree = "<group>"; };
@@ -502,6 +506,7 @@
 				1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */,
 				1F0000020000000000000033 /* MarkdownFormattingCommand.swift */,
 				1F0000020000000000000084 /* MarkdownListContinuation.swift */,
+				1F00000200000000000004C4 /* MarkdownLineEnding.swift */,
 				1F00000200000000000004B9 /* MarkdownHeadingEditing.swift */,
 				1F00000200000000000004B3 /* MarkdownTableEditing.swift */,
 				1F0000020000000000000086 /* MarkdownSpellCheckRegions.swift */,
@@ -603,6 +608,7 @@
 				1F0000020000000000000085 /* MarkdownListContinuationTests.swift */,
 				1F00000200000000000004BA /* MarkdownHeadingEditingTests.swift */,
 				1F00000200000000000004B4 /* MarkdownTableEditingTests.swift */,
+				1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */,
 				1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */,
 				1F00000200000000000004B7 /* ExportMenuTests.swift */,
 				1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */,
@@ -874,6 +880,7 @@
 				1F0000010000000000000032 /* MarkdownSyntaxHighlighter.swift in Sources */,
 				1F0000010000000000000033 /* MarkdownFormattingCommand.swift in Sources */,
 				1F0000010000000000000084 /* MarkdownListContinuation.swift in Sources */,
+				1F00000100000000000004C4 /* MarkdownLineEnding.swift in Sources */,
 				1F00000100000000000004B9 /* MarkdownHeadingEditing.swift in Sources */,
 				1F00000100000000000004B3 /* MarkdownTableEditing.swift in Sources */,
 				1F00000100000000000004B5 /* MarkdownHTMLRenderer.swift in Sources */,
@@ -956,6 +963,7 @@
 				1F0000010000000000000085 /* MarkdownListContinuationTests.swift in Sources */,
 				1F00000100000000000004BA /* MarkdownHeadingEditingTests.swift in Sources */,
 				1F00000100000000000004B4 /* MarkdownTableEditingTests.swift in Sources */,
+				1F00000100000000000004C0 /* MarkdownRobustnessTests.swift in Sources */,
 				1F00000100000000000004B6 /* MarkdownHTMLRendererTests.swift in Sources */,
 				1F00000100000000000004B7 /* ExportMenuTests.swift in Sources */,
 				1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */,

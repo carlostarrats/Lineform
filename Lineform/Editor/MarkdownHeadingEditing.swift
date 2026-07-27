@@ -68,9 +68,13 @@ enum MarkdownHeadingEditing {
             scan += 1
         }
 
-        // A heading is 1...6 hashes followed by a space or the end of the line. The
-        // end-of-line case is what makes `"##"` and `"## "` headings rather than prose.
-        if hashes > 0, hashes <= maximumLevel, scan == ns.length || ns.character(at: scan) == space {
+        // A heading is 1...6 hashes followed by a space, a tab, or the end of the line. The
+        // end-of-line case is what makes `"##"` and `"## "` headings rather than prose; the tab
+        // case is CommonMark's, and rejecting it made ⌘4 on `##\tSection` emit
+        // `#### ##\tSection` — the stacking bug, reached by a different key.
+        if hashes > 0,
+           hashes <= maximumLevel,
+           scan == ns.length || ns.character(at: scan) == space || ns.character(at: scan) == tab {
             let contentOffset = scan < ns.length ? scan + 1 : scan
             return .editable(indent: indent, level: hashes, contentOffset: contentOffset)
         }

@@ -1345,7 +1345,8 @@ struct EditorContainerView: View {
             targetID: id,
             tabStore: tabStore,
             activeWindow: activeWindow,
-            document: backingDocument
+            document: backingDocument,
+            onFinish: { saveAndCloseCoordinator = nil }
         )
         saveAndCloseCoordinator = coordinator
         coordinator.start()

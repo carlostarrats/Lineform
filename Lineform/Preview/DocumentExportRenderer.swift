@@ -176,7 +176,9 @@ enum DocumentExportRenderer {
                 highlightsCode: false,
                 documentDirectory: documentDirectory,
                 imageProvider: imageProvider,
-                headingScale: preset.headingScale
+                headingScale: preset.headingScale,
+                // No "Report this" link in a file the user shares or prints — see `render`.
+                offersDiagramReporting: false
             )
         } else {
             // "Normal": print the RAW markdown SOURCE (visible #, **, etc.) as a plain monospaced
@@ -346,7 +348,8 @@ extension DocumentExportRenderer {
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             fitTablesToWidth: true,
             imagesAsText: true,
-            headingScale: preset.headingScale
+            headingScale: preset.headingScale,
+            offersDiagramReporting: false
         )
     }
 

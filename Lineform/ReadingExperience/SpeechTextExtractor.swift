@@ -18,7 +18,9 @@ enum SpeechTextExtractor {
     private static let linkRegex = MarkdownInlineSyntax.link
 
     static func spokenText(from markdown: String) -> String {
-        let lines = markdown.components(separatedBy: "\n")
+        // CR-stripped: read-aloud must skip a CRLF file's code fences, and an unclosed fence
+        // would otherwise swallow (and silence) the rest of the document.
+        let lines = markdownSourceLines(in: markdown).lines
         let blocks = markdownBlocks(in: lines)
         var units: [String] = []
 

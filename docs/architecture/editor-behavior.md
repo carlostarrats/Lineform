@@ -80,6 +80,63 @@ in this area.
   whole-document walk is additionally gated behind a cheap line-local prefix match, so Returns on
   ordinary prose (0.001 ms) never pay for it.
 
+## Line endings on insert
+
+Lineform never normalises a document's line endings — rewriting them would change lines the writer
+never touched and produce a whole-file Git diff. But every insertion used to emit a bare `\n`, so a
+Windows-authored file gained LF lines wherever it was edited and ended up MIXED.
+`MarkdownLineEnding.inForce(at:in:)` (`Lineform/Editor/MarkdownLineEnding.swift`) now decides what
+to insert, and the four insertion sites use it: plain Return, list continuation, Insert Table /
+Tab's appended row, and Reformat Table (which rewrites the table's INTERIOR terminators, so joining
+with `"\n"` converted a CRLF table to LF on every ⌃⌘R).
+
+**It reads the LOCAL convention, not a whole-document tally.** This runs on every Return, and a
+per-keystroke whole-document scan is the mistake `MarkdownSpellCheckRegions` and
+`MarkdownListContinuation` were both built to avoid. Reading the terminator of the caret's own line
+costs one line's length — and in a file with mixed endings it also gives the better answer.
+
+**A `hasMarkedText()` guard sends Return straight to `super` while an IME composition is live**, and
+it is not theoretical. `insertNewline` is normally unreachable mid-composition — the input context
+consumes Return to COMMIT, which is the whole reason this and never `keyDown` is the hook — but that
+is a property of the input sources tried, not a guarantee. Driven into a composing state with
+`setMarkedText`, the localized edit paths rewrote the marked range out from under the input context:
+list continuation produced `- oneか\n- ` and the CRLF path produced `alpha\r\nか\r\n`, writing a line
+ending INTO the composition. List continuation has carried that exposure since it shipped; the guard
+closes both.
+
+This **is** covered automatically — the earlier claim that it could not be was wrong. The marked-text
+API reaches the same state without an input source, so
+`testReturnDuringCompositionDefersToAppKitAndLeavesTheCompositionIntact` and
+`testListContinuationDoesNotFireDuringComposition` (both verified failing with the guard removed) run
+in the default plan. They assert only that OUR paths left no artifact — what AppKit does to a live
+composition is AppKit's business and is by definition what every other Mac text view does, so
+asserting the resulting string exactly is wrong and was tried and rejected.
+
+`MarkdownTableEditing.locate` also stepped to the next line with `NSMaxRange(line) + 1`, which in a
+CRLF file lands on the `\n` still inside THIS line's `\r\n`: `lineRange` returned the same line, the
+walk broke immediately, and no table was ever found below the caret — Tab between cells and Reformat
+did not work at all in a Windows-authored document. It now steps through the paragraph range, which
+includes the whole terminator.
+
+## Line endings in the protection layer
+
+`MarkdownWritingToolsProtection` has its own CRLF handling, separate from the renderer's
+`markdownSourceLines(in:)`, because it works on the REAL document text at real offsets and cannot
+strip anything. It trims lines with `lineTrimCharacters` (`CharacterSet.whitespaces` **plus `\r`**)
+instead: lines are split on `\n`, so the only newline a line can carry is a CRLF's `\r`, and
+`.whitespaces` does not contain it. Without that, a Windows-authored file's `$$` never read as a
+block delimiter and `---` never opened front matter, so YAML and math were left unprotected —
+Writing Tools could rewrite them, the spell checker flagged them, and ⌘1 inside front matter
+prepended a heading marker to a YAML key.
+
+**Two implementations must agree.** The whole-document passes trim with `lineTrimCharacters`; the
+scoped `CFStringInlineBuffer` walk classifies the same lines through `isWhitespace(_:)`. They are
+the same rule written twice for performance, so they move together or not at all —
+`testScopedAndWholeDocumentPassesAgreeOnCRLF` is what holds them to it. `\n` is deliberately absent
+from the set: a line cannot contain one, and adding it would only make that guarantee less obvious.
+`frontMatterRange` accepts `\r\n` on both delimiters while still keying its search off the `\n`
+that is present either way.
+
 ## Live spell check
 
 Shipped 2026-07-26 (backlog item 2). Design:
@@ -193,6 +250,13 @@ same wrong split is permanent. It therefore declines outright on `\|` or on any 
 region. The backtick half is deliberately over-broad: it passes up some tables it could safely
 rewrite, and it never destroys one.
 
+**Padding is APPENDED, never `String.padding(toLength:)`.** That method bridges to NSString and
+measures in UTF-16 units, while `columnWidths` measures in Characters — so it silently TRUNCATED
+every cell whose two measures disagree. `| 😀😀😀😀 |` came back as `| 😀😀 |`, and a decomposed
+`café` as `cafe`, and Reformat writes that to the file. Appending `max(0, width - count)` spaces can
+only ever add characters, so a cell is now impossible to shorten. Guarded by
+`MarkdownTableEditingTests` and by the parsed-table round trip in `MarkdownRobustnessTests`.
+
 **Delimiter colons are re-emitted from the original row, not from `table.alignments`.** The parser
 maps both `---` and `:--` to `.left`, which is correct for rendering — they are identical there —
 so rebuilding the delimiter from the parsed alignment silently erases every explicit-left
@@ -249,6 +313,14 @@ been typed yet. Reusing it would classify that line as prose and prepend a secon
 reintroducing the exact stacking bug this unit exists to remove. The local scanner accepts
 1–6 hashes followed by a space **or end of line**. The two agree on every line that has content,
 which is the only case the outline sidebar ever sees.
+
+**`classify` and `MarkdownHeadingParser` must accept the same shape** — they are the write side and
+the read side of "this line is a heading", and a disagreement means a command rewrites a line the
+reader never saw as a heading, or leaves one the outline sidebar cannot see. Both now take up to
+three columns of leading space and a space, a **tab**, or end of line after the hashes. The tab was a
+live instance of the stacking bug: `##\tSection` is a real CommonMark heading, the parser rejected
+it, and ⌘4 emitted `#### ##\tSection`. A heading the command writes always uses a space separator.
+Guarded by `testHeadingDetectionAgreesWithTheOutlineParser`.
 
 **The skip list is line-local first, protection second.** Blank lines, list items, blockquotes,
 indented code blocks (four *columns* — a tab counts as four, or a tab-indented block reads as

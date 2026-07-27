@@ -210,4 +210,61 @@ final class MarkdownWritingToolsProtectionTests: XCTestCase {
         }
         return merged
     }
+
+    // MARK: - CRLF line endings
+
+    /// Lines are split on `\n`, so a CRLF file's lines end in `\r` — and `.whitespaces` does not
+    /// trim it. Before this, a Windows-authored file's front matter never opened and its `$$`
+    /// never read as a block delimiter, leaving YAML and math unprotected: Writing Tools could
+    /// rewrite them, the spell checker flagged them, and ⌘1 inside front matter prepended a
+    /// heading marker to a YAML key.
+    func testFrontMatterIsProtectedWithCRLFLineEndings() {
+        let text = "---\r\ntitle: Notes\r\n---\r\n\r\nBody\r\n"
+        let ranges = MarkdownWritingToolsProtection.ignoredRanges(
+            in: text,
+            enclosingRange: NSRange(location: 0, length: (text as NSString).length)
+        )
+        let yaml = (text as NSString).range(of: "title: Notes")
+        XCTAssertTrue(
+            ranges.contains { NSIntersectionRange($0, yaml).length == yaml.length },
+            "CRLF front matter must be protected: \(ranges)"
+        )
+    }
+
+    func testMathBlockIsProtectedWithCRLFLineEndings() {
+        let text = "intro\r\n$$\r\nx = 1\r\n$$\r\nafter\r\n"
+        let ranges = MarkdownWritingToolsProtection.ignoredRanges(
+            in: text,
+            enclosingRange: NSRange(location: 0, length: (text as NSString).length)
+        )
+        let body = (text as NSString).range(of: "x = 1")
+        XCTAssertTrue(
+            ranges.contains { NSIntersectionRange($0, body).length == body.length },
+            "a CRLF $$ block must be protected: \(ranges)"
+        )
+    }
+
+    /// The scoped walk and the whole-document pass classify lines through two different
+    /// implementations that must agree; CRLF is exactly the kind of input that splits them.
+    func testScopedAndWholeDocumentPassesAgreeOnCRLF() {
+        let text = "---\r\ntitle: x\r\n---\r\n\r\n$$\r\ny\r\n$$\r\n```swift\r\ncode\r\n```\r\ntail\r\n"
+        let full = NSRange(location: 0, length: (text as NSString).length)
+        let whole = MarkdownWritingToolsProtection.ignoredRanges(in: text, enclosingRange: full)
+        let scoped = MarkdownWritingToolsProtection.protectedRanges(in: text as NSString, intersecting: full)
+        func normalize(_ ranges: [NSRange]) -> [NSRange] {
+            ranges.filter { $0.length > 0 }.sorted { $0.location < $1.location }
+        }
+        XCTAssertEqual(normalize(whole), normalize(scoped))
+    }
+
+    /// The end-to-end consequence: a heading command must leave a CRLF file's YAML alone.
+    func testHeadingCommandLeavesCRLFFrontMatterAlone() {
+        let text = "---\r\ntitle: Notes\r\n---\r\n\r\nBody\r\n"
+        let caret = (text as NSString).range(of: "title: Notes").location
+        XCTAssertNil(
+            MarkdownHeadingEditing.setLevel(1, in: text, selectedRange: NSRange(location: caret, length: 0)),
+            "⌘1 inside CRLF front matter must be a no-op, not `# title: Notes`"
+        )
+    }
+
 }
