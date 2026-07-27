@@ -741,7 +741,11 @@ struct EditorContainerView: View {
         onDismiss: @escaping () -> Void,
         @ViewBuilder modal: @escaping (GeometryProxy) -> Modal
     ) -> some View {
-        MuseModalScrim(usesDarkChrome: currentTheme.usesDarkChrome, dismiss: onDismiss)
+        MuseModalScrim(
+            usesDarkChrome: currentTheme.usesDarkChrome,
+            themeID: currentTheme.chromeTintID,
+            dismiss: onDismiss
+        )
             .zIndex(scrimZIndex)
             .transaction { transaction in
                 transaction.animation = nil

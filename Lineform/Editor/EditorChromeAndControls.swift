@@ -224,12 +224,46 @@ struct MuseModalScrim: View {
     /// Mostly solid: the document survives only as a faint ghost.
     static let fieldOpacity: CGFloat = 0.90
 
-    /// Base wash: light at the top settling into the faintest blue at the bottom (dark:
+    /// Base wash: light at the top settling into the faintest tint at the bottom (dark:
     /// near-black settling darker still).
     static let fieldGradientTop = Color(red: 1.0, green: 1.0, blue: 1.0)            // #FFFFFF
     static let fieldGradientBottom = Color(red: 0.945, green: 0.969, blue: 1.0)     // #F1F7FF
     static let fieldGradientTopDark = Color(red: 0.192, green: 0.188, blue: 0.188)  // #313030
     static let fieldGradientBottomDark = Color(red: 0.071, green: 0.071, blue: 0.071) // #121212
+
+    /// Paper's warm counterpart to the cool default, and Calm's cool-green one. Both carry the
+    /// SAME relative luminance as `fieldGradientBottom` (~0.966) and the same tint magnitude —
+    /// only the hue moves, so the field never reads lighter or heavier when the theme changes.
+    /// The tops step off pure white by roughly a quarter of the bottom's deviation: enough to
+    /// carry the hue through the whole field, not enough to read as a color.
+    ///
+    /// These stops are the BASE wash, and only about 58% of their chroma survives to the
+    /// screen: the two neutral diagonals composite to `0.64 × base`, then the whole field is
+    /// laid at `fieldOpacity` 0.90 over the blurred page. So the separation between channels
+    /// has to be authored WIDE. Calm's first pass put green only 3/255 above blue, which
+    /// arrived on screen as ~1.7/255 — measurably not-blue, visibly nothing. Green now leads
+    /// blue by 8, and red trails blue, so the tint reads as a cool mint rather than as gray.
+    static let fieldGradientTopPaper = Color(red: 0.996, green: 0.992, blue: 0.980)  // #FEFDFA
+    static let fieldGradientBottomPaper = Color(red: 0.984, green: 0.965, blue: 0.929) // #FBF6ED
+    static let fieldGradientTopCalm = Color(red: 0.980, green: 0.996, blue: 0.988)  // #FAFEFC
+    static let fieldGradientBottomCalm = Color(red: 0.925, green: 0.980, blue: 0.949) // #ECFAF2
+
+    /// Which light-field hue a theme wears. Dark themes ignore this entirely — their field
+    /// stays the near-black pair above.
+    static func fieldGradientColors(for themeID: ThemeID, usesDarkChrome: Bool) -> [Color] {
+        guard !usesDarkChrome else {
+            return [fieldGradientTopDark, fieldGradientBottomDark]
+        }
+
+        switch themeID {
+        case .paper:
+            return [fieldGradientTopPaper, fieldGradientBottomPaper]
+        case .calm:
+            return [fieldGradientTopCalm, fieldGradientBottomCalm]
+        case .system, .quiet, .night:
+            return [fieldGradientTop, fieldGradientBottom]
+        }
+    }
 
     /// The two diagonal washes laid across the base, crossing each other. They are what
     /// keep the field from looking like a flat vertical ramp — the soft corner shading in
@@ -255,14 +289,15 @@ struct MuseModalScrim: View {
     /// THREADED from the theme by the presenting container, never read from the
     /// environment — see `MuseModalChrome.primaryTextColor(usesDarkChrome:)`.
     var usesDarkChrome = false
+    /// Selects the light field's hue so the scrim sits with the reader theme rather than
+    /// against it. Threaded alongside `usesDarkChrome`, for the same reason.
+    var themeID: ThemeID = .system
     var dismiss: () -> Void
 
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: usesDarkChrome
-                    ? [Self.fieldGradientTopDark, Self.fieldGradientBottomDark]
-                    : [Self.fieldGradientTop, Self.fieldGradientBottom],
+                colors: Self.fieldGradientColors(for: themeID, usesDarkChrome: usesDarkChrome),
                 startPoint: .top,
                 endPoint: .bottom
             )
