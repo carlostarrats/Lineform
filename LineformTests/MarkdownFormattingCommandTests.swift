@@ -3,7 +3,7 @@ import XCTest
 
 final class MarkdownFormattingCommandTests: XCTestCase {
     func testTitlePrefixesSelectedLineWithHeadingMarker() {
-        let edit = MarkdownFormattingCommand.title.apply(
+        let edit = MarkdownFormattingCommand.heading(1).apply(
             to: "Lineform",
             selectedRange: NSRange(location: 0, length: 8)
         )
@@ -13,7 +13,7 @@ final class MarkdownFormattingCommandTests: XCTestCase {
     }
 
     func testSectionPrefixesSelectedLineWithSecondLevelHeadingMarker() {
-        let edit = MarkdownFormattingCommand.section.apply(
+        let edit = MarkdownFormattingCommand.heading(2).apply(
             to: "Features",
             selectedRange: NSRange(location: 0, length: 8)
         )

@@ -10,6 +10,7 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 - Toggle the outline when headings are useful.
 - Search the document from the toolbar with match highlighting; press Return to jump to the next match. Find & Replace, search across every file in the workspace, and ⌘K to jump to a file by name.
 - Format Markdown headings, emphasis, inline code, lists, and links.
+- Set a heading level with ⌘1 through ⌘6, and ⌘0 to turn a heading back into ordinary text. Pressing a line's current level clears it. Levels 3 to 6 also live under Format ▸ Heading.
 - Keep lists going as you type: Return after a bullet, numbered item, task checkbox, or blockquote starts the next one. Press Return again on an empty marker to end the list.
 - Write tables without counting pipes: Format ▸ Insert Table (⌃⌘T) starts one, Tab and Shift-Tab move between cells, and Tab in the last cell adds a row. Format ▸ Reformat Table (⌃⌘R) lines the columns up in the source.
 - Convert between Markdown and plain text.

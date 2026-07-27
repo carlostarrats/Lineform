@@ -227,3 +227,51 @@ proportional font. This is not a bug and should not be "fixed" by measuring disp
 payoff is the *file* — aligned source reads correctly in any monospace editor and produces clean
 Git diffs, which is the "real files" product thesis. Widths are grapheme counts, so CJK and emoji
 cells under-pad; that is a known and accepted limitation of the same kind.
+
+## Heading levels
+
+⌘1–⌘6 set the heading level of the lines a selection touches, ⌘0 returns them to body text, and
+pressing a line's current level clears it. `MarkdownHeadingEditing` owns the whole transform; it
+is pure and AppKit-free, so it lives in the default test plan.
+
+This shipped as a bug fix wearing a feature's clothes. The previous `.title` / `.section` commands
+routed through `prefixSelection`, which prepended `"# "` to the **raw selection**: ⌘1 on
+`## Section` produced `# ## Section` — not a heading in any dialect, invisible to
+`MarkdownHeadingParser`, and therefore a line that silently vanished from the outline sidebar. A
+caret mid-word split the word. Changing the level of a line that is *already* a heading is the
+most common heading motion there is, so the shipped feature was broken on its main path.
+`prefixSelection` is gone; both commands now route through this unit, which is why the fix reaches
+⌘1 and ⌘2 and not only the new keys.
+
+**Heading detection is local and does NOT reuse `MarkdownHeadingParser.heading(in:)`.** That
+parser requires a non-empty title, so it reports `nil` for `"## "` — a heading whose text has not
+been typed yet. Reusing it would classify that line as prose and prepend a second marker,
+reintroducing the exact stacking bug this unit exists to remove. The local scanner accepts
+1–6 hashes followed by a space **or end of line**. The two agree on every line that has content,
+which is the only case the outline sidebar ever sees.
+
+**The skip list is line-local first, protection second.** Blank lines, list items, blockquotes,
+indented code blocks (four *columns* — a tab counts as four, or a tab-indented block reads as
+prose), and fence delimiters are recognised from the line alone. List and blockquote detection
+reuses `LinePrefix` from `MarkdownListContinuation`, promoted from `private` for exactly this —
+one definition of "what markers start a line" rather than two that drift.
+
+Fence *delimiters* need their own line-local check: `isInsideCodeOrFrontMatter` reports the
+opening ``` as outside the block it opens, so without it the opening fence took a marker and broke
+the block. A test caught this; it was not anticipated.
+
+**Never call `isInsideCodeOrFrontMatter` per line.** It rescans from the start of the document on
+every call, so a per-line loop makes Select All + a heading key quadratic in document length. The
+block is classified with ONE scoped `protectedRanges(in:intersecting:)` pass instead.
+
+**All-or-nothing decides the toggle direction.** A multi-line selection clears only when *every*
+editable line already sits at the requested level; otherwise everything is raised to it. Without
+that rule a mixed selection half-toggles and no second press ever returns it.
+
+**A no-op returns `nil` and never reaches `applyWholeTextReplacement`** — the `reformatMarkdownTable`
+precedent. A dead keypress must not leave an empty step on the undo stack.
+
+**Selection follows the text, not the line.** The start shifts by the first touched line's marker
+delta and the length by the deltas inside it, so `"Lineform"` selected whole stays selected whole.
+A caret keeps its offset within the line's own content; a caret sitting *inside* markers being
+rewritten is clamped to the new content start, which is the only honest place left for it.

@@ -79,8 +79,8 @@ enum MarkdownPlainTextConverter {
 }
 
 enum MarkdownFormattingCommand {
-    case title
-    case section
+    case heading(Int)
+    case body
     case bold
     case italic
     case inlineCode
@@ -92,10 +92,12 @@ enum MarkdownFormattingCommand {
 
     func apply(to text: String, selectedRange: NSRange) -> MarkdownEdit {
         switch self {
-        case .title:
-            return prefixSelection("# ", in: text, selectedRange: selectedRange)
-        case .section:
-            return prefixSelection("## ", in: text, selectedRange: selectedRange)
+        case let .heading(level):
+            return MarkdownHeadingEditing.setLevel(level, in: text, selectedRange: selectedRange)
+                ?? MarkdownEdit(text: text, selectedRange: selectedRange)
+        case .body:
+            return MarkdownHeadingEditing.setLevel(nil, in: text, selectedRange: selectedRange)
+                ?? MarkdownEdit(text: text, selectedRange: selectedRange)
         case .bold:
             return toggleMarkers("**", in: text, selectedRange: selectedRange)
         case .italic:
@@ -113,30 +115,6 @@ enum MarkdownFormattingCommand {
         case .link:
             return wrapLink(in: text, selectedRange: selectedRange)
         }
-    }
-
-    private func prefixSelection(_ prefix: String, in text: String, selectedRange: NSRange) -> MarkdownEdit {
-        let nsText = text as NSString
-        let selectedText = nsText.substring(with: selectedRange)
-        let replacement = selectedText
-            .components(separatedBy: "\n")
-            .map { line in
-                line.hasPrefix(prefix) ? String(line.dropFirst(prefix.count)) : prefix + line
-            }
-            .joined(separator: "\n")
-
-        var edited = text
-        replace(range: selectedRange, in: &edited, with: replacement)
-
-        let isRemovingPrefix = selectedText.hasPrefix(prefix)
-        let selectionShift = isRemovingPrefix ? -prefix.count : prefix.count
-        return MarkdownEdit(
-            text: edited,
-            selectedRange: NSRange(
-                location: max(0, selectedRange.location + selectionShift),
-                length: selectedRange.length
-            )
-        )
     }
 
     private func toggleMarkers(_ marker: String, in text: String, selectedRange: NSRange) -> MarkdownEdit {

@@ -83,7 +83,10 @@ enum MarkdownListContinuation {
 
 /// The marker layers at the head of a line — indentation, blockquote arrows, and an optional
 /// list marker — together with what the *next* line should start with.
-private struct LinePrefix {
+///
+/// Also used by `MarkdownHeadingEditing` to recognise the lines a heading command must leave
+/// alone — one definition of "what markers start a line", rather than two that can drift.
+struct LinePrefix {
     /// NSString length of the matched prefix, measured within the line.
     let length: Int
     /// What to emit after the newline, e.g. `"    > - [ ] "`.

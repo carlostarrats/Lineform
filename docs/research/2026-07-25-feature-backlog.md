@@ -6,7 +6,7 @@
 
 **Verification basis:** static read of the source on 2026-07-25 — greps and file reads, **no build was run and no flow was driven in the app.** Two items below (1 and 2) were behavior claims needing confirmation in a real Debug build. **Both items 1 and 2 were confirmed in a real Debug build and have since shipped (2026-07-26).** The rest are structural absences visible in the code and are not in doubt.
 
-**Status:** 3 of 6 shipped. Remaining: 4–6.
+**Status:** 5 of 6 shipped. Remaining: 6.
 
 ---
 
@@ -106,9 +106,16 @@ Tab-in-table vs. Tab-in-prose, insert, append-row, and single-⌘Z undo of each.
 
 ---
 
-### 4. HTML export / Copy as HTML
+### 4. HTML export — **SHIPPED 2026-07-26**
 
-**Today:** `SaveAsExport.Format` is `markdown, pdf, styledPDF, rtf`. Nothing HTML anywhere in the app.
+**Shipped** as a file export: `ExportFormat` is now `html, pdf, styledPDF, rtf`, reached through
+File ▸ Export As, while Save As stays on Markdown. Output is one-to-one with the source — image
+paths and link URLs are emitted exactly as written, never resolved or inlined.
+
+**The Copy as HTML clipboard command below was considered and declined.** The file export covers
+the portability need; a second HTML surface is redundant. Do not reopen it.
+
+**Was true before the change:** `SaveAsExport.Format` was `markdown, pdf, styledPDF, rtf`. Nothing HTML anywhere in the app.
 
 **Why:** the real use case is paste-into-email and paste-into-CMS. This wasn't in the 2026-07-18 scan at all, and it's the cheapest remaining portability win — the RTF path already proves the seam (`DocumentExportRenderer.rtfData`, a pure `NSAttributedString` writer with no `NSPrintOperation`, hence default-test-plan friendly).
 
@@ -120,13 +127,32 @@ Tab-in-table vs. Tab-in-prose, insert, append-row, and single-⌘Z undo of each.
 
 ---
 
-### 5. Heading shortcuts beyond two
+### 5. Heading shortcuts beyond two — **SHIPPED 2026-07-26**
 
-**Today:** ⌘1 = Title, ⌘2 = Section (`AppCommands.swift:353-361`). Nothing for H3–H6, and no way to raise or lower the heading level of the current line.
+**Shipped** as `MarkdownHeadingEditing` plus a Format ▸ Heading submenu. ⌘1–⌘6 set a level, ⌘0
+returns a line to body text, and pressing a line's current level clears it. `Title` (⌘1) and
+`Section` (⌘2) keep their names, positions, and keys; Heading 3–6 and Body live in the submenu.
+Design: `docs/superpowers/specs/2026-07-26-heading-levels-design.md`; implementation notes:
+`docs/architecture/editor-behavior.md`.
 
-**Scope when built:** either ⌘3–⌘6 for the remaining levels, or a "cycle heading level" pair — the latter is fewer keys and reads calmer, but is less discoverable. Check for collisions first: ⌘7/⌘8 are already Numbered/Bulleted List with ⇧.
+**This was scoped as "add four shortcuts" and turned out to be a bug fix.** The shipped ⌘1/⌘2
+routed through `prefixSelection`, which prepended to the raw selection: ⌘1 on `## Section` gave
+`# ## Section`, which is not a heading and which the outline parser cannot see — the line silently
+vanished from the sidebar. A caret mid-word split the word. Changing the level of an existing
+heading is the *most common* heading motion, so the feature was broken on its main path. Setting
+the level on a line fixes both and made the four missing levels nearly free.
 
-**Risk:** low. Smallest item on this list.
+**Two things the plan did not anticipate**, both caught before shipping: `isInsideCodeOrFrontMatter`
+reports the OPENING ``` as outside the block it opens, so the opening fence took a heading marker
+and broke the block; and calling that function per line makes Select All + a heading key quadratic
+in document length — the block now takes one scoped `protectedRanges` pass instead. The first was
+caught by a test, the second by reading the code after the tests were green.
+
+**Rejected:** a raise/lower cycle pair (no direct jump, and nothing tells you your current level),
+and a flat seven-row Format menu (retires the `Title`/`Section` names or reads inconsistently).
+
+**Deliberately out of scope:** setext headings (`===` / `---`), which the outline parser does not
+see either, and closing hashes (`## Section ##`), which are left alone.
 
 ---
 

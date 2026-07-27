@@ -253,6 +253,12 @@ enum MainMenuIconDecorator {
         // Format menu
         "title": "textformat.size.larger",
         "section": "textformat.size.smaller",
+        "heading": "textformat",
+        "heading 3": "textformat.size.smaller",
+        "heading 4": "textformat.size.smaller",
+        "heading 5": "textformat.size.smaller",
+        "heading 6": "textformat.size.smaller",
+        "body": "textformat.size",
         "bold": "bold",
         "italic": "italic",
         "code": "chevron.left.forwardslash.chevron.right",
