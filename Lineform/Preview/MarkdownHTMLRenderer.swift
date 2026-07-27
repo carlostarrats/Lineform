@@ -143,13 +143,13 @@ enum MarkdownHTMLRenderer {
         let lines = text.components(separatedBy: "\n")
         var out = ""
         for block in markdownBlocks(in: lines) {
-            out += html(for: block, lines: lines, generatedImage: generatedImage)
+            out += blockHTML(block, lines: lines, generatedImage: generatedImage)
         }
         return out
     }
 
-    private static func html(
-        for block: MarkdownBlock,
+    private static func blockHTML(
+        _ block: MarkdownBlock,
         lines: [String],
         generatedImage: GeneratedImageProvider
     ) -> String {
@@ -331,4 +331,53 @@ enum MarkdownHTMLRenderer {
         let base64 = data.base64EncodedString()
         return "<p><img src=\"data:image/png;base64,\(base64)\" alt=\"\(escape(fallback))\"></p>"
     }
+
+    // MARK: Document
+
+    /// A complete standalone HTML document. The stylesheet is embedded and nothing is fetched:
+    /// no `<link>`, no `<script>`, no web fonts. The page is neutral light with a readable
+    /// measure — the reader's theme is deliberately not carried, matching the rule that an
+    /// exported PDF is always the white page.
+    static func html(for text: String, title: String, generatedImage: GeneratedImageProvider) -> String {
+        """
+        <!doctype html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>\(escape(title))</title>
+        <style>
+        \(stylesheet)
+        </style>
+        </head>
+        <body>
+        \(body(for: text, generatedImage: generatedImage))
+        </body>
+        </html>
+        """
+    }
+
+    private static let stylesheet = """
+        body { max-width: 42em; margin: 3em auto; padding: 0 1.5em;
+               font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+               color: #1a1a1a; background: #fff; }
+        h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.6em 0 0.5em; }
+        p { margin: 0 0 1em; }
+        img { max-width: 100%; height: auto; }
+        a { color: #0645ad; }
+        code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em;
+               background: #f4f4f4; padding: 0.15em 0.35em; border-radius: 3px; }
+        pre { background: #f4f4f4; padding: 1em; overflow-x: auto; border-radius: 4px; }
+        pre code { background: none; padding: 0; }
+        blockquote { margin: 0 0 1em; padding: 0.1em 1.2em; border-left: 3px solid #d0d0d0;
+                     color: #444; }
+        .callout { border-left-width: 4px; background: #f8f8f8; padding: 0.8em 1.2em; }
+        .callout-title { font-weight: 600; margin-bottom: 0.4em; }
+        table { border-collapse: collapse; margin: 0 0 1em; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 0.4em 0.7em; }
+        th { background: #f4f4f4; }
+        hr { border: none; border-top: 1px solid #ddd; margin: 2em 0; }
+        ul, ol { margin: 0 0 1em; padding-left: 1.6em; }
+        input[type="checkbox"] { margin-right: 0.4em; }
+        """
 }

@@ -173,4 +173,47 @@ final class MarkdownHTMLRendererTests: XCTestCase {
     func testNoUnescapedAngleBracketSurvivesFromSourceText() {
         XCTAssertFalse(body("a < b and 3 > 2").contains("a < b"))
     }
+
+    // MARK: Document shell
+
+    func testHTMLHasDoctypeCharsetAndTitle() {
+        let html = MarkdownHTMLRenderer.html(for: "# Hi", title: "My Notes", generatedImage: { _ in nil })
+        XCTAssertTrue(html.hasPrefix("<!doctype html>"))
+        XCTAssertTrue(html.contains(#"<meta charset="utf-8">"#))
+        XCTAssertTrue(html.contains("<title>My Notes</title>"))
+        XCTAssertTrue(html.contains("<h1>Hi</h1>"))
+        XCTAssertTrue(html.hasSuffix("</html>"))
+    }
+
+    func testTitleIsEscaped() {
+        let html = MarkdownHTMLRenderer.html(for: "", title: "A & B <c>", generatedImage: { _ in nil })
+        XCTAssertTrue(html.contains("<title>A &amp; B &lt;c&gt;</title>"))
+    }
+
+    func testShellEmbedsStylesAndReferencesNothingExternal() {
+        let html = MarkdownHTMLRenderer.html(for: "# Hi", title: "t", generatedImage: { _ in nil })
+        XCTAssertTrue(html.contains("<style>"))
+        XCTAssertFalse(html.contains("<link"))
+        XCTAssertFalse(html.contains("<script"))
+    }
+
+    func testMathEmbedsProvidedImageBytes() {
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+        let html = MarkdownHTMLRenderer.html(for: "$$x^2$$", title: "t", generatedImage: { image in
+            guard case .math = image else { return nil }
+            return png
+        })
+        XCTAssertTrue(html.contains("data:image/png;base64,\(png.base64EncodedString())"))
+        XCTAssertTrue(html.contains(#"alt="x^2""#))
+    }
+
+    func testMermaidFallsBackToSourceWhenProviderDeclines() {
+        let html = MarkdownHTMLRenderer.html(
+            for: "```mermaid\ngraph TD;\n```",
+            title: "t",
+            generatedImage: { _ in nil }
+        )
+        XCTAssertTrue(html.contains("graph TD;"))
+        XCTAssertFalse(html.contains("data:"))
+    }
 }
