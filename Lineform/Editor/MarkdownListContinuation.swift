@@ -132,6 +132,12 @@ struct LinePrefix {
 
     private static func scanWhitespace(_ ns: NSString, from start: Int) -> Int {
         var cursor = start
+        // A leading byte-order mark counts as indentation here for the same reason it does in
+        // `MarkdownHeadingEditing.classify`: it is the file's encoding, and without skipping it
+        // the first line of a BOM'd file drew as a list but Return dropped out of one.
+        if cursor < ns.length, ns.character(at: cursor) == markdownByteOrderMark {
+            cursor += 1
+        }
         while cursor < ns.length {
             let character = ns.character(at: cursor)
             guard character == UInt16(UnicodeScalar(" ").value) || character == UInt16(UnicodeScalar("\t").value) else {
@@ -154,7 +160,11 @@ struct LinePrefix {
 
         var cursor = start + 1
         if cursor < ns.length {
-            guard ns.character(at: cursor) == UInt16(UnicodeScalar(" ").value) else { return nil }
+            // Space OR tab, matching `MarkdownBlockGrouping`'s `[ \t]+`. Requiring a space made
+            // `-\titem` a list on screen but not to Return, which dropped out of the list the
+            // reader could see. The continuation still emits a single space — canonical, and the
+            // only shape the writer asked for is "another item".
+            guard isMarkerSeparator(ns.character(at: cursor)) else { return nil }
             cursor += 1
         }
 
@@ -182,31 +192,47 @@ struct LinePrefix {
 
     /// `1. item` and `1) item`. Increments only — see the type comment. The separator the
     /// line already uses is preserved.
+    /// CommonMark's cap, and the same one `MarkdownBlockGrouping`'s list regex enforces with
+    /// `[0-9]{1,9}`. Scanning digits without a bound diverged from the renderer in both
+    /// directions: a 10-digit marker drew as a paragraph but Return continued it as a list, and a
+    /// marker spelling `Int.max` overflowed `number + 1` and TRAPPED — Return on that line killed
+    /// the app. Bounding the scan is what makes the increment total.
+    private static let maximumOrderedMarkerDigits = 9
+
     private static func scanOrdered(_ ns: NSString, from start: Int) -> (end: Int, continuation: String)? {
+        let zero = UInt16(UnicodeScalar("0").value)
+        let nine = UInt16(UnicodeScalar("9").value)
         var cursor = start
         var digits = ""
         while cursor < ns.length {
-            let character = ns.substring(with: NSRange(location: cursor, length: 1))
-            guard let scalar = character.unicodeScalars.first,
-                  character.unicodeScalars.count == 1,
-                  CharacterSet.decimalDigits.contains(scalar) else {
-                break
-            }
-            digits += character
+            // ASCII `0`-`9` only, matching the renderer's `[0-9]`. `CharacterSet.decimalDigits`
+            // also contains Arabic-Indic and Devanagari digits, which no Markdown renderer treats
+            // as a list marker.
+            let character = ns.character(at: cursor)
+            guard character >= zero, character <= nine else { break }
+            digits.append(Character(UnicodeScalar(character) ?? "0"))
             cursor += 1
         }
 
-        guard !digits.isEmpty, let number = Int(digits), cursor < ns.length else { return nil }
+        guard !digits.isEmpty,
+              digits.count <= maximumOrderedMarkerDigits,
+              let number = Int(digits),
+              cursor < ns.length else { return nil }
 
         let separator = ns.substring(with: NSRange(location: cursor, length: 1))
         guard separator == "." || separator == ")" else { return nil }
         cursor += 1
 
         if cursor < ns.length {
-            guard ns.character(at: cursor) == UInt16(UnicodeScalar(" ").value) else { return nil }
+            guard isMarkerSeparator(ns.character(at: cursor)) else { return nil }
             cursor += 1
         }
 
         return (cursor, "\(number + 1)\(separator) ")
+    }
+
+    /// What may follow a list marker: the renderer's `[ \t]`.
+    private static func isMarkerSeparator(_ character: unichar) -> Bool {
+        character == UInt16(UnicodeScalar(" ").value) || character == UInt16(UnicodeScalar("\t").value)
     }
 }

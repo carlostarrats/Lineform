@@ -57,19 +57,21 @@ enum MarkdownPlainTextConverter {
             }
             .joined(separator: "\n")
 
-        text = replace(pattern: #"!\[([^\]]*)\]\([^)]+\)"#, in: text, withTemplate: "$1")
-        text = replace(pattern: #"\[([^\]]+)\]\([^)]+\)"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(?<!\\)!\[([^\]]*)\]\([^)]+\)"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(?<!\\)\[([^\]]+)\]\([^)]+\)"#, in: text, withTemplate: "$1")
         // These mirror `MarkdownInlineSyntax` — conversion must strip exactly what the app draws
         // as emphasis, no more. Bold is `**` only (the renderer has never read `__bold__`, so
         // stripping it here would eat a Python `__init__`), underscore italics can't start or end
         // inside a word (`make_test_file`), and asterisk italics can't be flanked by spaces
         // (`2 * 3 * 4`). Unlike the renderer, a wrong answer here rewrites the user's file.
-        text = replace(pattern: #"\*\*([^*\n]+)\*\*"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(?<!\\)\*\*([^*\n]+)\*\*"#, in: text, withTemplate: "$1")
         text = replace(pattern: #"(?<![\*\\])\*([^*\s\n](?:[^*\n]*[^*\s\n])?)\*(?!\*)"#, in: text, withTemplate: "$1")
         text = replace(pattern: #"(?<![\w\\])_([^_\n]+)_(?![\w])"#, in: text, withTemplate: "$1")
-        text = replace(pattern: #"`([^`\n]+)`"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(?<!\\)`([^`\n]+)`"#, in: text, withTemplate: "$1")
 
-        return text
+        // Last, so it cannot un-escape a marker into one of the patterns above. Conversion must
+        // produce what the reader sees, and the reader sees `*`, not `\*`.
+        return MarkdownInlineSyntax.unescape(text)
     }
 
     private static func stripLinePrefix(from line: String) -> String {

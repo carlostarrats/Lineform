@@ -41,10 +41,33 @@ enum ImageLinkRewrite {
     /// Only a direct under-the-dir relative or an absolute path is produced — never a `../` escape.
     static func linkPath(for pickedFile: URL, documentDirectory: URL?) -> String {
         let pickedPath = pickedFile.standardizedFileURL.path
-        guard let documentDirectory else { return pickedPath }
+        guard let documentDirectory else { return markdownDestination(for: pickedPath) }
         let dirPath = documentDirectory.standardizedFileURL.path
         let prefix = dirPath.hasSuffix("/") ? dirPath : dirPath + "/"
-        guard pickedPath.hasPrefix(prefix) else { return pickedPath }
-        return String(pickedPath.dropFirst(prefix.count))
+        guard pickedPath.hasPrefix(prefix) else { return markdownDestination(for: pickedPath) }
+        return markdownDestination(for: String(pickedPath.dropFirst(prefix.count)))
+    }
+
+    /// A filesystem path made safe to write inside `![](…)`.
+    ///
+    /// Only the characters that END the destination are escaped — a bare `)` closes it, and a
+    /// newline ends the line — because `MarkdownInlineSyntax.image` reads the destination as
+    /// `[^\)\n]+`. `photo (1).png`, which is what every browser download is named, produced
+    /// `![](photo (1).png)`: a link the app had just written and could no longer parse, so
+    /// Reconnect left the placeholder permanently broken. Spaces are deliberately NOT escaped —
+    /// they parse fine and stay readable in the source. `ImageResolver` decodes these back when
+    /// it looks the file up.
+    static func markdownDestination(for path: String) -> String {
+        var result = ""
+        for character in path {
+            switch character {
+            case "(": result += "%28"
+            case ")": result += "%29"
+            case "\n": result += "%0A"
+            case "\r": result += "%0D"
+            default: result.append(character)
+            }
+        }
+        return result
     }
 }

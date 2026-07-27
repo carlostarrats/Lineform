@@ -318,7 +318,10 @@ enum QuickLookMarkdownRenderer {
             // literal text — Finder showed "!a picture", underlined and accent-coloured as a link,
             // for a line the app draws as a picture.
             (.image,         rx(#"(?<!\\)!\[([^\]]*)\]\(([^)]*)\)"#)),
-            (.link,          rx(#"(?<!\\)\[([^\]]*)\]\(([^)]*)\)"#)),
+            // Link TEXT must be non-empty, mirroring `MarkdownInlineSyntax.link`. Allowing an
+            // empty one made `[](url)` a link with nothing in it, so the appex CONSUMED the
+            // whole construct and Finder showed a blank where the app shows the literal text.
+            (.link,          rx(#"(?<!\\)\[([^\]]+)\]\(([^)]*)\)"#)),
             (.bold,          rx(#"(?<!\\)\*\*([^*]+)\*\*"#)),
             // Deliberately no `__bold__`: the app does not render it, and reading it here made
             // Finder show a Python `__init__` as bold "init" while the app showed the real word.
@@ -370,8 +373,21 @@ enum QuickLookMarkdownRenderer {
         }
         guard let picked = best else { return nil }
         let inner = ns.substring(with: picked.match.range(at: 1))
-        let url: String? = picked.style == .link ? ns.substring(with: picked.match.range(at: 2)) : nil
+        // Images carry their destination too — the placeholder label falls back to its filename.
+        let hasDestination = picked.style == .link || picked.style == .image
+        let url: String? = hasDestination && picked.match.numberOfRanges > 2
+            ? ns.substring(with: picked.match.range(at: 2))
+            : nil
         return InlineMatch(range: picked.match.range, style: picked.style, inner: inner, url: url)
+    }
+
+    /// The destination's filename, query and fragment removed. Mirrors
+    /// `MarkdownPreviewRenderer.imageFilename` so the placeholder label matches the app's.
+    private static func imageFilename(from url: String) -> String {
+        let path = url.split(separator: "?", maxSplits: 1).first.map(String.init) ?? url
+        let withoutFragment = path.split(separator: "#", maxSplits: 1).first.map(String.init) ?? path
+        let last = withoutFragment.split(separator: "/").last.map(String.init) ?? withoutFragment
+        return last.trimmingCharacters(in: .whitespaces)
     }
 
     private static func styledToken(
@@ -381,9 +397,13 @@ enum QuickLookMarkdownRenderer {
         switch match.style {
         case .image:
             // The appex draws no pictures — it has no access to the document's folder and never
-            // fetches a remote URL — so an image reads as its alt text, with the markers gone and
-            // no link styling. An empty alt has nothing to show, which is the honest result.
-            return NSAttributedString(string: match.inner, attributes: baseAttributes)
+            // fetches a remote URL — so an image reads as a placeholder, with no link styling.
+            // The LABEL mirrors `MarkdownPreviewRenderer.imageToken` exactly: alt text, else the
+            // destination's filename, else "Image". Showing a bare alt (and nothing at all for an
+            // empty one) meant Finder silently dropped a line the app draws as a picture.
+            let filename = imageFilename(from: match.url ?? "")
+            let label = match.inner.isEmpty ? (filename.isEmpty ? "Image" : filename) : match.inner
+            return NSAttributedString(string: "🖼 \(label)", attributes: baseAttributes)
         case .code:
             var attrs = baseAttributes
             let size = (baseAttributes[.font] as? NSFont)?.pointSize ?? bodyFontSize

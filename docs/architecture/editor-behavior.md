@@ -451,3 +451,37 @@ time, which is the one thing insertion must never do. The line-endings class had
 Return, list continuation, and the table commands; this path was simply never in the sweep. When
 adding a new path that writes a line, add it to `testImageInsertionPreservesCRLFEndings`'s
 neighbourhood rather than trusting the invariant to be remembered.
+
+## Ordered-list markers and the renderer's cap (2026-07-27)
+
+`LinePrefix.scanOrdered` scanned digits without a bound and then emitted `number + 1`. Two defects
+came out of the same line:
+
+- **A crash.** A line beginning `9223372036854775807. ` parses to `Int.max`, and the increment
+  trapped. Return on that line killed the app — no alert, no autosave, whatever was unsaved in
+  other tabs gone with it.
+- **A disagreement with the renderer.** `MarkdownBlockGrouping`'s list regex is `[0-9]{1,9}` —
+  CommonMark's cap. A 10-digit marker therefore drew as a *paragraph* while Return continued it as
+  a list, so the editor was maintaining a construct the reader could not see.
+
+The scan is now bounded at nine ASCII digits, which makes the increment total *and* makes the two
+definitions agree. It also stopped using `CharacterSet.decimalDigits`, which contains Arabic-Indic
+and Devanagari digits that no renderer treats as a list marker.
+
+The same pass fixed the separator: the renderer accepts `[ \t]+` after a marker and `LinePrefix`
+accepted only a space, so `-\titem` drew as a bullet but Return dropped out of the list.
+
+`InteropProbeTests` asserts both directions against the renderer's cap. The suite missed all of
+this because every ordered-list fixture in it used a one- or two-digit marker and a space.
+
+## Table Reformat's caret in a CRLF document (2026-07-27)
+
+`caretAfterReformat` rebuilds the table's line ranges from the replacement text so it can put the
+caret back in the cell it came from. It split on `\n` and kept each line's trailing `\r`.
+`MarkdownTableRegion.lineRanges` excludes terminators by contract, and `contentRanges` reads a
+`\r` as ordinary cell content — so a CRLF table gained a phantom trailing cell per row and ⌃⌘R
+left the caret a column away from where the writer was typing.
+
+The rebuild now drops a trailing `\r` from each range's length while still stepping over it. The
+existing CRLF table tests all asserted the resulting *text*, which was correct throughout; only the
+selection was wrong, and nothing was checking it.

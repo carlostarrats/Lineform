@@ -5,7 +5,11 @@ struct DocumentStatistics: Equatable {
     var characterCount: Int
 
     init(text: String) {
-        characterCount = (text as NSString).length
+        // Characters as the writer counts them — grapheme clusters, not UTF-16 code units. The
+        // status line says "characters", and `NSString.length` reported a two-emoji document as
+        // four and a decomposed accent as two. Same order of cost as the word scan below, which
+        // already walks the whole string.
+        characterCount = text.count
         wordCount = Self.countWords(in: text)
     }
 
