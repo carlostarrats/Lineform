@@ -96,6 +96,7 @@ file named after it carries the full story and the reasoning.
 - SwiftUI builds NO Spelling and Grammar menu and this app replaces the Edit menu, so the submenu in `AppCommands` is the only off switch; `menu(for:)` likewise replaces AppKit's context menu, so spelling guesses/Learn/Ignore only exist because they are added there by hand. Deleting either strands the feature with no way to control it.
 - Keyboard intercepts in the text view hook `insertNewline`/`insertTab`/`insertBacktab`/`doCommandBy`, NEVER `keyDown` — `keyDown` fires before input-method handling and swallows Return during IME composition. Per-keystroke edits must use the localized `replaceCharacters` path, never `applyWholeTextReplacement` (it rewrites the whole document), and must not force a synchronous re-highlight (`didChangeText` already schedules the debounced one).
 - `MarkdownHeadingEditing` must NOT detect headings with `MarkdownHeadingParser.heading(in:)`. That parser requires a non-empty title, so it reports `nil` for `"## "` and the line is then treated as prose and given a second marker — the `# ## Section` stacking bug, which produces a line the outline sidebar cannot see. It must also never call `isInsideCodeOrFrontMatter` per line: that rescans from the document start, making Select All + a heading key quadratic.
+- `MarkdownFormattingCommand.apply` must align its incoming selection to composed-character boundaries first. Its edits convert through `Range(_:in:)`, which returns `nil` when a selection splits an emoji or a combining mark — the edit was then skipped while the command still returned the selection it *would* have produced, and `setSelectedRange` raises on that. Align at the entry point, not per edit site.
 - Table Reformat pads by APPENDING spaces, never `String.padding(toLength:)` — that measures in UTF-16 while the widths measure in Characters, so it silently truncated emoji and decomposed-accent cells and wrote the loss to disk.
 - `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must accept the SAME heading shape (≤3 columns of indent; space, tab, or end of line after the hashes). A disagreement is the stacking bug from the other side.
 - Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
@@ -106,7 +107,7 @@ file named after it carries the full story and the reasoning.
 - `markdownSourceLines(in:)` is the ONE splitter every renderer uses. It strips a CRLF file's `\r` (without it no code fence ever closes and the document collapses into one code block) while reporting each line's range in the ORIGINAL text (the stripped `\r` still occupies a UTF-16 unit, so recomputed offsets drift and misaim checkbox toggle, Reconnect, copy, and scroll restore). Never fix CRLF by normalising the document text — that rewrites the user's file.
 - The mermaid orientation flip and the supported-type routing are coupled to the pinned BeautifulMermaid version. Re-check both if the pin moves, or diagrams render upside down or as garbage flowcharts.
 - Math images must stay CGImage-backed, or block math exports upside down in PDFs.
-- `MarkdownInlineSyntax` is the ONE emphasis definition — screen, HTML export, read-aloud, and Convert to Plain Text all read it. Underscore emphasis must NEVER fire inside a word (`make_test_file` rendered as "maketestfile", everywhere, including the file that conversion rewrites) and asterisk emphasis must never fire when flanked by spaces (`2 * 3`). `__bold__` stays unsupported on purpose: in prose it is nearly always a dunder. The Quick Look appex mirrors these by hand — it cannot import the file.
+- `MarkdownInlineSyntax` is the ONE emphasis definition — screen, HTML export, read-aloud, and Convert to Plain Text all read it. Underscore emphasis must NEVER fire inside a word (`make_test_file` rendered as "maketestfile", everywhere, including the file that conversion rewrites) and asterisk emphasis must never fire when flanked by spaces (`2 * 3`). `__bold__` stays unsupported on purpose: in prose it is nearly always a dunder. The Quick Look appex mirrors these by hand — it cannot import the file — including an `.image` pattern ordered BEFORE `.link`, or the link rule claims an image's `[alt](path)` and strands the `!` in the Finder preview.
 
 **Export** (`export-and-print.md`)
 - `com.apple.security.print` must stay in BOTH entitlements files or printing fails outright.
@@ -194,7 +195,7 @@ tests host a real `NSWindow` + `NSHostingView`: load-sensitive and prone to test
 Background, failure modes, and the "is this a real regression or machine state?" recipe:
 `docs/notes/hosted-test-plan.md`.
 
-**Default gate — the everyday command** (~800 tests, seconds, crash-free; what CI and ⌘U run):
+**Default gate — the everyday command** (~1100 tests, seconds, crash-free; what CI and ⌘U run):
 
 ```sh
 xcodebuild test \
