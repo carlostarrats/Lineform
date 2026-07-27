@@ -197,6 +197,20 @@ contributes only fence and `$$`-block *state*, so the real predicates run only o
 emit a range. 2.26 ms in Debug, ~0.6 ms in an optimized build. **Debug measures ~3.6× slower than
 Release** here — do not read a Debug number as what users feel.
 
+**The gate is a RATIO, not a wall-clock ceiling (2026-07-27).** It measures `checkableRanges` and
+the whole-document `ignoredRanges` back to back in the same run and requires the scoped path to be
+at least **4×** faster; it measures **11.7×** (2.18 ms vs 25.45 ms on a developer Mac), and the
+14.97 ms naive version it exists to reject would score barely above 1×. Measurement is best-of-N
+batches on a monotonic clock, because scheduler preemption on a shared runner can only ever add
+time — a mean absorbs one descheduled batch and reports it as a regression.
+
+It began as an absolute 5 ms ceiling, which read ~2.2 ms locally and 5.5–8.4 ms on a GitHub
+`macos-26` runner: **four CI failures in twelve runs, none of them a regression.** Raising the
+number would have swapped a flaky gate for a blind one. The ratio takes the hardware out of the
+question, so it is both stabler and stricter than any number tuned to one machine. **Do not put a
+tight absolute ceiling back** — the remaining 30 ms backstop is only there to catch "everything got
+slower at once", which a ratio cannot see.
+
 (3) **AppKit provides no Spelling and Grammar menu, and this app replaces the Edit menu.** Nothing
 supplies one for free — verified by dumping the live menu over Accessibility. Without the submenu
 added to `AppCommands`, the feature has no off switch and `toggleContinuousSpellChecking` is
