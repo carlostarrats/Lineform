@@ -1054,6 +1054,10 @@ struct MarkdownPreviewRenderer {
             earliest: &earliest
         )
         consider(
+            inlineToken(regex: MarkdownInlineSyntax.italicAsterisk, kind: .italic, in: line, nsLine: nsLine, from: location),
+            earliest: &earliest
+        )
+        consider(
             inlineToken(regex: MarkdownInlineSyntax.code, kind: .code, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )

@@ -52,9 +52,14 @@ enum MarkdownPlainTextConverter {
 
         text = replace(pattern: #"!\[([^\]]*)\]\([^)]+\)"#, in: text, withTemplate: "$1")
         text = replace(pattern: #"\[([^\]]+)\]\([^)]+\)"#, in: text, withTemplate: "$1")
-        text = replace(pattern: #"(\*\*|__)(.*?)\1"#, in: text, withTemplate: "$2")
-        text = replace(pattern: #"(?<!\*)\*([^*\n]+)\*(?!\*)"#, in: text, withTemplate: "$1")
-        text = replace(pattern: #"(?<!_)_([^_\n]+)_(?!_)"#, in: text, withTemplate: "$1")
+        // These mirror `MarkdownInlineSyntax` — conversion must strip exactly what the app draws
+        // as emphasis, no more. Bold is `**` only (the renderer has never read `__bold__`, so
+        // stripping it here would eat a Python `__init__`), underscore italics can't start or end
+        // inside a word (`make_test_file`), and asterisk italics can't be flanked by spaces
+        // (`2 * 3 * 4`). Unlike the renderer, a wrong answer here rewrites the user's file.
+        text = replace(pattern: #"\*\*([^*\n]+)\*\*"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(?<![\*\\])\*([^*\s\n](?:[^*\n]*[^*\s\n])?)\*(?!\*)"#, in: text, withTemplate: "$1")
+        text = replace(pattern: #"(?<![\w\\])_([^_\n]+)_(?![\w])"#, in: text, withTemplate: "$1")
         text = replace(pattern: #"`([^`\n]+)`"#, in: text, withTemplate: "$1")
 
         return text
@@ -97,7 +102,7 @@ enum MarkdownFormattingCommand {
         case .bold:
             return toggleMarkers("**", in: text, selectedRange: selectedRange)
         case .italic:
-            return toggleMarkers("_", in: text, selectedRange: selectedRange)
+            return toggleItalic(in: text, selectedRange: selectedRange)
         case .inlineCode:
             return toggleMarkers("`", in: text, selectedRange: selectedRange)
         case .strikethrough:
@@ -113,31 +118,89 @@ enum MarkdownFormattingCommand {
         }
     }
 
-    private func toggleMarkers(_ marker: String, in text: String, selectedRange: NSRange) -> MarkdownEdit {
+    /// Italic is the one command whose marker depends on where the caret is.
+    ///
+    /// `MarkdownInlineSyntax.italic` refuses intraword `_` — the rule that keeps `make_test_file`
+    /// intact — so wrapping a mid-word selection in underscores would emit markup the app then
+    /// renders as literal underscores. Asterisks have no such restriction, so a partial word gets
+    /// `*`, everything else keeps the familiar `_`. Un-toggling accepts whichever marker is there.
+    private func toggleItalic(in text: String, selectedRange: NSRange) -> MarkdownEdit {
+        if let removal = removingMarkers("_", in: text, selectedRange: selectedRange) {
+            return removal
+        }
+        // Only a LONE asterisk is ours to remove. Peeling one off `**word**` would leave `*word*`,
+        // quietly turning bold into italic.
+        if !isInsideDoubleAsterisk(text, selectedRange: selectedRange),
+           let removal = removingMarkers("*", in: text, selectedRange: selectedRange) {
+            return removal
+        }
+
+        let marker = touchesWordCharacter(text, selectedRange: selectedRange) ? "*" : "_"
+        return addingMarkers(marker, in: text, selectedRange: selectedRange)
+    }
+
+    /// Whether a word character sits immediately before or after the selection — i.e. wrapping it
+    /// would put a marker inside a word.
+    private func touchesWordCharacter(_ text: String, selectedRange: NSRange) -> Bool {
+        let nsText = text as NSString
+        let isWord: (unichar) -> Bool = { char in
+            guard let scalar = Unicode.Scalar(char) else { return false }
+            return CharacterSet.alphanumerics.contains(scalar) || scalar == "_"
+        }
+
+        if selectedRange.location > 0, isWord(nsText.character(at: selectedRange.location - 1)) {
+            return true
+        }
+        let after = NSMaxRange(selectedRange)
+        if after < nsText.length, isWord(nsText.character(at: after)) {
+            return true
+        }
+        return false
+    }
+
+    private func isInsideDoubleAsterisk(_ text: String, selectedRange: NSRange) -> Bool {
+        let nsText = text as NSString
+        let before = selectedRange.location - 2
+        let after = NSMaxRange(selectedRange) + 1
+        guard before >= 0, after < nsText.length else { return false }
+        return nsText.character(at: before) == unichar(UInt8(ascii: "*"))
+            && nsText.character(at: after) == unichar(UInt8(ascii: "*"))
+    }
+
+    private func removingMarkers(_ marker: String, in text: String, selectedRange: NSRange) -> MarkdownEdit? {
         let nsText = text as NSString
         let markerLength = (marker as NSString).length
         let prefixRange = NSRange(location: selectedRange.location - markerLength, length: markerLength)
         let suffixRange = NSRange(location: NSMaxRange(selectedRange), length: markerLength)
 
-        if selectedRange.location >= markerLength,
-           NSMaxRange(suffixRange) <= nsText.length,
-           nsText.substring(with: prefixRange) == marker,
-           nsText.substring(with: suffixRange) == marker {
-            var edited = text
-            replace(range: suffixRange, in: &edited, with: "")
-            replace(range: prefixRange, in: &edited, with: "")
-            return MarkdownEdit(
-                text: edited,
-                selectedRange: NSRange(location: selectedRange.location - markerLength, length: selectedRange.length)
-            )
-        }
+        guard selectedRange.location >= markerLength,
+              NSMaxRange(suffixRange) <= nsText.length,
+              nsText.substring(with: prefixRange) == marker,
+              nsText.substring(with: suffixRange) == marker else { return nil }
 
+        var edited = text
+        replace(range: suffixRange, in: &edited, with: "")
+        replace(range: prefixRange, in: &edited, with: "")
+        return MarkdownEdit(
+            text: edited,
+            selectedRange: NSRange(location: selectedRange.location - markerLength, length: selectedRange.length)
+        )
+    }
+
+    private func addingMarkers(_ marker: String, in text: String, selectedRange: NSRange) -> MarkdownEdit {
+        let nsText = text as NSString
+        let markerLength = (marker as NSString).length
         var edited = text
         replace(range: selectedRange, in: &edited, with: marker + nsText.substring(with: selectedRange) + marker)
         return MarkdownEdit(
             text: edited,
             selectedRange: NSRange(location: selectedRange.location + markerLength, length: selectedRange.length)
         )
+    }
+
+    private func toggleMarkers(_ marker: String, in text: String, selectedRange: NSRange) -> MarkdownEdit {
+        removingMarkers(marker, in: text, selectedRange: selectedRange)
+            ?? addingMarkers(marker, in: text, selectedRange: selectedRange)
     }
 
     private func prefixSelectedLines(_ prefix: String, in text: String, selectedRange: NSRange) -> MarkdownEdit {

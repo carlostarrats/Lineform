@@ -8,6 +8,19 @@ final class SpeechTextExtractorTests: XCTestCase {
         XCTAssertEqual(SpeechTextExtractor.stripInlineMarkers("a ~~struck~~ word"), "a struck word")
     }
 
+    // Read-aloud shares the emphasis rules, so it must not swallow the underscores in a
+    // filename and say "maketestfile".
+    func testKeepsUnderscoresInsideAWord() {
+        XCTAssertEqual(SpeechTextExtractor.stripInlineMarkers("run make_test_file now"),
+                       "run make_test_file now")
+    }
+
+    func testStripsSingleAsteriskEmphasis() {
+        XCTAssertEqual(SpeechTextExtractor.stripInlineMarkers("an *emphasised* word"),
+                       "an emphasised word")
+        XCTAssertEqual(SpeechTextExtractor.stripInlineMarkers("2 * 3 * 4"), "2 * 3 * 4")
+    }
+
     func testStripsLinkToDisplayTextAndImageToAlt() {
         XCTAssertEqual(SpeechTextExtractor.stripInlineMarkers("see [the docs](https://x.com)"),
                        "see the docs")

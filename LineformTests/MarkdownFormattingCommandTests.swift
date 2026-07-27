@@ -12,6 +12,61 @@ final class MarkdownFormattingCommandTests: XCTestCase {
         XCTAssertEqual(edit.selectedRange, NSRange(location: 7, length: 4))
     }
 
+    // Italic picks its marker from the selection's surroundings. `_` cannot emphasise part of a
+    // word (that rule is what stops `make_test_file` being mangled), so a mid-word selection has
+    // to use `*` or ⌘I would insert markup that renders as literal underscores.
+    func testItalicWrapsAWholeWordInUnderscores() {
+        let edit = MarkdownFormattingCommand.italic.apply(
+            to: "Make this clear",
+            selectedRange: NSRange(location: 5, length: 4)
+        )
+
+        XCTAssertEqual(edit.text, "Make _this_ clear")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 6, length: 4))
+    }
+
+    func testItalicWrapsAPartialWordInAsterisks() {
+        let edit = MarkdownFormattingCommand.italic.apply(
+            to: "italics",
+            selectedRange: NSRange(location: 0, length: 4)
+        )
+
+        XCTAssertEqual(edit.text, "*ital*ics")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 1, length: 4))
+    }
+
+    func testItalicRemovesExistingUnderscoresAroundSelection() {
+        let edit = MarkdownFormattingCommand.italic.apply(
+            to: "Make _this_ clear",
+            selectedRange: NSRange(location: 6, length: 4)
+        )
+
+        XCTAssertEqual(edit.text, "Make this clear")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 5, length: 4))
+    }
+
+    func testItalicRemovesExistingAsterisksAroundSelection() {
+        let edit = MarkdownFormattingCommand.italic.apply(
+            to: "*ital*ics",
+            selectedRange: NSRange(location: 1, length: 4)
+        )
+
+        XCTAssertEqual(edit.text, "italics")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 0, length: 4))
+    }
+
+    // Un-toggling must not peel one asterisk off a bold run and silently demote it to italics.
+    // The surrounding `*` are not word characters, so this wraps in `_` exactly as it did before
+    // asterisk italics existed.
+    func testItalicInsideBoldMarkersDoesNotUnwrapTheBold() {
+        let edit = MarkdownFormattingCommand.italic.apply(
+            to: "a **word** b",
+            selectedRange: NSRange(location: 4, length: 4)
+        )
+
+        XCTAssertEqual(edit.text, "a **_word_** b")
+    }
+
     func testStrikethroughWrapsSelectedTextWithTildes() {
         let edit = MarkdownFormattingCommand.strikethrough.apply(
             to: "old",
@@ -88,6 +143,28 @@ final class MarkdownFormattingCommandTests: XCTestCase {
             Important link
             local files
             """
+        )
+    }
+
+    // Conversion rewrites the user's real document, so mangling a word here is worse than
+    // mis-drawing it. It must strip exactly what the renderer treats as emphasis and nothing
+    // else: intraword underscores, spaced asterisks, and `__dunder__` (which this app does not
+    // render as bold) all have to survive intact.
+    func testPlainTextConversionKeepsUnderscoresInsideWords() {
+        XCTAssertEqual(
+            MarkdownPlainTextConverter.plainText(from: "run make_test_file and __init__ now"),
+            "run make_test_file and __init__ now"
+        )
+    }
+
+    func testPlainTextConversionKeepsSpacedAsterisks() {
+        XCTAssertEqual(MarkdownPlainTextConverter.plainText(from: "2 * 3 * 4"), "2 * 3 * 4")
+    }
+
+    func testPlainTextConversionStripsRealEmphasis() {
+        XCTAssertEqual(
+            MarkdownPlainTextConverter.plainText(from: "an *aster* and an _under_ and **strong**"),
+            "an aster and an under and strong"
         )
     }
 

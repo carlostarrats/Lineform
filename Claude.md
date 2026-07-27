@@ -101,6 +101,7 @@ file named after it carries the full story and the reasoning.
 **Rendering** (`rendering.md`)
 - The mermaid orientation flip and the supported-type routing are coupled to the pinned BeautifulMermaid version. Re-check both if the pin moves, or diagrams render upside down or as garbage flowcharts.
 - Math images must stay CGImage-backed, or block math exports upside down in PDFs.
+- `MarkdownInlineSyntax` is the ONE emphasis definition — screen, HTML export, read-aloud, and Convert to Plain Text all read it. Underscore emphasis must NEVER fire inside a word (`make_test_file` rendered as "maketestfile", everywhere, including the file that conversion rewrites) and asterisk emphasis must never fire when flanked by spaces (`2 * 3`). `__bold__` stays unsupported on purpose: in prose it is nearly always a dunder. The Quick Look appex mirrors these by hand — it cannot import the file.
 
 **Export** (`export-and-print.md`)
 - `com.apple.security.print` must stay in BOTH entitlements files or printing fails outright.

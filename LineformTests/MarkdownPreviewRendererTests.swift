@@ -67,6 +67,54 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertEqual(style, NSUnderlineStyle.single.rawValue)
     }
 
+    // Underscores inside a word are not emphasis. `make_test_file` used to render as
+    // "maketestfile" with "test" italic — the word silently mangled — which lands constantly in
+    // prose about code, and identically in export, print, and read-aloud. CommonMark forbids
+    // intraword `_` for exactly this reason; the Quick Look appex already got it right.
+    func testUnderscoresInsideAWordAreNotEmphasis() {
+        let rendered = MarkdownPreviewRenderer().render("The script is called make_test_file today.", profile: .original)
+        XCTAssertEqual(rendered.string, "The script is called make_test_file today.")
+    }
+
+    func testLeadingAndTrailingUnderscoreWordsAreNotEmphasis() {
+        let rendered = MarkdownPreviewRenderer().render("call __init__ and _private_var here", profile: .original)
+        XCTAssertEqual(rendered.string, "call __init__ and _private_var here")
+    }
+
+    func testUnderscoreItalicStillRendersWhenDelimitedByWordBoundaries() throws {
+        let rendered = MarkdownPreviewRenderer().render("an _emphasised_ word", profile: .original)
+        XCTAssertEqual(rendered.string, "an emphasised word")
+        let font = try XCTUnwrap(rendered.attribute(.font, at: 3, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.italic))
+    }
+
+    func testUnderscoreItalicRendersNextToPunctuation() {
+        let rendered = MarkdownPreviewRenderer().render("(_emphasised_), yes", profile: .original)
+        XCTAssertEqual(rendered.string, "(emphasised), yes")
+    }
+
+    func testAsteriskItalicRendersAsItalic() throws {
+        let rendered = MarkdownPreviewRenderer().render("an *emphasised* word", profile: .original)
+        XCTAssertEqual(rendered.string, "an emphasised word")
+        let font = try XCTUnwrap(rendered.attribute(.font, at: 3, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.italic))
+    }
+
+    func testDoubleAsteriskStaysBoldNotItalic() throws {
+        let rendered = MarkdownPreviewRenderer().render("a **strong** word", profile: .original)
+        XCTAssertEqual(rendered.string, "a strong word")
+        let font = try XCTUnwrap(rendered.attribute(.font, at: 2, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.bold))
+        XCTAssertFalse(font.fontDescriptor.symbolicTraits.contains(.italic))
+    }
+
+    // Asterisks flanked by spaces are arithmetic or footnote marks, not emphasis. Without this
+    // guard, adding `*italic*` would silently italicise "3" in `2 * 3 * 4`.
+    func testAsterisksSurroundedBySpacesAreNotEmphasis() {
+        let rendered = MarkdownPreviewRenderer().render("2 * 3 * 4 equals 24", profile: .original)
+        XCTAssertEqual(rendered.string, "2 * 3 * 4 equals 24")
+    }
+
     func testStrikethroughInsideCodeSpanStaysLiteral() {
         // A code span starts earlier, so `~~x~~` inside it must not be struck.
         let rendered = MarkdownPreviewRenderer().render("`~~x~~`", profile: .original)

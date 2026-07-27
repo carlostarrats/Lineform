@@ -242,8 +242,8 @@ final class DocumentExportRendererTests: XCTestCase {
     }
 
     func testRTFRoundTripPreservesBoldItalicAndInlineCode() throws {
-        // Lineform's italic syntax is single underscores (`_italic_`), not asterisks — matching
-        // MarkdownPreviewRenderer.italicRegex, not the brief's generic `*italic*` sketch.
+        // Both italic spellings reach RTF through `MarkdownInlineSyntax`: `_under_` (never inside
+        // a word) and `*aster*` (never flanked by spaces).
         let doc = LineformDocument(text: "This is **bold** and _italic_ and `code` text.")
         let data = try DocumentExportRenderer.rtfData(for: doc, profile: .original, paper: .usLetter)
         let reread = try XCTUnwrap(NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil))
