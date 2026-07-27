@@ -192,7 +192,10 @@ extension LineformTextView {
             try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             let name = uniqueName(in: directory, base: preferredName, ext: ext)
             let url = directory.appendingPathComponent(name)
-            return (url, url.path)
+            // Escaped like every other destination the app writes: the container path runs
+            // through the user's home directory, which it does not get to assume is free of a
+            // character that would close the `![](…)` early.
+            return (url, ImageLinkRewrite.markdownDestination(for: url.path))
         }
         return nil
     }

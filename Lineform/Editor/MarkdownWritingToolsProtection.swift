@@ -392,16 +392,19 @@ enum MarkdownWritingToolsProtection {
     /// Identical to the `String` overload, which delegates here — so the scoped path can avoid
     /// bridging the whole document just to test a four-character prefix.
     private static func frontMatterRange(in nsText: NSString) -> NSRange? {
-        // Both delimiters may carry the `\r` of a CRLF ending. Search still keys off the `\n`,
-        // which is present either way; only the lengths consumed around it differ.
-        let opensWithCRLF = nsText.hasPrefix("---\r\n")
-        guard opensWithCRLF || nsText.hasPrefix("---\n") else {
+        // A UTF-8 byte-order mark sits before the opening `---`, so testing the raw prefix left
+        // a BOM'd file's front matter completely unprotected: Writing Tools could rewrite the
+        // YAML, the spell checker flagged every key, and ⌘1 inside it prepended a heading marker.
+        // The returned range still starts at 0 — the mark belongs to the block it precedes.
+        let bom = nsText.length > 0 && nsText.character(at: 0) == markdownByteOrderMark ? 1 : 0
+        let opensWithCRLF = nsText.hasPrefix(String(repeating: "\u{FEFF}", count: bom) + "---\r\n")
+        guard opensWithCRLF || nsText.hasPrefix(String(repeating: "\u{FEFF}", count: bom) + "---\n") else {
             return nil
         }
 
         // Search from the opening delimiter's own trailing newline so a closing "\n---" that
         // immediately follows the opening — i.e. empty front matter ("---\n---") — is detected.
-        let newlineOffset = opensWithCRLF ? 4 : 3
+        let newlineOffset = bom + (opensWithCRLF ? 4 : 3)
         let searchRange = NSRange(location: newlineOffset, length: max(0, nsText.length - newlineOffset))
         let closingRange = nsText.range(of: "\n---", options: [], range: searchRange)
         guard closingRange.location != NSNotFound else {

@@ -1026,7 +1026,11 @@ struct MarkdownPreviewRenderer {
             if let token = nextInlineToken(in: line, nsLine: nsLine, from: location) {
                 if token.range.location > location {
                     output.append(NSAttributedString(
-                        string: nsLine.substring(with: NSRange(location: location, length: token.range.location - location)),
+                        // Unescaped, like every plain run: a `\*` that correctly declined to open
+                        // emphasis must not then be drawn as a literal backslash-asterisk.
+                        string: MarkdownInlineSyntax.unescape(
+                            nsLine.substring(with: NSRange(location: location, length: token.range.location - location))
+                        ),
                         attributes: baseAttributes
                     ))
                 }
@@ -1034,7 +1038,7 @@ struct MarkdownPreviewRenderer {
                 location = NSMaxRange(token.range)
             } else {
                 output.append(NSAttributedString(
-                    string: nsLine.substring(from: location),
+                    string: MarkdownInlineSyntax.unescape(nsLine.substring(from: location)),
                     attributes: baseAttributes
                 ))
                 location = nsLine.length

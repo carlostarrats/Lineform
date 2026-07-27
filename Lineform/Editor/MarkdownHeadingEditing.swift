@@ -35,6 +35,12 @@ enum MarkdownHeadingEditing {
         // as one rather than read as prose.
         var cursor = 0
         var columns = 0
+        // A leading byte-order mark is absorbed into `indent` — it contributes no columns, it is
+        // skipped by `MarkdownHeadingParser` in the same place, and carrying it in the indent is
+        // what re-emits it ahead of the new marker instead of after it.
+        if cursor < ns.length, ns.character(at: cursor) == markdownByteOrderMark {
+            cursor += 1
+        }
         while cursor < ns.length, ns.character(at: cursor) == space || ns.character(at: cursor) == tab {
             columns += ns.character(at: cursor) == tab ? 4 : 1
             cursor += 1

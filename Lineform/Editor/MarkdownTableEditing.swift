@@ -291,13 +291,18 @@ enum MarkdownTableEditing {
         return min(rebuiltCells[cell].location + offset, NSMaxRange(rebuiltCells[cell]))
     }
 
+    /// Line ranges of the rebuilt block, in document coordinates. Every range EXCLUDES its
+    /// terminator, matching what `locate` produces — `contentRanges` reads a `\r` left on the end
+    /// of a line as cell content, which in a CRLF table added a phantom trailing cell and landed
+    /// the caret a column away from the one it was in before ⌃⌘R.
     private static func lineRanges(of block: String, startingAt origin: Int) -> [NSRange] {
         var ranges: [NSRange] = []
         var location = origin
         for line in block.components(separatedBy: "\n") {
-            let length = (line as NSString).length
-            ranges.append(NSRange(location: location, length: length))
-            location += length + 1
+            let rawLength = (line as NSString).length
+            let contentLength = line.hasSuffix("\r") ? rawLength - 1 : rawLength
+            ranges.append(NSRange(location: location, length: contentLength))
+            location += rawLength + 1
         }
         return ranges
     }

@@ -66,11 +66,14 @@ enum SpeechTextExtractor {
         var location = 0
         while location < nsLine.length {
             guard let token = nextToken(in: line, nsLine: nsLine, from: location) else {
-                result += nsLine.substring(from: location)
+                // Plain runs are unescaped, as on screen — read-aloud must not say "backslash".
+                result += MarkdownInlineSyntax.unescape(nsLine.substring(from: location))
                 break
             }
             if token.range.location > location {
-                result += nsLine.substring(with: NSRange(location: location, length: token.range.location - location))
+                result += MarkdownInlineSyntax.unescape(
+                    nsLine.substring(with: NSRange(location: location, length: token.range.location - location))
+                )
             }
             result += token.replacement
             location = token.range.location + token.range.length

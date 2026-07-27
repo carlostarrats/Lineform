@@ -329,7 +329,20 @@ enum MarkdownHorizontalRule {
 /// of a CRLF ending — and `.whitespaces` does NOT contain it (that is `.whitespacesAndNewlines`).
 /// Code that reads RAW document text, where offsets matter and `markdownSourceLines(in:)` cannot
 /// be used, trims with this instead. `\n` is deliberately absent: a line cannot contain one.
-let markdownLineTrimCharacters = CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\r"))
+///
+/// U+FEFF is in the set for the same reason `\r` is: it is a property of the file's ENCODING, not
+/// of its content. A UTF-8 byte-order mark — what Windows Notepad writes at the head of a `.md` —
+/// sits invisibly before the first character of line 1, so `# Title`, `---`, and ` ``` ` all
+/// failed their prefix tests and a BOM'd file's first heading, front matter, and code fence
+/// simply did not exist. Like `\r`, it is trimmed from what detectors READ and still counted in
+/// every range, so the byte is never rewritten out of the user's file.
+let markdownLineTrimCharacters = CharacterSet.whitespaces
+    .union(CharacterSet(charactersIn: "\r"))
+    .union(CharacterSet(charactersIn: "\u{FEFF}"))
+
+/// The UTF-8 byte-order mark, as one UTF-16 unit. Only line 1 of a document can carry one; every
+/// line-structure scan skips it there so the editor and the renderer agree about a BOM'd file.
+let markdownByteOrderMark = UInt16(0xFEFF)
 
 /// Markdown source split into the lines every renderer reads, plus each line's range in the
 /// ORIGINAL text.
@@ -343,9 +356,11 @@ let markdownLineTrimCharacters = CharacterSet.whitespaces.union(CharacterSet(cha
 /// checkbox toggling, image reconnect, code copy, and the cross-mode scroll restore still point
 /// at the right bytes.
 struct MarkdownSourceLines {
-    /// Line text with any CRLF `\r` removed.
+    /// Line text with any CRLF `\r` — and, on line 1 only, a leading byte-order mark — removed.
     let lines: [String]
-    /// UTF-16 range of each line in the original text, INCLUDING a `\r` it no longer carries.
+    /// UTF-16 range of each line in the original text, INCLUDING a `\r` it no longer carries and
+    /// EXCLUDING a leading byte-order mark it no longer carries. `location` is always the offset
+    /// of the line's first real character.
     let ranges: [NSRange]
 }
 
@@ -353,10 +368,23 @@ func markdownSourceLines(in text: String) -> MarkdownSourceLines {
     var lines: [String] = []
     var ranges: [NSRange] = []
     var location = 0
-    for raw in text.components(separatedBy: "\n") {
+    for (index, raw) in text.components(separatedBy: "\n").enumerated() {
         let rawLength = (raw as NSString).length
-        ranges.append(NSRange(location: location, length: rawLength))
-        lines.append(raw.hasSuffix("\r") ? String(raw.dropLast()) : raw)
+        var line = raw.hasSuffix("\r") ? String(raw.dropLast()) : raw
+        // A byte-order mark can only precede the very first character of the file. It is removed
+        // from the line for the same reason the `\r` is, but — unlike the `\r`, which trails —
+        // it sits BEFORE the line's content, so the range must start past it. Every consumer
+        // reads `location` as "where this line's text begins"; counting the BOM there would aim
+        // the outline's scroll-to-heading one unit short on line 1 of a BOM'd file.
+        var start = location
+        var length = rawLength
+        if index == 0, line.hasPrefix("\u{FEFF}") {
+            line.removeFirst()
+            start += 1
+            length -= 1
+        }
+        ranges.append(NSRange(location: start, length: length))
+        lines.append(line)
         location += rawLength + 1
     }
     return MarkdownSourceLines(lines: lines, ranges: ranges)

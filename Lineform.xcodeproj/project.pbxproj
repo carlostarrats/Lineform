@@ -19,6 +19,7 @@
 		1F00000100000000000004C4 /* MarkdownLineEnding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C4 /* MarkdownLineEnding.swift */; };
 		1F00000100000000000004C0 /* MarkdownRobustnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */; };
 		1F00002E0000000000000001 /* RobustnessProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002E0000000000000002 /* RobustnessProbeTests.swift */; };
+		1F0000300000000000000001 /* InteropProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000300000000000000002 /* InteropProbeTests.swift */; };
 		1F00002F0000000000000001 /* OutlineAndInsertionProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002F0000000000000002 /* OutlineAndInsertionProbeTests.swift */; };
 		1F00000100000000000004B6 /* MarkdownHTMLRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */; };
 		1F00000100000000000004B7 /* ExportMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B7 /* ExportMenuTests.swift */; };
@@ -220,6 +221,7 @@
 		1F00000200000000000004C4 /* MarkdownLineEnding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownLineEnding.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRobustnessTests.swift; sourceTree = "<group>"; };
 		1F00002E0000000000000002 /* RobustnessProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobustnessProbeTests.swift; sourceTree = "<group>"; };
+		1F0000300000000000000002 /* InteropProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteropProbeTests.swift; sourceTree = "<group>"; };
 		1F00002F0000000000000002 /* OutlineAndInsertionProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineAndInsertionProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHTMLRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B7 /* ExportMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportMenuTests.swift; sourceTree = "<group>"; };
@@ -614,6 +616,7 @@
 				1F00000200000000000004B4 /* MarkdownTableEditingTests.swift */,
 				1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */,
 				1F00002E0000000000000002 /* RobustnessProbeTests.swift */,
+				1F0000300000000000000002 /* InteropProbeTests.swift */,
 				1F00002F0000000000000002 /* OutlineAndInsertionProbeTests.swift */,
 				1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */,
 				1F00000200000000000004B7 /* ExportMenuTests.swift */,
@@ -971,6 +974,7 @@
 				1F00000100000000000004B4 /* MarkdownTableEditingTests.swift in Sources */,
 				1F00000100000000000004C0 /* MarkdownRobustnessTests.swift in Sources */,
 				1F00002E0000000000000001 /* RobustnessProbeTests.swift in Sources */,
+				1F0000300000000000000001 /* InteropProbeTests.swift in Sources */,
 				1F00002F0000000000000001 /* OutlineAndInsertionProbeTests.swift in Sources */,
 				1F00000100000000000004B6 /* MarkdownHTMLRendererTests.swift in Sources */,
 				1F00000100000000000004B7 /* ExportMenuTests.swift in Sources */,

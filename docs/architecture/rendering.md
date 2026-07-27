@@ -21,3 +21,91 @@ in this area.
 - Callouts / admonitions (2026-07-18): GitHub-style `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` blockquotes (case-insensitive, optional custom title `> [!NOTE] Remember this`) render as a monochrome title row — a per-type SF Symbol + title, **bold weight** (the code comment in `MarkdownPreviewRenderer.appendCallout` says "medium weight"; it actually applies `.boldFontMask`), in the ink tone, **not a per-type color** — over the existing blockquote body styling. Detection (`MarkdownCallout.parse`) and the `.callout` block case live in `MarkdownBlockGrouping.swift`; an unrecognized type degrades gracefully to an ordinary blockquote. The shared indent/de-emphasis loop was extracted out of `appendBlockquote` into `appendQuoteLines`, reused by both, so blockquote output stays byte-identical. Renders in Read/Preview **and** PDF/RTF export (pure text + a small tinted SF Symbol, no color concern). Info sidebar tab gets a syntax row. See `docs/superpowers/specs/2026-07-18-callouts-admonitions-design.md`.
 
 - Inline local image rendering + Reconnect (2026-07-18): `![alt](path)` sitting **alone on its own line** with a path that resolves to an existing **local** image file (relative-to-document or absolute; common bitmap UTIs) renders the actual picture, **left-aligned like mermaid** (only block math centers), in Read/Preview. **Remote `http(s)`/`data:` URLs are never fetched** — always a placeholder — preserving the app's network-free invariant. An image mid-sentence (not alone on its line) stays the `🖼` placeholder token by design, not a limitation. Sizing fits inside (column width × a height cap) with aspect ratio preserved and **downscale-only** (never upscales past native size); the height cap is `max(240, min(500, 0.70 × visible viewport height))` points (`ImageFit.maxHeight`), so a tall/portrait image narrows rather than dominating the page, and refits on window resize like other block attachments. A missing-local or remote reference shows the placeholder plus a hover **Reconnect** pill (translucent, `arrow.counterclockwise`, same treatment as the code copy pill); clicking opens an `NSOpenPanel` and rewrites the `![alt](path)` link in `document.text` (relative if the picked file is under the document's directory, else absolute) through the same stale-range-safe binding path as checkbox toggling — a normal edit, so dirty-tracking/autosave/undo apply. Resolution only loads files inside an already-granted sandbox scope (the workspace root, or whatever Reconnect's open panel grants); out-of-scope local paths fail to load and fall back to the placeholder — Reconnect is the escape hatch. Auto-heals on the next re-render once a missing file reappears (e.g. iCloud sync) — no manual refresh needed. Images are loaded from disk, downscaled, and kept only in a memory-cost-limited `NSCache` (`ImageAttachmentProvider`, mirroring `MermaidImageProvider`) — never copied, never written into the `.md` except via an explicit Reconnect. **Styled PDF and Print (⌘P) now render resolvable local images**: `documentDirectory` + a real `ImageAttachmentProvider` are threaded into the Styled export path (`DocumentExportRenderer`), and a consolidated `NSOpenPanel` grant prompt (`ImageExportPreflight` + `EditorContainerView.withImageAccessGrantsIfNeeded`) covers images outside the app's sandbox scope before rendering. The prompt is deliberately **honest**: `ImageExportPreflight` scans the renderer's OWN block partition (`markdownBlocks(in:)` `.image` cases) so it flags **only own-line images that would actually render** — never a mid-sentence/fenced image (which stays a placeholder anyway), and never a reference a grant can't fix (remote URLs, or a relative path in an untitled doc with no `documentDirectory` to resolve against). One panel per export (Styled + Print only), Cancel = export with placeholders. **Normal PDF stays raw source and RTF stays `imagesAsText`** — both keep the `🖼` placeholder/caption text, unchanged. See `docs/superpowers/specs/2026-07-18-inline-local-image-rendering-design.md` and `docs/superpowers/specs/2026-07-18-pdf-image-export-design.md`. **Placeholder color:** the `🖼 label` run (both the inline `.image` token and the own-line `appendImagePlaceholder` fallback) renders in `NSColor.linkColor`, so an unresolved image reference reads as a reference, not dim body text. **Drag-to-place indicator:** the drop guide (`LineformTextView+ImageInsertion.updateDropIndicator`) is a **dashed** accent line (`CAShapeLayer`, `lineDashPattern [6,4]`, `controlAccentColor`), reading as a placement hint rather than a divider. **Drop-below-last-line (load-bearing):** an on-line drop snaps to the START of the drop line, but a drop in the empty area BELOW the last line must append at end-of-document — otherwise the line-start snap places the new image ABOVE a trailing image and you can never drop under the last one. `isImageDropBelowLastLine` detects this geometrically (`point.y >= usedRect(for:).maxY + textContainerOrigin.y`) and routes to `ImageInsertionText.appendingAtEnd` (leading newline only when the doc isn't already newline-terminated); the on-line path uses `ImageInsertionText.insertingOnLine`. Placement rules are the pure, tested `ImageInsertionText` helper; both paths apply through `shouldChangeText → replaceCharacters → didChangeText` (one undo step, binding synced).
+
+## Byte-order marks (2026-07-27)
+
+A UTF-8 BOM is what Windows Notepad writes at the head of a `.md`. It is an invisible character
+sitting before the first character of line 1, so every prefix test in the app failed on it: a
+BOM'd file's first heading was not a heading, its front matter opened nothing (and was therefore
+protected from neither Writing Tools nor the spell checker), and its first code fence never opened,
+so the outline listed headings from inside code and dropped the real ones after it.
+
+It is handled exactly the way the CRLF `\r` is, and for the same reason — it is a property of the
+file's *encoding*, not of its content:
+
+- `markdownSourceLines(in:)` strips it from line 1 only. Unlike the `\r`, which trails, it sits
+  *before* the line's text, so the reported range starts one unit LATER rather than merely being
+  one longer. Every consumer reads `location` as "where this line's text begins"; counting the BOM
+  there aimed the outline's scroll-to-heading one unit short.
+- `markdownLineTrimCharacters` contains it, which covers the raw-text passes that cannot use the
+  splitter (the fence and math scans in `MarkdownWritingToolsProtection`, the highlighter's block
+  spacing). `isWhitespace`'s ASCII fast path falls through to the real set for it, so the scoped
+  walk and the whole-document pass stay in agreement for free.
+- `MarkdownHeadingParser`, `MarkdownHeadingEditing.classify`, and `LinePrefix` skip it explicitly.
+  These are the paired definitions: had only the reader learned about the BOM, ⌘1 on a BOM'd
+  heading would have stacked a second marker — the bug this repo has now paid for three times.
+  `MarkdownHeadingEditing` carries it in `indent`, which is what re-emits it *ahead* of the new
+  marker instead of after it.
+- `MarkdownWritingToolsProtection.frontMatterRange` allows it before the opening `---`, and still
+  returns a range starting at 0: the mark belongs to the block it precedes.
+
+The document text is never rewritten to remove it. The byte survives every edit and every save.
+
+## Backslash escapes (2026-07-27)
+
+`MarkdownInlineSyntax` had `(?<!\\)` on the asterisk-italic pattern alone, and nothing anywhere
+removed the backslash. The result was wrong in both directions at once:
+
+- `` \`not code\` `` still opened a code span, so the backticks were EATEN and stray backslashes
+  were left in their place.
+- `\[not a link\](x)` still matched the link pattern, for the same reason.
+- `\*not italic\*` correctly declined to open emphasis — and then drew the backslashes, so the
+  only way to write a literal `*` looked broken.
+
+Every opener now carries `(?<!\\)`, and `MarkdownInlineSyntax.unescape(_:)` drops the backslash.
+The two halves are one feature: the lookbehind without the unescape is the third bullet, and the
+unescape without the lookbehind is the first two.
+
+`unescape` is applied ONLY to the plain runs between tokens, in all four emitters — preview,
+HTML export, read-aloud, and Convert to Plain Text. A code span's contents are literal by
+definition (CommonMark does not process escapes inside one) and a link or image DESTINATION is
+emitted one-to-one and must never be rewritten. In HTML export it runs BEFORE the `&`/`<`
+substitution: the backslash is Markdown syntax, the entity is the output format.
+
+The Quick Look appex had been doing both correctly since it was written — it has its own
+`unescapeInline`. Finder was rendering these lines right while the app was not, which is what the
+app-versus-appex comparison in `InteropProbeTests` exists to catch.
+
+## Nested emphasis in link text — the known divergence (2026-07-27)
+
+The app's inline pass is FLAT: one earliest-match scan per line, with no recursion into a token's
+contents. So `[**bold** link](url)` draws its inner markers literally. The appex recurses and
+shows "bold link".
+
+This is deliberately left alone. Making them agree means giving the app a recursive inline model,
+and that model would have to be built three times over — preview, HTML export, and read-aloud all
+walk their own copy of the scan. That is a redesign, not a fix. It is pinned by
+`testNestedEmphasisInLinkTextIsTheKnownDivergence` so it cannot silently widen into other
+constructs.
+
+## Image destinations (2026-07-27)
+
+`MarkdownInlineSyntax.image` reads a destination as `[^\)\n]+`, so a bare `)` ends it. Reconnect
+wrote the picked file's path in verbatim, and `photo (1).png` — what every browser download is
+named — produced `![](photo (1).png)`: a link the app had just written and could no longer parse,
+leaving the placeholder permanently broken.
+
+Two halves, again:
+
+- `ImageLinkRewrite.markdownDestination(for:)` escapes only the characters that END a destination
+  — `(`, `)`, and the newlines. Spaces are deliberately left alone: they parse fine and stay
+  readable in the source. Drag/drop and paste were already safe (`sanitizedFileBase` reduces the
+  written filename to clean ASCII), but the app-container fallback path was not, and now uses the
+  same helper.
+- `ImageResolver.resolve` tries the LITERAL path first and then its percent-decoded form. This is
+  not only for what Reconnect writes: `%20` for a space is what every other editor emits, so a
+  document authored elsewhere was showing a broken-image placeholder for a file sitting right
+  beside it. Literal stays first so a filename that genuinely contains a `%` escape is never
+  decoded out from under the writer.
+
+HTML export is untouched by this — it still emits the destination exactly as the document holds it.

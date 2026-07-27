@@ -26,23 +26,37 @@ enum ImageResolver {
             return .remote
         }
 
-        let candidate: URL?
-        if trimmed.hasPrefix("/") {
-            candidate = URL(fileURLWithPath: trimmed)
-        } else if lowercased.hasPrefix("file://") {
-            candidate = URL(string: trimmed)?.standardizedFileURL ?? URL(fileURLWithPath: trimmed)
-        } else {
-            guard let documentDirectory else { return .unresolved }
-            candidate = documentDirectory.appendingPathComponent(trimmed)
+        // The LITERAL path first, then its percent-decoded form. Percent-encoded destinations are
+        // ordinary Markdown — every other editor writes `%20` for a space, and Reconnect writes
+        // `%28`/`%29` for a filename's parentheses — but they were compared against the
+        // filesystem verbatim, so a document authored elsewhere drew a broken-image placeholder
+        // for a file sitting right beside it. Literal stays first so a filename that genuinely
+        // contains a `%` escape is never decoded out from under the writer.
+        var candidates = [trimmed]
+        if let decoded = trimmed.removingPercentEncoding, decoded != trimmed {
+            candidates.append(decoded)
         }
 
-        guard let candidateURL = candidate else { return .unresolved }
-        let resolvedURL = candidateURL.standardizedFileURL
+        for path in candidates {
+            guard let resolvedURL = fileURL(for: path, documentDirectory: documentDirectory) else { continue }
+            guard isImageExtension(resolvedURL.pathExtension) else { continue }
+            guard FileManager.default.fileExists(atPath: resolvedURL.path) else { continue }
+            return .localFile(resolvedURL)
+        }
+        return .unresolved
+    }
 
-        guard isImageExtension(resolvedURL.pathExtension) else { return .unresolved }
-        guard FileManager.default.fileExists(atPath: resolvedURL.path) else { return .unresolved }
-
-        return .localFile(resolvedURL)
+    private static func fileURL(for path: String, documentDirectory: URL?) -> URL? {
+        let candidate: URL?
+        if path.hasPrefix("/") {
+            candidate = URL(fileURLWithPath: path)
+        } else if path.lowercased().hasPrefix("file://") {
+            candidate = URL(string: path)?.standardizedFileURL ?? URL(fileURLWithPath: path)
+        } else {
+            guard let documentDirectory else { return nil }
+            candidate = documentDirectory.appendingPathComponent(path)
+        }
+        return candidate?.standardizedFileURL
     }
 
     /// True when `path`'s extension is one of the recognized raster image extensions.

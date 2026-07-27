@@ -20,7 +20,14 @@ enum MarkdownHeadingParser {
         let hash = UInt16(UnicodeScalar("#").value)
 
         var cursor = 0
-        while cursor < nsLine.length, cursor < maximumIndentColumns, nsLine.character(at: cursor) == space {
+        // A leading byte-order mark is the file's encoding, not its content — skipped so a
+        // Windows-authored file's FIRST heading is a heading. `MarkdownHeadingEditing.classify`
+        // skips it in the same place; a disagreement here is the marker-stacking bug.
+        if cursor < nsLine.length, nsLine.character(at: cursor) == markdownByteOrderMark {
+            cursor += 1
+        }
+        let indentStart = cursor
+        while cursor < nsLine.length, cursor - indentStart < maximumIndentColumns, nsLine.character(at: cursor) == space {
             cursor += 1
         }
 

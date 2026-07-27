@@ -125,13 +125,16 @@ enum MarkdownHTMLRenderer {
 
         while location < nsLine.length {
             guard let token = nextToken(in: line, nsLine: nsLine, from: location) else {
-                out += escape(nsLine.substring(from: location))
+                // Markdown escapes are resolved BEFORE HTML escaping — the backslash is Markdown
+                // syntax, the `&`/`<` substitution is the output format. Only plain runs: a code
+                // span's contents are literal, and destinations are emitted one-to-one.
+                out += escape(MarkdownInlineSyntax.unescape(nsLine.substring(from: location)))
                 break
             }
             if token.range.location > location {
-                out += escape(nsLine.substring(
+                out += escape(MarkdownInlineSyntax.unescape(nsLine.substring(
                     with: NSRange(location: location, length: token.range.location - location)
-                ))
+                )))
             }
             out += emit(token)
             location = NSMaxRange(token.range)
