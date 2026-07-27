@@ -178,6 +178,9 @@ final class MarkdownRobustnessTests: XCTestCase {
             "[click](java\tscript:alert)",
             "[click](vbscript:msgbox)",
             "[click](data:text/html;base64,PHNjcmlwdD4=)",
+            // An SVG is a document and can carry script; naming only `text/html` missed it.
+            "[click](data:image/svg+xml,<svg onload=alert(1)>)",
+            "[click](data:application/xhtml+xml,x)",
         ]
         for markdown in cases {
             let html = MarkdownHTMLRenderer.inlineHTML(markdown)
@@ -196,6 +199,11 @@ final class MarkdownRobustnessTests: XCTestCase {
             ("[a](mailto:me@example.com)", "mailto:me@example.com"),
             ("[a](#anchor)", "#anchor"),
             ("[a](my javascript notes.md)", "my javascript notes.md"),
+            // App deep links are why export blocklists rather than allowlisting the way the
+            // Quick Look appex does — people really do write these in notes.
+            ("[a](obsidian://open?vault=x)", "obsidian://open?vault=x"),
+            ("[a](message://%3Cabc@example.com%3E)", "message://%3Cabc@example.com%3E"),
+            ("[a](file:///Users/me/notes.md)", "file:///Users/me/notes.md"),
         ]
         for (markdown, expected) in cases {
             let html = MarkdownHTMLRenderer.inlineHTML(markdown)

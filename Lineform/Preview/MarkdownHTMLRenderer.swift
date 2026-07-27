@@ -63,17 +63,32 @@ enum MarkdownHTMLRenderer {
     /// carrying a link that runs script when clicked. The rule is therefore a CLOSED set of
     /// executable schemes, not a policy about what URLs are acceptable.
     ///
-    /// Browsers ignore ASCII whitespace and C0 control characters inside a scheme and before it,
-    /// so `java&#9;script:` executes; the test normalises them away first. `data:` as a whole is
-    /// deliberately NOT here — `data:image/...` is a legitimate inline image, and generated
-    /// math/mermaid images rely on it — only the HTML-bearing form is executable.
+    /// A BLOCKLIST here, where `LineformQuickLook` uses an allowlist for the same question — the
+    /// difference is deliberate, not drift. Quick Look renders unattended in Finder and only needs
+    /// web links to work, so it can allow `http`/`https`/`mailto` and refuse everything else.
+    /// Export cannot: it must preserve relative paths (`images/photo.png`, which have no scheme at
+    /// all) AND app deep links — `obsidian://`, `things:///`, `message://` are things people
+    /// genuinely write in notes, and an allowlist would silently turn them into plain text.
+    ///
+    /// `data:` is refused WHOLESALE in a link, not just `data:text/html`: nobody links to a data
+    /// URI (you embed one as an image), browsers already refuse top-level navigation to them, and
+    /// naming only the HTML form left `data:image/svg+xml` — an SVG document, which can carry
+    /// script — and `data:application/xhtml+xml` open in any viewer that is more permissive.
+    /// Image `src` keeps full `data:` support, which is what generated math and mermaid rely on.
+    ///
+    /// The normalisation is deliberately BROADER than the URL spec, which strips only ASCII tab
+    /// and newline (so `java&#9;script:` runs) plus leading C0/space. Stripping every character at
+    /// or below `0x20`, anywhere, can only ever match MORE than a browser would — the same
+    /// over-broad-and-safe trade `MarkdownTableEditing.reformat` makes with backticks. The cost is
+    /// that a destination like `java script:x` is refused although no browser would run it; it
+    /// still renders as text, and no real filename looks like that.
     static func isExecutableScheme(_ destination: String) -> Bool {
         let normalized = String(String.UnicodeScalarView(
             destination.unicodeScalars.filter { $0.value > 0x20 && $0.value != 0x7F }
         )).lowercased()
         return normalized.hasPrefix("javascript:")
             || normalized.hasPrefix("vbscript:")
-            || normalized.hasPrefix("data:text/html")
+            || normalized.hasPrefix("data:")
     }
 
     // MARK: Inline

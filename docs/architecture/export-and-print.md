@@ -28,4 +28,17 @@ in this area.
   (`java&#9;script:` runs), so the test normalises those away first. **Images are deliberately
   untouched:** `javascript:` in an `img src` does not execute in any current browser, and filtering
   there would risk a legitimate `data:image` payload — which generated math and mermaid images
-  depend on. Guarded by `MarkdownRobustnessTests`.
+  depend on. `data:` is refused WHOLESALE in a link rather than only `data:text/html` — nobody links
+  to a data URI, and naming just the HTML form left `data:image/svg+xml` (an SVG is a document and
+  can carry script) and `data:application/xhtml+xml` open in any viewer more permissive than a
+  current browser.
+
+  **Export blocklists where the Quick Look appex allowlists (`http`/`https`/`mailto`), and that
+  difference is deliberate — not drift.** Quick Look renders unattended in Finder and only needs web
+  links to work, so it can refuse everything else. Export cannot: it has to preserve relative paths,
+  which carry no scheme at all, AND app deep links — `obsidian://`, `things:///`, `message://` are
+  things people genuinely write in notes, and an allowlist would silently turn them into plain text.
+  The normalisation is likewise deliberately broader than the URL spec (which strips only ASCII tab
+  and newline, plus leading C0/space): stripping everything at or below `0x20` anywhere can only
+  match MORE than a browser would, the same over-broad-and-safe trade `reformat` makes with
+  backticks. Guarded by `MarkdownRobustnessTests`, which pins the pass-through cases too.
