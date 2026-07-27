@@ -2,26 +2,6 @@ import XCTest
 @testable import Lineform
 
 final class MarkdownFormattingCommandTests: XCTestCase {
-    func testTitlePrefixesSelectedLineWithHeadingMarker() {
-        let edit = MarkdownFormattingCommand.title.apply(
-            to: "Lineform",
-            selectedRange: NSRange(location: 0, length: 8)
-        )
-
-        XCTAssertEqual(edit.text, "# Lineform")
-        XCTAssertEqual(edit.selectedRange, NSRange(location: 2, length: 8))
-    }
-
-    func testSectionPrefixesSelectedLineWithSecondLevelHeadingMarker() {
-        let edit = MarkdownFormattingCommand.section.apply(
-            to: "Features",
-            selectedRange: NSRange(location: 0, length: 8)
-        )
-
-        XCTAssertEqual(edit.text, "## Features")
-        XCTAssertEqual(edit.selectedRange, NSRange(location: 3, length: 8))
-    }
-
     func testBoldWrapsSelectedTextAndKeepsSelectionInsideMarkers() {
         let edit = MarkdownFormattingCommand.bold.apply(
             to: "Make this clear",

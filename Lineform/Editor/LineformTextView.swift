@@ -490,11 +490,40 @@ final class LineformTextView: NSTextView {
     }
 
     @objc func toggleTitleMarkdown(_ sender: Any?) {
-        applyFormattingCommand(.title)
+        applyHeadingLevel(1)
     }
 
     @objc func toggleSectionMarkdown(_ sender: Any?) {
-        applyFormattingCommand(.section)
+        applyHeadingLevel(2)
+    }
+
+    @objc func toggleHeading3Markdown(_ sender: Any?) {
+        applyHeadingLevel(3)
+    }
+
+    @objc func toggleHeading4Markdown(_ sender: Any?) {
+        applyHeadingLevel(4)
+    }
+
+    @objc func toggleHeading5Markdown(_ sender: Any?) {
+        applyHeadingLevel(5)
+    }
+
+    @objc func toggleHeading6Markdown(_ sender: Any?) {
+        applyHeadingLevel(6)
+    }
+
+    @objc func toggleBodyMarkdown(_ sender: Any?) {
+        applyHeadingLevel(nil)
+    }
+
+    /// Bails before `applyWholeTextReplacement` when nothing would change, so a dead keypress
+    /// never registers an empty undo step — the `reformatMarkdownTable` precedent.
+    private func applyHeadingLevel(_ level: Int?) {
+        guard let edit = MarkdownHeadingEditing.setLevel(level, in: string, selectedRange: selectedRange()) else {
+            return
+        }
+        applyWholeTextReplacement(edit)
     }
 
     @objc func toggleItalicMarkdown(_ sender: Any?) {

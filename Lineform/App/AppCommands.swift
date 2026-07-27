@@ -383,6 +383,35 @@ struct AppCommands: Commands {
                 }
                 .keyboardShortcut("2", modifiers: .command)
 
+                Menu("Heading") {
+                    Button("Heading 3") {
+                        NSApp.sendAction(#selector(LineformTextView.toggleHeading3Markdown(_:)), to: nil, from: nil)
+                    }
+                    .keyboardShortcut("3", modifiers: .command)
+
+                    Button("Heading 4") {
+                        NSApp.sendAction(#selector(LineformTextView.toggleHeading4Markdown(_:)), to: nil, from: nil)
+                    }
+                    .keyboardShortcut("4", modifiers: .command)
+
+                    Button("Heading 5") {
+                        NSApp.sendAction(#selector(LineformTextView.toggleHeading5Markdown(_:)), to: nil, from: nil)
+                    }
+                    .keyboardShortcut("5", modifiers: .command)
+
+                    Button("Heading 6") {
+                        NSApp.sendAction(#selector(LineformTextView.toggleHeading6Markdown(_:)), to: nil, from: nil)
+                    }
+                    .keyboardShortcut("6", modifiers: .command)
+
+                    Divider()
+
+                    Button("Body") {
+                        NSApp.sendAction(#selector(LineformTextView.toggleBodyMarkdown(_:)), to: nil, from: nil)
+                    }
+                    .keyboardShortcut("0", modifiers: .command)
+                }
+
                 Divider()
 
                 Button("Bold") {
