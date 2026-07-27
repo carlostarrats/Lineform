@@ -359,6 +359,47 @@ extension DocumentExportRenderer {
             documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
         )
     }
+
+    /// The document as a standalone HTML file.
+    ///
+    /// `MarkdownHTMLRenderer` is pure and passes every user-authored path through untouched; the
+    /// ONLY bytes produced here are the math and mermaid pictures, which have no path to preserve.
+    /// Nothing on disk is read and the network is never touched — a local image the user
+    /// referenced is emitted as its `src` string, exactly as written, and left for the browser to
+    /// resolve relative to wherever they put the file.
+    @MainActor
+    static func htmlData(text: String, title: String) -> Data {
+        // Constructed per export, matching `makeExportTextView`: these carry caches sized for a
+        // long editing session, and an export is a one-shot.
+        let mathProvider = MathImageProvider()
+        let mermaidProvider = MermaidImageProvider()
+        let ink = DiagramPalette.ink(isDark: false)
+
+        let html = MarkdownHTMLRenderer.html(for: text, title: title) { generated in
+            let image: NSImage
+            switch generated {
+            case let .math(latex):
+                guard case let .image(rendered, _) = mathProvider.outcome(
+                    latex: latex, style: .display, foreground: ink, pointSize: 16, scale: 2
+                ) else { return nil }
+                image = rendered
+            case let .mermaid(source):
+                guard case let .image(rendered) = mermaidProvider.outcome(
+                    source: source, background: .white, foreground: ink, scale: 2
+                ) else { return nil }
+                image = rendered
+            }
+            return pngData(from: image)
+        }
+        return Data(html.utf8)
+    }
+
+    /// PNG bytes for a rendered diagram/equation, or nil so the emitter falls back to the source.
+    private static func pngData(from image: NSImage) -> Data? {
+        guard let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
+    }
 }
 
 /// An `NSTextView` that paints its page white before drawing text. NSTextView's `backgroundColor`

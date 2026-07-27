@@ -331,6 +331,19 @@ struct AppCommands: Commands {
                 modifiers: [.command, .shift]
             )
 
+            // Export writes a COPY in another format and never touches the open document —
+            // deliberately separate from Save As, which retargets the .md file itself. No
+            // keyboard shortcuts: exporting is infrequent and a four-row submenu is already fast.
+            Menu("Export As") {
+                ForEach(ExportFormat.allCases, id: \.rawValue) { format in
+                    Button("\(format.title)...") {
+                        LineformAppNotification.exportDocument.post(
+                            object: LineformAppNotification.activeWindowPayload(value: String(format.rawValue))
+                        )
+                    }
+                }
+            }
+
             Divider()
 
             // Same dialogs and behavior as the sidebar's right-click actions, targeting
