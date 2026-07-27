@@ -59,4 +59,118 @@ final class MarkdownHTMLRendererTests: XCTestCase {
             #"<img src="b.png" alt="a">"#
         )
     }
+
+    // MARK: Blocks
+
+    private func body(_ markdown: String) -> String {
+        MarkdownHTMLRenderer.body(for: markdown, generatedImage: { _ in nil })
+    }
+
+    func testHeadingsBecomeHeadingTags() {
+        XCTAssertTrue(body("# Title").contains("<h1>Title</h1>"))
+        XCTAssertTrue(body("### Deeper").contains("<h3>Deeper</h3>"))
+    }
+
+    func testHeadingTextGetsInlineTreatment() {
+        XCTAssertTrue(body("## A **bold** heading").contains("<h2>A <strong>bold</strong> heading</h2>"))
+    }
+
+    func testParagraphLinesJoinWithLineBreaks() {
+        XCTAssertTrue(body("one\ntwo").contains("<p>one<br>two</p>"))
+    }
+
+    func testBlankLineSeparatesParagraphs() {
+        let html = body("one\n\ntwo")
+        XCTAssertTrue(html.contains("<p>one</p>"))
+        XCTAssertTrue(html.contains("<p>two</p>"))
+    }
+
+    func testBulletListBecomesUnorderedList() {
+        let html = body("- a\n- b")
+        XCTAssertTrue(html.contains("<ul>"))
+        XCTAssertTrue(html.contains("<li>a</li>"))
+        XCTAssertTrue(html.contains("<li>b</li>"))
+        XCTAssertTrue(html.contains("</ul>"))
+    }
+
+    func testNumberedListBecomesOrderedList() {
+        let html = body("1. a\n1. b")
+        XCTAssertTrue(html.contains("<ol>"))
+        XCTAssertTrue(html.contains("<li>a</li>"))
+    }
+
+    func testNestedListNestsTags() {
+        let html = body("- a\n  - b")
+        XCTAssertTrue(html.contains("<ul><li>a<ul><li>b</li></ul></li></ul>"))
+    }
+
+    func testTaskItemsBecomeDisabledCheckboxes() {
+        let html = body("- [ ] todo\n- [x] done")
+        XCTAssertTrue(html.contains(#"<input type="checkbox" disabled> todo"#))
+        XCTAssertTrue(html.contains(#"<input type="checkbox" disabled checked> done"#))
+    }
+
+    func testBlockquoteBecomesBlockquote() {
+        XCTAssertTrue(body("> quoted").contains("<blockquote><p>quoted</p></blockquote>"))
+    }
+
+    func testNestedBlockquoteNests() {
+        XCTAssertTrue(body("> > deep").contains("<blockquote><blockquote><p>deep</p></blockquote></blockquote>"))
+    }
+
+    func testCalloutCarriesKindClassAndTitle() {
+        let html = body("> [!WARNING]\n> careful")
+        XCTAssertTrue(html.contains(#"<blockquote class="callout callout-warning">"#))
+        XCTAssertTrue(html.contains(#"<p class="callout-title">Warning</p>"#))
+        XCTAssertTrue(html.contains("careful"))
+    }
+
+    func testCalloutUsesCustomTitleWhenGiven() {
+        XCTAssertTrue(body("> [!NOTE] Heads up\n> body").contains(#"<p class="callout-title">Heads up</p>"#))
+    }
+
+    func testTableEmitsHeaderBodyAndAlignment() {
+        let html = body("| a | b |\n| :-- | --: |\n| 1 | 2 |")
+        XCTAssertTrue(html.contains("<table>"))
+        XCTAssertTrue(html.contains("<thead>"))
+        XCTAssertTrue(html.contains(#"<th style="text-align:left">a</th>"#))
+        XCTAssertTrue(html.contains(#"<th style="text-align:right">b</th>"#))
+        XCTAssertTrue(html.contains("<tbody>"))
+        XCTAssertTrue(html.contains(#"<td style="text-align:left">1</td>"#))
+    }
+
+    func testFencedCodeCarriesLanguageClassAndIsEscaped() {
+        let html = body("```swift\nlet a = b < c\n```")
+        XCTAssertTrue(html.contains(#"<pre><code class="language-swift">"#))
+        XCTAssertTrue(html.contains("let a = b &lt; c"))
+        XCTAssertFalse(html.contains("b < c"))
+    }
+
+    func testFencedCodeWithoutLanguageOmitsClass() {
+        XCTAssertTrue(body("```\nx\n```").contains("<pre><code>"))
+    }
+
+    func testFencedCodeIsNotInlineParsed() {
+        XCTAssertTrue(body("```\n**not bold**\n```").contains("**not bold**"))
+    }
+
+    func testHorizontalRuleBecomesHR() {
+        XCTAssertTrue(body("a\n\n---\n\nb").contains("<hr>"))
+    }
+
+    func testOwnLineImageKeepsPathExactly() {
+        XCTAssertTrue(body("![d](images/a.png)").contains(#"<img src="images/a.png" alt="d">"#))
+    }
+
+    func testRelativePathIsNeverRewritten() {
+        // The single most important guarantee: what the user wrote is what comes out, with no
+        // resolution against any document directory and no data: inlining.
+        let html = body("![d](../shared/pic.png)")
+        XCTAssertTrue(html.contains(#"src="../shared/pic.png""#))
+        XCTAssertFalse(html.contains("data:"))
+    }
+
+    func testNoUnescapedAngleBracketSurvivesFromSourceText() {
+        XCTAssertFalse(body("a < b and 3 > 2").contains("a < b"))
+    }
 }

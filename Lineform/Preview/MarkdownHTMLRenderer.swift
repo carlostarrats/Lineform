@@ -134,4 +134,201 @@ enum MarkdownHTMLRenderer {
             range: match.range
         )
     }
+
+    // MARK: Blocks
+
+    /// The `<body>` inner HTML for a whole document. No shell — `html(for:title:generatedImage:)`
+    /// wraps this.
+    static func body(for text: String, generatedImage: GeneratedImageProvider) -> String {
+        let lines = text.components(separatedBy: "\n")
+        var out = ""
+        for block in markdownBlocks(in: lines) {
+            out += html(for: block, lines: lines, generatedImage: generatedImage)
+        }
+        return out
+    }
+
+    private static func html(
+        for block: MarkdownBlock,
+        lines: [String],
+        generatedImage: GeneratedImageProvider
+    ) -> String {
+        switch block {
+        case let .lines(range):
+            return linesHTML(Array(lines[range]))
+        case let .singleLineMath(latex, _):
+            return generatedHTML(.math(latex: latex), fallback: latex, generatedImage: generatedImage)
+        case let .fencedMath(latex, _):
+            return generatedHTML(.math(latex: latex), fallback: latex, generatedImage: generatedImage)
+        case let .mermaid(source, _):
+            return generatedHTML(.mermaid(source: source), fallback: source, generatedImage: generatedImage)
+        case .horizontalRule:
+            return "<hr>"
+        case let .blockquote(quoteLines, _):
+            return quoteHTML(quoteLines)
+        case let .callout(kind, title, body, _):
+            return calloutHTML(kind: kind, title: title, body: body)
+        case let .list(items, _):
+            return listHTML(items)
+        case let .table(table, _):
+            return tableHTML(table)
+        case let .fencedCode(language, body, _, _):
+            let openTag = language.isEmpty ? "<pre><code>" : "<pre><code class=\"language-\(escape(language))\">"
+            return "\(openTag)\(escape(body))</code></pre>"
+        case let .image(alt, path, _, _):
+            return "<p><img src=\"\(escape(path))\" alt=\"\(escape(alt))\"></p>"
+        }
+    }
+
+    /// A run of ordinary lines: headings become heading tags, and maximal runs of non-blank
+    /// lines become one paragraph whose source line breaks are preserved as `<br>` (matching how
+    /// Read mode lays the same lines out).
+    private static func linesHTML(_ lines: [String]) -> String {
+        var out = ""
+        var paragraph: [String] = []
+
+        func flush() {
+            guard !paragraph.isEmpty else { return }
+            out += "<p>\(paragraph.joined(separator: "<br>"))</p>"
+            paragraph.removeAll()
+        }
+
+        for line in lines {
+            if let heading = MarkdownHeadingParser.heading(in: line) {
+                flush()
+                let level = min(max(heading.level, 1), 6)
+                out += "<h\(level)>\(inlineHTML(heading.title))</h\(level)>"
+            } else if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                flush()
+            } else {
+                paragraph.append(inlineHTML(line))
+            }
+        }
+        flush()
+        return out
+    }
+
+    private static func listHTML(_ items: [MarkdownListItem]) -> String {
+        var out = ""
+        /// One entry per currently-open list, innermost last: its tag and its indent level.
+        var open: [(tag: String, level: Int)] = []
+
+        for item in items {
+            let tag = item.ordinal == nil ? "ul" : "ol"
+
+            while let last = open.last, last.level > item.indentLevel {
+                out += "</\(last.tag)></li>"
+                open.removeLast()
+            }
+
+            if let last = open.last, last.level == item.indentLevel {
+                if last.tag == tag {
+                    out += "</li>"
+                } else {
+                    // A bullet run turning into a numbered run at the same depth closes one list
+                    // and opens the other, rather than emitting mismatched tags.
+                    out += "</li></\(last.tag)>"
+                    open.removeLast()
+                    out += "<\(tag)>"
+                    open.append((tag, item.indentLevel))
+                }
+            } else {
+                // Deeper than anything open (or nothing open): nest inside the current item.
+                out += "<\(tag)>"
+                open.append((tag, item.indentLevel))
+            }
+
+            out += "<li>\(itemHTML(item))"
+        }
+
+        while let last = open.popLast() {
+            out += "</li></\(last.tag)>"
+        }
+        return out
+    }
+
+    private static func itemHTML(_ item: MarkdownListItem) -> String {
+        guard let checkbox = item.checkbox else { return inlineHTML(item.text) }
+        let checked = checkbox.isChecked ? " checked" : ""
+        return "<input type=\"checkbox\" disabled\(checked)> \(inlineHTML(item.text))"
+    }
+
+    private static func quoteHTML(_ quoteLines: [MarkdownQuoteLine]) -> String {
+        var out = ""
+        var depth = 0
+        var paragraph: [String] = []
+
+        func flush() {
+            guard !paragraph.isEmpty else { return }
+            out += "<p>\(paragraph.joined(separator: "<br>"))</p>"
+            paragraph.removeAll()
+        }
+
+        for line in quoteLines {
+            if line.depth != depth {
+                flush()
+                while depth < line.depth { out += "<blockquote>"; depth += 1 }
+                while depth > line.depth { out += "</blockquote>"; depth -= 1 }
+            }
+            if line.text.trimmingCharacters(in: .whitespaces).isEmpty {
+                flush()
+            } else {
+                paragraph.append(inlineHTML(line.text))
+            }
+        }
+        flush()
+        while depth > 0 { out += "</blockquote>"; depth -= 1 }
+        return out
+    }
+
+    private static func calloutHTML(kind: CalloutKind, title: String?, body: [MarkdownQuoteLine]) -> String {
+        let heading = (title?.isEmpty == false) ? title! : kind.displayName
+        var out = "<blockquote class=\"callout callout-\(kind.rawValue)\">"
+        out += "<p class=\"callout-title\">\(escape(heading))</p>"
+        // Body lines are already marker-stripped; render them at depth 0 inside this blockquote.
+        out += quoteHTML(body.map { MarkdownQuoteLine(depth: 0, text: $0.text) })
+        out += "</blockquote>"
+        return out
+    }
+
+    private static func tableHTML(_ table: MarkdownTable) -> String {
+        func style(_ index: Int) -> String {
+            let alignment = table.alignments.indices.contains(index) ? table.alignments[index] : .left
+            switch alignment {
+            case .left: return "left"
+            case .center: return "center"
+            case .right: return "right"
+            }
+        }
+
+        var out = "<table><thead><tr>"
+        for (index, header) in table.headers.enumerated() {
+            out += "<th style=\"text-align:\(style(index))\">\(inlineHTML(header))</th>"
+        }
+        out += "</tr></thead><tbody>"
+        for row in table.rows {
+            out += "<tr>"
+            for (index, cell) in row.enumerated() {
+                out += "<td style=\"text-align:\(style(index))\">\(inlineHTML(cell))</td>"
+            }
+            out += "</tr>"
+        }
+        out += "</tbody></table>"
+        return out
+    }
+
+    /// Math and mermaid: the only embedded bytes, because there is no user path to preserve.
+    /// A provider that declines falls back to the source as preformatted text, so a broken
+    /// formula or diagram never loses content.
+    private static func generatedHTML(
+        _ image: GeneratedImage,
+        fallback: String,
+        generatedImage: GeneratedImageProvider
+    ) -> String {
+        guard let data = generatedImage(image) else {
+            return "<pre><code>\(escape(fallback))</code></pre>"
+        }
+        let base64 = data.base64EncodedString()
+        return "<p><img src=\"data:image/png;base64,\(base64)\" alt=\"\(escape(fallback))\"></p>"
+    }
 }
