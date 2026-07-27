@@ -275,6 +275,21 @@ final class MarkdownRobustnessTests: XCTestCase {
         }
         XCTAssertEqual(protectedText(in: crlf), protectedText(in: lf), "protected regions differ")
 
+        // Write-mode syntax highlighting: line-local, and `.byLines` excludes the terminator.
+        func tokenText(in text: String) -> [String] {
+            let ns = text as NSString
+            return MarkdownRangeAnalyzer().ranges(in: text)
+                .map { "\($0.kind)/\(stripped(ns.substring(with: $0.range)))" }
+        }
+        XCTAssertEqual(tokenText(in: crlf), tokenText(in: lf), "write-mode tokens differ")
+
+        // Multi-line formatting commands prefix each line; the `\r` must ride along untouched.
+        for command in [MarkdownFormattingCommand.blockquote, .unorderedList, .orderedList] {
+            let crlfEdit = command.apply(to: crlf, selectedRange: NSRange(location: 0, length: (crlf as NSString).length))
+            let lfEdit = command.apply(to: lf, selectedRange: NSRange(location: 0, length: (lf as NSString).length))
+            XCTAssertEqual(stripped(crlfEdit.text), lfEdit.text, "\(command) differs across line endings")
+        }
+
         func checkableText(in text: String) -> [String] {
             let ns = text as NSString
             return MarkdownSpellCheckRegions
