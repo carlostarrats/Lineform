@@ -78,9 +78,14 @@ enum MarkdownHeadingEditing {
 Returning `nil` on a no-op follows `reformatMarkdownTable`: bailing before
 `applyWholeTextReplacement` is what keeps a dead keypress out of the undo stack.
 
-`MarkdownFormattingCommand.title` / `.section` are replaced by `case heading(Int)` and
-`case body`, both routed through this unit, and `prefixSelection` is deleted. That is what
-fixes ⌘1 and ⌘2, not just the new keys.
+`MarkdownFormattingCommand.title` / `.section` and `prefixSelection` are deleted, and the text
+view's heading actions call `setLevel` directly. That is what fixes ⌘1 and ⌘2, not just the new
+keys.
+
+Headings do **not** get replacement cases in `MarkdownFormattingCommand`. `apply` returns a
+non-optional `MarkdownEdit`, so a heading no-op there would have to be an identity edit, and
+routing that through `applyFormattingCommand` pushes an empty step onto the undo stack — the
+one thing `setLevel`'s `nil` return exists to prevent.
 
 ### Line classification
 

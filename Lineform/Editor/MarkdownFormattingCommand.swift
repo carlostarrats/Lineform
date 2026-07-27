@@ -78,9 +78,11 @@ enum MarkdownPlainTextConverter {
     }
 }
 
+/// Heading levels are deliberately absent: `apply` returns a non-optional edit, so a heading
+/// no-op would have to become an identity edit, and routing that through
+/// `applyFormattingCommand` pushes an empty step onto the undo stack.
+/// `MarkdownHeadingEditing.setLevel` returns `nil` instead, and `applyHeadingLevel` bails.
 enum MarkdownFormattingCommand {
-    case heading(Int)
-    case body
     case bold
     case italic
     case inlineCode
@@ -92,12 +94,6 @@ enum MarkdownFormattingCommand {
 
     func apply(to text: String, selectedRange: NSRange) -> MarkdownEdit {
         switch self {
-        case let .heading(level):
-            return MarkdownHeadingEditing.setLevel(level, in: text, selectedRange: selectedRange)
-                ?? MarkdownEdit(text: text, selectedRange: selectedRange)
-        case .body:
-            return MarkdownHeadingEditing.setLevel(nil, in: text, selectedRange: selectedRange)
-                ?? MarkdownEdit(text: text, selectedRange: selectedRange)
         case .bold:
             return toggleMarkers("**", in: text, selectedRange: selectedRange)
         case .italic:

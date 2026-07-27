@@ -108,10 +108,16 @@ final class MarkdownHeadingEditingTests: XCTestCase {
     // MARK: - Setting a level
 
     /// The contract the shipped Title command already had: the selection stays on the text.
+    /// These two assertions moved here verbatim from `MarkdownFormattingCommandTests` when
+    /// headings left that enum — they encode the sane path, and this change must not move it.
     func testSetsLevelOnProseAndKeepsTheTextSelected() {
-        let edit = MarkdownHeadingEditing.setLevel(1, in: "Lineform", selectedRange: NSRange(location: 0, length: 8))
-        XCTAssertEqual(edit?.text, "# Lineform")
-        XCTAssertEqual(edit?.selectedRange, NSRange(location: 2, length: 8))
+        let title = MarkdownHeadingEditing.setLevel(1, in: "Lineform", selectedRange: NSRange(location: 0, length: 8))
+        XCTAssertEqual(title?.text, "# Lineform")
+        XCTAssertEqual(title?.selectedRange, NSRange(location: 2, length: 8))
+
+        let section = MarkdownHeadingEditing.setLevel(2, in: "Features", selectedRange: NSRange(location: 0, length: 8))
+        XCTAssertEqual(section?.text, "## Features")
+        XCTAssertEqual(section?.selectedRange, NSRange(location: 3, length: 8))
     }
 
     /// Regression: the shipped `prefixSelection` produced `"# ## Section"`, which is not a
@@ -220,6 +226,40 @@ final class MarkdownHeadingEditingTests: XCTestCase {
     func testLeavesTheFinalLineWithoutATerminator() {
         let edit = MarkdownHeadingEditing.setLevel(1, in: "One\nTwo", selectedRange: NSRange(location: 5, length: 0))
         XCTAssertEqual(edit?.text, "One\n# Two")
+    }
+
+    /// Every returned range is handed to `setSelectedRange`, where out of bounds is an
+    /// exception rather than a wrong caret. Sweep every caret position against every level.
+    func testEveryReturnedSelectionIsInsideTheRewrittenText() {
+        let samples = [
+            "## Notes",
+            "  ### Indented",
+            "Prose",
+            "###### Deep",
+            "## ",
+            "One\n## Two\n- skip\nThree",
+        ]
+
+        for text in samples {
+            let length = (text as NSString).length
+            for caret in 0...length {
+                for level in [nil, 1, 3, 6] as [Int?] {
+                    for extent in [0, max(0, length - caret)] {
+                        let range = NSRange(location: caret, length: extent)
+                        guard let edit = MarkdownHeadingEditing.setLevel(level, in: text, selectedRange: range) else {
+                            continue
+                        }
+                        let edited = (edit.text as NSString).length
+                        XCTAssertGreaterThanOrEqual(edit.selectedRange.location, 0, "\(text) \(range) \(String(describing: level))")
+                        XCTAssertLessThanOrEqual(
+                            NSMaxRange(edit.selectedRange),
+                            edited,
+                            "\(text) caret \(caret) extent \(extent) level \(String(describing: level))"
+                        )
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Text view integration

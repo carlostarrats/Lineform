@@ -95,10 +95,6 @@ enum MarkdownHeadingEditing {
         }
 
         let block = ns.lineRange(for: selectedRange)
-        guard block.length > 0 || ns.length == 0 else {
-            return nil
-        }
-
         var lineStarts: [Int] = []
         var contents: [String] = []
         var terminators: [String] = []
@@ -183,8 +179,14 @@ enum MarkdownHeadingEditing {
             markerEnds: markerEnds,
             deltas: deltas
         )
+        // Clamped to the rewritten text: this range goes straight to `setSelectedRange`, where
+        // an out-of-bounds value is a hard exception rather than a wrong caret.
+        let editedLength = (edited as NSString).length
         guard selectedRange.length > 0 else {
-            return MarkdownEdit(text: edited, selectedRange: NSRange(location: start, length: 0))
+            return MarkdownEdit(
+                text: edited,
+                selectedRange: NSRange(location: min(max(0, start), editedLength), length: 0)
+            )
         }
         let end = mappedLocation(
             NSMaxRange(selectedRange),
@@ -194,7 +196,12 @@ enum MarkdownHeadingEditing {
             markerEnds: markerEnds,
             deltas: deltas
         )
-        return MarkdownEdit(text: edited, selectedRange: NSRange(location: start, length: max(0, end - start)))
+        let clampedStart = min(max(0, start), editedLength)
+        let clampedEnd = min(max(clampedStart, end), editedLength)
+        return MarkdownEdit(
+            text: edited,
+            selectedRange: NSRange(location: clampedStart, length: clampedEnd - clampedStart)
+        )
     }
 
     /// Where a location in the original text lands in the rewritten text.

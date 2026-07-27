@@ -510,6 +510,13 @@ git commit -m "Set heading level across the lines a selection touches"
 
 ### Task 3: Route the formatting commands through it
 
+> **Superseded during review.** Headings got no replacement cases in
+> `MarkdownFormattingCommand` after all: `apply` returns a non-optional edit, so a heading
+> no-op there has to be an identity edit, and routing that through `applyFormattingCommand`
+> pushes an empty step onto the undo stack. `.title` / `.section` / `prefixSelection` were
+> deleted outright and `LineformTextView` calls `MarkdownHeadingEditing.setLevel` directly.
+> The two heading assertions moved to `MarkdownHeadingEditingTests` verbatim.
+
 **Files:**
 - Modify: `Lineform/Editor/MarkdownFormattingCommand.swift:81-140`
 - Modify: `Lineform/Editor/LineformTextView.swift:492-498`
