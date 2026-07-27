@@ -4,7 +4,8 @@ Lineform edits real Markdown files. The app keeps the source visible so the file
 
 ## Common Syntax
 
-- `# Heading`
+- `# Heading` — one to six `#` set the level. ⌘1 to ⌘6 set it from the keyboard, ⌘0 turns a
+  heading back into ordinary text, and pressing a line's current level clears it.
 - `**Bold**`
 - `_Italic_`
 - `` `Code` ``
