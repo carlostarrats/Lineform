@@ -52,7 +52,7 @@
 		1F00001C0000000000000001 /* MarkdownCalloutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001C0000000000000002 /* MarkdownCalloutTests.swift */; };
 		1F00001E0000000000000001 /* ImageResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001E0000000000000002 /* ImageResolverTests.swift */; };
 		1F00002A0000000000000001 /* ImageExportPreflightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002A0000000000000002 /* ImageExportPreflightTests.swift */; };
-		1F00002B0000000000000001 /* SaveAsFormatDescriptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002B0000000000000002 /* SaveAsFormatDescriptionTests.swift */; };
+		1F00002B0000000000000001 /* ExportFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002B0000000000000002 /* ExportFormatTests.swift */; };
 		1F0000200000000000000001 /* ImageFitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000200000000000000002 /* ImageFitTests.swift */; };
 		1F0000220000000000000001 /* ImageAttachmentProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000220000000000000002 /* ImageAttachmentProviderTests.swift */; };
 		1F0000240000000000000001 /* ImageLinkRewriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000240000000000000002 /* ImageLinkRewriteTests.swift */; };
@@ -252,7 +252,7 @@
 		1F0000290000000000000002 /* ImageExportPreflight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageExportPreflight.swift; sourceTree = "<group>"; };
 		1F00001E0000000000000002 /* ImageResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageResolverTests.swift; sourceTree = "<group>"; };
 		1F00002A0000000000000002 /* ImageExportPreflightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageExportPreflightTests.swift; sourceTree = "<group>"; };
-		1F00002B0000000000000002 /* SaveAsFormatDescriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAsFormatDescriptionTests.swift; sourceTree = "<group>"; };
+		1F00002B0000000000000002 /* ExportFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatTests.swift; sourceTree = "<group>"; };
 		1F00001F0000000000000002 /* ImageFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFit.swift; sourceTree = "<group>"; };
 		1F0000200000000000000002 /* ImageFitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFitTests.swift; sourceTree = "<group>"; };
 		1F0000210000000000000002 /* ImageRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRendering.swift; sourceTree = "<group>"; };
@@ -660,7 +660,7 @@
 				1F000002000000000000032E /* OutlineInfoContrastTests.swift */,
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
 				1F0000020000000000000235 /* DiagramReportServiceTests.swift */,
-				1F00002B0000000000000002 /* SaveAsFormatDescriptionTests.swift */,
+				1F00002B0000000000000002 /* ExportFormatTests.swift */,
 			);
  			path = LineformTests;
  			sourceTree = "<group>";
@@ -1011,7 +1011,7 @@
 				1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */,
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
 				1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */,
-				1F00002B0000000000000001 /* SaveAsFormatDescriptionTests.swift in Sources */,
+				1F00002B0000000000000001 /* ExportFormatTests.swift in Sources */,
 			);
  			runOnlyForDeploymentPostprocessing = 0;
  		};

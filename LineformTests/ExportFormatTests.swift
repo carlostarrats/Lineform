@@ -1,7 +1,7 @@
 import XCTest
 @testable import Lineform
 
-final class SaveAsFormatDescriptionTests: XCTestCase {
+final class ExportFormatTests: XCTestCase {
     func testEachFormatHasADistinctNonEmptyDescription() {
         let descriptions = ExportFormat.allCases.map(\.description)
         XCTAssertFalse(descriptions.contains(where: \.isEmpty))

@@ -104,6 +104,33 @@ final class MarkdownHTMLRendererTests: XCTestCase {
         XCTAssertTrue(html.contains("<ul><li>a<ul><li>b</li></ul></li></ul>"))
     }
 
+    func testAscendingOutOfANestedListClosesBothTagsInOrder() {
+        // Regression: with only two items the end-of-list drain ran, which was already correct;
+        // a THIRD item back at the outer level takes the ascend path, which emitted
+        // `<li>b</ul></li></li>` — an unclosed inner <li> and a doubled close.
+        let html = body("- a\n  - b\n- c")
+        XCTAssertTrue(
+            html.contains("<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>"),
+            "Malformed nesting: \(html)"
+        )
+        XCTAssertFalse(html.contains("</li></li>"))
+    }
+
+    func testAscendingTwoLevelsAtOnceClosesEveryOpenList() {
+        let html = body("- a\n  - b\n    - c\n- d")
+        XCTAssertFalse(html.contains("</li></li>"))
+        XCTAssertEqual(
+            html.components(separatedBy: "<ul>").count,
+            html.components(separatedBy: "</ul>").count,
+            "Unbalanced <ul> tags: \(html)"
+        )
+        XCTAssertEqual(
+            html.components(separatedBy: "<li>").count,
+            html.components(separatedBy: "</li>").count,
+            "Unbalanced <li> tags: \(html)"
+        )
+    }
+
     func testTaskItemsBecomeDisabledCheckboxes() {
         let html = body("- [ ] todo\n- [x] done")
         XCTAssertTrue(html.contains(#"<input type="checkbox" disabled> todo"#))
@@ -205,6 +232,25 @@ final class MarkdownHTMLRendererTests: XCTestCase {
         })
         XCTAssertTrue(html.contains("data:image/png;base64,\(png.base64EncodedString())"))
         XCTAssertTrue(html.contains(#"alt="x^2""#))
+    }
+
+    func testMultiLineAltTextNeverBreaksTheAttribute() {
+        // Regression: a mermaid source used as `alt` carried its raw newlines straight into the
+        // attribute, splitting `alt="graph TD;` across real lines in the exported file.
+        let html = MarkdownHTMLRenderer.html(
+            for: "```mermaid\ngraph TD;\nA-->B;\n```",
+            title: "t",
+            generatedImage: { _ in Data([0x89]) }
+        )
+        let imgLine = html.components(separatedBy: "\n").first { $0.contains("<img") }
+        XCTAssertNotNil(imgLine)
+        XCTAssertTrue(imgLine?.hasSuffix("</p>") == true, "alt attribute split across lines: \(html)")
+        XCTAssertTrue(html.contains("&#10;"))
+    }
+
+    func testAttributeEscapingEncodesNewlinesButTextDoesNot() {
+        XCTAssertEqual(MarkdownHTMLRenderer.escapeAttribute("a\nb"), "a&#10;b")
+        XCTAssertEqual(MarkdownHTMLRenderer.escape("a\nb"), "a\nb")
     }
 
     func testMermaidFallsBackToSourceWhenProviderDeclines() {

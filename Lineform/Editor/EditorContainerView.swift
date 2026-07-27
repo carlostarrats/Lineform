@@ -1828,8 +1828,6 @@ struct EditorContainerView: View {
         }
     }
 
-    /// One "Save As…" panel with a Format picker: Markdown writes the real `.md`; PDF / Styled PDF /
-    /// RTF export the rendered document. Replaces the old separate "Export As" submenu.
     /// File ▸ Save As… — retargets the document's own .md file. Markdown only: every other
     /// format is File ▸ Export As, which writes a COPY and leaves this document alone.
     private func saveAsDocument() {

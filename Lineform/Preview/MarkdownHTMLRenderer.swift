@@ -27,6 +27,17 @@ enum MarkdownHTMLRenderer {
 
     // MARK: Escaping
 
+    /// Escapes for an ATTRIBUTE value: everything `escape` does, plus newlines. A mermaid source
+    /// or multi-line equation used as `alt` would otherwise split the attribute across real lines
+    /// — valid enough for browsers, but it breaks naive parsers and minifiers, and it makes the
+    /// exported file read as corrupt.
+    static func escapeAttribute(_ text: String) -> String {
+        escape(text)
+            .replacingOccurrences(of: "\r\n", with: "&#10;")
+            .replacingOccurrences(of: "\n", with: "&#10;")
+            .replacingOccurrences(of: "\r", with: "&#10;")
+    }
+
     /// Escapes the four characters that can break out of text or an attribute value.
     static func escape(_ text: String) -> String {
         var out = ""
@@ -86,8 +97,8 @@ enum MarkdownHTMLRenderer {
         case .italic: return "<em>\(text)</em>"
         case .code: return "<code>\(text)</code>"
         case .strikethrough: return "<del>\(text)</del>"
-        case .image: return "<img src=\"\(escape(token.destination))\" alt=\"\(text)\">"
-        case .link: return "<a href=\"\(escape(token.destination))\">\(text)</a>"
+        case .image: return "<img src=\"\(escapeAttribute(token.destination))\" alt=\"\(escapeAttribute(token.text))\">"
+        case .link: return "<a href=\"\(escapeAttribute(token.destination))\">\(text)</a>"
         }
     }
 
@@ -167,10 +178,10 @@ enum MarkdownHTMLRenderer {
         case let .table(table, _):
             return tableHTML(table)
         case let .fencedCode(language, body, _, _):
-            let openTag = language.isEmpty ? "<pre><code>" : "<pre><code class=\"language-\(escape(language))\">"
+            let openTag = language.isEmpty ? "<pre><code>" : "<pre><code class=\"language-\(escapeAttribute(language))\">"
             return "\(openTag)\(escape(body))</code></pre>"
         case let .image(alt, path, _, _):
-            return "<p><img src=\"\(escape(path))\" alt=\"\(escape(alt))\"></p>"
+            return "<p><img src=\"\(escapeAttribute(path))\" alt=\"\(escapeAttribute(alt))\"></p>"
         }
     }
 
@@ -210,8 +221,12 @@ enum MarkdownHTMLRenderer {
         for item in items {
             let tag = item.ordinal == nil ? "ul" : "ol"
 
+            // Ascending out of a nested list closes the current ITEM, then its list — leaving the
+            // PARENT's <li> still open, which the equal-level branch below then closes. Emitting
+            // these two the other way round produces `<li>b</ul></li></li>`: an unclosed inner item
+            // and a doubled close.
             while let last = open.last, last.level > item.indentLevel {
-                out += "</\(last.tag)></li>"
+                out += "</li></\(last.tag)>"
                 open.removeLast()
             }
 
@@ -323,7 +338,7 @@ enum MarkdownHTMLRenderer {
             return "<pre><code>\(escape(fallback))</code></pre>"
         }
         let base64 = data.base64EncodedString()
-        return "<p><img src=\"data:image/png;base64,\(base64)\" alt=\"\(escape(fallback))\"></p>"
+        return "<p><img src=\"data:image/png;base64,\(base64)\" alt=\"\(escapeAttribute(fallback))\"></p>"
     }
 
     // MARK: Document
