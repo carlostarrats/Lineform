@@ -172,7 +172,7 @@ enum MarkdownWritingToolsProtection {
 
             // ONE leading-whitespace scan, shared by both classifications below. Deliberately
             // not `fenceMarker`, which skips only space/tab: this must match
-            // `trimmingCharacters(in: .whitespaces)` for the equivalence to hold.
+            // `trimmingCharacters(in: lineTrimCharacters)` for the equivalence to hold.
             var lower = offset
             while lower < contentsEnd, isWhitespace(unit(lower)) {
                 lower += 1
@@ -226,7 +226,7 @@ enum MarkdownWritingToolsProtection {
             } else if contentsEnd > scopeStart {
                 // The ONLY allocating branch, and only for lines that can produce output.
                 let line = text.substring(with: NSRange(location: offset, length: contentLength))
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                let trimmed = line.trimmingCharacters(in: lineTrimCharacters)
                 if MathBlockFence.singleLineBlock(trimmed) != nil {
                     ranges.append(NSRange(location: offset, length: contentLength))
                 } else {
@@ -255,15 +255,27 @@ enum MarkdownWritingToolsProtection {
             .filter { $0.length > 0 }
     }
 
-    /// `CharacterSet.whitespaces` membership for one UTF-16 unit, with an ASCII fast path.
+    /// What the whole-document passes trim from a line: `CharacterSet.whitespaces` plus `\r`.
     ///
-    /// Must agree with `String.trimmingCharacters(in: .whitespaces)` exactly — the scoped walk's
-    /// equivalence to the whole-document passes depends on classifying lines the same way. The
-    /// fast path is only an optimization: space and tab are in the set, every other ASCII
-    /// character is not, and anything non-ASCII falls through to the real set.
+    /// Lines here are split on `\n`, so the only newline a line can carry is the `\r` of a CRLF
+    /// ending — and `.whitespaces` does NOT contain it (that is `.whitespacesAndNewlines`). Without
+    /// `\r` in the set, a Windows-authored file's `$$` never read as a block delimiter and its
+    /// front matter never opened, so math blocks and YAML were left unprotected: Writing Tools
+    /// could rewrite them, the spell checker flagged them, and ⌘1 inside front matter prepended a
+    /// heading marker to a YAML key. `\n` itself is deliberately NOT in the set — a line cannot
+    /// contain one, and adding it would change nothing except make that guarantee less obvious.
+    static let lineTrimCharacters = CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\r"))
+
+    /// `lineTrimCharacters` membership for one UTF-16 unit, with an ASCII fast path.
+    ///
+    /// Must agree with `trimmingCharacters(in: lineTrimCharacters)` exactly — the scoped walk's
+    /// equivalence to the whole-document passes depends on classifying lines the same way, so the
+    /// two move together or not at all. The fast path is only an optimization: space, tab, and
+    /// carriage return are in the set, every other ASCII character is not, and anything non-ASCII
+    /// falls through to the real set.
     @inline(__always)
     private static func isWhitespace(_ unit: UInt16) -> Bool {
-        if unit == 0x20 || unit == 0x09 {
+        if unit == 0x20 || unit == 0x09 || unit == 0x0D {
             return true
         }
         if unit < 0x80 {
@@ -272,7 +284,7 @@ enum MarkdownWritingToolsProtection {
         guard let scalar = UnicodeScalar(unit) else {
             return false
         }
-        return CharacterSet.whitespaces.contains(scalar)
+        return lineTrimCharacters.contains(scalar)
     }
 
     /// Ranges of LaTeX math regions — inline `$…$` and display `$$…$$` blocks — so Writing Tools
@@ -286,7 +298,7 @@ enum MarkdownWritingToolsProtection {
         var inCodeFence = false
 
         for (index, line) in lines.enumerated() {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let trimmed = line.trimmingCharacters(in: lineTrimCharacters)
             let hasNewline = index < lines.count - 1
             let storedLineLength = (line as NSString).length + (hasNewline ? 1 : 0)
 
@@ -335,21 +347,31 @@ enum MarkdownWritingToolsProtection {
     /// Identical to the `String` overload, which delegates here — so the scoped path can avoid
     /// bridging the whole document just to test a four-character prefix.
     private static func frontMatterRange(in nsText: NSString) -> NSRange? {
-        guard nsText.hasPrefix("---\n") else {
+        // Both delimiters may carry the `\r` of a CRLF ending. Search still keys off the `\n`,
+        // which is present either way; only the lengths consumed around it differ.
+        let opensWithCRLF = nsText.hasPrefix("---\r\n")
+        guard opensWithCRLF || nsText.hasPrefix("---\n") else {
             return nil
         }
 
-        // The opening delimiter occupies positions 0...3 ("---\n"). Search from the
-        // trailing newline (position 3) so a closing "\n---" that immediately follows
-        // the opening — i.e. empty front matter ("---\n---") — is still detected.
-        let searchRange = NSRange(location: 3, length: max(0, nsText.length - 3))
+        // Search from the opening delimiter's own trailing newline so a closing "\n---" that
+        // immediately follows the opening — i.e. empty front matter ("---\n---") — is detected.
+        let newlineOffset = opensWithCRLF ? 4 : 3
+        let searchRange = NSRange(location: newlineOffset, length: max(0, nsText.length - newlineOffset))
         let closingRange = nsText.range(of: "\n---", options: [], range: searchRange)
         guard closingRange.location != NSNotFound else {
             return nil
         }
 
-        let end = min(nsText.length, closingRange.location + closingRange.length + 1)
-        return NSRange(location: 0, length: end)
+        // Consume the closing "---" and its line ending, which is "\r\n", "\n", or absent at EOF.
+        var end = NSMaxRange(closingRange)
+        if end < nsText.length, nsText.character(at: end) == UInt16(UnicodeScalar("\r").value) {
+            end += 1
+        }
+        if end < nsText.length, nsText.character(at: end) == UInt16(UnicodeScalar("\n").value) {
+            end += 1
+        }
+        return NSRange(location: 0, length: min(nsText.length, end))
     }
 
     private static func fencedCodeRanges(in text: String) -> [NSRange] {
@@ -360,7 +382,7 @@ enum MarkdownWritingToolsProtection {
         var openFenceMarker: String?
 
         for (index, line) in lines.enumerated() {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let trimmed = line.trimmingCharacters(in: lineTrimCharacters)
             let lineLength = (line as NSString).length
             let hasNewline = index < lines.count - 1
             let storedLineLength = lineLength + (hasNewline ? 1 : 0)

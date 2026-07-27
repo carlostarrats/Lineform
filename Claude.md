@@ -101,6 +101,7 @@ file named after it carries the full story and the reasoning.
 - Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
 
 **Rendering** (`rendering.md`)
+- `MarkdownWritingToolsProtection` handles CRLF separately (it works on real offsets and cannot strip): it trims with `lineTrimCharacters` = whitespace + `\r`, in BOTH the whole-document passes and the scoped `isWhitespace` walk, which must stay in agreement.
 - `markdownSourceLines(in:)` is the ONE splitter every renderer uses. It strips a CRLF file's `\r` (without it no code fence ever closes and the document collapses into one code block) while reporting each line's range in the ORIGINAL text (the stripped `\r` still occupies a UTF-16 unit, so recomputed offsets drift and misaim checkbox toggle, Reconnect, copy, and scroll restore). Never fix CRLF by normalising the document text — that rewrites the user's file.
 - The mermaid orientation flip and the supported-type routing are coupled to the pinned BeautifulMermaid version. Re-check both if the pin moves, or diagrams render upside down or as garbage flowcharts.
 - Math images must stay CGImage-backed, or block math exports upside down in PDFs.

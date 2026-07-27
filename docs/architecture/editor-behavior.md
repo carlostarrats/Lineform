@@ -80,6 +80,25 @@ in this area.
   whole-document walk is additionally gated behind a cheap line-local prefix match, so Returns on
   ordinary prose (0.001 ms) never pay for it.
 
+## Line endings in the protection layer
+
+`MarkdownWritingToolsProtection` has its own CRLF handling, separate from the renderer's
+`markdownSourceLines(in:)`, because it works on the REAL document text at real offsets and cannot
+strip anything. It trims lines with `lineTrimCharacters` (`CharacterSet.whitespaces` **plus `\r`**)
+instead: lines are split on `\n`, so the only newline a line can carry is a CRLF's `\r`, and
+`.whitespaces` does not contain it. Without that, a Windows-authored file's `$$` never read as a
+block delimiter and `---` never opened front matter, so YAML and math were left unprotected —
+Writing Tools could rewrite them, the spell checker flagged them, and ⌘1 inside front matter
+prepended a heading marker to a YAML key.
+
+**Two implementations must agree.** The whole-document passes trim with `lineTrimCharacters`; the
+scoped `CFStringInlineBuffer` walk classifies the same lines through `isWhitespace(_:)`. They are
+the same rule written twice for performance, so they move together or not at all —
+`testScopedAndWholeDocumentPassesAgreeOnCRLF` is what holds them to it. `\n` is deliberately absent
+from the set: a line cannot contain one, and adding it would only make that guarantee less obvious.
+`frontMatterRange` accepts `\r\n` on both delimiters while still keying its search off the `\n`
+that is present either way.
+
 ## Live spell check
 
 Shipped 2026-07-26 (backlog item 2). Design:
