@@ -80,6 +80,34 @@ in this area.
   whole-document walk is additionally gated behind a cheap line-local prefix match, so Returns on
   ordinary prose (0.001 ms) never pay for it.
 
+## Line endings on insert
+
+Lineform never normalises a document's line endings — rewriting them would change lines the writer
+never touched and produce a whole-file Git diff. But every insertion used to emit a bare `\n`, so a
+Windows-authored file gained LF lines wherever it was edited and ended up MIXED.
+`MarkdownLineEnding.inForce(at:in:)` (`Lineform/Editor/MarkdownLineEnding.swift`) now decides what
+to insert, and the four insertion sites use it: plain Return, list continuation, Insert Table /
+Tab's appended row, and Reformat Table (which rewrites the table's INTERIOR terminators, so joining
+with `"\n"` converted a CRLF table to LF on every ⌃⌘R).
+
+**It reads the LOCAL convention, not a whole-document tally.** This runs on every Return, and a
+per-keystroke whole-document scan is the mistake `MarkdownSpellCheckRegions` and
+`MarkdownListContinuation` were both built to avoid. Reading the terminator of the caret's own line
+costs one line's length — and in a file with mixed endings it also gives the better answer.
+
+**Bypassing `super.insertNewline` for the CRLF case carries no new risk.** `insertNewline` is
+reached only after the input context has resolved the keypress — that is why it, and never
+`keyDown`, is the hook — and list continuation has bypassed `super` on this same path since it
+shipped. The LF case still goes through `super`, so the overwhelmingly common path is untouched.
+**No automated test can cover IME composition**; that needs a manual check with a Japanese or
+Chinese input source in a CRLF document.
+
+`MarkdownTableEditing.locate` also stepped to the next line with `NSMaxRange(line) + 1`, which in a
+CRLF file lands on the `\n` still inside THIS line's `\r\n`: `lineRange` returned the same line, the
+walk broke immediately, and no table was ever found below the caret — Tab between cells and Reformat
+did not work at all in a Windows-authored document. It now steps through the paragraph range, which
+includes the whole terminator.
+
 ## Line endings in the protection layer
 
 `MarkdownWritingToolsProtection` has its own CRLF handling, separate from the renderer's

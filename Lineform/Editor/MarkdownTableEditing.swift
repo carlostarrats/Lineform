@@ -43,13 +43,22 @@ enum MarkdownTableEditing {
             runLines.insert(previous, at: 0)
             cursor = previous.location
         }
-        cursor = NSMaxRange(caretLine)
+        // Step to the next line through the PARAGRAPH range, which includes the whole terminator.
+        // `NSMaxRange(caretLine) + 1` assumed a one-character one: in a CRLF document it landed on
+        // the `\n` still inside THIS line's `\r\n`, so `lineRange` handed back the same line, the
+        // walk broke immediately, and no table was ever found below the caret — Tab between cells
+        // and Reformat simply did not work in a Windows-authored file.
+        func startOfLineAfter(_ line: NSRange) -> Int {
+            NSMaxRange(ns.lineRange(for: NSRange(location: line.location, length: 0)))
+        }
+        cursor = startOfLineAfter(caretLine)
         while cursor < ns.length {
-            let next = lineRange(in: ns, at: cursor + 1)
-            guard next.location > cursor,
-                  MarkdownTableParser.looksLikeRow(ns.substring(with: next)) else { break }
+            let next = lineRange(in: ns, at: cursor)
+            guard MarkdownTableParser.looksLikeRow(ns.substring(with: next)) else { break }
             runLines.append(next)
-            cursor = NSMaxRange(next)
+            let following = startOfLineAfter(next)
+            guard following > cursor else { break }
+            cursor = following
         }
 
         // Within the run, the table starts at the FIRST line whose successor is a matching
@@ -133,7 +142,8 @@ enum MarkdownTableEditing {
         if target < 0 { return .stay }
         if target < cells.count { return .select(cells[target]) }
 
-        let insertion = "\n" + row(
+        let ending = MarkdownLineEnding.inForce(at: region.range.location, in: ns)
+        let insertion = ending.text + row(
             cells: Array(repeating: "", count: region.table.columnCount),
             widths: columnWidths(for: region),
             indent: region.indent
@@ -142,8 +152,8 @@ enum MarkdownTableEditing {
         return .appendRow(
             insertion: insertion,
             at: at,
-            // Past the newline, the indent, the opening pipe, and its following space.
-            selecting: NSRange(location: at + 1 + (region.indent as NSString).length + 2, length: 0)
+            // Past the line ending, the indent, the opening pipe, and its following space.
+            selecting: NSRange(location: at + ending.length + (region.indent as NSString).length + 2, length: 0)
         )
     }
 
@@ -161,8 +171,12 @@ enum MarkdownTableEditing {
 
         let before = ns.substring(to: replaced.location)
         let after = ns.substring(from: NSMaxRange(replaced))
-        let leading = before.isEmpty || before.hasSuffix("\n\n") ? "" : (before.hasSuffix("\n") ? "\n" : "\n\n")
-        let trailing = after.isEmpty || after.hasPrefix("\n\n") ? "" : (after.hasPrefix("\n") ? "\n" : "\n\n")
+        // Blank-line separation is measured and written in the document's OWN line ending, so a
+        // table inserted into a CRLF file does not seed LF lines around itself.
+        let ending = MarkdownLineEnding.inForce(at: selectedRange.location, in: ns).text
+        let blankLine = ending + ending
+        let leading = before.isEmpty || before.hasSuffix(blankLine) ? "" : (before.hasSuffix(ending) ? ending : blankLine)
+        let trailing = after.isEmpty || after.hasPrefix(blankLine) ? "" : (after.hasPrefix(ending) ? ending : blankLine)
 
         let widths = Array(repeating: 3, count: insertedColumnCount)
         let blank = Array(repeating: "", count: insertedColumnCount)
@@ -172,7 +186,7 @@ enum MarkdownTableEditing {
             lines.append(row(cells: blank, widths: widths, indent: ""))
         }
 
-        let replacement = leading + lines.joined(separator: "\n") + trailing
+        let replacement = leading + lines.joined(separator: ending) + trailing
         var edited = text
         if let swiftRange = Range(replaced, in: edited) {
             edited.replaceSubrange(swiftRange, with: replacement)
@@ -221,7 +235,9 @@ enum MarkdownTableEditing {
         ))
         lines.append(contentsOf: region.table.rows.map { row(cells: $0, widths: widths, indent: region.indent) })
 
-        let replacement = lines.joined(separator: "\n")
+        // `region.range` spans the table's interior terminators, so this rewrites them — joining
+        // with a bare "\n" silently converted a CRLF table to LF on every ⌃⌘R.
+        let replacement = lines.joined(separator: MarkdownLineEnding.inForce(at: region.range.location, in: ns).text)
         guard replacement != original else { return nil }
 
         var edited = text

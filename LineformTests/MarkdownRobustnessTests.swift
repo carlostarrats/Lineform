@@ -290,6 +290,28 @@ final class MarkdownRobustnessTests: XCTestCase {
             XCTAssertEqual(stripped(crlfEdit.text), lfEdit.text, "\(command) differs across line endings")
         }
 
+        // Every INSERTION path must leave the document uniformly CRLF. Reading correctly is only
+        // half of it: an edit that seeds a bare LF makes the file mixed, which is the diff-noise
+        // problem line-ending preservation exists to prevent.
+        func hasBareLF(_ text: String) -> Bool {
+            text.replacingOccurrences(of: "\r\n", with: "").contains("\n")
+        }
+        let tableCaret = (crlf as NSString).range(of: "| 1 | 2 |").location + 2
+        if case let .continue(insertion)? = MarkdownListContinuation.outcome(
+            for: crlf, selectedRange: NSRange(location: (crlf as NSString).range(of: "task one").location + 8, length: 0)
+        ) {
+            XCTAssertFalse(hasBareLF(insertion), "list continuation seeded a bare LF")
+        } else {
+            XCTFail("expected a list continuation in the CRLF document")
+        }
+        XCTAssertFalse(
+            hasBareLF(MarkdownTableEditing.insertion(in: crlf, selectedRange: NSRange(location: tableCaret, length: 0)).text),
+            "Insert Table seeded a bare LF"
+        )
+        if let reformatted = MarkdownTableEditing.reformat(in: crlf, selectedRange: NSRange(location: tableCaret, length: 0))?.text {
+            XCTAssertFalse(hasBareLF(reformatted), "Reformat Table converted CRLF to LF")
+        }
+
         func checkableText(in text: String) -> [String] {
             let ns = text as NSString
             return MarkdownSpellCheckRegions
@@ -298,6 +320,74 @@ final class MarkdownRobustnessTests: XCTestCase {
                 .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         }
         XCTAssertEqual(checkableText(in: crlf), checkableText(in: lf), "spell-checked regions differ")
+    }
+
+    // MARK: - Line-ending preservation on insert
+
+    /// Lineform never normalises a document's endings, so every INSERTION has to match the
+    /// surrounding text — otherwise editing a Windows-authored file seeds LF lines into it and the
+    /// file ends up mixed, which is a diff-noise problem the real-files thesis cares about.
+    func testLineEndingInForceReadsTheSurroundingText() {
+        XCTAssertEqual(MarkdownLineEnding.inForce(at: 3, in: "abc\r\ndef\r\n"), .crlf)
+        XCTAssertEqual(MarkdownLineEnding.inForce(at: 3, in: "abc\ndef\n"), .lf)
+        // Caret on the LAST line, which has no terminator: fall back to the line before it.
+        XCTAssertEqual(MarkdownLineEnding.inForce(at: 8, in: "abc\r\ndef"), .crlf)
+        XCTAssertEqual(MarkdownLineEnding.inForce(at: 6, in: "abc\ndef"), .lf)
+        // No evidence either way — a new document should write LF.
+        XCTAssertEqual(MarkdownLineEnding.inForce(at: 0, in: ""), .lf)
+        XCTAssertEqual(MarkdownLineEnding.inForce(at: 2, in: "abc"), .lf)
+    }
+
+    func testListContinuationMatchesTheDocumentLineEnding() {
+        let crlf = "- one\r\n- two\r\n"
+        guard case let .continue(insertion)? = MarkdownListContinuation.outcome(
+            for: crlf, selectedRange: NSRange(location: 5, length: 0)
+        ) else { return XCTFail("expected a continuation") }
+        XCTAssertEqual(insertion, "\r\n- ")
+
+        let lf = "- one\n- two\n"
+        guard case let .continue(lfInsertion)? = MarkdownListContinuation.outcome(
+            for: lf, selectedRange: NSRange(location: 5, length: 0)
+        ) else { return XCTFail("expected a continuation") }
+        XCTAssertEqual(lfInsertion, "\n- ")
+    }
+
+    /// Reformat rewrites the table's INTERIOR terminators, so joining with a bare "\n" silently
+    /// converted a CRLF table to LF on every ⌃⌘R.
+    func testReformatKeepsCRLFInsideTheTable() {
+        let crlf = "| Fruit | Colour |\r\n|-|-|\r\n| Plum | purple |"
+        let edit = MarkdownTableEditing.reformat(in: crlf, selectedRange: NSRange(location: 2, length: 0))
+        guard let text = edit?.text else { return XCTFail("the table should reformat") }
+        XCTAssertFalse(text.replacingOccurrences(of: "\r\n", with: "").contains("\n"),
+                       "reformat introduced a bare LF: \(text.debugDescription)")
+        XCTAssertEqual(text.components(separatedBy: "\r\n").count, 3)
+    }
+
+    /// Pre-existing, surfaced by the line-ending work: `locate` stepped to the next line with
+    /// `NSMaxRange(line) + 1`, which in a CRLF file lands on the `\n` still inside THIS line's
+    /// `\r\n`. The walk broke at once, so no table was ever found below the caret — Tab between
+    /// cells and Reformat did not work at all in a Windows-authored document.
+    func testTableIsLocatedInACRLFDocument() {
+        let crlf = "| A | B |\r\n| - | - |\r\n| 1 | 2 |\r\n"
+        guard let region = MarkdownTableEditing.locate(in: crlf, at: 2) else {
+            return XCTFail("a CRLF table must be located")
+        }
+        XCTAssertEqual(region.lineRanges.count, 3, "every row of the table must be found")
+        XCTAssertEqual(region.table.headers, ["A", "B"])
+        XCTAssertEqual(region.table.rows, [["1", "2"]])
+    }
+
+    func testInsertedTableAndAppendedRowMatchTheDocumentLineEnding() {
+        let inserted = MarkdownTableEditing.insertion(in: "intro\r\n", selectedRange: NSRange(location: 7, length: 0))
+        XCTAssertFalse(inserted.text.replacingOccurrences(of: "\r\n", with: "").contains("\n"),
+                       "Insert Table seeded a bare LF: \(inserted.text.debugDescription)")
+
+        let table = "| A | B |\r\n| - | - |\r\n| 1 | 2 |"
+        let lastCell = (table as NSString).range(of: "2").location
+        guard case let .appendRow(insertion, _, _)? = MarkdownTableEditing.tabTarget(
+            in: table, selectedRange: NSRange(location: lastCell + 1, length: 0), forward: true
+        ) else { return XCTFail("expected a row append") }
+        XCTAssertTrue(insertion.hasPrefix("\r\n"), "appended row used a bare LF: \(insertion.debugDescription)")
     }
 
     // MARK: - Heading detection agreement

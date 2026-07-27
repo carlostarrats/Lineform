@@ -400,7 +400,21 @@ final class LineformTextView: NSTextView {
     /// is a newline. See `docs/architecture/editor-behavior.md`.
     override func insertNewline(_ sender: Any?) {
         guard let outcome = MarkdownListContinuation.outcome(for: string, selectedRange: selectedRange()) else {
-            super.insertNewline(sender)
+            // An ordinary Return in a CRLF document must insert CRLF, or editing a
+            // Windows-authored file leaves stray LF lines and the file ends up mixed. AppKit's
+            // `insertNewline` always inserts a bare `\n`, so this is the only place to decide it.
+            //
+            // Bypassing `super` here carries NO new risk: `insertNewline` is reached only after
+            // the input context has resolved the keypress (that is why it, and never `keyDown`,
+            // is the hook), and list continuation above has bypassed `super` on this same path
+            // since it shipped. The LF case still goes through `super` so the overwhelmingly
+            // common path is untouched.
+            let ending = MarkdownLineEnding.inForce(at: selectedRange().location, in: string as NSString)
+            guard ending == .crlf else {
+                super.insertNewline(sender)
+                return
+            }
+            applyListContinuationEdit(replacing: selectedRange(), with: ending.text)
             return
         }
 
