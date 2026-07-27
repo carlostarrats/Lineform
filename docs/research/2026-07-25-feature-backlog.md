@@ -2,11 +2,12 @@
 
 **Date:** 2026-07-25
 **Purpose:** The six items the user selected as future work after a gap review of the shipped 1.3.0-era build. **Nothing here is scheduled or started.** This is a written-down intent list, not a plan — each item needs its own design pass before code.
+**Closed 2026-07-26:** items 1–5 shipped; item 6 (read-only Git history) was dropped rather than built — reasoning under "Explicitly not on this list."
 **Companion:** `docs/research/2026-07-18-competitor-feature-scan.md` (whose §3 shortlist has now largely shipped; see the status pass at the top of that file).
 
 **Verification basis:** static read of the source on 2026-07-25 — greps and file reads, **no build was run and no flow was driven in the app.** Two items below (1 and 2) were behavior claims needing confirmation in a real Debug build. **Both items 1 and 2 were confirmed in a real Debug build and have since shipped (2026-07-26).** The rest are structural absences visible in the code and are not in doubt.
 
-**Status:** 5 of 6 shipped. Remaining: 6.
+**Status:** 5 of 6 shipped, 1 dropped. Nothing remaining.
 
 ---
 
@@ -156,22 +157,38 @@ see either, and closing hashes (`## Section ##`), which are left alone.
 
 ---
 
-### 6. Read-only Git history view
-
-**Today:** nothing. Lineform's files are plain `.md` in real folders, so if the user keeps writing in a Git repo the history already exists on disk — the app just can't see it.
-
-**Scope when built:** a panel showing that the open file changed *n* times, with the ability to look at a previous version and what changed. **Read-only by definition:** no commit, no push, no branch, no staging. It lets a writer look backward at their own drafts; it does not make Lineform a Git client.
-
-**Fit:** "trustworthy" is a stated product value, and this is the one item on the list that expresses it directly. MWeb and Resomark both ship a version.
-
-**Risk:** high relative to everything else here, and the most design-dependent. Real questions to settle before any code:
-- Shelling out to `git` from a sandboxed app is not straightforward. Investigate what's actually reachable before promising the feature.
-- Repo detection has to be quiet and never block the editor.
-- A file not in a repo must degrade to *nothing visible*, not an error or an empty panel.
-- Worth weighing against macOS's built-in **Versions** (`NSDocument`'s `browseVersions:`), which is free, sandbox-native, needs no repo, and covers a meaningful share of "let me see an earlier draft." Not currently wired up. It may be the better first move, or the only move.
-
----
-
 ## Explicitly not on this list
+
+**Read-only Git history view** — selected on 2026-07-25, **dropped 2026-07-26.** The panel would have
+shown that the open file changed *n* times, with a look at a previous version. Three reasons it went:
+
+- `git` is not an inert reader. It executes code from the repo it is pointed at — `.git/config`
+  aliases, `core.pager`, `core.fsmonitor`, hooks — so shelling out inside whatever folder the user
+  opened is a code-execution path controlled by whoever authored that folder (the bug VS Code and
+  Atom both shipped). The mitigation is a trust-this-repo prompt, which is exactly the noise this
+  app exists to avoid. Commit metadata and `.git/config` also surface the user's name, email, and
+  remote URLs — identity data the app currently never touches.
+- The sandbox problem is worse than "not straightforward": `/usr/bin/git` is a shim that triggers an
+  Xcode Command Line Tools install prompt on a machine without them, from inside a sandboxed child
+  process, in front of a writer who does not know what Xcode is. The alternative is bundling
+  libgit2 — a C dependency in the notarization and nested-bundle re-signing chain that has already
+  broken a release once.
+- Writers who keep drafts in Git already own a Git tool. It is the one item that made Lineform look
+  like a developer tool.
+
+**macOS Versions was considered as the replacement and also deferred (2026-07-26).** The machinery is
+already running — `LineformDocument` is a SwiftUI `FileDocument` in a `DocumentGroup`, so
+autosave-in-place has been writing snapshots to the volume's `.DocumentRevisions-V100` all along.
+What is missing is the menu: `CommandGroup(replacing: .saveItem)` in `AppCommands.swift` customizes
+Save and Save As and removes `Revert To ▸ Last Saved / Browse All Versions…` along with them.
+Restoring it is a few lines.
+
+Deferred anyway because Browse All Versions is Apple's full-screen Time Machine browser — the
+loudest possible chrome in a calm app, unrestylable — and "pick an earlier version" is a job most
+writers never do. Revisit only if users ask for it. If revisited, note the limits: snapshot cadence
+is the system's and coarse under continuous autosave, versions are per-volume (external and network
+drives may have none), and edits made in another editor leave no version behind. Building a custom
+history panel on `NSFileVersion` is explicitly *not* the fallback — thin data plus a designed panel
+is the Git item under another name.
 
 Unchanged from the 2026-07-18 decisions: no wiki-links or backlinks, no tags, no AI, no blog publishing, no database library mode, no Fountain. Also considered and passed over in the 2026-07-25 review: footnotes (`[^1]`, unsupported by the renderer — a real gap for long-form and academic writing, but not selected), the session word-count goal (item H, still unbuilt), EPUB, and on-screen typographic themes.

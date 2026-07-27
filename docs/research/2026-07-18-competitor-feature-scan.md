@@ -15,7 +15,7 @@
 > - **G. ⌘E view-mode toggle** — SHIPPED exactly as decided (Write ↔ Read; Split stays on the toolbar).
 > - **H. Session word-count goal** — **NOT built.** `DocumentStatistics` counts words/characters and the status bar shows them, but there is no target or progress affordance.
 >
-> Everything in §4 (wiki-links, tags, scratchpad, style check, EPUB, Git history) and §5 (reject list) is unchanged and still unbuilt, by decision.
+> Everything in §4 (wiki-links, tags, scratchpad, style check, EPUB) and §5 (reject list) is unchanged and still unbuilt, by decision. **Git history moved to rejected on 2026-07-26** — see §4.
 >
 > A follow-on gap review on the same date found items this scan never covered — chiefly **list continuation on Return**, **live spell check**, **footnotes**, **table authoring**, and **HTML export**. See `docs/research/2026-07-25-feature-backlog.md`.
 
@@ -123,7 +123,7 @@ These are popular but risk drifting Lineform toward a notes-database or cloud se
 - **Menu-bar scratchpad + global hotkey** (Clearly) — great quick-capture, but "capture" is notes-app framing and needs a scratch storage model. Borderline; revisit only if a clean file-based design exists.
 - **Style Check / grammar** (iA Writer's cliché/filler flagging) — on-theme for "calm, readable writing," but it's a big feature and adjacent to the AI-assist space Lineform deliberately avoids. Note as a possible *rules-based* (non-AI, non-network) future item; iA does it without AI.
 - **EPUB export** (MWeb, Inkdown) — nice for book-length work, but niche. After DOCX/RTF.
-- **Git version history UI** (MWeb, Resomark diff view) — Lineform files are already Git-compatible; a *read-only* diff/history view could fit the "trustworthy" value without becoming a Git client. Low priority.
+- ~~**Git version history UI**~~ (MWeb, Resomark diff view) — **rejected 2026-07-26.** Shelling out to `git` executes repo-controlled config and hooks, `/usr/bin/git` is an Xcode-CLT install prompt on a clean machine, and the audience already owns a Git tool. macOS Versions (`browseVersions:`) serves the same want with none of it. Full reasoning in `2026-07-25-feature-backlog.md`.
 
 ---
 
