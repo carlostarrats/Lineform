@@ -45,12 +45,6 @@ enum MarkdownHTMLRenderer {
 
     // MARK: Inline
 
-    private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
-    private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
-    private static let codeRegex = try! NSRegularExpression(pattern: #"`([^`\n]+)`"#)
-    private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
-    private static let imageRegex = try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
-    private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
 
     private struct Token {
         enum Kind { case bold, italic, code, strikethrough, image, link }
@@ -99,12 +93,12 @@ enum MarkdownHTMLRenderer {
 
     private static func nextToken(in line: String, nsLine: NSString, from location: Int) -> Token? {
         var earliest: Token?
-        consider(token(boldRegex, .bold, line, nsLine, location), &earliest)
-        consider(token(italicRegex, .italic, line, nsLine, location), &earliest)
-        consider(token(codeRegex, .code, line, nsLine, location), &earliest)
-        consider(token(strikethroughRegex, .strikethrough, line, nsLine, location), &earliest)
-        consider(token(imageRegex, .image, line, nsLine, location), &earliest)
-        consider(token(linkRegex, .link, line, nsLine, location), &earliest)
+        consider(token(MarkdownInlineSyntax.bold, .bold, line, nsLine, location), &earliest)
+        consider(token(MarkdownInlineSyntax.italic, .italic, line, nsLine, location), &earliest)
+        consider(token(MarkdownInlineSyntax.code, .code, line, nsLine, location), &earliest)
+        consider(token(MarkdownInlineSyntax.strikethrough, .strikethrough, line, nsLine, location), &earliest)
+        consider(token(MarkdownInlineSyntax.image, .image, line, nsLine, location), &earliest)
+        consider(token(MarkdownInlineSyntax.link, .link, line, nsLine, location), &earliest)
         return earliest
     }
 
@@ -156,9 +150,9 @@ enum MarkdownHTMLRenderer {
         switch block {
         case let .lines(range):
             return linesHTML(Array(lines[range]))
-        case let .singleLineMath(latex, _):
-            return generatedHTML(.math(latex: latex), fallback: latex, generatedImage: generatedImage)
-        case let .fencedMath(latex, _):
+        // `$$…$$` on one line and a `$$` fence differ only in how they were written; both are one
+        // display equation.
+        case let .singleLineMath(latex, _), let .fencedMath(latex, _):
             return generatedHTML(.math(latex: latex), fallback: latex, generatedImage: generatedImage)
         case let .mermaid(source, _):
             return generatedHTML(.mermaid(source: source), fallback: source, generatedImage: generatedImage)

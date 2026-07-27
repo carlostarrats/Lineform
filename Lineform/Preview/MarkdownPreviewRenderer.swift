@@ -35,12 +35,6 @@ extension NSAttributedString.Key {
 
 @MainActor
 struct MarkdownPreviewRenderer {
-    private static let boldRegex = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
-    private static let italicRegex = try! NSRegularExpression(pattern: #"_([^_\n]+)_"#)
-    private static let codeRegex = try! NSRegularExpression(pattern: #"`([^`\n]+)`"#)
-    private static let strikethroughRegex = try! NSRegularExpression(pattern: #"~~([^~\n]+)~~"#)
-    private static let imageRegex = try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
-    private static let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
     /// Table cell text renders at this fraction of the reading font size — denser than prose, but
     /// still relative so it scales with the user's size setting. Dial-able.
     static let tableTextScale: CGFloat = 0.9
@@ -1052,19 +1046,19 @@ struct MarkdownPreviewRenderer {
         var earliest: InlineToken?
 
         consider(
-            inlineToken(regex: Self.boldRegex, kind: .bold, in: line, nsLine: nsLine, from: location),
+            inlineToken(regex: MarkdownInlineSyntax.bold, kind: .bold, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
         consider(
-            inlineToken(regex: Self.italicRegex, kind: .italic, in: line, nsLine: nsLine, from: location),
+            inlineToken(regex: MarkdownInlineSyntax.italic, kind: .italic, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
         consider(
-            inlineToken(regex: Self.codeRegex, kind: .code, in: line, nsLine: nsLine, from: location),
+            inlineToken(regex: MarkdownInlineSyntax.code, kind: .code, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
         consider(
-            inlineToken(regex: Self.strikethroughRegex, kind: .strikethrough, in: line, nsLine: nsLine, from: location),
+            inlineToken(regex: MarkdownInlineSyntax.strikethrough, kind: .strikethrough, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
         consider(
@@ -1072,7 +1066,7 @@ struct MarkdownPreviewRenderer {
             earliest: &earliest
         )
         consider(
-            inlineToken(regex: Self.linkRegex, kind: .link, in: line, nsLine: nsLine, from: location),
+            inlineToken(regex: MarkdownInlineSyntax.link, kind: .link, in: line, nsLine: nsLine, from: location),
             earliest: &earliest
         )
 
@@ -1104,7 +1098,7 @@ struct MarkdownPreviewRenderer {
     /// and the URL are consumed so nothing leaks into the rendered text.
     private func imageToken(in line: String, nsLine: NSString, from location: Int) -> InlineToken? {
         let searchRange = NSRange(location: location, length: nsLine.length - location)
-        guard let match = Self.imageRegex.firstMatch(in: line, range: searchRange) else {
+        guard let match = MarkdownInlineSyntax.image.firstMatch(in: line, range: searchRange) else {
             return nil
         }
         let alt = nsLine.substring(with: match.range(at: 1))

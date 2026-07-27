@@ -44,16 +44,6 @@ enum ExportFormat: Int, CaseIterable {
 
     /// PDF formats print to paper; HTML/RTF reflow in their target app.
     var usesPaper: Bool { self == .pdf || self == .styledPDF }
-
-    /// The menu row's SF Symbol (see `MainMenuIconDecorator`).
-    var symbolName: String {
-        switch self {
-        case .html: return "chevron.left.forwardslash.chevron.right"
-        case .pdf: return "doc.plaintext"
-        case .styledPDF: return "doc.richtext"
-        case .rtf: return "textformat"
-        }
-    }
 }
 
 /// Guards the one way Save As can still lose work: choosing a destination that is ALREADY open in
