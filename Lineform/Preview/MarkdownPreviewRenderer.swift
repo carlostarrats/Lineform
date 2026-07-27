@@ -104,8 +104,11 @@ struct MarkdownPreviewRenderer {
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
         let codeAttributes = codeAttributes(profile: profile)
         let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
-        let lines = text.components(separatedBy: "\n")
-        let lineRanges = Self.sourceRanges(forLines: lines)
+        // CR-stripped lines with ranges measured against the ORIGINAL text, so a CRLF document
+        // groups into real blocks while every source range still points at the right bytes.
+        let source = markdownSourceLines(in: text)
+        let lines = source.lines
+        let lineRanges = source.ranges
         let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: lines))
         let theme = Theme.theme(for: profile)
 
@@ -119,7 +122,7 @@ struct MarkdownPreviewRenderer {
         // block's FIRST source line is the line after the previous block's last — which lets a
         // `lastLineIndex`-only block still know its full source span.
         var sourceLineCursor = 0
-        for block in markdownBlocks(in: lines) {
+        for block in markdownBlocks(in: lines, lineRanges: lineRanges) {
             let blockRenderStart = output.length
             let blockFirstLine = sourceLineCursor
             switch block {
@@ -603,20 +606,6 @@ struct MarkdownPreviewRenderer {
             height: CGFloat(profile.fontSize)
         )
         output.append(NSAttributedString(attachment: attachment))
-    }
-
-    /// Computes the UTF-16 source range of each line in `lines`, assuming they are separated by
-    /// a single newline character. Used to tag rendered headings with their original position so
-    /// the outline sidebar can sync its active item to the editor scroll position.
-    private static func sourceRanges(forLines lines: [String]) -> [NSRange] {
-        var ranges: [NSRange] = []
-        var location = 0
-        for line in lines {
-            let length = (line as NSString).length
-            ranges.append(NSRange(location: location, length: length))
-            location += length + 1
-        }
-        return ranges
     }
 
     /// Render a maximal run of ordinary lines (body, headings) exactly as the original per-line

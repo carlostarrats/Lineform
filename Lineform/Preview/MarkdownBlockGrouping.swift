@@ -323,22 +323,62 @@ enum MarkdownHorizontalRule {
 }
 
 /// Group already-split lines into blocks. Mirrors the detection order of the original renderer loop
+/// Markdown source split into the lines every renderer reads, plus each line's range in the
+/// ORIGINAL text.
+///
+/// The `\r` of a CRLF line ending is removed from `lines` but still counted in `ranges`. That
+/// split is the whole point: every detector in this file compares against `\n`-shaped text —
+/// `trimmingCharacters(in: .whitespaces)` does not strip `\r`, and neither do the table,
+/// checkbox, and list regexes — so on a Windows-authored file a closing ` ``` ` read as
+/// ` ```\r `, no fence ever closed, and the rest of the document was swallowed into one code
+/// block. Tables, rules, and callouts failed the same way. Ranges keep the raw lengths so
+/// checkbox toggling, image reconnect, code copy, and the cross-mode scroll restore still point
+/// at the right bytes.
+struct MarkdownSourceLines {
+    /// Line text with any CRLF `\r` removed.
+    let lines: [String]
+    /// UTF-16 range of each line in the original text, INCLUDING a `\r` it no longer carries.
+    let ranges: [NSRange]
+}
+
+func markdownSourceLines(in text: String) -> MarkdownSourceLines {
+    var lines: [String] = []
+    var ranges: [NSRange] = []
+    var location = 0
+    for raw in text.components(separatedBy: "\n") {
+        let rawLength = (raw as NSString).length
+        ranges.append(NSRange(location: location, length: rawLength))
+        lines.append(raw.hasSuffix("\r") ? String(raw.dropLast()) : raw)
+        location += rawLength + 1
+    }
+    return MarkdownSourceLines(lines: lines, ranges: ranges)
+}
+
 /// (single-line `$$…$$`, then a `$$` fence, then a ```mermaid fence, then a plain ``` / ~~~ code
 /// fence). A plain code fence is consumed wholesale (opening → closing) into its own `.fencedCode`
 /// block before any inner line is inspected, so `$$` / `---` / `>` / `|` lines inside it are never
 /// re-parsed as math/rule/quote/table. Pure — no AppKit, no rendering.
-func markdownBlocks(in lines: [String]) -> [MarkdownBlock] {
+func markdownBlocks(in lines: [String], lineRanges: [NSRange]? = nil) -> [MarkdownBlock] {
     var blocks: [MarkdownBlock] = []
     var linesStart: Int?
     var index = 0
 
-    // UTF-16 offset where each line begins in the joined source (lines are joined by "\n"), so a
-    // task checkbox's marker can be given its exact source range for click-to-toggle.
-    var lineStartOffsets = [Int](repeating: 0, count: lines.count)
-    var runningOffset = 0
-    for i in lines.indices {
-        lineStartOffsets[i] = runningOffset
-        runningOffset += (lines[i] as NSString).length + 1
+    // UTF-16 offset where each line begins in the joined source, so a task checkbox's marker can
+    // be given its exact source range for click-to-toggle. `lineRanges` carries the true offsets
+    // when the caller split a CRLF document through `markdownSourceLines(in:)` — the `\r` it
+    // removed still occupies a UTF-16 unit in the file, so recomputing from the stripped line
+    // lengths would drift by one per line. Without it, lines are assumed to be `\n`-joined.
+    let lineStartOffsets: [Int]
+    if let lineRanges, lineRanges.count == lines.count {
+        lineStartOffsets = lineRanges.map(\.location)
+    } else {
+        var offsets = [Int](repeating: 0, count: lines.count)
+        var runningOffset = 0
+        for i in lines.indices {
+            offsets[i] = runningOffset
+            runningOffset += (lines[i] as NSString).length + 1
+        }
+        lineStartOffsets = offsets
     }
 
     func flushLines(upTo end: Int) {

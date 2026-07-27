@@ -193,6 +193,13 @@ same wrong split is permanent. It therefore declines outright on `\|` or on any 
 region. The backtick half is deliberately over-broad: it passes up some tables it could safely
 rewrite, and it never destroys one.
 
+**Padding is APPENDED, never `String.padding(toLength:)`.** That method bridges to NSString and
+measures in UTF-16 units, while `columnWidths` measures in Characters — so it silently TRUNCATED
+every cell whose two measures disagree. `| 😀😀😀😀 |` came back as `| 😀😀 |`, and a decomposed
+`café` as `cafe`, and Reformat writes that to the file. Appending `max(0, width - count)` spaces can
+only ever add characters, so a cell is now impossible to shorten. Guarded by
+`MarkdownTableEditingTests` and by the parsed-table round trip in `MarkdownRobustnessTests`.
+
 **Delimiter colons are re-emitted from the original row, not from `table.alignments`.** The parser
 maps both `---` and `:--` to `.left`, which is correct for rendering — they are identical there —
 so rebuilding the delimiter from the parsed alignment silently erases every explicit-left
@@ -249,6 +256,14 @@ been typed yet. Reusing it would classify that line as prose and prepend a secon
 reintroducing the exact stacking bug this unit exists to remove. The local scanner accepts
 1–6 hashes followed by a space **or end of line**. The two agree on every line that has content,
 which is the only case the outline sidebar ever sees.
+
+**`classify` and `MarkdownHeadingParser` must accept the same shape** — they are the write side and
+the read side of "this line is a heading", and a disagreement means a command rewrites a line the
+reader never saw as a heading, or leaves one the outline sidebar cannot see. Both now take up to
+three columns of leading space and a space, a **tab**, or end of line after the hashes. The tab was a
+live instance of the stacking bug: `##\tSection` is a real CommonMark heading, the parser rejected
+it, and ⌘4 emitted `#### ##\tSection`. A heading the command writes always uses a space separator.
+Guarded by `testHeadingDetectionAgreesWithTheOutlineParser`.
 
 **The skip list is line-local first, protection second.** Blank lines, list items, blockquotes,
 indented code blocks (four *columns* — a tab counts as four, or a tab-indented block reads as

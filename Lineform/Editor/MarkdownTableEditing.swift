@@ -287,10 +287,17 @@ enum MarkdownTableEditing {
     }
 
     /// `| a   | b   |` — always with outer pipes, cells right-padded to the column width.
+    ///
+    /// The padding is APPENDED rather than produced by `String.padding(toLength:…)`. That method
+    /// bridges to NSString and measures in UTF-16 units, while `columnWidths` measures in
+    /// Characters — so any cell holding an emoji, a non-BMP character, or a decomposed accent has
+    /// a UTF-16 length greater than its Character count and `padding(toLength:)` TRUNCATES it.
+    /// `| 😀😀😀😀 |` came back as `| 😀😀 |`, and Reformat writes that to disk. Appending can
+    /// only ever add spaces, so a cell is now impossible to shorten.
     static func row(cells: [String], widths: [Int], indent: String) -> String {
         let padded = widths.enumerated().map { index, width -> String in
             let content = cells.indices.contains(index) ? cells[index] : ""
-            return content.padding(toLength: max(width, content.count), withPad: " ", startingAt: 0)
+            return content + String(repeating: " ", count: max(0, width - content.count))
         }
         return indent + "| " + padded.joined(separator: " | ") + " |"
     }

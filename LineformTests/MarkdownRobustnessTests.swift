@@ -1,0 +1,239 @@
+import AppKit
+import XCTest
+@testable import Lineform
+
+/// Whole-document robustness for the pure Markdown layer.
+///
+/// Two things live here, both added after a review found defects the per-feature suites could not
+/// see because they only ever feed well-formed `\n` input:
+///
+/// 1. **CRLF.** Every detector in `MarkdownBlockGrouping` compares against `\n`-shaped text —
+///    `trimmingCharacters(in: .whitespaces)` does not strip `\r`, and neither do the table,
+///    list, and checkbox regexes. A Windows-authored file therefore had no closing code fence,
+///    and the whole document after the first fence collapsed into one code block.
+/// 2. **A seeded fuzz sweep.** The pure transforms all do UTF-16 range arithmetic against text
+///    they did not produce. The sweep is deterministic (fixed seed, no `Math.random`) so a
+///    failure is reproducible, and it asserts nothing about output — it exists to prove none of
+///    them trap on adversarial input.
+final class MarkdownRobustnessTests: XCTestCase {
+
+    // MARK: - CRLF
+
+    private static let crlfDocument = """
+    # Title\r
+    \r
+    ```swift\r
+    let a = 1\r
+    ```\r
+    \r
+    | A | B |\r
+    |---|---|\r
+    | 1 | 2 |\r
+    \r
+    ---\r
+    \r
+    > [!NOTE]\r
+    > hi\r
+
+    """
+
+    /// The document above, with `\r\n` normalised to `\n`. A CRLF file must group into exactly
+    /// the same blocks as its LF twin.
+    private static var lfDocument: String {
+        crlfDocument.replacingOccurrences(of: "\r\n", with: "\n")
+    }
+
+    private func blockNames(in text: String) -> [String] {
+        let source = markdownSourceLines(in: text)
+        return markdownBlocks(in: source.lines, lineRanges: source.ranges).map { block in
+            switch block {
+            case .lines: return "lines"
+            case .singleLineMath: return "singleLineMath"
+            case .fencedMath: return "fencedMath"
+            case .mermaid: return "mermaid"
+            case .horizontalRule: return "horizontalRule"
+            case .blockquote: return "blockquote"
+            case .callout: return "callout"
+            case .list: return "list"
+            case .table: return "table"
+            case .fencedCode: return "fencedCode"
+            case .image: return "image"
+            }
+        }
+    }
+
+    func testCRLFGroupsIntoTheSameBlocksAsLF() {
+        XCTAssertEqual(blockNames(in: Self.crlfDocument), blockNames(in: Self.lfDocument))
+        XCTAssertTrue(blockNames(in: Self.crlfDocument).contains("table"))
+        XCTAssertTrue(blockNames(in: Self.crlfDocument).contains("callout"))
+        XCTAssertTrue(blockNames(in: Self.crlfDocument).contains("horizontalRule"))
+    }
+
+    /// The regression itself: an unclosed fence swallowed everything after it.
+    func testCRLFCodeFenceCloses() {
+        let source = markdownSourceLines(in: Self.crlfDocument)
+        let blocks = markdownBlocks(in: source.lines, lineRanges: source.ranges)
+        guard let fence = blocks.compactMap({ block -> (String, String, Int?)? in
+            guard case let .fencedCode(language, body, _, closingIndex) = block else { return nil }
+            return (language, body, closingIndex)
+        }).first else {
+            return XCTFail("the CRLF document should contain a fenced code block")
+        }
+        XCTAssertEqual(fence.0, "swift")
+        XCTAssertEqual(fence.1, "let a = 1")
+        XCTAssertNotNil(fence.2, "the fence must find its closing delimiter")
+    }
+
+    /// Line text is CR-stripped but the ranges still measure the original bytes — checkbox
+    /// toggling, image reconnect, code copy, and the cross-mode scroll restore all index the
+    /// real document with them.
+    func testCRLFLineRangesMeasureTheOriginalText() {
+        let text = "alpha\r\nbeta\r\ngamma"
+        let source = markdownSourceLines(in: text)
+        XCTAssertEqual(source.lines, ["alpha", "beta", "gamma"])
+        let ns = text as NSString
+        XCTAssertEqual(source.ranges.map { ns.substring(with: $0) }, ["alpha\r", "beta\r", "gamma"])
+    }
+
+    func testLFSplittingIsUnchanged() {
+        let text = "alpha\nbeta\n"
+        let source = markdownSourceLines(in: text)
+        XCTAssertEqual(source.lines, ["alpha", "beta", ""])
+        XCTAssertEqual(source.ranges, [
+            NSRange(location: 0, length: 5),
+            NSRange(location: 6, length: 4),
+            NSRange(location: 11, length: 0),
+        ])
+    }
+
+    func testCRLFTaskCheckboxRangePointsAtItsMarker() {
+        let text = "- [ ] one\r\n- [x] two\r\n"
+        let source = markdownSourceLines(in: text)
+        let blocks = markdownBlocks(in: source.lines, lineRanges: source.ranges)
+        guard case let .list(items, _)? = blocks.first(where: { if case .list = $0 { return true }; return false }) else {
+            return XCTFail("expected a list block")
+        }
+        let ns = text as NSString
+        for item in items {
+            guard let checkbox = item.checkbox else { return XCTFail("expected a checkbox") }
+            XCTAssertTrue(["[ ]", "[x]"].contains(ns.substring(with: checkbox.sourceRange)))
+        }
+    }
+
+    func testCRLFHTMLExportEmitsRealBlocks() {
+        let html = MarkdownHTMLRenderer.body(for: Self.crlfDocument, generatedImage: { _ in nil })
+        XCTAssertEqual(html, MarkdownHTMLRenderer.body(for: Self.lfDocument, generatedImage: { _ in nil }))
+        XCTAssertTrue(html.contains("<table>"))
+        XCTAssertFalse(html.contains("\r"), "a carriage return must never reach the exported HTML")
+    }
+
+    func testCRLFSpeechSkipsCodeAndReadsTheRest() {
+        let spoken = SpeechTextExtractor.spokenText(from: Self.crlfDocument)
+        XCTAssertEqual(spoken, SpeechTextExtractor.spokenText(from: Self.lfDocument))
+        XCTAssertFalse(spoken.contains("let a = 1"), "fenced code is never spoken")
+        XCTAssertTrue(spoken.contains("Title"))
+    }
+
+    // MARK: - Heading detection agreement
+
+    /// `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must agree about what a
+    /// heading is, or a heading command rewrites a line the reader never saw as one — or leaves
+    /// one the outline sidebar cannot see. Both accept up to three columns of indent and a
+    /// space, tab, or end of line after the hashes.
+    func testHeadingDetectionAgreesWithTheOutlineParser() {
+        let headings = ["# Title", "###### Six", " ## Indented", "   # Three spaces", "#\tTab", "##\tTab section"]
+        for line in headings {
+            guard case let .editable(_, level, _) = MarkdownHeadingEditing.classify(line: line) else {
+                return XCTFail("\(line.debugDescription) should be editable")
+            }
+            XCTAssertEqual(level, MarkdownHeadingParser.heading(in: line)?.level,
+                           "disagreement on \(line.debugDescription)")
+        }
+
+        let notHeadings = ["####### Seven", "#NoSpace", "    # Indented code", "plain"]
+        for line in notHeadings {
+            XCTAssertNil(MarkdownHeadingParser.heading(in: line), "\(line.debugDescription) is not a heading")
+        }
+    }
+
+    /// The stacking bug, reached through a tab: `##\tSection` is a real CommonMark heading, so
+    /// ⌘4 must change its level rather than prepend a second marker. The separator is rewritten
+    /// as a space, which is what the command emits for every heading it writes.
+    func testHeadingLevelChangeOnATabSeparatedHeadingDoesNotStack() {
+        let edit = MarkdownHeadingEditing.setLevel(4, in: "##\tSection", selectedRange: NSRange(location: 8, length: 0))
+        XCTAssertEqual(edit?.text, "#### Section")
+        XCTAssertEqual(MarkdownHeadingParser.heading(in: edit?.text ?? "")?.level, 4)
+    }
+
+    // MARK: - Seeded fuzz
+
+    /// Deterministic xorshift — `Math.random` would make a failure unreproducible.
+    private struct Seeded {
+        var state: UInt64
+        mutating func next() -> UInt64 {
+            state ^= state << 13
+            state ^= state >> 7
+            state ^= state << 17
+            return state
+        }
+        mutating func int(_ bound: Int) -> Int { bound <= 0 ? 0 : Int(next() % UInt64(bound)) }
+    }
+
+    /// Every character class the transforms special-case, plus a non-BMP scalar and a `\r`, so
+    /// UTF-16 index arithmetic is exercised against surrogate pairs.
+    private static let fuzzAlphabet = Array("#*_-`~|[]()!>0123456789. \n\t\\$aZé😀\r:^{}\"'&<>/")
+
+    func testPureTransformsSurviveAdversarialInput() {
+        var random = Seeded(state: 0x9E37_79B9_7F4A_7C15)
+        for _ in 0..<600 {
+            var text = ""
+            for _ in 0..<random.int(90) {
+                text.append(Self.fuzzAlphabet[random.int(Self.fuzzAlphabet.count)])
+            }
+            let ns = text as NSString
+            let location = random.int(ns.length + 1)
+            let range = NSRange(location: location, length: random.int(ns.length - location + 1))
+            let caret = NSRange(location: location, length: 0)
+
+            _ = MarkdownListContinuation.outcome(for: text, selectedRange: caret)
+            _ = MarkdownHeadingEditing.setLevel(random.int(7) == 0 ? nil : random.int(6) + 1, in: text, selectedRange: range)
+            _ = MarkdownTableEditing.tabTarget(in: text, selectedRange: range, forward: random.int(2) == 0)
+            _ = MarkdownTableEditing.reformat(in: text, selectedRange: caret)
+            _ = MarkdownTableEditing.insertion(in: text, selectedRange: caret)
+            let source = markdownSourceLines(in: text)
+            _ = markdownBlocks(in: source.lines, lineRanges: source.ranges)
+            _ = MarkdownHTMLRenderer.body(for: text, generatedImage: { _ in nil })
+            _ = MarkdownPlainTextConverter.plainText(from: text)
+            _ = SpeechTextExtractor.spokenText(from: text)
+            _ = MarkdownSpellCheckRegions.checkableRanges(in: ns, enclosing: range)
+            _ = MarkdownWritingToolsProtection.ignoredRanges(in: text, enclosingRange: range)
+            _ = MarkdownOutlineParser().items(in: text)
+        }
+    }
+
+    /// Reformat writes its result to the user's file, so the table it writes back must parse to
+    /// exactly the table that was there. Comparing the PARSED tables (rather than the raw text)
+    /// is what makes this checkable: padding short rows and dropping cells past the column count
+    /// is GFM's own normalisation, while losing characters inside a cell is the bug. This is the
+    /// shape that caught `String.padding(toLength:)` truncating emoji and decomposed accents.
+    func testReformatPreservesEveryCell() {
+        var random = Seeded(state: 0x0123_4567_89AB_CDEF)
+        let cellAlphabet = Array("ab 😀é#*-|\\`0")
+        for _ in 0..<400 {
+            func cell() -> String {
+                var out = ""
+                for _ in 0..<random.int(5) { out.append(cellAlphabet[random.int(cellAlphabet.count)]) }
+                return out
+            }
+            let text = "| \(cell()) | \(cell()) |\n| - | - |\n| \(cell()) | \(cell()) |"
+            let caret = NSRange(location: 2, length: 0)
+            guard let before = MarkdownTableEditing.locate(in: text, at: caret.location)?.table,
+                  let edit = MarkdownTableEditing.reformat(in: text, selectedRange: caret),
+                  let after = MarkdownTableEditing.locate(in: edit.text, at: caret.location)?.table else {
+                continue
+            }
+            XCTAssertEqual(after.headers, before.headers, "headers changed reformatting \(text.debugDescription)")
+            XCTAssertEqual(after.rows, before.rows, "rows changed reformatting \(text.debugDescription)")
+        }
+    }
+}

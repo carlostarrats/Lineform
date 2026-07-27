@@ -187,6 +187,27 @@ final class MarkdownTableEditingTests: XCTestCase {
         XCTAssertNil(MarkdownTableEditing.reformat(in: "just prose", selectedRange: NSRange(location: 2, length: 0)))
     }
 
+    /// Reformat writes the result to disk, so a cell it cannot pad must still come back whole.
+    /// `String.padding(toLength:)` measures in UTF-16 units while `columnWidths` measures in
+    /// Characters, so it silently TRUNCATED every cell whose two measures disagree — emoji,
+    /// non-BMP characters, and decomposed accents.
+    func testReformatNeverTruncatesWideCharacterCells() {
+        let text = "| Emoji | Note |\n|-|-|\n| 😀😀😀😀 | cafe\u{301} |"
+        let edit = MarkdownTableEditing.reformat(in: text, selectedRange: NSRange(location: 2, length: 0))
+        guard let reformatted = edit?.text else { return XCTFail("the table should reformat") }
+        XCTAssertTrue(reformatted.contains("😀😀😀😀"), "emoji cell was truncated: \(reformatted)")
+        XCTAssertTrue(reformatted.contains("cafe\u{301}"), "decomposed accent was truncated: \(reformatted)")
+    }
+
+    /// The same truncation reached Tab's append-row path, which builds its blank row through
+    /// `row(cells:widths:indent:)` too.
+    func testRowPadsWithoutShorteningWideCells() {
+        XCTAssertEqual(
+            MarkdownTableEditing.row(cells: ["😀", "ab"], widths: [3, 3], indent: ""),
+            "| 😀   | ab  |"
+        )
+    }
+
     // MARK: - Tab
 
     private let grid = "| A | B |\n| - | - |\n| 1 | 2 |"

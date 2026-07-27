@@ -146,7 +146,9 @@ enum MarkdownHTMLRenderer {
     /// The `<body>` inner HTML for a whole document. No shell — `html(for:title:generatedImage:)`
     /// wraps this.
     static func body(for text: String, generatedImage: GeneratedImageProvider) -> String {
-        let lines = text.components(separatedBy: "\n")
+        // CR-stripped, so a CRLF document exports as real blocks rather than one runaway
+        // code fence. HTML export needs no source offsets, so the ranges go unused.
+        let lines = markdownSourceLines(in: text).lines
         var out = ""
         for block in markdownBlocks(in: lines) {
             out += blockHTML(block, lines: lines, generatedImage: generatedImage)
