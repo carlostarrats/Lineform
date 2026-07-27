@@ -147,6 +147,13 @@ struct MuseModalHeader: View {
             }
             .animation(.easeOut(duration: 0.12), value: isCloseHovered)
         }
+        // The card's `modalArrowCursor` is an `onContinuousHover`, and that stream stops
+        // arriving over the close button — an AppKit-backed control swallows the mouse-moved
+        // events — leaving the editor's I-beam standing on the one thing you click. This layer
+        // tracks GEOMETRICALLY, so it keeps asserting the arrow over the button.
+        // Deliberately scoped to the header, not the whole card: ⌘K's search field shares
+        // MuseModalCard and must keep its I-beam.
+        .background(CursorRectView(cursor: .arrow))
     }
 }
 

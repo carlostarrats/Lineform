@@ -148,6 +148,10 @@ struct SettingsModal: View {
                 .disabled(disabled)
         }
         .opacity(disabled ? 0.55 : 1)
+        // The switch swallows the mouse-moved stream the card's `modalArrowCursor` rides on,
+        // so without this the editor's I-beam is what you see over every toggle. See
+        // `CursorRectView` — it tracks geometrically and keeps winning over the control.
+        .background(CursorRectView(cursor: .arrow))
         .accessibilityElement(children: .combine)
     }
 }
