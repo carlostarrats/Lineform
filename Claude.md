@@ -109,6 +109,7 @@ file named after it carries the full story and the reasoning.
 **Export** (`export-and-print.md`)
 - `com.apple.security.print` must stay in BOTH entitlements files or printing fails outright.
 - Save As → Markdown must drive `NSDocument.save(to:ofType:for:.saveAsOperation)`. A raw `Data.write` leaves the in-app document detached from the file.
+- HTML export drops `javascript:`/`vbscript:`/`data:text/html` LINK destinations (text still renders). That is a closed set of executable schemes, not a URL policy — never grow it into a sanitizer, and leave image `src` alone (`data:image` is legitimate).
 - HTML export is ONE-TO-ONE with the source: image paths, link URLs, and remote URLs are emitted exactly as written — never resolved, rewritten, or inlined. Only generated math/mermaid images embed. Special cases accumulating here mean a non-one-to-one default crept back in.
 - PDF export must go through `writePDFAtomically`. `NSPrintOperation` writes straight into its target, so a direct write truncates the file being overwritten.
 

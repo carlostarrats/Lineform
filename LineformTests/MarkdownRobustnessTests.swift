@@ -165,6 +165,51 @@ final class MarkdownRobustnessTests: XCTestCase {
         XCTAssertEqual(MarkdownHeadingParser.heading(in: edit?.text ?? "")?.level, 4)
     }
 
+    // MARK: - Executable link schemes
+
+    /// HTML export writes a file that gets shared. A `javascript:` destination is code, not a
+    /// path, so it is dropped while the link text still renders — the one-to-one rule protects
+    /// paths from being resolved or rewritten, which is a different thing.
+    func testExportDropsExecutableLinkDestinations() {
+        let cases = [
+            "[click](javascript:location='http://evil.example')",
+            "[click](JavaScript:alert)",
+            "[click](  javascript:alert)",
+            "[click](java\tscript:alert)",
+            "[click](vbscript:msgbox)",
+            "[click](data:text/html;base64,PHNjcmlwdD4=)",
+        ]
+        for markdown in cases {
+            let html = MarkdownHTMLRenderer.inlineHTML(markdown)
+            XCTAssertFalse(html.contains("<a "), "\(markdown.debugDescription) still exported a link: \(html)")
+            XCTAssertTrue(html.contains("click"), "the link text must survive: \(html)")
+        }
+    }
+
+    /// The rule is a closed set of executable schemes, NOT a URL policy — every ordinary
+    /// destination, including relative paths and inline image data, still passes through verbatim.
+    func testExportKeepsOrdinaryLinkDestinationsVerbatim() {
+        let cases = [
+            ("[a](images/photo.png)", "images/photo.png"),
+            ("[a](https://example.com/x?y=1&z=2)", "https://example.com/x?y=1&amp;z=2"),
+            ("[a](../notes/other.md)", "../notes/other.md"),
+            ("[a](mailto:me@example.com)", "mailto:me@example.com"),
+            ("[a](#anchor)", "#anchor"),
+            ("[a](my javascript notes.md)", "my javascript notes.md"),
+        ]
+        for (markdown, expected) in cases {
+            let html = MarkdownHTMLRenderer.inlineHTML(markdown)
+            XCTAssertEqual(html, "<a href=\"\(expected)\">a</a>", "changed \(markdown.debugDescription)")
+        }
+    }
+
+    /// Images are deliberately untouched: `javascript:` in an `img src` does not execute, and a
+    /// `data:image` payload is legitimate — generated math and mermaid images depend on it.
+    func testExportKeepsImageSourcesVerbatim() {
+        XCTAssertTrue(MarkdownHTMLRenderer.inlineHTML("![x](data:image/png;base64,AAA)")
+            .contains("src=\"data:image/png;base64,AAA\""))
+    }
+
     // MARK: - Seeded fuzz
 
     /// Deterministic xorshift — `Math.random` would make a failure unreproducible.

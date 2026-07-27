@@ -54,6 +54,28 @@ enum MarkdownHTMLRenderer {
         return out
     }
 
+    /// Whether a link destination names a scheme the browser EXECUTES rather than fetches.
+    ///
+    /// This is NOT a general sanitizer and must not grow into one. The one-to-one rule exists so
+    /// paths are never *resolved or rewritten* for convenience — `images/photo.png` must survive
+    /// verbatim. A `javascript:` URL is not a path: it is code, and no one writes one in a note
+    /// they intend to export, so passing it through has no upside and leaves an exported file
+    /// carrying a link that runs script when clicked. The rule is therefore a CLOSED set of
+    /// executable schemes, not a policy about what URLs are acceptable.
+    ///
+    /// Browsers ignore ASCII whitespace and C0 control characters inside a scheme and before it,
+    /// so `java&#9;script:` executes; the test normalises them away first. `data:` as a whole is
+    /// deliberately NOT here — `data:image/...` is a legitimate inline image, and generated
+    /// math/mermaid images rely on it — only the HTML-bearing form is executable.
+    static func isExecutableScheme(_ destination: String) -> Bool {
+        let normalized = String(String.UnicodeScalarView(
+            destination.unicodeScalars.filter { $0.value > 0x20 && $0.value != 0x7F }
+        )).lowercased()
+        return normalized.hasPrefix("javascript:")
+            || normalized.hasPrefix("vbscript:")
+            || normalized.hasPrefix("data:text/html")
+    }
+
     // MARK: Inline
 
 
@@ -98,7 +120,13 @@ enum MarkdownHTMLRenderer {
         case .code: return "<code>\(text)</code>"
         case .strikethrough: return "<del>\(text)</del>"
         case .image: return "<img src=\"\(escapeAttribute(token.destination))\" alt=\"\(escapeAttribute(token.text))\">"
-        case .link: return "<a href=\"\(escapeAttribute(token.destination))\">\(text)</a>"
+        // An executable destination is dropped rather than linked — the link TEXT still renders,
+        // so nothing the writer typed disappears from the page, it just isn't clickable code.
+        // Images are left alone on purpose: `javascript:` in an `img src` does not execute in any
+        // current browser, and filtering there would risk a legitimate `data:image` payload.
+        case .link:
+            guard !isExecutableScheme(token.destination) else { return text }
+            return "<a href=\"\(escapeAttribute(token.destination))\">\(text)</a>"
         }
     }
 
