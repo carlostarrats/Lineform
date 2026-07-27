@@ -11,17 +11,25 @@ final class SaveAndCloseCoordinator: NSObject {
     private let tabStore: EditorTabStore
     private weak var activeWindow: NSWindow?
     private let document: NSDocument
+    /// Cleared when the save chain ends, so the view can drop its reference. Without it this
+    /// coordinator — and the `NSDocument` and `EditorTabStore` it holds STRONGLY — stayed alive
+    /// in the view's `@State` until the next Save-and-Close, keeping a closed tab's document
+    /// from ever deallocating. `SaveTabsBeforeCloseCoordinator` already did this; the two were
+    /// asymmetric for no reason.
+    private var onFinish: (() -> Void)?
 
     init(
         targetID: UUID,
         tabStore: EditorTabStore,
         activeWindow: NSWindow?,
-        document: NSDocument
+        document: NSDocument,
+        onFinish: (() -> Void)? = nil
     ) {
         self.targetID = targetID
         self.tabStore = tabStore
         self.activeWindow = activeWindow
         self.document = document
+        self.onFinish = onFinish
         super.init()
     }
 
@@ -34,11 +42,20 @@ final class SaveAndCloseCoordinator: NSObject {
     }
 
     @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
+        // A cancelled save panel leaves the tab open — and still ends the chain, so the
+        // coordinator is released rather than lingering for a callback that will never come.
+        defer { finish() }
         guard didSave else { return }
         tabStore.closeTab(id: targetID)
         if tabStore.tabs.isEmpty {
             activeWindow?.performClose(nil)
         }
+    }
+
+    private func finish() {
+        let callback = onFinish
+        onFinish = nil
+        callback?()
     }
 }
 

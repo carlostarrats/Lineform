@@ -89,8 +89,18 @@ enum LineformAppNotification {
         var value: String?
         var selectedRange: NSRange? = nil
 
+        /// An UNKNOWN window on either side matches NOTHING. A plain `==` made `nil == nil`
+        /// true, so a command posted while no window was key (`NSApp.keyWindow` nil) was
+        /// delivered to EVERY window still resolving its own number — `windowNumber` is
+        /// published a runloop after a window appears, so a freshly opened window sits in
+        /// exactly that state. The commands routed through this include Close Tab, Save As,
+        /// and Delete, which must never fan out. `showSettings` already refused to use this
+        /// path for the same reason; the rule now holds for every caller.
         func matches(windowNumber: Int?) -> Bool {
-            self.windowNumber == windowNumber
+            guard let mine = self.windowNumber, let candidate = windowNumber else {
+                return false
+            }
+            return mine == candidate
         }
     }
 

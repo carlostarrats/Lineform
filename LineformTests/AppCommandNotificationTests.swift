@@ -151,6 +151,12 @@ final class AppCommandNotificationTests: XCTestCase {
 
         XCTAssertTrue(payload.matches(windowNumber: 42))
         XCTAssertFalse(payload.matches(windowNumber: 7))
+        // An unknown window on EITHER side matches nothing. `nil == nil` used to be true, so a
+        // command posted with no key window fanned out to every window still resolving its own
+        // number — including Close Tab, Save As, and Delete.
+        XCTAssertFalse(payload.matches(windowNumber: nil))
+        XCTAssertFalse(LineformAppNotification.Payload(windowNumber: nil).matches(windowNumber: 42))
+        XCTAssertFalse(LineformAppNotification.Payload(windowNumber: nil).matches(windowNumber: nil))
         XCTAssertEqual(payload.value, "read")
     }
 
