@@ -198,9 +198,14 @@ extension View {
     }
 }
 
+/// A zero-hit-test AppKit layer that owns the cursor over the region it covers. Its tracking
+/// area is GEOMETRIC, so it keeps reporting while the pointer sits on SwiftUI controls layered
+/// above it — which `onContinuousHover` does not: an AppKit-backed control (the settings
+/// switches, the modal's close button) swallows the mouse-moved stream and the last cursor set
+/// by the editor (the I-beam) is left standing.
 struct CursorRectView: NSViewRepresentable {
     let cursor: NSCursor
-    let onHoverChanged: (Bool) -> Void
+    var onHoverChanged: (Bool) -> Void = { _ in }
 
     func makeNSView(context: Context) -> CursorRectNSView {
         CursorRectNSView(cursor: cursor, onHoverChanged: onHoverChanged)
@@ -258,6 +263,16 @@ final class CursorRectNSView: NSView {
         hoverTrackingArea = trackingArea
 
         super.updateTrackingAreas()
+        syncHoveringWithPointer()
+    }
+
+    /// A tracking area installed while the pointer is ALREADY inside it sends no
+    /// `mouseEntered`, so a surface that appears under a resting pointer would keep whatever
+    /// cursor was last set until the user moves. Seed the hover state from the pointer instead.
+    private func syncHoveringWithPointer() {
+        guard let window, window.isVisible, !bounds.isEmpty else { return }
+        let pointInView = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        setHovering(bounds.contains(pointInView))
     }
 
     override func mouseEntered(with event: NSEvent) {
