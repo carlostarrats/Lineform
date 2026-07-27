@@ -105,6 +105,22 @@ final class EditorTabStoreTests: XCTestCase {
         XCTAssertEqual(store.selectedTabID, b)
     }
 
+    /// A conversion that changes only the FORMAT (Convert to Plain Text on a document holding no
+    /// markup produces identical text) must still reach the tab snapshot, or switching away and
+    /// back restores the old format.
+    func testUpdateActiveTabCarriesAFormatOnlyChange() {
+        let store = makeStore()
+        let first = store.selectedTabID!
+        store.openTab(document: makeDocument("plain"), fileURL: url("/tmp/b.md"))
+        store.selectTab(id: first)
+
+        var converted = store.selectedTab!.document
+        converted.textFormat = .plainText
+        store.updateActiveTab(document: converted)
+
+        XCTAssertEqual(store.selectedTab?.document.textFormat, .plainText)
+    }
+
     // MARK: - Rename retargeting
 
     func testRetargetFileURLUpdatesExactMatch() {
@@ -139,6 +155,37 @@ final class EditorTabStoreTests: XCTestCase {
         let index = store.tabs.firstIndex { $0.id == deletedTab }!
         XCTAssertNil(store.tabs[index].fileURL) // became untitled-with-content
         XCTAssertNotNil(store.tabIndex(for: url("/tmp/stay.md")))
+    }
+
+    /// The scenario the container's broadcast handlers got wrong: the affected file sits in a
+    /// BACKGROUND tab while a different tab is active. Both handlers gated these tab-level calls
+    /// behind "does the ACTIVE file match", so a background tab kept pointing at a path that had
+    /// been renamed away or moved to the Trash — and activating it later repointed the window's
+    /// NSDocument there, which is how an autosave writes a deleted file back out.
+    func testRenameRetargetsABackgroundTabWhileADifferentTabIsActive() {
+        let store = makeStore()
+        let background = store.openTab(document: makeDocument(), fileURL: url("/tmp/background.md"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        store.selectTab(id: active)
+
+        store.retargetFileURL(from: url("/tmp/background.md"), to: url("/tmp/renamed.md"), isDirectory: false)
+
+        let index = store.tabs.firstIndex { $0.id == background }!
+        XCTAssertEqual(store.tabs[index].fileURL, url("/tmp/renamed.md"))
+        XCTAssertEqual(store.selectedTabID, active, "the active tab must not change")
+    }
+
+    func testDeleteClearsABackgroundTabWhileADifferentTabIsActive() {
+        let store = makeStore()
+        let background = store.openTab(document: makeDocument("content"), fileURL: url("/tmp/background.md"))
+        let active = store.openTab(document: makeDocument(), fileURL: url("/tmp/active.md"))
+        store.selectTab(id: active)
+
+        store.markFileDeleted(url("/tmp/background.md"))
+
+        let index = store.tabs.firstIndex { $0.id == background }!
+        XCTAssertNil(store.tabs[index].fileURL, "a trashed file must not stay addressable from a background tab")
+        XCTAssertNotNil(store.tabIndex(for: url("/tmp/active.md")))
     }
 
     // MARK: - App-wide open dedupe

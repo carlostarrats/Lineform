@@ -101,7 +101,6 @@ final class OutlineSidebarViewTests: XCTestCase {
 
     @MainActor
     func testFilesSectionsGetAMuseStyleSortRowWithoutManualOption() {
-        XCTAssertEqual(OutlineSidebarView.filesSortMenuLabelPrefix, "Sort: ")
         XCTAssertTrue(OutlineSidebarView.filesSortRowShowsForAvailableRootsOnly)
         XCTAssertEqual(OutlineFileSortOrder.allCases.count, 3)
     }

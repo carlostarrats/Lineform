@@ -448,16 +448,24 @@ struct EditorContainerView: View {
             LineformCurrentFileMenuState.shared.setCurrentFileURL(nil)
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.sidebarItemRenamed.name)) { notification in
+            guard let payload = notification.object as? LineformAppNotification.RenamePayload else {
+                return
+            }
+            // Retarget ALL tabs that point to the moved file or any descendant of a moved folder,
+            // so switching tabs later does not try to autosave to a stale path.
+            //
+            // UNCONDITIONAL, and before the window guard below: this is a TAB-level operation, and
+            // gating it on the ACTIVE file being affected meant a file open only in a BACKGROUND
+            // tab was never retargeted. Switching to that tab later pointed the window's NSDocument
+            // at a path that no longer exists — exactly what the comment above promises it prevents.
+            tabStore.retargetFileURL(from: payload.from, to: payload.to, isDirectory: payload.isDirectory)
+
             guard
-                let payload = notification.object as? LineformAppNotification.RenamePayload,
                 let newURL = payload.rebased(currentFileURL),
                 let backingDocument = activeWindow?.windowController?.document as? NSDocument
             else {
                 return
             }
-            // Retarget ALL tabs that point to the moved file or any descendant of a moved
-            // folder, so switching tabs later does not try to autosave to a stale path.
-            tabStore.retargetFileURL(from: payload.from, to: payload.to, isDirectory: payload.isDirectory)
             // This window's active document follows the rename so the title bar, autosave
             // target, selection highlight, and reload watcher all track the new location.
             // The reload watcher is re-pointed with noteMoved — NOT registerReloadWatcher/register,
@@ -471,16 +479,24 @@ struct EditorContainerView: View {
             currentFileURL = newURL
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.sidebarFileDeleted.name)) { notification in
+            guard let deletedURL = notification.object as? URL else {
+                return
+            }
+            // Clear the file URL for ALL tabs that pointed at this deleted file, so they become
+            // untitled-with-content and the next save prompts for a location.
+            //
+            // UNCONDITIONAL, for the same reason as the rename above: a file trashed while it sits
+            // in a BACKGROUND tab was left pointing into the Trash, and activating that tab later
+            // repointed the window's NSDocument there — where the next autosave writes the file
+            // back out, which is the resurrection this app deliberately avoids.
+            tabStore.markFileDeleted(deletedURL)
+
             guard
-                let deletedURL = notification.object as? URL,
                 currentFileURL?.standardizedFileURL == deletedURL.standardizedFileURL,
                 let backingDocument = activeWindow?.windowController?.document as? NSDocument
             else {
                 return
             }
-            // Clear the file URL for ALL tabs that pointed at this deleted file, so they
-            // become untitled-with-content and the next save prompts for a location.
-            tabStore.markFileDeleted(deletedURL)
             // The file is in the Trash; keep the text in the window as unsaved content.
             backingDocument.fileURL = nil
             backingDocument.updateChangeCount(.changeDone)
@@ -505,6 +521,11 @@ struct EditorContainerView: View {
         }
         .onChange(of: document.textFormat) { _, newValue in
             LineformTextFormatMenuState.shared.setTextFormat(newValue)
+            // The tab snapshot is otherwise only refreshed by the `document.text` observer below,
+            // so a conversion that changes the FORMAT without changing the text — Convert to Plain
+            // Text on a document that holds no markup — left the tab remembering the old format.
+            // Switching away and back then restored the wrong one.
+            tabStore.updateActiveTab(document: document)
         }
         .onChange(of: document.text) { _, newValue in
             // Instant, cheap, must stay accurate on every keystroke: external-reload text
