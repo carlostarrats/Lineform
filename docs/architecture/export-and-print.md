@@ -16,7 +16,7 @@ in this area.
 
 - Shared inline syntax: the six inline-markdown regexes (bold, italic, code, strikethrough, image, link) live once in `MarkdownInlineSyntax` (`Lineform/Preview/MarkdownInlineSyntax.swift`) and are used by BOTH `MarkdownPreviewRenderer` and `MarkdownHTMLRenderer`. They were private to the preview renderer until HTML export needed the same patterns; copying them would mean a construct added to one emitter silently not existing in the other — the exported file quietly disagreeing with what the app shows on screen. Capture group 1 is always the display text, group 2 (where present) the destination.
 
-- **Executable link schemes are dropped from HTML export (2026-07-26).** `MarkdownHTMLRenderer.isExecutableScheme`
+- **Executable link schemes are dropped from HTML export (2026-07-26).** `MarkdownHTMLRenderer.isRefusedLinkScheme`
   refuses `javascript:`, `vbscript:`, and `data:text/html` in a link destination; the link TEXT still
   renders, so nothing the writer typed leaves the page — it just isn't a clickable piece of code.
   This is NOT an exception to the one-to-one rule and must not be read as licence for more: that rule
@@ -42,3 +42,13 @@ in this area.
   and newline, plus leading C0/space): stripping everything at or below `0x20` anywhere can only
   match MORE than a browser would, the same over-broad-and-safe trade `reformat` makes with
   backticks. Guarded by `MarkdownRobustnessTests`, which pins the pass-through cases too.
+
+- **Export and print suppress the diagram "Report this" affordance (2026-07-26).** `render(…)` takes
+  `offersDiagramReporting`, false from `DocumentExportRenderer` on both the Styled and RTF paths. The
+  link is only actionable inside the app, where `MarkdownPreviewTextView.clickedOnLink` resolves the
+  `lineform-report:` URL against the live `DiagramReportRegistry`; the Styled PDF/Print path uses a
+  REAL `MermaidImageProvider`, so before this a diagram that failed to render embedded a dead
+  hyperlink into the exported file whose tooltip offered to send the diagram source to the developer
+  — in a document the user shares or prints. The captioned-source fallback still renders; only the
+  link is dropped. Guarded by `testExportSuppressesTheReportThisAffordance`, which also asserts that
+  NO `.link` attribute of any kind survives into an exported document.

@@ -141,6 +141,44 @@ final class MermaidRenderingTests: XCTestCase {
         XCTAssertEqual(diagram.accessibilityDescription, "Mermaid diagram. \(source)")
     }
 
+    /// "Report this" is only actionable INSIDE the app, where `clickedOnLink` resolves the
+    /// `lineform-report:` URL against the live registry. Export and print therefore suppress it:
+    /// a shared or printed PDF must not carry a dead link whose tooltip offers to send the
+    /// diagram source to the developer. The captioned source fallback still renders.
+    @MainActor
+    func testExportSuppressesTheReportThisAffordance() {
+        let text = "```mermaid\ngraph TD; A-->B\n```"
+        let onScreen = MarkdownPreviewRenderer().render(
+            text,
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: FakeProvider(.failed("boom")),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: FakeLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "1.0"
+        )
+        XCTAssertTrue(onScreen.string.contains("Report this"), "on screen the affordance stays")
+
+        let exported = MarkdownPreviewRenderer().render(
+            text,
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: FakeProvider(.failed("boom")),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: FakeLog(),
+            reportRegistry: DiagramReportRegistry(),
+            appVersion: "1.0",
+            offersDiagramReporting: false
+        )
+        XCTAssertFalse(exported.string.contains("Report this"), "an exported file must not offer it")
+        XCTAssertTrue(exported.string.contains("Mermaid diagram (source)"), "the fallback still renders")
+        let full = NSRange(location: 0, length: exported.length)
+        var foundLink = false
+        exported.enumerateAttribute(.link, in: full) { value, _, _ in if value != nil { foundLink = true } }
+        XCTAssertFalse(foundLink, "no lineform-report: link may reach an exported document")
+    }
+
     // The "Report this" affordance is a `.link` inside the selectable read view, so it is already
     // reachable (VoiceOver reads it as a link; Full Keyboard Access can focus it). It must also
     // carry a `.toolTip` explaining what the terse "Report this" does — shown on hover, and bridged

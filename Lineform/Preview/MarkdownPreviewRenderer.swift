@@ -96,7 +96,12 @@ struct MarkdownPreviewRenderer {
         // Export/print's Style presets scale heading sizes over body (multiplier on the
         // per-level boost). Not a `ReadingProfile` field. Defaults to a no-op so on-screen
         // Read/Preview rendering is byte-identical.
-        headingScale: CGFloat = 1.0
+        headingScale: CGFloat = 1.0,
+        // "Report this" on a failed diagram is an ON-SCREEN affordance: it is only actionable
+        // inside the app, where `clickedOnLink` resolves the `lineform-report:` URL against the
+        // live registry. Export/print sets this false — a shared PDF must not carry a dead link
+        // whose tooltip offers to send data to the developer.
+        offersDiagramReporting: Bool = true
     ) -> NSAttributedString {
         reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
@@ -181,7 +186,8 @@ struct MarkdownPreviewRenderer {
                     diagramLog: diagramLog,
                     reportRegistry: reportRegistry,
                     appVersion: appVersion,
-                    imagesAsText: imagesAsText
+                    imagesAsText: imagesAsText,
+                    offersDiagramReporting: offersDiagramReporting
                 )
                 appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .horizontalRule(let lineIndex):
@@ -728,7 +734,8 @@ struct MarkdownPreviewRenderer {
         diagramLog: DiagramFailureLogging,
         reportRegistry: DiagramReportRegistry,
         appVersion: String,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        offersDiagramReporting: Bool = true
     ) {
         if imagesAsText {
             appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
@@ -770,7 +777,13 @@ struct MarkdownPreviewRenderer {
             diagramLog.record(source: source, error: error, appVersion: appVersion)
             let hash = DiagramLog.sourceHash(source)
             reportRegistry.register(hash: hash, source: source, error: error)
-            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: hash)
+            appendMermaidFallback(
+                source: source,
+                to: output,
+                profile: profile,
+                codeAttributes: codeAttributes,
+                reportHash: offersDiagramReporting ? hash : nil
+            )
         }
     }
 
