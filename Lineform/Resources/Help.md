@@ -13,7 +13,8 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 - Keep lists going as you type: Return after a bullet, numbered item, task checkbox, or blockquote starts the next one. Press Return again on an empty marker to end the list.
 - Write tables without counting pipes: Format ▸ Insert Table (⌃⌘T) starts one, Tab and Shift-Tab move between cells, and Tab in the last cell adds a row. Format ▸ Reformat Table (⌃⌘R) lines the columns up in the source.
 - Convert between Markdown and plain text.
-- Save As to Markdown, PDF, Styled PDF, or Rich Text (.rtf), and print with ⌘P.
+- Save As keeps your Markdown file; Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf). Print with ⌘P.
+- Exported HTML keeps your image and link paths exactly as you wrote them, so a page saved beside your Markdown file still finds its images.
 - Use Reading Experience to adjust type, spacing, themes, reading ruler, and typewriter mode.
 - Have a document read aloud from Edit ▸ Speech.
 - Use native macOS Writing Tools on selected text where the system provides them.

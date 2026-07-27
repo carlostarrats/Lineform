@@ -209,6 +209,12 @@ enum MainMenuIconDecorator {
         "close tab": "xmark.rectangle",
         "save": "square.and.arrow.down",
         "save as": "square.and.arrow.down.on.square",
+        // Export As pairs against Save: down means bytes land in your file, up means a copy leaves.
+        "export as": "square.and.arrow.up",
+        "html": "chevron.left.forwardslash.chevron.right",
+        "pdf": "doc.plaintext",
+        "styled pdf": "doc.richtext",
+        "rich text (.rtf)": "textformat",
         "rename": "pencil",
         "delete": "trash",
         "select next tab": "arrow.right",

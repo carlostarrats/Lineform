@@ -1,26 +1,25 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// The formats offered by the single File ▸ Save As… command. Markdown writes the real `.md`
-/// document; PDF / Styled PDF export the rendered document at the two typographic presets; RTF
-/// exports styled rich text for Word/Pages.
-enum SaveAsFormat: Int, CaseIterable {
-    case markdown, pdf, styledPDF, rtf
+/// A target for File ▸ Export As. Markdown is deliberately absent: saving your document is
+/// Save As, exporting a copy in another format is Export As, and keeping a Markdown entry here
+/// would put two routes on the same file.
+enum ExportFormat: Int, CaseIterable {
+    case html, pdf, styledPDF, rtf
 
     var title: String {
         switch self {
-        case .markdown: return "Markdown (.md)"
+        case .html: return "HTML"
         case .pdf: return "PDF"
         case .styledPDF: return "Styled PDF"
         case .rtf: return "Rich Text (.rtf)"
         }
     }
 
-    /// One-line explanation shown under the Format popup in the Save As panel, so the difference
-    /// between PDF and Styled PDF is legible before choosing.
+    /// Shown under the format's name in the export panel.
     var description: String {
         switch self {
-        case .markdown: return "The editable source file."
+        case .html: return "A web page — your image and link paths kept exactly as written."
         case .pdf: return "Plain markdown source — shows #, ** as typed."
         case .styledPDF: return "Rendered like Read mode — with images, tables, math & diagrams."
         case .rtf: return "Styled text for Word, Pages & Google Docs."
@@ -29,7 +28,7 @@ enum SaveAsFormat: Int, CaseIterable {
 
     var pathExtension: String {
         switch self {
-        case .markdown: return "md"
+        case .html: return "html"
         case .pdf, .styledPDF: return "pdf"
         case .rtf: return "rtf"
         }
@@ -37,13 +36,13 @@ enum SaveAsFormat: Int, CaseIterable {
 
     var contentType: UTType {
         switch self {
-        case .markdown: return UTType(filenameExtension: "md") ?? .plainText
+        case .html: return .html
         case .pdf, .styledPDF: return .pdf
         case .rtf: return .rtf
         }
     }
 
-    /// PDF formats print to paper; Markdown/RTF reflow in their target app.
+    /// PDF formats print to paper; HTML/RTF reflow in their target app.
     var usesPaper: Bool { self == .pdf || self == .styledPDF }
 }
 
@@ -146,94 +145,59 @@ enum SaveAsConflict {
     }
 }
 
-/// Owns the Format (and Paper) popups in the Save As… panel's accessory view and keeps the panel's
-/// filename extension + allowed type in sync as the user changes the format. An `NSObject` so it can
-/// be the popup's target/action.
+/// Owns the export panel's accessory: a one-line description of the chosen format, plus a Paper
+/// Size popup for the two PDF formats. There is no Format popup — File ▸ Export As already chose
+/// the format, so the panel only collects what is still open.
 @MainActor
-final class SaveAsPanelController: NSObject {
-    private weak var panel: NSSavePanel?
-    private let baseName: String
-    private let formatPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 25))
+final class ExportPanelController: NSObject {
     let paperPopup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 150, height: 25))
-    private let descriptionLabel: NSTextField = {
-        let field = NSTextField(wrappingLabelWithString: "")
-        field.textColor = .secondaryLabelColor
-        field.font = .systemFont(ofSize: 11)
-        field.alignment = .center
-        field.isSelectable = false
-        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.preferredMaxLayoutWidth = 280
-        return field
-    }()
+    private let format: ExportFormat
 
-    var selectedFormat: SaveAsFormat {
-        SaveAsFormat(rawValue: formatPopup.indexOfSelectedItem) ?? .markdown
-    }
-
-    init(panel: NSSavePanel, baseName: String, paperTitles: [String], selectedPaper: Int, initialFormat: SaveAsFormat) {
-        self.panel = panel
-        self.baseName = baseName.isEmpty ? "Untitled" : baseName
+    init(panel: NSSavePanel, baseName: String, format: ExportFormat, paperTitles: [String], selectedPaper: Int) {
+        self.format = format
         super.init()
 
-        for format in SaveAsFormat.allCases { formatPopup.addItem(withTitle: format.title) }
-        formatPopup.selectItem(at: initialFormat.rawValue)
-        formatPopup.target = self
-        formatPopup.action = #selector(formatChanged)
-        // The adjacent "Format:" text field is not programmatically associated, so VoiceOver would
-        // otherwise announce only the selected value with no field name.
-        formatPopup.setAccessibilityLabel("Format")
+        let name = baseName.isEmpty ? "Untitled" : baseName
+        panel.nameFieldStringValue = "\(name).\(format.pathExtension)"
+        panel.allowedContentTypes = [format.contentType]
 
         for title in paperTitles { paperPopup.addItem(withTitle: title) }
         if paperTitles.indices.contains(selectedPaper) { paperPopup.selectItem(at: selectedPaper) }
+        // The adjacent "Paper Size:" text field is not programmatically associated, so VoiceOver
+        // would otherwise announce only the selected value with no field name.
         paperPopup.setAccessibilityLabel("Paper Size")
 
         panel.accessoryView = makeAccessory()
-        syncPanel()
     }
-
-    @objc private func formatChanged() { syncPanel() }
-
-    /// Keep the panel's filename extension + allowed type matching the chosen format, and show the
-    /// paper row only for the PDF formats.
-    private func syncPanel() {
-        let format = selectedFormat
-        panel?.nameFieldStringValue = "\(baseName).\(format.pathExtension)"
-        panel?.allowedContentTypes = [format.contentType]
-        paperRow.isHidden = !format.usesPaper
-        descriptionLabel.stringValue = format.description
-    }
-
-    private var paperRow = NSView()
 
     private func makeAccessory() -> NSView {
-        let formatLabel = label("Format:")
-        let formatRow = row(formatLabel, formatPopup)
+        let description = NSTextField(wrappingLabelWithString: format.description)
+        description.textColor = .secondaryLabelColor
+        description.font = .systemFont(ofSize: 11)
+        description.alignment = .center
+        description.isSelectable = false
+        description.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        description.preferredMaxLayoutWidth = 280
 
-        let paperLabel = label("Paper Size:")
-        paperRow = row(paperLabel, paperPopup)
+        var views: [NSView] = [description]
+        if format.usesPaper {
+            let label = NSTextField(labelWithString: "Paper Size:")
+            label.setContentHuggingPriority(.required, for: .horizontal)
+            let row = NSStackView(views: [label, paperPopup])
+            row.orientation = .horizontal
+            row.spacing = 8
+            row.alignment = .firstBaseline
+            views.append(row)
+        }
 
-        // The accessory HUGS its content (no fixed width, no edge-pinning to a full-width container);
-        // NSSavePanel then centers the hugging accessory horizontally, like TextEdit's format popup.
-        // `.centerX` centers the two rows relative to each other.
-        let stack = NSStackView(views: [formatRow, descriptionLabel, paperRow])
+        // The accessory HUGS its content (no fixed width, no edge-pinning to a full-width
+        // container); NSSavePanel then centers the hugging accessory horizontally, like TextEdit's
+        // format popup. Pinning it full-width left-aligns it instead.
+        let stack = NSStackView(views: views)
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 10
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
         return stack
-    }
-
-    private func label(_ text: String) -> NSTextField {
-        let field = NSTextField(labelWithString: text)
-        field.setContentHuggingPriority(.required, for: .horizontal)
-        return field
-    }
-
-    private func row(_ label: NSView, _ control: NSView) -> NSView {
-        let row = NSStackView(views: [label, control])
-        row.orientation = .horizontal
-        row.spacing = 8
-        row.alignment = .firstBaseline
-        return row
     }
 }

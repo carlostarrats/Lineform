@@ -35,7 +35,7 @@ Core product principles:
 - Live spell checking as you type, suppressed inside fenced code, front matter, math, inline code, and link/image destinations; autocorrect is off, grammar checking is unused, and right-click offers one ranked suggestion plus Learn/Ignore.
 - Multi-document tabs, Find & Replace, cross-file search, and ⌘K quick open.
 - Read/Preview rendering of Mermaid diagrams, LaTeX math, GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
-- Save As with a Format picker: Markdown, PDF, Styled PDF, Rich Text (.rtf), plus Print (⌘P).
+- Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
@@ -52,7 +52,7 @@ before changing anything in it**; each one records decisions that were paid for 
 | Multi-document tabs, window/nav chrome, background-tab safety | `docs/architecture/tabs-and-windows.md` |
 | Files sidebar: scanning, watching, virtualization, file ops, visuals | `docs/architecture/files-sidebar.md` |
 | Read/Preview rendering: blocks, mermaid, math, code, callouts, images | `docs/architecture/rendering.md` |
-| Save As, PDF/RTF export, print, typography presets | `docs/architecture/export-and-print.md` |
+| Save As, Export As, HTML/PDF/RTF export, print, typography presets | `docs/architecture/export-and-print.md` |
 | Find & Replace, cross-file search, ⌘K quick open | `docs/architecture/search.md` |
 | Live reload, scoped highlighting, save-state, view modes, speech | `docs/architecture/editor-behavior.md` |
 | Settings, updates, CLI, App Intents, Quick Look, app identity | `docs/architecture/app-integration.md` |
@@ -103,6 +103,7 @@ file named after it carries the full story and the reasoning.
 **Export** (`export-and-print.md`)
 - `com.apple.security.print` must stay in BOTH entitlements files or printing fails outright.
 - Save As → Markdown must drive `NSDocument.save(to:ofType:for:.saveAsOperation)`. A raw `Data.write` leaves the in-app document detached from the file.
+- HTML export is ONE-TO-ONE with the source: image paths, link URLs, and remote URLs are emitted exactly as written — never resolved, rewritten, or inlined. Only generated math/mermaid images embed. Special cases accumulating here mean a non-one-to-one default crept back in.
 - PDF export must go through `writePDFAtomically`. `NSPrintOperation` writes straight into its target, so a direct write truncates the file being overwritten.
 
 **Build config and app shell** (`app-integration.md`)

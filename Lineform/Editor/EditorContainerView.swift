@@ -52,6 +52,9 @@ struct EditorContainerView: View {
     /// Set when an RTF export write fails, driving a native in-window `.alert` (no app-icon
     /// NSAlert). Holds the destination file name for the message.
     @State private var rtfExportErrorFileName: String?
+    /// Set when an HTML export write fails, driving a native in-window `.alert` (no app-icon
+    /// NSAlert). Holds the destination file name for the message.
+    @State private var htmlExportErrorFileName: String?
     /// Set when a Save As → Markdown save fails, driving a native in-window `.alert`.
     @State private var markdownSaveErrorFileName: String?
     /// Set when Save As targets a file already open in another tab of this window. Holds that
@@ -162,42 +165,10 @@ struct EditorContainerView: View {
                 Text(SidebarFileActionPresenter.deleteMessage)
             }
         }
-        .alert(
-            "Couldn’t Export PDF",
-            isPresented: Binding(
-                get: { pdfExportErrorFileName != nil },
-                set: { if !$0 { pdfExportErrorFileName = nil } }
-            ),
-            presenting: pdfExportErrorFileName
-        ) { _ in
-            Button("OK", role: .cancel) { pdfExportErrorFileName = nil }
-        } message: { fileName in
-            Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
-        }
-        .alert(
-            "Couldn\u{2019}t Export RTF",
-            isPresented: Binding(
-                get: { rtfExportErrorFileName != nil },
-                set: { if !$0 { rtfExportErrorFileName = nil } }
-            ),
-            presenting: rtfExportErrorFileName
-        ) { _ in
-            Button("OK", role: .cancel) { rtfExportErrorFileName = nil }
-        } message: { fileName in
-            Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
-        }
-        .alert(
-            "Couldn\u{2019}t Save",
-            isPresented: Binding(
-                get: { markdownSaveErrorFileName != nil },
-                set: { if !$0 { markdownSaveErrorFileName = nil } }
-            ),
-            presenting: markdownSaveErrorFileName
-        ) { _ in
-            Button("OK", role: .cancel) { markdownSaveErrorFileName = nil }
-        } message: { fileName in
-            Text("Lineform couldn\u{2019}t write \u{201C}\(fileName)\u{201D}. Choose a different location and try again.")
-        }
+        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export PDF", fileName: $pdfExportErrorFileName))
+        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export RTF", fileName: $rtfExportErrorFileName))
+        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export HTML", fileName: $htmlExportErrorFileName))
+        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Save", fileName: $markdownSaveErrorFileName))
         .alert(
             "File Already Open",
             isPresented: Binding(
@@ -388,6 +359,13 @@ struct EditorContainerView: View {
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.saveAsDocument.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
             saveAsDocument()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.exportDocument.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            guard let raw = notificationPayloadValue(notification),
+                  let value = Int(raw),
+                  let format = ExportFormat(rawValue: value) else { return }
+            exportDocument(format)
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.newTab.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
@@ -1850,19 +1828,14 @@ struct EditorContainerView: View {
         }
     }
 
-    /// One "Save As…" panel with a Format picker: Markdown writes the real `.md`; PDF / Styled PDF /
-    /// RTF export the rendered document. Replaces the old separate "Export As" submenu.
+    /// File ▸ Save As… — retargets the document's own .md file. Markdown only: every other
+    /// format is File ▸ Export As, which writes a COPY and leaves this document alone.
     private func saveAsDocument() {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
         let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
-        let controller = SaveAsPanelController(
-            panel: panel,
-            baseName: base,
-            paperTitles: ExportPaperSize.allCases.map(\.displayName),
-            selectedPaper: ExportPaperSize.allCases.firstIndex(of: defaultExportPaperSize) ?? 0,
-            initialFormat: .markdown
-        )
+        panel.nameFieldStringValue = "\(base).md"
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
 
         let write: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else { return }
@@ -1870,37 +1843,74 @@ struct EditorContainerView: View {
             // that file also being open in another tab, whose stale snapshot would autosave right
             // back over whatever we write here. Refuse and name the tab instead of clobbering.
             // Checked against EVERY window's tabs, not just this one's: the other window has no idea
-            // its file was rewritten, so a cross-window save is the same data loss.
+            // its file was rewritten, so a cross-window save is the same data loss. Export needs no
+            // such guard — .html/.pdf/.rtf are not openable document types, so no tab holds one.
             if let conflictingTab = SaveAsConflict.conflictingTabTitle(
                 destination: url, tabs: EditorTabStore.allOpenTabs, activeTabID: tabStore.selectedTabID) {
                 saveAsConflictTabTitle = conflictingTab
                 return
             }
-            let format = controller.selectedFormat
+            // A real macOS "Save As": drive the backing document's own save-as so the write goes
+            // through the FileDocument machinery (recordWrite → the savedAt observer re-points the
+            // reload watcher and currentFileURL), and AppKit retargets NSDocument.fileURL — so the
+            // open document (and an Untitled one) actually BECOMES this file, autosave following it.
+            // A raw Data.write would leave the in-app document detached from the file on disk.
+            if let backingDocument = activeWindow?.windowController?.document as? NSDocument {
+                let fileType = LineformDocument.contentType(for: url).identifier
+                backingDocument.save(to: url, ofType: fileType, for: .saveAsOperation) { error in
+                    if error != nil { markdownSaveErrorFileName = url.lastPathComponent }
+                }
+            } else {
+                do {
+                    try Data(document.text.utf8).write(to: url, options: .atomic)
+                } catch {
+                    markdownSaveErrorFileName = url.lastPathComponent
+                }
+            }
+        }
+
+        if let window = activeWindow {
+            panel.beginSheetModal(for: window, completionHandler: write)
+        } else {
+            write(panel.runModal())
+        }
+    }
+
+    /// File ▸ Export As ▸ … — writes a COPY in the chosen format. The open document is never
+    /// retargeted and never marked dirty.
+    private func exportDocument(_ format: ExportFormat) {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        let controller = ExportPanelController(
+            panel: panel,
+            baseName: base,
+            format: format,
+            paperTitles: ExportPaperSize.allCases.map(\.displayName),
+            selectedPaper: ExportPaperSize.allCases.firstIndex(of: defaultExportPaperSize) ?? 0
+        )
+
+        let write: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else { return }
             let paperIndex = controller.paperPopup.indexOfSelectedItem
-            let paper = ExportPaperSize.allCases.indices.contains(paperIndex) ? ExportPaperSize.allCases[paperIndex] : .usLetter
+            let paper = ExportPaperSize.allCases.indices.contains(paperIndex)
+                ? ExportPaperSize.allCases[paperIndex] : .usLetter
+            let dir = currentFileURL?.deletingLastPathComponent()
+
             switch format {
-            case .markdown:
-                // A real macOS "Save As": drive the backing document's own save-as so the write goes
-                // through the FileDocument machinery (recordWrite → the savedAt observer re-points the
-                // reload watcher and currentFileURL), and AppKit retargets NSDocument.fileURL — so the
-                // open document (and an Untitled one) actually BECOMES this file, autosave following it.
-                // A raw Data.write would leave the in-app document detached from the file on disk.
-                if let backingDocument = activeWindow?.windowController?.document as? NSDocument {
-                    let fileType = LineformDocument.contentType(for: url).identifier
-                    backingDocument.save(to: url, ofType: fileType, for: .saveAsOperation) { error in
-                        if error != nil { markdownSaveErrorFileName = url.lastPathComponent }
-                    }
-                } else {
-                    do {
-                        try Data(document.text.utf8).write(to: url, options: .atomic)
-                    } catch {
-                        markdownSaveErrorFileName = url.lastPathComponent
-                    }
+            case .html:
+                // The <title> is the document's own name, not the export destination's — the user
+                // may be naming the .html file something else entirely.
+                let data = DocumentExportRenderer.htmlData(text: document.text, title: base)
+                do {
+                    // Atomic: a failed write leaves no partial file, and any file being
+                    // overwritten survives intact unless the write fully succeeds.
+                    try data.write(to: url, options: .atomic)
+                } catch {
+                    htmlExportErrorFileName = url.lastPathComponent
                 }
             case .pdf, .styledPDF:
                 let preset: ExportTypographyPreset = (format == .styledPDF) ? .styled : .standard
-                let dir = currentFileURL?.deletingLastPathComponent()
                 // NSPrintOperation writes straight to its target, so a mid-write failure (disk full,
                 // render error, crash) would leave a truncated PDF — and when overwriting, it would
                 // have already destroyed the file that was there. Staging the render and moving it
@@ -1926,8 +1936,6 @@ struct EditorContainerView: View {
             case .rtf:
                 do {
                     let data = try DocumentExportRenderer.rtfData(for: document, profile: readingProfileStore.activeProfile, paper: paper)
-                    // Atomic: a failed write leaves no partial file, and any file being overwritten
-                    // is preserved intact unless the write fully succeeds.
                     try data.write(to: url, options: .atomic)
                 } catch {
                     rtfExportErrorFileName = url.lastPathComponent
@@ -2132,5 +2140,29 @@ private struct ReassertWindowChromeOnHierarchyRebuild: ViewModifier {
             .onChange(of: isShowingOutline) { _, _ in
                 DispatchQueue.main.async { apply() }
             }
+    }
+}
+
+/// The export/save write-failure alerts are identical apart from their title and which piece of
+/// state drives them. Extracted into one modifier both to remove four copies of the same block and
+/// because four inline `.alert`s in `body` exceeded the type-checker's budget — that fails the
+/// BUILD, not just readability.
+private struct WriteFailureAlert: ViewModifier {
+    let title: String
+    @Binding var fileName: String?
+
+    func body(content: Content) -> some View {
+        content.alert(
+            title,
+            isPresented: Binding(
+                get: { fileName != nil },
+                set: { if !$0 { fileName = nil } }
+            ),
+            presenting: fileName
+        ) { _ in
+            Button("OK", role: .cancel) { fileName = nil }
+        } message: { name in
+            Text("Lineform couldn\u{2019}t write \u{201C}\(name)\u{201D}. Choose a different location and try again.")
+        }
     }
 }
