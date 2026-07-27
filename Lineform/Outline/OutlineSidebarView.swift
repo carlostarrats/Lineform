@@ -1911,9 +1911,13 @@ private struct OutlineFileRootRow: View {
 
             if root.id == "workspace", root.state != .unavailable {
                 if root.state == .disconnected {
+                    // The only signal that the workspace folder is gone is this glyph's shape, so
+                    // it carries a label rather than being decorative — an unlabelled icon is the
+                    // state simply not existing for a VoiceOver user.
                     Image(systemName: OutlineSidebarView.workspaceDisconnectedSystemImage)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                        .accessibilityLabel("Workspace folder unavailable")
                 }
 
                 Button {
