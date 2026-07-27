@@ -135,7 +135,6 @@ struct OutlineSidebarView: View {
     static let fileSelectionReplacesCurrentWindow = true
     static let fileSelectionUsesNativeSavePrompt = true
     static let workspaceDisconnectedSystemImage = "exclamationmark.triangle.fill"
-    static let filesSortMenuLabelPrefix = "Sort: "
     /// The sort row renders only under an expanded, connected, non-empty section — a
     /// disconnected/dimmed/empty section has nothing meaningful to reorder.
     static let filesSortRowShowsForAvailableRootsOnly = true
@@ -2054,49 +2053,6 @@ private struct OutlineFileRootRow: View {
             white = usesDarkChrome ? 0.98 : 0.34
         }
         return Color(nsColor: NSColor(calibratedWhite: white, alpha: 1))
-    }
-}
-
-/// Muse-style quiet sort control above a section's contents: "Sort: Name ▾" opening a
-/// three-option picker (no Manual — see OutlineFileSortOrder).
-private struct OutlineFileSortRow: View {
-    var rootTitle: String
-    @Binding var sortOrder: OutlineFileSortOrder
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Menu {
-            // Plain buttons (not a Picker) so the menu shows only the options with an
-            // inline checkmark on the active one — no greyed "Sort" section header.
-            ForEach(OutlineFileSortOrder.allCases) { order in
-                Button {
-                    sortOrder = order
-                } label: {
-                    if order == sortOrder {
-                        Label(order.title, systemImage: "checkmark")
-                    } else {
-                        Text(order.title)
-                    }
-                }
-                // Convey the active option to VoiceOver in the open menu (the checkmark
-                // alone is only a visual cue).
-                .accessibilityAddTraits(order == sortOrder ? [.isSelected] : [])
-            }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                Text(OutlineSidebarView.filesSortMenuLabelPrefix + sortOrder.title)
-                    .font(.system(size: 13, weight: .medium))
-            }
-            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: colorScheme == .dark))
-        }
-        .menuStyle(.button)
-        .menuIndicator(.hidden)
-        .buttonStyle(.plain)
-        .fixedSize()
-        .accessibilityLabel("Sort \(rootTitle) files")
-        .accessibilityValue(sortOrder.title)
     }
 }
 
