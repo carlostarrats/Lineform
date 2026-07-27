@@ -170,6 +170,121 @@ final class MarkdownRobustnessTests: XCTestCase {
         XCTAssertEqual(crlf, lf)
     }
 
+    /// The sweep. CRLF caused three separate defects in three different layers, each found only
+    /// after the previous "fix" was called done — so the class is closed by asserting the general
+    /// property rather than by patching the next instance: for a document differing ONLY in line
+    /// endings, every pure transform must agree with its LF twin once endings are normalised out
+    /// of the comparison. A new transform that forgets `\r` fails here instead of shipping.
+    func testEveryPureTransformAgreesAcrossLineEndings() {
+        let lf = """
+        ---
+        title: Notes
+        ---
+
+        # Heading
+
+        Body with `code` and a [link](x.md).
+
+        - [ ] task one
+        - [x] task two
+
+        > [!NOTE]
+        > callout body
+
+        | A | B |
+        |---|---|
+        | 1 | 2 |
+
+        ```swift
+        let a = 1
+        ```
+
+        $$
+        x = 1
+        $$
+
+        ---
+
+        Tail.
+        """
+        let crlf = lf.replacingOccurrences(of: "\n", with: "\r\n")
+
+        func stripped(_ text: String) -> String { text.replacingOccurrences(of: "\r", with: "") }
+
+        XCTAssertEqual(markdownSourceLines(in: crlf).lines, markdownSourceLines(in: lf).lines,
+                       "line splitting differs")
+
+        // Block grouping: same partition, same payloads. Source RANGES must legitimately differ
+        // (the CRLF document is longer), so range-carrying fields are compared by the text they
+        // cover — which is the property that actually matters to checkbox toggling and Reconnect.
+        func blockDescriptions(in text: String) -> [String] {
+            let ns = text as NSString
+            let source = markdownSourceLines(in: text)
+            func covered(_ range: NSRange) -> String { stripped(ns.substring(with: range)) }
+            return markdownBlocks(in: source.lines, lineRanges: source.ranges).map { block in
+                switch block {
+                case let .list(items, lastLineIndex):
+                    let described = items.map { item in
+                        let box = item.checkbox.map { "\($0.isChecked):\(covered($0.sourceRange))" } ?? "-"
+                        return "\(item.text)/\(item.indentLevel)/\(item.ordinal.map(String.init) ?? "-")/\(box)"
+                    }
+                    return "list(\(described))/\(lastLineIndex)"
+                case let .image(alt, path, sourceRange, lineIndex):
+                    return "image(\(alt)/\(path)/\(covered(sourceRange))/\(lineIndex))"
+                default:
+                    return String(describing: block)
+                }
+            }
+        }
+        XCTAssertEqual(blockDescriptions(in: crlf), blockDescriptions(in: lf),
+                       "block grouping differs across line endings")
+
+        XCTAssertEqual(
+            MarkdownHTMLRenderer.body(for: crlf, generatedImage: { _ in nil }),
+            MarkdownHTMLRenderer.body(for: lf, generatedImage: { _ in nil }),
+            "HTML export differs"
+        )
+        XCTAssertEqual(
+            SpeechTextExtractor.spokenText(from: crlf),
+            SpeechTextExtractor.spokenText(from: lf),
+            "read-aloud differs"
+        )
+        XCTAssertEqual(
+            stripped(MarkdownPlainTextConverter.plainText(from: crlf)),
+            MarkdownPlainTextConverter.plainText(from: lf),
+            "Convert to Plain Text differs"
+        )
+        XCTAssertEqual(
+            MarkdownOutlineParser().items(in: crlf).map(\.title),
+            MarkdownOutlineParser().items(in: lf).map(\.title),
+            "outline differs"
+        )
+        XCTAssertEqual(
+            MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: crlf.components(separatedBy: "\n")),
+            MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: lf.components(separatedBy: "\n")),
+            "write-mode block spacing differs"
+        )
+
+        // Protected regions are position-dependent, so compare the TEXT they cover.
+        func protectedText(in text: String) -> [String] {
+            let ns = text as NSString
+            return MarkdownWritingToolsProtection
+                .ignoredRanges(in: text, enclosingRange: NSRange(location: 0, length: ns.length))
+                .sorted { $0.location < $1.location }
+                .map { stripped(ns.substring(with: $0)) }
+        }
+        XCTAssertEqual(protectedText(in: crlf), protectedText(in: lf), "protected regions differ")
+
+        func checkableText(in text: String) -> [String] {
+            let ns = text as NSString
+            return MarkdownSpellCheckRegions
+                .checkableRanges(in: ns, enclosing: NSRange(location: 0, length: ns.length))
+                .map { stripped(ns.substring(with: $0)) }
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+        XCTAssertEqual(checkableText(in: crlf), checkableText(in: lf), "spell-checked regions differ")
+    }
+
     // MARK: - Heading detection agreement
 
     /// `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must agree about what a
