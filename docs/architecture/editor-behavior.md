@@ -95,12 +95,22 @@ per-keystroke whole-document scan is the mistake `MarkdownSpellCheckRegions` and
 `MarkdownListContinuation` were both built to avoid. Reading the terminator of the caret's own line
 costs one line's length — and in a file with mixed endings it also gives the better answer.
 
-**Bypassing `super.insertNewline` for the CRLF case carries no new risk.** `insertNewline` is
-reached only after the input context has resolved the keypress — that is why it, and never
-`keyDown`, is the hook — and list continuation has bypassed `super` on this same path since it
-shipped. The LF case still goes through `super`, so the overwhelmingly common path is untouched.
-**No automated test can cover IME composition**; that needs a manual check with a Japanese or
-Chinese input source in a CRLF document.
+**A `hasMarkedText()` guard sends Return straight to `super` while an IME composition is live**, and
+it is not theoretical. `insertNewline` is normally unreachable mid-composition — the input context
+consumes Return to COMMIT, which is the whole reason this and never `keyDown` is the hook — but that
+is a property of the input sources tried, not a guarantee. Driven into a composing state with
+`setMarkedText`, the localized edit paths rewrote the marked range out from under the input context:
+list continuation produced `- oneか\n- ` and the CRLF path produced `alpha\r\nか\r\n`, writing a line
+ending INTO the composition. List continuation has carried that exposure since it shipped; the guard
+closes both.
+
+This **is** covered automatically — the earlier claim that it could not be was wrong. The marked-text
+API reaches the same state without an input source, so
+`testReturnDuringCompositionDefersToAppKitAndLeavesTheCompositionIntact` and
+`testListContinuationDoesNotFireDuringComposition` (both verified failing with the guard removed) run
+in the default plan. They assert only that OUR paths left no artifact — what AppKit does to a live
+composition is AppKit's business and is by definition what every other Mac text view does, so
+asserting the resulting string exactly is wrong and was tried and rejected.
 
 `MarkdownTableEditing.locate` also stepped to the next line with `NSMaxRange(line) + 1`, which in a
 CRLF file lands on the `\n` still inside THIS line's `\r\n`: `lineRange` returned the same line, the
