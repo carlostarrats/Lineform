@@ -80,6 +80,32 @@ in this area.
   whole-document walk is additionally gated behind a cheap line-local prefix match, so Returns on
   ordinary prose (0.001 ms) never pay for it.
 
+## Selections that split a character (2026-07-27)
+
+`MarkdownFormattingCommand.apply` aligns its incoming `selectedRange` to composed-character
+boundaries (`composedCharacterAligned`) before any command runs, and every command's arithmetic
+depends on that having happened.
+
+The reason is a mismatch between two ways of measuring the same text. Every command computes
+offsets in UTF-16, but the edit itself goes through `Range(_:in:)`, which returns `nil` for a range
+that splits a surrogate pair or separates a base character from its combining mark. The private
+`replace(range:in:with:)` helper treats that `nil` as "do nothing" — so the document came back
+**unchanged while the command still returned the selection the edit would have produced**. That
+selection points past the end of the shorter, unedited text, and `setSelectedRange` raises on an
+out-of-bounds range rather than merely putting the caret somewhere odd. Selecting a run that
+clipped half an emoji and pressing ⌘B was enough.
+
+Aligning once at the entry point fixes all eight commands rather than each edit site, which is the
+point: the `nil` branch is easy to reintroduce one helper at a time. It is also the behaviour a
+person expects — a selection that covers half an emoji grows to cover the whole one. A **caret**
+(zero length) is only nudged to the start of its sequence, never widened, or a formatting command
+would silently turn a caret into a selection.
+
+Found by fuzzing the commands with emoji, non-BMP scalars, and combining marks
+(`RobustnessProbeTests`); the per-feature suites had only ever fed them ASCII. Note that the
+neighbouring `MarkdownHeadingEditing` and `MarkdownTableEditing` do not need this — they convert
+*computed line and block ranges*, which are aligned by construction, never the user's selection.
+
 ## Line endings on insert
 
 Lineform never normalises a document's line endings — rewriting them would change lines the writer

@@ -105,6 +105,7 @@ enum MarkdownFormattingCommand {
     case link
 
     func apply(to text: String, selectedRange: NSRange) -> MarkdownEdit {
+        let selectedRange = Self.composedCharacterAligned(selectedRange, in: text)
         switch self {
         case .bold:
             return toggleMarkers("**", in: text, selectedRange: selectedRange)
@@ -123,6 +124,32 @@ enum MarkdownFormattingCommand {
         case .link:
             return wrapLink(in: text, selectedRange: selectedRange)
         }
+    }
+
+    /// Snaps a selection to composed-character boundaries.
+    ///
+    /// Every command's arithmetic is UTF-16 while the edit itself goes through
+    /// `Range(_:in:)`, which returns `nil` for a range that splits a surrogate pair or lands
+    /// between a base character and its combining mark. `replace` then silently did nothing
+    /// while the command still reported the selection the edit WOULD have produced — a range
+    /// past the end of the unchanged document, and `setSelectedRange` raises on that rather
+    /// than merely putting the caret somewhere odd.
+    ///
+    /// Aligning once here fixes every command at the entry point instead of each edit site,
+    /// and it is also the behaviour a person expects: a selection that clips half an emoji
+    /// grows to cover the whole one rather than being refused.
+    static func composedCharacterAligned(_ range: NSRange, in text: String) -> NSRange {
+        let nsText = text as NSString
+        guard NSMaxRange(range) <= nsText.length else {
+            return NSRange(location: min(range.location, nsText.length), length: 0)
+        }
+        // A caret only needs its own location moved off the middle of a sequence; growing it the
+        // way a real selection grows would silently turn the caret into a selection.
+        guard range.length > 0 else {
+            guard range.location > 0, range.location < nsText.length else { return range }
+            return NSRange(location: nsText.rangeOfComposedCharacterSequence(at: range.location).location, length: 0)
+        }
+        return nsText.rangeOfComposedCharacterSequences(for: range)
     }
 
     /// Italic is the one command whose marker depends on where the caret is.

@@ -279,7 +279,7 @@ enum QuickLookMarkdownRenderer {
 
     // MARK: - Inline formatting
 
-    private enum InlineStyle { case code, link, bold, italic, strikethrough }
+    private enum InlineStyle { case code, image, link, bold, italic, strikethrough }
 
     private struct InlineMatch {
         let range: NSRange           // full token incl. markers, in the source string
@@ -298,6 +298,12 @@ enum QuickLookMarkdownRenderer {
         }
         return [
             (.code,          rx(#"(?<!\\)`([^`]+)`"#)),
+            // Before `.link`, and mirroring `MarkdownInlineSyntax.image` for the same reason the
+            // app considers images first: an image's `[alt](path)` is a link as far as the link
+            // pattern can tell, so without this the pattern claimed it and left the `!` behind as
+            // literal text — Finder showed "!a picture", underlined and accent-coloured as a link,
+            // for a line the app draws as a picture.
+            (.image,         rx(#"(?<!\\)!\[([^\]]*)\]\(([^)]*)\)"#)),
             (.link,          rx(#"(?<!\\)\[([^\]]*)\]\(([^)]*)\)"#)),
             (.bold,          rx(#"(?<!\\)\*\*([^*]+)\*\*"#)),
             // Deliberately no `__bold__`: the app does not render it, and reading it here made
@@ -359,6 +365,11 @@ enum QuickLookMarkdownRenderer {
         baseAttributes: [NSAttributedString.Key: Any]
     ) -> NSAttributedString {
         switch match.style {
+        case .image:
+            // The appex draws no pictures — it has no access to the document's folder and never
+            // fetches a remote URL — so an image reads as its alt text, with the markers gone and
+            // no link styling. An empty alt has nothing to show, which is the honest result.
+            return NSAttributedString(string: match.inner, attributes: baseAttributes)
         case .code:
             var attrs = baseAttributes
             let size = (baseAttributes[.font] as? NSFont)?.pointSize ?? bodyFontSize
