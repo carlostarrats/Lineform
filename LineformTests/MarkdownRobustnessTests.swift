@@ -134,6 +134,42 @@ final class MarkdownRobustnessTests: XCTestCase {
         XCTAssertTrue(spoken.contains("Title"))
     }
 
+    /// Convert to Plain Text REWRITES the user's document, so it must not change the shape of a
+    /// file it was only asked to strip markup from. `components(separatedBy: .newlines)` splits
+    /// `\r` and `\n` separately, so every `\r\n` yielded an empty component and the conversion
+    /// inserted a blank line after every line.
+    func testPlainTextConversionDoesNotDoubleCRLFLineBreaks() {
+        let crlf = "# Title\r\n\r\n- one\r\n- two\r\n"
+        let converted = MarkdownPlainTextConverter.plainText(from: crlf)
+        XCTAssertEqual(converted.components(separatedBy: "\n").count,
+                       crlf.components(separatedBy: "\n").count,
+                       "conversion changed the line count: \(converted.debugDescription)")
+        // Line endings survive the conversion, and the markup is still stripped.
+        XCTAssertTrue(converted.contains("\r\n"), "CRLF endings must be preserved")
+        XCTAssertFalse(converted.contains("# "), "heading markers are still stripped")
+        XCTAssertTrue(converted.contains("Title"))
+    }
+
+    func testPlainTextConversionIsUnchangedForLF() {
+        XCTAssertEqual(
+            MarkdownPlainTextConverter.plainText(from: "# Title\n\n- one\n"),
+            MarkdownPlainTextConverter.plainText(from: "# Title\r\n\r\n- one\r\n")
+                .replacingOccurrences(of: "\r", with: "")
+        )
+    }
+
+    /// Write-mode block spacing keys off blank lines; a CRLF blank line is `"\r"`, which
+    /// `.whitespaces` does not trim, so every blank line read as content.
+    func testBlockSpacingSeesCRLFBlankLines() {
+        let lf = MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(
+            inLines: "# Title\n\nbody\n".components(separatedBy: "\n")
+        )
+        let crlf = MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(
+            inLines: "# Title\r\n\r\nbody\r\n".components(separatedBy: "\n")
+        )
+        XCTAssertEqual(crlf, lf)
+    }
+
     // MARK: - Heading detection agreement
 
     /// `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must agree about what a

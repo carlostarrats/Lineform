@@ -323,6 +323,14 @@ enum MarkdownHorizontalRule {
 }
 
 /// Group already-split lines into blocks. Mirrors the detection order of the original renderer loop
+/// What line-oriented Markdown code trims from a line: `CharacterSet.whitespaces` plus `\r`.
+///
+/// Lines are split on `\n` throughout this app, so the only newline a line can carry is the `\r`
+/// of a CRLF ending — and `.whitespaces` does NOT contain it (that is `.whitespacesAndNewlines`).
+/// Code that reads RAW document text, where offsets matter and `markdownSourceLines(in:)` cannot
+/// be used, trims with this instead. `\n` is deliberately absent: a line cannot contain one.
+let markdownLineTrimCharacters = CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\r"))
+
 /// Markdown source split into the lines every renderer reads, plus each line's range in the
 /// ORIGINAL text.
 ///

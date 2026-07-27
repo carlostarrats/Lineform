@@ -255,16 +255,11 @@ enum MarkdownWritingToolsProtection {
             .filter { $0.length > 0 }
     }
 
-    /// What the whole-document passes trim from a line: `CharacterSet.whitespaces` plus `\r`.
-    ///
-    /// Lines here are split on `\n`, so the only newline a line can carry is the `\r` of a CRLF
-    /// ending — and `.whitespaces` does NOT contain it (that is `.whitespacesAndNewlines`). Without
-    /// `\r` in the set, a Windows-authored file's `$$` never read as a block delimiter and its
-    /// front matter never opened, so math blocks and YAML were left unprotected: Writing Tools
-    /// could rewrite them, the spell checker flagged them, and ⌘1 inside front matter prepended a
-    /// heading marker to a YAML key. `\n` itself is deliberately NOT in the set — a line cannot
-    /// contain one, and adding it would change nothing except make that guarantee less obvious.
-    static let lineTrimCharacters = CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\r"))
+    /// The shared line trim (whitespace plus `\r`). Without `\r`, a Windows-authored file's `$$`
+    /// never read as a block delimiter and its front matter never opened, so math and YAML were
+    /// left unprotected: Writing Tools could rewrite them, the spell checker flagged them, and ⌘1
+    /// inside front matter prepended a heading marker to a YAML key.
+    static let lineTrimCharacters = markdownLineTrimCharacters
 
     /// `lineTrimCharacters` membership for one UTF-16 unit, with an ASCII fast path.
     ///

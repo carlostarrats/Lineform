@@ -39,14 +39,21 @@ struct MarkdownPlainTextConversion: Equatable {
 
 enum MarkdownPlainTextConverter {
     static func plainText(from markdown: String) -> String {
+        // Split on "\n", NOT `.newlines`: that set splits `\r` and `\n` separately, so every
+        // `\r\n` in a Windows-authored file produced an EMPTY component between them and the
+        // conversion inserted a blank line after every line — in a command that rewrites the
+        // user's document. The `\r` is set aside for detection and put back on the way out, so
+        // the file's line endings survive the conversion unchanged.
         var text = markdown
-            .components(separatedBy: .newlines)
-            .compactMap { line -> String? in
+            .components(separatedBy: "\n")
+            .compactMap { raw -> String? in
+                let carriageReturn = raw.hasSuffix("\r") ? "\r" : ""
+                let line = carriageReturn.isEmpty ? raw : String(raw.dropLast())
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                     return nil
                 }
-                return stripLinePrefix(from: line)
+                return stripLinePrefix(from: line) + carriageReturn
             }
             .joined(separator: "\n")
 

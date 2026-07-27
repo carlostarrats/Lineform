@@ -123,11 +123,11 @@ final class MarkdownSyntaxHighlighter {
 
         return lines.indices.compactMap { index in
             let line = lines[index]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let trimmed = line.trimmingCharacters(in: markdownLineTrimCharacters)
             let isFenceDelimiter = trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~")
             let isClosingFence = inFence && isFenceDelimiter
             let nextLine = index + 1 < lines.count ? lines[index + 1] : nil
-            let nextLineIsBlank = nextLine?.trimmingCharacters(in: .whitespaces).isEmpty == true
+            let nextLineIsBlank = nextLine?.trimmingCharacters(in: markdownLineTrimCharacters).isEmpty == true
             let nextLineIsHeading = nextLine.map { !inFence && MarkdownHeadingParser.heading(in: $0) != nil } ?? false
             let blankBoundaryIsStable = includeTrailingBlankBoundary || hasNonEmptyLine(after: index + 1, in: lines)
             let isHeading = !inFence && MarkdownHeadingParser.heading(in: line) != nil
@@ -173,7 +173,7 @@ final class MarkdownSyntaxHighlighter {
             return false
         }
 
-        return lines[(index + 1)...].contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return lines[(index + 1)...].contains { !$0.trimmingCharacters(in: markdownLineTrimCharacters).isEmpty }
     }
 
     private let analyzer = MarkdownRangeAnalyzer()
