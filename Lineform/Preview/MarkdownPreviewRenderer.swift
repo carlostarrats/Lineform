@@ -812,7 +812,10 @@ struct MarkdownPreviewRenderer {
         reportHash: String?
     ) {
         var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
-        captionAttributes[.foregroundColor] = Theme.theme(for: profile).textColor.withAlphaComponent(0.6)
+        // Through the contrast floor: a flat 0.6 alpha put this below AA on four of five themes,
+        // and the caption is already drawn smaller than body text.
+        captionAttributes[.foregroundColor] = Theme.theme(for: profile)
+            .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
         if let font = captionAttributes[.font] as? NSFont {
             captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
@@ -885,7 +888,10 @@ struct MarkdownPreviewRenderer {
         codeAttributes: [NSAttributedString.Key: Any]
     ) {
         var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
-        captionAttributes[.foregroundColor] = Theme.theme(for: profile).textColor.withAlphaComponent(0.6)
+        // Through the contrast floor: a flat 0.6 alpha put this below AA on four of five themes,
+        // and the caption is already drawn smaller than body text.
+        captionAttributes[.foregroundColor] = Theme.theme(for: profile)
+            .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
         if let font = captionAttributes[.font] as? NSFont {
             captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }

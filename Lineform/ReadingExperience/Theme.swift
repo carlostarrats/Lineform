@@ -50,6 +50,65 @@ struct Theme: Equatable, Identifiable {
         usesThemeTintedChrome ? id : .system
     }
 
+    // MARK: - Contrast
+
+    /// WCAG 2.1 relative luminance. Lives here, in production, rather than only in the test file:
+    /// a contrast rule asserted by a definition the app itself does not use is a paired definition
+    /// waiting to disagree.
+    static func relativeLuminance(_ color: NSColor) -> CGFloat {
+        let rgb = color.usingColorSpace(.sRGB) ?? color
+        func linearized(_ component: CGFloat) -> CGFloat {
+            component <= 0.03928 ? component / 12.92 : pow((component + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linearized(rgb.redComponent)
+            + 0.7152 * linearized(rgb.greenComponent)
+            + 0.0722 * linearized(rgb.blueComponent)
+    }
+
+    /// WCAG 2.1 contrast ratio between two opaque colors.
+    static func contrastRatio(_ first: NSColor, _ second: NSColor) -> CGFloat {
+        let a = relativeLuminance(first)
+        let b = relativeLuminance(second)
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+    }
+
+    /// `base` flattened onto this theme's page and, if it does not reach `minimumRatio` against it,
+    /// blended toward the theme's own ink until it does.
+    ///
+    /// Two inks needed this. Link and image-reference text used `NSColor.linkColor` — the only ink
+    /// in the highlighter not derived from the theme — which reads 3.70:1 on Quiet, below AA. The
+    /// diagram/math fallback caption used the theme text at 0.6 alpha, below AA on four of five
+    /// themes while being drawn SMALLER than body text. Blending toward the theme ink preserves
+    /// the hue as far as the page allows instead of replacing it outright.
+    func readableInk(_ base: NSColor, minimumRatio: CGFloat = 4.5) -> NSColor {
+        let page = backgroundColor.usingColorSpace(.sRGB) ?? backgroundColor
+        let ink = textColor.usingColorSpace(.sRGB) ?? textColor
+        guard let source = base.usingColorSpace(.sRGB) else { return textColor }
+
+        // Flatten any alpha against the page — a translucent ink's effective color is what the
+        // reader sees, and it is what the ratio must be measured against.
+        let alpha = source.alphaComponent
+        func blend(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b - a) * t }
+        var current = NSColor(
+            srgbRed: blend(page.redComponent, source.redComponent, alpha),
+            green: blend(page.greenComponent, source.greenComponent, alpha),
+            blue: blend(page.blueComponent, source.blueComponent, alpha),
+            alpha: 1
+        )
+
+        var step: CGFloat = 0
+        while step <= 1, Self.contrastRatio(current, page) < minimumRatio {
+            step += 0.05
+            current = NSColor(
+                srgbRed: blend(current.redComponent, ink.redComponent, step),
+                green: blend(current.greenComponent, ink.greenComponent, step),
+                blue: blend(current.blueComponent, ink.blueComponent, step),
+                alpha: 1
+            )
+        }
+        return Self.contrastRatio(current, page) >= minimumRatio ? current : textColor
+    }
+
     var usesDarkChrome: Bool {
         let rgb = backgroundColor.usingColorSpace(.sRGB) ?? backgroundColor
         let luminance = (0.2126 * rgb.redComponent) + (0.7152 * rgb.greenComponent) + (0.0722 * rgb.blueComponent)

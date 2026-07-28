@@ -46,17 +46,25 @@ Findings themselves live in commit messages and architecture docs. This file onl
 | Find, replace, cross-file search, ⌘K | `search.md` | `Editor/CrossFileSearchModel`, `CrossFileSearchResolver`, `EditorSearchResolver`, `QuickOpenPalette`, `Outline/QuickOpenIndex` | 07-27 (this change) | 07-27 | 07-27 | 4: Replace wrapped onto its own earlier output; the 0.2 s derived refresh re-armed the deliberately-cleared index; snippet window split surrogate pairs; VoiceOver status re-announced every typing pause |
 | Export, print, Save As | `export-and-print.md` | `Preview/DocumentExportRenderer`, `ExportTypographyPreset`, `ImageExportPreflight`, `Editor/SaveAsExport` | 07-27 (this change) | 07-27 | 07-27 | 3: print panel's paper change sliced prose instead of rewrapping; inline `$…$` absent from HTML export; a math-bearing line stopped unescaping `\*` |
 | Mermaid, math, code highlighting | `rendering.md` | `Preview/MermaidRendering`, `MermaidPieChart`, `MathRendering`, `CodeHighlighting`, `DiagramReportService` | 07-27 (this change) | 07-27 | 07-27 | 5: pie value crash; front-matter diagrams mis-routed to the bug-report path; copy pill truncated CRLF code; size guard bounded nothing; `inlineSpans` quadratic |
-| **Reading profiles and themes** | `app-integration.md` | `ReadingExperience/ReadingProfileStore`, `ReadingPreset`, `Theme`, `FontOption`, `BundledFontRegistrar` | 7e3fdd1 (07-27, contrast ratios only) | **never** | — | dropped by a script bug on the first run, then blocked by the session limit |
-| **Speech** | `editor-behavior.md` | `ReadingExperience/SpeechController` | ad0a83a (07-27, extractor only) | 07-27 (**unverified**) | — | 4 raw findings, verify agents died on the session limit — DO NOT act on them until re-verified |
-| **Menus, settings, updates, intents, CLI** | `app-integration.md` | `App/AppCommands`, `AppUpdater`, `LineformSettings`, `LineformAppIntents`, `MainMenuIconDecorator`, `CommandLineToolInstaller`, `CommandLineTool/` | e99d98b (07-27, intro overlay only) | **never** | — | dropped by a script bug on the first run, then blocked by the session limit |
-| **Packaging, signing, release gates** | `app-integration.md`, `docs/release/` | `packaging/build-release.sh`, `verify-update.sh`, `docs/appcast.xml` | 98a7225 (07-19) | **never** | — | dropped by a script bug on the first run, then blocked by the session limit |
+| Reading profiles, presets, themes, fonts | `app-integration.md` | `ReadingExperience/ReadingProfileStore`, `ReadingPreset`, `Theme`, `FontOption`, `BundledFontRegistrar` | 07-27 (this change) | 07-27 | 07-27 | 2 confirmed: link/image ink and the diagram fallback caption were the two reader inks never under the contrast gate. 2 REFUTED — persisted-number bounds and unknown-`fontID` profile discard are both real mechanisms but unreachable |
+| Speech controller | `editor-behavior.md` | `ReadingExperience/SpeechController` | 07-27 (this change) | 07-27 | 07-27 | 4 confirmed: a stopped utterance reports `didFinish` (transport clobbered to `.idle` with audio playing); deferred pause overtakes a resume; speech range harvested from any focused `NSTextView`; speech outlived its document on tab/sidebar switch |
+| Menus, settings, updates, App Intents, CLI | `app-integration.md` | `App/AppCommands`, `AppUpdater`, `LineformSettings`, `LineformAppIntents`, `MainMenuIconDecorator`, `CommandLineToolInstaller`, `CommandLineTool/` | 07-27 (this change) | 07-27 | 07-27 | 4 confirmed: decorator stamps context menus; Spelling submenu bare; `lineform -` accepts non-UTF-8 the app rejects; App Intents filenames drop non-ASCII. 1 REFUTED — Privacy.md/Sparkle disclosure |
+| Packaging, signing, release gates | `app-integration.md`, `docs/release/` | `packaging/build-release.sh`, `verify-update.sh`, `docs/appcast.xml` | 07-27 (this change) | 07-27 | 07-27 | 4 confirmed, 2 release-blocking: the cert gate + re-sign list were behind a flag defaulting to NO; no clean of `$APP_PATH`; `generate-appcast.sh` clobbered the tracked appcast; runbook version drift. 3 REFUTED — CI publish path, `verify-update.sh`, smoke-test `rm -rf` |
 
 ## Notes
 
-- Bold rows are the backlog. The four remaining are there because of how the first parallel run went,
-  not because they were judged low value: a workflow-script bug dropped them before their audit stage
-  ran, and the re-run hit the session usage limit. Speech got an audit but its verification died with
-  it, so its four findings are unverified and must be re-verified before anyone acts on them.
+- **Every row is now audited. Ten of sixteen are also verified.** Across two parallel rounds on
+  2026-07-27, 42 findings were raised and 35 survived adversarial verification. Re-audit a row only
+  when its `Last changed` moves past its `Audited at`.
+- The six rows with `Verified at` = "—" are the areas covered by the four sequential prompt runs
+  earlier that day, before this ledger existed. They were audited and fixed but never independently
+  challenged, and their fixes shipped with tests written by the same pass — the failure mode this
+  column exists to catch. Two tests found that day were asserting the bug rather than catching it, so
+  this is not hypothetical. Verifying those six is the outstanding work.
+- The 7 refutations are as much of the result as the confirmations. Two findings rated
+  crash-or-data-loss (persisted-number bounds, unknown-`fontID` profile discard) described real
+  mechanisms that no user path reaches, and three packaging alarms dissolved under a probe. A verify
+  stage that never refutes anything is not verifying.
 - `Verified at` means a later, independent pass tried to BREAK the fix and failed. An area is not done
   when it is audited — a fix and its test written in one pass can be wrong in the same way.
 - `packaging/` has shipped broken twice (1.1.0 AMFI brick, 1.3.0 notarization rejection). Its gates are

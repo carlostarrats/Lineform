@@ -6,9 +6,19 @@ enum SpeechState: Equatable { case idle, speaking, paused }
 /// A small seam over `AVSpeechSynthesizer` so `SpeechController`'s state machine is unit-testable
 /// with a fake and no real audio.
 protocol SpeechSynthesizing: AnyObject {
-    /// Invoked (on the main thread) when the current utterance finishes on its own. NOT invoked
-    /// for a user-initiated `stop()`.
+    /// Invoked (on the main thread) when the CURRENT utterance finishes on its own.
+    ///
+    /// Not invoked for an utterance the app stopped. Note this is enforced by tracking which
+    /// utterance is current, NOT by trusting the framework to report a stop as `didCancel`:
+    /// `AVSpeechSynthesizer.stopSpeaking(at: .immediate)` in fact delivers `didFinish`, ~30 ms
+    /// later — after `startSpeaking` has already set `.speaking` for the NEXT utterance — so a
+    /// naive forward clobbered the transport to `.idle` while new audio was playing.
     var onFinish: (() -> Void)? { get set }
+    /// Invoked when a pause actually takes effect. `pauseSpeaking(at: .word)` is asynchronous, so
+    /// the transport cannot assume its request landed.
+    var onPause: (() -> Void)? { get set }
+    /// Invoked when speech actually resumes.
+    var onContinue: (() -> Void)? { get set }
     var isSpeaking: Bool { get }
     var isPaused: Bool { get }
     func speak(_ text: String)
@@ -31,6 +41,19 @@ final class SpeechController: ObservableObject {
             guard let self, self.state != .idle else { return }
             self.state = .idle
         }
+        // `state` is the user's INTENT, set optimistically so the menu responds to the click. The
+        // synthesizer's pause is deferred to a word boundary, so a request can land after the user
+        // has already asked for the opposite. When that happens, re-issue — otherwise a Pause that
+        // lands just after a Resume leaves audio permanently silent while the transport (and the
+        // menu) still say "speaking".
+        self.synthesizer.onPause = { [weak self] in
+            guard let self, self.state == .speaking else { return }
+            self.synthesizer.continueSpeaking()
+        }
+        self.synthesizer.onContinue = { [weak self] in
+            guard let self, self.state == .paused else { return }
+            self.synthesizer.pause()
+        }
     }
 
     func startSpeaking(_ text: String) {
@@ -43,11 +66,11 @@ final class SpeechController: ObservableObject {
     func pauseOrResume() {
         switch state {
         case .speaking:
-            synthesizer.pause()
             state = .paused
+            synthesizer.pause()
         case .paused:
-            synthesizer.continueSpeaking()
             state = .speaking
+            synthesizer.continueSpeaking()
         case .idle:
             break
         }
@@ -68,6 +91,11 @@ final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpeechSynth
     // didFinish callback (which hops to main before invoking). No concurrent mutation, so the
     // Sendable-mutable-state check is safe to opt out of here.
     nonisolated(unsafe) var onFinish: (() -> Void)?
+    nonisolated(unsafe) var onPause: (() -> Void)?
+    nonisolated(unsafe) var onContinue: (() -> Void)?
+    /// The utterance the app most recently asked for, or nil after a stop. `didFinish` is forwarded
+    /// only for this one — see the `onFinish` contract on `SpeechSynthesizing`.
+    private nonisolated(unsafe) var currentUtterance: AVSpeechUtterance?
     // Control methods are driven from the @MainActor `SpeechController`; AVSpeechSynthesizer is not
     // Sendable but is only ever touched through those main-actor-serialized calls.
     private nonisolated(unsafe) let synthesizer = AVSpeechSynthesizer()
@@ -81,16 +109,30 @@ final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpeechSynth
     var isPaused: Bool { synthesizer.isPaused }
 
     func speak(_ text: String) {
-        synthesizer.speak(AVSpeechUtterance(string: text))
+        let utterance = AVSpeechUtterance(string: text)
+        currentUtterance = utterance
+        synthesizer.speak(utterance)
     }
 
     func pause() { synthesizer.pauseSpeaking(at: .word) }
     func continueSpeaking() { synthesizer.continueSpeaking() }
-    func stop() { synthesizer.stopSpeaking(at: .immediate) }
+
+    func stop() {
+        // Cleared BEFORE the call: the stopped utterance's `didFinish` must not be forwarded, and
+        // it can arrive before this method returns.
+        currentUtterance = nil
+        synthesizer.stopSpeaking(at: .immediate)
+    }
 
     // `SpeechController` is `@MainActor`; `AVSpeechSynthesizerDelegate` callbacks are not
     // documented as guaranteed main-thread, so hop explicitly before touching controller state.
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        // Identity check, not a didCancel/didFinish distinction. A stopped utterance reports
+        // `didFinish` on macOS 26, so forwarding unconditionally set the transport to `.idle`
+        // while the utterance that REPLACED it was still being read: Pause and Stop greyed out
+        // with audio playing, and the next Start Speaking queued behind it instead of restarting.
+        guard utterance === currentUtterance else { return }
+        currentUtterance = nil
         if Thread.isMainThread {
             onFinish?()
         } else {
@@ -100,7 +142,13 @@ final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpeechSynth
         }
     }
 
-    // A user `stop()` fires didCancel, NOT didFinish. The controller has already set `.idle`, so
-    // we deliberately do nothing here (do not forward as a finish).
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {}
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didPause utterance: AVSpeechUtterance) {
+        if Thread.isMainThread { onPause?() } else { DispatchQueue.main.async { [onPause] in onPause?() } }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didContinue utterance: AVSpeechUtterance) {
+        if Thread.isMainThread { onContinue?() } else { DispatchQueue.main.async { [onContinue] in onContinue?() } }
+    }
 }

@@ -128,11 +128,22 @@ enum LineformShortcutSupport {
             .trimmingCharacters(in: .whitespaces)
             .drop { $0 == "#" }
             .trimmingCharacters(in: .whitespaces)
-        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_")
-        let cleaned = String(withoutMarkers.filter { allowed.contains($0) })
-            .trimmingCharacters(in: .whitespaces)
+        // Reject the characters a FILENAME cannot carry, rather than allow-listing ASCII. The old
+        // allow-list dropped every non-ASCII letter, so an accented title lost its accents and a
+        // CJK, Cyrillic, or Arabic note produced an empty string and was filed as "New Note" —
+        // every such note colliding on one name. APFS and HFS+ accept any Unicode except `/` and
+        // NUL; `:` is excluded because Finder still presents it as a path separator.
+        let forbidden = Set("/:\0")
+        let cleaned = String(withoutMarkers.filter { character in
+            !character.unicodeScalars.contains { forbidden.contains(Character($0)) || $0.properties.isDefaultIgnorableCodePoint }
+                && !character.isNewline
+        })
+        .trimmingCharacters(in: .whitespaces)
         let limited = String(cleaned.prefix(40)).trimmingCharacters(in: .whitespaces)
-        return limited.isEmpty ? "New Note" : limited
+        // A leading dot would make the note a hidden file the user cannot find in Finder, and
+        // "." / ".." are not usable names at all.
+        guard !limited.isEmpty, !limited.hasPrefix(".") else { return "New Note" }
+        return limited
     }
 
     private static func pruneOldNotes(in directory: URL) {

@@ -1674,6 +1674,12 @@ struct EditorContainerView: View {
     }
 
     private func resetTransientDocumentState() {
+        // Read-aloud belongs to the DOCUMENT, not the window. This is the single choke point every
+        // document swap goes through (tab activate, tab close, sidebar open, cross-file open), and
+        // `stop()` was wired only to `NSWindow.willCloseNotification` — so switching files kept
+        // reading the previous document aloud to the end, with the menu's Pause/Stop acting on a
+        // document no longer on screen. Dropped here for the same reason the stale scroll anchor is.
+        speechController.stop()
         requestedSelection = NSRange(location: 0, length: 0)
         searchQuery = ""
         searchMatches = []

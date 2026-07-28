@@ -83,4 +83,21 @@ final class CommandLineToolTests: XCTestCase {
         XCTAssertEqual(LineformCLIMessages.notText, "lineform: input is not text")
         XCTAssertEqual(LineformCLIMessages.tooLarge, "lineform: input too large (limit 10 MB)")
     }
+
+    /// The pipe guard must accept exactly what the app will open. A NUL check alone let any
+    /// non-UTF-8 byte sequence through, so the failure surfaced later as a corrupt-file error on
+    /// a document the user could not connect to the pipe that produced it.
+    func testPipeValidationRejectsWhatTheDocumentLoaderWouldReject() {
+        let latin1 = Data([0x63, 0x61, 0x66, 0xE9, 0x0A])   // "café" in Latin-1
+        XCTAssertEqual(LineformPipeValidation.validate(latin1), .notText)
+        XCTAssertThrowsError(try LineformDocument(markdownData: latin1))
+
+        let utf8 = Data("café\n".utf8)
+        XCTAssertEqual(LineformPipeValidation.validate(utf8), .ok)
+        XCTAssertNoThrow(try LineformDocument(markdownData: utf8))
+
+        // NUL is valid UTF-8, so the decode alone would accept it — the binary check still matters.
+        XCTAssertEqual(LineformPipeValidation.validate(Data([0x41, 0x00, 0x42])), .notText)
+    }
+
 }

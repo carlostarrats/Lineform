@@ -272,14 +272,17 @@ final class MarkdownSyntaxHighlighter {
                 .foregroundColor: Self.inlineCodeColor(for: profile)
             ]
         case .linkText:
-            return [.foregroundColor: NSColor.linkColor]
+            // Through the theme's contrast floor: `NSColor.linkColor` is the system blue and was
+            // the one reader ink not derived from the theme, so nothing put it under the contrast
+            // gate — it reads 3.70:1 on Quiet, below AA.
+            return [.foregroundColor: Theme.theme(for: profile).readableInk(NSColor.linkColor)]
         case .linkDestination:
             return [.foregroundColor: markerColor]
         case .imageText, .imageDestination:
             // Image links read in link blue (both alt and path) so they're easy to spot as
             // references — unlike ordinary links, the path is colored too, since image links
             // often have an empty alt (`![](path)`) and the path is the only visible content.
-            return [.foregroundColor: NSColor.linkColor]
+            return [.foregroundColor: Theme.theme(for: profile).readableInk(NSColor.linkColor)]
         }
     }
 }

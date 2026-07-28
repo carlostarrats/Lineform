@@ -55,3 +55,61 @@ in this area.
   activated by hit-testing, so they exist for assistive tech only through
   `accessibilityCustomActions`; sidebar row actions are mirrored from the context menu into
   `.accessibilityActions`. Keep both mirrors when adding an affordance of either kind.
+
+## Release gates, menus, CLI, intents (audited 2026-07-27)
+
+**The release gates were opt-in.** `RESIGN_WITH_DEVELOPER_ID` defaulted to `NO`, and it gates one
+`if` containing the exit-66 profile check, the exit-68 cert-in-`DeveloperCertificates` hard gate,
+the `cp` of `embedded.provisionprofile`, and every `codesign` in the nested-bundle re-sign list
+(helper, Quick Look appex with its own `--entitlements`, Sparkle's Autoupdate / Downloader.xpc /
+Installer.xpc / Updater.app / framework, and the app). Unset, the script printed one stderr warning
+and continued to the DMG — exit 0. The variable appeared in exactly one file in the repo (the script
+itself) while `docs/release/github-sparkle-release.md` gave the release command WITHOUT it and
+asserted on the same page that the gates run. These are the two failure classes that already shipped:
+1.1.0's AMFI brick (cert not in profile) and 1.3.0's notary rejection (appex signed with Apple
+Development). It now defaults to `YES`, the opt-out additionally requires `ALLOW_UNSIGNED_DMG=YES`
+and exits 70 without it, and the flag is documented beside the release command.
+
+Worth recording: on the manual path a bad DMG does not silently ship, because `notarize-dmg.sh` is a
+separate step and the notary rejects it — which is exactly how the 1.3.0 appex regression was caught.
+The damage was a false guarantee in two docs plus a late, confusing notarization failure, with the
+cert-vs-profile assurance silently absent from every build not run with an undocumented flag.
+
+**The clean-Release rule was enforced by nothing.** `Contents/Helpers/lineform` is written into the
+bundle after `xcodebuild`, so a copy left by a previous run is present when the next build's CodeSign
+step runs and fails it with "code object is not signed at all". The script now `rm -rf`s `$APP_PATH`
+before building.
+
+**`generate-appcast.sh` clobbered the tracked appcast.** It ended with an unconditional
+`cp "$UPDATES_DIR/appcast.xml" docs/appcast.xml`. `generate_appcast` rewrites EVERY entry's enclosure
+URL with the single `--download-url-prefix` it was given, so that copy retags historical releases
+with the current version's URL and old versions point at a download that does not exist for them. It
+now writes `docs/appcast.generated.xml`, leaves the tracked file alone, and prints a diff plus the
+hand-merge instruction the release doc already specified.
+
+**The icon decorator stamped context menus.** Its observers register with `object: nil` — every
+`NSMenu` in the process — which is deliberate and load-bearing: SwiftUI builds a replacement
+`CommandMenu` DETACHED and swaps it in, so the posting menu is the only reliable handle and a
+supermenu-chain test would reject exactly the case the decorator exists for. The cost was that the
+editor's right-click menu came up wearing semantic SF Symbols on rows that read as main-menu
+commands. Fixed by tagging the app's own context menu with
+`MainMenuIconDecorator.excludedMenuIdentifier` rather than by narrowing the observation. Separately,
+the Spelling and Grammar submenu's three rows had no icon mapping — it was the only bare submenu in
+the bar, and it is the app's only off switch for spell checking.
+
+**`lineform -` accepted input the app then refused.** The pipe guard checked for NUL bytes only, so
+any non-UTF-8 sequence passed: `printf 'caf\xe9\n' | lineform -` wrote a file the app rejected with
+a corrupt-file error, far from the pipe that caused it. It now validates with the same
+`String(data:encoding:.utf8)` the document loader uses. The NUL check stays — NUL is valid UTF-8.
+
+**App Intents filenames dropped every non-ASCII letter.** `noteTitle(from:)` allow-listed ASCII
+alphanumerics, so an accented title lost its accents and a CJK, Cyrillic, or Arabic note reduced to
+an empty string and was filed as "New Note" — every such note colliding on one name. It now rejects
+only what a filename cannot carry (`/`, NUL, `:`, newlines, default-ignorable scalars) and refuses a
+leading dot, which would have made the note a hidden file.
+
+**Refuted, for the record.** Three claims did not survive: that `.github/workflows/release.yml`
+could publish an un-notarized DMG (the job cannot reach `gh release upload` on its runner); that
+`verify-update.sh` can pass without checking the app that ships (the verifier ran the real delta path
+and got a byte-identical CDHash); and that the launch smoke test's `rm -rf` of a Release copy trips
+the iCloud-container uninstall purge (the mechanism does not hold, and it has run ~30 times already).

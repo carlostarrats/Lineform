@@ -106,7 +106,14 @@ enum LineformAppNotification {
 
     @MainActor
     static func activeWindowPayload(value: String? = nil) -> Payload {
-        let selectedRange = (NSApp.keyWindow?.firstResponder as? NSTextView)?.selectedRange()
+        // `LineformTextView`, NOT the general `NSTextView`. Both consumers of this range — read
+        // aloud and Convert to Plain Text — substring `document.text` with it, so it must come from
+        // the document editor and nothing else. `as? NSTextView` also matched an NSSearchField's
+        // FIELD EDITOR (⌘F selects the field's whole contents, so Start Speaking then read only the
+        // first `query.count` characters of the document) and the Split-mode preview pane, whose
+        // ranges are in RENDERED coordinates — the thing `speechSource` explicitly guards against
+        // for `.read` mode but could not catch for `.split`.
+        let selectedRange = (NSApp.keyWindow?.firstResponder as? LineformTextView)?.selectedRange()
         return Payload(windowNumber: NSApp.keyWindow?.windowNumber, value: value, selectedRange: selectedRange)
     }
 

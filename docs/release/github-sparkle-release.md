@@ -78,7 +78,7 @@ https://lineform-site.vercel.app
 The public direct-download URL used by the website and README is:
 
 ```text
-https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.1.0.dmg
+https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.3.0.dmg
 ```
 
 ## Sparkle Keys
@@ -149,6 +149,13 @@ launches the packaged app once after signing (exit 69 if launchd refuses to spaw
 before any DMG is built. Do not skip or remove these gates; `SKIP_LAUNCH_SMOKE_TEST=YES`
 exists only for headless environments where the DMG will still be launch-tested manually.
 
+The exit-68 gate and the whole nested-bundle re-sign list live behind
+`RESIGN_WITH_DEVELOPER_ID`, which **defaults to `YES`** — the release command above runs
+them. It previously defaulted to `NO`, so the documented command silently skipped both and
+still exited 0 while this page claimed the gates had run. Setting it to `NO` now also
+requires `ALLOW_UNSIGNED_DMG=YES`, and such a build is for local testing only: it will be
+rejected by the notary and must never be published.
+
 If a DMG is needed before Sparkle signing is finalized, build with the placeholder key:
 
 ```sh
@@ -176,7 +183,7 @@ deltas) do not need notes.
 Generate the appcast after the signed DMG **and** the release-notes file exist:
 
 ```sh
-DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.1.0" \
+DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.3.0" \
   packaging/generate-appcast.sh dist
 ```
 
@@ -245,7 +252,7 @@ will not be publicly released.
 After building a Developer ID-signed DMG, notarize and staple it:
 
 ```bash
-packaging/notarize-dmg.sh dist/Lineform-1.1.0.dmg
+packaging/notarize-dmg.sh dist/Lineform-1.3.0.dmg
 ```
 
 ## DMG
@@ -277,7 +284,7 @@ download and the marketing site then resolve to a stale DMG, because anything
 that just picks "a `.dmg` on the latest release" can land on the wrong one.
 
 ```sh
-VERSION="1.1.0"
+VERSION="1.3.0"
 gh release upload "v${VERSION}" \
   "dist/Lineform-${VERSION}.dmg" \
   dist/Lineform*-*.delta \

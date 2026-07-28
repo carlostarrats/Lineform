@@ -33,7 +33,14 @@ enum LineformPipeValidation: Equatable {
     static func validate(_ data: Data, maxBytes: Int = LineformPipeValidation.maxPipedBytes) -> LineformPipeValidation {
         if data.isEmpty { return .empty }
         if data.count > maxBytes { return .tooLarge }
+        // Must match what the app will accept, not a weaker proxy for it. The NUL check alone let
+        // any non-UTF-8 byte sequence through — `printf 'caf\xe9\n' | lineform -` was written to a
+        // file the app then refused to open with a corrupt-file error, reporting the failure far
+        // from the pipe that caused it. `LineformDocument.init(markdownData:)` validates with this
+        // same initializer, so the two now agree on what "text" means. The NUL check stays: a NUL
+        // byte is valid UTF-8, so the decode would accept binary that happens to be well-formed.
         if data.contains(0x00) { return .notText }
+        if String(data: data, encoding: .utf8) == nil { return .notText }
         return .ok
     }
 }

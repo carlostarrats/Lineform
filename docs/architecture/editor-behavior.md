@@ -526,3 +526,43 @@ two agree.
 Format row — "Convert to Markdown" — and clicking it left the document in the state whose next write
 takes `plainTextData()`, running the Markdown stripper over the user's file: both ``` lines deleted,
 link URLs gone, every leading marker stripped. It now only flips when a conversion actually restored.
+
+## Speech transport (audited 2026-07-27)
+
+All four findings here were produced by probing the real `AVSpeechSynthesizer` rather than reading
+the code, and all four survived an independent refutation pass. Two of them are the same shape as the
+rest of this audit: a test fake that models what the source BELIEVES instead of what the framework
+DOES, so the suite certified the bug.
+
+**A stopped utterance reports `didFinish`, not `didCancel`.** The `SpeechSynthesizing` contract and
+the `didCancel` comment both asserted the opposite. Because `stop()` and `speak()` are issued
+back-to-back with no runloop spin, the stopped utterance's `didFinish` arrived ~30 ms later — after
+`startSpeaking` had already set `.speaking` for the NEW utterance — and clobbered the transport to
+`.idle` while audio was playing. Pause and Stop then greyed out with no way to stop the sound, and
+because `state == .idle` a further Start Speaking skipped the `if state != .idle { stop() }` branch
+entirely, so the next passage QUEUED behind the still-playing one (measured 4.45 s to silence for a
+word that takes 0.8 s alone). `SystemSpeechSynthesizer` now tracks `currentUtterance` and forwards
+`didFinish` only for it — an identity check, not a guess about which delegate method means what.
+
+**`pauseSpeaking(at: .word)` is asynchronous.** A `continueSpeaking()` issued before the pause landed
+returned `true` and was then overtaken by it, leaving audio permanently silent while `state` said
+`.speaking` and the menu row read "Pause". The transport now keeps `state` as the user's INTENT (set
+optimistically, so the menu responds to the click) and reconciles against the real
+`didPause`/`didContinue` callbacks: a pause that lands when the intent is `.speaking` is immediately
+undone, and vice versa.
+
+**Read-aloud could be handed a range from the wrong text view.**
+`LineformAppNotification.activeWindowPayload` cast `firstResponder as? NSTextView`, which also
+matches an `NSSearchField`'s field editor and the Split-mode preview pane. Pressing ⌘F selects the
+field's whole contents, so Start Speaking read only the first `query.count` characters of the
+document; and a selection in the rendered preview is in RENDERED coordinates, which
+`speechSource` explicitly refuses to substring source text with — but its guard covers `.read` and
+`.split` is a different mode. Narrowed to `LineformTextView`. Convert to Plain Text reads the same
+payload and wanted the same narrowing.
+
+**Speech outlived its document.** `stop()` was wired only to `NSWindow.willCloseNotification`, but a
+tabbed, sidebar-navigating window replaces its document without the window closing. Starting
+read-aloud and then clicking another file in the sidebar left the previous document being read to the
+end, with the menu's Pause/Stop acting on a document no longer on screen. `stop()` now runs from
+`resetTransientDocumentState()`, the single choke point every document swap goes through — the same
+place, and for the same reason, that the stale cross-mode scroll anchor is dropped.

@@ -180,4 +180,30 @@ final class ThemeTests: XCTestCase {
             alpha: 1
         )
     }
+
+    /// Link/image ink and the diagram fallback caption were the two reader inks never put under the
+    /// contrast gate — the first because it was the only ink not derived from the theme, the second
+    /// because a flat 0.6 alpha reads as a style choice rather than a contrast decision.
+    func testEveryReaderInkMeetsAAOnEveryTheme() {
+        for theme in Theme.builtIn {
+            let link = theme.readableInk(NSColor.linkColor)
+            XCTAssertGreaterThanOrEqual(
+                Theme.contrastRatio(link, theme.backgroundColor), 4.5,
+                "link ink on \(theme.name)"
+            )
+
+            let caption = theme.readableInk(theme.textColor.withAlphaComponent(0.6))
+            XCTAssertGreaterThanOrEqual(
+                Theme.contrastRatio(caption, theme.backgroundColor), 4.5,
+                "diagram/math fallback caption on \(theme.name)"
+            )
+        }
+    }
+
+    /// The contrast math now lives in `Theme` so production and tests share one definition.
+    func testThemeContrastRatioMatchesTheKnownWCAGEndpoints() {
+        XCTAssertEqual(Theme.contrastRatio(.white, .black), 21, accuracy: 0.01)
+        XCTAssertEqual(Theme.contrastRatio(.white, .white), 1, accuracy: 0.01)
+    }
+
 }
