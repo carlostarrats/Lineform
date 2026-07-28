@@ -2,7 +2,7 @@
 
 **A free, local-first Markdown editor for macOS.**
 
-[![Download Lineform for macOS](https://img.shields.io/badge/Download-Lineform%20for%20macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.3.0.dmg)
+[![Download Lineform for macOS](https://img.shields.io/badge/Download-Lineform%20for%20macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.4.0.dmg)
 [![Visit the website](https://img.shields.io/badge/Website-lineform--site.vercel.app-f2f2f2?style=for-the-badge)](https://lineform-site.vercel.app)
 
 Lineform is a native Mac Markdown editor for calm writing, readable long-form text, and real local files. It opens ordinary `.md`, `.markdown`, and `.txt` files so your documents stay portable across Finder, iCloud Drive, Git, and other editors. Existing files use native macOS autosave, so edits are saved to the file as you write.
@@ -13,9 +13,9 @@ Lineform is a native Mac Markdown editor for calm writing, readable long-form te
 
 Download the latest DMG from GitHub Releases:
 
-**[Download Lineform for macOS](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.3.0.dmg)**
+**[Download Lineform for macOS](https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.4.0.dmg)**
 
-Lineform 1.3.0 is a universal app that runs on both Apple Silicon and Intel Macs.
+Lineform 1.4.0 is a universal app that runs on both Apple Silicon and Intel Macs.
 
 More release files and notes are available on the [Lineform Releases page](https://github.com/carlostarrats/Lineform/releases). The product website is at [lineform-site.vercel.app](https://lineform-site.vercel.app).
 
@@ -78,7 +78,7 @@ Release builds use [Sparkle](https://sparkle-project.org) for update checks once
 
 ## About
 
-Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version; the current release is 1.3.0.
+Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version; the current release is 1.4.0.
 
 ## Credits
 
