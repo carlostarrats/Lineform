@@ -212,6 +212,7 @@ struct MarkdownPreviewRenderer {
                     openingIndex: openingIndex,
                     closingIndex: closingIndex,
                     to: output,
+                    lines: lines,
                     lineRanges: lineRanges,
                     theme: theme,
                     highlightsCode: highlightsCode,
@@ -695,6 +696,7 @@ struct MarkdownPreviewRenderer {
         openingIndex: Int,
         closingIndex: Int?,
         to output: NSMutableAttributedString,
+        lines: [String],
         lineRanges: [NSRange],
         theme: Theme,
         highlightsCode: Bool,
@@ -723,9 +725,15 @@ struct MarkdownPreviewRenderer {
         let bodyFirst = openingIndex + 1
         let bodyLast = (closingIndex ?? lineRanges.count) - 1
         let sourceRange: NSRange
-        if bodyFirst < lineRanges.count, bodyLast >= bodyFirst, bodyLast < lineRanges.count {
+        if bodyFirst < lineRanges.count, bodyLast >= bodyFirst, bodyLast < lineRanges.count, bodyLast < lines.count {
             let start = lineRanges[bodyFirst].location
-            sourceRange = NSRange(location: start, length: NSMaxRange(lineRanges[bodyLast]) - start)
+            // The last body line's CONTENT end, not its range end. A line's range spans the
+            // ORIGINAL text, so on a CRLF file it includes the trailing `\r`; `lines[bodyLast]` is
+            // the CR-stripped text, so location + its length lands exactly after the last real
+            // character. Without this the pasteboard carried a stray carriage return with no `\n`
+            // after it — found by clicking the pill on a real CRLF document, not by a test.
+            let end = lineRanges[bodyLast].location + (lines[bodyLast] as NSString).length
+            sourceRange = NSRange(location: start, length: max(0, end - start))
         } else {
             // Empty body (fence immediately closed): a zero-length range at the opening line's end.
             let start = openingIndex < lineRanges.count

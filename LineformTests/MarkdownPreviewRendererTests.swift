@@ -1216,4 +1216,26 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
         try data.write(to: url)
         return url
     }
+    /// The copy range must end at the last body line's CONTENT, not at its range end — on a CRLF
+    /// file the range includes the trailing `\r`, which reached the pasteboard as a stray carriage
+    /// return with no `\n` after it. Found by clicking the pill on a real document.
+    @MainActor
+    func testCodeBlockSourceRangeExcludesTheTrailingCarriageReturn() throws {
+        let text = "intro\r\n\r\n```swift\r\nlet a = 1\r\nlet b = 2\r\nprint(a + b)\r\n```\r\n"
+        let rendered = MarkdownPreviewRenderer().render(text, profile: .original)
+
+        var found: NSRange?
+        rendered.enumerateAttribute(
+            .codeBlockSourceRange,
+            in: NSRange(location: 0, length: rendered.length)
+        ) { value, _, stop in
+            if let boxed = value as? NSValue { found = boxed.rangeValue; stop.pointee = true }
+        }
+
+        let range = try XCTUnwrap(found)
+        let copied = (text as NSString).substring(with: range)
+        XCTAssertEqual(copied, "let a = 1\r\nlet b = 2\r\nprint(a + b)")
+        XCTAssertFalse(copied.hasSuffix("\r"), "a stray CR must not reach the pasteboard")
+    }
+
 }
