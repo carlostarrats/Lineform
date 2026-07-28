@@ -566,3 +566,43 @@ read-aloud and then clicking another file in the sidebar left the previous docum
 end, with the menu's Pause/Stop acting on a document no longer on screen. `stop()` now runs from
 `resetTransientDocumentState()`, the single choke point every document swap goes through — the same
 place, and for the same reason, that the stale cross-mode scroll anchor is dropped.
+
+## LinePrefix, the plain-text converter, and the perf gate (verified 2026-07-27)
+
+Gaps found by adversarially verifying the same day's own fixes. See `rendering.md` for the two
+data-loss ones in `MarkdownPlainTextConverter`.
+
+**Return wrote a byte-order mark into the middle of the document.** `LinePrefix.scanWhitespace`
+learned to skip a leading BOM so a BOM'd file's first line would continue as a list — but the caller
+still captured `indent` from index 0, so the mark travelled into the continuation. Pressing Return on
+`<BOM>- milk` inserted `\n<BOM>- `, and `markdownSourceLines` strips a BOM only at index 0, so the
+new line kept a literal U+FEFF: `MarkdownBlockGrouping`'s list regex no longer matched, and the
+bullet the writer had just created drew as a paragraph while the editor still called it a list —
+the exact editor/renderer split the fix set out to close, reproduced one line down. `Data(text.utf8)`
+then autosaved the bytes. The mirror case was worse: on a document that is only `<BOM>- `, Return
+returned `.terminate(clearing:)` over a range covering the BOM, silently stripping the file's mark.
+The scan is now split into `scanByteOrderMark` and `scanWhitespace` so a caller can skip the mark
+without capturing it.
+
+**A bare list marker was a list to the editor and a paragraph to the renderer.** `scanBullet` and
+`scanOrdered` only checked a separator `if cursor < ns.length` — so a line that is exactly `-`, `*`,
+`1.` or `1)` matched with empty content, and `outcome` returned `.terminate(clearing: lineRange)`:
+pressing Return at the end of that line ERASED the character the writer had just typed.
+`MarkdownBlockGrouping` requires `[ \t]+`. The separator is now required, not merely accepted when
+present.
+
+**`isInsideCodeOrFrontMatter` disagreed with its siblings about what a line is.** It walked with
+`NSString.getLineStart`, which breaks on a lone `\r`, U+2028 and U+0085 as well as `\n`, while
+`ignoredRanges`, `protectedRanges(in:intersecting:)` and the renderer all split on `\n` only. In a
+document containing any of those (a paste from InDesign or some web sources inserts U+2028) it
+reported "inside fenced code" for text drawn as prose — and `MarkdownListContinuation` and
+`MarkdownTableEditing` gate on it, so Return-continuation and Tab-between-cells silently stopped
+working there.
+
+**The perf gate measured half the real cost.** Its fixture pinned the caret to the document
+MIDPOINT, described in the source as "the worst case for the prefix walk". It is not: the walk runs
+from offset 0 to `NSMaxRange(scope)`, so cost is linear in how far in the caret sits and the worst
+case is end of file — which is also where a writer drafting a long document actually types. Measured
+at 0.0114 ms per KB of prefix, exactly 2.00x from midpoint to EOF. The gate could not see a
+regression confined to the second half of a file, and the headroom above its 4x floor was half what
+the commit message claimed. The fixture now measures the last line.

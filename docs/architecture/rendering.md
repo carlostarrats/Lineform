@@ -159,3 +159,50 @@ visit the same canonical positions and a later one covers a strict suffix of an 
 the record: the audit reported this as being on the live spell-check path. It is not — spell checking
 goes through `MarkdownSpellCheckRegions`, which never touches `MathDelimiters`. The real consumers
 are `MarkdownWritingToolsProtection` and the preview renderer.
+
+## What adversarial verification found in the same-day fixes (2026-07-27)
+
+The six areas fixed by the day's sequential review runs were later handed to adversaries that had
+not written them. **Not one held up.** 24 further gaps, twelve of them cases where the fix passed the
+test written beside it and failed the neighbouring case. The two worst are recorded here because
+they are the clearest evidence that a green suite is not evidence a fix is done.
+
+**Convert to Plain Text began corrupting code.** The escape sweep added
+`MarkdownInlineSyntax.unescape(text)` to the END of the converter — after the fence lines and
+code-span backticks had already been stripped, so there was no structure left to honour that
+function's own contract ("applied ONLY to the plain runs between tokens; a code span's contents are
+literal"). Every doubled backslash in a fenced block was halved and autosaved to the user's `.md`:
+`re.compile(r"\\d+\\.\\d")` became `re.compile(r"\d+\.\d")`, and `printf("a\\tb\\n")` became a
+literal tab escape. The converter now tracks fences with `MermaidFence` and emits their bodies
+verbatim, and applies the strips and the unescape only to the runs BETWEEN code spans. The suite's
+only converter fuzz test asserts the UNDO record round-trips — it stores the original markdown, so
+it passes no matter what the conversion does to the file.
+
+**The same converter could delete a line.** Its link and image patterns did not exclude `\n`, and it
+ran over the whole joined document, so an unclosed `](` on one line paired with any `)` on a later
+one: `See [the docs](https://example.com/a` / `Smiley :-)` / `Next paragraph` lost the middle line
+entirely. `MarkdownInlineSyntax` uses `[^\]\n]` and `[^)\n]+` for exactly this reason, and the
+commit's own comment claimed these "mirror MarkdownInlineSyntax".
+
+**`ImageLinkRewrite` escaped parens but not `%`.** `String.removingPercentEncoding` is
+all-or-nothing: one stray `%` that is not a valid escape makes it return nil for the WHOLE string, so
+`ImageResolver` never got a decoded candidate and `Q3 100% final (2).png` stayed permanently
+unresolved — the precise round-trip failure the fix was written to close, reached through a different
+character. A leading or trailing space fails the same way, because the resolver trims before looking
+up. Both are escaped now.
+
+**The BOM sweep was incomplete in three places, and widening it created a new divergence.**
+`MarkdownTableEditing` reads RAW text, so a BOM'd file whose first line is a table header became a
+table to the renderer and not to Tab/Reformat — Reformat a silent no-op and Tab inserting a literal
+tab into the row. `MarkdownRangeAnalyzer` had no BOM handling at all, so line 1 of a BOM'd file got no
+heading or list colouring — a gap the sweep WIDENED, since the outline and renderer now do see that
+heading. And `MarkdownOutlineParser` was given the wider `markdownLineTrimCharacters` while
+`markdownBlocks` still trims with `.whitespaces`: on a MID-document BOM (what `cat a.md b.md`
+produces) the outline opened a fence the renderer does not, listing a heading that Read mode draws
+inside code. The outline now trims exactly as the renderer does.
+
+**The Quick Look appex drifted on six separate rules** — the unescape table (no `\!`, no `\\`), an
+empty link/image destination, the fence run-length and trailing-content rules, an unterminated fence
+swallowing the rest of the document, the BOM, and the nine-digit ordered-marker cap. It is a
+hand-copy that cannot import the app's rules, which is exactly why every claim that it "now agrees"
+has to be asserted by a test rather than believed.

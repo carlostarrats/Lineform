@@ -99,8 +99,14 @@ struct LinePrefix {
         let ns = line as NSString
         var cursor = 0
 
+        // The BOM is skipped for MATCHING but must never travel into the continuation. It belongs
+        // to the file's encoding and only ever occupies index 0, so copying it into the inserted
+        // text wrote a second U+FEFF into the MIDDLE of the document — where `markdownSourceLines`
+        // does not strip it, so the bullet the writer just created rendered as a paragraph while
+        // the editor still treated it as a list. `Data(text.utf8)` then autosaved those bytes.
+        let bomEnd = LinePrefix.scanByteOrderMark(ns, from: 0)
         let indentEnd = LinePrefix.scanWhitespace(ns, from: 0)
-        let indent = ns.substring(with: NSRange(location: 0, length: indentEnd))
+        let indent = ns.substring(with: NSRange(location: bomEnd, length: indentEnd - bomEnd))
         cursor = indentEnd
 
         var quote = ""
@@ -130,14 +136,19 @@ struct LinePrefix {
         continuation = indent + quote + marker
     }
 
+    /// Index just past a leading byte-order mark, or `start`.
+    ///
+    /// A leading BOM is skipped for the same reason it is in `MarkdownHeadingEditing.classify`: it
+    /// is the file's encoding, and without skipping it the first line of a BOM'd file drew as a
+    /// list but Return dropped out of one. It is a separate function from `scanWhitespace` so the
+    /// caller can skip it WITHOUT capturing it as indentation.
+    static func scanByteOrderMark(_ ns: NSString, from start: Int) -> Int {
+        guard start < ns.length, ns.character(at: start) == markdownByteOrderMark else { return start }
+        return start + 1
+    }
+
     private static func scanWhitespace(_ ns: NSString, from start: Int) -> Int {
-        var cursor = start
-        // A leading byte-order mark counts as indentation here for the same reason it does in
-        // `MarkdownHeadingEditing.classify`: it is the file's encoding, and without skipping it
-        // the first line of a BOM'd file drew as a list but Return dropped out of one.
-        if cursor < ns.length, ns.character(at: cursor) == markdownByteOrderMark {
-            cursor += 1
-        }
+        var cursor = scanByteOrderMark(ns, from: start)
         while cursor < ns.length {
             let character = ns.character(at: cursor)
             guard character == UInt16(UnicodeScalar(" ").value) || character == UInt16(UnicodeScalar("\t").value) else {
@@ -158,15 +169,15 @@ struct LinePrefix {
         let bullet = ns.substring(with: NSRange(location: start, length: 1))
         guard bullet == "-" || bullet == "*" || bullet == "+" else { return nil }
 
+        // A separator is REQUIRED, not merely allowed when present. `MarkdownBlockGrouping`'s
+        // regex is `[ \t]+`, so a line that is just `-` or `*` draws as a PARAGRAPH — but this
+        // scanner accepted it as a list line with empty content, and `outcome` then returned
+        // `.terminate(clearing:)`: pressing Return at the end of that line ERASED the character
+        // the writer had just typed. Space OR tab, matching the renderer; requiring a space alone
+        // made `-\titem` a list on screen but not to Return.
         var cursor = start + 1
-        if cursor < ns.length {
-            // Space OR tab, matching `MarkdownBlockGrouping`'s `[ \t]+`. Requiring a space made
-            // `-\titem` a list on screen but not to Return, which dropped out of the list the
-            // reader could see. The continuation still emits a single space — canonical, and the
-            // only shape the writer asked for is "another item".
-            guard isMarkerSeparator(ns.character(at: cursor)) else { return nil }
-            cursor += 1
-        }
+        guard cursor < ns.length, isMarkerSeparator(ns.character(at: cursor)) else { return nil }
+        cursor += 1
 
         // A new task item is always unchecked. Inheriting `[x]` would silently mark work done.
         if let checkboxEnd = scanCheckbox(ns, from: cursor) {
@@ -223,10 +234,9 @@ struct LinePrefix {
         guard separator == "." || separator == ")" else { return nil }
         cursor += 1
 
-        if cursor < ns.length {
-            guard isMarkerSeparator(ns.character(at: cursor)) else { return nil }
-            cursor += 1
-        }
+        // Required, for the same reason as in `scanBullet`: `1.` alone is a paragraph.
+        guard cursor < ns.length, isMarkerSeparator(ns.character(at: cursor)) else { return nil }
+        cursor += 1
 
         return (cursor, "\(number + 1)\(separator) ")
     }

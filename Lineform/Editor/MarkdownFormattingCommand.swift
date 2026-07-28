@@ -44,21 +44,78 @@ enum MarkdownPlainTextConverter {
         // conversion inserted a blank line after every line — in a command that rewrites the
         // user's document. The `\r` is set aside for detection and put back on the way out, so
         // the file's line endings survive the conversion unchanged.
-        var text = markdown
+        //
+        // Fenced code is tracked with `MermaidFence`, the same CommonMark rule the renderer uses,
+        // and its BODY is emitted VERBATIM. Previously the fence LINES were dropped and the body
+        // was then run through the inline strips and the whole-document unescape — so a Python
+        // regex `r"\\d+\\.\\d"` came out as `r"\d+\.\d"` and `printf("a\\tb")` became a real tab
+        // escape. That is silent corruption of the user's code, written straight back to the file.
+        var inFence = false
+        var fenceMarker: (character: Character, length: Int)?
+        let converted = markdown
             .components(separatedBy: "\n")
             .compactMap { raw -> String? in
                 let carriageReturn = raw.hasSuffix("\r") ? "\r" : ""
                 let line = carriageReturn.isEmpty ? raw : String(raw.dropLast())
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                    return nil
+
+                if inFence {
+                    if let marker = fenceMarker, MermaidFence.isClosingFence(trimmed, matching: marker) {
+                        inFence = false
+                        fenceMarker = nil
+                        return nil          // drop the closing fence line
+                    }
+                    return line + carriageReturn   // body: verbatim, no strips, no unescape
                 }
-                return stripLinePrefix(from: line) + carriageReturn
+
+                if let marker = MermaidFence.openingMarker(trimmed) {
+                    inFence = true
+                    fenceMarker = marker
+                    return nil              // drop the opening fence line
+                }
+
+                return inlinePlainText(from: stripLinePrefix(from: line)) + carriageReturn
             }
             .joined(separator: "\n")
 
-        text = replace(pattern: #"(?<!\\)!\[([^\]]*)\]\([^)]+\)"#, in: text, withTemplate: "$1")
-        text = replace(pattern: #"(?<!\\)\[([^\]]+)\]\([^)]+\)"#, in: text, withTemplate: "$1")
+        return converted
+    }
+
+    /// One line's inline markup removed, with a code span's CONTENTS left literal.
+    ///
+    /// The strips and the unescape run only on the runs BETWEEN code spans. `unescape`'s own
+    /// contract is that it applies to plain runs only — a code span's contents are literal — and
+    /// running it over the whole document after the backticks had already been deleted meant there
+    /// was no longer any structure left to honour that with.
+    private static func inlinePlainText(from line: String) -> String {
+        let ns = line as NSString
+        guard let spans = try? NSRegularExpression(pattern: #"(?<!\\)`([^`\n]+)`"#) else {
+            return stripInline(line)
+        }
+
+        var out = ""
+        var location = 0
+        for match in spans.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
+            if match.range.location > location {
+                out += stripInline(ns.substring(with: NSRange(location: location, length: match.range.location - location)))
+            }
+            out += ns.substring(with: match.range(at: 1))   // span contents, verbatim
+            location = NSMaxRange(match.range)
+        }
+        if location < ns.length {
+            out += stripInline(ns.substring(from: location))
+        }
+        return out
+    }
+
+    /// Link/image/emphasis removal plus the unescape, for one plain (non-code-span) run.
+    private static func stripInline(_ run: String) -> String {
+        // `[^\]\n]` / `[^)\n]` — the newline exclusions are load-bearing even though this runs
+        // per line now: they mirror `MarkdownInlineSyntax.link`/`.image` exactly, and without them
+        // an unclosed `](` paired with a `)` on a LATER line and deleted everything between,
+        // erasing a line of the user's document.
+        var text = replace(pattern: #"(?<!\\)!\[([^\]\n]*)\]\([^)\n]+\)"#, in: run, withTemplate: "$1")
+        text = replace(pattern: #"(?<!\\)\[([^\]\n]+)\]\([^)\n]+\)"#, in: text, withTemplate: "$1")
         // These mirror `MarkdownInlineSyntax` — conversion must strip exactly what the app draws
         // as emphasis, no more. Bold is `**` only (the renderer has never read `__bold__`, so
         // stripping it here would eat a Python `__init__`), underscore italics can't start or end
@@ -67,7 +124,6 @@ enum MarkdownPlainTextConverter {
         text = replace(pattern: #"(?<!\\)\*\*([^*\n]+)\*\*"#, in: text, withTemplate: "$1")
         text = replace(pattern: #"(?<![\*\\])\*([^*\s\n](?:[^*\n]*[^*\s\n])?)\*(?!\*)"#, in: text, withTemplate: "$1")
         text = replace(pattern: #"(?<![\w\\])_([^_\n]+)_(?![\w])"#, in: text, withTemplate: "$1")
-        text = replace(pattern: #"(?<!\\)`([^`\n]+)`"#, in: text, withTemplate: "$1")
 
         // Last, so it cannot un-escape a marker into one of the patterns above. Conversion must
         // produce what the reader sees, and the reader sees `*`, not `\*`.
@@ -78,7 +134,9 @@ enum MarkdownPlainTextConverter {
         var stripped = replace(pattern: #"^\s{0,3}#{1,6}\s+"#, in: line, withTemplate: "")
         stripped = replace(pattern: #"^\s{0,3}>\s?"#, in: stripped, withTemplate: "")
         stripped = replace(pattern: #"^\s{0,3}[-*+]\s+"#, in: stripped, withTemplate: "")
-        stripped = replace(pattern: #"^\s{0,3}\d+[.)]\s+"#, in: stripped, withTemplate: "")
+        // NINE digits, matching `MarkdownBlockGrouping`'s `[0-9]{1,9}` and `LinePrefix.scanOrdered`.
+        // Unbounded, this stripped a marker the renderer draws as ordinary paragraph text.
+        stripped = replace(pattern: #"^\s{0,3}[0-9]{1,9}[.)]\s+"#, in: stripped, withTemplate: "")
         return stripped
     }
 

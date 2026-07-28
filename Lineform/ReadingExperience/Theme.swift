@@ -89,20 +89,25 @@ struct Theme: Equatable, Identifiable {
         // reader sees, and it is what the ratio must be measured against.
         let alpha = source.alphaComponent
         func blend(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b - a) * t }
-        var current = NSColor(
+        let flattened = NSColor(
             srgbRed: blend(page.redComponent, source.redComponent, alpha),
             green: blend(page.greenComponent, source.greenComponent, alpha),
             blue: blend(page.blueComponent, source.blueComponent, alpha),
             alpha: 1
         )
 
+        // Each candidate blends the ORIGINAL colour toward the ink by `step`. Compounding from the
+        // previous candidate instead reaches the ink after a handful of iterations, so a colour
+        // that was one percent short of AA came back as plain body text — the link blue destroyed
+        // rather than nudged. This finds the SMALLEST adjustment that clears the floor.
+        var current = flattened
         var step: CGFloat = 0
-        while step <= 1, Self.contrastRatio(current, page) < minimumRatio {
+        while step < 1, Self.contrastRatio(current, page) < minimumRatio {
             step += 0.05
             current = NSColor(
-                srgbRed: blend(current.redComponent, ink.redComponent, step),
-                green: blend(current.greenComponent, ink.greenComponent, step),
-                blue: blend(current.blueComponent, ink.blueComponent, step),
+                srgbRed: blend(flattened.redComponent, ink.redComponent, step),
+                green: blend(flattened.greenComponent, ink.greenComponent, step),
+                blue: blend(flattened.blueComponent, ink.blueComponent, step),
                 alpha: 1
             )
         }

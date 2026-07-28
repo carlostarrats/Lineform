@@ -35,15 +35,22 @@ enum MarkdownWritingToolsProtection {
         var openMarker: FenceMarker?
         var lineStart = 0
 
+        // Lines are delimited by "\n" ONLY, matching `markdownSourceLines` and every sibling pass
+        // in this file. `NSString.getLineStart` additionally breaks on a lone `\r`, U+2028 and
+        // U+0085 — so in a document carrying any of those (a paste from InDesign or some web
+        // sources inserts U+2028) this scan saw line boundaries that `ignoredRanges`,
+        // `protectedRanges(in:intersecting:)` and the renderer do not, and reported "inside fenced
+        // code" for text drawn as ordinary prose. `MarkdownListContinuation` and
+        // `MarkdownTableEditing` gate on this, so Return-continuation and Tab-between-cells
+        // silently stopped working there.
         while lineStart < location {
-            var lineEnd = 0
-            var contentsEnd = 0
-            nsText.getLineStart(
-                nil,
-                end: &lineEnd,
-                contentsEnd: &contentsEnd,
-                for: NSRange(location: lineStart, length: 0)
+            let newline = nsText.range(
+                of: "\n",
+                options: [],
+                range: NSRange(location: lineStart, length: nsText.length - lineStart)
             )
+            let lineEnd = newline.location == NSNotFound ? nsText.length : NSMaxRange(newline)
+            let contentsEnd = newline.location == NSNotFound ? nsText.length : newline.location
 
             if let fence = fenceRun(in: nsText, lineStart: lineStart, contentsEnd: contentsEnd) {
                 if let open = openMarker {

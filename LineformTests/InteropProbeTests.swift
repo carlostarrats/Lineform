@@ -299,4 +299,141 @@ final class InteropProbeTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         return directory.standardizedFileURL
     }
+
+    // MARK: - Gaps found by adversarially verifying the 2026-07-27 fixes
+
+    /// Convert to Plain Text rewrites the user's file, so it must not touch code. The unescape
+    /// added to it ran over fenced-code bodies and code-span contents, halving every doubled
+    /// backslash in the user's code.
+    func testConvertToPlainTextLeavesCodeVerbatim() {
+        let markdown = """
+        Prose with \\*escaped\\* markers.
+        ```python
+        re.compile(r"\\d+\\.\\d")
+        printf("a\\tb\\n");
+        ```
+        A span `\\[a\\]` stays literal.
+        """
+        let plain = MarkdownPlainTextConverter.plainText(from: markdown)
+
+        XCTAssertTrue(plain.contains(#"re.compile(r"\d+\.\d")"#), plain)
+        XCTAssertTrue(plain.contains(#"printf("a\tb\n");"#), plain)
+        XCTAssertTrue(plain.contains(#"\[a\]"#), "a code span's contents are literal: \(plain)")
+        // The prose run outside code IS unescaped — that half of the behaviour must survive.
+        XCTAssertTrue(plain.contains("Prose with *escaped* markers."), plain)
+    }
+
+    /// An unclosed `](` must not pair with a `)` on a later line and delete everything between.
+    func testConvertToPlainTextNeverDeletesALineViaAnUnclosedLink() {
+        let markdown = "See [the docs](https://example.com/a\nSmiley :-)\nNext paragraph survives?"
+        let plain = MarkdownPlainTextConverter.plainText(from: markdown)
+
+        XCTAssertTrue(plain.contains("Smiley :-)"), "the middle line must survive: \(plain)")
+        XCTAssertTrue(plain.contains("Next paragraph survives?"), plain)
+    }
+
+    /// The BOM belongs to the file's encoding and only ever sits at index 0. Return must not copy
+    /// it into the inserted text, where `markdownSourceLines` would not strip it and the new line
+    /// would render as a paragraph while the editor still called it a list.
+    func testReturnOnABOMdListLineDoesNotCopyTheByteOrderMark() {
+        for line in ["\u{FEFF}- milk", "\u{FEFF}1. one", "\u{FEFF}> quoted", "\u{FEFF}  - deep"] {
+            let prefix = LinePrefix(line: line)
+            XCTAssertNotNil(prefix, line)
+            XCTAssertFalse(
+                prefix?.continuation.unicodeScalars.contains("\u{FEFF}") ?? true,
+                "continuation must not carry the BOM: \(String(describing: prefix?.continuation))"
+            )
+        }
+    }
+
+    /// `MarkdownBlockGrouping` requires `[ \t]+` after a list marker, so a bare `-` is a
+    /// paragraph. Accepting it made Return ERASE the character the writer had just typed.
+    func testABareListMarkerIsNotAListLine() {
+        for line in ["-", "*", "+", "1.", "1)"] {
+            XCTAssertNil(LinePrefix(line: line), "\(line) renders as a paragraph, so Return must not treat it as a list")
+        }
+        for line in ["- x", "1. x", "-\tx"] {
+            XCTAssertNotNil(LinePrefix(line: line), line)
+        }
+    }
+
+    /// The app and the Quick Look appex must unescape the same marker set.
+    func testAppAndQuickLookUnescapeTheSameMarkers() {
+        for source in [#"a path C:\\Users\\me in prose"#, #"50\% off and \!bang"#, #"escaped \!\[not an image\] here"#] {
+            let app = MarkdownInlineSyntax.unescape(source)
+            let quickLook = QuickLookMarkdownRenderer.render(source).string
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertEqual(app, quickLook, "source: \(source)")
+        }
+    }
+
+    /// A link or image DESTINATION must be non-empty on both surfaces.
+    func testEmptyDestinationIsLiteralTextOnBothSurfaces() {
+        for source in ["an empty [text]() link", "an empty ![alt]() image"] {
+            let quickLook = QuickLookMarkdownRenderer.render(source).string
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertEqual(quickLook, source, "the appex must leave this literal, like the app does")
+        }
+    }
+
+    /// A document that ends inside a fence still has a body to show.
+    func testQuickLookRendersAnUnterminatedCodeBlock() {
+        let rendered = QuickLookMarkdownRenderer.render("intro\n```swift\nlet a = 1\nlet b = 2\n").string
+        XCTAssertTrue(rendered.contains("let a = 1"), rendered)
+        XCTAssertTrue(rendered.contains("let b = 2"), rendered)
+    }
+
+    /// A closing fence must match the opener's run length and carry nothing after it.
+    func testQuickLookHonoursTheRunLengthRule() {
+        let rendered = QuickLookMarkdownRenderer.render("````\n```\ninner\n```\n````\nafter").string
+        XCTAssertTrue(rendered.contains("inner"), rendered)
+        XCTAssertTrue(rendered.contains("after"), rendered)
+    }
+
+    /// `removingPercentEncoding` is all-or-nothing, so an unescaped `%` broke the round trip for
+    /// every filename that also contained a paren. A leading/trailing space is trimmed by the
+    /// resolver, so it has to be escaped too.
+    func testImageDestinationsRoundTripThroughAwkwardFilenames() {
+        for name in ["Q3 100% final (2).png", "50%off (1).png", " leading (1).png", "trailing (1).png "] {
+            let destination = ImageLinkRewrite.markdownDestination(for: name)
+            XCTAssertEqual(
+                destination.removingPercentEncoding, name,
+                "destination \(destination) must decode back to the filename"
+            )
+        }
+    }
+
+    /// The outline, the renderer, and the editor must agree on what a line IS, not only on the
+    /// fence rule. A mid-document BOM (what `cat a.md b.md` produces) is prose to the renderer.
+    func testOutlineDoesNotOpenAFenceOnAMidDocumentByteOrderMark() {
+        let text = "# One\n\n\u{FEFF}```swift\n\n# Two\n"
+        let items = MarkdownOutlineParser().items(in: text)
+
+        XCTAssertEqual(items.map(\.title), ["One", "Two"], "neither heading is inside a code block")
+    }
+
+    /// `markdownBlocks` consumes a `$$` block before it looks for a fence, so the outline needs
+    /// math state or a fence-shaped line inside math swallows the rest of the document.
+    func testOutlineIgnoresFenceShapedLinesInsideDisplayMath() {
+        let text = "# One\n\n$$\n```\n$$\n\n# Two\n"
+        let items = MarkdownOutlineParser().items(in: text)
+
+        XCTAssertEqual(items.map(\.title), ["One", "Two"])
+    }
+
+    /// The editor's colouring is a fourth definition of these constructs and must agree with the
+    /// renderer: an escaped opener is prose, and line 1 of a BOM'd file still has its heading.
+    func testRangeAnalyzerAgreesWithTheRendererOnEscapesAndTheBOM() {
+        let analyzer = MarkdownRangeAnalyzer()
+
+        XCTAssertTrue(
+            analyzer.ranges(in: #"escaped \`not code\` here"#).allSatisfy { $0.kind != .codeSpan },
+            "an escaped backtick does not open a code span"
+        )
+        XCTAssertFalse(
+            analyzer.ranges(in: "\u{FEFF}# Title").isEmpty,
+            "line 1 of a BOM'd file still has a heading marker"
+        )
+    }
+
 }

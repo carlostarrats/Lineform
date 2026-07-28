@@ -32,14 +32,37 @@ struct MarkdownOutlineParser {
         var items: [MarkdownOutlineItem] = []
         let source = markdownSourceLines(in: text)
         var openMarker: (character: Character, length: Int)?
+        var inDisplayMath = false
 
         for (index, line) in source.lines.enumerated() {
-            let trimmed = line.trimmingCharacters(in: markdownLineTrimCharacters)
+            // `.whitespaces`, matching `markdownBlocks` — NOT `markdownLineTrimCharacters`.
+            // `markdownSourceLines` has already stripped a CRLF's `\r` and a line-0 BOM, so the
+            // wider set only differs on a residual `\r` or a BOM in the MIDDLE of a document
+            // (what `cat a.md b.md` produces). There the renderer sees prose and the outline saw a
+            // fence: it opened a block early, closed it early, and listed a heading that Read mode
+            // draws inside code. The two must agree on what a line IS, not only on the fence rule.
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Display math is consumed by `markdownBlocks` BEFORE it looks for a code fence, so a
+            // fence-shaped line inside `$$…$$` is math body to the renderer. Without this state the
+            // outline opened a fence on it, never found a closer, and swallowed every heading in
+            // the rest of the document.
+            if inDisplayMath {
+                if MathBlockFence.blockDelimiterOnly(trimmed) { inDisplayMath = false }
+                continue
+            }
 
             if let marker = openMarker {
                 if MermaidFence.isClosingFence(trimmed, matching: marker) {
                     openMarker = nil
                 }
+                continue
+            }
+            if MathBlockFence.singleLineBlock(trimmed) != nil {
+                continue
+            }
+            if MathBlockFence.blockDelimiterOnly(trimmed) {
+                inDisplayMath = true
                 continue
             }
             if let marker = MermaidFence.openingMarker(trimmed) {

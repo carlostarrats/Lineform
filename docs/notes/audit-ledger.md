@@ -34,12 +34,12 @@ Findings themselves live in commit messages and architecture docs. This file onl
 
 | Area | Doc | Key sources | Last changed | Audited at | Verified at | Findings |
 |---|---|---|---|---|---|---|
-| Markdown inline/block parsing | `rendering.md` | `Preview/MarkdownInlineSyntax`, `MarkdownBlockGrouping`, `MarkdownHTMLRenderer`, `MarkdownPreviewRenderer` | 7e3fdd1 (07-27) | 7e3fdd1 (07-27) | — | escapes/BOM/emphasis flanking; nested emphasis in link text left divergent by decision |
-| Editor keystroke commands | `editor-behavior.md` | `Editor/MarkdownListContinuation`, `MarkdownHeadingEditing`, `MarkdownFormattingCommand`, `MarkdownTableEditing` | 7e3fdd1 (07-27) | 7e3fdd1 (07-27) | — | `Int.max` ordered-marker crash; tab-after-marker; CRLF caret column |
-| Fenced-code state tracking | `editor-behavior.md` | `MarkdownWritingToolsProtection`, `MarkdownSyntaxHighlighter`, `Outline/MarkdownOutlineParser`, `SpeechTextExtractor` | ad0a83a (07-27) | ad0a83a (07-27) | — | four callers used a flag toggle instead of `MermaidFence` |
-| Spell-check regions + perf gate | `editor-behavior.md` | `MarkdownSpellCheckRegions`, `MarkdownSpellCheckPerformanceTests` | 7e940ef (07-27) | 7e940ef (07-27) | — | absolute ms gate flaked on CI; now a ratio |
-| Image paths and resolution | `rendering.md` | `Preview/ImageLinkRewrite`, `ImageResolver`, `Editor/ImageInsertionText` | 7e3fdd1 (07-27) | 7e3fdd1 (07-27) | — | `photo (1).png` unparseable; bare `\n` insertion; `%20` fallback |
-| Quick Look appex | `app-integration.md` | `LineformQuickLook/QuickLookMarkdownRenderer` | 7e3fdd1 (07-27) | 7e3fdd1 (07-27) | — | `~~~` fences, empty alt/link text; agreement now asserted |
+| Markdown inline/block parsing | `rendering.md` | `Preview/MarkdownInlineSyntax`, `MarkdownBlockGrouping`, `MarkdownHTMLRenderer`, `MarkdownPreviewRenderer` | 07-27 (this change) | 7e3fdd1 (07-27) | 07-27 | escapes/BOM/emphasis flanking; nested emphasis in link text left divergent by decision |
+| Editor keystroke commands | `editor-behavior.md` | `Editor/MarkdownListContinuation`, `MarkdownHeadingEditing`, `MarkdownFormattingCommand`, `MarkdownTableEditing` | 07-27 (this change) | 7e3fdd1 (07-27) | 07-27 | `Int.max` ordered-marker crash; tab-after-marker; CRLF caret column |
+| Fenced-code state tracking | `editor-behavior.md` | `MarkdownWritingToolsProtection`, `MarkdownSyntaxHighlighter`, `Outline/MarkdownOutlineParser`, `SpeechTextExtractor` | 07-27 (this change) | ad0a83a (07-27) | 07-27 | four callers used a flag toggle instead of `MermaidFence` |
+| Spell-check regions + perf gate | `editor-behavior.md` | `MarkdownSpellCheckRegions`, `MarkdownSpellCheckPerformanceTests` | 07-27 (this change) | 7e940ef (07-27) | 07-27 | absolute ms gate flaked on CI; now a ratio |
+| Image paths and resolution | `rendering.md` | `Preview/ImageLinkRewrite`, `ImageResolver`, `Editor/ImageInsertionText` | 07-27 (this change) | 7e3fdd1 (07-27) | 07-27 | `photo (1).png` unparseable; bare `\n` insertion; `%20` fallback |
+| Quick Look appex | `app-integration.md` | `LineformQuickLook/QuickLookMarkdownRenderer` | 07-27 (this change) | 7e3fdd1 (07-27) | 07-27 | `~~~` fences, empty alt/link text; agreement now asserted |
 | Document model and autosave | `editor-behavior.md` | `Documents/LineformDocument`, `DocumentReloadController`, `DocumentReloadPolicy` | 07-27 (this change) | 07-27 | 07-27 | 4: live reload fired once per file (URL resource-value cache); Convert to Markdown on a `.txt` ran the stripper over the file; BOM dropped on read and never re-emitted; `data(for:)`/`recordsSourceSave` disagreed |
 | Tabs, windows, chrome | `tabs-and-windows.md` | `Editor/EditorTabStore`, `DocumentTab`, `TabBarView`, `WindowCloseController`, `SaveAndCloseCoordinator` | 07-27 (this change) | 07-27 | 07-27 | 2: Save-All orphaned an untitled tab from the file it just saved; dirty dot read a narrower predicate than `hasUnsavedWork` |
 | Files sidebar and iCloud | `files-sidebar.md` | `Outline/OutlineSidebarView`, `DirectoryEventMonitor`, `SidebarFileActions` | 07-27 (this change) | 07-27 | 07-27 | 3: hidden-folders OFF dropped real files past the 80-cap; workspace watcher not retargeted on a moved folder; global Sort row read the iCloud key while the workspace scanned with its own |
@@ -53,14 +53,15 @@ Findings themselves live in commit messages and architecture docs. This file onl
 
 ## Notes
 
-- **Every row is now audited. Ten of sixteen are also verified.** Across two parallel rounds on
-  2026-07-27, 42 findings were raised and 35 survived adversarial verification. Re-audit a row only
-  when its `Last changed` moves past its `Audited at`.
-- The six rows with `Verified at` = "—" are the areas covered by the four sequential prompt runs
-  earlier that day, before this ledger existed. They were audited and fixed but never independently
-  challenged, and their fixes shipped with tests written by the same pass — the failure mode this
-  column exists to catch. Two tests found that day were asserting the bug rather than catching it, so
-  this is not hypothetical. Verifying those six is the outstanding work.
+- **Every row is audited AND verified as of 2026-07-27.** Three rounds: 66 findings raised, 59
+  confirmed and fixed. Re-audit a row only when its `Last changed` moves past its `Audited at`.
+- **The verification round is the one that mattered most.** All six areas fixed by the day's
+  sequential runs were sent to an adversary that had not written them, and NOT ONE held up — 24
+  further gaps, twelve of them cases where the fix passed the test written beside it and failed the
+  neighbouring case. Two were data loss, and one of those was INTRODUCED by the morning's own fix:
+  an unescape added to Convert to Plain Text ran over fenced-code bodies, halving every doubled
+  backslash in the user's code and autosaving it. A green suite is not evidence a fix is done; a fix
+  and its same-pass test share the mental model that produced the bug.
 - The 7 refutations are as much of the result as the confirmations. Two findings rated
   crash-or-data-loss (persisted-number bounds, unknown-`fontID` profile discard) described real
   mechanisms that no user path reaches, and three packaging alarms dissolved under a probe. A verify

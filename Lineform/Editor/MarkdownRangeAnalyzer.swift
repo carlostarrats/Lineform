@@ -21,21 +21,32 @@ struct MarkdownTokenRange: Equatable, Hashable {
 }
 
 struct MarkdownRangeAnalyzer {
-    private static let headingRegex = try? NSRegularExpression(pattern: #"^#{1,6}(?=\s)"#)
-    private static let listRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-+*]|\d+[.)])\s"#)
+    // `\u{FEFF}?` on every line-anchored pattern. `\s` does not match a byte-order mark, so on
+    // line 1 of a Notepad-authored file the editor drew no heading, list, or blockquote styling at
+    // all — a gap the BOM sweep WIDENED, because the outline and the renderer now do see that
+    // heading while the editor's colouring still did not.
+    private static let headingRegex = try? NSRegularExpression(pattern: #"^\uFEFF?#{1,6}(?=\s)"#)
+    // NINE digits, matching `MarkdownBlockGrouping`'s `[0-9]{1,9}`, `LinePrefix.scanOrdered`, and
+    // the plain-text converter.
+    private static let listRegex = try? NSRegularExpression(pattern: #"^\uFEFF?\s*(?:[-+*]|[0-9]{1,9}[.)])\s"#)
     private static let checkboxRegex = try? NSRegularExpression(pattern: #"\[[ xX]\]"#)
-    private static let blockquoteRegex = try? NSRegularExpression(pattern: #"^\s*>\s?"#)
-    private static let codeSpanRegex = try? NSRegularExpression(pattern: "`[^`\\n]+`")
+    private static let blockquoteRegex = try? NSRegularExpression(pattern: #"^\uFEFF?\s*>\s?"#)
+    // `(?<!\\)` on every opener, matching `MarkdownInlineSyntax`. Without it the editor coloured
+    // an ESCAPED span — `` \`not code\` ``, `\[not a link\](x)` — as code or as a link, both of
+    // which the renderer draws as plain prose. That also switched live spell checking OFF over
+    // that text, because `MarkdownSpellCheckRegions` suppresses `.codeSpan` and the destination
+    // kinds. This is the fourth implementation of these constructs in the app; it must agree.
+    private static let codeSpanRegex = try? NSRegularExpression(pattern: #"(?<!\\)`[^`\n]+`"#)
     // Newline-excluded so links are strictly single-line: keeps the analyzer fully line-local,
     // which is what lets scoped (visible-window) highlighting stay byte-identical to a whole-doc
     // pass (see MarkdownSyntaxHighlighter.tokens(in:scope:)). The `(?<!!)` lookbehind makes this
     // match ordinary links only — an `![...]` image link is handled by `imageRegex` instead, so
     // the two never double-match the same span.
-    private static let linkRegex = try? NSRegularExpression(pattern: #"(?<!!)\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
+    private static let linkRegex = try? NSRegularExpression(pattern: #"(?<![!\\])\[([^\]\n]+)\]\(([^\)\n]+)\)"#)
     // Image links `![alt](path)`. Alt is `*` (may be empty — `![](path)` is common), so this
     // colors image references that `linkRegex` (which requires a non-empty label) never matched.
     // Also line-local (no `\n` in any class).
-    private static let imageRegex = try? NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
+    private static let imageRegex = try? NSRegularExpression(pattern: #"(?<!\\)!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
 
     func ranges(in text: String) -> [MarkdownTokenRange] {
         var tokens: [MarkdownTokenRange] = []
