@@ -109,3 +109,100 @@ Two halves, again:
   decoded out from under the writer.
 
 HTML export is untouched by this — it still emits the destination exactly as the document holds it.
+
+## Diagrams and math (audited 2026-07-27)
+
+**A pie slice value could crash the app.** `MermaidPieChart.parse` accepted any `Double > 0`,
+including `inf`, `1e400`, and 20-digit integers. `MermaidPieRenderer.formatValue` is
+`v == v.rounded() ? String(Int(v)) : …`, and every finite Double at or above 2^52 is its own
+`.rounded()` — so any value above `Double(Int.max)` took the `Int(v)` branch and TRAPPED. An infinite
+value additionally made the total infinite, so `fraction` was NaN and the percent's
+`Int((nan * 100).rounded())` trapped too. The first trap site is `legendMaxWidth`, during size
+computation, before a pixel is drawn, and the blast radius includes Export As and Print, not just
+Read/Split. The parser now requires `isFinite` and a `maximumSliceValue` bound, and the renderer's
+conversions were independently made total: the parser is the correctness gate, the renderer must not
+trap on whatever a future caller hands it. Same shape as the ordered-list `Int.max` crash.
+
+**Front-matter diagrams were reported to the user as app bugs.** `MermaidTypeClassifier` skipped a
+leading `---`/`---` block to find the diagram type; BeautifulMermaid 1.0.4 does not — it reads
+`"---"` as line one and throws `invalidHeader("---")`. So the standard Mermaid front-matter shape
+that most generators emit was classified `.supported`, failed, and took the `.failed` path: the
+captioned fallback WITH a "Report this" link, plus up to 2,000 characters of the user's diagram
+written to `~/Library/Application Support/Lineform/DiagramLog/log.json` — the path this document
+reserves for genuine library bugs, not for valid-but-unrenderable input. Every BeautifulMermaid-routed
+type was affected. The pre-scan existed twice (classifier and `MermaidPieChart`) and at neither of the
+places that mattered; it is now one `MermaidSource` type, and the front matter is stripped at the seam
+before `MermaidRenderer.renderImage`.
+
+**The 20,000-character size guard bounded nothing.** BeautifulMermaid's cost grows with node count
+and its raster area roughly quadratically with layout width, so a 3.1 KB / 200-node flowchart — one
+seventh of the character cap — rendered for ~1 s on the MAIN THREAD into a ~392 MB bitmap that
+instantly exceeded the whole `DiagramCacheBudget` and was evicted, meaning every keystroke in Split
+mode paid the full cost again: the cache gave zero protection precisely to the diagrams that needed
+it. At 600 nodes it was 22.8 s and multi-gigabyte. `MermaidBlockPolicy` now also caps significant
+lines. Separately, `MermaidImageOrientation.uprightForMacOS` returns nil instead of the input when its
+context allocation fails — returning the un-flipped raster would draw the diagram MIRRORED, which is
+the one thing that type exists to prevent.
+
+**The code-block copy pill truncated CRLF documents.** `appendCodeBlock` took the copy range's
+LOCATION from `lineRanges` (measured against the original text) but its LENGTH from the rendered
+body, which is joined from CR-STRIPPED lines. On a CRLF file the range was short by one unit per body
+line, so the pasteboard got the code with its last (bodyLines − 1) characters chopped off, silently —
+`copyCodeBlockToPasteboard` only bounds-checks, and a short range always passes. Both endpoints now
+come from `lineRanges`. This is exactly the drift the `markdownSourceLines` invariant warns about,
+and that invariant already names copy as a consumer.
+
+**`MathDelimiters.inlineSpans` was quadratic.** Each unmatched `$` rescanned the rest of the line for
+a closer. It now memoizes the two "no closer remains" outcomes, which is sound because every
+close-scan starts at `open + 1` where `chars[open]` is `$` — never mid-backslash-run — so all scans
+visit the same canonical positions and a later one covers a strict suffix of an earlier one. Note for
+the record: the audit reported this as being on the live spell-check path. It is not — spell checking
+goes through `MarkdownSpellCheckRegions`, which never touches `MathDelimiters`. The real consumers
+are `MarkdownWritingToolsProtection` and the preview renderer.
+
+## What adversarial verification found in the same-day fixes (2026-07-27)
+
+The six areas fixed by the day's sequential review runs were later handed to adversaries that had
+not written them. **Not one held up.** 24 further gaps, twelve of them cases where the fix passed the
+test written beside it and failed the neighbouring case. The two worst are recorded here because
+they are the clearest evidence that a green suite is not evidence a fix is done.
+
+**Convert to Plain Text began corrupting code.** The escape sweep added
+`MarkdownInlineSyntax.unescape(text)` to the END of the converter — after the fence lines and
+code-span backticks had already been stripped, so there was no structure left to honour that
+function's own contract ("applied ONLY to the plain runs between tokens; a code span's contents are
+literal"). Every doubled backslash in a fenced block was halved and autosaved to the user's `.md`:
+`re.compile(r"\\d+\\.\\d")` became `re.compile(r"\d+\.\d")`, and `printf("a\\tb\\n")` became a
+literal tab escape. The converter now tracks fences with `MermaidFence` and emits their bodies
+verbatim, and applies the strips and the unescape only to the runs BETWEEN code spans. The suite's
+only converter fuzz test asserts the UNDO record round-trips — it stores the original markdown, so
+it passes no matter what the conversion does to the file.
+
+**The same converter could delete a line.** Its link and image patterns did not exclude `\n`, and it
+ran over the whole joined document, so an unclosed `](` on one line paired with any `)` on a later
+one: `See [the docs](https://example.com/a` / `Smiley :-)` / `Next paragraph` lost the middle line
+entirely. `MarkdownInlineSyntax` uses `[^\]\n]` and `[^)\n]+` for exactly this reason, and the
+commit's own comment claimed these "mirror MarkdownInlineSyntax".
+
+**`ImageLinkRewrite` escaped parens but not `%`.** `String.removingPercentEncoding` is
+all-or-nothing: one stray `%` that is not a valid escape makes it return nil for the WHOLE string, so
+`ImageResolver` never got a decoded candidate and `Q3 100% final (2).png` stayed permanently
+unresolved — the precise round-trip failure the fix was written to close, reached through a different
+character. A leading or trailing space fails the same way, because the resolver trims before looking
+up. Both are escaped now.
+
+**The BOM sweep was incomplete in three places, and widening it created a new divergence.**
+`MarkdownTableEditing` reads RAW text, so a BOM'd file whose first line is a table header became a
+table to the renderer and not to Tab/Reformat — Reformat a silent no-op and Tab inserting a literal
+tab into the row. `MarkdownRangeAnalyzer` had no BOM handling at all, so line 1 of a BOM'd file got no
+heading or list colouring — a gap the sweep WIDENED, since the outline and renderer now do see that
+heading. And `MarkdownOutlineParser` was given the wider `markdownLineTrimCharacters` while
+`markdownBlocks` still trims with `.whitespaces`: on a MID-document BOM (what `cat a.md b.md`
+produces) the outline opened a fence the renderer does not, listing a heading that Read mode draws
+inside code. The outline now trims exactly as the renderer does.
+
+**The Quick Look appex drifted on six separate rules** — the unescape table (no `\!`, no `\\`), an
+empty link/image destination, the fence run-length and trailing-content rules, an unterminated fence
+swallowing the rest of the document, the BOM, and the nine-digit ordered-marker cap. It is a
+hand-copy that cannot import the app's rules, which is exactly why every claim that it "now agrees"
+has to be asserted by a test rather than believed.

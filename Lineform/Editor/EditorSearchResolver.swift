@@ -94,25 +94,59 @@ enum EditorSearchResolver {
     }
 
     /// Pick the match to make active for "Replace & find next" after a single replacement.
+    ///
     /// `matches` are recomputed against the post-replace text; the next match is the first one
-    /// starting at or **after the end of the inserted replacement** (`replacedLocation +
-    /// replacementLength`), so a replacement that itself contains the query is skipped rather
-    /// than re-selected (otherwise Replace would loop on its own output, e.g. cat→cats→catss).
-    /// When none follow it wraps to the first match **before** the insertion; matches that fall
-    /// *inside* the inserted text are never selected (both forward and on wrap), so the cascade
-    /// can't recur even for a single self-containing occurrence. nil when no such match exists.
+    /// starting at or **after the end of the inserted replacement**, so a replacement that itself
+    /// contains the query is skipped rather than re-selected (otherwise Replace would loop on its
+    /// own output, e.g. cat→cats→catss). When none follow it wraps to the top.
+    ///
+    /// `priorInsertions` carries every span inserted earlier in this replace run (see
+    /// `insertionsAfterReplacement`), and matches inside ANY of them are skipped on both the
+    /// forward and the wrap path. Excluding only the CURRENT insertion was not enough: after the
+    /// last occurrence was replaced, the wrap landed on a match sitting inside an EARLIER
+    /// replacement, so `the log and the log` → Replace ×4 gave `the logss and the logss` — the
+    /// app rewriting its own output, autosaved to the user's file at every step.
     static func nextActiveIndexAfterReplacement(
         matches: [NSRange],
         replacedLocation: Int,
-        replacementLength: Int
+        replacementLength: Int,
+        priorInsertions: [NSRange] = []
     ) -> Int? {
         let afterInsertion = replacedLocation + replacementLength
-        if let forward = matches.firstIndex(where: { $0.location >= afterInsertion }) {
+        let current = NSRange(location: replacedLocation, length: replacementLength)
+        let inserted = priorInsertions + [current]
+        func isInsideAnInsertion(_ match: NSRange) -> Bool {
+            inserted.contains { NSIntersectionRange($0, match).length > 0 }
+        }
+
+        if let forward = matches.firstIndex(where: {
+            $0.location >= afterInsertion && !isInsideAnInsertion($0)
+        }) {
             return forward
         }
-        // Wrap to the top, but skip any match overlapping the just-inserted text
-        // [replacedLocation, afterInsertion): those are the replacement matching itself.
-        return matches.firstIndex { $0.location < replacedLocation }
+        return matches.firstIndex {
+            $0.location < replacedLocation && !isInsideAnInsertion($0)
+        }
+    }
+
+    /// Roll the recorded insertion spans forward across a new replacement.
+    ///
+    /// A replacement changes the text length at one point, so every span that started after the
+    /// replaced range shifts by the delta. The new insertion is appended. The result is the set of
+    /// "text this replace run wrote" in post-replace coordinates, which is what
+    /// `nextActiveIndexAfterReplacement` needs on the next click.
+    static func insertionsAfterReplacement(
+        priorInsertions: [NSRange],
+        matchRange: NSRange,
+        replacementLength: Int
+    ) -> [NSRange] {
+        let delta = replacementLength - matchRange.length
+        let shifted = priorInsertions.map { span -> NSRange in
+            span.location >= NSMaxRange(matchRange)
+                ? NSRange(location: span.location + delta, length: span.length)
+                : span
+        }
+        return shifted + [NSRange(location: matchRange.location, length: replacementLength)]
     }
 
     static func refreshState(

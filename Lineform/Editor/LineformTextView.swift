@@ -648,6 +648,10 @@ final class LineformTextView: NSTextView {
         textFormat = contextMenuTextFormat
         let menu = NSMenu()
         menu.allowsContextMenuPlugIns = LineformTextContextMenuPresentation.allowsContextMenuPlugIns
+        // Keeps `MainMenuIconDecorator` off this menu. Its observers watch every NSMenu in the
+        // process (a detached SwiftUI CommandMenu has no supermenu to test), so without the tag a
+        // right-click here came up with main-menu SF Symbols on its rows.
+        menu.identifier = MainMenuIconDecorator.excludedMenuIdentifier
 
         // This menu REPLACES AppKit's, which is where spelling guesses, Learn, and Ignore
         // normally live — so enabling spell checking without adding them here leaves a

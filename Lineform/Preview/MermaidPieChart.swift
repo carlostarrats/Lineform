@@ -25,7 +25,7 @@ enum MermaidPieChart {
     /// Returns nil for anything unrenderable (not a pie, no slices, or any non-positive /
     /// non-numeric value) so the caller degrades to the clean captioned fallback.
     static func parse(_ source: String) -> MermaidPieModel? {
-        var lines = significantLines(source)
+        var lines = MermaidSource.significantLines(source)
         guard let header = lines.first, header.lowercased().hasPrefix("pie") else { return nil }
         lines.removeFirst()
 
@@ -39,13 +39,28 @@ enum MermaidPieChart {
         // A legend row per slice sizes the raster; hundreds of slices is both unreadable and a
         // large one-shot bitmap allocation (row height × scale). Bail to the captioned-source
         // fallback rather than draw a giant, useless chart.
-        guard !slices.isEmpty, slices.count <= maxSlices, slices.allSatisfy({ $0.value > 0 }) else { return nil }
+        // `isFinite` and `maximumSliceValue` are load-bearing, not tidiness: the renderer converts
+        // values to `Int` for the legend, and `Int(v)` TRAPS — a hard crash, uncatchable — for
+        // `inf`, for `nan`'s percent arithmetic, and for any value above `Double(Int.max)`. Every
+        // Double at or above 2^52 is its own `.rounded()`, so a 20-digit slice value always took
+        // that branch. Same shape as the ordered-list `Int.max` crash: an unbounded number parsed
+        // out of document text reaching an `Int` conversion. A rejected block degrades to the
+        // captioned-source fallback, which is the documented behavior for unrenderable input.
+        guard
+            !slices.isEmpty,
+            slices.count <= maxSlices,
+            slices.allSatisfy({ $0.value > 0 && $0.value.isFinite && $0.value <= maximumSliceValue })
+        else { return nil }
         return MermaidPieModel(title: title, slices: slices)
     }
 
     /// Upper bound on renderable slices (see `parse`). A real pie chart has a handful; this only
     /// rejects pathological input.
     static let maxSlices = 100
+
+    /// Upper bound on a renderable slice value (see `parse`). Far above any real chart and far
+    /// below `Double(Int.max)`, so the legend's `Int` conversions cannot trap.
+    static let maximumSliceValue: Double = 1e15
 
     /// `pie [showData] [title <text>]` → the title text, or nil.
     private static func parseTitle(fromHeader header: String) -> String? {
@@ -77,22 +92,6 @@ enum MermaidPieChart {
         return MermaidPieSlice(label: label, value: value)
     }
 
-    /// Lines with blanks, `%%` comments, and a leading `---`/`---` front-matter block removed.
-    private static func significantLines(_ source: String) -> [String] {
-        var out: [String] = []
-        var inFrontMatter = false
-        var seenFirst = false
-        for raw in source.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { seenFirst = true; continue }
-            if !seenFirst, line == "---" { inFrontMatter = true; seenFirst = true; continue }
-            seenFirst = true
-            if inFrontMatter { if line == "---" { inFrontMatter = false }; continue }
-            if line.hasPrefix("%%") { continue }
-            out.append(line)
-        }
-        return out
-    }
 }
 
 /// Draws a `MermaidPieModel` as an upright NSImage: title, pie circle, and a legend.
@@ -168,7 +167,7 @@ enum MermaidPieRenderer {
                 ctx.setStrokeColor(foreground.cgColor)
                 ctx.setLineWidth(1)
                 ctx.stroke(sr)
-                let pct = Int((model.fraction(of: slice) * 100).rounded())
+                let pct = percent(model.fraction(of: slice))
                 let text = "\(slice.label)  \(formatValue(slice.value)) (\(pct)%)"
                 drawText(text, at: CGPoint(x: lx + swatch + 8, y: ly + 2), font: legendFont, color: foreground)
                 ly += rowHeight
@@ -205,8 +204,21 @@ enum MermaidPieRenderer {
         return steps[index % steps.count]
     }
 
+    /// Total on every Double. The parser already rejects values this could trap on, but both
+    /// halves are kept: the parser is the correctness gate, and the renderer must not crash on
+    /// anything a future caller hands it.
     private static func formatValue(_ v: Double) -> String {
-        v == v.rounded() ? String(Int(v)) : String(format: "%g", v)
+        guard v.isFinite, v.magnitude <= MermaidPieChart.maximumSliceValue else {
+            return String(format: "%g", v)
+        }
+        return v == v.rounded() ? String(Int(v)) : String(format: "%g", v)
+    }
+
+    /// `Int((fraction * 100).rounded())` traps when `fraction` is NaN — which it is whenever the
+    /// slice total is infinite. Clamped instead.
+    private static func percent(_ fraction: Double) -> Int {
+        guard fraction.isFinite else { return 0 }
+        return Int(min(100, max(0, (fraction * 100).rounded())))
     }
 
     private static func drawText(_ s: String, at p: CGPoint, font: NSFont, color: NSColor) {
@@ -217,7 +229,7 @@ enum MermaidPieRenderer {
     private static func legendMaxWidth(_ model: MermaidPieModel, font: NSFont, swatch: CGFloat) -> CGFloat {
         var maxW: CGFloat = 120
         for slice in model.slices {
-            let pct = Int((model.fraction(of: slice) * 100).rounded())
+            let pct = percent(model.fraction(of: slice))
             let text = "\(slice.label)  \(formatValue(slice.value)) (\(pct)%)"
             let w = (text as NSString).size(withAttributes: [.font: font]).width + swatch + 8
             maxW = max(maxW, w)

@@ -485,3 +485,124 @@ left the caret a column away from where the writer was typing.
 The rebuild now drops a trailing `\r` from each range's length while still stepping over it. The
 existing CRLF table tests all asserted the resulting *text*, which was correct throughout; only the
 selection was wrong, and nothing was checking it.
+
+## Document model and autosave (audited 2026-07-27)
+
+Four defects, all rooted in `textFormat` doing two jobs — "this file is a `.txt`" and "this text has
+been converted to plain" — plus one stat that lied.
+
+**Live reload fired at most once per file.** `LineformDocument.modificationDate(at:)` read
+`url.resourceValues(forKeys:)`. `URL` caches resource values on the instance, and
+`DocumentReloadController.startWatching` early-returns while the path is unchanged, so it stats the
+SAME `URL` value for the life of the watch. After the first applied snapshot the date never changed
+again and `reloadFromDisk`'s `modificationDate == lastSeen` pre-check skipped the read forever: an
+agent rewriting the open `.md` produced no reload and no "Updated" flash, and the editor kept showing
+— and autosaving — the stale text. Now stats through `FileManager.attributesOfItem`, which has no
+per-instance cache. The suite missed it because every `DocumentReloadControllerTests` fake returns a
+stored constant from `modificationDate(at:)`, so `FileSystemDiskReader` was never exercised;
+`testUnchangedModificationDateSkipsFullRead` actually enshrined the blind spot. There is now a test
+using the real reader against a temp file.
+
+**A UTF-8 BOM was dropped on read and never re-emitted.** `String(data:encoding:.utf8)` strips a
+leading U+FEFF on Darwin, so the mark never reached `document.text` and `markdownData()` could not
+put it back — the first write of any kind rewrote the head of every Notepad-authored file. Decoding
+now validates with the failable initializer (so invalid UTF-8 is still rejected, not repaired) and
+decodes with `String(decoding:as:)`, which preserves the mark. `FileSystemDiskReader.readText` uses
+the same pair, or a BOM'd file would compare unequal to its own in-memory text and reload on every
+save. This is also what makes the existing BOM handling in the parsing layer reachable on real files.
+
+**`data(for:)` and `recordsSourceSave(for:)` disagreed in exactly one cell.** For a `.md` document
+left in `.plainText` by Convert to Plain Text, the write emitted the source verbatim while
+`recordsSourceSave` returned false, so `recordWrite` never ran: no "Saved" flash, "Last save:" frozen
+at open time, a permanently amber status bar, and — through the `savedAt` observer —
+`lastSyncedText` never refreshed, which disables live reload and the `activateSelectedTab` disk
+reconcile. Both now derive from one `writesSourceVerbatim(for:)`. The old test asserting
+`recordsSourceSave(for: .markdownText) == false` for a plain-text document was asserting the bug and
+has been corrected; a new test iterates all four `(textFormat, contentType)` pairs and asserts the
+two agree.
+
+**Convert to Markdown corrupted a plain-text file.** `restoreConvertedMarkdown` set
+`textFormat = .markdown` even with no stored conversion. A `.txt` opened from disk has exactly one
+Format row — "Convert to Markdown" — and clicking it left the document in the state whose next write
+takes `plainTextData()`, running the Markdown stripper over the user's file: both ``` lines deleted,
+link URLs gone, every leading marker stripped. It now only flips when a conversion actually restored.
+
+## Speech transport (audited 2026-07-27)
+
+All four findings here were produced by probing the real `AVSpeechSynthesizer` rather than reading
+the code, and all four survived an independent refutation pass. Two of them are the same shape as the
+rest of this audit: a test fake that models what the source BELIEVES instead of what the framework
+DOES, so the suite certified the bug.
+
+**A stopped utterance reports `didFinish`, not `didCancel`.** The `SpeechSynthesizing` contract and
+the `didCancel` comment both asserted the opposite. Because `stop()` and `speak()` are issued
+back-to-back with no runloop spin, the stopped utterance's `didFinish` arrived ~30 ms later — after
+`startSpeaking` had already set `.speaking` for the NEW utterance — and clobbered the transport to
+`.idle` while audio was playing. Pause and Stop then greyed out with no way to stop the sound, and
+because `state == .idle` a further Start Speaking skipped the `if state != .idle { stop() }` branch
+entirely, so the next passage QUEUED behind the still-playing one (measured 4.45 s to silence for a
+word that takes 0.8 s alone). `SystemSpeechSynthesizer` now tracks `currentUtterance` and forwards
+`didFinish` only for it — an identity check, not a guess about which delegate method means what.
+
+**`pauseSpeaking(at: .word)` is asynchronous.** A `continueSpeaking()` issued before the pause landed
+returned `true` and was then overtaken by it, leaving audio permanently silent while `state` said
+`.speaking` and the menu row read "Pause". The transport now keeps `state` as the user's INTENT (set
+optimistically, so the menu responds to the click) and reconciles against the real
+`didPause`/`didContinue` callbacks: a pause that lands when the intent is `.speaking` is immediately
+undone, and vice versa.
+
+**Read-aloud could be handed a range from the wrong text view.**
+`LineformAppNotification.activeWindowPayload` cast `firstResponder as? NSTextView`, which also
+matches an `NSSearchField`'s field editor and the Split-mode preview pane. Pressing ⌘F selects the
+field's whole contents, so Start Speaking read only the first `query.count` characters of the
+document; and a selection in the rendered preview is in RENDERED coordinates, which
+`speechSource` explicitly refuses to substring source text with — but its guard covers `.read` and
+`.split` is a different mode. Narrowed to `LineformTextView`. Convert to Plain Text reads the same
+payload and wanted the same narrowing.
+
+**Speech outlived its document.** `stop()` was wired only to `NSWindow.willCloseNotification`, but a
+tabbed, sidebar-navigating window replaces its document without the window closing. Starting
+read-aloud and then clicking another file in the sidebar left the previous document being read to the
+end, with the menu's Pause/Stop acting on a document no longer on screen. `stop()` now runs from
+`resetTransientDocumentState()`, the single choke point every document swap goes through — the same
+place, and for the same reason, that the stale cross-mode scroll anchor is dropped.
+
+## LinePrefix, the plain-text converter, and the perf gate (verified 2026-07-27)
+
+Gaps found by adversarially verifying the same day's own fixes. See `rendering.md` for the two
+data-loss ones in `MarkdownPlainTextConverter`.
+
+**Return wrote a byte-order mark into the middle of the document.** `LinePrefix.scanWhitespace`
+learned to skip a leading BOM so a BOM'd file's first line would continue as a list — but the caller
+still captured `indent` from index 0, so the mark travelled into the continuation. Pressing Return on
+`<BOM>- milk` inserted `\n<BOM>- `, and `markdownSourceLines` strips a BOM only at index 0, so the
+new line kept a literal U+FEFF: `MarkdownBlockGrouping`'s list regex no longer matched, and the
+bullet the writer had just created drew as a paragraph while the editor still called it a list —
+the exact editor/renderer split the fix set out to close, reproduced one line down. `Data(text.utf8)`
+then autosaved the bytes. The mirror case was worse: on a document that is only `<BOM>- `, Return
+returned `.terminate(clearing:)` over a range covering the BOM, silently stripping the file's mark.
+The scan is now split into `scanByteOrderMark` and `scanWhitespace` so a caller can skip the mark
+without capturing it.
+
+**A bare list marker was a list to the editor and a paragraph to the renderer.** `scanBullet` and
+`scanOrdered` only checked a separator `if cursor < ns.length` — so a line that is exactly `-`, `*`,
+`1.` or `1)` matched with empty content, and `outcome` returned `.terminate(clearing: lineRange)`:
+pressing Return at the end of that line ERASED the character the writer had just typed.
+`MarkdownBlockGrouping` requires `[ \t]+`. The separator is now required, not merely accepted when
+present.
+
+**`isInsideCodeOrFrontMatter` disagreed with its siblings about what a line is.** It walked with
+`NSString.getLineStart`, which breaks on a lone `\r`, U+2028 and U+0085 as well as `\n`, while
+`ignoredRanges`, `protectedRanges(in:intersecting:)` and the renderer all split on `\n` only. In a
+document containing any of those (a paste from InDesign or some web sources inserts U+2028) it
+reported "inside fenced code" for text drawn as prose — and `MarkdownListContinuation` and
+`MarkdownTableEditing` gate on it, so Return-continuation and Tab-between-cells silently stopped
+working there.
+
+**The perf gate measured half the real cost.** Its fixture pinned the caret to the document
+MIDPOINT, described in the source as "the worst case for the prefix walk". It is not: the walk runs
+from offset 0 to `NSMaxRange(scope)`, so cost is linear in how far in the caret sits and the worst
+case is end of file — which is also where a writer drafting a long document actually types. Measured
+at 0.0114 ms per KB of prefix, exactly 2.00x from midpoint to EOF. The gate could not see a
+regression confined to the second half of a file, and the headroom above its 4x floor was half what
+the commit message claimed. The fixture now measures the last line.

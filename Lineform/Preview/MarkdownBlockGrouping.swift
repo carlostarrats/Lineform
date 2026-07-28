@@ -89,8 +89,15 @@ struct MarkdownTable: Equatable {
 /// Pure GFM pipe-table parsing: delimiter-row detection, cell splitting, alignment, and assembly.
 enum MarkdownTableParser {
     /// A candidate table row: non-empty and containing a pipe. (GFM multi-column rows use pipes.)
+    /// Trims with `markdownLineTrimCharacters`, not `.whitespaces`, because this parser has TWO
+    /// callers reading different text. The renderer feeds it lines from `markdownSourceLines`,
+    /// which has already stripped the `\r` and a line-0 BOM — so the wider set changes nothing
+    /// there. `MarkdownTableEditing.locate` feeds it RAW document text, where a BOM'd file's
+    /// header line still begins with U+FEFF: `hasPrefix("|")` was then false, the leading pipe was
+    /// not dropped, the header yielded one cell too many, and `locate` returned nil. Reformat
+    /// became a silent no-op and Tab inserted a LITERAL TAB into the table row.
     static func looksLikeRow(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let trimmed = line.trimmingCharacters(in: markdownLineTrimCharacters)
         return !trimmed.isEmpty && trimmed.contains("|")
     }
 
@@ -109,10 +116,10 @@ enum MarkdownTableParser {
     /// Split a row into trimmed cell strings, dropping the optional outer pipes. Escaped `\|` is a
     /// known limitation (v1 splits on every pipe).
     static func cells(in row: String) -> [String] {
-        var trimmed = row.trimmingCharacters(in: .whitespaces)
+        var trimmed = row.trimmingCharacters(in: markdownLineTrimCharacters)
         if trimmed.hasPrefix("|") { trimmed.removeFirst() }
         if trimmed.hasSuffix("|") { trimmed.removeLast() }
-        return trimmed.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+        return trimmed.components(separatedBy: "|").map { $0.trimmingCharacters(in: markdownLineTrimCharacters) }
     }
 
     static func alignment(of delimiterCell: String) -> MarkdownTableAlignment {

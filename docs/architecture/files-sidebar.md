@@ -24,3 +24,33 @@ and the scan stays lazy) remain there under Load-Bearing Invariants.
 - The live iCloud scan (resolving the ubiquity container + enumerating the directory) is expensive and must not run on the main thread at view construction — it would block launch and perturb hosted-view layout. It is deferred to `OutlineFileBrowserStore.refreshICloud()`, invoked when the Files tab actually appears. Init only loads the cached snapshot. Preserve this laziness.
 - The store keeps the user's iCloud working set materialized via `ensureDownloaded(...)` (`FileManager.startDownloadingUbiquitousItem`), so evicted (dataless) files don't appear in search yet fail to open or drag. This is realized through the `UbiquitousItemDownloader` protocol so it is testable without real iCloud files.
 - App-owned containers are still subject to iCloud purge when macOS believes the app was uninstalled. The durable additional protections are operational, not code: ship updates via Sparkle's atomic in-place swap (never instruct users to delete the old app and drag a new one), and do not run-then-delete locally built Release/Export copies of `com.lineform.app` while signed into the production iCloud account.
+
+## Toggle, watcher, and sort (audited 2026-07-27)
+
+**Hidden-folders OFF deleted real files from the tree.** The OFF branch filtered the last
+hidden-INCLUSIVE scan in memory, on the stated claim that it is a superset of the visible tree. It is
+not: `items(in:)` applies the 80-per-folder cap BEFORE any hidden filtering, so hidden entries spend
+cap slots that a real hidden-off scan would have given to ordinary files — those files then vanished,
+and the wrong tree persisted until something else forced a rescan. This is the same reasoning that
+already made `applySortOrderChange` re-scan rather than re-sort ("the cap is applied in display
+order, so order decides membership"); the hidden path simply never got it. It now re-scans a live
+root. In-memory `filteredForDisplay` is kept only for the cached/disconnected fallbacks in
+`refreshWorkspaceRoot`, where no scan is possible.
+
+**A moved workspace folder killed live refresh for the session.** `workspaceURL` is assigned in two
+places and only `setWorkspaceURL` retargeted `workspaceMonitor`. When the user renames or moves the
+workspace in Finder, the security-scoped bookmark follows it and `refreshWorkspaceRoot` silently
+re-points `workspaceURL` at the new path — but `DirectoryEventMonitor` binds FSEvents to a path
+string and sets no `kFSEventStreamCreateFlagWatchRoot`, so the stream was still on the dead path and
+never fired again. The tree visibly recovered and showed the new folder name, which is what made it
+invisible. Both writes now go through `retargetWorkspaceWatcher()`. Only hiding and re-showing the
+Files tab used to heal it.
+
+**The global Sort row described an order the files were not in.** 1.3.0 replaced 1.2.0's two
+per-section sort rows with one global row whose getter reads `iCloudSortOrder`, while the workspace
+tree is still scanned with the independently persisted `workspaceSortOrder`. A profile carried over
+from 1.2.0 with different values per section showed a label that lied — and because the 80-cap is
+applied in display order, it mis-described which files are on screen, not just their arrangement. The
+two keys are now reconciled once at load, preferring the workspace value (the only one a user with no
+iCloud root visible could have set). Assigned through `Published(initialValue:)` backing storage, per
+the init rule above.

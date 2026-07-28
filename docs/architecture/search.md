@@ -11,3 +11,38 @@ in this area.
 - Cross-file search (All Files scope): the native toolbar search field gains SwiftUI `.searchScopes` — **This File** (default, the settled in-document search) and **All Files**, which renders a transient READ-ONLY results page over the current tab's content area (`CrossFileSearchResultsView`; never a floating card and never a laid-out top strip — the toolbar-sampling rule) listing every scanned Workspace/iCloud file whose *contents* contain the query (one row per file: name, relative path, first-match snippet with the hit emphasized, match count; ranked by match count via `CrossFileSearchResolver.ranked`). Matching reuses `EditorSearchResolver.matches` (literal, case- and diacritic-insensitive) so cross-file agrees with in-file search by construction; ranking/snippets are pure tested logic in `Lineform/Editor/CrossFileSearchResolver.swift`; `CrossFileSearchModel` reads candidate files off-main (0.3s debounce, latest-wins generation guard, skips iCloud-evicted and >1 MB files) with no persisted index and no FSEvents watcher (candidates = the store's last scan, the ⌘K universe incl. the 80-per-folder cap; first All Files activation triggers the deferred iCloud scan exactly like ⌘K, so the laziness invariant holds). Clicking a result opens via `openSidebarFile` (new tab / switch to existing) and then `clearAllSearchState()` wipes ALL search residue (query, highlights, scope back to This File — which also dismisses the system scope bar); Esc and document swaps do the same. The scope bar is system-drawn and deliberately unstyled; the search field itself is never wrapped or rebuilt. No cross-file replace, no saved searches, no new shortcuts (deliberate). See `docs/superpowers/specs/2026-07-17-cross-file-search-design.md`.
 
 - Jump to File (⌘K): a centered quick-open palette that fuzzy-searches filenames across the Workspace + iCloud roots (the Files sidebar's scanned tree) and opens the selection exactly like a sidebar click (new tab, or switch to the existing tab). Pure flatten/rank logic in `QuickOpenIndex` (`Lineform/Outline/QuickOpenIndex.swift`); the card is `QuickOpenPalette` (`Lineform/Editor/QuickOpenPalette.swift`), presented through the shared `museModalLayer` scrim in `EditorContainerView`. The first ⌘K of a session triggers the deferred iCloud scan (`OutlineFileBrowserStore.hasPerformedICloudScan` guard) — the laziness invariant holds; the palette starts no FSEvents watcher and inherits the sidebar's 80-per-folder cap. Freeing ⌘K moved **Format ▸ Link to ⌘L** (`AppMenuConfiguration.linkCommandKeyEquivalent`, shared with the editor's right-click menu hint). The store is owned by `EditorContainerView` (hoisted 2026-07-17) and injected into the sidebar. See `docs/superpowers/specs/2026-07-17-quick-open-jump-to-file-design.md`.
+
+## Replace could rewrite its own output (audited 2026-07-27)
+
+Two independent defects produced the same visible failure — clicking Replace repeatedly grew the
+text (`log` → `logs` → `logss`) while the counter kept saying the same thing — and either one alone
+reproduces it, so both had to be fixed.
+
+**The wrap only knew about the LAST insertion.** `nextActiveIndexAfterReplacement`'s wrap path was
+`matches.firstIndex { $0.location < replacedLocation }`, and `replacedLocation` describes only the
+replacement just made. After the final occurrence was replaced, the wrap landed on a match sitting
+inside an EARLIER replacement — indistinguishable from untouched document text. `the log and the log`
+with Replace ×4 gave `the logss and the logss`, autosaved at every step. The resolver now takes
+`priorInsertions` and skips matches overlapping ANY of them, on both the forward and wrap paths.
+`insertionsAfterReplacement` rolls those spans forward across each replacement's length delta, and
+the container clears them whenever the search is re-aimed (query change, scope change, tab switch,
+cross-file open).
+
+**The debounced refresh un-did the anti-cascade nil.** When the only remaining match lies inside the
+text it just inserted, the resolver deliberately returns nil, which greys out Replace. 200 ms later
+`recomputeDerived` called `refreshSearchMatches(selectFirstWhenNeeded: activeSearchIndex == nil)` —
+and because the index WAS nil, it selected match 0: the match inside the replacement. Replace lit up
+again and the cascade resumed. Since a human clicking a button always pauses more than 200 ms, this
+was the normal path, not a race. A nil produced by a replacement is a DECISION, not an absence, and
+the `replacementInsertions` state is what distinguishes the two.
+
+**Snippet elision split surrogate pairs.** `CrossFileSearchResolver` sliced the line with window
+bounds documented in characters but measured in UTF-16 units, so a boundary landing inside an emoji
+put a lone surrogate on the pill, which bridges to U+FFFD — a replacement character that is not in
+the user's file. Both edges now snap via `rangeOfComposedCharacterSequence`. Same class as the Table
+Reformat padding rule.
+
+**VoiceOver heard the search status on every typing pause.** `refreshSearchMatches` ended with an
+unconditional `announceSearchStatus()`, and it runs from the debounced derived refresh — so leaving
+a query in the toolbar field and going back to writing re-posted the identical announcement after
+every lull in typing, for the whole session. It is now posted only when the summary changes.

@@ -415,4 +415,30 @@ private final class ExportTextView: NSTextView {
         dirtyRect.fill()
         super.draw(dirtyRect)
     }
+
+    /// Reflow to the paper the print panel actually returned, before pagination measures anything.
+    ///
+    /// The view is built at the paper Lineform proposed, but `NSPrintPanel` can change Paper Size
+    /// and Orientation on the live operation afterwards. Nothing re-laid the view, so with
+    /// `horizontalPagination = .automatic` a NARROWER chosen sheet did not rewrap the prose — it
+    /// SLICED it, cutting every line at the old column width and spilling the remainder onto extra
+    /// pages (Letter → A5 gave a page cut mid-word, its tail alone on page 2, then two blank
+    /// pages). `knowsPageRange` is the first thing the operation asks after the panel returns, so
+    /// resizing here rewraps live text while leaving the panel — including its "Save as PDF" —
+    /// exactly as it was. Export As is unaffected: there the paper is chosen before layout.
+    override func knowsPageRange(_ range: NSRangePointer) -> Bool {
+        if let info = NSPrintOperation.current?.printInfo {
+            let width = info.paperSize.width - info.leftMargin - info.rightMargin
+            let height = info.paperSize.height - info.topMargin - info.bottomMargin
+            if width > 0, height > 0, abs(width - frame.width) > 0.5 {
+                textContainer?.size = NSSize(width: width, height: .greatestFiniteMagnitude)
+                if let container = textContainer, let manager = layoutManager {
+                    manager.ensureLayout(for: container)
+                    let used = manager.usedRect(for: container)
+                    setFrameSize(NSSize(width: width, height: max(height, used.height)))
+                }
+            }
+        }
+        return super.knowsPageRange(range)
+    }
 }

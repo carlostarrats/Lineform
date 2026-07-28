@@ -25,7 +25,14 @@ enum QuickLookMarkdownRenderer {
         // hand. Without it a Windows-authored file's closing ``` reads as "```\r", no fence ever
         // closes, and Finder previews the rest of the document as one code block. No source
         // offsets are kept here, so a plain strip is enough.
-        let lines = text.components(separatedBy: "\n").map { $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }
+        var lines = text.components(separatedBy: "\n").map { $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }
+        // A leading UTF-8 BOM is stripped like the `\r`, mirroring `markdownSourceLines`. Without
+        // it the first line of a Notepad-authored file has an invisible U+FEFF before its marker,
+        // so its heading, front matter, list marker, and opening fence all fail to match — Finder
+        // previewed the whole document differently from the app for every BOM'd file.
+        if let first = lines.first, first.unicodeScalars.first == "\u{FEFF}" {
+            lines[0] = String(first.unicodeScalars.dropFirst())
+        }
         let bodyFont = NSFont.systemFont(ofSize: bodyFontSize)
         let themeTextColor = NSColor.labelColor
 
@@ -35,7 +42,7 @@ enum QuickLookMarkdownRenderer {
         /// hand-copy of the app's rules, which is exactly why it has to be checked rather than
         /// assumed. `~~~` was previously not recognised as a fence at all, so a `~~~` code block
         /// rendered in the Finder preview as prose with its delimiters showing.
-        var openFenceCharacter: Character?
+        var openFence: (character: Character, length: Int)?
         var codeBlockLines: [String] = []
         var listStack: [(type: String, indent: Int)] = []
         var listIndexCounters: [Int] = []
@@ -89,14 +96,24 @@ enum QuickLookMarkdownRenderer {
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // Code blocks. A fence is 3+ of the same ` or ~; a closing fence must use the same
-            // character as the one that opened the block.
-            let fenceCharacter: Character? = {
+            // Code blocks, per CommonMark and mirroring `MermaidFence` in the app: a fence is 3+
+            // of the same ` or ~, and a CLOSING fence must use the same character, a run at least
+            // as long as the opener's, and nothing but whitespace after the run. Matching only the
+            // character meant a ``` ` ``` inside a ```` ```` ```` block closed it early and the rest
+            // of the block rendered as prose, and an info string on a closing line ("```swift")
+            // was treated as a close.
+            let fence: (character: Character, length: Int)? = {
                 guard let first = trimmed.first, first == "`" || first == "~" else { return nil }
-                return trimmed.prefix { $0 == first }.count >= 3 ? first : nil
+                let length = trimmed.prefix { $0 == first }.count
+                return length >= 3 ? (first, length) : nil
+            }()
+            let closesOpenFence: Bool = {
+                guard let fence, inCodeBlock, let open = openFence else { return false }
+                guard fence.character == open.character, fence.length >= open.length else { return false }
+                return trimmed.dropFirst(fence.length).allSatisfy { $0 == " " || $0 == "\t" }
             }()
 
-            if let fenceCharacter, !inCodeBlock || fenceCharacter == openFenceCharacter {
+            if let fence, !inCodeBlock || closesOpenFence {
                 if inCodeBlock {
                     let codeText = codeBlockLines.joined(separator: "\n") + "\n"
                     let codeFont = NSFont.monospacedSystemFont(ofSize: bodyFontSize, weight: .regular)
@@ -107,13 +124,13 @@ enum QuickLookMarkdownRenderer {
                     attrs[.paragraphStyle] = paragraphStyle(lineHeight: lineHeightMultiple, spacing: paragraphSpacing)
                     output.append(NSAttributedString(string: codeText, attributes: attrs))
                     inCodeBlock = false
-                    openFenceCharacter = nil
+                    openFence = nil
                     codeBlockLines = []
                 } else {
                     flushParagraph()
                     closeAllLists()
                     inCodeBlock = true
-                    openFenceCharacter = fenceCharacter
+                    openFence = fence
                 }
                 continue
             }
@@ -282,6 +299,20 @@ enum QuickLookMarkdownRenderer {
             paragraphBuffer.append(trimmed)
         }
 
+        // A document that ENDS inside a fence still has to render its body. The loop only emitted
+        // `codeBlockLines` when a CLOSING fence arrived, so an unterminated block — a note that
+        // ends with a code sample, or a file being written — showed everything after the opener as
+        // nothing at all in Finder. The app renders it as code; so does this now.
+        if inCodeBlock, !codeBlockLines.isEmpty {
+            let codeFont = NSFont.monospacedSystemFont(ofSize: bodyFontSize, weight: .regular)
+            var attrs: [NSAttributedString.Key: Any] = [
+                .font: codeFont,
+                .foregroundColor: themeTextColor
+            ]
+            attrs[.paragraphStyle] = paragraphStyle(lineHeight: lineHeightMultiple, spacing: paragraphSpacing)
+            output.append(NSAttributedString(string: codeBlockLines.joined(separator: "\n") + "\n", attributes: attrs))
+        }
+
         flushParagraph()
         closeAllLists()
         if inTable {
@@ -317,11 +348,13 @@ enum QuickLookMarkdownRenderer {
             // pattern can tell, so without this the pattern claimed it and left the `!` behind as
             // literal text — Finder showed "!a picture", underlined and accent-coloured as a link,
             // for a line the app draws as a picture.
-            (.image,         rx(#"(?<!\\)!\[([^\]]*)\]\(([^)]*)\)"#)),
+            (.image,         rx(#"(?<!\\)!\[([^\]\n]*)\]\(([^)\n]+)\)"#)),
             // Link TEXT must be non-empty, mirroring `MarkdownInlineSyntax.link`. Allowing an
             // empty one made `[](url)` a link with nothing in it, so the appex CONSUMED the
             // whole construct and Finder showed a blank where the app shows the literal text.
-            (.link,          rx(#"(?<!\\)\[([^\]]+)\]\(([^)]*)\)"#)),
+            // Destination non-empty too, mirroring `MarkdownInlineSyntax`. Accepting an empty one
+            // made `[text]()` a link in Finder and literal text in the app.
+            (.link,          rx(#"(?<!\\)\[([^\]\n]+)\]\(([^)\n]+)\)"#)),
             (.bold,          rx(#"(?<!\\)\*\*([^*]+)\*\*"#)),
             // Deliberately no `__bold__`: the app does not render it, and reading it here made
             // Finder show a Python `__init__` as bold "init" while the app showed the real word.
@@ -459,7 +492,10 @@ enum QuickLookMarkdownRenderer {
     private static func unescapeInline(_ text: String) -> String {
         guard text.contains("\\") else { return text }
         // swiftlint:disable:next force_try
-        let regex = try! NSRegularExpression(pattern: #"\\([*_`~\[\]()])"#)
+        // MUST match `MarkdownInlineSyntax.escapedMarker` exactly, including `!` and `\\`. Without
+        // them, `C:\\Users\\me` rendered as `C:\Users\me` in the app and `C:\\Users\\me` in Finder,
+        // and `\!bang` kept its backslash here while the app dropped it.
+        let regex = try! NSRegularExpression(pattern: #"\\([*_`~\[\]()!\\])"#)
         let ns = text as NSString
         return regex.stringByReplacingMatches(
             in: text, options: [], range: NSRange(location: 0, length: ns.length), withTemplate: "$1"
@@ -504,7 +540,9 @@ enum QuickLookMarkdownRenderer {
             return ListItemMatch(type: "ul", indent: leadingSpaces, content: String(trimmed.dropFirst(2)))
         }
 
-        if let match = trimmed.range(of: #"^\d+\. "#, options: .regularExpression) {
+        // NINE digits and `[ \t]`, matching `MarkdownBlockGrouping`'s `[0-9]{1,9}` and the editor's
+        // `LinePrefix`. Unbounded, a 10-digit marker listed here while the app drew a paragraph.
+        if let match = trimmed.range(of: #"^[0-9]{1,9}\.[ \t]"#, options: .regularExpression) {
             let content = String(trimmed[match.upperBound...])
             return ListItemMatch(type: "ol", indent: leadingSpaces, content: content)
         }

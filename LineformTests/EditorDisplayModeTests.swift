@@ -253,6 +253,60 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertNil(next)
     }
 
+    /// The wrap must skip EVERY span this replace run wrote, not just the most recent one.
+    /// "the log and the log" + Replace ×4 used to give "the logss and the logss": after the last
+    /// occurrence was replaced, the wrap landed inside the FIRST replacement and the app began
+    /// rewriting its own output, autosaving each step to the user's file.
+    func testReplaceRunNeverWrapsOntoAnEarlierReplacement() {
+        var text = "the log and the log"
+        var insertions: [NSRange] = []
+        var active: Int? = 0
+
+        for _ in 0..<6 {
+            var matches = EditorSearchResolver.matches(in: text, query: "log")
+            guard let index = active, matches.indices.contains(index) else { break }
+            let matchRange = matches[index]
+            guard let result = EditorSearchResolver.replaceMatch(
+                in: text, matchRange: matchRange, replacement: "logs"
+            ) else { break }
+            text = result.text
+            matches = EditorSearchResolver.matches(in: text, query: "log")
+            active = EditorSearchResolver.nextActiveIndexAfterReplacement(
+                matches: matches,
+                replacedLocation: matchRange.location,
+                replacementLength: 4,
+                priorInsertions: insertions
+            )
+            insertions = EditorSearchResolver.insertionsAfterReplacement(
+                priorInsertions: insertions,
+                matchRange: matchRange,
+                replacementLength: 4
+            )
+        }
+
+        XCTAssertEqual(text, "the logs and the logs")
+        XCTAssertNil(active, "with both occurrences replaced there is no match left to select")
+    }
+
+    /// The insertion spans must roll forward as later replacements change the text length, or the
+    /// wrap guard starts pointing at the wrong bytes.
+    func testInsertionSpansShiftWithLaterReplacements() {
+        let first = EditorSearchResolver.insertionsAfterReplacement(
+            priorInsertions: [],
+            matchRange: NSRange(location: 4, length: 3),
+            replacementLength: 4
+        )
+        XCTAssertEqual(first, [NSRange(location: 4, length: 4)])
+
+        // A later replacement BEFORE the recorded span shifts it by the delta.
+        let second = EditorSearchResolver.insertionsAfterReplacement(
+            priorInsertions: first,
+            matchRange: NSRange(location: 0, length: 2),
+            replacementLength: 5
+        )
+        XCTAssertEqual(second, [NSRange(location: 7, length: 4), NSRange(location: 0, length: 5)])
+    }
+
     func testNextActiveIndexAfterReplacementWrapSkipsMatchInsideInsertion() {
         // "cat cat" → replace the SECOND (loc 4) with "cats" → "cat cats". Matches: "cat" at loc 0
         // and the "cat" inside "cats" at loc 4. Wrap must land on loc 0, never the loc-4 self-match.

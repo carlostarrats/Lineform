@@ -49,12 +49,79 @@ enum MermaidFence {
     }
 }
 
+/// The ONE definition of "what part of a mermaid block is the diagram".
+///
+/// A leading `---`/`---` front-matter block (Mermaid's own `title:`/`config:` header, which most
+/// generators emit) and `%%` comments are not diagram source. This was implemented separately in
+/// `MermaidTypeClassifier` and in `MermaidPieChart`, and — critically — NOT at the seam where the
+/// source is handed to BeautifulMermaid, whose parser reads `"---"` as the first line and throws
+/// `invalidHeader("---")`. So a front-matter diagram classified `.supported`, failed, and took the
+/// `.failed` path: no diagram, a "Report this" link inviting the user to send us their document,
+/// and 2,000 characters of it written to the on-disk diagram log — the path reserved for genuine
+/// library bugs. Every consumer reads this type so the four can't disagree again.
+enum MermaidSource {
+    /// Lines with blanks, `%%` comments, and a leading front-matter block removed.
+    static func significantLines(_ source: String) -> [String] {
+        var out: [String] = []
+        forEachBodyLine(source) { line in
+            if !line.hasPrefix("%%") { out.append(line) }
+        }
+        return out
+    }
+
+    /// First line that is actual diagram source, or nil.
+    static func firstSignificantLine(_ source: String) -> String? {
+        significantLines(source).first
+    }
+
+    /// `source` with a leading `---`/`---` front-matter block removed and everything else kept
+    /// verbatim. This is what BeautifulMermaid is given; the front matter carries only config and
+    /// title, which Lineform's strict two-color theme ignores anyway.
+    static func withoutFrontMatter(_ source: String) -> String {
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false)
+        guard let openIndex = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
+              lines[openIndex].trimmingCharacters(in: .whitespaces) == "---",
+              let closeIndex = lines[(openIndex + 1)...].firstIndex(where: {
+                  $0.trimmingCharacters(in: .whitespaces) == "---"
+              })
+        else { return source }
+        return lines[(closeIndex + 1)...].joined(separator: "\n")
+    }
+
+    /// Walks the trimmed, non-blank lines that sit outside a leading front-matter block.
+    private static func forEachBodyLine(_ source: String, _ body: (String) -> Void) {
+        var inFrontMatter = false
+        var seenFirstLine = false
+        for raw in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { seenFirstLine = true; continue }
+            if !seenFirstLine, line == "---" { inFrontMatter = true; seenFirstLine = true; continue }
+            seenFirstLine = true
+            if inFrontMatter {
+                if line == "---" { inFrontMatter = false }
+                continue
+            }
+            body(line)
+        }
+    }
+}
+
 /// Decides whether a mermaid block is safe to attempt rendering (size guard → fallback).
 enum MermaidBlockPolicy {
+    /// Character cap. Cheap, but it bounds only the SOURCE — see `maxSignificantLines`.
     static let maxSourceLength = 20_000
 
+    /// Structural cap, and the one that actually bounds the work. BeautifulMermaid's cost grows
+    /// with node count, and its raster area grows roughly quadratically with layout width, so a
+    /// 3 KB / 200-node flowchart — one seventh of the character cap — renders for ~1 s on the MAIN
+    /// THREAD into a ~392 MB bitmap that instantly exceeds the diagram cache's whole budget and is
+    /// evicted, so every keystroke in Split mode pays the full cost again. At 600 nodes it is 22 s
+    /// and multi-gigabyte. A real diagram is readable at a fraction of this.
+    static let maxSignificantLines = 120
+
     static func shouldAttemptRender(source: String) -> Bool {
-        source.count <= maxSourceLength
+        guard source.count <= maxSourceLength else { return false }
+        return MermaidSource.significantLines(source).count <= maxSignificantLines
     }
 }
 
@@ -76,11 +143,15 @@ enum MermaidCacheKey {
 /// back vertically mirrored — layout upside down and text mirrored. The library is a pinned remote
 /// dependency and this is the single seam that touches it, so we flip the finished raster upright
 /// here rather than forking the package.
+/// Returns nil rather than the input when the flip cannot be performed. Handing back the
+/// un-flipped image would put a MIRRORED diagram on screen — the one outcome this type exists to
+/// prevent — and the allocation only fails for rasters big enough that a retry is the right
+/// answer. The caller treats nil as a transient failure.
 enum MermaidImageOrientation {
-    static func uprightForMacOS(_ image: NSImage) -> NSImage {
+    static func uprightForMacOS(_ image: NSImage) -> NSImage? {
         var proposed = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) else {
-            return image
+            return nil
         }
         let width = cgImage.width
         let height = cgImage.height
@@ -90,13 +161,13 @@ enum MermaidImageOrientation {
                   bitsPerComponent: 8, bytesPerRow: 0,
                   space: CGColorSpaceCreateDeviceRGB(),
                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
-              ) else { return image }
+              ) else { return nil }
 
         ctx.translateBy(x: 0, y: CGFloat(height))
         ctx.scaleBy(x: 1, y: -1)
         ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-        guard let flipped = ctx.makeImage() else { return image }
+        guard let flipped = ctx.makeImage() else { return nil }
         // Preserve the point size so Retina scale (pixels-per-point) is retained.
         return NSImage(cgImage: flipped, size: image.size)
     }
@@ -124,30 +195,11 @@ enum MermaidTypeClassifier {
     ]
 
     static func classify(_ source: String) -> MermaidDiagramKind {
-        guard let first = firstSignificantLine(source) else { return .unsupported }
+        guard let first = MermaidSource.firstSignificantLine(source) else { return .unsupported }
         let lower = first.lowercased()
         if lower.hasPrefix("pie") { return .pie }
         if supportedPrefixes.contains(where: { lower.hasPrefix($0) }) { return .supported }
         return .unsupported
-    }
-
-    /// First line that isn't blank, a `%%` comment, or inside a leading `---`/`---` front-matter block.
-    private static func firstSignificantLine(_ source: String) -> String? {
-        var inFrontMatter = false
-        var seenFirstLine = false
-        for raw in source.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { seenFirstLine = true; continue }
-            if !seenFirstLine, line == "---" { inFrontMatter = true; seenFirstLine = true; continue }
-            seenFirstLine = true
-            if inFrontMatter {
-                if line == "---" { inFrontMatter = false }
-                continue
-            }
-            if line.hasPrefix("%%") { continue }
-            return line
-        }
-        return nil
     }
 }
 
@@ -215,8 +267,16 @@ final class MermaidImageProvider: MermaidImageProviding {
         // .supported → BeautifulMermaid (existing do/catch, unchanged).
         do {
             let theme = DiagramTheme(background: background, foreground: foreground)
-            if let image = try MermaidRenderer.renderImage(source: source, theme: theme, scale: scale) {
-                let upright = MermaidImageOrientation.uprightForMacOS(image)
+            // Front matter stripped at the seam: BeautifulMermaid throws `invalidHeader("---")`
+            // on it, and the classifier that decided this block is `.supported` looked PAST it.
+            let renderable = MermaidSource.withoutFrontMatter(source)
+            if let image = try MermaidRenderer.renderImage(source: renderable, theme: theme, scale: scale) {
+                guard let upright = MermaidImageOrientation.uprightForMacOS(image) else {
+                    // The flip's context allocation failed (a huge raster under memory pressure).
+                    // Returning the un-flipped image would draw the diagram MIRRORED; a transient
+                    // failure that retries later is the honest outcome.
+                    return .failed("Mermaid orientation pass could not allocate")
+                }
                 cache.setObject(upright, forKey: key, cost: RasterImageCost.bytes(for: upright))
                 return .image(upright)
             }

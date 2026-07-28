@@ -76,10 +76,16 @@ final class MarkdownSpellCheckPerformanceTests: XCTestCase {
         let text = largeDocument()
         XCTAssertGreaterThan(text.length, 700 * 1024, "fixture must be large enough to be meaningful")
 
-        // A realistic checked range: one paragraph deep in the document, which is the worst case
-        // for the prefix walk that fence and math state require.
-        let midpoint = text.length / 2
-        let range = text.lineRange(for: NSRange(location: midpoint, length: 0))
+        // The LAST line, not the midpoint. The prefix walk that fence and math state require runs
+        // from offset 0 to `NSMaxRange(scope)`, so cost is linear in how far into the document the
+        // caret sits and the worst case is END OF FILE by construction — which is also where a
+        // writer drafting a long document actually types. Pinning the caret to the midpoint
+        // measured exactly HALF the real per-keystroke cost (verified linear: 0.0114 ms per KB of
+        // prefix, 2.00x from midpoint to EOF across repeated runs), so the gate could not see a
+        // regression that only showed up in the second half of a file, and the headroom above the
+        // 4x floor was half what the numbers in the commit message claimed.
+        let lastLineStart = max(0, text.length - 1)
+        let range = text.lineRange(for: NSRange(location: lastLineStart, length: 0))
         let highlighter = MarkdownSyntaxHighlighter()
 
         // Bridged once, outside the measurement: charging the baseline for an NSString→String

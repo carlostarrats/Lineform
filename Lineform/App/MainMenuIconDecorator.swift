@@ -92,10 +92,22 @@ enum MainMenuIconDecorator {
         decorateItems(of: menu, recursive: recursive)
     }
 
+    /// Identifier stamped on menus this decorator must leave alone.
+    ///
+    /// The observers are registered with `object: nil` — every `NSMenu` in the process — because
+    /// SwiftUI builds a replacement `CommandMenu` DETACHED and only swaps it in afterwards, so the
+    /// posting menu is the only reliable handle and a supermenu-chain test would reject exactly the
+    /// case this exists for. The cost is that CONTEXT menus were stamped too: the editor's
+    /// right-click menu came up with semantic SF Symbols on rows that read as main-menu commands,
+    /// which no macOS app does. Tagging the app's own context menus is the narrow fix that keeps
+    /// the detached-menu behavior intact.
+    static let excludedMenuIdentifier = NSUserInterfaceItemIdentifier("com.lineform.menu.undecorated")
+
     private static func decorateItems(of menu: NSMenu, recursive: Bool) {
         // The menu bar's own row (Lineform, File, Edit, …) never takes an icon — Apple's apps
         // don't, and an image there would push the titles apart.
         let isMenuBar = menu === NSApp.mainMenu
+        guard menu.identifier != excludedMenuIdentifier else { return }
 
         for item in menu.items {
             if !isMenuBar, let symbol = symbolName(for: item) {
@@ -252,6 +264,12 @@ enum MainMenuIconDecorator {
         "resume": "play.circle",
         "stop": "stop.circle",
         "spelling and grammar": "textformat.abc.dottedunderline",
+        // The submenu's own three rows. Without these it was the only bare submenu in the bar —
+        // and it is the app's ONLY off switch for spell checking, so it is the last one that
+        // should look unfinished.
+        "check spelling while typing": "text.badge.checkmark",
+        "show spelling and grammar": "textformat.abc.dottedunderline",
+        "check document now": "doc.text.magnifyingglass",
         "substitutions": "textformat",
         "transformations": "textformat.size",
         "emoji & symbols": "face.smiling",

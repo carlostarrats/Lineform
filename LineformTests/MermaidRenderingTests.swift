@@ -46,7 +46,7 @@ final class MermaidRenderingTests: XCTestCase {
         let cgSource = try XCTUnwrap(source.makeImage())
         let input = NSImage(cgImage: cgSource, size: NSSize(width: width, height: height))
 
-        let upright = MermaidImageOrientation.uprightForMacOS(input)
+        let upright = try XCTUnwrap(MermaidImageOrientation.uprightForMacOS(input))
 
         // Read the raw bytes of a single pixel (CGImage row 0 is the visual top row).
         // Compare pixels rather than assuming a channel order, so the assertion is
@@ -284,4 +284,38 @@ final class MermaidRenderingTests: XCTestCase {
                                        background: .clear, foreground: .black, scale: 2)
         guard case .unsupported = outcome else { return XCTFail("expected .unsupported, got \(outcome)") }
     }
+
+    /// `Int(v)` traps on a value above `Double(Int.max)` and on inf/NaN, so the parser must reject
+    /// them. Rendering such a block crashed the process — in Read, Split, Export, and Print.
+    func testPieChartRejectsValuesTheLegendCouldNotConvert() {
+        for value in ["99999999999999999999", "inf", "1e400"] {
+            XCTAssertNil(
+                MermaidPieChart.parse("pie title Q\n\"a\" : \(value)\n\"b\" : 5\n"),
+                "value: \(value)"
+            )
+        }
+        XCTAssertNotNil(MermaidPieChart.parse("pie title Q\n\"a\" : 3\n\"b\" : 5\n"))
+    }
+
+    /// A front-matter diagram is valid Mermaid. It must not reach the `.failed` path, which logs
+    /// the user's document text and offers a "Report this" link meant for real library bugs.
+    func testFrontMatterIsStrippedBeforeTheDiagramSourceIsHandedToTheLibrary() {
+        let source = "---\ntitle: My flow\n---\nflowchart TD\n  A --> B\n"
+
+        XCTAssertEqual(MermaidTypeClassifier.classify(source), .supported)
+        XCTAssertEqual(MermaidSource.withoutFrontMatter(source), "flowchart TD\n  A --> B\n")
+        // No front matter: untouched.
+        XCTAssertEqual(MermaidSource.withoutFrontMatter("flowchart TD\n  A --> B\n"), "flowchart TD\n  A --> B\n")
+    }
+
+    /// The character cap admitted sources whose rasters exceed the whole diagram-cache budget, so
+    /// they re-rendered on the main thread on every preview pass. Bound the structure too.
+    func testSizeGuardBoundsNodeCountNotOnlyCharacterCount() {
+        let wide = "flowchart TD\n" + (0..<200).map { "  ROOT --> L\($0)" }.joined(separator: "\n")
+
+        XCTAssertLessThan(wide.count, MermaidBlockPolicy.maxSourceLength)
+        XCTAssertFalse(MermaidBlockPolicy.shouldAttemptRender(source: wide))
+        XCTAssertTrue(MermaidBlockPolicy.shouldAttemptRender(source: "flowchart TD\n  A --> B"))
+    }
+
 }

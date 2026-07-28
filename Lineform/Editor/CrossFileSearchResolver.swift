@@ -106,8 +106,21 @@ enum CrossFileSearchResolver {
         // Deliberately NO backward fill when the match is near the line's end (a shorter
         // window is fine): pulling `start` back to fill the cap re-hid end-of-line
         // matches past the pill's visible width — the exact bug this bias exists to fix.
-        let start = max(0, matchInLine.location - snippetLeadingContextLength)
-        let window = NSRange(location: start, length: min(snippetMaximumLength, line.length - start))
+        // Both window edges are snapped to composed-character boundaries before slicing. The
+        // lengths above are documented in characters but measured in UTF-16 units, so an unsnapped
+        // edge could land between the surrogates of an emoji: `substring(with:)` does not raise,
+        // it returns a lone surrogate, and the pill then showed a U+FFFD that is not in the file.
+        // Same class as the Table Reformat padding rule — UTF-16 arithmetic against text measured
+        // in Characters.
+        let rawStart = max(0, matchInLine.location - snippetLeadingContextLength)
+        let start = rawStart < line.length
+            ? line.rangeOfComposedCharacterSequence(at: rawStart).location
+            : rawStart
+        let rawEnd = min(line.length, start + snippetMaximumLength)
+        let end = rawEnd > start && rawEnd < line.length
+            ? NSMaxRange(line.rangeOfComposedCharacterSequence(at: rawEnd - 1))
+            : rawEnd
+        let window = NSRange(location: start, length: max(0, min(end, line.length) - start))
         var display = line.substring(with: window)
 
         // Overlap the match with the window in original-line coordinates first — when the

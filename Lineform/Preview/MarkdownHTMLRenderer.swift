@@ -118,29 +118,66 @@ enum MarkdownHTMLRenderer {
 
     /// Emits one source line's inline markup. Token text is escaped but NOT re-scanned, matching
     /// the preview renderer's single-pass behavior.
-    static func inlineHTML(_ line: String) -> String {
+    /// `generatedImage` rasterizes inline `$…$` math. It defaults to a provider that declines, so
+    /// callers with no image pipeline (and the unit tests) get the `<code>` source fallback rather
+    /// than a signature change.
+    static func inlineHTML(
+        _ line: String,
+        generatedImage: @escaping GeneratedImageProvider = { _ in nil }
+    ) -> String {
         let nsLine = line as NSString
+        // Inline math competes with the regex tokens BY POSITION, exactly as
+        // `MarkdownPreviewRenderer.inlineWithMath` does, so `` `$x$` `` stays literal code and math
+        // is never detected inside another inline token. Without it, `$E=mc^2$` in a paragraph,
+        // list item, table cell or heading was emitted as raw dollar-delimited LaTeX while
+        // `$$E=mc^2$$` on its own line embedded a PNG — one document exporting math two different
+        // ways depending only on the delimiter the author used.
+        let mathSpans = MathDelimiters.inlineSpans(in: line)
         var out = ""
         var location = 0
 
         while location < nsLine.length {
-            guard let token = nextToken(in: line, nsLine: nsLine, from: location) else {
+            let token = nextToken(in: line, nsLine: nsLine, from: location)
+            let mathSpan = mathSpans.first { $0.range.location >= location }
+
+            let useMath: Bool
+            switch (token, mathSpan) {
+            case (nil, nil):
                 // Markdown escapes are resolved BEFORE HTML escaping — the backslash is Markdown
                 // syntax, the `&`/`<` substitution is the output format. Only plain runs: a code
                 // span's contents are literal, and destinations are emitted one-to-one.
                 out += escape(MarkdownInlineSyntax.unescape(nsLine.substring(from: location)))
-                break
+                return out
+            case (_, nil): useMath = false
+            case (nil, _): useMath = true
+            case let (.some(token), .some(span)): useMath = span.range.location < token.range.location
             }
-            if token.range.location > location {
+
+            let elementRange = useMath ? mathSpan!.range : token!.range
+            if elementRange.location > location {
                 out += escape(MarkdownInlineSyntax.unescape(nsLine.substring(
-                    with: NSRange(location: location, length: token.range.location - location)
+                    with: NSRange(location: location, length: elementRange.location - location)
                 )))
             }
-            out += emit(token)
-            location = NSMaxRange(token.range)
+            if useMath {
+                out += inlineMathHTML(mathSpan!, generatedImage: generatedImage)
+            } else {
+                out += emit(token!)
+            }
+            location = NSMaxRange(elementRange)
         }
 
         return out
+    }
+
+    /// An inline equation as an embedded PNG, or its LaTeX source as `<code>` when the provider
+    /// declines. Not wrapped in `<p>` — it sits mid-sentence.
+    private static func inlineMathHTML(_ span: MathSpan, generatedImage: GeneratedImageProvider) -> String {
+        guard let data = generatedImage(.math(latex: span.latex)) else {
+            return "<code>\(escape(span.latex))</code>"
+        }
+        let base64 = data.base64EncodedString()
+        return "<img src=\"data:image/png;base64,\(base64)\" alt=\"\(escapeAttribute(span.latex))\" style=\"vertical-align:middle\">"
     }
 
     private static func emit(_ token: Token) -> String {
@@ -204,7 +241,7 @@ enum MarkdownHTMLRenderer {
 
     /// The `<body>` inner HTML for a whole document. No shell — `html(for:title:generatedImage:)`
     /// wraps this.
-    static func body(for text: String, generatedImage: GeneratedImageProvider) -> String {
+    static func body(for text: String, generatedImage: @escaping GeneratedImageProvider) -> String {
         // CR-stripped, so a CRLF document exports as real blocks rather than one runaway
         // code fence. HTML export needs no source offsets, so the ranges go unused.
         let lines = markdownSourceLines(in: text).lines
@@ -218,11 +255,11 @@ enum MarkdownHTMLRenderer {
     private static func blockHTML(
         _ block: MarkdownBlock,
         lines: [String],
-        generatedImage: GeneratedImageProvider
+        generatedImage: @escaping GeneratedImageProvider
     ) -> String {
         switch block {
         case let .lines(range):
-            return linesHTML(Array(lines[range]))
+            return linesHTML(Array(lines[range]), generatedImage: generatedImage)
         // `$$…$$` on one line and a `$$` fence differ only in how they were written; both are one
         // display equation.
         case let .singleLineMath(latex, _), let .fencedMath(latex, _):
@@ -232,13 +269,13 @@ enum MarkdownHTMLRenderer {
         case .horizontalRule:
             return "<hr>"
         case let .blockquote(quoteLines, _):
-            return quoteHTML(quoteLines)
+            return quoteHTML(quoteLines, generatedImage: generatedImage)
         case let .callout(kind, title, body, _):
-            return calloutHTML(kind: kind, title: title, body: body)
+            return calloutHTML(kind: kind, title: title, body: body, generatedImage: generatedImage)
         case let .list(items, _):
-            return listHTML(items)
+            return listHTML(items, generatedImage: generatedImage)
         case let .table(table, _):
-            return tableHTML(table)
+            return tableHTML(table, generatedImage: generatedImage)
         case let .fencedCode(language, body, _, _):
             let openTag = language.isEmpty ? "<pre><code>" : "<pre><code class=\"language-\(escapeAttribute(language))\">"
             return "\(openTag)\(escape(body))</code></pre>"
@@ -250,7 +287,7 @@ enum MarkdownHTMLRenderer {
     /// A run of ordinary lines: headings become heading tags, and maximal runs of non-blank
     /// lines become one paragraph whose source line breaks are preserved as `<br>` (matching how
     /// Read mode lays the same lines out).
-    private static func linesHTML(_ lines: [String]) -> String {
+    private static func linesHTML(_ lines: [String], generatedImage: @escaping GeneratedImageProvider) -> String {
         var out = ""
         var paragraph: [String] = []
 
@@ -264,18 +301,18 @@ enum MarkdownHTMLRenderer {
             if let heading = MarkdownHeadingParser.heading(in: line) {
                 flush()
                 let level = min(max(heading.level, 1), 6)
-                out += "<h\(level)>\(inlineHTML(heading.title))</h\(level)>"
+                out += "<h\(level)>\(inlineHTML(heading.title, generatedImage: generatedImage))</h\(level)>"
             } else if line.trimmingCharacters(in: .whitespaces).isEmpty {
                 flush()
             } else {
-                paragraph.append(inlineHTML(line))
+                paragraph.append(inlineHTML(line, generatedImage: generatedImage))
             }
         }
         flush()
         return out
     }
 
-    private static func listHTML(_ items: [MarkdownListItem]) -> String {
+    private static func listHTML(_ items: [MarkdownListItem], generatedImage: @escaping GeneratedImageProvider) -> String {
         var out = ""
         /// One entry per currently-open list, innermost last: its tag and its indent level.
         var open: [(tag: String, level: Int)] = []
@@ -309,7 +346,7 @@ enum MarkdownHTMLRenderer {
                 open.append((tag, item.indentLevel))
             }
 
-            out += "<li>\(itemHTML(item))"
+            out += "<li>\(itemHTML(item, generatedImage: generatedImage))"
         }
 
         while let last = open.popLast() {
@@ -318,13 +355,13 @@ enum MarkdownHTMLRenderer {
         return out
     }
 
-    private static func itemHTML(_ item: MarkdownListItem) -> String {
-        guard let checkbox = item.checkbox else { return inlineHTML(item.text) }
+    private static func itemHTML(_ item: MarkdownListItem, generatedImage: @escaping GeneratedImageProvider) -> String {
+        guard let checkbox = item.checkbox else { return inlineHTML(item.text, generatedImage: generatedImage) }
         let checked = checkbox.isChecked ? " checked" : ""
-        return "<input type=\"checkbox\" disabled\(checked)> \(inlineHTML(item.text))"
+        return "<input type=\"checkbox\" disabled\(checked)> \(inlineHTML(item.text, generatedImage: generatedImage))"
     }
 
-    private static func quoteHTML(_ quoteLines: [MarkdownQuoteLine]) -> String {
+    private static func quoteHTML(_ quoteLines: [MarkdownQuoteLine], generatedImage: @escaping GeneratedImageProvider) -> String {
         var out = ""
         var depth = 0
         var paragraph: [String] = []
@@ -344,7 +381,7 @@ enum MarkdownHTMLRenderer {
             if line.text.trimmingCharacters(in: .whitespaces).isEmpty {
                 flush()
             } else {
-                paragraph.append(inlineHTML(line.text))
+                paragraph.append(inlineHTML(line.text, generatedImage: generatedImage))
             }
         }
         flush()
@@ -352,17 +389,17 @@ enum MarkdownHTMLRenderer {
         return out
     }
 
-    private static func calloutHTML(kind: CalloutKind, title: String?, body: [MarkdownQuoteLine]) -> String {
+    private static func calloutHTML(kind: CalloutKind, title: String?, body: [MarkdownQuoteLine], generatedImage: @escaping GeneratedImageProvider) -> String {
         let heading = (title?.isEmpty == false) ? title! : kind.displayName
         var out = "<blockquote class=\"callout callout-\(kind.rawValue)\">"
         out += "<p class=\"callout-title\">\(escape(heading))</p>"
         // Body lines are already marker-stripped; render them at depth 0 inside this blockquote.
-        out += quoteHTML(body.map { MarkdownQuoteLine(depth: 0, text: $0.text) })
+        out += quoteHTML(body.map { MarkdownQuoteLine(depth: 0, text: $0.text) }, generatedImage: generatedImage)
         out += "</blockquote>"
         return out
     }
 
-    private static func tableHTML(_ table: MarkdownTable) -> String {
+    private static func tableHTML(_ table: MarkdownTable, generatedImage: @escaping GeneratedImageProvider) -> String {
         func style(_ index: Int) -> String {
             let alignment = table.alignments.indices.contains(index) ? table.alignments[index] : .left
             switch alignment {
@@ -374,13 +411,13 @@ enum MarkdownHTMLRenderer {
 
         var out = "<table><thead><tr>"
         for (index, header) in table.headers.enumerated() {
-            out += "<th style=\"text-align:\(style(index))\">\(inlineHTML(header))</th>"
+            out += "<th style=\"text-align:\(style(index))\">\(inlineHTML(header, generatedImage: generatedImage))</th>"
         }
         out += "</tr></thead><tbody>"
         for row in table.rows {
             out += "<tr>"
             for (index, cell) in row.enumerated() {
-                out += "<td style=\"text-align:\(style(index))\">\(inlineHTML(cell))</td>"
+                out += "<td style=\"text-align:\(style(index))\">\(inlineHTML(cell, generatedImage: generatedImage))</td>"
             }
             out += "</tr>"
         }
@@ -409,7 +446,7 @@ enum MarkdownHTMLRenderer {
     /// no `<link>`, no `<script>`, no web fonts. The page is neutral light with a readable
     /// measure — the reader's theme is deliberately not carried, matching the rule that an
     /// exported PDF is always the white page.
-    static func html(for text: String, title: String, generatedImage: GeneratedImageProvider) -> String {
+    static func html(for text: String, title: String, generatedImage: @escaping GeneratedImageProvider) -> String {
         """
         <!doctype html>
         <html>

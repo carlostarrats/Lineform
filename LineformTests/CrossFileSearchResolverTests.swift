@@ -138,4 +138,20 @@ final class CrossFileSearchResolverTests: XCTestCase {
         ])
         XCTAssertEqual(ranked.map(\.relativePath), ["c.md", "a/a.md", "z/a.md", "b.md"])
     }
+
+    /// The snippet window is measured in UTF-16 units but documented in characters. An unsnapped
+    /// edge landing inside a surrogate pair produced a U+FFFD that is not in the file.
+    func testSnippetWindowNeverSplitsAComposedCharacter() {
+        let emoji = String(repeating: "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}", count: 5)
+        let line = "team notes \(emoji) the NEEDLE we are looking for, plus trailing context text"
+        let match = (line as NSString).range(of: "NEEDLE")
+        let snippet = CrossFileSearchResolver.snippet(in: line, around: match)
+
+        XCTAssertFalse(
+            snippet.lineText.unicodeScalars.contains { $0.value == 0xFFFD },
+            "snippet must not contain a replacement character: \(snippet.lineText)"
+        )
+        XCTAssertTrue(snippet.lineText.contains("NEEDLE"))
+    }
+
 }

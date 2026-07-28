@@ -59,10 +59,13 @@ struct TabBarView: View {
     private func tabButton(for tab: DocumentTab) -> some View {
         let isSelected = tab.id == tabStore.selectedTabID
         let isHovered = hoveredTabID == tab.id
-        let isDirty = documentSaveStatus.isDirty(
-            documentID: tab.document.id,
-            currentText: tab.document.text
-        )
+        // `hasUnsavedWork`, NOT the narrower `isDirty`: "does this tab hold unsaved work" is one
+        // concept, and every other consumer (the close-tab prompt, the close-window sheet, the
+        // NSDocument isEdited sync) reads it from there. Reading `isDirty` here left two cases
+        // with no dot on a tab whose text is the only copy of its content — an untitled tab with
+        // typed content, and a tab whose file was trashed from the Files sidebar (which nils the
+        // tab's fileURL while the save baseline still says clean).
+        let isDirty = tab.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
         // The × exists only under the pointer (design: no close affordance at rest,
         // including on the selected tab) and never on a lone tab.
         let showsClose = tabStore.tabCount > 1 && isHovered

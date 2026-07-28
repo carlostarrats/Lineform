@@ -52,3 +52,37 @@ in this area.
   — in a document the user shares or prints. The captioned-source fallback still renders; only the
   link is dropped. Guarded by `testExportSuppressesTheReportThisAffordance`, which also asserts that
   NO `.link` attribute of any kind survives into an exported document.
+
+## Print paper, inline math, and escapes (audited 2026-07-27)
+
+**Changing paper in the print panel sliced prose instead of rewrapping it.** `runOperation` builds
+the offscreen `NSTextView` at a text-container width derived from the paper Lineform proposed, and
+only then runs the operation with the panel shown. The panel can change Paper Size and Orientation on
+the live operation, but nothing re-laid the view — so with `horizontalPagination = .automatic` a
+NARROWER chosen sheet cut every line at the old column width and spilled the remainder onto extra
+pages. Letter → A5 gave a page cut mid-word, its tail alone on page 2, and two blank pages after;
+Letter → A4 gave a 17pt sliver page. (A WIDER sheet or Landscape is unaffected — nothing is sliced,
+the text just keeps its narrower column.) `ExportTextView.knowsPageRange` now resizes the view and
+its text container to the operation's current `printInfo` before pagination measures anything. That
+was chosen over running the panel first and building the view afterwards, which would have cost the
+panel's own "Save as PDF", and over removing the panel's paper controls, which would have removed
+paper choice at print time. Export As was never affected: there the paper is chosen before layout.
+
+**Inline `$…$` was absent from HTML export.** Only `.singleLineMath` / `.fencedMath` BLOCKS reached
+`generatedHTML`; every ordinary line went through `inlineHTML`, which scanned six
+`MarkdownInlineSyntax` regexes and had no math token. So `$E=mc^2$` in a paragraph, list item, table
+cell, or heading exported as raw dollar-delimited LaTeX while `$$E=mc^2$$` on its own line in the
+SAME document embedded a base64 PNG — one file exporting math two ways depending only on the
+delimiter the author used. `inlineHTML` now competes math by position exactly as
+`MarkdownPreviewRenderer.inlineWithMath` does (math loses to an earlier code span or emphasis) and
+emits through the same injected `GeneratedImageProvider`, falling back to `<code>` when the provider
+declines. The provider is threaded through the block emitters; it defaults to one that declines, so
+existing callers and unit tests are unchanged.
+
+**A math-bearing line stopped honouring backslash escapes.** `inlineWithMath` appended the plain runs
+between tokens raw, while the no-math fast path wraps the identical runs in
+`MarkdownInlineSyntax.unescape`. Adding one `$x$` to a line therefore turned off escape processing
+for that whole line: `The glob is \*.md and the rate is $r$` printed a literal backslash in Read
+mode, Split, Styled PDF, and Print — while HTML export of the same line emitted `*.md`, so the
+exported page and the printed page disagreed about one document. The lookbehind and the unescape are
+one feature; this loop had only the first half.

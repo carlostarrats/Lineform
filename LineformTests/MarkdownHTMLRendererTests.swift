@@ -282,4 +282,27 @@ final class MarkdownHTMLRendererTests: XCTestCase {
         XCTAssertTrue(html.contains("graph TD;"))
         XCTAssertFalse(html.contains("data:"))
     }
+
+    /// `$$…$$` embedded a PNG while `$…$` on the same page emitted raw LaTeX — one document
+    /// exporting math two ways depending only on the delimiter the author used.
+    func testInlineMathIsEmittedAsAGeneratedImageLikeBlockMath() {
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+        let html = MarkdownHTMLRenderer.inlineHTML("Energy $E=mc^2$ is famous") { image in
+            image == .math(latex: "E=mc^2") ? png : nil
+        }
+
+        XCTAssertTrue(html.contains("<img src=\"data:image/png;base64,\(png.base64EncodedString())\""))
+        XCTAssertFalse(html.contains("$E=mc^2$"))
+    }
+
+    /// With no provider the source is still readable, and never raw dollar-delimited text.
+    func testInlineMathFallsBackToCodeWhenNoImageIsAvailable() {
+        XCTAssertEqual(MarkdownHTMLRenderer.inlineHTML("a $x^2$ b"), "a <code>x^2</code> b")
+    }
+
+    /// Math must lose to an earlier code span, exactly as on screen.
+    func testInlineMathDoesNotFireInsideACodeSpan() {
+        XCTAssertEqual(MarkdownHTMLRenderer.inlineHTML("`$x$`"), "<code>$x$</code>")
+    }
+
 }

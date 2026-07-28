@@ -74,6 +74,15 @@ enum MathDelimiters {
         }
 
         var spans: [MathSpan] = []
+        // Once a close-scan has walked to the end of the line without finding a valid closer, no
+        // LATER opener can find one either: whether an index closes depends only on its own
+        // neighbours, and every close-scan starts at `open + 1` where `chars[open]` is `$` — never
+        // mid-backslash-run — so all of them visit the same canonical positions and a later scan
+        // covers a strict suffix of an earlier one. Without these flags each unmatched `$` rescans
+        // the rest of the line, making a `$`-dense line quadratic; a 20 KB line of dollar signs
+        // took seconds on the Writing Tools protection and preview paths.
+        var noInlineCloserRemains = false
+        var noDisplayCloserRemains = false
         var i = 0
         while i < n {
             let c = chars[i]
@@ -85,21 +94,30 @@ enum MathDelimiters {
                 if i + 1 < n, chars[i + 1] == "$" {
                     // Display `$$…$$`. Whether or not it closes, the `$$` pair is consumed so a
                     // stray second `$` can't start inline math.
-                    if let close = displayClose(chars, from: i + 2) {
+                    if !noDisplayCloserRemains, let close = displayClose(chars, from: i + 2) {
                         spans.append(MathSpan(range: range(i, close + 2),
                                               latex: String(chars[(i + 2)..<close]),
                                               style: .display))
                         i = close + 2
                         continue
                     }
+                    noDisplayCloserRemains = true
                     i += 2
                     continue
-                } else if let close = inlineClose(chars, openAt: i) {
+                } else if !noInlineCloserRemains, let close = inlineClose(chars, openAt: i) {
                     spans.append(MathSpan(range: range(i, close + 1),
                                           latex: String(chars[(i + 1)..<close]),
                                           style: .inline))
                     i = close + 1
                     continue
+                } else if !noInlineCloserRemains {
+                    // Distinguish "this opener was rejected by its own guard" (a whitespace after
+                    // the `$`) from "the line has no closer left": only the latter is memoizable,
+                    // and `inlineClose` returns nil for both. Re-checking the guard is O(1).
+                    let next = i + 1
+                    if next < n, !chars[next].isWhitespace {
+                        noInlineCloserRemains = true
+                    }
                 }
             }
             i += 1

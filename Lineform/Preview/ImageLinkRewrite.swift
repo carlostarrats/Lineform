@@ -61,12 +61,28 @@ enum ImageLinkRewrite {
         var result = ""
         for character in path {
             switch character {
+            // `%` FIRST, and unconditionally. `String.removingPercentEncoding` is all-or-nothing:
+            // one stray `%` that is not a valid escape makes it return nil for the WHOLE string, so
+            // `ImageResolver` never got a decoded candidate and a file like `Q3 100% final (2).png`
+            // stayed unresolved forever — the exact round-trip this function exists to guarantee,
+            // failing for any name carrying both a percent and a paren.
+            case "%": result += "%25"
             case "(": result += "%28"
             case ")": result += "%29"
             case "\n": result += "%0A"
             case "\r": result += "%0D"
+            // A LEADING space is legal in a macOS filename, and `ImageResolver` opens by trimming
+            // whitespace off both candidates — so an unescaped one was stripped from the lookup and
+            // never matched disk. Escaping every space would be noisy and unnecessary; only the
+            // ones the reader would strip need it, so this escapes a leading or trailing space.
+            case " " where result.isEmpty: result += "%20"
             default: result.append(character)
             }
+        }
+        // A trailing space is stripped by the resolver too, and it cannot be handled inside the
+        // loop (the loop does not know which character is last).
+        if result.hasSuffix(" ") {
+            result = String(result.dropLast()) + "%20"
         }
         return result
     }

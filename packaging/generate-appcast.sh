@@ -70,5 +70,23 @@ fi
   "$UPDATES_DIR"
 
 mkdir -p "$REPO_ROOT/docs"
-cp "$UPDATES_DIR/appcast.xml" "$REPO_ROOT/docs/appcast.xml"
-echo "$REPO_ROOT/docs/appcast.xml"
+
+# Do NOT copy over docs/appcast.xml. `generate_appcast` rewrites EVERY entry's enclosure URL with
+# the single --download-url-prefix it was given, so a wholesale copy retags historical releases with
+# the current version's URL — old versions then point at a download that does not exist for them.
+# The documented procedure is to hand-merge only the NEW top <item> into the tracked file, which is
+# why this script now writes beside it and diffs instead of clobbering it.
+GENERATED="$REPO_ROOT/docs/appcast.generated.xml"
+cp "$UPDATES_DIR/appcast.xml" "$GENERATED"
+
+echo "Generated: $GENERATED"
+echo "Tracked:   $REPO_ROOT/docs/appcast.xml  (NOT modified)"
+echo
+echo "Hand-merge ONLY the new top <item> from the generated file into the tracked one."
+echo "Every other entry in the generated file has had its enclosure URL rewritten to this"
+echo "release's prefix and must not be copied over the tracked per-tag URLs."
+echo
+if [[ -f "$REPO_ROOT/docs/appcast.xml" ]]; then
+  echo "--- diff (tracked -> generated) ---"
+  diff -u "$REPO_ROOT/docs/appcast.xml" "$GENERATED" || true
+fi

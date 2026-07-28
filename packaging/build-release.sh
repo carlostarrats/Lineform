@@ -8,7 +8,14 @@ SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-TV4QZT7A7X}"
 CODE_SIGN_STYLE="${CODE_SIGN_STYLE:-Automatic}"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Developer ID Application: Carlos Tarrats (TV4QZT7A7X)}"
-RESIGN_WITH_DEVELOPER_ID="${RESIGN_WITH_DEVELOPER_ID:-NO}"
+# Defaults to YES: the block this gates carries the exit-68 cert-in-provisioning-profile check and
+# the whole nested-bundle re-sign list — the two gates Claude.md marks as never-remove, one of which
+# already shipped as a bricked 1.1.0 and the other as a 1.3.0 notary rejection. Defaulting it to NO
+# meant the documented release command (`SPARKLE_PUBLIC_ED_KEY=… packaging/build-release.sh`) skipped
+# BOTH and still exited 0, while the release doc asserted the gates had run. Opting out now requires
+# ALLOW_UNSIGNED_DMG=YES as well, so an unsigned build can never be produced by forgetting a flag.
+RESIGN_WITH_DEVELOPER_ID="${RESIGN_WITH_DEVELOPER_ID:-YES}"
+ALLOW_UNSIGNED_DMG="${ALLOW_UNSIGNED_DMG:-NO}"
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/Release/Lineform.app"
 # Xcode-managed "Mac Team Direct Provisioning Profile: com.lineform.app", refreshed
 # 2026-07-02 to embed the current Developer ID cert (the older 68f81f6e… profile from
@@ -43,6 +50,13 @@ XCODEBUILD_ARGS=(
 if [[ "$CODE_SIGN_STYLE" != "Automatic" ]]; then
   XCODEBUILD_ARGS+=(CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY")
 fi
+
+# Releases must build from a CLEAN Release/Lineform.app. `Contents/Helpers/lineform` is written
+# into the bundle AFTER xcodebuild, so a copy left by a previous run is present when the next
+# build's CodeSign step runs and fails it with "code object is not signed at all". Claude.md has
+# recorded this as a rule since it first bit; nothing enforced it, and the release depended on
+# remembering to clean by hand.
+rm -rf "$APP_PATH"
 
 xcodebuild "${XCODEBUILD_ARGS[@]}"
 
@@ -160,8 +174,18 @@ if [[ "$RESIGN_WITH_DEVELOPER_ID" == "YES" ]]; then
     --timestamp \
     --entitlements "$REPO_ROOT/Lineform/Lineform.entitlements" \
     "$APP_PATH"
+elif [[ "$ALLOW_UNSIGNED_DMG" == "YES" ]]; then
+  echo "warning: RESIGN_WITH_DEVELOPER_ID=NO — the cert/profile gate and the nested-bundle re-sign" >&2
+  echo "         list were SKIPPED. This build is for local testing only. It will be rejected by" >&2
+  echo "         the notary and must never be published." >&2
 else
-  echo "warning: built with Xcode-managed signing; set RESIGN_WITH_DEVELOPER_ID=YES only with a matching Developer ID iCloud profile." >&2
+  echo "error: RESIGN_WITH_DEVELOPER_ID=NO without ALLOW_UNSIGNED_DMG=YES." >&2
+  echo "       Skipping the re-sign block also skips the exit-68 cert-in-provisioning-profile gate" >&2
+  echo "       and leaves the Quick Look appex carrying Xcode's Apple Development signature — the" >&2
+  echo "       exact defects that shipped as the 1.1.0 launch brick and the 1.3.0 notary rejection." >&2
+  echo "       For a real release, leave RESIGN_WITH_DEVELOPER_ID unset (it defaults to YES)." >&2
+  echo "       For a local unsigned build, set ALLOW_UNSIGNED_DMG=YES to acknowledge it." >&2
+  exit 70
 fi
 
 # HARD GATE: launch the packaged app once before building the DMG. Signing defects

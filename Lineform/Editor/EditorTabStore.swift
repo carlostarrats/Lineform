@@ -218,6 +218,14 @@ final class EditorTabStore: ObservableObject {
         tabs[index].fileURL = url
     }
 
+    /// Sets a specific tab's file URL. Unlike `updateActiveTabFileURL`, this does not assume the
+    /// tab is selected: the Save-All-before-close chain saves each tab in turn and has already
+    /// activated the NEXT one by the time it can record where the previous one landed.
+    func updateFileURL(_ url: URL?, forTabID id: UUID) {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        tabs[index].fileURL = url
+    }
+
     func updateActiveTabDisplayMode(_ mode: EditorDisplayMode) {
         guard let index = selectedTabIndex else { return }
         tabs[index].displayMode = mode
