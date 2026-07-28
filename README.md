@@ -27,7 +27,7 @@ More release files and notes are available on the [Lineform Releases page](https
 - Browse your writing in the Files sidebar — your Lineform iCloud Drive folder and any workspace folder you choose — and switch files in the same window, Apple Notes-style.
 - Optionally show hidden folders in the Files sidebar (like `.claude` or `.github`) to reach Markdown that lives alongside your code.
 - Open files from the terminal with the bundled `lineform` command (`lineform notes.md`, or pipe with `some-command | lineform -`); install it from **Lineform → Install Command Line Tool…**.
-- See Mermaid diagrams rendered natively in Read and Preview modes (Write mode shows the source); malformed diagrams fall back to a labeled source block.
+- See Mermaid diagrams rendered natively in Read and Preview modes (Write mode shows the source); a malformed or very large diagram falls back to a labeled source block rather than blocking the window.
 - Write LaTeX math inline with `$…$` and as centered blocks with `$$…$$`, rendered natively in Read and Preview modes (Write mode shows the source); invalid math falls back to its source. Ordinary dollar amounts like "$5" are left untouched.
 - Switch between Write, Read, and Preview modes.
 - Preview Markdown beside the source in split view.
@@ -35,9 +35,11 @@ More release files and notes are available on the [Lineform Releases page](https
 - Search inside the current file with match navigation, across every file in the workspace, or jump to a file by name with ⌘K.
 - Format headings, lists, links, emphasis, and inline code — set a heading level with ⌘1 to ⌘6 (⌘0 for body text), and keep bullets, numbered items, checkboxes, and quotes going with Return.
 - Write tables without counting pipes: Insert Table (⌃⌘T), Tab between cells, and Reformat Table (⌃⌘R) to line the columns up in the source.
+- Have a document read aloud from **Edit ▸ Speech**, which skips code, math, and diagrams.
 - See misspellings underlined as you write, checked by macOS on your Mac — code, math, front matter, and link addresses are skipped, and nothing is autocorrected.
 - Use Apple's native Writing Tools in the editor, with Markdown structure (fenced code, front matter) protected from rewrites.
 - Save Markdown or plain text, print (⌘P), or export a copy as HTML, PDF, Styled PDF, or Rich Text — headings, tables, math, and diagrams included, on a clean white page at a standard document size. Exported HTML keeps your image and link paths exactly as you wrote them.
+- Preview Markdown files in Finder with Space, formatted rather than shown as raw text.
 - Adjust reading font, size, line height, spacing, width, theme, reading ruler, and typewriter mode — including the bundled accessibility fonts Atkinson Hyperlegible and OpenDyslexic.
 
 ## Privacy
@@ -76,7 +78,7 @@ Release builds use [Sparkle](https://sparkle-project.org) for update checks once
 
 ## About
 
-Lineform V1.0 is the first public version of the app. It is built as a native macOS document app with SwiftUI, AppKit, and TextKit.
+Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version; the current release is 1.3.0.
 
 ## Credits
 
