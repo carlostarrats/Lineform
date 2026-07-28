@@ -3,6 +3,47 @@
     <channel>
         <title>Lineform</title>
         <item>
+            <title>1.4.0</title>
+            <pubDate>Mon, 27 Jul 2026 19:33:22 -0700</pubDate>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>1.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<style>
+  :root { color-scheme: light dark; }
+  body { font: -apple-system-body, system-ui, sans-serif; line-height: 1.5; margin: 0; }
+  h2 { font-size: 1.05rem; margin: 0 0 0.5em; }
+  ul { margin: 0; padding-left: 1.2em; }
+  li { margin: 0.35em 0; }
+  strong { font-weight: 600; }
+</style>
+
+<h2>What's New in Lineform 1.4.0</h2>
+<p>A fix release. No new features — this is a deep pass over how Lineform handles your files, with a focus on the ways a document could be quietly changed under you.</p>
+<ul>
+  <li><strong>Live reload keeps working.</strong> A document only picked up the first external change to its file. If a coding agent or another editor kept writing, Lineform showed a stale copy from then on — and kept saving that stale copy. It now follows every change.</li>
+  <li><strong>Windows-authored files stay byte-for-byte intact.</strong> A file saved with a byte-order mark (Notepad's default) lost it the first time you typed. Line endings and the mark are now preserved exactly as you received them.</li>
+  <li><strong>Convert to Plain Text no longer damages code.</strong> It was removing one backslash from every escaped character inside fenced code blocks, so a regular expression or a Windows path came out wrong — and saved that way. Code blocks are now left exactly as written.</li>
+  <li><strong>Find &amp; Replace stops when it's done.</strong> Replacing a word with something containing it — <code>log</code> → <code>logs</code> — used to start replacing its own output, growing the text with every click. It now replaces each match once.</li>
+  <li><strong>Two crashes fixed.</strong> Pressing Return on a line beginning with a very long number, and opening a document with a Mermaid pie chart containing an enormous value.</li>
+  <li><strong>Mermaid diagrams with a title or config header now render</strong> instead of showing their source with a "Report this" link. Very large diagrams fall back to their source rather than making the window unresponsive.</li>
+  <li><strong>Printing respects the paper size you pick.</strong> Changing Paper Size or Orientation in the print dialog now rewraps the text; it used to slice each line and spill the remainder onto extra pages.</li>
+  <li><strong>Better exports.</strong> Inline <code>$…$</code> math is now included in HTML export, matching how block math already worked. Escaped characters like <code>\*</code> render correctly on lines that also contain math.</li>
+  <li><strong>Files sidebar.</strong> Turning off Show Hidden Folders no longer hides ordinary Markdown files in large folders, renaming your workspace folder in Finder no longer stops the sidebar from refreshing, and the Sort label now matches the order files are actually in.</li>
+  <li><strong>Read aloud</strong> stops when you switch to another document, and starting, pausing, or resuming it in quick succession no longer leaves it stuck.</li>
+  <li><strong>Accessibility.</strong> Link text now meets WCAG AA contrast on every reading theme, and VoiceOver no longer repeats the search status every time you pause typing.</li>
+  <li><strong>Also:</strong> the copy button on a code block now copies the whole block in Windows-authored files, Markdown previews in Finder match what the app draws in several more cases, and <code>lineform -</code> now rejects non-text input at the pipe instead of failing later.</li>
+</ul>
+]]></description>
+            <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.4.0/Lineform-1.4.0.dmg" length="21001538" type="application/octet-stream" sparkle:edSignature="u4nx7CizaR0hHHXVjtRQz1AE89ihir7aUCdlhKNBe9KEHKIX1VhUV2Mevr8K/sFcLnLndI6WefveNyIFFboYDQ=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.4.0/Lineform19-18.delta" sparkle:deltaFrom="18" length="2644918" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="1suKe+mKusOURbS4r1t3BBbA4caI11sqwQyNbsz83QRByym+I/aUuZDITZwIJD60ge8A3AkDi0CLCn8Y/992DQ=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.4.0/Lineform19-17.delta" sparkle:deltaFrom="17" length="3470026" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="5U0dIRevVcB+SpAXf5vZtpNrHLfhKs8O60qMTW1pk+zJr77Rt9laA7F+v7f75JTLigvpfdMWW7opgeIa6akQDw=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.4.0/Lineform19-16.delta" sparkle:deltaFrom="16" length="3750262" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="2zSJZ5JL+WM4cf3gzV3+zV41zCRVoTxME9rcaW2ZNvbAIhNDFkV/yEeWcGTBSz3eqbQzf7njT7Vi4klIehSYAQ=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.4.0/Lineform19-15.delta" sparkle:deltaFrom="15" length="3759910" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="u5ZZTy4X+d6yXIHhOjroWc4nMd8G7XUTAcPlNBvnSjW0qixhd3cc9QMlw//iPSZ+QLDLxnks2igG804q0MgSBg=="/>
+                <enclosure url="https://github.com/carlostarrats/Lineform/releases/download/v1.4.0/Lineform19-13.delta" sparkle:deltaFrom="13" length="13583158" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="dGcsJXQHTdd0Eqh6GkUMLooPEGO2xkfbao63/BHW03x70RKNLWAxnD0c7keADCN6xu+m7ZZ72nlBbxOV3wrHAw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.3.0</title>
             <pubDate>Sun, 19 Jul 2026 11:04:14 -0700</pubDate>
             <sparkle:version>18</sparkle:version>
