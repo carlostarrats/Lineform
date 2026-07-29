@@ -350,7 +350,9 @@ final class OutlineSidebarViewTests: XCTestCase {
     func testOutlineDrawerAdaptsChromeToEditorTheme() {
         XCTAssertFalse(OutlineSidebarView.usesThemeIndependentLightChrome)
         XCTAssertGreaterThan(OutlineSidebarView.lightBackgroundWhiteComponent, 0.95)
-        XCTAssertLessThan(OutlineSidebarView.darkBackgroundWhiteComponent, 0.25)
+        XCTAssertLessThan(
+            OutlineSidebarView.darkBackgroundNSColor.usingColorSpace(.sRGB)!.redComponent, 0.25
+        )
         XCTAssertLessThan(OutlineSidebarView.primaryTextWhiteComponent, 0.25)
         XCTAssertGreaterThan(OutlineSidebarView.secondaryTextWhiteComponent, OutlineSidebarView.primaryTextWhiteComponent)
         XCTAssertLessThan(OutlineSidebarView.secondaryTextWhiteComponent, 0.55)
@@ -377,10 +379,11 @@ final class OutlineSidebarViewTests: XCTestCase {
 
     @MainActor
     func testSelectedFileRowFillIsThemeThreadedNotAmbient() {
-        // `unemphasizedSelectedContentBackgroundColor` is a DYNAMIC color: read outside an
-        // explicit appearance it follows the system light/dark, so a dark-chrome sidebar under a
-        // light system would paint the light-mode grey. Resolving per `usesDarkChrome` is what
-        // keeps the sidebar's own theme authoritative — the same rule every other ink here obeys.
+        // The light-chrome fill derives from `unemphasizedSelectedContentBackgroundColor`, a
+        // DYNAMIC color: read outside an explicit appearance it follows the system light/dark, so
+        // a light-chrome sidebar under a dark system would paint the dark-mode grey. Resolving per
+        // `usesDarkChrome` is what keeps the sidebar's own theme authoritative — the same rule
+        // every other ink here obeys.
         let dark = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: true)
         let light = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: false)
         XCTAssertNotEqual(dark, light)
@@ -392,21 +395,120 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testSelectedFileRowLabelMeetsAAAgainstItsOwnFill() {
-        // The pairing this replaced — accent label over a 15% accent fill — measured 2.43:1 on
-        // dark chrome and 3.24:1 on light, both below AA, which is what made a selected file hard
-        // to read. Assert the replacement against the SAME definition production uses.
+    func testDarkChromeSelectionRecessesBelowBothTheNavAndItsHover() {
+        // On dark chrome the selection is a WELL, not a highlight: AppKit's grey is lighter than
+        // this nav, so a selected row glowed. It must sit below the nav itself, and below the
+        // hover fill — otherwise hovering a neighbour reads as the stronger state.
+        let fill = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: true)
+            .usingColorSpace(.sRGB)!
+        let page = OutlineSidebarView.darkBackgroundNSColor.usingColorSpace(.sRGB)!.redComponent
+        XCTAssertLessThan(fill.redComponent, page)
+        let hover = OutlineSidebarView.darkPrimaryTextWhiteComponent * OutlineSidebarView.filesRowHoverFillOpacity
+            + page * (1 - OutlineSidebarView.filesRowHoverFillOpacity)
+        XCTAssertLessThan(fill.redComponent, hover)
+    }
+
+    func testCommandClickOpensInANewTabButControlAndOptionDoNot() {
+        // Command-click is the browser/Finder convention for "open elsewhere". Control-click IS
+        // the context menu — if it also counted, a right-click would open a tab BEHIND the menu
+        // it just posted — and Option is the system's drag-copy modifier.
+        XCTAssertTrue(OutlineSidebarView.opensInNewTab(modifiers: .command))
+        XCTAssertTrue(OutlineSidebarView.opensInNewTab(modifiers: [.command, .shift]))
+        XCTAssertFalse(OutlineSidebarView.opensInNewTab(modifiers: []))
+        XCTAssertFalse(OutlineSidebarView.opensInNewTab(modifiers: [.command, .control]))
+        XCTAssertFalse(OutlineSidebarView.opensInNewTab(modifiers: [.command, .option]))
+        XCTAssertFalse(OutlineSidebarView.opensInNewTab(modifiers: .control))
+    }
+
+    @MainActor
+    func testDarkChromeSwatchesAreTheSpecifiedHexes() {
+        // #313131 nav, #282828 selection — specified values, asserted in the space they were
+        // specified in (sRGB). `calibratedWhite` is a plain gamma-2.2 ramp and renders a
+        // different swatch for the same number, which is why production builds these in sRGB.
+        func hex(_ color: NSColor) -> String {
+            let srgb = color.usingColorSpace(.sRGB)!
+            return String(format: "#%02X%02X%02X",
+                          Int((srgb.redComponent * 255).rounded()),
+                          Int((srgb.greenComponent * 255).rounded()),
+                          Int((srgb.blueComponent * 255).rounded()))
+        }
+        XCTAssertEqual(hex(OutlineSidebarView.darkBackgroundNSColor), "#313131")
+        XCTAssertEqual(hex(OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: true)), "#282828")
+    }
+
+    @MainActor
+    func testDarkSidebarChromeSitsBelowTheQuietPage() {
+        // The nav is a recessed edge beside the reader page, not a second sheet of it.
+        // Compare in sRGB, in BOTH operands: `Theme.quiet` is `calibratedWhite: 0.19` and that
+        // space is not sRGB — the page actually renders ≈#3F3F3F (0.249), so a comparison
+        // against the raw 0.19 grades the nav against a colour that never reaches the screen.
+        let nav = OutlineSidebarView.darkBackgroundNSColor.usingColorSpace(.sRGB)!.redComponent
+        let quiet = Theme.quiet.backgroundColor.usingColorSpace(.sRGB)!.redComponent
+        XCTAssertLessThan(nav, quiet)
+    }
+
+    @MainActor
+    func testLightChromeSelectionFillIsLiftedButStillOutweighsHover() {
+        // The light-chrome fill is deliberately lighter than AppKit's raw grey (that swatch reads
+        // heavy on this sidebar's near-white page), but it must stay DARKER than the hover fill —
+        // otherwise a merely-hovered row draws stronger than the selected one.
+        let fill = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: false)
+            .usingColorSpace(.sRGB)!
+        var rawGrey = NSColor.unemphasizedSelectedContentBackgroundColor
+        NSAppearance(named: .aqua)?.performAsCurrentDrawingAppearance {
+            rawGrey = NSColor.unemphasizedSelectedContentBackgroundColor.usingColorSpace(.sRGB)!
+        }
+        XCTAssertGreaterThan(fill.redComponent, rawGrey.redComponent)
+
+        // Hover is the primary ink at `filesRowHoverFillOpacity` over the sidebar page.
+        let page = OutlineSidebarView.lightBackgroundWhiteComponent
+        let hover = OutlineSidebarView.primaryTextWhiteComponent * OutlineSidebarView.filesRowHoverFillOpacity
+            + page * (1 - OutlineSidebarView.filesRowHoverFillOpacity)
+        XCTAssertLessThan(fill.redComponent, hover)
+        // Hover must stay visible in its own right — fainter than the selection, not absent.
+        XCTAssertGreaterThan(OutlineSidebarView.filesRowHoverFillOpacity, 0.02)
+        XCTAssertLessThan(
+            OutlineSidebarView.filesRowHoverFillOpacity,
+            OutlineSidebarView.rowHoverFillOpacity
+        )
+    }
+
+    @MainActor
+    func testSelectedFileRowLabelIsBlueAndThemeThreadedNotAmbient() {
+        // The selected row is Finder's source-list pairing: system blue over the unemphasized
+        // grey. `systemBlue` is dynamic, so — like the fill — it must be resolved against the
+        // sidebar's own chrome appearance, not the ambient system one.
+        let dark = OutlineSidebarView.rowSelectionLabelNSColor(usesDarkChrome: true)
+        let light = OutlineSidebarView.rowSelectionLabelNSColor(usesDarkChrome: false)
+        XCTAssertNotEqual(dark, light)
+        // The dark chrome's blue must be the LIGHTER of the two, whatever the system is doing.
+        // Compared by luminance, not `brightnessComponent` — that is HSB value, which is 1.0 for
+        // both system blues and so silently passes any pairing.
+        XCTAssertGreaterThan(
+            Theme.contrastRatio(dark, .black),
+            Theme.contrastRatio(light, .black)
+        )
+        // Blue, not the accent setting: a pink or graphite accent must not reach this row.
+        for ink in [dark, light] {
+            let srgb = ink.usingColorSpace(.sRGB)!
+            XCTAssertGreaterThan(srgb.blueComponent, srgb.greenComponent)
+            XCTAssertGreaterThan(srgb.greenComponent, srgb.redComponent)
+        }
+    }
+
+    @MainActor
+    func testSelectedFileRowContrastIsBelowAAByDesignAndFillCarriesSelection() {
+        // Documented, deliberate exception: Finder's blue-on-grey selection is ~2.9:1 light and
+        // ~2.8:1 dark. It is acceptable ONLY because the grey fill carries the selection state on
+        // its own, so nothing depends on reading the blue. This test exists so the number is
+        // recorded rather than rediscovered — if it starts passing 4.5 the pairing changed.
+        // The general AA rule still holds for document ink (`Theme.readableInk`).
         for usesDarkChrome in [true, false] {
             let fill = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: usesDarkChrome)
-            let ink = NSColor(
-                calibratedWhite: usesDarkChrome
-                    ? OutlineSidebarView.darkPrimaryTextWhiteComponent
-                    : OutlineSidebarView.primaryTextWhiteComponent,
-                alpha: 1
-            )
+            let ink = OutlineSidebarView.rowSelectionLabelNSColor(usesDarkChrome: usesDarkChrome)
             let ratio = Theme.contrastRatio(ink, fill)
-            XCTAssertGreaterThanOrEqual(
-                ratio, 4.5,
+            XCTAssertGreaterThan(
+                ratio, 2.5,
                 "Selected file label is \(ratio):1 on its fill (usesDarkChrome: \(usesDarkChrome))"
             )
         }

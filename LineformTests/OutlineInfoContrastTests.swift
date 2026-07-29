@@ -7,9 +7,12 @@ final class OutlineMarkdownBasicsContrastTests: XCTestCase {
     // is chrome-mode-based, not per-theme (dark chrome = the Quiet/Night themes), so
     // two checks — light chrome and dark chrome — cover every reader theme.
     private func background(darkChrome: Bool) -> NSColor {
-        NSColor(calibratedWhite: darkChrome ? OutlineSidebarView.darkBackgroundWhiteComponent
-                                            : OutlineSidebarView.lightBackgroundWhiteComponent,
-                alpha: 1)
+        // Dark chrome is a specified hex (#303031) built in sRGB in production; measuring it as
+        // `calibratedWhite` would grade these ratios against a swatch that never ships.
+        guard darkChrome else {
+            return NSColor(calibratedWhite: OutlineSidebarView.lightBackgroundWhiteComponent, alpha: 1)
+        }
+        return OutlineSidebarView.darkBackgroundNSColor
     }
 
     // Syntax reuses the sidebar's primary text color; the explanation uses the Info

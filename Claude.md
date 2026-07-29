@@ -24,7 +24,7 @@ Core product principles:
 
 - Document-based macOS app for Markdown and plain text files.
 - Native macOS autosave for existing files, with Save/Save As still available and untitled files prompting for a destination when needed.
-- Files selected from the left Files sidebar switch in the current window, Apple Notes-style. Do not describe this as a guaranteed manual save prompt before navigation; existing files are usually already autosaved by the document system.
+- Files selected from the left Files sidebar switch the CURRENT TAB in place, Apple Notes-style — browsing a workspace does not accumulate tabs. ⌘-click, or the row's context menu, opens in a new tab or a new window instead. A tab holding unsaved work prompts (Save / Cancel / Don't Save) before it is replaced; in practice that is mostly untitled documents, since existing files are already autosaved by the document system — so do not describe the prompt as a guaranteed step before every navigation.
 - Write mode for editing source Markdown.
 - Read mode for rendered, calmer reading.
 - Split/Preview mode for side-by-side writing and preview.
@@ -80,7 +80,7 @@ file named after it carries the full story and the reasoning.
 
 **Files sidebar and iCloud** (`files-sidebar.md`)
 - Keep the file tree FLAT and LAZY (`visibleFileRows` + `LazyVStack`). Recursive `VStack`/`ForEach` froze large workspaces — the scan was never the bottleneck, view layout was.
-- Every sidebar sub-view takes `usesDarkChrome` THREADED from the theme. Reading `@Environment(\.colorScheme)` in a nested control renders invisible text after a tab/inspector transition. A dynamic `NSColor` (the selection grey) is the same rule for AppKit: resolve it inside `performAsCurrentDrawingAppearance` for that appearance, or it silently follows the SYSTEM light/dark instead of the theme.
+- Every sidebar sub-view takes `usesDarkChrome` THREADED from the theme. Reading `@Environment(\.colorScheme)` in a nested control renders invisible text after a tab/inspector transition. A dynamic `NSColor` (the selection grey and its blue label) is the same rule for AppKit: resolve it inside `performAsCurrentDrawingAppearance` for that appearance, or it silently follows the SYSTEM light/dark instead of the theme.
 - `directoryRescanDebounceInterval` MUST exceed `DirectoryEventMonitor.coalescingLatency`, or autosave churn hitches typing.
 - EVERY write to `workspaceURL` must call `retargetWorkspaceWatcher()`. `DirectoryEventMonitor` binds FSEvents to a path string with no `kFSEventStreamCreateFlagWatchRoot`, so a stream on a moved or renamed folder is silently dead — `setWorkspaceURL` retargeted and the bookmark-re-resolution branch did not, so renaming the workspace in Finder killed live refresh for the session while the tree still looked correct.
 - Toggling Show Hidden Folders OFF must RE-SCAN a live root, for the same reason a sort change does: the 80-per-folder cap is applied in display order, BEFORE hidden filtering, so a hidden-inclusive scan is not a superset. Filtering it in memory deleted ordinary Markdown files from the tree. In-memory filtering is only for the cached/disconnected fallbacks, where no scan is possible.

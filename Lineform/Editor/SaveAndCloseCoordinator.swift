@@ -142,3 +142,43 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
         callback?()
     }
 }
+
+
+/// Saves the window's document and, only on success, runs a continuation. Used by the sidebar
+/// switch prompt: the save may present a panel (an untitled tab), so the thing that happens
+/// "after saving" cannot be sequenced synchronously. A cancelled panel runs nothing.
+@MainActor
+final class SaveThenContinueCoordinator: NSObject {
+    private let document: NSDocument
+    private let onSaved: () -> Void
+    /// Cleared when the chain ends so the view can drop its reference — this object holds the
+    /// NSDocument strongly, the same leak `SaveAndCloseCoordinator` documents.
+    private var onFinish: (() -> Void)?
+
+    init(document: NSDocument, onSaved: @escaping () -> Void, onFinish: (() -> Void)? = nil) {
+        self.document = document
+        self.onSaved = onSaved
+        self.onFinish = onFinish
+        super.init()
+    }
+
+    func start() {
+        document.save(
+            withDelegate: self,
+            didSave: #selector(document(_:didSave:contextInfo:)),
+            contextInfo: nil
+        )
+    }
+
+    @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
+        defer { finish() }
+        guard didSave else { return }
+        onSaved()
+    }
+
+    private func finish() {
+        let callback = onFinish
+        onFinish = nil
+        callback?()
+    }
+}

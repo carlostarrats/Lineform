@@ -37,6 +37,34 @@ final class EditorTabStoreTests: XCTestCase {
         XCTAssertTrue(store.shouldShowTabBar)
     }
 
+    func testReplaceTabSwapsContentInPlaceWithoutAddingATab() {
+        // A plain sidebar click switches the CURRENT tab rather than accumulating one tab per
+        // file browsed. The tab keeps its identity, position, and display mode — only the
+        // document and file move, which is what lets the tab bar stay still while browsing.
+        let store = makeStore(text: "first")
+        let second = store.openTab(document: makeDocument("second"), fileURL: url("/tmp/b.md"), displayMode: .read)
+        let firstID = store.tabs[0].id
+
+        store.replaceTab(id: second, document: makeDocument("third"), fileURL: url("/tmp/c.md"))
+
+        XCTAssertEqual(store.tabCount, 2)
+        XCTAssertEqual(store.tabs[0].id, firstID)
+        XCTAssertEqual(store.tabs[1].id, second)
+        XCTAssertEqual(store.selectedTabID, second)
+        XCTAssertEqual(store.tabs[1].document.text, "third")
+        XCTAssertEqual(store.tabs[1].fileURL, url("/tmp/c.md"))
+        XCTAssertEqual(store.tabs[1].displayMode, .read)
+    }
+
+    func testReplaceTabIgnoresAnUnknownTabID() {
+        // The switch resumes asynchronously after a save panel, by which point the tab it was
+        // going to replace may have been closed. Replacing nothing beats replacing a sibling.
+        let store = makeStore(text: "first")
+        store.replaceTab(id: UUID(), document: makeDocument("other"), fileURL: url("/tmp/x.md"))
+        XCTAssertEqual(store.tabCount, 1)
+        XCTAssertEqual(store.tabs[0].document.text, "first")
+    }
+
     func testOpenTabForAlreadyOpenFileSwitchesInsteadOfDuplicating() {
         let store = makeStore()
         let fileURL = url("/tmp/notes.md")
