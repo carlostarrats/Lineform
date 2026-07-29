@@ -100,13 +100,27 @@ struct OutlineSidebarView: View {
     static let usesThemeIndependentLightChrome = false
     static let backgroundOpacity: Double = 0.94
     static let lightBackgroundWhiteComponent: CGFloat = 0.988
-    static let darkBackgroundWhiteComponent: CGFloat = 0.18
+    // #313131, specified. A step BELOW the Quiet page it sits beside — which renders ≈#3F3F3F,
+    // not #303030: `Theme.quiet` is `calibratedWhite: 0.19` and that space is NOT sRGB, so the
+    // two numbers are not comparable as written. Under Night (≈#191919) the nav is the lighter
+    // surface instead; both read as a distinct edge, which is what this is for.
+    // An NSColor rather than a white scalar, and sRGB rather than `calibratedWhite`: the
+    // calibrated grey space is a plain gamma-2.2 ramp, so the same number renders a visibly
+    // different swatch. A hex the designer picked has to be built in the space they picked it in.
+    static let darkBackgroundNSColor = NSColor(
+        srgbRed: 49.0 / 255.0, green: 49.0 / 255.0, blue: 49.0 / 255.0, alpha: 1
+    )
     static let primaryTextWhiteComponent: CGFloat = 0.16
     static let secondaryTextWhiteComponent: CGFloat = 0.43
     static let darkPrimaryTextWhiteComponent: CGFloat = 0.90
     static let darkSecondaryTextWhiteComponent: CGFloat = 0.68
     static let rowsShowHoverFeedback = true
     static let rowHoverFillOpacity = 0.08
+    // The Files tree hovers FAINTER than the rest of the sidebar, because it is the only list
+    // carrying a persistent selection fill and that fill is now a light grey: hover has to stay
+    // clearly below it, or a merely-hovered row out-shouts the current file. The Outline tab has
+    // no selection fill and keeps the standard strength.
+    static let filesRowHoverFillOpacity = 0.045
     // Soft translucent accent tint for a selected row. The Files tree does NOT use this — it
     // takes the system unemphasized grey (see `rowSelectionFillColor`). Retained for the ⌘K
     // quick-open palette, which is a transient accent-tinted list, not a source list.
@@ -307,6 +321,15 @@ struct OutlineSidebarView: View {
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
+    /// Explicit "open somewhere else" actions. A plain click REPLACES the document in the
+    /// current tab (Apple Notes-style, the documented behaviour); these are the opt-ins —
+    /// Command-click and the context menu — for the other two destinations.
+    var openFileInNewTab: (URL) -> Void = { url in
+        LineformSidebarFileOpener.open(url, replacing: nil)
+    }
+    var openFileInNewWindow: (URL) -> Void = { url in
+        LineformSidebarFileOpener.open(url, replacing: nil)
+    }
     /// The app-wide settings store, injectable so hosted tests can isolate the two
     /// sidebar-affecting preferences (Show iCloud, Keep roots expanded) on their own
     /// defaults suite instead of leaking the developer's real prefs into test geometry.
@@ -324,7 +347,13 @@ struct OutlineSidebarView: View {
         settings: LineformSettingsStore = .shared,
         renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
         deleteItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
-        revealItem: @escaping (OutlineFileTreeItem) -> Void = { _ in }
+        revealItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
+        openFileInNewTab: @escaping (URL) -> Void = { url in
+            LineformSidebarFileOpener.open(url, replacing: nil)
+        },
+        openFileInNewWindow: @escaping (URL) -> Void = { url in
+            LineformSidebarFileOpener.open(url, replacing: nil)
+        }
     ) {
         self.items = items
         self.activeSourceRange = activeSourceRange
@@ -335,6 +364,8 @@ struct OutlineSidebarView: View {
         self.renameItem = renameItem
         self.deleteItem = deleteItem
         self.revealItem = revealItem
+        self.openFileInNewTab = openFileInNewTab
+        self.openFileInNewWindow = openFileInNewWindow
         // Production passes nil → a real store is created lazily on first render. Tests inject
         // a store on an isolated defaults suite so they never resolve the user's real workspace
         // bookmark (which would touch ~/Documents and prompt for access).
@@ -388,7 +419,9 @@ struct OutlineSidebarView: View {
             usesDarkChrome: usesDarkChrome,
             renameItem: renameItem,
             deleteItem: deleteItem,
-            revealItem: revealItem
+            revealItem: revealItem,
+            openFileInNewTab: openFileInNewTab,
+            openFileInNewWindow: openFileInNewWindow
         )
         .onAppear {
             // Reconcile the app-wide "Show Hidden Folders" preference (driven from
@@ -442,7 +475,7 @@ struct OutlineSidebarView: View {
             Button {
                 LineformAppNotification.showSettings.post()
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 13, weight: .medium))
                         .frame(width: 18, alignment: .center)
@@ -558,9 +591,13 @@ struct OutlineSidebarView: View {
         }
     }
 
+    /// Dark chrome draws its background OPAQUE. The 0.94 veil lets the window behind bleed
+    /// through, and what is behind differs per theme (Quiet's page is 0.19, Night's 0.09), so a
+    /// translucent nav cannot land on one specified hex — it would render two different greys and
+    /// neither would be #232323. Light chrome keeps its translucency.
     private var sidebarBackground: Color {
         Self.backgroundColor(usesDarkChrome: usesDarkChrome)
-            .opacity(Self.backgroundOpacity)
+            .opacity(usesDarkChrome ? 1 : Self.backgroundOpacity)
     }
 
     private var usesDarkChrome: Bool {
@@ -568,10 +605,10 @@ struct OutlineSidebarView: View {
     }
 
     static func backgroundColor(usesDarkChrome: Bool) -> Color {
-        Color(nsColor: NSColor(
-            calibratedWhite: usesDarkChrome ? darkBackgroundWhiteComponent : lightBackgroundWhiteComponent,
-            alpha: 1
-        ))
+        if usesDarkChrome {
+            return Color(nsColor: darkBackgroundNSColor)
+        }
+        return Color(nsColor: NSColor(calibratedWhite: lightBackgroundWhiteComponent, alpha: 1))
     }
 
     static func tabAppearanceName(usesDarkChrome: Bool) -> NSAppearance.Name {
@@ -592,23 +629,50 @@ struct OutlineSidebarView: View {
         ))
     }
 
-    /// The selected file row's fill: AppKit's unemphasized source-list selection grey — the same
-    /// swatch Finder and Notes draw. Resolved against the sidebar's OWN themed appearance, never
-    /// the ambient one: a dynamic `NSColor` read outside `performAsCurrentDrawingAppearance` picks
-    /// up the system light/dark, which is the `usesDarkChrome` threading rule stated for every
-    /// other colour in this file. Deliberately grey rather than accent-tinted — accent fill under
-    /// an accent label is what made the row hard to read on the dark themes.
+    /// The selected file row's fill. LIGHT chrome takes AppKit's unemphasized source-list
+    /// selection grey — the same swatch Finder and Notes draw — resolved against the sidebar's
+    /// OWN themed appearance, never the ambient one: a dynamic `NSColor` read outside
+    /// `performAsCurrentDrawingAppearance` picks up the system light/dark, which is the
+    /// `usesDarkChrome` threading rule stated for every other colour in this file. Deliberately
+    /// grey rather than accent-tinted — accent fill under an accent label is what made the row
+    /// hard to read on the dark themes.
     /// Resolved ONCE per appearance rather than per call: this is read from `rowBackgroundStyle`,
     /// which SwiftUI re-evaluates on every body pass of every visible row, and each miss would
     /// allocate an `NSAppearance` and re-resolve a dynamic colour on the main thread.
+    /// The light swatch is then lifted toward the sidebar page by this fraction — a
+    /// lighter, quieter grey than AppKit's, which reads heavy against this sidebar's near-white
+    /// (0.988) page.
+    static let rowSelectionFillLightening: CGFloat = 0.55
+    /// DARK chrome does not use AppKit's grey at all: that swatch is LIGHTER than this nav, so a
+    /// selected row glowed. It recesses instead — a well cut into the nav, darker than both the
+    /// nav and the hover fill. That also puts the blue label at ~4.3:1 here, against 2.8:1 on the
+    /// grey it replaces. Light chrome is UNCHANGED by this.
+    /// #282828 — neutral, like the nav, and sRGB for the same reason.
+    static let darkRowSelectionFillWhiteComponent: CGFloat = 40.0 / 255.0
     static func rowSelectionFillNSColor(usesDarkChrome: Bool) -> NSColor {
         if let cached = cachedRowSelectionFill[usesDarkChrome] { return cached }
+        if usesDarkChrome {
+            let recessed = NSColor(
+                srgbRed: darkRowSelectionFillWhiteComponent,
+                green: darkRowSelectionFillWhiteComponent,
+                blue: darkRowSelectionFillWhiteComponent,
+                alpha: 1
+            )
+            cachedRowSelectionFill[true] = recessed
+            return recessed
+        }
         var resolved = NSColor.unemphasizedSelectedContentBackgroundColor
         NSAppearance(named: tabAppearanceName(usesDarkChrome: usesDarkChrome))?
             .performAsCurrentDrawingAppearance {
                 resolved = NSColor.unemphasizedSelectedContentBackgroundColor
                     .usingColorSpace(.sRGB) ?? resolved
             }
+        if !usesDarkChrome {
+            let page = NSColor(calibratedWhite: lightBackgroundWhiteComponent, alpha: 1)
+                .usingColorSpace(.sRGB) ?? .white
+            resolved = resolved.blended(withFraction: rowSelectionFillLightening, of: page)
+                ?? resolved
+        }
         cachedRowSelectionFill[usesDarkChrome] = resolved
         return resolved
     }
@@ -617,9 +681,30 @@ struct OutlineSidebarView: View {
         Color(nsColor: rowSelectionFillNSColor(usesDarkChrome: usesDarkChrome))
     }
 
+    /// The selected file row's label and icon: the system blue Finder draws over that same grey.
+    /// `systemBlue` rather than `controlAccentColor` — this is specified as *blue*, so it must not
+    /// follow a pink or graphite accent setting. Dynamic like the fill, so it is resolved against
+    /// the sidebar's OWN appearance (the light and dark system blues differ) and memoized per
+    /// appearance for the same reason: this is read on every body pass of every visible row.
+    static func rowSelectionLabelNSColor(usesDarkChrome: Bool) -> NSColor {
+        if let cached = cachedRowSelectionLabel[usesDarkChrome] { return cached }
+        var resolved = NSColor.systemBlue
+        NSAppearance(named: tabAppearanceName(usesDarkChrome: usesDarkChrome))?
+            .performAsCurrentDrawingAppearance {
+                resolved = NSColor.systemBlue.usingColorSpace(.sRGB) ?? resolved
+            }
+        cachedRowSelectionLabel[usesDarkChrome] = resolved
+        return resolved
+    }
+
+    static func rowSelectionLabelColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: rowSelectionLabelNSColor(usesDarkChrome: usesDarkChrome))
+    }
+
     /// Main-thread only (SwiftUI body evaluation and the tests that mirror it), which is what
-    /// makes this unsynchronised dictionary safe.
+    /// makes these unsynchronised dictionaries safe.
     @MainActor private static var cachedRowSelectionFill: [Bool: NSColor] = [:]
+    @MainActor private static var cachedRowSelectionLabel: [Bool: NSColor] = [:]
 
     /// `~`-relative, and clipped from the LEFT when long so the tail — the part that actually
     /// distinguishes `Test Folder` from `Test Folder/Test Folder` — always survives.
@@ -650,17 +735,24 @@ struct OutlineSidebarView: View {
     /// sidebar's content edge). Disclosure chevrons hang in the reserved slot to the LEFT of
     /// this column (the Finder/Xcode source-list convention), so tab icons, Settings, outline
     /// rows, the Files sort row, root icons, and file/folder icons all share one vertical line.
-    static let sidebarIconColumnLeading: CGFloat = 24
+    static let sidebarIconColumnLeading: CGFloat = 22
     /// Disclosure chevron (Files tree AND root headers): a small glyph right-aligned in this slot
     /// with `filesChevronToIconGap` to the icon, so the chevron sits close to the folder/doc icon
-    /// it discloses. Slot + gap = 18 = the icon column's offset from the content edge, so the icon
+    /// it discloses. Slot + gap = 16 = the icon column's offset from the content edge, so the icon
     /// column is unchanged whether or not a chevron is drawn.
+    /// Command-click on a file row opens it in a NEW TAB instead of replacing the current one —
+    /// the browser/Finder convention. Static and flag-taking so it is testable without an event.
+    /// Option and Control are excluded deliberately: Option-click is a system drag-copy modifier
+    /// and Control-click IS the context menu, which must not also open a tab behind the menu.
+    static func opensInNewTab(modifiers: NSEvent.ModifierFlags) -> Bool {
+        modifiers.contains(.command) && !modifiers.contains(.control) && !modifiers.contains(.option)
+    }
     static let filesChevronSlotWidth: CGFloat = 12
-    static let filesChevronToIconGap: CGFloat = 6
+    static let filesChevronToIconGap: CGFloat = 4
     /// Horizontal inset of the tab-picker / Settings / outline pills from the sidebar edge.
     /// The pill's own internal leading padding then carries the icon to `sidebarIconColumnLeading`.
     static let pillHorizontalInset: CGFloat = 14
-    static let pillInnerLeading: CGFloat = 10
+    static let pillInnerLeading: CGFloat = 8
     /// Symmetric breathing room above and below the divider under the three tabs. Applied as
     /// the tabs' bottom padding AND each tab-content's top padding so the line sits centered.
     static let tabDividerGap: CGFloat = 16
@@ -753,7 +845,7 @@ private struct OutlineSidebarRow: View {
         Button {
             jumpToHeading(node.item)
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(rowForegroundColor)
@@ -766,8 +858,8 @@ private struct OutlineSidebarRow: View {
 
                 Spacer(minLength: 0)
             }
-            // Icon rides the shared column: pill inner leading (10) + depth indent, inside the
-            // outline content's 14pt inset, lands the icon at `sidebarIconColumnLeading` (24).
+            // Icon rides the shared column: pill inner leading (8) + depth indent, inside the
+            // outline content's 14pt inset, lands the icon at `sidebarIconColumnLeading` (22).
             .padding(.leading, OutlineSidebarView.pillInnerLeading + CGFloat(depth) * OutlineSidebarView.filesTreeIndentStep)
             .padding(.trailing, OutlineSidebarView.pillInnerLeading)
             .frame(height: 26)
@@ -811,7 +903,7 @@ private struct SidebarTabButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: tab.systemImage)
                     .font(.system(size: 13, weight: .medium))
                     .frame(width: 18, alignment: .center)
@@ -1791,6 +1883,8 @@ private struct OutlineFileBrowserView: View {
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var openFileInNewTab: (URL) -> Void = { _ in }
+    var openFileInNewWindow: (URL) -> Void = { _ in }
     @State private var collapsedIDs: Set<String> = []
     @State private var isSortHovered = false
 
@@ -1946,7 +2040,9 @@ private struct OutlineFileBrowserView: View {
                                 usesDarkChrome: usesDarkChrome,
                                 renameItem: renameItem,
                                 deleteItem: deleteItem,
-                                revealItem: revealItem
+                                revealItem: revealItem,
+                                openFileInNewTab: openFileInNewTab,
+                                openFileInNewWindow: openFileInNewWindow
                             )
                         }
                     }
@@ -2103,7 +2199,7 @@ private struct OutlineFileRootRow: View {
                 .padding(.leading, OutlineSidebarView.filesChevronToIconGap)
 
             titleLabel
-                .padding(.leading, 8)
+                .padding(.leading, 6)
         }
     }
 
@@ -2193,6 +2289,8 @@ private struct OutlineFileTreeNodeView: View {
     var renameItem: (OutlineFileTreeItem) -> Void = { _ in }
     var deleteItem: (OutlineFileTreeItem) -> Void = { _ in }
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
+    var openFileInNewTab: (URL) -> Void = { _ in }
+    var openFileInNewWindow: (URL) -> Void = { _ in }
     @State private var isHovered = false
 
     private var isCollapsed: Bool {
@@ -2240,10 +2338,13 @@ private struct OutlineFileTreeNodeView: View {
                 .padding(.leading, OutlineSidebarView.filesChevronToIconGap)
 
             Text(item.name)
-                .font(.system(size: 13))
+                // Selected rows carry weight as well as colour, matching the sidebar's tab
+                // buttons — so selection survives being read at a glance, on a grey-only
+                // screenshot, or by anyone who can't separate the blue from the fill.
+                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(rowForegroundColor)
                 .lineLimit(1)
-                .padding(.leading, 8)
+                .padding(.leading, 6)
 
             Spacer(minLength: 0)
         }
@@ -2261,6 +2362,8 @@ private struct OutlineFileTreeNodeView: View {
         .onTapGesture {
             if item.isDirectory {
                 toggleCollapsed()
+            } else if OutlineSidebarView.opensInNewTab(modifiers: NSEvent.modifierFlags) {
+                openFileInNewTab(item.url)
             } else {
                 openFile(item.url)
             }
@@ -2296,13 +2399,41 @@ private struct OutlineFileTreeNodeView: View {
     /// so the two can't drift apart.
     @ViewBuilder
     private func rowActionButtons(ellipsized: Bool) -> some View {
-        Button(ellipsized ? "Rename..." : "Rename") { renameItem(item) }
+        // Icons on every row, not just the new ones: a menu with some items iconed and some
+        // not reads as broken, and this menu is the only place the two "open elsewhere"
+        // destinations exist besides Command-click.
+        if !item.isDirectory {
+            Button {
+                openFileInNewTab(item.url)
+            } label: {
+                Label("Open in New Tab", systemImage: "plus.rectangle.on.rectangle")
+            }
+            Button {
+                openFileInNewWindow(item.url)
+            } label: {
+                Label("Open in New Window", systemImage: "macwindow.badge.plus")
+            }
+            Divider()
+        }
+        Button {
+            renameItem(item)
+        } label: {
+            Label(ellipsized ? "Rename..." : "Rename", systemImage: "pencil")
+        }
         if !item.isDirectory {
             // No folder delete (spec): a folder's files are too much to trash from a
             // quiet sidebar menu. Files go to the Trash, behind a confirmation.
-            Button(ellipsized ? "Delete..." : "Delete", role: .destructive) { deleteItem(item) }
+            Button(role: .destructive) {
+                deleteItem(item)
+            } label: {
+                Label(ellipsized ? "Delete..." : "Delete", systemImage: "trash")
+            }
         }
-        Button("Show in Finder") { revealItem(item) }
+        Button {
+            revealItem(item)
+        } label: {
+            Label("Show in Finder", systemImage: "folder")
+        }
     }
 
     private func toggleCollapsed() {
@@ -2326,15 +2457,17 @@ private struct OutlineFileTreeNodeView: View {
             return Color.clear
         }
         return OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
-            .opacity(isHovered ? OutlineSidebarView.rowHoverFillOpacity : 0)
+            .opacity(isHovered ? OutlineSidebarView.filesRowHoverFillOpacity : 0)
     }
 
     private var rowForegroundColor: Color {
         if isSelected {
-            // Primary label + icon over the grey fill, matching the native source-list selection.
-            // AppKit never pairs the unemphasized grey with an accent-coloured label, and primary
-            // is what keeps the row legible on the dark themes.
-            return OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
+            // Blue label + icon over the grey fill: the pairing Finder's sidebar draws for the
+            // selected row. It is the specified look, and it is BELOW WCAG AA (~2.9:1 light,
+            // ~2.8:1 dark) — acceptable here only because selection is also carried by the fill,
+            // so no information depends on reading the blue. Do not copy this pairing into
+            // document ink, which goes through `Theme.readableInk`.
+            return OutlineSidebarView.rowSelectionLabelColor(usesDarkChrome: usesDarkChrome)
         }
         if item.isDirectory {
             // Subfolders read a step lighter than files; hovering darkens the whole row

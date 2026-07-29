@@ -176,6 +176,16 @@ final class EditorTabStore: ObservableObject {
         return tab.id
     }
 
+    /// Swaps a tab's document and file in place, keeping its position, id, and display mode.
+    /// This is what a plain sidebar click does — the window shows the new file in the SAME tab
+    /// rather than accumulating one tab per file browsed. The caller is responsible for having
+    /// resolved the outgoing tab's unsaved work first.
+    func replaceTab(id: UUID, document: LineformDocument, fileURL: URL?) {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        tabs[index].document = document
+        tabs[index].fileURL = fileURL
+    }
+
     func selectTab(id: UUID) {
         guard tabs.contains(where: { $0.id == id }) else { return }
         selectedTabID = id

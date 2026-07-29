@@ -68,6 +68,10 @@ struct EditorContainerView: View {
     /// tab's title for the refusal alert (see `SaveAsConflict`).
     @State private var saveAsConflictTabTitle: String?
     @State private var tabCloseDialog: TabCloseDialog?
+    /// A sidebar click that would replace unsaved work in the current tab, parked until the
+    /// user answers. Holds the destination so the switch can resume after a save.
+    @State private var sidebarSwitchDialog: SidebarSwitchDialog?
+    @State private var saveThenSwitchCoordinator: SaveThenContinueCoordinator?
     /// Coordinates saving a dirty tab before closing it.
     @State private var saveAndCloseCoordinator: SaveAndCloseCoordinator?
     /// Coordinates saving every unsaved tab before closing the whole window ("Save All").
@@ -119,7 +123,9 @@ struct EditorContainerView: View {
                 settings: settings,
                 renameItem: { renameSidebarItem(at: $0.url, isDirectory: $0.isDirectory) },
                 deleteItem: { deleteSidebarItem(at: $0.url) },
-                revealItem: { SidebarFileActionPresenter.showInFinder($0.url) }
+                revealItem: { SidebarFileActionPresenter.showInFinder($0.url) },
+                openFileInNewTab: { url in openSidebarFile(url, intent: .newTab) },
+                openFileInNewWindow: { url in openSidebarFile(url, intent: .newWindow) }
             )
                 .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
                 .navigationSplitViewColumnWidth(
@@ -208,6 +214,29 @@ struct EditorContainerView: View {
             }
         } message: { dialog in
             Text("Do you want to save changes to \u{201C}\(dialog.tabTitle)\u{201D} before closing?")
+        }
+        .alert(
+            "Unsaved Changes",
+            isPresented: Binding(
+                get: { sidebarSwitchDialog != nil },
+                set: { if !$0 { sidebarSwitchDialog = nil } }
+            ),
+            presenting: sidebarSwitchDialog
+        ) { dialog in
+            Button("Save", role: .none) {
+                saveThenSwitch(to: dialog.url, whenOpenedHere: dialog.whenOpenedHere)
+            }
+            .keyboardShortcut(.defaultAction)
+            Button("Cancel", role: .cancel) {
+                sidebarSwitchDialog = nil
+            }
+            Button("Don't Save", role: .destructive) {
+                sidebarSwitchDialog = nil
+                replaceActiveTab(with: dialog.url)
+                dialog.whenOpenedHere()
+            }
+        } message: { dialog in
+            Text("Do you want to save changes to \u{201C}\(dialog.tabTitle)\u{201D} before opening \u{201C}\(dialog.url.lastPathComponent)\u{201D}?")
         }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .preferredColorScheme(theme.usesDarkChrome ? .dark : .light)
@@ -1156,9 +1185,17 @@ struct EditorContainerView: View {
     /// resolves, and the deferred outcome would be silently dropped.
     private func openSidebarFile(
         _ url: URL,
+        intent: SidebarOpenIntent = .replaceCurrent,
         revealAttemptsRemaining: Int = revealRetryBudget,
         whenOpenedHere: @escaping () -> Void = {}
     ) {
+        // "Open in New Window" is the one route that leaves this window entirely: hand the URL
+        // to the document controller and let it mint a window, exactly as File ▸ Open would.
+        // It deliberately skips the dedupe below — asking for a new window is explicit.
+        if intent == .newWindow {
+            LineformSidebarFileOpener.open(url, replacing: nil)
+            return
+        }
         // Already open somewhere? Reveal it instead of opening a second copy. Two windows holding
         // one file means two in-memory snapshots autosaving over each other — the same data loss the
         // Save As guard refuses, reached from the other direction — so dedupe is app-wide, not just
@@ -1201,6 +1238,24 @@ struct EditorContainerView: View {
         case .openHere:
             break
         }
+        // A plain click SWITCHES the current tab (Apple Notes-style) rather than adding one:
+        // browsing a workspace used to leave a tab behind for every file touched. Command-click
+        // and the context menu keep the additive behaviour.
+        if intent == .replaceCurrent, let activeTab = tabStore.selectedTab {
+            if activeTab.hasUnsavedWork(documentSaveStatus: documentSaveStatus) {
+                // The continuation rides along: the file still lands HERE once the user answers,
+                // so a cross-file search result must still clear its results list — just later.
+                sidebarSwitchDialog = SidebarSwitchDialog(
+                    url: url,
+                    tabTitle: activeTab.title,
+                    whenOpenedHere: whenOpenedHere
+                )
+                return
+            }
+            replaceActiveTab(with: url)
+            whenOpenedHere()
+            return
+        }
         do {
             let loadedDocument = try LineformDocument(contentsOf: url)
             let modificationDate = LineformDocument.modificationDate(at: url) ?? Date()
@@ -1214,6 +1269,47 @@ struct EditorContainerView: View {
         } catch {
             // Unreadable file: nothing opened anywhere, so the caller keeps its state.
         }
+    }
+
+    /// Swaps the file showing in the CURRENT tab. Goes through `activateSelectedTab` rather than
+    /// writing `document` directly, so the incoming file gets the same treatment a tab switch
+    /// gives it: the NSDocument is repointed before the text changes (no autosave crossing files),
+    /// transient state is reset, the reload watcher is retargeted, and the window title follows.
+    private func replaceActiveTab(with url: URL) {
+        guard let activeID = tabStore.selectedTabID else { return }
+        do {
+            let loadedDocument = try LineformDocument(contentsOf: url)
+            DocumentSaveStatus.shared.markSaved(
+                documentID: loadedDocument.id,
+                at: LineformDocument.modificationDate(at: url) ?? Date(),
+                text: loadedDocument.text
+            )
+            tabStore.replaceTab(id: activeID, document: loadedDocument, fileURL: url)
+            activateSelectedTab()
+            NSDocumentController.shared.noteNewRecentDocumentURL(url)
+        } catch {
+            // Unreadable file: the current tab keeps its document, unchanged.
+        }
+    }
+
+    /// "Save" from the switch prompt. The save can present a panel (an untitled tab), so the
+    /// switch resumes only in the success callback — a cancelled panel leaves the user where
+    /// they were, with nothing written and nothing swapped.
+    private func saveThenSwitch(to url: URL, whenOpenedHere: @escaping () -> Void) {
+        sidebarSwitchDialog = nil
+        guard let backingDocument = activeWindow?.windowController?.document as? NSDocument else {
+            return
+        }
+        let coordinator = SaveThenContinueCoordinator(
+            document: backingDocument,
+            onSaved: {
+                replaceActiveTab(with: url)
+                whenOpenedHere()
+            },
+            onFinish: { saveThenSwitchCoordinator = nil }
+        )
+        saveThenSwitchCoordinator = coordinator
+        coordinator.start()
     }
 
     /// Hands this window's file back to the window that already had it, then closes this one — the
@@ -2158,6 +2254,24 @@ struct TabCloseDialog: Identifiable {
     let id = UUID()
     let tabID: UUID
     let tabTitle: String
+}
+
+/// Where a sidebar click should put the file. A plain click replaces the current tab's
+/// document; Command-click and the context menu ask for the additive destinations.
+enum SidebarOpenIntent {
+    case replaceCurrent
+    case newTab
+    case newWindow
+}
+
+/// A sidebar switch waiting on the unsaved-changes answer for the tab it would replace.
+/// Carries the caller's "it landed here" continuation, which must still run after the answer —
+/// a cross-file search result clears its results list through it.
+struct SidebarSwitchDialog: Identifiable {
+    let id = UUID()
+    let url: URL
+    let tabTitle: String
+    var whenOpenedHere: () -> Void = {}
 }
 
 /// Re-runs the cross-file search when either scanned root changes. Bundled as a modifier so
