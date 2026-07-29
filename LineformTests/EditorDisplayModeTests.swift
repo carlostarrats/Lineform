@@ -4,6 +4,48 @@ import XCTest
 @testable import Lineform
 
 final class EditorDisplayModeTests: XCTestCase {
+    // MARK: - Sidebar toggle ink
+
+    /// The bug this replaces: `NavigationSplitView`'s automatic sidebar toggle resolves its ink when
+    /// its window is created and never re-resolves, so a window created dark kept a WHITE glyph after
+    /// switching to a light theme (and the mirror case kept black on dark). Owning the item is what
+    /// makes the ink follow the theme, so the ink MUST differ between the two chromes — if these ever
+    /// collapse to one value the glyph is frozen again, in exactly the way that shipped.
+    func testSidebarToggleInkDiffersBetweenChromes() {
+        let dark = NSColor(EditorSidebarToggleButton.inkColor(usesDarkChrome: true))
+            .usingColorSpace(.sRGB)
+        let light = NSColor(EditorSidebarToggleButton.inkColor(usesDarkChrome: false))
+            .usingColorSpace(.sRGB)
+        XCTAssertNotNil(dark)
+        XCTAssertNotNil(light)
+        XCTAssertNotEqual(dark?.redComponent, light?.redComponent)
+        // Dark chrome takes the LIGHT ink and vice versa — a swap here is the glyph disappearing
+        // into the page it is drawn on.
+        XCTAssertGreaterThan(dark?.redComponent ?? 0, light?.redComponent ?? 1)
+    }
+
+    /// `EditorSidebarToggleButton` and `EditorModeSegmentedControl` are two implementations of one
+    /// idea — "toolbar ink for this chrome". They are asserted equal rather than remembered: the
+    /// toggle sits directly beside the Write/Read/Preview control, so any drift reads as one of them
+    /// being the wrong weight of grey.
+    func testSidebarToggleInkMatchesSegmentedControlFill() {
+        for usesDarkChrome in [true, false] {
+            let component = usesDarkChrome
+                ? EditorModeSegmentedControl.darkTextFillRedComponent
+                : EditorModeSegmentedControl.textFillRedComponent
+            // Both sides are built in CALIBRATED RGB, so both are compared after the same
+            // conversion — reading one raw and the other through sRGB compares 0.92 against 0.936.
+            let expected = NSColor(
+                calibratedRed: component, green: component, blue: component, alpha: 1
+            ).usingColorSpace(.sRGB)
+            let ink = NSColor(EditorSidebarToggleButton.inkColor(usesDarkChrome: usesDarkChrome))
+                .usingColorSpace(.sRGB)
+            XCTAssertEqual(ink?.redComponent ?? -1, expected?.redComponent ?? -2, accuracy: 0.001)
+            XCTAssertEqual(ink?.greenComponent ?? -1, expected?.greenComponent ?? -2, accuracy: 0.001)
+            XCTAssertEqual(ink?.blueComponent ?? -1, expected?.blueComponent ?? -2, accuracy: 0.001)
+        }
+    }
+
     func testEditorSearchFindsCaseInsensitiveMatchesInDocumentOrder() {
         let matches = EditorSearchResolver.matches(
             in: "Find this, then find this again.",

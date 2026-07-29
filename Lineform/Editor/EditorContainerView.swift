@@ -128,6 +128,10 @@ struct EditorContainerView: View {
                 openFileInNewWindow: { url in openSidebarFile(url, intent: .newWindow) }
             )
                 .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
+                .modifier(SidebarToggleReplacement(
+                    isShowingSidebar: isShowingOutline,
+                    usesDarkChrome: theme.usesDarkChrome
+                ))
                 .navigationSplitViewColumnWidth(
                     min: OutlineSidebarView.minimumColumnWidth,
                     ideal: OutlineSidebarView.idealColumnWidth,
