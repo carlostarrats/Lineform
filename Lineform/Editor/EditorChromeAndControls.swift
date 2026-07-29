@@ -523,6 +523,90 @@ struct EditorModeCompactMenu: View {
     }
 }
 
+/// Replaces `NavigationSplitView`'s automatic sidebar toggle with a themed one that sits — and
+/// moves — exactly where the native item did.
+///
+/// The native item's ink is resolved when its window is created and NEVER re-resolves, so a window
+/// created under a dark theme keeps a white glyph forever and switching to a light theme leaves
+/// white-on-white. Nothing reachable fixes it in place: an explicit `colorScheme` on the toolbar,
+/// pinning/un-pinning `window.appearance`, dropping the window `backgroundColor` write, dropping
+/// `.toolbarBackground(.hidden)`, and removing + re-inserting the `NSToolbarItem` were each tested
+/// against a reproduction and each left it frozen (patching the toolbar from AppKit does apply, but
+/// SwiftUI rebuilds the toolbar and drops it again within the same runloop).
+///
+/// Layout is load-bearing: AppKit lays the native item out as
+/// `[flexibleSpace, toggle, trackingSeparator]`. The flexible space is what pushes the glyph to the
+/// sidebar's TRAILING edge, and the tracking separator is what keeps it pinned there as the sidebar
+/// resizes or collapses. Declaring the spacer here reproduces BOTH — dropping it moved the glyph to
+/// the traffic lights and stopped it tracking the sidebar.
+///
+/// Scoped to macOS 26, where the freeze occurs and where `ToolbarSpacer` exists; earlier systems
+/// keep the stock item untouched. The `#available` wraps the `.toolbar` APPLICATION rather than
+/// living inside the builder — an `if` inside toolbar content erases the structure SwiftUI uses to
+/// resolve spacer group breaks.
+struct SidebarToggleReplacement: ViewModifier {
+    var isShowingSidebar: Bool
+    var usesDarkChrome: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .toolbar(removing: .sidebarToggle)
+                .toolbar {
+                    ToolbarSpacer(.flexible, placement: .primaryAction)
+                    ToolbarItem(id: EditorSidebarToggleButton.toolbarItemIdentifier, placement: .primaryAction) {
+                        EditorSidebarToggleButton(
+                            isShowingSidebar: isShowingSidebar,
+                            usesDarkChrome: usesDarkChrome
+                        )
+                    }
+                }
+        } else {
+            content
+        }
+    }
+}
+
+/// The sidebar toggle itself: a native-looking glyph whose ink is THREADED from the theme, like
+/// every other control in this window. `SidebarToggleReplacement` (above) explains why the stock
+/// item cannot be used and documents the layout this has to reproduce.
+struct EditorSidebarToggleButton: View {
+    /// Read-only: the button never sets this. Toggling goes through AppKit's own action (below) so
+    /// the sidebar still animates; this only picks the label/help wording.
+    var isShowingSidebar: Bool
+    var usesDarkChrome: Bool
+
+    /// Stable identifier so the item keeps its place in the toolbar across rebuilds.
+    static let toolbarItemIdentifier = "lineform.sidebarToggle"
+
+    var body: some View {
+        Button {
+            // Send AppKit's own `toggleSidebar:` down the responder chain rather than flipping the
+            // binding. Writing the binding directly changes the column visibility with NO animation
+            // — the sidebar snapped open/closed instead of sliding. This is the exact action the
+            // native item performed, so the motion is unchanged. The binding is still read (below)
+            // for the label/help state, and updates as the split view reports its new visibility.
+            NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+        } label: {
+            Image(systemName: "sidebar.left")
+                .foregroundStyle(Self.inkColor(usesDarkChrome: usesDarkChrome))
+        }
+        .help(isShowingSidebar ? "Hide Sidebar" : "Show Sidebar")
+        .accessibilityLabel(isShowingSidebar ? "Hide Sidebar" : "Show Sidebar")
+    }
+
+    /// Matches `EditorModeSegmentedControl`'s text fill so the toggle and the Write/Read/Preview
+    /// control read as the same weight in both chromes.
+    static func inkColor(usesDarkChrome: Bool) -> Color {
+        let component = usesDarkChrome
+            ? EditorModeSegmentedControl.darkTextFillRedComponent
+            : EditorModeSegmentedControl.textFillRedComponent
+        return Color(
+            nsColor: NSColor(calibratedRed: component, green: component, blue: component, alpha: 1)
+        )
+    }
+}
+
 struct EditorModeSegmentedControl: View {
     struct LiquidBridge: Equatable {
         var from: EditorDisplayMode
