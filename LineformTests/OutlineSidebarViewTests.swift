@@ -367,11 +367,81 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testSelectedFileRowUsesSoftTranslucentAccentTint() {
-        // A translucent tint (native source-list selection), never a solid fill, and clearly
-        // stronger than the hover feedback so the current file reads as selected.
+    func testQuickOpenSelectionTintStaysSofterThanASolidFill() {
+        // This constant no longer drives the Files tree (that takes the system grey) — it is the
+        // ⌘K palette's accent tint. Still a translucent tint, never a solid fill, and clearly
+        // stronger than the hover feedback so the selected row reads as selected.
         XCTAssertGreaterThan(OutlineSidebarView.rowSelectionFillOpacity, OutlineSidebarView.rowHoverFillOpacity)
         XCTAssertLessThan(OutlineSidebarView.rowSelectionFillOpacity, 0.4)
+    }
+
+    @MainActor
+    func testSelectedFileRowFillIsThemeThreadedNotAmbient() {
+        // `unemphasizedSelectedContentBackgroundColor` is a DYNAMIC color: read outside an
+        // explicit appearance it follows the system light/dark, so a dark-chrome sidebar under a
+        // light system would paint the light-mode grey. Resolving per `usesDarkChrome` is what
+        // keeps the sidebar's own theme authoritative — the same rule every other ink here obeys.
+        let dark = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: true)
+        let light = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: false)
+        XCTAssertNotEqual(dark, light)
+        // The dark chrome's selection must be the DARKER of the two, whatever the system is doing.
+        XCTAssertLessThan(
+            dark.usingColorSpace(.sRGB)!.brightnessComponent,
+            light.usingColorSpace(.sRGB)!.brightnessComponent
+        )
+    }
+
+    @MainActor
+    func testSelectedFileRowLabelMeetsAAAgainstItsOwnFill() {
+        // The pairing this replaced — accent label over a 15% accent fill — measured 2.43:1 on
+        // dark chrome and 3.24:1 on light, both below AA, which is what made a selected file hard
+        // to read. Assert the replacement against the SAME definition production uses.
+        for usesDarkChrome in [true, false] {
+            let fill = OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: usesDarkChrome)
+            let ink = NSColor(
+                calibratedWhite: usesDarkChrome
+                    ? OutlineSidebarView.darkPrimaryTextWhiteComponent
+                    : OutlineSidebarView.primaryTextWhiteComponent,
+                alpha: 1
+            )
+            let ratio = Theme.contrastRatio(ink, fill)
+            XCTAssertGreaterThanOrEqual(
+                ratio, 4.5,
+                "Selected file label is \(ratio):1 on its fill (usesDarkChrome: \(usesDarkChrome))"
+            )
+        }
+    }
+
+    func testWorkspacePathAbbreviationOnlyMatchesHomeOnAComponentBoundary() {
+        // A bare `hasPrefix` turns /Users/carlostarrats/x under a home of /Users/carlos into
+        // "~tarrats/x" — a path that never existed, in the one line whose job is to name the
+        // real folder unambiguously.
+        XCTAssertEqual(
+            OutlineSidebarView.abbreviatedWorkspacePath("/Users/carlostarrats/Desktop/a", homeDirectory: "/Users/carlos"),
+            "/Users/carlostarrats/Desktop/a"
+        )
+        XCTAssertEqual(
+            OutlineSidebarView.abbreviatedWorkspacePath("/Users/carlos/Desktop/a", homeDirectory: "/Users/carlos"),
+            "~/Desktop/a"
+        )
+        XCTAssertEqual(
+            OutlineSidebarView.abbreviatedWorkspacePath("/Users/carlos", homeDirectory: "/Users/carlos"),
+            "~"
+        )
+        XCTAssertEqual(
+            OutlineSidebarView.abbreviatedWorkspacePath("/Volumes/Drafts", homeDirectory: "/Users/carlos"),
+            "/Volumes/Drafts"
+        )
+    }
+
+    func testWorkspacePathAbbreviationClipsFromTheLeftSoTheTailSurvives() {
+        // The tail is the whole point: `Test Folder` vs `Test Folder/Test Folder` differ only at
+        // the end, so a right-side truncation would hide exactly the distinguishing part.
+        let path = "/Users/carlos/" + String(repeating: "deep/", count: 20) + "Test Folder/Test Folder"
+        let shown = OutlineSidebarView.abbreviatedWorkspacePath(path, homeDirectory: "/Users/carlos", limit: 30)
+        XCTAssertTrue(shown.hasSuffix("Test Folder/Test Folder"), shown)
+        XCTAssertTrue(shown.hasPrefix("…"), shown)
+        XCTAssertEqual(shown.count, 31)
     }
 
     @MainActor

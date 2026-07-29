@@ -107,8 +107,9 @@ struct OutlineSidebarView: View {
     static let darkSecondaryTextWhiteComponent: CGFloat = 0.68
     static let rowsShowHoverFeedback = true
     static let rowHoverFillOpacity = 0.08
-    // Soft translucent accent tint for the selected (currently-shown) file row — the native
-    // macOS source-list selection look, paired with accent-colored label/icon.
+    // Soft translucent accent tint for a selected row. The Files tree does NOT use this — it
+    // takes the system unemphasized grey (see `rowSelectionFillColor`). Retained for the ⌘K
+    // quick-open palette, which is a transient accent-tinted list, not a source list.
     static let rowSelectionFillOpacity = 0.15
     static let tabTitles = OutlineSidebarTab.allCases.map(\.rawValue)
     static let tabsFillAvailableWidth = true
@@ -591,6 +592,58 @@ struct OutlineSidebarView: View {
         ))
     }
 
+    /// The selected file row's fill: AppKit's unemphasized source-list selection grey — the same
+    /// swatch Finder and Notes draw. Resolved against the sidebar's OWN themed appearance, never
+    /// the ambient one: a dynamic `NSColor` read outside `performAsCurrentDrawingAppearance` picks
+    /// up the system light/dark, which is the `usesDarkChrome` threading rule stated for every
+    /// other colour in this file. Deliberately grey rather than accent-tinted — accent fill under
+    /// an accent label is what made the row hard to read on the dark themes.
+    /// Resolved ONCE per appearance rather than per call: this is read from `rowBackgroundStyle`,
+    /// which SwiftUI re-evaluates on every body pass of every visible row, and each miss would
+    /// allocate an `NSAppearance` and re-resolve a dynamic colour on the main thread.
+    static func rowSelectionFillNSColor(usesDarkChrome: Bool) -> NSColor {
+        if let cached = cachedRowSelectionFill[usesDarkChrome] { return cached }
+        var resolved = NSColor.unemphasizedSelectedContentBackgroundColor
+        NSAppearance(named: tabAppearanceName(usesDarkChrome: usesDarkChrome))?
+            .performAsCurrentDrawingAppearance {
+                resolved = NSColor.unemphasizedSelectedContentBackgroundColor
+                    .usingColorSpace(.sRGB) ?? resolved
+            }
+        cachedRowSelectionFill[usesDarkChrome] = resolved
+        return resolved
+    }
+
+    static func rowSelectionFillColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: rowSelectionFillNSColor(usesDarkChrome: usesDarkChrome))
+    }
+
+    /// Main-thread only (SwiftUI body evaluation and the tests that mirror it), which is what
+    /// makes this unsynchronised dictionary safe.
+    @MainActor private static var cachedRowSelectionFill: [Bool: NSColor] = [:]
+
+    /// `~`-relative, and clipped from the LEFT when long so the tail — the part that actually
+    /// distinguishes `Test Folder` from `Test Folder/Test Folder` — always survives.
+    /// Static so it is unit-testable without building a view.
+    static func abbreviatedWorkspacePath(
+        _ path: String,
+        homeDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
+        limit: Int = 44
+    ) -> String {
+        // Match the home directory only on a COMPONENT boundary. A bare `hasPrefix` abbreviates
+        // `/Users/carlostarrats/x` against a home of `/Users/carlos` into `~tarrats/x` — a path
+        // that never existed, in the one message whose whole job is to name the real folder.
+        var display = path
+        if path == homeDirectory {
+            display = "~"
+        } else if path.hasPrefix(homeDirectory + "/") {
+            display = "~" + path.dropFirst(homeDirectory.count)
+        }
+        if display.count > limit {
+            display = "…" + display.suffix(limit)
+        }
+        return display
+    }
+
     // MARK: - Unified leading geometry
 
     /// The single icon column every section aligns to (icon left edge, measured from the
@@ -1002,7 +1055,9 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// deferred first scan has run (so watching can never resolve the container itself).
     private var resolvedICloudDocumentsURL: URL?
     private var lastICloudItems: [OutlineFileTreeItem] = []
-    private var workspaceURL: URL?
+    /// Readable so the sidebar can show WHICH folder it is scanning; writes stay internal to the
+    /// store because every one of them must also retarget the FSEvents watcher.
+    private(set) var workspaceURL: URL?
     private var lastWorkspaceItems: [OutlineFileTreeItem] = []
     /// The workspace URL whose security scope is currently held (nil when none is active).
     /// Held for the store's lifetime so every read under the workspace — opening a document
@@ -1811,6 +1866,13 @@ private struct OutlineFileBrowserView: View {
         )
     }
 
+    /// The real folder a root is scanning, for the disambiguating path shown on the row and in
+    /// the empty state. Only the workspace root has a user-chosen (and therefore ambiguous)
+    /// location; the iCloud root is a fixed app container, so it has nothing to disambiguate.
+    private func rootPath(for root: OutlineFileRoot) -> URL? {
+        root.id == "workspace" ? store.workspaceURL : nil
+    }
+
     @ViewBuilder
     private func rootView(_ root: OutlineFileRoot) -> some View {
         // Whether root collapsing is allowed only decides if a chevron is drawn; the chevron
@@ -1828,6 +1890,13 @@ private struct OutlineFileBrowserView: View {
                 chooseWorkspaceFolder: store.chooseWorkspaceFolder
             )
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The row prints only the folder's LAST path component, so two folders of the same
+            // name — including a folder nested inside its own namesake — are indistinguishable.
+            // NSOpenPanel's `url` is the SELECTED row, not the directory on screen, so expanding
+            // a subfolder's disclosure triangle and pressing Choose silently targets that
+            // subfolder. Surface the full path so the sidebar can't misrepresent which folder is
+            // actually the workspace.
+            .help(rootPath(for: root).map { "Workspace: \($0.path)" } ?? root.title)
 
             // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
             // expandable tree, no empty-state line — just the quiet header.
@@ -1837,11 +1906,28 @@ private struct OutlineFileBrowserView: View {
                     // disconnected folder's emptiness just means the cached snapshot is empty — the
                     // header's disconnected icon already signals that, so don't claim it's empty.
                     if root.state == .available {
-                        Text("No Markdown files")
-                            .font(.system(size: 12))
-                            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                            .padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)
-                            .padding(.vertical, 4)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("No Markdown files")
+                            // "No Markdown files" under a name that matches the folder the user
+                            // believes they picked reads as a scan failure. Naming the scanned
+                            // path is the only thing that distinguishes "this folder is empty"
+                            // from "you are looking at a different folder than you think".
+                            if let path = rootPath(for: root)?.path {
+                                Text(OutlineSidebarView.abbreviatedWorkspacePath(path))
+                                    .font(.system(size: 11))
+                                    .textSelection(.enabled)
+                                    .help(path)
+                                    // The visible string is elided from the left; announcing
+                                    // "…older/Test Folder" would strand a VoiceOver user with
+                                    // exactly the ambiguity this line exists to resolve.
+                                    .accessibilityLabel("Scanned folder: \(path)")
+                            }
+                        }
+                        .font(.system(size: 12))
+                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                        .padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)
+                        .padding(.trailing, 8)
+                        .padding(.vertical, 4)
                     }
                 } else {
                     // Render the tree from a FLATTENED list of visible rows in a LazyVStack, so a
@@ -2227,14 +2313,14 @@ private struct OutlineFileTreeNodeView: View {
         }
     }
 
-    /// The row fill: the modern macOS sidebar selection — a soft, translucent accent tint on the
+    /// The row fill: the macOS sidebar selection — the system unemphasized selection grey on the
     /// currently-shown file (like Finder/Notes source lists), a fainter text-colored tint on hover
     /// otherwise. Selection wins over hover. Folders take NO fill — they convey hover by darkening
     /// their text/icon instead (they're collapse targets, not openable rows), leaving the settled
     /// `.md` file look untouched.
     private var rowBackgroundStyle: Color {
         if isSelected {
-            return Color.accentColor.opacity(OutlineSidebarView.rowSelectionFillOpacity)
+            return OutlineSidebarView.rowSelectionFillColor(usesDarkChrome: usesDarkChrome)
         }
         if item.isDirectory {
             return Color.clear
@@ -2245,8 +2331,10 @@ private struct OutlineFileTreeNodeView: View {
 
     private var rowForegroundColor: Color {
         if isSelected {
-            // Accent-colored label + icon over the soft tint, matching the native sidebar look.
-            return Color.accentColor
+            // Primary label + icon over the grey fill, matching the native source-list selection.
+            // AppKit never pairs the unemphasized grey with an accent-coloured label, and primary
+            // is what keeps the row legible on the dark themes.
+            return OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
         }
         if item.isDirectory {
             // Subfolders read a step lighter than files; hovering darkens the whole row
