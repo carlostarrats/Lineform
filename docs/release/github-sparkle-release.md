@@ -78,7 +78,7 @@ https://lineform-site.vercel.app
 The public direct-download URL used by the website and README is:
 
 ```text
-https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.4.0.dmg
+https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.5.0.dmg
 ```
 
 ## Sparkle Keys
@@ -167,7 +167,7 @@ That DMG is suitable for manual download testing, but **Check for Updates...** w
 Write the release notes (shown in the in-app updater's "What's New" pane):
 
 Copy `docs/release-notes/TEMPLATE.html` to `docs/release-notes/Lineform-<version>.html`
-— the name **must** match the DMG (`Lineform-1.4.0.dmg` → `Lineform-1.4.0.html`) — and write
+— the name **must** match the DMG (`Lineform-1.5.0.dmg` → `Lineform-1.5.0.html`) — and write
 a few **user-facing** highlights: what a person notices and benefits from, most useful first,
 in plain language. It is not a changelog — skip internal refactors, renamed files, tests, and
 docs. A small fix release can be a single honest line. Commit the file so notes are versioned
@@ -183,7 +183,7 @@ deltas) do not need notes.
 Generate the appcast after the signed DMG **and** the release-notes file exist:
 
 ```sh
-DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.4.0" \
+DOWNLOAD_URL_PREFIX="https://github.com/carlostarrats/Lineform/releases/download/v1.5.0" \
   packaging/generate-appcast.sh dist
 ```
 
@@ -252,7 +252,7 @@ will not be publicly released.
 After building a Developer ID-signed DMG, notarize and staple it:
 
 ```bash
-packaging/notarize-dmg.sh dist/Lineform-1.4.0.dmg
+packaging/notarize-dmg.sh dist/Lineform-1.5.0.dmg
 ```
 
 ## DMG
@@ -284,7 +284,7 @@ download and the marketing site then resolve to a stale DMG, because anything
 that just picks "a `.dmg` on the latest release" can land on the wrong one.
 
 ```sh
-VERSION="1.4.0"
+VERSION="1.5.0"
 gh release upload "v${VERSION}" \
   "dist/Lineform-${VERSION}.dmg" \
   dist/Lineform*-*.delta \

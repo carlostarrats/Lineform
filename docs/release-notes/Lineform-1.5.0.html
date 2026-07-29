@@ -1,0 +1,18 @@
+<style>
+  :root { color-scheme: light dark; }
+  body { font: -apple-system-body, system-ui, sans-serif; line-height: 1.5; margin: 0; }
+  h2 { font-size: 1.05rem; margin: 0 0 0.5em; }
+  ul { margin: 0; padding-left: 1.2em; }
+  li { margin: 0.35em 0; }
+  strong { font-weight: 600; }
+</style>
+
+<h2>What's New in Lineform 1.5.0</h2>
+<p>A pass over the Files sidebar and the window chrome around it — browsing a workspace no longer piles up tabs, and the sidebar reads clearly on every theme.</p>
+<ul>
+  <li><strong>Clicking a file switches the tab you're in.</strong> Browsing a folder used to leave one tab behind per file you touched. A plain click now opens the file in the current tab, the way Notes and Finder behave. Command-click, or the row's context menu, still opens a new tab or a new window when you want one. Quick open and cross-file search results follow the same rule. If the tab you're leaving holds unsaved work, Lineform asks first.</li>
+  <li><strong>The selected file is legible again.</strong> The current file's row was drawn as accent-on-accent, which fell below readable contrast and was hard to pick out on the darker themes. It now uses the same source-list selection Finder and Notes draw, tuned separately for light and dark chrome so the row sits under the navigation rather than glowing above it.</li>
+  <li><strong>The sidebar button shows the right color.</strong> On macOS 26 the show/hide-sidebar glyph resolved its color once, when its window was created, and never again — so a window opened under a dark theme kept a white glyph after switching to a light one, and the reverse. Both long-standing reports of "the sidebar icon is invisible" were this. It now follows the theme, and still slides the sidebar open with the usual animation.</li>
+  <li><strong>The sidebar says which folder it is showing.</strong> Hovering the root row shows its full path, and an empty folder names the folder it scanned — so a folder nested inside one of the same name is no longer indistinguishable from its parent, and "No Markdown files" on a genuinely empty folder no longer reads as a failed scan.</li>
+  <li><strong>Smaller things:</strong> every row in the sidebar's context menu now carries an icon, the new open-in-new-tab and open-in-new-window actions are reachable from VoiceOver, and the tree's spacing is a little tighter.</li>
+</ul>
