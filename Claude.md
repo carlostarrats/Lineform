@@ -42,6 +42,7 @@ Core product principles:
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
+- In-app announcements: a once-a-day read of a small static JSON file on the marketing site surfaces at most one dismissible card in the editor. No account, no identifier, no server. The Settings toggle (default on) gates the network request itself, not just the display.
 - Local release/help resources bundled in the app.
 - SF Symbol icons on every main-menu row, matching Apple's iconed menus on macOS 26.
 
@@ -93,6 +94,7 @@ file named after it carries the full story and the reasoning.
 **Privacy** (`rendering.md`, `app-integration.md`)
 - Remote `http(s)`/`data:` image URLs are NEVER fetched — always a placeholder. The app's network-free invariant is a product promise, not an optimization.
 - Spell checking routes through the system `NSSpellChecker` and nothing else — no bundled dictionary, no third-party service, no network-backed suggestions.
+- The announcements setting gates the REQUEST, not the display: `AnnouncementStore.checkIfNeeded(isEnabled:)` must return before the fetcher is touched, so "off" means no outbound call at all. The feed is remote input and is treated as hostile — single-scheme (`https`) allowlist for links, control characters and over-length strings REJECTED rather than stripped, byte ceiling enforced as bytes arrive (never from `expectedContentLength`), and title/body rendered as plain `Text`, never Markdown or HTML. Dismissed ids are never pruned against the live feed, or an announcement the user dismissed eventually comes back.
 
 **Accessibility** (`app-integration.md`)
 - Every reader ink goes through `Theme.readableInk` (AA against the page). The two that did not were the two that were never theme-derived: link/image text used the system `NSColor.linkColor` (3.70:1 on Quiet) and the diagram/math fallback caption used a flat 0.6 alpha (below AA on four of five themes, at a size SMALLER than body text). `Theme.contrastRatio` is the one definition, in production, so a test cannot assert a rule the app does not use.

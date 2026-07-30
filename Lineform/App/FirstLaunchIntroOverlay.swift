@@ -77,6 +77,14 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
         ManualSaveIntentMonitor.installIfNeeded()
         MainMenuIconDecorator.installIfNeeded()
         MainMenuIconDecorator.dumpMainMenuIfRequested()
+        // Announcement check: off the main thread, gated by the user's setting, and at
+        // most once a day. Detached from launch on purpose — nothing about it blocks a
+        // window appearing, and a slow or hung network must never delay the first frame.
+        Task {
+            await AnnouncementStore.shared.checkIfNeeded(
+                isEnabled: LineformSettingsStore.shared.checksForAnnouncements
+            )
+        }
         // Piped-file housekeeping runs in the unsandboxed `lineform` helper (the sandboxed app
         // cannot enumerate the helper's real Application Support directory).
     }
