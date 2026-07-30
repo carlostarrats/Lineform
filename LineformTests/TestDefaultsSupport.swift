@@ -6,22 +6,53 @@ import Foundation
 /// backing `.plist` on disk. Most suites here are named with a fresh `UUID` per test for order
 /// independence, so every run left one more file behind — permanently.
 ///
-/// That is invisible until it isn't. By 2026-07-29 the Debug host's container Preferences
-/// directory held **7,694 plists / 30 MB**, and because `cfprefsd`'s per-operation cost scales
-/// with that directory, the default 1,256-test plan had slowed from ~7s to **480s** of test time.
-/// Nothing looked wrong: every individual test still reported single-digit milliseconds, every
-/// suite reported well under a second, and the plan stayed green the whole way. Deleting the
-/// leaked files took the same plan back to **12.4s** — a 39× swing with no code change.
+/// Nothing surfaces it: the suite is empty, the tests pass, and the only symptom is a directory
+/// that grows forever. By 2026-07-29 the Debug host's container Preferences directory held
+/// **7,694 plists / 30 MB**, accumulated since June.
 ///
-/// So: destroying a suite means removing the domain, unregistering it, AND deleting the file.
-/// Removing only the domain is what caused this.
+/// **This is hygiene, not performance.** It was found while chasing a 7s → 480s swing in the same
+/// 1,256-test plan, and deleting the files appeared to fix that — the plan ran in 12.4s straight
+/// afterwards. That was a coincidence: an unchanged re-run right after a 395s run took 4.7s, and a
+/// run forced through a recompile took 4.7s too. Steady state is ~5-8s. Do not cite this file as
+/// the cause of a slow suite.
+///
+/// Destroying a suite therefore means removing the domain AND deleting the file — and deleting it
+/// twice, because `cfprefsd` writes the emptied domain back after the first delete (see `destroy`).
 enum TestDefaults {
     /// Tear down `defaults` completely: values, registration, and the backing plist.
     static func destroy(_ defaults: UserDefaults, suiteName: String) {
         defaults.removePersistentDomain(forName: suiteName)
-        // Drop the suite from the search list too, so a later `UserDefaults.standard` read in the
-        // same process can't still see it.
-        UserDefaults.standard.removeSuite(named: suiteName)
+        remove(suiteName)
+        // Deleting here is not enough on its own: the `UserDefaults` object outlives this call and
+        // `cfprefsd` writes the (now empty) domain back to disk afterwards, so the file reappears
+        // as a 42-byte `{}`. Measured: growth fell from ~2,000 files per run to ~40, not to zero.
+        // The exit sweep below is what actually finishes the job, once every suite object is gone.
+        record(suiteName)
+    }
+
+    // MARK: - Exit sweep
+
+    // `nonisolated(unsafe)` because access is serialised by `lock` — the compiler cannot see that.
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var destroyedSuiteNames: Set<String> = []
+    nonisolated(unsafe) private static var sweepInstalled = false
+
+    /// Remember a suite so it can be deleted again at process exit, and install the one-time
+    /// `atexit` hook. Only names this type actually destroyed are ever removed — no pattern
+    /// matching against the Preferences directory, so nothing else can be caught by it.
+    private static func record(_ suiteName: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        destroyedSuiteNames.insert(suiteName)
+        guard !sweepInstalled else { return }
+        sweepInstalled = true
+        atexit {
+            // No lock: by the time atexit handlers run the test bundle is single-threaded.
+            for name in TestDefaults.destroyedSuiteNames { TestDefaults.remove(name) }
+        }
+    }
+
+    private static func remove(_ suiteName: String) {
         for directory in preferenceDirectories {
             try? FileManager.default.removeItem(
                 at: directory.appendingPathComponent("\(suiteName).plist")
