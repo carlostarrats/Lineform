@@ -423,7 +423,7 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         )
         let defaultsName = "LineformEditorDrawerHarness-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
-        defaults.removePersistentDomain(forName: defaultsName)
+        TestDefaults.destroy(defaults, suiteName: defaultsName)
         let readingProfileStore = ReadingProfileStore(defaults: defaults)
         readingProfileStore.apply(profile)
         // Inject a file-browser store on the same isolated defaults suite with no iCloud, so the

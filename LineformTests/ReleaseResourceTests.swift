@@ -129,7 +129,7 @@ final class ReleaseResourceTests: XCTestCase {
     func testFirstPublicReleaseMigrationClearsLegacyTestingState() {
         let suiteName = "LineformFirstPublicReleaseMigrationTests"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        TestDefaults.destroy(defaults, suiteName: suiteName)
         defaults.set(true, forKey: LineformLaunchDefaults.legacyFirstLaunchIntroCompletedKey)
         defaults.set(Data([0x01]), forKey: "Lineform.outline.workspaceBookmark")
         defaults.set(Data([0x02]), forKey: "Lineform.outline.workspaceSnapshot")
@@ -151,7 +151,7 @@ final class ReleaseResourceTests: XCTestCase {
     func testFirstPublicReleaseMigrationIsIdempotentAfterMarkerIsSet() {
         let suiteName = "LineformFirstPublicReleaseMigrationIdempotentTests"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        TestDefaults.destroy(defaults, suiteName: suiteName)
         defaults.set(true, forKey: LineformLaunchDefaults.firstPublicReleaseDefaultsInitializedKey)
         defaults.set(Data([0x01]), forKey: "Lineform.outline.workspaceBookmark")
         var recentDocumentsClearCount = 0
@@ -169,7 +169,7 @@ final class ReleaseResourceTests: XCTestCase {
     func testFirstLaunchIntroCompletionIgnoresLegacyDebugKey() {
         let suiteName = "LineformFirstLaunchIntroCompletionTests"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        TestDefaults.destroy(defaults, suiteName: suiteName)
         defaults.set(true, forKey: LineformLaunchDefaults.legacyFirstLaunchIntroCompletedKey)
 
         XCTAssertFalse(LineformLaunchDefaults.hasCompletedFirstLaunchIntro(defaults: defaults))

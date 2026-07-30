@@ -5,7 +5,7 @@ import XCTest
 final class LineformSettingsTests: XCTestCase {
     private func freshDefaults(_ name: String) -> UserDefaults {
         let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
+        TestDefaults.destroy(defaults, suiteName: name)
         return defaults
     }
 
