@@ -4,16 +4,9 @@ Lineform's repository root is this `Lineform` app folder, not the parent `Linefo
 
 ## Before publishing — decide on the diagram-report backend (optional)
 
-The Mermaid "Report this" feature (agent-reader unit 5) is code-complete but its live backend is
-not wired; it fails safe until then ("Couldn't send. Saved locally."). Before a public release,
-either **finish go-live** or **leave it as a safe no-op**:
-
-- To go live: register a workers.dev subdomain (Cloudflare dashboard); create the private
-  `carlostarrats/lineform-reports` repo + a fine-grained GitHub PAT (Issues read/write); set
-  `DiagramReportService.endpoint` to `https://lineform-diagram-report.<subdomain>.workers.dev`;
-  `cd worker && wrangler secret put GITHUB_TOKEN && wrangler deploy`; verify end-to-end.
-- To ship without it: no action needed (it stays a graceful no-op), or hide the "Report this"
-  affordance in `MarkdownPreviewRenderer.appendMermaidFallback`.
+The Mermaid "Report this" feature was REMOVED on 2026-07-29 (it was the only thing in the app
+that sent document content off the device). Its Cloudflare Worker and the private
+`lineform-reports` repo are now unused, and no release step touches either.
 
 See `docs/superpowers/specs/2026-07-01-diagram-report-design.md`. This step is on branch
 `diagram-report-golive`.

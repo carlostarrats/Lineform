@@ -43,15 +43,7 @@ in this area.
   match MORE than a browser would, the same over-broad-and-safe trade `reformat` makes with
   backticks. Guarded by `MarkdownRobustnessTests`, which pins the pass-through cases too.
 
-- **Export and print suppress the diagram "Report this" affordance (2026-07-26).** `render(…)` takes
-  `offersDiagramReporting`, false from `DocumentExportRenderer` on both the Styled and RTF paths. The
-  link is only actionable inside the app, where `MarkdownPreviewTextView.clickedOnLink` resolves the
-  `lineform-report:` URL against the live `DiagramReportRegistry`; the Styled PDF/Print path uses a
-  REAL `MermaidImageProvider`, so before this a diagram that failed to render embedded a dead
-  hyperlink into the exported file whose tooltip offered to send the diagram source to the developer
-  — in a document the user shares or prints. The captioned-source fallback still renders; only the
-  link is dropped. Guarded by `testExportSuppressesTheReportThisAffordance`, which also asserts that
-  NO `.link` attribute of any kind survives into an exported document.
+- **The diagram "Report this" affordance is gone entirely (removed 2026-07-29).** Export and print used to suppress it via an `offersDiagramReporting` flag, because a shared or printed PDF must not carry a dead `lineform-report:` hyperlink whose tooltip offered to send the diagram source to the developer. The whole feature was removed, so the flag went with it and no path can emit such a link. The captioned-source fallback still renders everywhere.
 
 ## Print paper, inline math, and escapes (audited 2026-07-27)
 

@@ -17,7 +17,6 @@ final class MarkdownPreviewRendererHeadingScaleTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0",
             headingScale: scale
         )
@@ -43,7 +42,6 @@ final class MarkdownPreviewRendererHeadingScaleTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0",
             headingScale: 1.5
         )

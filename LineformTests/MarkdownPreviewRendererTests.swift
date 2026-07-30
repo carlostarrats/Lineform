@@ -706,7 +706,6 @@ final class MarkdownPreviewRendererBackgroundTests: XCTestCase {
             mermaidProvider: provider,
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         )
     }
@@ -719,7 +718,6 @@ final class MarkdownPreviewRendererBackgroundTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: provider,
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         )
     }
@@ -781,7 +779,6 @@ final class MarkdownPreviewRendererMathTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: FakeMathProvider(math),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         )
     }
@@ -896,7 +893,6 @@ extension MarkdownPreviewRendererTests {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0",
             highlightsCode: highlightsCode
         )
@@ -1103,7 +1099,6 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0",
             documentDirectory: documentDirectory,
             imageProvider: imageProvider
@@ -1118,7 +1113,6 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: MathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0"
             // imagesAsText omitted → defaults to false
         )
@@ -1137,7 +1131,6 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: MathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0",
             imagesAsText: true
         )
@@ -1158,7 +1151,6 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
             mermaidProvider: MermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0",
             imagesAsText: true
         )
@@ -1169,7 +1161,6 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
         XCTAssertEqual(attachmentCount, 0, "imagesAsText:true must not emit mermaid image attachments")
         XCTAssertTrue(rendered.string.contains("Mermaid diagram (source)"))
         XCTAssertTrue(rendered.string.contains("flowchart TD"))
-        XCTAssertFalse(rendered.string.contains("Report this"), "no report affordance in export text mode")
     }
 
     func testImagesAsTextSubstitutesInlineMathAsSourceText() {
@@ -1180,7 +1171,6 @@ final class MarkdownPreviewRendererImageTests: XCTestCase {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: MathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0",
             imagesAsText: true
         )

@@ -104,7 +104,6 @@ final class MermaidRenderingTests: XCTestCase {
             mermaidProvider: FakeProvider(.failed("boom")),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: log,
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         ).string
         XCTAssertTrue(output.contains("Mermaid diagram (source)"))
@@ -125,7 +124,6 @@ final class MermaidRenderingTests: XCTestCase {
             mermaidProvider: FakeProvider(.image(image)),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: FakeLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         )
 
@@ -141,74 +139,30 @@ final class MermaidRenderingTests: XCTestCase {
         XCTAssertEqual(diagram.accessibilityDescription, "Mermaid diagram. \(source)")
     }
 
-    /// "Report this" is only actionable INSIDE the app, where `clickedOnLink` resolves the
-    /// `lineform-report:` URL against the live registry. Export and print therefore suppress it:
-    /// a shared or printed PDF must not carry a dead link whose tooltip offers to send the
-    /// diagram source to the developer. The captioned source fallback still renders.
+    /// A failed diagram renders the captioned source and NOTHING that offers to send it. Diagram
+    /// reporting was removed 2026-07-29 so that no part of Lineform transmits document content —
+    /// this guards the removal, on screen and in exported output alike.
     @MainActor
-    func testExportSuppressesTheReportThisAffordance() {
+    func testFailedDiagramOffersNoWayToSendTheSource() {
         let text = "```mermaid\ngraph TD; A-->B\n```"
-        let onScreen = MarkdownPreviewRenderer().render(
-            text,
-            profile: .original,
-            columnWidth: 600,
-            mermaidProvider: FakeProvider(.failed("boom")),
-            mathProvider: DisabledMathImageProvider(),
-            diagramLog: FakeLog(),
-            reportRegistry: DiagramReportRegistry(),
-            appVersion: "1.0"
-        )
-        XCTAssertTrue(onScreen.string.contains("Report this"), "on screen the affordance stays")
-
-        let exported = MarkdownPreviewRenderer().render(
-            text,
-            profile: .original,
-            columnWidth: 600,
-            mermaidProvider: FakeProvider(.failed("boom")),
-            mathProvider: DisabledMathImageProvider(),
-            diagramLog: FakeLog(),
-            reportRegistry: DiagramReportRegistry(),
-            appVersion: "1.0",
-            offersDiagramReporting: false
-        )
-        XCTAssertFalse(exported.string.contains("Report this"), "an exported file must not offer it")
-        XCTAssertTrue(exported.string.contains("Mermaid diagram (source)"), "the fallback still renders")
-        let full = NSRange(location: 0, length: exported.length)
-        var foundLink = false
-        exported.enumerateAttribute(.link, in: full) { value, _, _ in if value != nil { foundLink = true } }
-        XCTAssertFalse(foundLink, "no lineform-report: link may reach an exported document")
-    }
-
-    // The "Report this" affordance is a `.link` inside the selectable read view, so it is already
-    // reachable (VoiceOver reads it as a link; Full Keyboard Access can focus it). It must also
-    // carry a `.toolTip` explaining what the terse "Report this" does — shown on hover, and bridged
-    // to assistive tech as help where the text system supports it.
-    @MainActor
-    func testReportThisLinkCarriesLinkAndAccessibilityToolTip() throws {
-        let rendered = MarkdownPreviewRenderer().render(
-            "```mermaid\ngraph TD; A-->B\n```",
-            profile: .original,
-            columnWidth: 600,
-            mermaidProvider: FakeProvider(.failed("boom")),
-            mathProvider: DisabledMathImageProvider(),
-            diagramLog: FakeLog(),
-            reportRegistry: DiagramReportRegistry(),
-            appVersion: "1.0"
-        )
-
-        let reportRange = (rendered.string as NSString).range(of: "Report this")
-        XCTAssertNotEqual(reportRange.location, NSNotFound, "failed render must emit the Report this link")
-
-        XCTAssertNotNil(
-            rendered.attribute(.link, at: reportRange.location, effectiveRange: nil),
-            "Report this must be a link so it is activatable and in the accessibility tree"
-        )
-        let toolTip = rendered.attribute(.toolTip, at: reportRange.location, effectiveRange: nil) as? String
-        XCTAssertEqual(
-            toolTip,
-            "Send the diagram source and error to the developer to improve rendering.",
-            "Report this must carry a tooltip that VoiceOver surfaces as the link's help text"
-        )
+        for label in ["on screen", "exported"] {
+            let rendered = MarkdownPreviewRenderer().render(
+                text,
+                profile: .original,
+                columnWidth: 600,
+                mermaidProvider: FakeProvider(.failed("boom")),
+                mathProvider: DisabledMathImageProvider(),
+                diagramLog: FakeLog(),
+                appVersion: "1.0"
+            )
+            XCTAssertTrue(rendered.string.contains("Mermaid diagram (source)"), "\(label): fallback still renders")
+            XCTAssertFalse(rendered.string.contains("Report this"), "\(label): no report affordance")
+            var foundLink = false
+            rendered.enumerateAttribute(.link, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+                if value != nil { foundLink = true }
+            }
+            XCTAssertFalse(foundLink, "\(label): no link may reach a failed-diagram fallback")
+        }
     }
 
     @MainActor
@@ -222,7 +176,6 @@ final class MermaidRenderingTests: XCTestCase {
             mermaidProvider: FakeProvider(.skipped),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: log,
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "1.0"
         ).string
         XCTAssertTrue(output.contains("Mermaid diagram (source)"))
@@ -248,9 +201,8 @@ final class MermaidRenderingTests: XCTestCase {
     }
 
     @MainActor
-    func testUnsupportedMermaidFallsBackWithoutLoggingOrReport() {
+    func testUnsupportedMermaidFallsBackWithoutLogging() {
         let log = FakeLog()
-        let registry = DiagramReportRegistry()
         let text = "before\n```mermaid\ngantt\n title Project\n```\nafter"
         let output = MarkdownPreviewRenderer().render(
             text,
@@ -259,12 +211,10 @@ final class MermaidRenderingTests: XCTestCase {
             mermaidProvider: FakeProvider(.unsupported("gantt")),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: log,
-            reportRegistry: registry,
             appVersion: "1.0"
         ).string
         XCTAssertTrue(output.contains("Mermaid diagram (source)"))
         XCTAssertTrue(output.contains("gantt"))
-        XCTAssertFalse(output.contains("Report this"))   // not a bug → no report affordance
         XCTAssertEqual(log.records.count, 0)             // not logged
     }
 
@@ -298,7 +248,7 @@ final class MermaidRenderingTests: XCTestCase {
     }
 
     /// A front-matter diagram is valid Mermaid. It must not reach the `.failed` path, which logs
-    /// the user's document text and offers a "Report this" link meant for real library bugs.
+    /// the user's document text — the path reserved for genuine library bugs.
     func testFrontMatterIsStrippedBeforeTheDiagramSourceIsHandedToTheLibrary() {
         let source = "---\ntitle: My flow\n---\nflowchart TD\n  A --> B\n"
 

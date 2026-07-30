@@ -110,15 +110,11 @@ Answer honestly against what the app *can* transmit, not how often it does.
   query string, no identifiers, no cookies, ephemeral session. Not a disclosure.
 - **iCloud documents** — the user's own iCloud Drive, not a developer-operated service. Not a
   disclosure.
-- **Diagram failure reporting — this one needs a decision.** `DiagramReportService` POSTs
-  `{source, error, appVersion}` to a Cloudflare Worker, where `source` is the user's Mermaid
-  diagram, i.e. document content leaving the device. It is user-initiated and confirmed, which is
-  good practice, but it is still a transmission the label must reflect. Either:
-  1. declare it — **Other User Content**, *not linked* to identity, purpose **App Functionality**; or
-  2. cut the feature from the App Store build, keeping the local diagram log and the clean
-     "Data Not Collected" label.
+- **Diagram failure reporting** — REMOVED 2026-07-29, precisely so this question has a clean answer.
+  It was the only feature that transmitted document content off the device.
 
-  Do not declare "Data Not Collected" while shipping option 1's code.
+So the honest answer is **Data Not Collected**, with nothing to argue about: the app has no
+account system, no analytics, and no path that sends document content anywhere.
 
 ## 4b. Verify at review time
 
