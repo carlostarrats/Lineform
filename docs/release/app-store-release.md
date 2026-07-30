@@ -8,9 +8,32 @@ Read `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before touchi
 
 ## 0. Preconditions — do not start until all are true
 
-- [ ] The bundled `lineform` helper is a sandboxed Xcode target. An App Store archive only
-      contains binaries Xcode built, and every executable in the bundle must be sandboxed.
-      See `docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md`.
+- [x] **The bundled `lineform` helper is sandboxed.** DONE 2026-07-29, and verified against a real
+      Developer ID-signed sandboxed binary: it launches (which requires the embedded
+      `__TEXT,__info_plist` — without a bundle identity it SIGTRAPs before `main`), it stats
+      arbitrary argv paths so `lineform file.md` works, and piped stdin lands in the shared App
+      Group container where the app can read it. Entitlements: `HelperTool/HelperTool.entitlements`
+      (Release, sandbox + group) and `HelperTool/HelperToolDebug.entitlements` (Debug, empty —
+      ad-hoc signing cannot satisfy a sandbox entitlement).
+
+- [ ] **The helper is an Xcode TARGET.** STILL OUTSTANDING — this is the one piece of the helper
+      work not done. An App Store archive contains only binaries Xcode built, and today
+      `packaging/build-release.sh` compiles the helper with `swiftc` *after* `xcodebuild`, so it
+      would simply be absent from an archive.
+
+      Deferred on purpose: adding the target means `build-release.sh` must stop compiling and
+      signing the helper, which changes the working Direct release path. Do this **together with
+      the Sparkle removal below**, when that path is being reworked anyway, rather than
+      destabilising a shipping pipeline for a submission that has not been scheduled.
+
+      What it involves: a `PBXNativeTarget` in the hand-rolled pbxproj (no synced groups — see the
+      existing sequential `1F0000xx` ID convention), its own build-configuration list pointing at
+      the two entitlement files, `OTHER_LDFLAGS` carrying the
+      `-sectcreate __TEXT __info_plist HelperTool/HelperToolInfo.plist` that the sandbox depends
+      on, a Copy Files phase on the app target writing into `Contents/Helpers`, a target
+      dependency so it builds first, and deleting the `swiftc`/`lipo`/`codesign` block from
+      `build-release.sh`. Keep the universal (arm64 + x86_64) requirement — the script asserts it
+      today and the target must too.
 - [ ] Sparkle is gone: the SPM dependency, `Lineform/App/AppUpdater.swift`, the
       "Check for Updates…" item in `AppCommands.swift`, `SUFeedURL` + `SUPublicEDKey` in
       `Lineform/Info.plist`, and the `com.apple.security.temporary-exception.mach-lookup.global-name`
