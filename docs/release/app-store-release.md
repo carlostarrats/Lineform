@@ -9,18 +9,22 @@ Read `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before touchi
 
 ## 0. Preconditions — do not start until all are true
 
-- [ ] **DECIDE: the `lineform` CLI cannot ship on the App Store.** Every executable in an App
-      Store bundle must be sandboxed, and a sandboxed helper cannot hand documents to the app —
-      every route (`NSWorkspace` by app path, `open -a`, `open -b`, and even the default handler
-      with no app named) fails with `permErr -54`. Verified 2026-07-29 against a real
-      Developer ID-signed sandboxed binary, including against Apple-signed TextEdit, so it is
-      neither a path nor a signing problem. Full detail and the options:
-      `docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md`.
+- [ ] **DECIDE what happens to the `lineform` CLI.** Every executable in an App Store bundle must
+      be sandboxed, and a sandboxed helper cannot hand a FILE to the app: `NSWorkspace` by app
+      path, `open -a`, `open -b` and a file-URL default-handler open all fail (`permErr -54` /
+      `false`), regardless of location, signing, or file entitlements.
 
-      Recommended: **omit `Contents/Helpers/lineform` from the App Store build** and keep the CLI
-      as a Direct-build feature. Nothing else in the app is affected. Be aware this means going
-      App Store-only ends the CLI, and update `POSITIONING_AND_MARKETING.md` and the website
-      before claiming the CLI for an App Store release.
+      It is **not** proven impossible, though. A sandboxed helper CAN open a URL by scheme
+      (verified: `https://` returns true), so a custom `lineform://open?path=…` scheme would
+      launch the app. The unresolved part is file access — a path delivered by URL scheme carries
+      no sandbox extension, so the app can read it only where it already holds a grant, i.e.
+      inside the user's workspace folder. Needs a prototype before committing.
+
+      Detail and the reasoning: `docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md`.
+
+      Three options: prototype the URL scheme; ship the CLI only in the Direct build (simplest —
+      but going App Store-only then ends the CLI); or drop it. Whichever is chosen, make sure
+      `POSITIONING_AND_MARKETING.md` and the website match what the submitted build ships.
 
 - [ ] Sparkle is gone: the SPM dependency, `Lineform/App/AppUpdater.swift`, the
       "Check for Updates…" item in `AppCommands.swift`, `SUFeedURL` + `SUPublicEDKey` in
