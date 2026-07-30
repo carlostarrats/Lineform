@@ -246,7 +246,7 @@ final class OutlineSidebarViewTests: XCTestCase {
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer {
-            defaults.removePersistentDomain(forName: suiteName)
+            TestDefaults.destroy(defaults, suiteName: suiteName)
         }
 
         let store = OutlineFileBrowserStore(
@@ -266,7 +266,7 @@ final class OutlineSidebarViewTests: XCTestCase {
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer {
-            defaults.removePersistentDomain(forName: suiteName)
+            TestDefaults.destroy(defaults, suiteName: suiteName)
         }
 
         let store = OutlineFileBrowserStore(
@@ -297,7 +297,7 @@ final class OutlineSidebarViewTests: XCTestCase {
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer {
-            defaults.removePersistentDomain(forName: suiteName)
+            TestDefaults.destroy(defaults, suiteName: suiteName)
         }
 
         let store = OutlineFileBrowserStore(
@@ -322,7 +322,7 @@ final class OutlineSidebarViewTests: XCTestCase {
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer {
-            defaults.removePersistentDomain(forName: suiteName)
+            TestDefaults.destroy(defaults, suiteName: suiteName)
         }
 
         let store = OutlineFileBrowserStore(
@@ -674,7 +674,7 @@ final class OutlineSidebarViewTests: XCTestCase {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let downloader = RecordingUbiquitousDownloader()
         let store = OutlineFileBrowserStore(
@@ -726,7 +726,7 @@ final class OutlineSidebarViewTests: XCTestCase {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
         store.refreshICloud()
@@ -750,7 +750,7 @@ final class OutlineSidebarViewTests: XCTestCase {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
         store.showsHiddenFolders = true
@@ -778,7 +778,7 @@ final class OutlineSidebarViewTests: XCTestCase {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
         store.showsHiddenFolders = true
@@ -795,7 +795,7 @@ final class OutlineSidebarViewTests: XCTestCase {
     func testShowHiddenFoldersPreferencePersists() throws {
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let first = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in nil })
         first.showsHiddenFolders = true
@@ -884,7 +884,7 @@ extension OutlineSidebarViewTests {
             relativeTo: nil
         )
         let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        TestDefaults.destroy(defaults, suiteName: suiteName)
         defaults.set(bookmark, forKey: OutlineFileBrowserStore.workspaceBookmarkDefaultsKey)
         return defaults
     }
@@ -898,7 +898,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformScopeHeldTest-\(UUID().uuidString)"
         let defaults = try makeWorkspaceBookmarkDefaults(suiteName: suiteName, workspaceDirectory: workspace)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let spy = ScopeAccessorSpy()
         let store = OutlineFileBrowserStore(
@@ -928,7 +928,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformScopeDeinitTest-\(UUID().uuidString)"
         let defaults = try makeWorkspaceBookmarkDefaults(suiteName: suiteName, workspaceDirectory: workspace)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let spy = ScopeAccessorSpy()
         var store: OutlineFileBrowserStore? = OutlineFileBrowserStore(
@@ -967,7 +967,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let store = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
         store.refreshICloud()
@@ -995,7 +995,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let first = OutlineFileBrowserStore(defaults: defaults, fileManager: .default, iCloudDocumentsURLProvider: { _ in folder })
         first.refreshICloud()
@@ -1035,7 +1035,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         var monitors: [FakeDirectoryMonitor] = []
         let store = OutlineFileBrowserStore(
@@ -1085,7 +1085,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = try makeWorkspaceBookmarkDefaults(suiteName: suiteName, workspaceDirectory: workspace)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         var monitors: [FakeDirectoryMonitor] = []
         let store = OutlineFileBrowserStore(
@@ -1141,7 +1141,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         var monitors: [FakeDirectoryMonitor] = []
         let store = OutlineFileBrowserStore(
@@ -1185,7 +1185,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         var monitors: [FakeDirectoryMonitor] = []
         let store = OutlineFileBrowserStore(
@@ -1229,7 +1229,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let store = OutlineFileBrowserStore(
             defaults: defaults,
@@ -1261,7 +1261,7 @@ extension OutlineSidebarViewTests {
 
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         // Synchronous default: refreshICloud() applies inline and advances the generation.
         let store = OutlineFileBrowserStore(
@@ -1330,7 +1330,7 @@ extension OutlineSidebarViewTests {
         // setter-based load would run the init-forbidden main-thread iCloud scan.
         let suiteName = "LineformTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
         defaults.set(true, forKey: OutlineFileBrowserStore.showsHiddenFoldersDefaultsKey)
         defaults.set(OutlineFileSortOrder.dateModified.rawValue, forKey: OutlineFileBrowserStore.iCloudSortOrderDefaultsKey)
 

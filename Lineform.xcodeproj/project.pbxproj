@@ -46,6 +46,7 @@
 		1F0000010000000000000321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000321 /* SettingsView.swift */; };
 		1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000322 /* LineformSettingsTests.swift */; };
 		1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C9 /* AnnouncementTests.swift */; };
+		1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CA /* TestDefaultsSupport.swift */; };
 		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
 		1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000324 /* TestPlanGuardTests.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
@@ -256,6 +257,7 @@
 		1F0000020000000000000321 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000322 /* LineformSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettingsTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C9 /* AnnouncementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004CA /* TestDefaultsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDefaultsSupport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000324 /* TestPlanGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlanGuardTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
@@ -644,6 +646,7 @@
 				1F0000020000000000000044 /* ReadingProfileStoreTests.swift */,
 				1F0000020000000000000322 /* LineformSettingsTests.swift */,
 				1F00000200000000000004C9 /* AnnouncementTests.swift */,
+				1F00000200000000000004CA /* TestDefaultsSupport.swift */,
 				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
 				1F0000020000000000000326 /* DocumentExportRendererTests.swift */,
@@ -1007,6 +1010,7 @@
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
+				1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */,
 				1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */,
 				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,
 				1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */,

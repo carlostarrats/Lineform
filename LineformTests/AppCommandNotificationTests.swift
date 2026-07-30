@@ -37,7 +37,7 @@ final class AppCommandNotificationTests: XCTestCase {
     func testHiddenFoldersMenuStateTracksAndPersistsState() {
         let suiteName = "HiddenFoldersMenuStateTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
 
         let key = OutlineFileBrowserStore.showsHiddenFoldersDefaultsKey
         let state = HiddenFoldersMenuState(defaults: defaults, defaultsKey: key)
