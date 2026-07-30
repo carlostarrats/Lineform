@@ -49,6 +49,11 @@ enum AnnouncementFeed {
     static let maximumTitleLength = 120
     static let maximumBodyLength = 300
     static let maximumActionLabelLength = 40
+    /// The destination is remote input like everything else, and was the ONE string with
+    /// no ceiling. Unbounded, a pathological URL could push the re-encoded cache past
+    /// `maximumPayloadBytes`, at which point the cached feed silently stops decoding and
+    /// every relaunch loses the card. Generous next to any real link.
+    static let maximumActionURLLength = 512
 
     /// The only scheme an announcement may link to. Deliberately a single-scheme
     /// allowlist, not a denylist of dangerous schemes: this is remote input, so the
@@ -76,17 +81,44 @@ enum AnnouncementFeed {
     /// ignored entirely.
     static let supportedVersion = 1
 
-    /// Decode and validate raw response bytes. Returns [] for ANY problem — wrong
-    /// size, bad JSON, unsupported version, no valid entries. Never throws: a broken
-    /// feed is not an error condition the user should ever learn about.
-    static func decode(_ data: Data) -> [Announcement] {
-        guard data.count <= maximumPayloadBytes else { return [] }
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return [] }
-        guard payload.version == supportedVersion else { return [] }
+    /// Decode and validate raw response bytes.
+    ///
+    /// Returns **nil** when the payload is unusable — too large, not JSON, or a feed
+    /// version this build doesn't understand — and an **array** (possibly empty) when
+    /// the feed is well-formed. The distinction matters: nil means "we learned nothing",
+    /// which must leave a previously-shown announcement alone, while [] means the
+    /// publisher deliberately retracted everything. Collapsing the two would let one
+    /// malformed deploy silently pull a live announcement off every user's screen.
+    ///
+    /// Never throws: a broken feed is not an error the user should ever learn about.
+    static func decode(_ data: Data) -> [Announcement]? {
+        guard data.count <= maximumPayloadBytes else { return nil }
+        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return nil }
+        guard payload.version == supportedVersion else { return nil }
 
         return payload.announcements
             .prefix(maximumEntryCount)
             .compactMap(validated(_:))
+    }
+
+    /// Re-emit validated announcements in the feed's own wire format, so the cached copy
+    /// in `UserDefaults` can be read back through `decode` and re-validated by exactly
+    /// the same rules. Encoding to a different shape would mean a second validator, and
+    /// two validators of one format always drift.
+    static func encode(_ announcements: [Announcement]) -> Data? {
+        let entries: [[String: Any]] = announcements.map { announcement in
+            var entry: [String: Any] = [
+                "id": announcement.id,
+                "title": announcement.title,
+                "body": announcement.body,
+            ]
+            if let label = announcement.actionLabel { entry["actionLabel"] = label }
+            if let url = announcement.actionURL { entry["actionURL"] = url.absoluteString }
+            if let version = announcement.minAppVersion { entry["minAppVersion"] = version }
+            return entry
+        }
+        let payload: [String: Any] = ["version": supportedVersion, "announcements": entries]
+        return try? JSONSerialization.data(withJSONObject: payload)
     }
 
     /// Turn one decoded entry into an `Announcement`, or nil if it breaks any rule.
@@ -143,6 +175,7 @@ enum AnnouncementFeed {
     /// `data:`, `file:`, a scheme-relative path, a bare string — is refused, so the
     /// card's button can only ever hand the system a web address.
     static func validatedURL(_ raw: String) -> URL? {
+        guard raw.count <= maximumActionURLLength else { return nil }
         guard let url = URL(string: raw) else { return nil }
         guard url.scheme?.lowercased() == allowedURLScheme else { return nil }
         guard let host = url.host, !host.isEmpty else { return nil }

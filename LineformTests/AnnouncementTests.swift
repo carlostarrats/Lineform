@@ -4,8 +4,9 @@ import XCTest
 /// Feed validation, version comparison, and store lifecycle.
 ///
 /// No test here touches the network: `AnnouncementFetching` is faked throughout. The
-/// fake models the SHIPPING contract — `fetch()` returns [] for every failure and never
-/// throws — so a test can't certify behaviour the real fetcher doesn't have.
+/// fake models the SHIPPING contract — `fetch()` returns nil for a FAILED check and an
+/// array (possibly empty) for a successful one, and never throws — so a test can't
+/// certify behaviour the real fetcher doesn't have.
 final class AnnouncementFeedTests: XCTestCase {
 
     private func feedJSON(_ entries: String, version: Int = 1) -> Data {
@@ -27,8 +28,8 @@ final class AnnouncementFeedTests: XCTestCase {
 
     // MARK: - Decoding
 
-    func testDecodesValidEntry() {
-        let announcements = AnnouncementFeed.decode(feedJSON(validEntry))
+    func testDecodesValidEntry() throws {
+        let announcements = try XCTUnwrap(AnnouncementFeed.decode(feedJSON(validEntry)))
         XCTAssertEqual(announcements.count, 1)
         let first = announcements[0]
         XCTAssertEqual(first.id, "ios-app-1")
@@ -39,11 +40,11 @@ final class AnnouncementFeedTests: XCTestCase {
         XCTAssertEqual(first.minAppVersion, "1.5.0")
     }
 
-    func testDecodesEntryWithoutOptionalFields() {
+    func testDecodesEntryWithoutOptionalFields() throws {
         let entry = """
         { "id": "a", "title": "T", "body": "B" }
         """
-        let announcements = AnnouncementFeed.decode(feedJSON(entry))
+        let announcements = try XCTUnwrap(AnnouncementFeed.decode(feedJSON(entry)))
         XCTAssertEqual(announcements.count, 1)
         XCTAssertNil(announcements[0].actionLabel)
         XCTAssertNil(announcements[0].actionURL)
@@ -51,13 +52,13 @@ final class AnnouncementFeedTests: XCTestCase {
     }
 
     func testMalformedJSONYieldsNothing() {
-        XCTAssertTrue(AnnouncementFeed.decode(Data("not json".utf8)).isEmpty)
-        XCTAssertTrue(AnnouncementFeed.decode(Data()).isEmpty)
+        XCTAssertNil(AnnouncementFeed.decode(Data("not json".utf8)))
+        XCTAssertNil(AnnouncementFeed.decode(Data()))
     }
 
     func testUnsupportedFeedVersionYieldsNothing() {
-        XCTAssertTrue(AnnouncementFeed.decode(feedJSON(validEntry, version: 2)).isEmpty)
-        XCTAssertTrue(AnnouncementFeed.decode(feedJSON(validEntry, version: 0)).isEmpty)
+        XCTAssertNil(AnnouncementFeed.decode(feedJSON(validEntry, version: 2)))
+        XCTAssertNil(AnnouncementFeed.decode(feedJSON(validEntry, version: 0)))
     }
 
     /// The size ceiling is enforced on the decoded bytes as well as at the network
@@ -68,7 +69,7 @@ final class AnnouncementFeedTests: XCTestCase {
         { "version": 1, "announcements": [], "junk": "\(padding)" }
         """.utf8)
         XCTAssertGreaterThan(oversized.count, AnnouncementFeed.maximumPayloadBytes)
-        XCTAssertTrue(AnnouncementFeed.decode(oversized).isEmpty)
+        XCTAssertNil(AnnouncementFeed.decode(oversized))
     }
 
     func testEntryCountIsCapped() {
@@ -76,7 +77,7 @@ final class AnnouncementFeedTests: XCTestCase {
             .map { #"{ "id": "id\#($0)", "title": "T", "body": "B" }"# }
             .joined(separator: ",")
         XCTAssertEqual(
-            AnnouncementFeed.decode(feedJSON(many)).count,
+            AnnouncementFeed.decode(feedJSON(many))?.count,
             AnnouncementFeed.maximumEntryCount
         )
     }
@@ -90,9 +91,27 @@ final class AnnouncementFeedTests: XCTestCase {
         { "id": "good-2", "title": "T", "body": "B" }
         """
         XCTAssertEqual(
-            AnnouncementFeed.decode(feedJSON(entries)).map(\.id),
+            AnnouncementFeed.decode(feedJSON(entries))?.map(\.id),
             ["good-1", "good-2"]
         )
+    }
+
+    /// The cache is written with `encode` and read back with `decode`, so the two must
+    /// agree on the wire format. If they drift, the cached feed silently stops decoding
+    /// and every relaunch loses the card — the exact bug the cache exists to fix.
+    func testEncodeDecodeRoundTripsThroughTheSameValidator() throws {
+        let original = try XCTUnwrap(AnnouncementFeed.decode(feedJSON(validEntry)))
+        let encoded = try XCTUnwrap(AnnouncementFeed.encode(original))
+        XCTAssertEqual(AnnouncementFeed.decode(encoded), original)
+    }
+
+    func testEncodeRoundTripsEntriesWithNoOptionalFields() throws {
+        let entry = """
+        { "id": "a", "title": "T", "body": "B" }
+        """
+        let original = try XCTUnwrap(AnnouncementFeed.decode(feedJSON(entry)))
+        let encoded = try XCTUnwrap(AnnouncementFeed.encode(original))
+        XCTAssertEqual(AnnouncementFeed.decode(encoded), original)
     }
 
     // MARK: - Field validation
@@ -135,6 +154,37 @@ final class AnnouncementFeedTests: XCTestCase {
         XCTAssertNil(AnnouncementFeed.validatedURL("example.com"))
     }
 
+    /// The destination is bounded like every other string. Unbounded, it could push the
+    /// re-encoded cache past the payload ceiling and quietly break restore-on-relaunch.
+    func testOverLongURLIsRejected() {
+        let long = "https://example.com/" + String(repeating: "a", count: AnnouncementFeed.maximumActionURLLength)
+        XCTAssertGreaterThan(long.count, AnnouncementFeed.maximumActionURLLength)
+        XCTAssertNil(AnnouncementFeed.validatedURL(long))
+        XCTAssertNotNil(AnnouncementFeed.validatedURL("https://example.com/" + String(repeating: "a", count: 100)))
+    }
+
+    /// A full-size feed must still re-encode small enough to decode back, or the cache
+    /// silently stops working at exactly the moment it matters most.
+    func testMaximumSizedFeedStillRoundTripsUnderThePayloadCeiling() throws {
+        let url = "https://example.com/" + String(repeating: "a", count: 480)
+        let entries = (0..<AnnouncementFeed.maximumEntryCount).map { index in
+            """
+            { "id": "\(String(repeating: "i", count: 60))\(index)",
+              "title": "\(String(repeating: "t", count: AnnouncementFeed.maximumTitleLength))",
+              "body": "\(String(repeating: "b", count: AnnouncementFeed.maximumBodyLength))",
+              "actionLabel": "\(String(repeating: "l", count: AnnouncementFeed.maximumActionLabelLength))",
+              "actionURL": "\(url)" }
+            """
+        }.joined(separator: ",")
+
+        let decoded = try XCTUnwrap(AnnouncementFeed.decode(feedJSON(entries)))
+        XCTAssertEqual(decoded.count, AnnouncementFeed.maximumEntryCount)
+
+        let encoded = try XCTUnwrap(AnnouncementFeed.encode(decoded))
+        XCTAssertLessThanOrEqual(encoded.count, AnnouncementFeed.maximumPayloadBytes)
+        XCTAssertEqual(AnnouncementFeed.decode(encoded), decoded)
+    }
+
     func testURLSchemeComparisonIsCaseInsensitive() {
         XCTAssertNotNil(AnnouncementFeed.validatedURL("HTTPS://example.com/x"))
     }
@@ -144,7 +194,7 @@ final class AnnouncementFeedTests: XCTestCase {
         { "id": "a", "title": "T", "body": "B",
           "actionLabel": "Go", "actionURL": "javascript:alert(1)" }
         """
-        XCTAssertTrue(AnnouncementFeed.decode(feedJSON(entry)).isEmpty)
+        XCTAssertEqual(AnnouncementFeed.decode(feedJSON(entry)), [])
     }
 
     /// A label without a destination is dead UI; a destination without a label is
@@ -156,8 +206,8 @@ final class AnnouncementFeedTests: XCTestCase {
         let urlOnly = """
         { "id": "b", "title": "T", "body": "B", "actionURL": "https://example.com" }
         """
-        XCTAssertTrue(AnnouncementFeed.decode(feedJSON(labelOnly)).isEmpty)
-        XCTAssertTrue(AnnouncementFeed.decode(feedJSON(urlOnly)).isEmpty)
+        XCTAssertEqual(AnnouncementFeed.decode(feedJSON(labelOnly)), [])
+        XCTAssertEqual(AnnouncementFeed.decode(feedJSON(urlOnly)), [])
     }
 
     // MARK: - Version comparison
@@ -195,7 +245,7 @@ final class AnnouncementFeedTests: XCTestCase {
         let entry = """
         { "id": "a", "title": "T", "body": "B", "minAppVersion": "not-a-version" }
         """
-        XCTAssertTrue(AnnouncementFeed.decode(feedJSON(entry)).isEmpty)
+        XCTAssertEqual(AnnouncementFeed.decode(feedJSON(entry)), [])
     }
 
     func testAppliesToRespectsMinimumVersion() {
@@ -221,17 +271,21 @@ final class AnnouncementFeedTests: XCTestCase {
 
 /// Records whether it was asked, so a test can assert the setting gates the REQUEST
 /// and not merely the display.
+///
+/// Models the SHIPPING contract exactly: `nil` is a failed check, `[]` is a successfully
+/// read but empty feed. A fake that collapsed the two would certify the retraction bug
+/// instead of catching it.
 private actor FakeAnnouncementFetcher: AnnouncementFetching {
-    private let announcements: [Announcement]
+    private let result: [Announcement]?
     private(set) var fetchCount = 0
 
-    init(_ announcements: [Announcement]) {
-        self.announcements = announcements
+    init(_ result: [Announcement]?) {
+        self.result = result
     }
 
-    func fetch() async -> [Announcement] {
+    func fetch() async -> [Announcement]? {
         fetchCount += 1
-        return announcements
+        return result
     }
 
     func recordedFetchCount() async -> Int { fetchCount }
@@ -320,6 +374,144 @@ final class AnnouncementStoreTests: XCTestCase {
         XCTAssertNil(store.visible)
     }
 
+    // MARK: - Cache survives relaunch
+
+    /// The throttle governs the NETWORK CALL, not the card. Without a cache, an
+    /// announcement the user never dismissed vanished on the next launch and stayed gone
+    /// until the check fell due again — up to a day of invisibility.
+    func testUndismissedAnnouncementSurvivesRelaunchWithoutARecheck() async {
+        let defaults = freshDefaults("AnnouncementCacheSurvives")
+        let start = Date()
+        let fetcher = FakeAnnouncementFetcher([announcement("a")])
+
+        let store = AnnouncementStore(
+            defaults: defaults, fetcher: fetcher, appVersion: "1.5.0", now: { start }
+        )
+        await store.checkIfNeeded(isEnabled: true)
+        XCTAssertEqual(store.visible?.id, "a")
+
+        // Relaunch one minute later: the check is NOT due, so no fetch happens...
+        let relaunched = AnnouncementStore(
+            defaults: defaults,
+            fetcher: fetcher,
+            appVersion: "1.5.0",
+            now: { start.addingTimeInterval(60) }
+        )
+        await relaunched.checkIfNeeded(isEnabled: true)
+
+        // ...and the card is still there, restored from cache.
+        XCTAssertEqual(relaunched.visible?.id, "a")
+        let count = await fetcher.recordedFetchCount()
+        XCTAssertEqual(count, 1, "the relaunch must not have re-fetched")
+    }
+
+    func testDismissedAnnouncementDoesNotReturnFromCache() async {
+        let defaults = freshDefaults("AnnouncementCacheRespectsDismissal")
+        let start = Date()
+        let store = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([announcement("a")]),
+            appVersion: "1.5.0",
+            now: { start }
+        )
+        await store.checkIfNeeded(isEnabled: true)
+        store.dismiss(store.visible!)
+
+        let relaunched = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([announcement("a")]),
+            appVersion: "1.5.0",
+            now: { start.addingTimeInterval(60) }
+        )
+        XCTAssertNil(relaunched.visible)
+    }
+
+    /// The cache is re-decoded through `AnnouncementFeed.decode`, so a version bump
+    /// re-filters it rather than replaying a stale decision.
+    func testCacheIsRefilteredAgainstTheRunningAppVersion() async {
+        let defaults = freshDefaults("AnnouncementCacheRefilters")
+        let start = Date()
+        let store = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([announcement("future", minAppVersion: "2.0.0")]),
+            appVersion: "2.0.0",
+            now: { start }
+        )
+        await store.checkIfNeeded(isEnabled: true)
+        XCTAssertEqual(store.visible?.id, "future")
+
+        // Same cache read by an OLDER build: the entry no longer applies.
+        let older = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher(nil),
+            appVersion: "1.5.0",
+            now: { start.addingTimeInterval(60) }
+        )
+        XCTAssertNil(older.visible)
+    }
+
+    // MARK: - A failed check is not a retraction
+
+    /// nil means "we learned nothing". It must leave a shown announcement alone, or one
+    /// offline launch pulls a live card off the screen.
+    func testFailedCheckLeavesAShownAnnouncementAlone() async {
+        let defaults = freshDefaults("AnnouncementFailedNoRetract")
+        let start = Date()
+
+        let store = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([announcement("a")]),
+            appVersion: "1.5.0",
+            now: { start }
+        )
+        await store.checkIfNeeded(isEnabled: true)
+        XCTAssertEqual(store.visible?.id, "a")
+
+        // A day later, offline.
+        let offline = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher(nil),
+            appVersion: "1.5.0",
+            now: { start.addingTimeInterval(AnnouncementStore.checkInterval + 1) }
+        )
+        await offline.checkIfNeeded(isEnabled: true)
+        XCTAssertEqual(offline.visible?.id, "a", "an offline check must not retract")
+    }
+
+    /// An EMPTY array is a real answer — the publisher retracted everything — and does
+    /// clear the card and the cache.
+    func testEmptyFeedRetractsTheAnnouncement() async {
+        let defaults = freshDefaults("AnnouncementEmptyRetracts")
+        let start = Date()
+
+        let store = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([announcement("a")]),
+            appVersion: "1.5.0",
+            now: { start }
+        )
+        await store.checkIfNeeded(isEnabled: true)
+        XCTAssertEqual(store.visible?.id, "a")
+
+        let retracted = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([]),
+            appVersion: "1.5.0",
+            now: { start.addingTimeInterval(AnnouncementStore.checkInterval + 1) }
+        )
+        await retracted.checkIfNeeded(isEnabled: true)
+        XCTAssertNil(retracted.visible)
+
+        // And the cache is cleared, so a later relaunch doesn't resurrect it.
+        let afterRetraction = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher(nil),
+            appVersion: "1.5.0",
+            now: { start.addingTimeInterval(AnnouncementStore.checkInterval + 2) }
+        )
+        XCTAssertNil(afterRetraction.visible)
+    }
+
     // MARK: - Throttle
 
     func testCheckIsDueOnFirstRun() {
@@ -382,7 +574,7 @@ final class AnnouncementStoreTests: XCTestCase {
         let start = Date()
         let store = AnnouncementStore(
             defaults: defaults,
-            fetcher: FakeAnnouncementFetcher([]),   // models a failure: empty result
+            fetcher: FakeAnnouncementFetcher(nil),   // nil = the check failed
             appVersion: "1.5.0",
             now: { start }
         )

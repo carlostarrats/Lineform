@@ -80,10 +80,16 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
         // Announcement check: off the main thread, gated by the user's setting, and at
         // most once a day. Detached from launch on purpose — nothing about it blocks a
         // window appearing, and a slow or hung network must never delay the first frame.
-        Task {
-            await AnnouncementStore.shared.checkIfNeeded(
-                isEnabled: LineformSettingsStore.shared.checksForAnnouncements
-            )
+        //
+        // Skipped under XCTest: the test host IS the app, so without this guard every
+        // `xcodebuild test` run issued a live request to the production feed. Store tests
+        // drive `checkIfNeeded` directly with a fake fetcher, so coverage is unaffected.
+        if !AnnouncementStore.isRunningUnderTests {
+            Task {
+                await AnnouncementStore.shared.checkIfNeeded(
+                    isEnabled: LineformSettingsStore.shared.checksForAnnouncements
+                )
+            }
         }
         // Piped-file housekeeping runs in the unsandboxed `lineform` helper (the sandboxed app
         // cannot enumerate the helper's real Application Support directory).

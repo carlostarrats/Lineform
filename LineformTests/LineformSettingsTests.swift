@@ -33,6 +33,22 @@ final class LineformSettingsTests: XCTestCase {
         XCTAssertFalse(restored.showICloudInSidebar)
     }
 
+    // MARK: - Announcements
+
+    func testChecksForAnnouncementsDefaultsToTrue() {
+        let store = LineformSettingsStore(defaults: freshDefaults("LineformAnnouncementsDefault"))
+        XCTAssertTrue(store.checksForAnnouncements, "announcement checks ship on")
+    }
+
+    func testChecksForAnnouncementsPersistsAcrossStoreInstances() {
+        let defaults = freshDefaults("LineformAnnouncementsPersist")
+        let store = LineformSettingsStore(defaults: defaults)
+        store.checksForAnnouncements = false
+
+        let restored = LineformSettingsStore(defaults: defaults)
+        XCTAssertFalse(restored.checksForAnnouncements)
+    }
+
     // MARK: - Spell checking
 
     func testChecksSpellingWhileTypingDefaultsToTrue() {

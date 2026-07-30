@@ -21,7 +21,8 @@ struct AnnouncementCard: View {
     @State private var isHoveringClose = false
 
     static let cornerRadius: CGFloat = 12
-    static let width: CGFloat = 326
+    /// Ideal width. A CAP, not a fixed size — see the `.frame` comment below.
+    static let maximumWidth: CGFloat = 326
     /// Inset from the content area's bottom-trailing corner.
     static let edgeInset: CGFloat = 16
 
@@ -63,7 +64,13 @@ struct AnnouncementCard: View {
         .padding(.leading, 14)
         .padding(.trailing, 12)
         .padding(.vertical, 13)
-        .frame(width: Self.width, alignment: .leading)
+        // maxWidth, never a fixed width: the editor's minimum content width is 220pt
+        // (`EditorLayout.minimumContentWidth`), so a fixed 326 plus insets overflows a
+        // narrow window and clips off-screen. The inner `Spacer(minLength: 0)` makes the
+        // row take the offered width up to this cap, so the card is its ideal size when
+        // there is room and compresses when there isn't — the same concession
+        // `findReplaceBar` makes.
+        .frame(maxWidth: Self.maximumWidth, alignment: .leading)
         // Pin the controls to the matching appearance so every glyph reads against the
         // card, whichever page theme is active.
         .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
@@ -120,16 +127,14 @@ struct AnnouncementCard: View {
         .padding(.trailing, -2)
     }
 
-    /// `.regularMaterial` over a theme-matched fill: the material supplies the native
-    /// blur so the card sits on the page like system chrome, and the fill underneath
-    /// keeps it opaque enough to stay legible over dense text.
+    /// An OPAQUE fill, matching `findReplaceBar`'s two-variant treatment. A `.regularMaterial`
+    /// was tried underneath and removed: the fill above it is fully opaque, so the material
+    /// was completely occluded — it drew nothing and cost a blur layer. Opacity is also what
+    /// keeps the card legible over dense text, which is the reason not to make it translucent
+    /// to bring the material back.
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
             .fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
-            .background(
-                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-                    .fill(.regularMaterial)
-            )
     }
 
     private var primaryInk: Color {

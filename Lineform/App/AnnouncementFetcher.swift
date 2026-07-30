@@ -4,9 +4,14 @@ import Foundation
 /// testable without touching the network — no test in either plan may make a real
 /// request.
 protocol AnnouncementFetching: Sendable {
-    /// Returns validated announcements, or [] for any failure. Never throws: the
-    /// caller has no failure UI, by design. Offline is the common case, not an error.
-    func fetch() async -> [Announcement]
+    /// Returns validated announcements, or **nil** when nothing could be learned —
+    /// offline, timeout, bad status, unusable payload. An empty ARRAY is different: it
+    /// means the feed was read successfully and the publisher is showing nothing.
+    /// The caller must not treat a failed check as a retraction.
+    ///
+    /// Never throws: the caller has no failure UI, by design. Offline is the common
+    /// case, not an error.
+    func fetch() async -> [Announcement]?
 }
 
 /// The one network call in the app that isn't Sparkle.
@@ -45,7 +50,7 @@ struct AnnouncementFetcher: AnnouncementFetching {
         return URLSession(configuration: configuration)
     }
 
-    func fetch() async -> [Announcement] {
+    func fetch() async -> [Announcement]? {
         #if DEBUG
         // QA seam (Debug only, same family as LINEFORM_DUMP_MAIN_MENU): inject feed JSON
         // straight from the environment so the card can be exercised in a real window
@@ -56,7 +61,7 @@ struct AnnouncementFetcher: AnnouncementFetching {
         }
         #endif
 
-        guard let data = await fetchBody() else { return [] }
+        guard let data = await fetchBody() else { return nil }
         return AnnouncementFeed.decode(data)
     }
 
