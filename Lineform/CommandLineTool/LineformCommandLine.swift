@@ -50,44 +50,11 @@ enum LineformCLIPaths {
     /// Location of piped files under `~/Library/Application Support/`.
     static let pipedRelativePath = "Lineform/Piped"
 
-    /// The App Group both the app and the sandboxed `lineform` helper share.
-    ///
-    /// This is the ONLY thing that makes piped stdin work once the helper is sandboxed: a
-    /// sandboxed process writing to `~/Library/Application Support` is silently redirected into
-    /// its OWN container, where the app cannot see the file, so the document never opens.
-    /// Housekeeping breaks the same way from the other side.
-    static let appGroupIdentifier = "group.TV4QZT7A7X.com.lineform"
-
     /// The real (non-sandboxed) piped-file directory under a given home directory.
     static func pipedDirectory(home: URL) -> URL {
         home
             .appendingPathComponent("Library/Application Support", isDirectory: true)
             .appendingPathComponent(pipedRelativePath, isDirectory: true)
-    }
-
-    /// Where piped files actually live, for BOTH the app and the helper.
-    ///
-    /// Prefers the shared App Group container and falls back to the home-relative path when the
-    /// group is unavailable — which is the normal case in Debug, where the app is ad-hoc signed
-    /// and carries no group entitlement (a sandboxed binary cannot even launch under ad-hoc
-    /// signing, so Debug deliberately stays unsandboxed).
-    ///
-    /// Both sides MUST resolve through this one function. The app and the CLI disagreeing about
-    /// where piped files live is invisible until a pipe silently opens nothing.
-    /// `groupContainer` is injected so both branches are testable: the real lookup returns a URL
-    /// whenever the container directory exists, which makes the fallback unreachable from a test
-    /// on a machine that has ever run a group-entitled build.
-    static func sharedPipedDirectory(
-        fileManager: FileManager = .default,
-        home: URL? = nil,
-        groupContainer: (String) -> URL? = { identifier in
-            FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)
-        }
-    ) -> URL {
-        if let container = groupContainer(appGroupIdentifier) {
-            return container.appendingPathComponent(pipedRelativePath, isDirectory: true)
-        }
-        return pipedDirectory(home: home ?? fileManager.homeDirectoryForCurrentUser)
     }
 
     /// Filename for a piped document. `unique` disambiguates pipes that land in the same

@@ -10,16 +10,11 @@
 	<true/>
 	<key>com.apple.security.print</key>
 	<true/>
-	<!-- Shared container for the bundled `lineform` CLI helper. Piped stdin is written
-	     here so the sandboxed helper and the app can both reach it; without it the
-	     helper's write redirects into its own container and the app never sees the file.
-	     RELEASE ONLY, deliberately: ad-hoc signing cannot satisfy an app-group
-	     entitlement, so adding it to Debug stops the app (and the test host) launching —
-	     the same rule the iCloud entitlement follows. -->
-	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>group.TV4QZT7A7X.com.lineform</string>
-	</array>
+<!-- No app group: it was added on 2026-07-29 for a sandboxed `lineform` helper that
+	     turned out to be impossible (a sandboxed helper cannot hand documents to the app
+	     at all — see docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md), so
+	     it has no consumer. The App ID and both provisioning profiles still carry the
+	     capability, so re-adding this key needs no portal work. -->
 	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
 	<array>
 		<string>com.lineform.app-spki</string>
