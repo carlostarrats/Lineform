@@ -239,8 +239,7 @@ struct EditorContainerView: View {
             }
             Button("Don't Save", role: .destructive) {
                 sidebarSwitchDialog = nil
-                replaceActiveTab(with: dialog.url)
-                dialog.whenOpenedHere()
+                if replaceActiveTab(with: dialog.url) { dialog.whenOpenedHere() }
             }
         } message: { dialog in
             Text("Do you want to save changes to \u{201C}\(dialog.tabTitle)\u{201D} before opening \u{201C}\(dialog.url.lastPathComponent)\u{201D}?")
@@ -1266,6 +1265,11 @@ struct EditorContainerView: View {
             DispatchQueue.main.async {
                 openSidebarFile(
                     url,
+                    // Forward the ORIGINAL intent: without it the retry re-enters as the
+                    // `.replaceCurrent` default, so a Cmd-click / "Open in New Tab" whose reveal
+                    // never resolved would replace the current tab (and prompt over its unsaved
+                    // work) instead of opening the new tab the gesture asked for.
+                    intent: intent,
                     revealAttemptsRemaining: revealAttemptsRemaining - 1,
                     whenOpenedHere: whenOpenedHere
                 )
@@ -1288,8 +1292,7 @@ struct EditorContainerView: View {
                 )
                 return
             }
-            replaceActiveTab(with: url)
-            whenOpenedHere()
+            if replaceActiveTab(with: url) { whenOpenedHere() }
             return
         }
         do {
@@ -1311,8 +1314,13 @@ struct EditorContainerView: View {
     /// writing `document` directly, so the incoming file gets the same treatment a tab switch
     /// gives it: the NSDocument is repointed before the text changes (no autosave crossing files),
     /// transient state is reset, the reload watcher is retargeted, and the window title follows.
-    private func replaceActiveTab(with url: URL) {
-        guard let activeID = tabStore.selectedTabID else { return }
+    /// Returns whether the swap actually happened. A caller's `whenOpenedHere` (e.g. clearing the
+    /// cross-file results page) must run ONLY on success: if the file failed to load the current
+    /// tab is untouched, and wiping the results page while opening nothing would strand the user on
+    /// a blank screen.
+    @discardableResult
+    private func replaceActiveTab(with url: URL) -> Bool {
+        guard let activeID = tabStore.selectedTabID else { return false }
         do {
             let loadedDocument = try LineformDocument(contentsOf: url)
             DocumentSaveStatus.shared.markSaved(
@@ -1323,8 +1331,10 @@ struct EditorContainerView: View {
             tabStore.replaceTab(id: activeID, document: loadedDocument, fileURL: url)
             activateSelectedTab()
             NSDocumentController.shared.noteNewRecentDocumentURL(url)
+            return true
         } catch {
             // Unreadable file: the current tab keeps its document, unchanged.
+            return false
         }
     }
 
@@ -1339,8 +1349,7 @@ struct EditorContainerView: View {
         let coordinator = SaveThenContinueCoordinator(
             document: backingDocument,
             onSaved: {
-                replaceActiveTab(with: url)
-                whenOpenedHere()
+                if replaceActiveTab(with: url) { whenOpenedHere() }
             },
             onFinish: { saveThenSwitchCoordinator = nil }
         )

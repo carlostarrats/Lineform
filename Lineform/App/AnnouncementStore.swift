@@ -61,11 +61,29 @@ final class AnnouncementStore: ObservableObject {
         // back on screen at launch rather than waiting on a check that may not be due.
         // Re-decoded through `AnnouncementFeed.decode`, so cached bytes face exactly the
         // same validation as freshly-fetched ones — one validator, no second path in.
-        self.visible = Self.firstShowable(
-            in: (defaults.data(forKey: Self.cachedFeedKey).flatMap(AnnouncementFeed.decode)) ?? [],
-            dismissedIDs: dismissedIDs,
-            appVersion: appVersion
-        )
+        //
+        // Gated on the setting: with announcements OFF the cache must not repopulate the
+        // card at launch, or a user who turned the feature off still sees it come back the
+        // next time they open the app. This is a single assignment (still no second write
+        // to an observed property — see the type comment), reading the setting's own key
+        // with its absent-means-true default.
+        let enabled = defaults.object(forKey: LineformSettingsStore.checksForAnnouncementsKey) as? Bool ?? true
+        self.visible = enabled
+            ? Self.firstShowable(
+                in: (defaults.data(forKey: Self.cachedFeedKey).flatMap(AnnouncementFeed.decode)) ?? [],
+                dismissedIDs: dismissedIDs,
+                appVersion: appVersion
+            )
+            : nil
+    }
+
+    /// Retract any card currently on screen because the user turned the announcements
+    /// setting OFF. `checkIfNeeded` already gates the network REQUEST on the setting; this
+    /// closes the display side, so "off" means announcements are gone now, not merely
+    /// un-refreshed. The cache is left intact — turning the setting back on lets a still-
+    /// current announcement return at the next launch (see the init restore).
+    func retractForDisabledSetting() {
+        visible = nil
     }
 
     /// `nonisolated` so it can serve as a default argument to `init` — a main-actor
