@@ -1,3 +1,8 @@
+// UNUSED as of 2026-07-29. Lineform no longer sends diagram reports — the feature was removed
+// because it was the only thing in the app that transmitted document content off the device.
+// This Worker may still be deployed; nothing in the app or the release process calls it, and it
+// can be torn down. Kept only so a deployed service is not left without source.
+//
 // Lineform diagram-failure report Worker.
 // Accepts POST { source, error, appVersion } and files/comments a private GitHub issue.
 // The GitHub token is a Worker secret (GITHUB_TOKEN); IPs are used only for transient rate
