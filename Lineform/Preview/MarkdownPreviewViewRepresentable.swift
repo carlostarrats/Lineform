@@ -84,7 +84,6 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private let mathProvider = MathImageProvider()
     private let imageProvider = ImageAttachmentProvider()
     private let diagramLog = DiagramLogStore()
-    private let reportRegistry = DiagramReportRegistry()
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
     private static let visibleTopRangeReportDebounce: TimeInterval = 0.08
     private var lastReportedVisibleTopRange: NSRange?
@@ -377,7 +376,6 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
                 mermaidProvider: mermaidProvider,
                 mathProvider: mathProvider,
                 diagramLog: diagramLog,
-                reportRegistry: reportRegistry,
                 appVersion: appVersion,
                 documentDirectory: documentDirectory,
                 imageProvider: imageProvider
@@ -750,45 +748,6 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         }
 
         return actions.isEmpty ? super.accessibilityCustomActions() : actions
-    }
-
-    // MARK: - "Report this" link handling
-
-    func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-        let url: URL?
-        if let asURL = link as? URL { url = asURL }
-        else if let asString = link as? String { url = URL(string: asString) }
-        else { url = nil }
-        guard let url, let hash = DiagramReportLink.hash(from: url),
-              let pending = reportRegistry.report(for: hash) else {
-            return false
-        }
-        presentReportDialog(source: pending.source, error: pending.error)
-        return true
-    }
-
-    private func presentReportDialog(source: String, error: String) {
-        let alert = NSAlert()
-        alert.messageText = "Report rendering issue?"
-        alert.informativeText = "The diagram text and error will be sent to the developer to improve rendering."
-        alert.addButton(withTitle: "Report")
-        alert.addButton(withTitle: "Not Now")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
-        let version = appVersion
-        Task { @MainActor in
-            let result = await DiagramReportService.send(source: source, error: error, appVersion: version)
-            let done = NSAlert()
-            switch result {
-            case .sent:
-                done.messageText = "Thanks — sent."
-            case .failed:
-                done.messageText = "Couldn’t send. Saved locally."
-                done.informativeText = "The diagram is still recorded in your local diagram log."
-            }
-            done.addButton(withTitle: "OK")
-            done.runModal()
-        }
     }
 
     override func viewDidMoveToWindow() {

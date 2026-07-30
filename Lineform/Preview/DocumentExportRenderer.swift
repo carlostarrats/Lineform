@@ -167,7 +167,6 @@ enum DocumentExportRenderer {
                 // Export never writes to the diagram failure log — a failed diagram just prints its
                 // captioned-source fallback.
                 diagramLog: NullDiagramFailureLog(),
-                reportRegistry: DiagramReportRegistry(),
                 appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
                 // Tables shrink to fit the fixed page column rather than overflowing off the right edge.
                 fitTablesToWidth: true,
@@ -177,8 +176,6 @@ enum DocumentExportRenderer {
                 documentDirectory: documentDirectory,
                 imageProvider: imageProvider,
                 headingScale: preset.headingScale,
-                // No "Report this" link in a file the user shares or prints — see `render`.
-                offersDiagramReporting: false
             )
         } else {
             // "Normal": print the RAW markdown SOURCE (visible #, **, etc.) as a plain monospaced
@@ -344,12 +341,10 @@ extension DocumentExportRenderer {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             fitTablesToWidth: true,
             imagesAsText: true,
-            headingScale: preset.headingScale,
-            offersDiagramReporting: false
+            headingScale: preset.headingScale
         )
     }
 

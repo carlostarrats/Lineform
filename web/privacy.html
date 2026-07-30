@@ -45,10 +45,11 @@
   <ul>
     <li><strong>Update checks.</strong> Release builds check for a newer version using Sparkle.
       This sends only the information needed to check for an update — never your document content.</li>
-    <li><strong>Diagram reports — only when you choose to send one.</strong> If a Mermaid diagram
-      fails to render, you can tap <em>Report this</em>. That sends only the diagram’s source
-      text, the error message, and the app version, filed as a private GitHub issue for the
-      developer. It contains no file names, no file paths, and no identifiers.</li>
+    <li><strong>Announcement checks.</strong> Once a day Lineform reads a small public file on
+      the Lineform website to see whether there is any news, such as a new version. The request
+      sends no account, no identifier, and no information about you, your Mac, or your documents,
+      and nothing about the check is stored. You can turn it off in Settings, and when it is off
+      Lineform makes no network request at all.</li>
   </ul>
 
   <h2>Local files</h2>
@@ -57,7 +58,8 @@
     document. These files stay on your device and are automatically deleted after about 7 days
     of inactivity.</p>
   <p>If a diagram fails to render, a local diagram log is kept on your device to help with
-    triage. It never leaves your Mac unless you send a diagram report as described above.</p>
+    triage. It never leaves your Mac — there is no feature that sends it, and no feature in
+    Lineform transmits your document content anywhere.</p>
 
   <h2>Your documents</h2>
   <p>Documents are ordinary Markdown or text files. They stay wherever you save them, and remain

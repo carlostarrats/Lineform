@@ -57,7 +57,6 @@ struct MarkdownPreviewRenderer {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            reportRegistry: DiagramReportRegistry(),
             appVersion: "0"
         )
     }
@@ -69,7 +68,6 @@ struct MarkdownPreviewRenderer {
         mermaidProvider: MermaidImageProviding,
         mathProvider: MathImageProviding,
         diagramLog: DiagramFailureLogging,
-        reportRegistry: DiagramReportRegistry,
         appVersion: String,
         // Export/print sets this so tables shrink to fit the page (proportional percentage
         // columns, cells wrap) instead of overflowing a narrow page column. On screen it stays
@@ -97,13 +95,7 @@ struct MarkdownPreviewRenderer {
         // per-level boost). Not a `ReadingProfile` field. Defaults to a no-op so on-screen
         // Read/Preview rendering is byte-identical.
         headingScale: CGFloat = 1.0,
-        // "Report this" on a failed diagram is an ON-SCREEN affordance: it is only actionable
-        // inside the app, where `clickedOnLink` resolves the `lineform-report:` URL against the
-        // live registry. Export/print sets this false — a shared PDF must not carry a dead link
-        // whose tooltip offers to send data to the developer.
-        offersDiagramReporting: Bool = true
     ) -> NSAttributedString {
-        reportRegistry.reset()
         let output = NSMutableAttributedString(string: "")
         let bodyAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
@@ -184,10 +176,8 @@ struct MarkdownPreviewRenderer {
                     codeAttributes: codeAttributes,
                     mermaidProvider: mermaidProvider,
                     diagramLog: diagramLog,
-                    reportRegistry: reportRegistry,
                     appVersion: appVersion,
-                    imagesAsText: imagesAsText,
-                    offersDiagramReporting: offersDiagramReporting
+                    imagesAsText: imagesAsText
                 )
                 appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .horizontalRule(let lineIndex):
@@ -757,13 +747,11 @@ struct MarkdownPreviewRenderer {
         codeAttributes: [NSAttributedString.Key: Any],
         mermaidProvider: MermaidImageProviding,
         diagramLog: DiagramFailureLogging,
-        reportRegistry: DiagramReportRegistry,
         appVersion: String,
         imagesAsText: Bool = false,
-        offersDiagramReporting: Bool = true
     ) {
         if imagesAsText {
-            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
             return
         }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
@@ -794,21 +782,15 @@ struct MarkdownPreviewRenderer {
             output.append(NSAttributedString(attachment: attachment))
         case .skipped:
             // Size-guard skip: not a render failure, so no report affordance.
-            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
         case .unsupported:
             // Recognized-but-unrenderable mermaid type: clean fallback, not a bug — no log, no report.
-            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes, reportHash: nil)
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
         case .failed(let error):
+            // Recorded to the LOCAL log only. There is deliberately no way to send it: nothing
+            // in Lineform transmits document content off the device.
             diagramLog.record(source: source, error: error, appVersion: appVersion)
-            let hash = DiagramLog.sourceHash(source)
-            reportRegistry.register(hash: hash, source: source, error: error)
-            appendMermaidFallback(
-                source: source,
-                to: output,
-                profile: profile,
-                codeAttributes: codeAttributes,
-                reportHash: offersDiagramReporting ? hash : nil
-            )
+            appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
         }
     }
 
@@ -816,8 +798,7 @@ struct MarkdownPreviewRenderer {
         source: String,
         to output: NSMutableAttributedString,
         profile: ReadingProfile,
-        codeAttributes: [NSAttributedString.Key: Any],
-        reportHash: String?
+        codeAttributes: [NSAttributedString.Key: Any]
     ) {
         var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         // Through the contrast floor: a flat 0.6 alpha put this below AA on four of five themes,
@@ -828,18 +809,6 @@ struct MarkdownPreviewRenderer {
             captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
         output.append(NSAttributedString(string: "Mermaid diagram (source)", attributes: captionAttributes))
-        if let reportHash, let url = DiagramReportLink.url(hash: reportHash) {
-            var linkAttributes = captionAttributes
-            linkAttributes[.link] = url
-            linkAttributes[.foregroundColor] = NSColor.linkColor
-            // The read view is selectable, so this link is already reachable (VoiceOver reads it as
-            // a link; Full Keyboard Access can focus it). The tooltip explains what the terse
-            // "Report this" does — shown on hover, and bridged to assistive tech as help where the
-            // text system supports it.
-            linkAttributes[.toolTip] = "Send the diagram source and error to the developer to improve rendering."
-            output.append(NSAttributedString(string: "  ", attributes: captionAttributes))
-            output.append(NSAttributedString(string: "Report this", attributes: linkAttributes))
-        }
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
         output.append(NSAttributedString(string: source, attributes: codeAttributes))
     }

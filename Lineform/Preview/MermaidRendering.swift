@@ -56,7 +56,7 @@ enum MermaidFence {
 /// `MermaidTypeClassifier` and in `MermaidPieChart`, and — critically — NOT at the seam where the
 /// source is handed to BeautifulMermaid, whose parser reads `"---"` as the first line and throws
 /// `invalidHeader("---")`. So a front-matter diagram classified `.supported`, failed, and took the
-/// `.failed` path: no diagram, a "Report this" link inviting the user to send us their document,
+/// `.failed` path: no diagram, just the captioned source,
 /// and 2,000 characters of it written to the on-disk diagram log — the path reserved for genuine
 /// library bugs. Every consumer reads this type so the four can't disagree again.
 enum MermaidSource {

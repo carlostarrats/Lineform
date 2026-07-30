@@ -77,7 +77,6 @@
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
 		1F0000010000000000000233 /* DiagramLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000233 /* DiagramLogTests.swift */; };
-		1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000235 /* DiagramReportServiceTests.swift */; };
 		1F0000010000000000000222 /* CommandLineToolInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000222 /* CommandLineToolInstaller.swift */; };
 		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
 		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
@@ -145,7 +144,6 @@
 		1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000325 /* DocumentExportRenderer.swift */; };
 		1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */; };
 		1F0000010000000000000231 /* DiagramLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000231 /* DiagramLog.swift */; };
-		1F0000010000000000000234 /* DiagramReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000234 /* DiagramReportService.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
 		1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */; };
 		1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */; };
@@ -294,7 +292,6 @@
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000233 /* DiagramLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLogTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000235 /* DiagramReportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportServiceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000222 /* CommandLineToolInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolInstaller.swift; sourceTree = "<group>"; };
 		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
 		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
@@ -359,7 +356,6 @@
 		1F0000020000000000000325 /* DocumentExportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRenderer.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalRuleAttachment.swift; sourceTree = "<group>"; };
 		1F0000020000000000000231 /* DiagramLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLog.swift; sourceTree = "<group>"; };
-		1F0000020000000000000234 /* DiagramReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramReportService.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewEmptyStateTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewInsetAnimationTests.swift; sourceTree = "<group>"; };
@@ -579,7 +575,6 @@
 				1F00000200000000000004B8 /* MarkdownInlineSyntax.swift */,
 				1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */,
 				1F0000020000000000000231 /* DiagramLog.swift */,
-				1F0000020000000000000234 /* DiagramReportService.swift */,
 			);
 			path = Preview;
 			sourceTree = "<group>";
@@ -698,7 +693,6 @@
 				1F0000020000000000000330 /* EditorTabStoreTests.swift */,
 				1F000002000000000000032E /* OutlineInfoContrastTests.swift */,
 				1F0000020000000000000233 /* DiagramLogTests.swift */,
-				1F0000020000000000000235 /* DiagramReportServiceTests.swift */,
 				1F00002B0000000000000002 /* ExportFormatTests.swift */,
 			);
  			path = LineformTests;
@@ -964,7 +958,6 @@
 				1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */,
 				1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */,
 				1F0000010000000000000231 /* DiagramLog.swift in Sources */,
-				1F0000010000000000000234 /* DiagramReportService.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
 				1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */,
 				1F0000010000000000000142 /* EditorPresentation.swift in Sources */,
@@ -1062,7 +1055,6 @@
 				1F0000010000000000000330 /* EditorTabStoreTests.swift in Sources */,
 				1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */,
 				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
-				1F0000010000000000000235 /* DiagramReportServiceTests.swift in Sources */,
 				1F00002B0000000000000001 /* ExportFormatTests.swift in Sources */,
 			);
  			runOnlyForDeploymentPostprocessing = 0;
