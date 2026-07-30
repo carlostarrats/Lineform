@@ -10,6 +10,16 @@
 	<true/>
 	<key>com.apple.security.print</key>
 	<true/>
+	<!-- Shared container for the bundled `lineform` CLI helper. Piped stdin is written
+	     here so the sandboxed helper and the app can both reach it; without it the
+	     helper's write redirects into its own container and the app never sees the file.
+	     RELEASE ONLY, deliberately: ad-hoc signing cannot satisfy an app-group
+	     entitlement, so adding it to Debug stops the app (and the test host) launching —
+	     the same rule the iCloud entitlement follows. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.TV4QZT7A7X.com.lineform</string>
+	</array>
 	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
 	<array>
 		<string>com.lineform.app-spki</string>
