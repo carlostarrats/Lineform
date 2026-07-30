@@ -53,6 +53,23 @@ Findings themselves live in commit messages and architecture docs. This file onl
 
 ## Notes
 
+- **2026-07-30 delta audit (post-verify changes since `a58c49c`).** Only the source that changed
+  after the 07-27 verify was re-probed, in three parallel passes with hostile input, not a re-sweep:
+  the new **announcements** channel (`App/Announcement*`, `Editor/AnnouncementCard`), the **sidebar
+  current-tab switch + source-list restyle + toggle ownership** (`Outline/OutlineSidebarView`,
+  `Editor/EditorContainerView`, `EditorChromeAndControls`, `SaveAndCloseCoordinator`), and the
+  **Mermaid diagram-report removal** (`Preview/*`, entitlements). Result: diagram removal is complete
+  and clean (no dangling callers, no off-device transmission, contrast intact) — verified, no change.
+  Four fixes landed: (1) the announcement sanitizer let U+2028/U+2029/U+0085 through
+  (`CharacterSet.controlCharacters` is Cc+Cf only) — a hostile feed could render a multi-line card;
+  now unions `.newlines`. (2) Turning the announcements setting off left the card on screen and let
+  it return from cache next launch — the toggle now retracts the display and `init` gates its restore,
+  with the network guarantee unchanged. (3) `openSidebarFile`'s `.retryReveal` dropped the `intent`,
+  so a ⌘-click could downgrade to replace-current; now forwarded. (4) `whenOpenedHere` ran even when
+  the replace-path file failed to load, wiping the search results page onto a blank screen;
+  `replaceActiveTab` now returns success and every call site gates on it. Abandoned-CLI cleanup was
+  verified: no dangling App Group entitlement or dead references. Full default suite 1254/0 after.
+
 - **Every row is audited AND verified as of 2026-07-27.** Three rounds: 66 findings raised, 59
   confirmed and fixed. Re-audit a row only when its `Last changed` moves past its `Audited at`.
 - **The verification round is the one that mattered most.** All six areas fixed by the day's

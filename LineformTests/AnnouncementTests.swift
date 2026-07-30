@@ -135,6 +135,16 @@ final class AnnouncementFeedTests: XCTestCase {
         XCTAssertNil(AnnouncementFeed.sanitized("bell\u{7}", maximumLength: 20))
     }
 
+    /// U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) are NOT in
+    /// `CharacterSet.controlCharacters` (they are Zl/Zp, not Cc/Cf), yet SwiftUI `Text`
+    /// still breaks a line on them. A hostile feed used them to smuggle a multi-line card
+    /// past the one-liner rule; the sanitizer must reject an interior one like any newline.
+    func testUnicodeLineSeparatorsAreRejected() {
+        XCTAssertNil(AnnouncementFeed.sanitized("line\u{2028}break", maximumLength: 20))
+        XCTAssertNil(AnnouncementFeed.sanitized("para\u{2029}break", maximumLength: 20))
+        XCTAssertNil(AnnouncementFeed.sanitized("next\u{0085}line", maximumLength: 20))
+    }
+
     /// Length is measured in Characters, so an emoji counts as one — the same rule the
     /// table reformatter learned the hard way about UTF-16 measurement.
     func testLengthIsMeasuredInCharactersNotUTF16() {
@@ -403,6 +413,46 @@ final class AnnouncementStoreTests: XCTestCase {
         XCTAssertEqual(relaunched.visible?.id, "a")
         let count = await fetcher.recordedFetchCount()
         XCTAssertEqual(count, 1, "the relaunch must not have re-fetched")
+    }
+
+    /// With the setting OFF, the cached feed must NOT repopulate the card at launch — a
+    /// user who turned announcements off should not see one come back next time they open
+    /// the app. (The network request is already gated separately; this is the display side.)
+    func testDisabledSettingDoesNotRestoreCardFromCacheAtLaunch() async {
+        let defaults = freshDefaults("AnnouncementDisabledNoRestore")
+        let start = Date()
+        let store = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([announcement("a")]),
+            appVersion: "1.5.0",
+            now: { start }
+        )
+        await store.checkIfNeeded(isEnabled: true)
+        XCTAssertEqual(store.visible?.id, "a", "precondition: the card was cached while on")
+
+        // The user turns announcements off, then relaunches.
+        defaults.set(false, forKey: LineformSettingsStore.checksForAnnouncementsKey)
+        let relaunched = AnnouncementStore(
+            defaults: defaults,
+            fetcher: FakeAnnouncementFetcher([announcement("a")]),
+            appVersion: "1.5.0",
+            now: { start.addingTimeInterval(60) }
+        )
+        XCTAssertNil(relaunched.visible, "off means the cache must not restore the card")
+    }
+
+    /// Turning the setting off mid-session retracts the card already on screen.
+    func testRetractForDisabledSettingHidesTheVisibleCard() async {
+        let store = AnnouncementStore(
+            defaults: freshDefaults("AnnouncementRetract"),
+            fetcher: FakeAnnouncementFetcher([announcement("a")]),
+            appVersion: "1.5.0",
+            now: { Date() }
+        )
+        await store.checkIfNeeded(isEnabled: true)
+        XCTAssertNotNil(store.visible)
+        store.retractForDisabledSetting()
+        XCTAssertNil(store.visible)
     }
 
     func testDismissedAnnouncementDoesNotReturnFromCache() async {

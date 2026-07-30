@@ -91,6 +91,12 @@ struct SettingsModal: View {
                     note: Self.announcementsNote,
                     isOn: $settings.checksForAnnouncements
                 )
+                .onChange(of: settings.checksForAnnouncements) { _, isEnabled in
+                    // Turning the feature OFF retracts any card already on screen (the
+                    // request gate lives in the store; this is the display side). Turning
+                    // it back on defers to the normal launch check / cache restore.
+                    if !isEnabled { AnnouncementStore.shared.retractForDisabledSetting() }
+                }
             }
         }
         .museModalCard(

@@ -167,7 +167,13 @@ enum AnnouncementFeed {
     static func sanitized(_ raw: String, maximumLength: Int) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= maximumLength else { return nil }
-        guard trimmed.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) else { return nil }
+        // `controlCharacters` is Cc + Cf; it does NOT include U+2028 (LINE SEPARATOR)
+        // or U+2029 (PARAGRAPH SEPARATOR), which SwiftUI `Text` still breaks a line on.
+        // Union with `newlines` so an interior line separator is rejected like any other
+        // newline — an announcement is a one-liner, and a hostile feed cannot smuggle a
+        // multi-line card past the "reject, don't strip" rule.
+        let forbidden = CharacterSet.controlCharacters.union(.newlines)
+        guard trimmed.unicodeScalars.allSatisfy({ !forbidden.contains($0) }) else { return nil }
         return trimmed
     }
 

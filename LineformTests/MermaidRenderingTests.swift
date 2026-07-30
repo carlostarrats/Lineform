@@ -145,24 +145,44 @@ final class MermaidRenderingTests: XCTestCase {
     @MainActor
     func testFailedDiagramOffersNoWayToSendTheSource() {
         let text = "```mermaid\ngraph TD; A-->B\n```"
-        for label in ["on screen", "exported"] {
-            let rendered = MarkdownPreviewRenderer().render(
-                text,
-                profile: .original,
-                columnWidth: 600,
-                mermaidProvider: FakeProvider(.failed("boom")),
-                mathProvider: DisabledMathImageProvider(),
-                diagramLog: FakeLog(),
-                appVersion: "1.0"
-            )
-            XCTAssertTrue(rendered.string.contains("Mermaid diagram (source)"), "\(label): fallback still renders")
-            XCTAssertFalse(rendered.string.contains("Report this"), "\(label): no report affordance")
-            var foundLink = false
-            rendered.enumerateAttribute(.link, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
-                if value != nil { foundLink = true }
-            }
-            XCTAssertFalse(foundLink, "\(label): no link may reach a failed-diagram fallback")
+
+        // On screen: a genuinely failed diagram must fall back to the captioned source, with no
+        // link and no "Report this" affordance in the attributed output.
+        let onScreen = MarkdownPreviewRenderer().render(
+            text,
+            profile: .original,
+            columnWidth: 600,
+            mermaidProvider: FakeProvider(.failed("boom")),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: FakeLog(),
+            appVersion: "1.0"
+        )
+        assertNoReportAffordance(in: onScreen, label: "on screen")
+
+        // Exported (RTF/PDF text path): this is the REAL export renderer, not the on-screen call
+        // again — it routes mermaid through DisabledMermaidImageProvider and imagesAsText, which is
+        // the path a shared PDF/RTF takes. No link may survive into an exported document.
+        let exported = DocumentExportRenderer.makeRTFAttributedString(
+            text: text, profile: .original, paper: .usLetter
+        )
+        assertNoReportAffordance(in: exported, label: "exported (RTF/PDF)")
+
+        // Exported HTML: a distinct emitter (MarkdownHTMLRenderer). Assert no report scheme or copy
+        // leaks into the produced markup.
+        let html = String(decoding: DocumentExportRenderer.htmlData(text: text, title: "t"), as: UTF8.self)
+        XCTAssertFalse(html.contains("lineform-report"), "exported HTML: no report scheme")
+        XCTAssertFalse(html.contains("Report this"), "exported HTML: no report affordance")
+    }
+
+    @MainActor
+    private func assertNoReportAffordance(in rendered: NSAttributedString, label: String) {
+        XCTAssertTrue(rendered.string.contains("Mermaid diagram (source)"), "\(label): fallback still renders")
+        XCTAssertFalse(rendered.string.contains("Report this"), "\(label): no report affordance")
+        var foundLink = false
+        rendered.enumerateAttribute(.link, in: NSRange(location: 0, length: rendered.length)) { value, _, _ in
+            if value != nil { foundLink = true }
         }
+        XCTAssertFalse(foundLink, "\(label): no link may reach a failed-diagram fallback")
     }
 
     @MainActor
