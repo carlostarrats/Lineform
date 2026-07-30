@@ -42,6 +42,7 @@ Core product principles:
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
+- In-app announcements: a once-a-day read of a small static JSON file on the marketing site surfaces at most one dismissible card in the editor. No account, no identifier, no server. The Settings toggle (default on) gates the network request itself, not just the display.
 - Local release/help resources bundled in the app.
 - SF Symbol icons on every main-menu row, matching Apple's iconed menus on macOS 26.
 
@@ -93,6 +94,7 @@ file named after it carries the full story and the reasoning.
 **Privacy** (`rendering.md`, `app-integration.md`)
 - Remote `http(s)`/`data:` image URLs are NEVER fetched — always a placeholder. The app's network-free invariant is a product promise, not an optimization.
 - Spell checking routes through the system `NSSpellChecker` and nothing else — no bundled dictionary, no third-party service, no network-backed suggestions.
+- The announcements setting gates the REQUEST, not the display: `AnnouncementStore.checkIfNeeded(isEnabled:)` must return before the fetcher is touched, so "off" means no outbound call at all. The feed is remote input and is treated as hostile — single-scheme (`https`) allowlist for links, control characters and over-length strings REJECTED rather than stripped, byte ceiling enforced as bytes arrive (never from `expectedContentLength`), and title/body rendered as plain `Text`, never Markdown or HTML. Dismissed ids are never pruned against the live feed, or an announcement the user dismissed eventually comes back. `AnnouncementFetching.fetch` must keep nil (the check LEARNED NOTHING) distinct from [] (read fine, publisher shows nothing): nil leaves the cache and the screen alone, [] retracts. Collapsing them lets one offline launch or one malformed deploy pull a live announcement off every screen. The throttle gates the NETWORK CALL only — `visible` is restored from the cached feed in `init`, or an undismissed card vanishes for a day after relaunch — and `AnnouncementFeed.encode`/`decode` are one wire format written twice, so they must round-trip (asserted at maximum feed size).
 
 **Accessibility** (`app-integration.md`)
 - Every reader ink goes through `Theme.readableInk` (AA against the page). The two that did not were the two that were never theme-derived: link/image text used the system `NSColor.linkColor` (3.70:1 on Quiet) and the diagram/math fallback caption used a flat 0.6 alpha (below AA on four of five themes, at a size SMALLER than body text). `Theme.contrastRatio` is the one definition, in production, so a test cannot assert a rule the app does not use.
@@ -165,6 +167,7 @@ file named after it carries the full story and the reasoning.
   debounce exceeding the FSEvents coalescing latency (`OutlineSidebarViewTests`). Each had already
   shipped broken or could only be caught by hand.
 - Never construct an `NSWindow` in the DEFAULT test plan — it crashes the test host. Window-hosting tests belong in `LineformHosted`.
+- The test host IS the app, so `applicationDidFinishLaunching` runs on EVERY `xcodebuild test`. Anything wired there that calls out — network, XPC, a daemon — fires once per test run unless it is guarded by `AnnouncementStore.isRunningUnderTests` (`XCTestConfigurationFilePath`). The announcement check shipped without that guard and made the suite issue a live request to the production feed. Guard at the LAUNCH CALL SITE, never inside the method under test, or the tests for it become silent no-ops that still pass.
 - When QA'ing a build by hand, open files with `open -a "$BUILT_PRODUCTS_DIR/Lineform.app" file.md`. A bare `open file.md` hands the file to whatever Lineform Launch Services prefers — usually an installed release — and reads exactly like your fix failing.
 - Do not set `applicationIconImage` at runtime.
 

@@ -52,7 +52,7 @@ Lineform is local-first.
 - Documents stay wherever you save them.
 - Files remain ordinary Markdown or text files.
 
-Lineform contacts the network in only two cases: Sparkle update checks, and — **only when you tap "Report this"** on a failed Mermaid diagram — a one-time send of the diagram source, error, and app version to a private issue tracker. Nothing else leaves your device.
+Lineform contacts the network in only three cases: Sparkle update checks; a once-a-day read of a small public announcements file on the Lineform website, which sends no identifier and can be turned off in Settings; and — **only when you tap "Report this"** on a failed Mermaid diagram — a one-time send of the diagram source, error, and app version to a private issue tracker. Nothing else leaves your device.
 
 Full [Privacy](https://lineform-atv.pages.dev/privacy) and [Terms of Use](https://lineform-atv.pages.dev/terms) are published online and linked from the app's menu.
 

@@ -5,6 +5,9 @@ struct EditorContainerView: View {
     @Binding var document: LineformDocument
     @StateObject private var readingProfileStore: ReadingProfileStore
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
+    /// Shared, so the same announcement is on screen in every window and dismissing it
+    /// anywhere dismisses it everywhere — one announcement, one decision.
+    @ObservedObject private var announcementStore = AnnouncementStore.shared
     @StateObject private var tabStore: EditorTabStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
@@ -840,6 +843,28 @@ struct EditorContainerView: View {
             VStack(spacing: 0) {
                 editorContent
                     .frame(minWidth: EditorLayout.minimumContentWidth, minHeight: EditorLayout.minimumContentHeight)
+                    // The announcement card hangs off the CONTENT, not the outer ZStack, so
+                    // it can never overlap the status bar below it. Still an overlay rather
+                    // than a laid-out row, so the top edge of the shell — what the
+                    // translucent toolbar samples — is unchanged whether it is up or not.
+                    .overlay(alignment: .bottomTrailing) {
+                        if let announcement = announcementStore.visible {
+                            AnnouncementCard(
+                                announcement: announcement,
+                                usesDarkChrome: currentTheme.usesDarkChrome,
+                                onAction: { announcementStore.performAction(for: announcement) },
+                                onDismiss: { announcementStore.dismiss(announcement) }
+                            )
+                            .padding(AnnouncementCard.edgeInset)
+                            // Reduce Motion is honoured by the `.animation` modifier on the
+                            // shell, which returns nil and drops the transition to a cut.
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .opacity.combined(with: .offset(y: 8))
+                            )
+                        }
+                    }
 
                 if EditorStatusBar.isVisible(in: displayMode) {
                     EditorStatusBar(
@@ -891,6 +916,13 @@ struct EditorContainerView: View {
                 reduceMotion: reduceMotion
             ),
             value: displayMode
+        )
+        .animation(
+            EditorMotionPolicy.animation(
+                .easeOut(duration: 0.24),
+                reduceMotion: reduceMotion
+            ),
+            value: announcementStore.visible
         )
     }
 

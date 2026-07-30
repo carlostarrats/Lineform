@@ -12,6 +12,7 @@ final class LineformSettingsStore: ObservableObject {
     static let allowRootFolderCollapseKey = "Lineform.settings.allowRootFolderCollapse"
     static let showICloudInSidebarKey = "Lineform.settings.showICloudInSidebar"
     static let checksSpellingWhileTypingKey = "Lineform.settings.checksSpellingWhileTyping"
+    static let checksForAnnouncementsKey = "Lineform.settings.checksForAnnouncements"
 
     @Published var showSidebarOnLaunch: Bool {
         didSet {
@@ -67,6 +68,17 @@ final class LineformSettingsStore: ObservableObject {
         }
     }
 
+    /// Gates the announcement check. This controls the REQUEST, not just the display:
+    /// with it off the app makes no outbound call at all, which is what keeps the
+    /// local-first promise literally true for anyone who wants it — and is the honest
+    /// answer to what the network entitlement is for.
+    @Published var checksForAnnouncements: Bool {
+        didSet {
+            guard oldValue != checksForAnnouncements else { return }
+            defaults.set(checksForAnnouncements, forKey: Self.checksForAnnouncementsKey)
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -84,6 +96,7 @@ final class LineformSettingsStore: ObservableObject {
         _allowRootFolderCollapseChoice = Published(initialValue: defaults.object(forKey: Self.allowRootFolderCollapseKey) as? Bool)
         _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, true))
         _checksSpellingWhileTyping = Published(initialValue: boolOrDefault(Self.checksSpellingWhileTypingKey, true))
+        _checksForAnnouncements = Published(initialValue: boolOrDefault(Self.checksForAnnouncementsKey, true))
     }
 }
 
