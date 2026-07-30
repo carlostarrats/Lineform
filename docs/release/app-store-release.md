@@ -9,22 +9,25 @@ Read `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before touchi
 
 ## 0. Preconditions — do not start until all are true
 
-- [ ] **DECIDE what happens to the `lineform` CLI.** Every executable in an App Store bundle must
-      be sandboxed, and a sandboxed helper cannot hand a FILE to the app: `NSWorkspace` by app
-      path, `open -a`, `open -b` and a file-URL default-handler open all fail (`permErr -54` /
-      `false`), regardless of location, signing, or file entitlements.
+- [ ] **DECIDED 2026-07-29: the `lineform` CLI does NOT ship in the App Store build.** Omit
+      `Contents/Helpers/lineform`, and remove the "Install Command Line Tool…" item from
+      `AppCommands.swift` in that build — a menu item installing a helper the bundle does not
+      contain is a broken affordance.
 
-      It is **not** proven impossible, though. A sandboxed helper CAN open a URL by scheme
-      (verified: `https://` returns true), so a custom `lineform://open?path=…` scheme would
-      launch the app. The unresolved part is file access — a path delivered by URL scheme carries
-      no sandbox extension, so the app can read it only where it already holds a grant, i.e.
-      inside the user's workspace folder. Needs a prototype before committing.
+      Why: every executable in an App Store bundle must be sandboxed, and a sandboxed helper
+      cannot hand a FILE to the app (`NSWorkspace` by app path, `open -a`, `open -b`, and a
+      file-URL default-handler open all fail regardless of location, signing, or file
+      entitlements). A custom `lineform://` URL scheme WOULD launch the app — scheme opening is
+      permitted from the sandbox — but a path delivered that way carries no sandbox extension, so
+      the app could only read files inside the workspace folder it already holds a bookmark for.
 
-      Detail and the reasoning: `docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md`.
+      That half-working version was considered and **rejected**: a CLI that opens files in one
+      folder and silently fails elsewhere is worse than no CLI. Do not re-propose the URL scheme
+      as a rescue for this.
 
-      Three options: prototype the URL scheme; ship the CLI only in the Direct build (simplest —
-      but going App Store-only then ends the CLI); or drop it. Whichever is chosen, make sure
-      `POSITIONING_AND_MARKETING.md` and the website match what the submitted build ships.
+      Consequence: going App Store-only ends the CLI. `POSITIONING_AND_MARKETING.md` and the
+      website must stop claiming it for any App Store release. Detail:
+      `docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md`.
 
 - [ ] Sparkle is gone: the SPM dependency, `Lineform/App/AppUpdater.swift`, the
       "Check for Updates…" item in `AppCommands.swift`, `SUFeedURL` + `SUPublicEDKey` in

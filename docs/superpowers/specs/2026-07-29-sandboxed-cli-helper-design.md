@@ -1,11 +1,15 @@
-# Sandboxed CLI helper — blocked on the obvious routes, one untested route remains
+# Sandboxed CLI helper — CLOSED, the CLI will not ship on the App Store
 
-**Status: not solved, not proven impossible.** Every *file-based* hand-off from a sandboxed helper
-fails, but **URL-scheme opening works**, and that route has not been built or tested. An earlier
-revision of this document declared the whole thing impossible; that was an over-generalisation
-from four failing file/app routes, corrected on the same day.
+**Status: closed by product decision, 2026-07-29.** The one surviving technical route (a `lineform://`
+URL scheme) only works for files inside the user's workspace folder, and a CLI that silently fails
+on paths elsewhere was judged worse than no CLI. Do not re-propose it. The rest of this document
+is kept for the verified sandbox facts and for the two mistakes it records.
 
-Every finding below was produced by running a real Developer ID-signed sandboxed binary.
+Technically: every *file-based* hand-off from a sandboxed helper fails, while **URL-scheme opening
+works**. The scheme route was never built, because the product decision above closed it first.
+
+Every finding below was produced by running a real Developer ID-signed sandboxed binary, and is
+kept because the sandbox facts are reusable for any future helper.
 
 ## What a sandboxed helper can and cannot do
 
@@ -27,12 +31,14 @@ entitlements (adding `com.apple.security.files.user-selected.read-write` changes
 The distinction that matters: **a sandboxed process may open a URL by scheme, but may not launch an
 application or open a file URL.**
 
-## The untested route: a `lineform://` URL scheme
+## The route that was rejected: a `lineform://` URL scheme
 
 The app registers a custom scheme; the helper opens `lineform://open?path=…` instead of handing
-over a file. Scheme opening is permitted from the sandbox, so the app would launch.
+over a file. Scheme opening is permitted from the sandbox, so the app would launch. This is the
+only route that survives technically — and it was rejected on product grounds, for the reason
+below.
 
-**The open question is file access, and it is a real one.** A path delivered through a URL scheme
+**File access is the problem.** A path delivered through a URL scheme
 carries no sandbox extension, so the app has no grant for it — unlike a document opened through
 LaunchServices, which is why `open -a` works today. Realistically:
 
@@ -40,9 +46,9 @@ LaunchServices, which is why `open -a` works today. Realistically:
   security-scoped bookmark for that folder for its lifetime, so the app can read them.
 - Files **outside it** would not, without prompting the user — which defeats the point of a CLI.
 
-So the honest position is that a URL scheme probably rescues the common case (`lineform` on a file
-in your workspace) and not the general one. That is a product judgement, not a technical unknown,
-and it needs a prototype before anyone commits to it.
+So a URL scheme rescues the common case (`lineform` on a file in your workspace) and not the
+general one. **That is why it was rejected**: a CLI that opens files in one folder and silently
+fails elsewhere is worse than no CLI, because the failure is invisible at the point of use.
 
 Not yet investigated: whether the helper could pass the file's CONTENT through the App Group
 container instead of a path. That works for `lineform -` today, but for a named file it would open
