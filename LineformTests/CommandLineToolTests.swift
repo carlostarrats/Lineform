@@ -100,4 +100,67 @@ final class CommandLineToolTests: XCTestCase {
         XCTAssertEqual(LineformPipeValidation.validate(Data([0x41, 0x00, 0x42])), .notText)
     }
 
+    // MARK: - Shared piped directory
+
+    /// The app and the `lineform` helper must resolve the piped directory through ONE function.
+    /// If they disagree, a pipe writes somewhere the app never looks and silently opens nothing —
+    /// there is no error to see. This is the paired-definition rule applied to a filesystem path.
+    /// Sandboxed (released) builds: piped files must land in the SHARED group container. Anywhere
+    /// else and a sandboxed helper's write is redirected into its own container, invisible to the app.
+    func testSharedPipedDirectoryUsesTheGroupContainerWhenAvailable() {
+        let container = URL(fileURLWithPath: "/Groups/group.TV4QZT7A7X.com.lineform", isDirectory: true)
+        var requested: String?
+        let resolved = LineformCLIPaths.sharedPipedDirectory(
+            home: URL(fileURLWithPath: "/Users/testfixture"),
+            groupContainer: { identifier in requested = identifier; return container }
+        )
+        XCTAssertEqual(requested, LineformCLIPaths.appGroupIdentifier)
+        XCTAssertEqual(
+            resolved.standardizedFileURL,
+            container.appendingPathComponent(LineformCLIPaths.pipedRelativePath, isDirectory: true).standardizedFileURL
+        )
+    }
+
+    /// Debug builds have no group entitlement (ad-hoc signing cannot satisfy one), so the resolver
+    /// must fall back to the documented home-relative path rather than yielding nothing.
+    func testSharedPipedDirectoryFallsBackToTheHomeRelativePathWithoutAGroup() {
+        let home = URL(fileURLWithPath: "/Users/testfixture")
+        let resolved = LineformCLIPaths.sharedPipedDirectory(home: home, groupContainer: { _ in nil })
+        XCTAssertEqual(
+            resolved.standardizedFileURL,
+            LineformCLIPaths.pipedDirectory(home: home).standardizedFileURL
+        )
+    }
+
+    /// Whichever branch is taken, the trailing structure is identical, so a file written by one
+    /// side is found by the other at the same relative location.
+    func testSharedPipedDirectoryAlwaysEndsInTheSameRelativePath() {
+        let home = URL(fileURLWithPath: "/Users/testfixture")
+        let container = URL(fileURLWithPath: "/Groups/g", isDirectory: true)
+        for resolved in [
+            LineformCLIPaths.sharedPipedDirectory(home: home, groupContainer: { _ in container }),
+            LineformCLIPaths.sharedPipedDirectory(home: home, groupContainer: { _ in nil }),
+        ] {
+            XCTAssertTrue(
+                resolved.path.hasSuffix(LineformCLIPaths.pipedRelativePath),
+                "expected a path ending in \(LineformCLIPaths.pipedRelativePath), got \(resolved.path)"
+            )
+        }
+    }
+
+    /// The group identifier is compiled into both the app's entitlements and the helper's. A typo
+    /// here is invisible until a sandboxed pipe silently writes to the wrong container.
+    func testAppGroupIdentifierMatchesTheEntitlementFiles() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // LineformTests
+            .deletingLastPathComponent()   // repo root
+        for relative in ["Lineform/Lineform.entitlements", "HelperTool/HelperTool.entitlements"] {
+            let url = repoRoot.appendingPathComponent(relative)
+            let text = try String(contentsOf: url, encoding: .utf8)
+            XCTAssertTrue(
+                text.contains(LineformCLIPaths.appGroupIdentifier),
+                "\(relative) does not declare \(LineformCLIPaths.appGroupIdentifier)"
+            )
+        }
+    }
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- DEBUG entitlements for the bundled `lineform` helper: deliberately EMPTY.
+
+	     Debug builds are ad-hoc signed, and ad-hoc signing cannot satisfy either the sandbox or
+	     an app-group entitlement. A sandboxed binary signed ad-hoc does not merely misbehave —
+	     it SIGTRAPs before `main`, so the helper would be completely unusable on every developer
+	     machine. This is the same rule the app follows for iCloud: never put an entitlement in
+	     Debug that ad-hoc signing cannot satisfy.
+
+	     Consequence: the sandboxed behaviour of this helper is NOT testable in Debug. It has to
+	     be verified against a Developer ID (or App Store) signed build with a provisioning
+	     profile that carries the App Group. -->
+</dict>
+</plist>

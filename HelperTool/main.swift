@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 // Thin CLI wrapper. Pure decisions live in Lineform/CommandLineTool/LineformCommandLine.swift
@@ -38,14 +39,20 @@ func appVersion(_ app: URL) -> String {
     return version
 }
 
+/// Resolved through the SHARED definition, so the helper and the app can never disagree about
+/// where piped files live. Under the sandbox this is the App Group container; unsandboxed
+/// (Debug) it falls back to the home-relative path.
 var pipedDirectory: URL {
-    LineformCLIPaths.pipedDirectory(home: FileManager.default.homeDirectoryForCurrentUser)
+    LineformCLIPaths.sharedPipedDirectory()
 }
 
 /// Delete piped files whose last activity is older than 7 days. Runs opportunistically on each
-/// invocation because the sandboxed app cannot enumerate this (real, out-of-container) directory.
-/// Uses the later of modification and access time, so a file that is open in the app (autosave
-/// refreshes mtime) or was recently read is kept. Best-effort; never fatal.
+/// invocation. Uses the later of modification and access time, so a file that is open in the app
+/// (autosave refreshes mtime) or was recently read is kept. Best-effort; never fatal.
+///
+/// This stays in the helper now that the directory is the shared App Group container: both sides
+/// can reach it, and the helper is the process that knows a pipe just happened. (It used to live
+/// here because the sandboxed app could not enumerate the real out-of-container path at all.)
 func cleanUpStalePipedFiles() {
     let fm = FileManager.default
     let keys: Set<URLResourceKey> = [.contentModificationDateKey, .contentAccessDateKey]
@@ -67,20 +74,28 @@ func cleanUpStalePipedFiles() {
     for url in stale { try? fm.removeItem(at: url) }
 }
 
+/// Hand the documents to Lineform through LaunchServices.
+///
+/// `NSWorkspace`, NOT a spawned `/usr/bin/open`: once the helper is sandboxed the child would
+/// inherit the sandbox, and going through LaunchServices directly is the supported path. It also
+/// matters that the helper never READS these files — it only stats them and passes the URLs. The
+/// sandbox restricts reading file *data*, so a sandboxed helper can hand over a path it could not
+/// itself open, and the app receives its own grant exactly as for a Finder double-click.
 func openInApp(_ urls: [URL]) -> Never {
     guard let app = enclosingAppURL() else {
         fail("lineform: could not locate Lineform.app — reinstall via Lineform → Install Command Line Tool…")
     }
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-    process.arguments = ["-a", app.path] + urls.map(\.path)
-    do {
-        try process.run()
-        process.waitUntilExit()
-    } catch {
-        fail("lineform: failed to open Lineform")
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    let semaphore = DispatchSemaphore(value: 0)
+    var failure: Error?
+    NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: configuration) { _, error in
+        failure = error
+        semaphore.signal()
     }
-    exit(process.terminationStatus == 0 ? 0 : 1)
+    semaphore.wait()
+    if failure != nil { fail("lineform: failed to open Lineform") }
+    exit(0)
 }
 
 /// Read stdin but stop once we exceed the limit, so a huge/infinite pipe is not fully buffered.

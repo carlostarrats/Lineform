@@ -73,10 +73,14 @@ entitlement split — Debug unsandboxed and working, Release sandboxed.
 - **Housekeeping moves to the app.** Once the directory is in the group container the app can
   enumerate it, which is simpler than the current arrangement and removes the comment explaining
   why the app could not do it.
-- **The `NSSavePanel` symlink install is dropped.** Creating `/usr/local/bin/lineform` needs
-  `com.apple.developer.security.privileged-file-operations`, a separately-approved entitlement.
-  The reviewed-and-shipped alternative is to show the bundled helper's path with a copyable
-  `ln -s` command. Slightly worse UX, no approval dependency.
+- **The `NSSavePanel` symlink install is KEPT, pending verification at submission.** An earlier
+  draft of this document said it had to be dropped; that was wrong, or at least unproven. The
+  entitlement `com.apple.developer.security.privileged-file-operations` covers creating such a
+  link *programmatically*. This app does not: the user picks the destination in a save panel, so
+  the write is a user-selected grant like any other. Whether review accepts that for
+  `/usr/local/bin` is genuinely unknown, and removing a working affordance on a guess is worse
+  than carrying the risk. Verify at submission; the fallback (show the bundled path with a
+  copyable `ln -s`) is a small change if it is ever rejected.
 
 ## Blocker
 

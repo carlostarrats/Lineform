@@ -63,12 +63,18 @@ xcodebuild "${XCODEBUILD_ARGS[@]}"
 # Build the bundled `lineform` command-line helper (universal) into Contents/Helpers.
 # The helper is a standalone Foundation tool (HelperTool/main.swift) that reuses the same
 # pure logic the app compiles for tests (Lineform/CommandLineTool/LineformCommandLine.swift).
-# It ships WITHOUT the App Sandbox entitlement and is signed with the app below.
+# It ships SANDBOXED (see the re-sign step below) and is signed with the app.
+#
+# The __TEXT,__info_plist section is LOAD-BEARING, not metadata: the helper is a bare Mach-O, so
+# without an embedded CFBundleIdentifier the sandbox has no identity to build a container from and
+# the binary SIGTRAPs before `main`. Verified under both ad-hoc and Developer ID signing.
 HELPER_DIR="$APP_PATH/Contents/Helpers"
 HELPER_SRC=("$REPO_ROOT/Lineform/CommandLineTool/LineformCommandLine.swift" "$REPO_ROOT/HelperTool/main.swift")
+HELPER_INFO_PLIST="$REPO_ROOT/HelperTool/HelperToolInfo.plist"
+HELPER_LDFLAGS=(-Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$HELPER_INFO_PLIST")
 mkdir -p "$HELPER_DIR"
-swiftc -O -target arm64-apple-macos14.0  -o "$HELPER_DIR/lineform-arm64"  "${HELPER_SRC[@]}"
-swiftc -O -target x86_64-apple-macos14.0 -o "$HELPER_DIR/lineform-x86_64" "${HELPER_SRC[@]}"
+swiftc -O -target arm64-apple-macos14.0  -o "$HELPER_DIR/lineform-arm64"  "${HELPER_SRC[@]}" "${HELPER_LDFLAGS[@]}"
+swiftc -O -target x86_64-apple-macos14.0 -o "$HELPER_DIR/lineform-x86_64" "${HELPER_SRC[@]}" "${HELPER_LDFLAGS[@]}"
 lipo -create -output "$HELPER_DIR/lineform" "$HELPER_DIR/lineform-arm64" "$HELPER_DIR/lineform-x86_64"
 rm -f "$HELPER_DIR/lineform-arm64" "$HELPER_DIR/lineform-x86_64"
 
@@ -150,7 +156,17 @@ if [[ "$RESIGN_WITH_DEVELOPER_ID" == "YES" ]]; then
 
   cp "$DEVELOPER_ID_PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 
-  sign_release_item "$APP_PATH/Contents/Helpers/lineform"
+  # The helper is SANDBOXED and carries the App Group, so it cannot use the bare
+  # sign_release_item helper (which passes no entitlements) — same reason the Quick Look
+  # extension below is signed by hand. Every executable in a Mac App Store bundle must be
+  # sandboxed, and the App Group is what lets piped stdin reach the app: without it the
+  # helper's write to Application Support redirects into its own container.
+  codesign --force \
+    --sign "$CODE_SIGN_IDENTITY" \
+    --options runtime \
+    --timestamp \
+    --entitlements "$REPO_ROOT/HelperTool/HelperTool.entitlements" \
+    "$APP_PATH/Contents/Helpers/lineform"
   # The Quick Look extension is a nested bundle and must be re-signed with Developer ID
   # too — Xcode signs it with the Apple Development cert, and notarization rejects the
   # whole archive for it ("binary is not signed with a valid Developer ID certificate",
