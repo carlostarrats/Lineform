@@ -218,9 +218,18 @@ enum MainMenuIconDecorator {
     static func localizedSymbolsByNormalizedTitle(languageCode: String) -> [String: String] {
         var map = symbolsByTitle
         for aliases in [systemAliases(languageCode: languageCode), catalogAliases(languageCode: languageCode)] {
-            for (englishNormalized, localizedNormalized) in aliases {
-                guard let symbol = symbolsByTitle[englishNormalized] else { continue }
-                map[localizedNormalized] = symbol
+            // Two English titles can share ONE localized title — fr collapses "AutoFill" and
+            // "Fill" to "Remplir", zh-Hans collapses "Title" and "Heading" to 标题 — and those
+            // pairs carry DIFFERENT symbols. Written straight out of an unordered Dictionary,
+            // the survivor varied between processes: in Chinese, Format ▸ Title drew Heading's
+            // glyph or the reverse, differently on each launch. First sorted English key wins,
+            // so the collision resolves the same way every time.
+            var claimed = Set<String>()
+            for englishNormalized in aliases.keys.sorted() {
+                guard let localized = aliases[englishNormalized],
+                      let symbol = symbolsByTitle[englishNormalized],
+                      claimed.insert(localized).inserted else { continue }
+                map[localized] = symbol
             }
         }
         return map

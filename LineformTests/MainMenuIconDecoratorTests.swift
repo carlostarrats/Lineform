@@ -49,25 +49,91 @@ final class MainMenuIconDecoratorTests: XCTestCase {
             AppMenuConfiguration.showHiddenFoldersCommandTitle
         ] + AppMenuConfiguration.markdownFormattingCommandTitles
 
-        // Every one of these titles is now a localization-catalog key, and the decorator
-        // resolves its localized form by looking the ENGLISH key up in the catalog. That
-        // only works if the key is listed in `allEnglishTitleKeys`, which is hand-maintained
-        // — so completeness is asserted here rather than remembered.
-        let englishKeys = Set(AppMenuConfiguration.allEnglishTitleKeys.map(MainMenuIconDecorator.normalizedTitle))
-
         for title in titles {
             let key = MainMenuIconDecorator.normalizedTitle(title)
             XCTAssertNotNil(
                 MainMenuIconDecorator.symbolsByTitle[key],
                 "Menu title \"\(title)\" (key \"\(key)\") has no icon mapping"
             )
-            XCTAssertTrue(
-                englishKeys.contains(key),
-                "Menu title \"\(title)\" (key \"\(key)\") is missing from AppMenuConfiguration.allEnglishTitleKeys — "
-                    + "its icon would be lost in every non-English locale"
-            )
         }
     }
+
+    /// `allEnglishTitleKeys` is hand-maintained and is how the decorator learns each of our
+    /// own rows' LOCALIZED title. A key left out costs that row its icon in every non-English
+    /// locale, invisibly — nothing about the English build changes.
+    ///
+    /// This must scan the SOURCE, not a list maintained here: a second hand-maintained list
+    /// only fails when someone remembers to update it too, which is the same failure mode.
+    /// 28 of the keys are also in the AppKit table, so the locale test's alias check is
+    /// satisfied by `systemAliases` and would never notice their absence from the array.
+    func testEveryLocalizedMenuTitleLiteralIsInAllEnglishTitleKeys() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appending(path: "Lineform/App/AppCommands.swift"), encoding: .utf8)
+        let keys = Set(AppMenuConfiguration.allEnglishTitleKeys)
+
+        let literals = source.matches(of: /String\(localized: "([^"]+)"/).map { String($0.1) }
+        // If the call style ever changes, the regex stops matching and every assertion below
+        // passes vacuously. Fail instead.
+        XCTAssertFalse(literals.isEmpty, "no String(localized:) literals found — the scan has gone blind")
+
+        for literal in literals {
+            XCTAssertTrue(keys.contains(literal), "\"\(literal)\" is missing from allEnglishTitleKeys")
+        }
+
+        // Menu titles declared outside AppCommands.swift: the Export As submenu's rows and the
+        // View ▸ Mode picker's rows.
+        for title in ExportFormat.allCases.map(\.title) + EditorDisplayMode.allCases.map(\.title) {
+            XCTAssertTrue(keys.contains(title), "\"\(title)\" is missing from allEnglishTitleKeys")
+        }
+    }
+
+    /// A localized title claimed by two English keys with different symbols draws one row's
+    /// glyph on the other. `fr` collapses "AutoFill" and "Fill" to "Remplir"; `zh-Hans`
+    /// collapses "Title" and "Heading" to 标题 — and Title/Heading are both real Format-menu
+    /// rows. Written out of an unordered Dictionary the survivor varied between processes.
+    func testLocalizedAliasCollisionsResolveDeterministically() {
+        // The two live collisions, pinned by name. A `where` filter cannot skip these into
+        // passing, and they fail outright if either table's wording changes.
+        let french = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: "fr")
+        XCTAssertEqual(french["remplir"], MainMenuIconDecorator.symbolsByTitle["autofill"],
+                       "fr: \"Remplir\" is both AutoFill and Fill — \"autofill\" sorts first and must win")
+        let chinese = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: "zh-Hans")
+        XCTAssertEqual(chinese["标题"], MainMenuIconDecorator.symbolsByTitle["heading"],
+                       "zh-Hans: 标题 is both Title and Heading — \"heading\" sorts first and must win")
+
+        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+            let first = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: language)
+            let second = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: language)
+            XCTAssertEqual(first, second, "\(language): the map is not stable across builds")
+
+            // The known collisions must land on the first-sorted English key's symbol.
+            let aliases = MainMenuIconDecorator.localizedAliases(languageCode: language)
+            var claimant: [String: String] = [:]
+            for englishNormalized in aliases.keys.sorted() {
+                guard let localized = aliases[englishNormalized],
+                      let symbol = MainMenuIconDecorator.symbolsByTitle[englishNormalized] else { continue }
+                if let existing = claimant[localized] {
+                    XCTAssertEqual(
+                        first[localized], MainMenuIconDecorator.symbolsByTitle[existing],
+                        "\(language): \"\(localized)\" is claimed by both \"\(existing)\" and "
+                            + "\"\(englishNormalized)\" — the earlier English key must win"
+                    )
+                } else {
+                    claimant[localized] = englishNormalized
+                    XCTAssertEqual(first[localized], symbol,
+                                   "\(language): \"\(localized)\" did not resolve to \(symbol)")
+                }
+            }
+        }
+    }
+
+    /// `language:englishNormalizedKey` pairs where Apple's translation IS the English word.
+    /// The complete set at macOS 26.5 — anything else equal to English means a degenerate
+    /// table row, not a translation.
+    static let englishIsTheTranslation: Set<String> = [
+        "fr:services", "fr:substitutions", "fr:transformations", "fr:contact",
+        "de:link", "de:pause", "fr:pause"
+    ]
 
     /// The runtime map deliberately keeps the English keys as a safety net, so probing it
     /// can never fail. The thing that can actually regress is the LOCALIZED alias, which is
@@ -112,17 +178,20 @@ final class MainMenuIconDecoratorTests: XCTestCase {
                                 "\(englishNormalized): no localized title in \(language)")
             }
 
-            // A system-provided entry carries real Apple translations, so at least one
-            // language must differ from the English key — otherwise the generated table
-            // is degenerate for that row (this is how the FunctionKeyNames keycap rows,
-            // whose "translation" of Find/Print/Stop was the English word, were caught).
-            // Not "all five": French legitimately keeps "Services", "Substitutions",
-            // "Transformations", and German keeps "Link".
+            // A system-provided entry carries a real Apple translation, so EVERY language
+            // must differ from the English key — with seven named exceptions below where the
+            // English word genuinely is the translation. The strict form is what keeps
+            // `EXCLUDED_TABLES` in extract-system-menu-titles.py load-bearing: drop
+            // FunctionKeyNames.loctable and its keycap legends re-win Find/Print/Pause/Stop
+            // (it sorts before InputManager and the script uses setdefault), shipping ja
+            // "Find" and zh "Pause" as menu titles. A "some language differs" form passes on
+            // all four of those and would let the regeneration through.
             if MainMenuIconDecorator.systemProvidedNormalizedKeys.contains(englishNormalized) {
-                XCTAssertTrue(
-                    languages.contains { aliasesByLanguage[$0]?[englishNormalized] != englishNormalized },
-                    "\(englishNormalized): every alias is just the English title — no real translation source"
-                )
+                for language in languages
+                where !Self.englishIsTheTranslation.contains("\(language):\(englishNormalized)") {
+                    XCTAssertNotEqual(aliasesByLanguage[language]?[englishNormalized], englishNormalized,
+                                      "\(englishNormalized): \(language) alias is just the English title")
+                }
             }
         }
     }
@@ -134,6 +203,12 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         XCTAssertEqual(MainMenuIconDecorator.runtimeLanguageCode(preferredLocalizations: ["zh-Hans", "en"]),
                        "zh-Hans")
         XCTAssertEqual(MainMenuIconDecorator.runtimeLanguageCode(preferredLocalizations: []), "en")
+
+        // The pure function above stays green even if the DEFAULT argument is switched to
+        // Locale.current.language.languageCode — which is the exact forbidden regression.
+        // This pins the default itself to preferredLocalizations.
+        XCTAssertEqual(MainMenuIconDecorator.runtimeLanguageCode(),
+                       Bundle.main.preferredLocalizations.first ?? "en")
     }
 
     /// Guards the "quit is not a document action" class of copy/paste error in the table:
