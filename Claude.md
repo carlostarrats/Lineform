@@ -8,7 +8,7 @@ Lineform is a free native macOS Markdown editor for calm writing, real local fil
 
 Public-facing links:
 
-- Product website: `https://lineform-site.vercel.app`
+- Product website: `https://lineform.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
 - Public download target: `https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.5.0.dmg`
 

@@ -22,10 +22,13 @@ protocol AnnouncementFetching: Sendable {
 /// beyond what any web request unavoidably carries. Because there is nothing to
 /// collect, the App Privacy label stays "Data Not Collected".
 struct AnnouncementFetcher: AnnouncementFetching {
-    /// The static feed, served next to the marketing site's `index.html`. Points at the
-    /// canonical domain: the old `lineform-site.vercel.app` host now 308s here for every
-    /// path, so builds already in the field still reach the feed — but a redirect is one
-    /// more thing that can be misconfigured between the app and a static file.
+    /// The static feed, served next to the marketing site's `index.html` on Cloudflare.
+    ///
+    /// Builds up to 1.5.0 shipped with the old `lineform-site.vercel.app` host, which today
+    /// 308s here. That Vercel project is slated for deletion, and when it goes those builds
+    /// stop reaching the feed for good — they fail soft (a failed fetch is nil, "learned
+    /// nothing", so the cache and the screen are left alone), but they never see another
+    /// announcement. Cut a release carrying this URL before deleting it.
     static let defaultFeedURL = URL(string: "https://lineform.app/announcements.json")!
 
     /// Short enough that a hung or throttled server never keeps a background task
