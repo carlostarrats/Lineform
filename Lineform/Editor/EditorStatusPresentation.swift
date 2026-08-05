@@ -69,29 +69,22 @@ enum EditorStatusFormatter {
         }
     }
 
-    static func lastSavedText(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String {
-        lastSavedDisplay(for: date, now: now, calendar: calendar).accessibilityText
+    static func lastSavedText(for date: Date?, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .autoupdatingCurrent) -> String {
+        lastSavedDisplay(for: date, now: now, calendar: calendar, locale: locale).accessibilityText
     }
 
-    static func lastSavedDisplay(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> LastSavedDisplay {
+    static func lastSavedDisplay(for date: Date?, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .autoupdatingCurrent) -> LastSavedDisplay {
         guard let date else {
             return LastSavedDisplay(label: "Not saved yet", detail: nil)
         }
 
-        let timeZone = calendar.timeZone
-        if calendar.isDate(date, inSameDayAs: now) {
-            return LastSavedDisplay(label: "Last save", detail: formatted(date, format: "h:mm a", timeZone: timeZone))
-        }
-
-        return LastSavedDisplay(label: "Last save", detail: formatted(date, format: "MMM d, yyyy 'at' h:mm a", timeZone: timeZone))
-    }
-
-    private static func formatted(_ date: Date, format: String, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timeZone
-        formatter.dateFormat = format
-        return formatter.string(from: date)
+        // Locale-aware system styles, never a hand-built pattern: a pattern string
+        // localizes the words but not the order, joiner, or clock convention.
+        var style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+        style = calendar.isDate(date, inSameDayAs: now)
+            ? style.hour().minute()
+            : style.year().month(.abbreviated).day().hour().minute()
+        return LastSavedDisplay(label: "Last save", detail: date.formatted(style))
     }
 }
 

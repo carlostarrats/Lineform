@@ -1052,17 +1052,19 @@ final class EditorDisplayModeTests: XCTestCase {
             minute: 6
         ).date)
 
+        // `Date.FormatStyle` renders the AM/PM separator as U+202F (narrow no-break space),
+        // not a plain space — the system-produced string, not the legacy hand-built pattern.
         XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: nil, now: now, calendar: calendar), "Not saved yet")
-        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: today, now: now, calendar: calendar), "Last save 9:05 AM")
-        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: earlierDate, now: now, calendar: calendar), "Last save May 25, 2026 at 2:06 PM")
+        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: today, now: now, calendar: calendar), "Last save 9:05\u{202F}AM")
+        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: earlierDate, now: now, calendar: calendar), "Last save May 25, 2026 at 2:06\u{202F}PM")
 
         XCTAssertEqual(
             EditorStatusFormatter.lastSavedDisplay(for: today, now: now, calendar: calendar),
-            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "9:05 AM")
+            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "9:05\u{202F}AM")
         )
         XCTAssertEqual(
             EditorStatusFormatter.lastSavedDisplay(for: earlierDate, now: now, calendar: calendar),
-            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "May 25, 2026 at 2:06 PM")
+            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "May 25, 2026 at 2:06\u{202F}PM")
         )
     }
 
@@ -1137,5 +1139,40 @@ final class EditorDisplayModeTests: XCTestCase {
         return 0.2126 * linearized(rgb.redComponent)
             + 0.7152 * linearized(rgb.greenComponent)
             + 0.0722 * linearized(rgb.blueComponent)
+    }
+}
+
+final class EditorStatusDateFormattingTests: XCTestCase {
+    private var calendar: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+    private let date = Date(timeIntervalSince1970: 1_785_942_240) // 2026-08-05 15:04:00 UTC (verified)
+
+    func testGermanLocaleUses24HourClockAndGermanMonth() throws {
+        let display = EditorStatusFormatter.lastSavedDisplay(
+            for: date, now: date.addingTimeInterval(90_000),
+            calendar: calendar, locale: Locale(identifier: "de_DE"))
+        XCTAssertEqual(display.label, "Last save")
+        let detail = try XCTUnwrap(display.detail)
+        XCTAssertTrue(detail.contains("15:04"), "expected 24h clock, got \(detail)")
+        XCTAssertFalse(detail.contains("PM"))
+        XCTAssertFalse(detail.contains("Aug 5"), "English month order leaked: \(detail)")
+    }
+
+    func testJapaneseLocaleSameDayUses24HourClock() throws {
+        let display = EditorStatusFormatter.lastSavedDisplay(
+            for: date, now: date, calendar: calendar, locale: Locale(identifier: "ja_JP"))
+        XCTAssertEqual(try XCTUnwrap(display.detail).contains("15:04"), true)
+    }
+
+    func testEnglishOutputUnchanged() {
+        let display = EditorStatusFormatter.lastSavedDisplay(
+            for: date, now: date.addingTimeInterval(90_000),
+            calendar: calendar, locale: Locale(identifier: "en_US"))
+        // `Date.FormatStyle` renders the AM/PM separator as U+202F (narrow no-break space),
+        // not a plain space — the system-produced string, not the legacy hand-built pattern.
+        XCTAssertEqual(display.detail, "Aug 5, 2026 at 3:04\u{202F}PM")
     }
 }
