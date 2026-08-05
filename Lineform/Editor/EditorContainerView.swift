@@ -2034,7 +2034,11 @@ struct EditorContainerView: View {
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = true
             panel.prompt = String(localized: "Grant Access")
-            panel.message = String(localized: "This document uses \(unresolved.count) image\(unresolved.count == 1 ? "" : "s") stored outside the folders Lineform can access. Choose the folder or files to include them in the PDF, or Cancel to export without them.")
+            // The plural is a catalog variation, not a `+ "s"` in the format string: a
+            // concatenated suffix is untranslatable (no other language pluralizes by appending
+            // one letter to the noun), and it left the catalog holding a `%@` placeholder that
+            // carried no meaning of its own.
+            panel.message = String(localized: "This document uses \(unresolved.count) images stored outside the folders Lineform can access. Choose the folder or files to include them in the PDF, or Cancel to export without them.")
             if panel.runModal() == .OK {
                 for url in panel.urls where url.startAccessingSecurityScopedResource() {
                     granted.append(url)

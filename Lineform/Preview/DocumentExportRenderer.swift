@@ -72,17 +72,17 @@ enum ExportPaperSize: CaseIterable {
     var displayName: String {
         switch self {
         case .usLetter:
-            return "US Letter"
+            return String(localized: "US Letter")
         case .usLegal:
-            return "US Legal"
+            return String(localized: "US Legal")
         case .tabloid:
-            return "Tabloid"
+            return String(localized: "Tabloid")
         case .a4:
-            return "A4"
+            return String(localized: "A4")
         case .a3:
-            return "A3"
+            return String(localized: "A3")
         case .a5:
-            return "A5"
+            return String(localized: "A5")
         }
     }
 }

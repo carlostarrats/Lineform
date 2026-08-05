@@ -95,7 +95,10 @@ struct TabBarView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(tab.title))
-            .accessibilityValue(isSelected ? Text("selected") : Text(""))
+            // `Text(verbatim:)` on the empty branch: a bare `Text("")` is a string literal, so
+            // SwiftUI takes it as a LocalizedStringKey and the empty string is extracted into the
+            // catalog as a key nothing can translate.
+            .accessibilityValue(isSelected ? Text("selected") : Text(verbatim: ""))
             // The visible × is deliberately pointer-hover-only (design: no close affordance
             // at rest). VoiceOver / Switch Control users reach close through this custom
             // action instead — same gating as the visible ×: only when more than one tab is

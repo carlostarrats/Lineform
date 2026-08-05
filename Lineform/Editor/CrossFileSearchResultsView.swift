@@ -210,7 +210,11 @@ struct CrossFileSearchResultsView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
-            Text(result.matchCount == 1 ? "1 match" : "\(result.matchCount) matches")
+            // One key with catalog plural variations, not a `== 1` ternary in Swift: the
+            // ternary hard-codes English's "singular is exactly 1" rule, and French puts 0 in
+            // the singular category too ("0 match"). Letting the catalog pick the form is the
+            // only way the other four languages get their own rule.
+            Text("\(result.matchCount) matches")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(sortLabelColor)
         }
@@ -251,7 +255,7 @@ struct CrossFileSearchResultsView: View {
     }
 
     private func accessibilityText(_ result: CrossFileSearchResult) -> String {
-        let matches = result.matchCount == 1 ? "1 match" : "\(result.matchCount) matches"
+        let matches = String(localized: "\(result.matchCount) matches")
         return "\(result.name), \(locationText(result)), \(matches)"
     }
 }
