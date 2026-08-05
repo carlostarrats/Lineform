@@ -13,7 +13,16 @@
 ## Global Constraints
 
 - Languages: `es`, `fr`, `de`, `ja`, `zh-Hans`. Apple's `.loctable` files key Chinese as `zh_CN` and escape values like `"Preferences\U2026"` — extraction scripts must handle both.
-- Every localization key is the English display string itself (pre-normalization, e.g. `"Save As…"`), so English behavior is byte-identical before and after the refactor.
+- Every localization key is the English display string itself, **exactly as found in the source, byte for byte**. The menus deliberately use ASCII three-period ellipses (`"Save As..."`, per the comment at `AppCommands.swift:44`), NOT the `…` character — copying a key with the wrong ellipsis changes English output and silently breaks decorator and glossary matching.
+- **Catalog sync procedure** (referenced by several tasks): CLI builds emit `.stringsdata` into DerivedData but do not write new keys back into the source `.xcstrings` — that is Xcode-IDE behavior. After converting strings, populate the catalog with:
+
+  ```sh
+  xcodebuild build -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -derivedDataPath build-loc
+  find build-loc -name '*.stringsdata' > /tmp/stringsdata-list.txt
+  xcrun xcstringstool sync Lineform/Localizable.xcstrings --stringsdata-file-list /tmp/stringsdata-list.txt
+  ```
+
+  Check `xcrun xcstringstool sync --help` once for the exact flag spelling on this Xcode (Task 5 pins it); if `sync` proves unable to consume the stringsdata, the fallback is to hand-author each task's keys directly into the catalog JSON from the task's "Produces" list — never skip the verification that keys are present. `SWIFT_EMIT_LOC_STRINGS = YES` is **already set** in both configurations (`project.pbxproj:1144, 1199`) — do not add it again, and do not treat its absence as the explanation for missing keys.
 - **Never localize an enum `rawValue`** — add a `title` property instead (`OutlineFileSortOrder` and `EditorDisplayMode` are the models to follow).
 - **Text that renders document content stays in the document's language** — callout labels, Markdown syntax, exported HTML. Only app chrome localizes.
 - Font names, "Lineform", and `AppMenuConfiguration.aboutCopyright` / `aboutVersionDisplay` are never translated.
@@ -263,9 +272,9 @@ final class EditorStatusDateFormattingTests: XCTestCase {
         c.timeZone = TimeZone(identifier: "UTC")!
         return c
     }
-    private let date = Date(timeIntervalSince1970: 1_754_406_240) // 2026-08-05 15:04:00 UTC
+    private let date = Date(timeIntervalSince1970: 1_785_942_240) // 2026-08-05 15:04:00 UTC (verified)
 
-    func testGermanLocaleUses24HourClockAndGermanMonth() {
+    func testGermanLocaleUses24HourClockAndGermanMonth() throws {
         let display = EditorStatusFormatter.lastSavedDisplay(
             for: date, now: date.addingTimeInterval(90_000),
             calendar: calendar, locale: Locale(identifier: "de_DE"))
@@ -276,7 +285,7 @@ final class EditorStatusDateFormattingTests: XCTestCase {
         XCTAssertFalse(detail.contains("Aug 5"), "English month order leaked: \(detail)")
     }
 
-    func testJapaneseLocaleSameDayUses24HourClock() {
+    func testJapaneseLocaleSameDayUses24HourClock() throws {
         let display = EditorStatusFormatter.lastSavedDisplay(
             for: date, now: date, calendar: calendar, locale: Locale(identifier: "ja_JP"))
         XCTAssertEqual(try XCTUnwrap(display.detail).contains("15:04"), true)
@@ -291,7 +300,7 @@ final class EditorStatusDateFormattingTests: XCTestCase {
 }
 ```
 
-(Adjust the epoch constant if 15:04 UTC does not fall out — compute it in the test with `DateComponents(year: 2026, month: 8, day: 5, hour: 15, minute: 4)` via the UTC calendar instead if simpler; exactness of the hour is what matters.)
+(The epoch constant is verified: `1_785_942_240` = 2026-08-05T15:04:00Z. The `Date.FormatStyle(locale:calendar:timeZone:)` initializer and the composed `.year().month(.abbreviated).day().hour().minute()` chain are verified on this OS to produce `"Aug 5, 2026 at 3:04 PM"` in en_US — including the "at" joiner — `"5. Aug. 2026, 15:04"` in de_DE, and `"15:04"` for time-only in ja.)
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -462,11 +471,31 @@ static func statisticsText(for statistics: DocumentStatistics) -> String {
 }
 ```
 
-`EditorContainerView.swift:1955` — the computed `statisticsText` becomes:
+`EditorContainerView.swift:1955-1960` — the computed `statisticsText` becomes:
 
 ```swift
 private var statisticsText: String {
     EditorStatusFormatter.statisticsText(for: documentStatistics)
+}
+```
+
+**Also the separately composed accessibility label** (spec requires both variants there too): `EditorContainerView.swift:1978` hard-codes `"Document contains \(wordCount) words and \(characterCount) characters"`. Move that composition into the formatter so the CJK rule cannot diverge:
+
+```swift
+static func statusAccessibilityText(for statistics: DocumentStatistics) -> String {
+    if statistics.isPredominantlyCJK {
+        return "Document contains \(statistics.characterCount) characters"
+    }
+    return "Document contains \(statistics.wordCount) words and \(statistics.characterCount) characters"
+}
+```
+
+and point the `:1978` site at it. Add a test:
+
+```swift
+func testCJKAccessibilityLabelOmitsWordCount() {
+    let stats = DocumentStatistics(text: "吾輩は猫である。名前はまだ無い。")
+    XCTAssertFalse(EditorStatusFormatter.statusAccessibilityText(for: stats).contains("words"))
 }
 ```
 
@@ -493,7 +522,7 @@ git commit -m "Suppress the word count for predominantly-CJK documents; report c
 
 **Interfaces:**
 - Consumes: Task 3's `locale:` parameter, Task 4's `statisticsText(for:)`.
-- Produces: catalog keys `"Updated"`, `"Unsaved changes"`, `"Saved"`, `"Autosaved"`, `"Not saved yet"`, `"Last save"`, `"Document updated from disk"`, `"%lld words — %lld characters"`, `"%lld characters"`.
+- Produces: catalog keys `"Updated"`, `"Unsaved changes"`, `"Saved"`, `"Autosaved"`, `"Not saved yet"`, `"Last save"`, `"Document updated from disk"`, `"%lld words — %lld characters"`, `"%lld characters"`, `"Document contains %lld words and %lld characters"`, `"Document contains %lld characters"`. Also: the pinned, working `xcstringstool sync` invocation every later conversion task reuses.
 
 - [ ] **Step 1: Convert every English constant to `String(localized:)`**
 
@@ -504,7 +533,7 @@ static let savedIndicatorText = String(localized: "Saved")
 static let autosavedIndicatorText = String(localized: "Autosaved")
 ```
 
-In `lastSavedDisplay`: `String(localized: "Not saved yet")` and `String(localized: "Last save")`. In `EditorStatusIndicator.accessibilityLabel`: the four literals each become `String(localized:)` (e.g. `String(localized: "Document updated from disk")`). In `statisticsText(for:)`:
+In `lastSavedDisplay`: `String(localized: "Not saved yet")` and `String(localized: "Last save")`. In `EditorStatusIndicator.accessibilityLabel`: the four literals each become `String(localized:)` (e.g. `String(localized: "Document updated from disk")`). In `statisticsText(for:)` and `statusAccessibilityText(for:)` (added in Task 4):
 
 ```swift
 if statistics.isPredominantlyCJK {
@@ -513,10 +542,15 @@ if statistics.isPredominantlyCJK {
 return String(localized: "\(statistics.wordCount) words — \(statistics.characterCount) characters")
 ```
 
-- [ ] **Step 2: Build, and confirm the keys landed in the catalog**
+(and the two `"Document contains …"` variants the same way).
 
-Run the build, then: `python3 -c "import json; s=json.load(open('Lineform/Localizable.xcstrings'))['strings']; print(sorted(k for k in s))"`
-Expected: the nine keys above appear (Xcode extracts on build; if the catalog did not update, the target's "Use Compiler to Extract Swift Strings" build setting (`SWIFT_EMIT_LOC_STRINGS`) must be set to YES — add `SWIFT_EMIT_LOC_STRINGS = YES;` to both app-target build configurations in the pbxproj and rebuild).
+- [ ] **Step 2: Sync the catalog and confirm the keys landed — this pins the procedure for every later task**
+
+Run the Catalog sync procedure from Global Constraints. First check the tool's actual interface on this Xcode — `xcrun xcstringstool sync --help` — and adjust the flag spelling to what it prints (the subcommand exists; the exact stringsdata-input flag must be confirmed empirically here). Then:
+
+`python3 -c "import json; s=json.load(open('Lineform/Localizable.xcstrings'))['strings']; print(sorted(s))"`
+
+Expected: the eleven keys from this task's Produces list appear. If `sync` cannot be made to consume the stringsdata, hand-author the keys into the catalog JSON instead (empty `{ }` entries, same shape as Task 12's examples) — and note in the task journal that all later tasks must hand-author too. **Record the exact working command (or the hand-author decision) in the task journal — Tasks 6, 8, 9, 10, and 11 repeat it verbatim.** Do not touch `SWIFT_EMIT_LOC_STRINGS`; it is already YES in both configurations.
 
 - [ ] **Step 3: Run the status-bar and formatting tests**
 
@@ -559,9 +593,9 @@ Do **not** convert: `aboutVersionDisplay`, `aboutCopyright` (Global Constraints)
 Run: `grep -nE 'Button\("|Toggle\("|Menu\("|Text\("|Label\("' Lineform/App/AppCommands.swift`
 Convert each user-facing hit to `String(localized:)` (SwiftUI literal initializers extract on their own, but this file mixes both shapes — converting keeps every key visible in one style). Keyboard shortcut definitions and SF Symbol names stay untouched.
 
-- [ ] **Step 3: Build; verify the keys landed; launch and eyeball the English menus**
+- [ ] **Step 3: Sync the catalog; verify the keys landed; launch and eyeball the English menus**
 
-Build, then confirm with the Step-2-style python check that menu keys (e.g. `"Check for Updates…"`) are in the catalog. Launch the FRESH build (full `BUILT_PRODUCTS_DIR` path per the debug-launch gotcha — never `open -a Lineform`) and confirm the menu bar reads exactly as before in English.
+Run the Catalog sync procedure exactly as Task 5 pinned it (its journal records the working command, or the hand-author decision). Confirm menu keys are in the catalog — e.g. `"Check for Updates..."` with the ASCII three-period ellipsis, exactly as the source literal reads (Global Constraints; the `…` character is wrong and will not match). Launch the FRESH build (full `BUILT_PRODUCTS_DIR` path per the debug-launch gotcha — never `open -a Lineform`) and confirm the menu bar reads exactly as before in English.
 
 - [ ] **Step 4: Run the menu-related tests**
 
@@ -586,7 +620,7 @@ git commit -m "Route AppMenuConfiguration titles through the string catalog"
 
 **Interfaces:**
 - Consumes: Task 6's guarantee that catalog keys are English titles.
-- Produces: `MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: String) -> [String: String]`; `SystemMenuItemTitles.titles: [String: [String: String]]` (`englishTitle → languageCode → localizedTitle`, language codes `es|fr|de|ja|zh-Hans`).
+- Produces: `MainMenuIconDecorator.runtimeLanguageCode(preferredLocalizations:) -> String`, `.localizedAliases(languageCode:) -> [String: String]`, `.systemProvidedNormalizedKeys: Set<String>`, `.localizedSymbolsByNormalizedTitle(languageCode:) -> [String: String]`; `SystemMenuItemTitles.titles: [String: [String: String]]` (`englishTitle → languageCode → localizedTitle`, language codes `es|fr|de|ja|zh-Hans`); `AppMenuConfiguration.allEnglishTitleKeys: [String]`.
 
 Background (spec): 108 `symbolsByTitle` entries match by normalized English title and fail silently in other locales; 38 selector entries are locale-proof. `Passwords` and `Credit Card` have no Apple translation source — accepted icon loss outside English, asserted as the only exceptions.
 
@@ -594,34 +628,47 @@ Background (spec): 108 `symbolsByTitle` entries match by normalized English titl
 
 Add to `MainMenuIconDecoratorTests`:
 
+The implementation keeps English keys in the runtime map as a safety net, so the
+test must NOT probe through that fallback — it asserts each entry gained a
+**localized** alias, which is the thing that can actually regress:
+
 ```swift
-func testEveryTitleKeyedEntryResolvesInAllShippedLocales() {
+func testEveryTitleKeyedEntryGainsALocalizedAliasInAllShippedLocales() {
     // Passwords / Credit Card: AppKit ships no localized title for these AutoFill
     // rows, so their icons are accepted as English-only (spec, MainMenuIconDecorator).
     let acceptedLosses: Set<String> = ["passwords", "credit card"]
 
-    for language in ["en", "es", "fr", "de", "ja", "zh-Hans"] {
-        let map = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: language)
-        for (englishNormalized, symbol) in MainMenuIconDecorator.symbolsByTitle {
-            if language != "en" && acceptedLosses.contains(englishNormalized) { continue }
-            XCTAssertNotNil(
-                map[englishNormalized] ?? mapValue(map, matching: symbol),
-                "\(englishNormalized) resolves nothing in \(language)")
+    for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+        let aliases = MainMenuIconDecorator.localizedAliases(languageCode: language)
+        for englishNormalized in MainMenuIconDecorator.symbolsByTitle.keys
+        where !acceptedLosses.contains(englishNormalized) {
+            let localized = aliases[englishNormalized]
+            XCTAssertNotNil(localized, "\(englishNormalized): no localized title in \(language)")
+            // Once Task 13's translations land, a localized alias equal to the
+            // English key means the entry silently fell back — flag it. Before
+            // translations exist this holds trivially for system items only.
+            if MainMenuIconDecorator.systemProvidedNormalizedKeys.contains(englishNormalized) {
+                XCTAssertNotEqual(localized, englishNormalized,
+                                  "\(englishNormalized): \(language) alias is just the English title")
+            }
         }
     }
 }
 
-/// A localized map keyed by localized-normalized titles can't be probed by English
-/// key alone; membership of the symbol proves the entry was carried over.
-private func mapValue(_ map: [String: String], matching symbol: String) -> String? {
-    map.values.contains(symbol) ? symbol : nil
+func testRuntimeLanguageDerivationMatchesCatalogFolderNames() {
+    // Locale.language.languageCode collapses zh-Hans to "zh", which matches neither
+    // the SystemMenuItemTitles keys nor the compiled zh-Hans.lproj folder. The
+    // runtime code must use Bundle.main.preferredLocalizations — this pin keeps it so.
+    XCTAssertEqual(MainMenuIconDecorator.runtimeLanguageCode(preferredLocalizations: ["zh-Hans", "en"]),
+                   "zh-Hans")
+    XCTAssertEqual(MainMenuIconDecorator.runtimeLanguageCode(preferredLocalizations: []), "en")
 }
 ```
 
 - [ ] **Step 2: Run to verify failure**
 
 Run: `xcodebuild test … -only-testing:LineformTests/MainMenuIconDecoratorTests`
-Expected: FAIL — `localizedSymbolsByNormalizedTitle` does not exist.
+Expected: FAIL — `localizedAliases`, `runtimeLanguageCode`, and `systemProvidedNormalizedKeys` do not exist yet.
 
 - [ ] **Step 3: Write and run the system-title extraction script**
 
@@ -689,59 +736,85 @@ Run it; expect several dozen titles (`Writing Tools`, `Services`, `Bring All to 
 - [ ] **Step 4: Implement the localized resolution in the decorator**
 
 ```swift
-/// Per-language lookup used by `symbolName(for:)`. The English keys stay in the
-/// map unconditionally: harmless in English, and the safety net everywhere else.
-/// Built once per process (the menu language cannot change mid-run) plus on demand
-/// for tests, which probe non-running languages.
-static func localizedSymbolsByNormalizedTitle(languageCode: String) -> [String: String] {
-    var map: [String: String] = [:]
+/// The resolved app language, in the form that matches both the compiled
+/// <lang>.lproj folder names and SystemMenuItemTitles' keys. NEVER derive this
+/// from Locale.language.languageCode — it collapses "zh-Hans" to "zh", which
+/// matches neither (verified), silently losing every title-keyed icon in Chinese.
+static func runtimeLanguageCode(
+    preferredLocalizations: [String] = Bundle.main.preferredLocalizations
+) -> String {
+    preferredLocalizations.first ?? "en"
+}
+
+/// englishNormalizedKey → the localized title's NORMALIZED form, for every entry
+/// that has a translation source (our catalog, or the generated system table).
+/// Split out from the map builder so the test can assert aliases exist without
+/// the English fallback masking a miss.
+static func localizedAliases(languageCode: String) -> [String: String] {
+    var aliases: [String: String] = [:]
     let bundle = Bundle.main.path(forResource: languageCode, ofType: "lproj")
         .flatMap(Bundle.init(path:))
 
-    for (englishNormalized, symbol) in symbolsByTitle {
-        map[englishNormalized] = symbol
+    for englishNormalized in symbolsByTitle.keys {
         for (englishTitle, translations) in SystemMenuItemTitles.titles
         where normalizedTitle(englishTitle) == englishNormalized {
             if let localized = translations[languageCode] {
-                map[normalizedTitle(localized)] = symbol
+                aliases[englishNormalized] = normalizedTitle(localized)
             }
         }
-        if let bundle {
+        if aliases[englishNormalized] == nil, let bundle {
             // Our own commands: the catalog key is the pre-normalization English
-            // title; probe the catalog with every AppMenuConfiguration title whose
-            // normalization matches this key.
+            // title, exactly as the AppCommands literal reads (ASCII "..." kept).
             for title in AppMenuConfiguration.allEnglishTitleKeys
             where normalizedTitle(title) == englishNormalized {
-                let localized = bundle.localizedString(forKey: title, value: title, table: nil)
-                map[normalizedTitle(localized)] = symbol
+                aliases[englishNormalized] =
+                    normalizedTitle(bundle.localizedString(forKey: title, value: title, table: nil))
             }
         }
+    }
+    return aliases
+}
+
+/// English normalized keys that resolve from the generated system table — the
+/// test uses this to know which aliases must differ from English pre-translation.
+static var systemProvidedNormalizedKeys: Set<String> {
+    Set(SystemMenuItemTitles.titles.keys.map(normalizedTitle))
+        .intersection(symbolsByTitle.keys)
+}
+
+/// Per-language lookup used by `symbolName(for:)`. English keys stay in the map
+/// unconditionally: harmless in English, the safety net everywhere else. Built
+/// once per process — the menu language cannot change mid-run.
+static func localizedSymbolsByNormalizedTitle(languageCode: String) -> [String: String] {
+    var map = symbolsByTitle
+    for (englishNormalized, localizedNormalized) in localizedAliases(languageCode: languageCode) {
+        map[localizedNormalized] = symbolsByTitle[englishNormalized]
     }
     return map
 }
 
-private static let runtimeTitleMap: [String: String] = localizedSymbolsByNormalizedTitle(
-    languageCode: Locale.preferredLanguages.first.flatMap { Locale(identifier: $0).language.languageCode?.identifier } ?? "en")
+private static let runtimeTitleMap: [String: String] =
+    localizedSymbolsByNormalizedTitle(languageCode: runtimeLanguageCode())
 ```
 
 `symbolName(for:)`'s title branch becomes `return runtimeTitleMap[normalizedTitle(item.title)]`.
 
-This needs `AppMenuConfiguration.allEnglishTitleKeys: [String]` — add it in `AppCommands.swift`: a static array listing the pre-localization English key of every title constant. To avoid hand-maintaining a duplicate list, define the constants through a small registrar:
-
-```swift
-private static var registeredEnglishTitleKeys: [String] = []
-private static func title(_ english: String.LocalizationValue, key: String) -> String {
-    registeredEnglishTitleKeys.append(key)
-    return String(localized: english)
-}
-```
-
-— or, simpler and preferred if the registrar fights `static let` initialization order: a plain hand-maintained `allEnglishTitleKeys` array asserted complete by the existing `testConfiguredCommandTitlesAllHaveIcons` companion (add an assertion that every entry of `allEnglishTitleKeys` normalizes into `symbolsByTitle` or `symbolsByAction`). Choose whichever compiles cleanly; document the choice in the commit.
+This needs `AppMenuConfiguration.allEnglishTitleKeys: [String]` — add it in
+`AppCommands.swift` as a **plain hand-maintained array** listing the
+pre-localization English key of every title constant, byte-for-byte as the
+literals read. (A registrar that appends keys as constants initialize was
+considered and rejected: static stored properties are lazy, so the array would
+be empty or partial when the decorator reads it.) Completeness is asserted, not
+remembered — extend `testConfiguredCommandTitlesAllHaveIcons`
+(`MainMenuIconDecoratorTests.swift:32`) with: every `AppMenuConfiguration`
+title it already walks must ALSO appear (normalized) among
+`allEnglishTitleKeys.map(normalizedTitle)`, so a new menu command that skips
+the array fails the suite.
 
 - [ ] **Step 5: Run the decorator tests**
 
 Run: `xcodebuild test … -only-testing:LineformTests/MainMenuIconDecoratorTests`
-Expected: PASS, including the new all-locales test (pre-translation, catalog lookups fall back to English values, which still resolve — the test tightens automatically once Task 13's translations land).
+Expected: PASS. Pre-translation, our-command aliases resolve to English values (the catalog returns the key), which satisfies the existence assertion; system-provided entries must already differ from English — the generated table ships real translations. Task 13 Step 6 re-runs this suite once real catalog translations exist.
 
 - [ ] **Step 6: Commit**
 
@@ -765,9 +838,9 @@ git commit -m "Resolve menu icons by localized title: catalog for our commands, 
 
 `SettingsView` has zero `Text("…")` literals; everything flows through `static let title = "Settings"`-style constants and `settingRow(title:note:)` `String` parameters. Convert each **definition site** to `String(localized:)` — the `settingRow` helper itself stays `String`-typed (its inputs arrive already localized). Sweep: `grep -nE '= "[A-Z]|: "[A-Z]' Lineform/App/SettingsView.swift` and convert every user-facing hit; skip UserDefaults keys and identifiers.
 
-- [ ] **Step 2: Build; verify keys landed; verify Settings window unchanged in English**
+- [ ] **Step 2: Sync the catalog; verify keys landed; verify Settings window unchanged in English**
 
-Build; python-check the catalog for a few expected keys (`"Settings"`, announcement toggle title). Launch the fresh build, open Settings, confirm identical English rendering.
+Run the Catalog sync procedure exactly as Task 5 pinned it, then check the catalog for a few expected keys (`"Settings"`, announcement toggle title). Launch the fresh build, open Settings, confirm identical English rendering.
 
 - [ ] **Step 3: Run settings tests**
 
@@ -791,7 +864,7 @@ git commit -m "Localize the Settings window strings"
 
 **Interfaces:**
 - Consumes: catalog infrastructure.
-- Produces: `OutlineSidebarTab.title: String` (localized; `rawValue` untouched); `ReadingExperiencePopover`'s extracted `static func decimalFormatter(locale: Locale) -> NumberFormatter`.
+- Produces: `OutlineSidebarTab.title: String` (localized; `rawValue` untouched); `ReadingExperienceInspector.decimalText(_:maximumFractionDigits:locale:) -> String` (existing private helper made internal, with a locale parameter).
 
 - [ ] **Step 1: Write the failing tab-title test change**
 
@@ -835,32 +908,40 @@ extension OutlineSidebarTab {
 
 `FontOption.swift:15-37`: the three `FontOptionGroup(name:)` literals become `String(localized: "System")`, `String(localized: "Writing")`, `String(localized: "Reading & Accessibility")`. Font **names** stay literal. (`FontOptionGroup.id` is its name — session-stable, not persisted; verified acceptable in the spec.)
 
-`ReadingExperiencePopover.swift`: sweep labels the same way. Extract the `:280` formatter:
+`ReadingExperiencePopover.swift`: sweep labels the same way. The file's view
+type is `ReadingExperienceInspector` (line 3) — there is no type named
+`ReadingExperiencePopover`. The number helper is
+`private static func decimalText(_ value: Double, maximumFractionDigits: Int)`
+at `:279-284`, which builds a `NumberFormatter` with no locale. Change it to
+internal, add a locale parameter, and keep the existing configuration:
 
 ```swift
-static func decimalFormatter(locale: Locale = .autoupdatingCurrent) -> NumberFormatter {
+static func decimalText(_ value: Double, maximumFractionDigits: Int,
+                        locale: Locale = .autoupdatingCurrent) -> String {
     let formatter = NumberFormatter()
     formatter.locale = locale
-    // …existing configuration moved verbatim…
-    return formatter
+    formatter.minimumFractionDigits = 0
+    formatter.maximumFractionDigits = maximumFractionDigits
+    return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.\(maximumFractionDigits)f", value)
 }
 ```
 
-New test:
+New test (in the popover's existing test class if one exists — locate with
+`grep -rln "ReadingExperienceInspector" LineformTests` — else a new
+`ReadingExperienceInspectorFormatterTests`):
 
 ```swift
-func testDecimalFormatterFollowsLocale() {
-    let de = ReadingExperiencePopover.decimalFormatter(locale: Locale(identifier: "de_DE"))
-    XCTAssertEqual(de.string(from: 1.5), "1,5")
-    let en = ReadingExperiencePopover.decimalFormatter(locale: Locale(identifier: "en_US"))
-    XCTAssertEqual(en.string(from: 1.5), "1.5")
+func testDecimalTextFollowsLocale() {
+    XCTAssertEqual(ReadingExperienceInspector.decimalText(1.5, maximumFractionDigits: 1,
+                                                          locale: Locale(identifier: "de_DE")), "1,5")
+    XCTAssertEqual(ReadingExperienceInspector.decimalText(1.5, maximumFractionDigits: 1,
+                                                          locale: Locale(identifier: "en_US")), "1.5")
 }
 ```
 
-(Adjust expected strings to the formatter's actual configured fraction digits — read the moved configuration first.)
+- [ ] **Step 5: Sync the catalog, then run the touched suites**
 
-- [ ] **Step 5: Run the touched suites**
-
+Run the Catalog sync procedure exactly as Task 5 pinned it (this task's new keys must land in `Localizable.xcstrings` before the commit).
 Run: `xcodebuild test … -only-testing:LineformTests/OutlineSidebarTabTests -only-testing:LineformTests/OutlineSidebarViewTests -only-testing:LineformTests/OutlineInfoContrastTests` plus the popover test class.
 Expected: PASS.
 
@@ -890,6 +971,8 @@ grep -rnE 'NSMenuItem\(title: "|messageText = "|informativeText = "|addButton\(w
 
 This is the worklist — the spec counts ×10 NSMenuItem, ×14 NSAlert, ×7 panel, ×11 setAccessibility sites. Record the list in the task journal before converting.
 
+(SwiftUI literal sites — `Text("…")`, `Button("…")`, `.accessibilityLabel("…")`, e.g. the alert copy at `EditorContainerView.swift:202-245` and AX labels around `:975-1000` — need **no code change**: literals in those positions are `LocalizedStringKey`s that resolve against the catalog at runtime, and the sync procedure extracts them. This task's conversions are the AppKit `String`-typed sites only, where no automatic lookup exists.)
+
 - [ ] **Step 2: Convert each site**
 
 Every user-facing literal becomes `String(localized:)` at its site (AppKit APIs take `String`, so the wrapped form is the whole mechanism — there is no SwiftUI extraction to lean on here). Specifics:
@@ -899,8 +982,9 @@ Every user-facing literal becomes `String(localized:)` at its site (AppKit APIs 
 - `LineformTextView.swift:971-973` AX strings; the hand-built context menu items in `menu(for:)` (spelling guesses header, Learn/Ignore) — their English keys are the exact AppKit spelling-menu titles so the glossary supplies Apple's wording.
 - Do NOT touch: `CalloutKind.displayName` (document-derived), notification names, pasteboard types, UTType identifiers, log messages.
 
-- [ ] **Step 3: Build + run the editor-behavior suites**
+- [ ] **Step 3: Sync the catalog, then run the editor-behavior suites**
 
+Run the Catalog sync procedure exactly as Task 5 pinned it (this task's keys must land in `Localizable.xcstrings` before the commit).
 Run: `xcodebuild test … -only-testing:LineformTests/LineformDocumentTests -only-testing:LineformTests/EditorTabStoreTests -only-testing:LineformTests/DocumentReloadControllerTests -only-testing:LineformTests/AppCommandNotificationTests`
 Expected: PASS.
 
@@ -957,9 +1041,9 @@ let script = WKUserScript(
 configuration.userContentController.addUserScript(script)
 ```
 
-- [ ] **Step 4: Verify in English and German**
+- [ ] **Step 4: Sync the catalog, then verify in English and German**
 
-Reset the first-launch flag (find it: `grep -rn "firstLaunch\|FirstLaunch" Lineform --include="*.swift" | grep -i "defaults\|UserDefaults"`, then `defaults delete com.lineform.app <key>`). Launch fresh build — intro identical in English. Then `defaults delete` again and launch with `open -a <full BUILT_PRODUCTS_DIR path>/Lineform.app --args -AppleLanguages "(de)"` — tagline/button render (still English pre-translation; the wiring is what's being verified: no blank tagline, no missing button label). Confirm Tab/Space still dismisses (AX invariant).
+Run the Catalog sync procedure exactly as Task 5 pinned it (`"Get Started"`, the AX help text, `"Simple markdown editing"`, and `"Replay"` must land in `Localizable.xcstrings` before the commit). Reset the first-launch flag (find it: `grep -rn "firstLaunch\|FirstLaunch" Lineform --include="*.swift" | grep -i "defaults\|UserDefaults"`, then `defaults delete com.lineform.app <key>`). Launch fresh build — intro identical in English. Then `defaults delete` again and launch with `open -a <full BUILT_PRODUCTS_DIR path>/Lineform.app --args -AppleLanguages "(de)"` — tagline/button render (still English pre-translation; the wiring is what's being verified: no blank tagline, no missing button label). Confirm Tab/Space still dismisses (AX invariant).
 
 - [ ] **Step 5: Commit**
 
@@ -1026,7 +1110,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Lineform/InfoPlist.xcstrings Lineform/AppShortcuts.xcstrings
+git add Lineform/InfoPlist.xcstrings Lineform/AppShortcuts.xcstrings Lineform/Localizable.xcstrings Lineform/App/LineformAppIntents.swift Lineform.xcodeproj/project.pbxproj
 git commit -m "Author InfoPlist and AppShortcuts catalog keys"
 ```
 
@@ -1119,10 +1203,19 @@ final class LocalizationCatalogTests: XCTestCase {
         // be exempted here, with a comment saying why. Empty until proven needed.
         let exemptions: Set<String> = []
 
+        // Whole-word matching, not substring: "Tab" must not match "Table" and
+        // "Read" must not match "Reading & Accessibility".
+        func containsWholeWord(_ text: String, _ term: String) -> Bool {
+            guard let regex = try? NSRegularExpression(
+                pattern: "\\b\(NSRegularExpression.escapedPattern(for: term))\\b",
+                options: .caseInsensitive) else { return false }
+            return regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+        }
+
         let strings = try catalog("Localizable")
         for (term, translations) in glossary {
             for (key, entry) in strings
-            where isTranslatable(entry) && key.contains(term) && !exemptions.contains(key) {
+            where isTranslatable(entry) && containsWholeWord(key, term) && !exemptions.contains(key) {
                 for language in Self.languages {
                     guard let value = translation(entry, language),
                           let expected = translations[language] else { continue }
@@ -1141,7 +1234,7 @@ Register the file in the pbxproj (LineformTests sources phase).
 - [ ] **Step 2: Run to verify the completeness gate fails**
 
 Run: `xcodebuild test … -only-testing:LineformTests/LocalizationCatalogTests`
-Expected: `testEveryKeyIsTranslatedInEveryLanguage` FAILS listing every key; the other two pass vacuously.
+Expected: `testEveryKeyIsTranslatedInEveryLanguage` FAILS listing every key; the other two pass vacuously. **If it passes instead, the catalog is empty — the sync steps in Tasks 5–11 were skipped or broken. Stop and repair that first; a green gate over an empty catalog certifies nothing** (the whole translation step could no-op while every gate stays green).
 
 - [ ] **Step 3: Mark non-UI keys `shouldTranslate: false`**
 
@@ -1214,7 +1307,7 @@ for key in keys:
     probe = key.split('%')[0].strip()
     if len(probe) < 4:
         continue
-    out = subprocess.run(['grep', '-rln', probe, 'LineformTests'], capture_output=True, text=True).stdout
+    out = subprocess.run(['grep', '-rlnF', probe, 'LineformTests'], capture_output=True, text=True).stdout  # -F: keys contain . ( ) that must not act as regex
     if out:
         print(f"{key!r}: {out.strip().splitlines()}")
 EOF
@@ -1294,4 +1387,5 @@ Report to the user: full-suite counts, per-language walkthrough results with any
 
 - Spec coverage checked section-by-section: refactor mechanism (T3–T11), catalogs/knownRegions/test locale (T1), App Intents + metadata gate (T1, T12), decorator with normalizedTitle/key-choice/absent-titles/zh_CN (T7), date fix (T3), number formatter (T9), CJK word count with full rule (T4), intro incl. AX and German check (T11), Untitled decision (T9 tab title, T10 filename seeds), glossaries and the five quality mechanisms (T2, T13; back-translation is folded into T13 Step 4's authoring rules rather than a separate pass — the gates are the enforceable part), pinned-test conversion with the catalog-driven recipe (T14), layout + IME + docs + full gate (T15).
 - Out-of-scope guards present where an implementer would otherwise drift: MarkdownReference content (T9), CalloutKind (T10), Resources/*.md (untouched), announcements/Sparkle (untouched).
-- Type consistency: `statisticsText(for:)`, `lastSavedDisplay(locale:)`, `OutlineSidebarTab.title`, `localizedSymbolsByNormalizedTitle(languageCode:)`, `SystemMenuItemTitles.titles` used consistently across tasks.
+- Type consistency: `statisticsText(for:)`, `statusAccessibilityText(for:)`, `lastSavedDisplay(locale:)`, `OutlineSidebarTab.title`, `runtimeLanguageCode(preferredLocalizations:)`, `localizedAliases(languageCode:)`, `localizedSymbolsByNormalizedTitle(languageCode:)`, `SystemMenuItemTitles.titles`, `ReadingExperienceInspector.decimalText(_:maximumFractionDigits:locale:)` used consistently across tasks.
+- Post-review corrections applied (second adversarial pass): catalog population via `xcstringstool sync` (CLI builds do not write back to xcstrings; `SWIFT_EMIT_LOC_STRINGS` already YES), runtime language from `Bundle.main.preferredLocalizations` (never `languageCode`, which collapses zh-Hans to zh), non-vacuous decorator test via `localizedAliases`, verified epoch `1_785_942_240`, ASCII `"..."` keys, `throws` on the date tests, `statusAccessibilityLabel` CJK coverage, `ReadingExperienceInspector.decimalText` naming, hand-maintained `allEnglishTitleKeys` (registrar rejected: lazy statics), whole-word glossary matching, `grep -F` in the enumeration recipe.
