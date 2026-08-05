@@ -853,9 +853,11 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testStatusBarFormatsCountsWithEmDash() {
+        let text = "the quick brown fox jumps over the lazy dog and runs away quickly through the meadow"
+        let stats = DocumentStatistics(text: text)
         XCTAssertEqual(
-            EditorStatusFormatter.statisticsText(wordCount: 304, characterCount: 2345),
-            "304 words — 2345 characters"
+            EditorStatusFormatter.statisticsText(for: stats),
+            "16 words — 84 characters"
         )
     }
 

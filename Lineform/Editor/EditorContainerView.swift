@@ -1953,10 +1953,7 @@ struct EditorContainerView: View {
     }
 
     private var statisticsText: String {
-        EditorStatusFormatter.statisticsText(
-            wordCount: documentStatistics.wordCount,
-            characterCount: documentStatistics.characterCount
-        )
+        EditorStatusFormatter.statisticsText(for: documentStatistics)
     }
 
     private var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay {
@@ -1976,7 +1973,7 @@ struct EditorContainerView: View {
     }
 
     private var statusAccessibilityLabel: String {
-        return "Document contains \(documentStatistics.wordCount) words and \(documentStatistics.characterCount) characters"
+        EditorStatusFormatter.statusAccessibilityText(for: documentStatistics)
     }
 
     private func notificationMatchesActiveWindow(_ notification: Notification) -> Bool {

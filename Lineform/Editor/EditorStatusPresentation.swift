@@ -27,8 +27,18 @@ enum EditorStatusFormatter {
         var neutralText: String
     }
 
-    static func statisticsText(wordCount: Int, characterCount: Int) -> String {
-        "\(wordCount) words — \(characterCount) characters"
+    static func statisticsText(for statistics: DocumentStatistics) -> String {
+        if statistics.isPredominantlyCJK {
+            return "\(statistics.characterCount) characters"
+        }
+        return "\(statistics.wordCount) words — \(statistics.characterCount) characters"
+    }
+
+    static func statusAccessibilityText(for statistics: DocumentStatistics) -> String {
+        if statistics.isPredominantlyCJK {
+            return "Document contains \(statistics.characterCount) characters"
+        }
+        return "Document contains \(statistics.wordCount) words and \(statistics.characterCount) characters"
     }
 
     static func metadataSegments(lastSavedDisplay: LastSavedDisplay, statisticsText: String) -> MetadataSegments {
