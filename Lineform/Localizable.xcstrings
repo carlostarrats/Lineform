@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@\n\nRun this in Terminal:\n\n%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@\n\nRun this in Terminal:\n\n%2$@"
+          }
+        }
+      }
+    },
     "%@ reading theme" : {
 
     },
@@ -14,6 +24,16 @@
         }
       }
     },
+    "%@ was linked to %@.\n\nOpen a new Terminal window, then run:\n\n%@ yourfile.md\n\nOr pipe input into it:\n\nsome-command | %@ -" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ was linked to %2$@.\n\nOpen a new Terminal window, then run:\n\n%3$@ yourfile.md\n\nOr pipe input into it:\n\nsome-command | %4$@ -"
+          }
+        }
+      }
+    },
     "%@, folder" : {
 
     },
@@ -21,9 +41,6 @@
 
     },
     "%@, hidden folder" : {
-
-    },
-    "%@..." : {
 
     },
     "%lld characters" : {
@@ -48,6 +65,9 @@
     "(Read / Preview)" : {
 
     },
+    "A web page — your image and link paths kept exactly as written." : {
+
+    },
     "Aa" : {
 
     },
@@ -55,6 +75,9 @@
 
     },
     "Add # Title or ## Section to build an outline." : {
+
+    },
+    "All Files" : {
 
     },
     "Allow root folders to expand and collapse" : {
@@ -78,6 +101,9 @@
     "Bulleted List" : {
 
     },
+    "Cancel" : {
+
+    },
     "Change" : {
 
     },
@@ -96,10 +122,16 @@
     "Choose" : {
 
     },
+    "Choose where to install the lineform command (default: %@)." : {
+
+    },
     "Close" : {
 
     },
     "Close Tab" : {
+
+    },
+    "Close find and replace" : {
 
     },
     "Code" : {
@@ -114,10 +146,25 @@
     "Column Width" : {
 
     },
+    "Command line tool installed" : {
+
+    },
     "Convert to Markdown" : {
 
     },
     "Convert to Plain Text" : {
+
+    },
+    "Copy" : {
+
+    },
+    "Copy code block %lld" : {
+
+    },
+    "Couldn’t create the link at %@." : {
+
+    },
+    "Cut" : {
 
     },
     "Delete" : {
@@ -125,6 +172,19 @@
     },
     "Delete..." : {
 
+    },
+    "Do you want to save changes to “%@” before closing?" : {
+
+    },
+    "Do you want to save changes to “%@” before opening “%@”?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Do you want to save changes to “%1$@” before opening “%2$@”?"
+          }
+        }
+      }
     },
     "Document contains %lld characters" : {
 
@@ -145,6 +205,9 @@
     "Document updated from disk" : {
 
     },
+    "Don't Save" : {
+
+    },
     "Expand %@" : {
 
     },
@@ -152,6 +215,9 @@
 
     },
     "Export As" : {
+
+    },
+    "File Already Open" : {
 
     },
     "Files" : {
@@ -175,6 +241,12 @@
     "Full" : {
 
     },
+    "Grant Access" : {
+
+    },
+    "HTML" : {
+
+    },
     "Heading" : {
 
     },
@@ -196,13 +268,22 @@
     "Highlights the current line while you write." : {
 
     },
+    "Ignore Spelling" : {
+
+    },
     "In-app notifications" : {
 
     },
     "Insert Table" : {
 
     },
+    "Install Command Line Tool" : {
+
+    },
     "Install Command Line Tool..." : {
+
+    },
+    "Install manually" : {
 
     },
     "Italic" : {
@@ -220,6 +301,9 @@
     "Last save" : {
 
     },
+    "Learn Spelling" : {
+
+    },
     "Letter Spacing" : {
 
     },
@@ -229,19 +313,34 @@
     "Lineform Guide" : {
 
     },
+    "Lineform couldn’t write “%@”. Choose a different location and try again." : {
+
+    },
     "Link" : {
 
     },
     "Markdown Basics" : {
 
     },
+    "Markdown editor" : {
+
+    },
+    "Markdown read view" : {
+
+    },
     "Mode" : {
+
+    },
+    "Name" : {
 
     },
     "New Tab" : {
 
     },
     "New windows open with the sidebar visible." : {
+
+    },
+    "No Guesses Found" : {
 
     },
     "No Markdown files" : {
@@ -251,6 +350,9 @@
 
     },
     "Numbered List" : {
+
+    },
+    "OK" : {
 
     },
     "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request." : {
@@ -277,7 +379,19 @@
     "Outline" : {
 
     },
+    "PDF" : {
+
+    },
+    "Paper Size" : {
+
+    },
+    "Paste" : {
+
+    },
     "Pause" : {
+
+    },
+    "Plain markdown source — shows #, ** as typed." : {
 
     },
     "Preview" : {
@@ -307,7 +421,13 @@
     "Reading Ruler" : {
 
     },
+    "Reconnect image" : {
+
+    },
     "Reformat Table" : {
+
+    },
+    "Release builds need a Sparkle EdDSA public key and a published appcast before Lineform can check for updates." : {
 
     },
     "Rename" : {
@@ -316,22 +436,49 @@
     "Rename..." : {
 
     },
+    "Rendered like Read mode — with images, tables, math & diagrams." : {
+
+    },
+    "Replace" : {
+
+    },
+    "Replace All" : {
+
+    },
+    "Replace all" : {
+
+    },
+    "Replacement text" : {
+
+    },
     "Reset all to default" : {
 
     },
     "Resume" : {
 
     },
+    "Rich Text (.rtf)" : {
+
+    },
     "Save" : {
 
     },
+    "Save All" : {
+
+    },
     "Save As..." : {
+
+    },
+    "Save changes before closing?" : {
 
     },
     "Saved" : {
 
     },
     "Scanned folder: %@" : {
+
+    },
+    "Search" : {
 
     },
     "Section" : {
@@ -379,10 +526,19 @@
     "Start Speaking" : {
 
     },
+    "Start writing..." : {
+
+    },
     "Stop" : {
 
     },
     "Strikethrough" : {
+
+    },
+    "Styled PDF" : {
+
+    },
+    "Styled text for Word, Pages & Google Docs." : {
 
     },
     "System" : {
@@ -391,7 +547,26 @@
     "Terms of Use" : {
 
     },
+    "The command line tool isn’t available in this build." : {
+
+    },
     "Themes" : {
+
+    },
+    "This File" : {
+
+    },
+    "This document uses %lld image%@ stored outside the folders Lineform can access. Choose the folder or files to include them in the PDF, or Cancel to export without them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This document uses %1$lld image%2$@ stored outside the folders Lineform can access. Choose the folder or files to include them in the PDF, or Cancel to export without them."
+          }
+        }
+      }
+    },
+    "This window has %lld tab(s) with unsaved changes. Closing this window will discard those changes unless you save them." : {
 
     },
     "Title" : {
@@ -403,7 +578,16 @@
     "Toggle Write / Read" : {
 
     },
+    "Toggle task" : {
+
+    },
+    "Toggle task: %@" : {
+
+    },
     "Typewriter Mode" : {
+
+    },
+    "Unsaved Changes" : {
 
     },
     "Unsaved changes" : {
@@ -413,6 +597,9 @@
 
     },
     "Updated" : {
+
+    },
+    "Updates are not configured for this build." : {
 
     },
     "When off, the iCloud and Workspace sections in the Files sidebar always stay expanded." : {
@@ -434,6 +621,9 @@
 
     },
     "iCloud is not available on this Mac." : {
+
+    },
+    "“%@” is open in another tab, so saving over it would discard that tab’s contents. Close that tab first, or choose a different name." : {
 
     }
   },

@@ -31,7 +31,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         scrollView.drawsBackground = true
 
         let textView = MarkdownPreviewTextView()
-        textView.setAccessibilityLabel("Markdown read view")
+        textView.setAccessibilityLabel(String(localized: "Markdown read view"))
         textView.setAccessibilityRole(.textArea)
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onImageReconnect = onImageReconnect
@@ -720,7 +720,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             guard let value = value as? NSValue else { return }
             codeBlockNumber += 1
             let sourceRange = value.rangeValue
-            actions.append(NSAccessibilityCustomAction(name: "Copy code block \(codeBlockNumber)") { [weak self] in
+            actions.append(NSAccessibilityCustomAction(name: String(localized: "Copy code block \(codeBlockNumber)")) { [weak self] in
                 self?.copyCodeBlockToPasteboard(sourceRange: sourceRange) ?? false
             })
         }
@@ -729,7 +729,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             guard value != nil,
                   let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue else { return }
             let sourceRange = sourceValue.rangeValue
-            actions.append(NSAccessibilityCustomAction(name: "Reconnect image") { [weak self] in
+            actions.append(NSAccessibilityCustomAction(name: String(localized: "Reconnect image")) { [weak self] in
                 self?.onImageReconnect(sourceRange)
                 return true
             })
@@ -740,7 +740,9 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             let sourceRange = value.rangeValue
             let lineText = string.substring(with: string.lineRange(for: range))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let name = lineText.isEmpty ? "Toggle task" : "Toggle task: \(lineText)"
+            let name = lineText.isEmpty
+                ? String(localized: "Toggle task")
+                : String(localized: "Toggle task: \(lineText)")
             actions.append(NSAccessibilityCustomAction(name: name) { [weak self] in
                 self?.onCheckboxToggle(sourceRange)
                 return true

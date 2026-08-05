@@ -1,7 +1,7 @@
 import AppKit
 
 final class LineformTextView: NSTextView {
-    let emptyStatePlaceholder = "Start writing..."
+    let emptyStatePlaceholder = String(localized: "Start writing...")
     static let readingRulerFillOpacity: CGFloat = 0.12
     static let lightSelectionBackgroundAlpha: CGFloat = 0.34
     static let darkSelectionBackgroundAlpha: CGFloat = 0.56
@@ -968,7 +968,7 @@ final class LineformTextView: NSTextView {
             width: EditorReadingLayout.textContainerWidth(forContainerWidth: bounds.width, profile: activeReadingProfile),
             height: CGFloat.greatestFiniteMagnitude
         )
-        setAccessibilityLabel("Markdown editor")
+        setAccessibilityLabel(String(localized: "Markdown editor"))
         setAccessibilityRole(.textArea)
         setAccessibilityHelp(emptyStatePlaceholder)
         // Accept image drops (a file URL, or raw PNG/TIFF data from another app) so an image can be
@@ -1810,21 +1810,21 @@ final class LineformTextView: NSTextView {
 
 enum LineformTextContextMenuPresentation {
     static let allowsContextMenuPlugIns = false
-    static let cutTitle = "Cut"
-    static let copyTitle = "Copy"
-    static let pasteTitle = "Paste"
-    static let titleTitle = "Title"
-    static let sectionTitle = "Section"
-    static let boldTitle = "Bold"
-    static let italicTitle = "Italic"
-    static let codeTitle = "Code"
-    static let bulletedListTitle = "Bulleted List"
-    static let linkTitle = "Link"
-    static let convertToPlainTextTitle = "Convert to Plain Text"
-    static let convertToMarkdownTitle = "Convert to Markdown"
-    static let learnSpellingTitle = "Learn Spelling"
-    static let ignoreSpellingTitle = "Ignore Spelling"
-    static let noGuessesTitle = "No Guesses Found"
+    static let cutTitle = String(localized: "Cut")
+    static let copyTitle = String(localized: "Copy")
+    static let pasteTitle = String(localized: "Paste")
+    static let titleTitle = String(localized: "Title")
+    static let sectionTitle = String(localized: "Section")
+    static let boldTitle = String(localized: "Bold")
+    static let italicTitle = String(localized: "Italic")
+    static let codeTitle = String(localized: "Code")
+    static let bulletedListTitle = String(localized: "Bulleted List")
+    static let linkTitle = String(localized: "Link")
+    static let convertToPlainTextTitle = String(localized: "Convert to Plain Text")
+    static let convertToMarkdownTitle = String(localized: "Convert to Markdown")
+    static let learnSpellingTitle = String(localized: "Learn Spelling")
+    static let ignoreSpellingTitle = String(localized: "Ignore Spelling")
+    static let noGuessesTitle = String(localized: "No Guesses Found")
 
     /// The single suggestion to offer for a misspelling, or none.
     ///

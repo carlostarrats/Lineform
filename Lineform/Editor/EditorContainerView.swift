@@ -2033,10 +2033,8 @@ struct EditorContainerView: View {
             panel.canChooseFiles = true
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = true
-            panel.prompt = "Grant Access"
-            panel.message = "This document uses \(unresolved.count) image\(unresolved.count == 1 ? "" : "s") "
-                + "stored outside the folders Lineform can access. Choose the folder or files to "
-                + "include them in the PDF, or Cancel to export without them."
+            panel.prompt = String(localized: "Grant Access")
+            panel.message = String(localized: "This document uses \(unresolved.count) image\(unresolved.count == 1 ? "" : "s") stored outside the folders Lineform can access. Choose the folder or files to include them in the PDF, or Cancel to export without them.")
             if panel.runModal() == .OK {
                 for url in panel.urls where url.startAccessingSecurityScopedResource() {
                     granted.append(url)
@@ -2067,7 +2065,7 @@ struct EditorContainerView: View {
     private func saveAsDocument() {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
-        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "Untitled")
         panel.nameFieldStringValue = "\(base).md"
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
 
@@ -2115,7 +2113,7 @@ struct EditorContainerView: View {
     private func exportDocument(_ format: ExportFormat) {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
-        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "Untitled")
         let controller = ExportPanelController(
             panel: panel,
             baseName: base,

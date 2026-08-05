@@ -426,7 +426,7 @@ struct AppCommands: Commands {
             // keyboard shortcuts: exporting is infrequent and a four-row submenu is already fast.
             Menu(String(localized: "Export As")) {
                 ForEach(ExportFormat.allCases, id: \.rawValue) { format in
-                    Button("\(format.title)...") {
+                    Button(format.title + "...") {
                         LineformAppNotification.exportDocument.post(
                             object: LineformAppNotification.activeWindowPayload(value: String(format.rawValue))
                         )
