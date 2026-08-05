@@ -28,6 +28,104 @@ in this area.
 
 - **In-app announcements (2026-07-29)**: a pull-based channel for occasional product news — the app reads a small static `announcements.json` from the marketing site and shows at most one dismissible card. Built deliberately as a **pull**, not APNs push: real push needs a server, stored device tokens, and a `Device ID` entry on the App Privacy label, and — because "there's a new app" is promotional — App Store guideline **4.5.4** consent copy plus an in-app opt-out. A static file fetched over HTTPS needs none of that, keeps the label at **Data Not Collected**, and survives the Sparkle removal (Sparkle's appcast was the obvious host and has a known expiry date). Four pieces: `AnnouncementFeed` (pure decode + validation), `AnnouncementFetcher` (the one non-Sparkle network call, behind `AnnouncementFetching` so no test touches the network), `AnnouncementStore` (`@MainActor ObservableObject`, throttle + dismissed ids + selection), and `AnnouncementCard` (the overlay). **The Settings toggle gates the REQUEST, not the display** — `checkIfNeeded(isEnabled:)` returns before touching the network, so "off" means the app makes no outbound call at all; that is the honest answer to what `network.client` is for and is asserted by a spy fetcher, not assumed. Turning the setting off ALSO retracts the display: the toggle calls `retractForDisabledSetting()` (clears `visible` mid-session), and `init` gates its cache restore on the setting, so a user who turns announcements off does not see the card again this session or have it come back from cache next launch. The request gate is the promise; the display gate is what makes "off" match the user's expectation. Hardening, all because the feed is remote input: streamed with a hard 64 KB abort **counted as bytes land** (`expectedContentLength` is server-supplied and therefore untrusted), 200-only, `Content-Type` must be JSON (a captive portal's HTML login page is never buffered), entry count capped, every string length-bounded and **rejected** — never truncated or stripped — if it carries a control character OR a Unicode line separator (U+2028/U+2029/U+0085 are Zl/Zp/Cc-NEL, NOT in `CharacterSet.controlCharacters`, yet SwiftUI `Text` still breaks a line on them; the sanitizer unions `controlCharacters` with `newlines` so a one-liner stays one line), and `actionURL` restricted to a single-scheme **allowlist** (`https`) rather than a denylist of dangerous schemes. Titles/bodies render as plain `Text`, never Markdown or HTML, so there is no rendering surface at all. Version gating compares **numerically per component** so 1.10 sorts above 1.9, and each component is bounded before any `Int` conversion (the ordered-list `Int.max` rule, generalized). Dismissed ids are kept **forever and never pruned against the live feed** — an id that fell out of the feed costs a few bytes, whereas pruning eventually re-shows something the user already dismissed. A failed check still **stamps** the interval, so an offline Mac doesn't retry on a hot loop. **The throttle governs the network call, not the card**: the last good feed is cached (`Lineform.announcements.cachedFeed`, re-read through `AnnouncementFeed.decode` so cached bytes face the same validation as fetched ones — one validator, no second way in) and `visible` is restored in `init`. Without that cache an announcement the user never dismissed vanished on the next launch and stayed gone until the check fell due again, up to a day later. `fetch()` therefore distinguishes **nil (learned nothing: offline, timeout, unusable payload) from [] (read fine, publisher is showing nothing)** — nil leaves the cache and the screen untouched, [] clears both. Collapsing the two let one offline launch, or one malformed deploy, silently pull a live announcement off every screen. `AnnouncementFeed.encode`/`decode` are a matched pair on one wire format and a round-trip test pins them, including at maximum feed size: if they drift the cache stops decoding and every relaunch loses the card, which is the exact failure the cache exists to prevent. Feed decoding is lenient per-entry: one malformed entry is skipped without discarding the valid ones around it, so a single typo can't kill the channel. Debug-only QA seam `LINEFORM_ANNOUNCEMENT_FEED_JSON` injects a feed with no network (compiled out of Release). Placement is load-bearing — see `AnnouncementCard`'s header and the note in `tabs-and-windows.md` about top-edge chrome.
 
+## Localization (Phase 1, 2026-08-05)
+
+App chrome is localized into Spanish, French, German, Japanese, and Simplified Chinese; document
+content (rendered Markdown, callout labels, HTML/PDF export output) never is — see the invariant in
+`CLAUDE.md`. Three String Catalogs carry the strings, one per Xcode target concern:
+`Lineform/Localizable.xcstrings` (UI strings, keyed by the English literal), `Lineform/InfoPlist.xcstrings`
+(bundle display name and localized `Info.plist` entries), and `Lineform/AppShortcuts.xcstrings` (the two
+App Intents' Shortcuts-app copy). `knownRegions` in the pbxproj and the six `<lang>.lproj` folders the
+build emits are the ground truth for which locales actually ship — verify with `ls
+Contents/Resources/*.lproj` in a built app, not by reading the catalog.
+
+**Populating a catalog from code is a two-step, CLI-only procedure — Xcode's "write back to .xcstrings
+on build" only happens inside the Xcode GUI.** Build with a scratch `-derivedDataPath`, then sync the
+stringsdata it emits into the catalog:
+
+```sh
+xcodebuild build -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -derivedDataPath build-loc
+find build-loc -name '*.stringsdata' -print0 | xargs -0 -I{} echo --stringsdata {} > /tmp/sd-args.txt
+xcrun xcstringstool sync Lineform/Localizable.xcstrings $(tr '\n' ' ' < /tmp/sd-args.txt)
+rm -rf build-loc
+```
+
+Two traps, both silent (no error, no non-zero exit):
+- **`--skip-marking-strings-stale` is mandatory whenever the sync is scoped to specific
+  `--stringsdata` files** (as opposed to the file-list form above, which covers everything at once).
+  Without it, syncing one file's stringsdata DELETES every key contributed by other files that
+  weren't in this pass — this happened once during development and wiped an entire prior task's keys.
+  Always `git diff Lineform/Localizable.xcstrings` after syncing and confirm the change is purely
+  additive.
+- **`sync` matches a stringsdata entry's table name against the target file's BASENAME.** Syncing into
+  a renamed scratch copy of the catalog silently no-ops rather than erroring — don't "test the
+  procedure safely" on a copy, test on the real catalog and rely on `git diff`/`git checkout` to undo.
+
+`SWIFT_EMIT_LOC_STRINGS` is already `YES` in both configurations; nothing else needs to change to make
+a new `String(localized:)` call show up in the next sync.
+
+**`MainMenuIconDecorator`'s localized-title resolution** (`Lineform/App/MainMenuIconDecorator.swift`):
+108 of its icon mappings key off `symbolsByTitle` (`normalizedTitle` — lowercased, ellipses/periods and
+the app name stripped) rather than a selector, because SwiftUI `CommandMenu` rows share one private
+action and expose no other handle. Matching by title only works if the decorator knows each row's
+*localized* title, so it builds a per-language alias map at process start
+(`localizedSymbolsByNormalizedTitle(languageCode:)`) from two sources: `SystemMenuItemTitles.titles`
+(AppKit-provided rows — Writing Tools, Services, window management) and the app's own
+`Lineform/Localizable.xcstrings` catalog (`allEnglishTitleKeys`, read back via
+`Bundle(path:).localizedString(forKey:value:table:)`). The runtime language comes from
+`Bundle.main.preferredLocalizations.first`, never `Locale.current.language.languageCode` — the latter
+collapses `zh-Hans` to `zh`, which matches no `.lproj` and no catalog entry, silently reverting every
+title-keyed icon to bare in Chinese. `SystemMenuItemTitles.swift` is generated, not hand-written: run
+`packaging/extract-system-menu-titles.py`, which reads AppKit's `.loctable` files under
+`AppKit.framework/Versions/C/Resources` for es/fr/de/ja/zh_CN and regenerates the Swift table. Two
+built-in exception mechanisms in that script matter if system wording changes on a future macOS:
+`EXCLUDED_TABLES` drops `FunctionKeyNames.loctable` (keycap legends like "Find"/"Print"/"Pause", not
+menu commands — several languages leave them in English, which the sweep would otherwise mistake for a
+real translation), and an `OVERRIDES` block replaces Apple's own inconsistent Format ▸ Heading wording
+(fr/es abbreviation drift, and zh-Hans rendering both "Title" and "Heading" as 标题, which collided two
+rows in one submenu) — non-binding for Apple's own menus but load-bearing here because Heading 3–6 are
+Lineform's own `CommandMenu` rows matched against this table as an alias, not a title AppKit ever draws.
+**Two accepted icon losses, permanent**: `Passwords` and `Credit Card` (AutoFill submenu rows) have no
+Apple-provided translation source at all outside English, so they render bare in the other four
+languages — asserted in tests as the only allowed exceptions, not a bug to keep chasing.
+
+**Test locale.** The default test plan pins the process to `en`/`US` (`EditorDisplayModeTests`,
+`ReadingProfileStoreTests` and others read `Locale(identifier: "en_US")` explicitly) so date formatting,
+plural rules, and string assertions stay byte-identical regardless of the machine running them.
+Non-English behavior — the decorator's alias resolution, plural category selection, format-specifier
+agreement — is asserted by feeding a language code into the pure functions above
+(`localizedAliases(languageCode:)`, catalog decode) rather than by flipping the process locale.
+
+**The first-launch intro overlay** (`Lineform/App/FirstLaunchIntroOverlay.swift`) is a borderless,
+screen-saver-level `NSWindow` and cannot use SwiftUI's normal environment-driven localization the way
+in-app views do, so its copy is injected as its own small string table rather than reading the catalog
+indirectly through a hosted SwiftUI view — keep this table in sync with the catalog by hand if the
+intro's copy changes.
+
+**CJK word counting** (`Lineform/Editor/DocumentStatistics.swift`): the status bar switches from a word
+count to a character count when text `isPredominantlyCJK` — a **content-based**, not locale-based,
+decision (`counts.hanKana * 2 > counts.wordForming`), so it applies correctly to a CJK document opened
+under any app language and leaves a non-CJK document alone under a CJK app language. Hangul is
+deliberately excluded from the Han/Kana scan: Korean is space-separated and already counts correctly as
+words, so folding it in would misclassify ordinary Korean prose as needing a character count.
+
+**Two glossaries under `docs/notes/`** back the terminology-consistency gate: `apple-terminology-glossary.json`
+(Apple's own translations for OS-level terms, extracted via `packaging/extract-apple-glossary.py`, so
+Lineform's copy doesn't invent a different word for something the OS already named) and
+`lineform-glossary.json` (Lineform-specific terms — "Workspace", "Reading Experience" — that must
+translate identically everywhere they appear, since a translator choosing a synonym on one screen breaks
+the decorator's title-matching on another).
+
+**Five gate tests in `LineformTests/LocalizationCatalogTests.swift`** enforce catalog integrity on every
+run of the default plan: every catalog key is translated in every shipped language
+(`testEveryKeyIsTranslatedInEveryLanguage`), format specifiers (`%@`, `%lld`, …) match in count and order
+across languages (`testFormatSpecifiersMatchAcrossLanguages`), glossary terms translate consistently
+(`testGlossaryTermsTranslateConsistently`), each language's `.stringsdict` plural categories follow that
+language's actual plural rules rather than copying English's two-category shape
+(`testPluralCategoriesFollowEachLanguagesRules`), and multi-argument counted strings vary each argument
+independently (`testMultiArgumentCountedStringsVaryEveryArgumentIndependently`). `MainMenuIconDecoratorTests`
+separately asserts the decorator's per-language alias resolution and the two accepted icon losses.
+
 ## Accessibility (2026-07-27 audit)
 
 - **The first-launch intro must be dismissable without a mouse.** It is a borderless,
