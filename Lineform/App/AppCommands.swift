@@ -86,6 +86,92 @@ enum AppMenuConfiguration {
         String(localized: "Link")
     ]
 
+    /// Every English menu title this app declares, byte-for-byte as the literal reads —
+    /// including the deliberate mix of ASCII "..." and real "…" ellipses, because these
+    /// are localization-catalog keys and a catalog lookup is an exact string match.
+    ///
+    /// `MainMenuIconDecorator` reads this to learn each row's LOCALIZED title: its icon
+    /// table is keyed by normalized English, so without the localized alias ~108 menu
+    /// rows lose their SF Symbol in every non-English locale — invisibly, since nothing
+    /// in the English build changes. Completeness is asserted by
+    /// `MainMenuIconDecoratorTests.testConfiguredCommandTitlesAllHaveIcons`, not remembered.
+    ///
+    /// A registrar that appended keys as the constants above initialize was rejected:
+    /// Swift static stored properties are lazy, so the array would be empty or partial
+    /// at the moment the decorator builds its map.
+    static let allEnglishTitleKeys: [String] = [
+        // Application menu
+        "About Lineform",
+        "Settings…",
+        "Check for Updates...",
+        "Install Command Line Tool...",
+        "Privacy Policy",
+        "Terms of Use",
+        // File menu
+        "Save",
+        "Save As...",
+        "Export As",
+        // ExportFormat.title — the Export As submenu's rows.
+        "HTML",
+        "PDF",
+        "Styled PDF",
+        "Rich Text (.rtf)",
+        "Rename...",
+        "Delete...",
+        "Jump to File…",
+        "Print...",
+        "New Tab",
+        "Close Tab",
+        "Select Next Tab",
+        "Select Previous Tab",
+        // Edit menu
+        "Find",
+        "Find & Replace…",
+        "Spelling and Grammar",
+        "Check Spelling While Typing",
+        "Show Spelling and Grammar",
+        "Check Document Now",
+        "Speech",
+        "Start Speaking",
+        "Pause",
+        "Resume",
+        "Stop",
+        // Format menu
+        "Format",
+        "Title",
+        "Section",
+        "Heading",
+        "Heading 3",
+        "Heading 4",
+        "Heading 5",
+        "Heading 6",
+        "Body",
+        "Bold",
+        "Italic",
+        "Code",
+        "Strikethrough",
+        "Blockquote",
+        "Bulleted List",
+        "Numbered List",
+        "Link",
+        "Insert Table",
+        "Reformat Table",
+        "Convert to Plain Text",
+        "Convert to Markdown",
+        // View menu
+        "Mode",
+        // EditorDisplayMode.title — the Mode picker's rows.
+        "Write",
+        "Read",
+        "Preview",
+        "Toggle Write / Read",
+        "Toggle Outline",
+        "Show Hidden Folders",
+        "Reading Experience",
+        // Help menu
+        "Lineform Guide"
+    ]
+
     static func formatCommandTitles(for textFormat: LineformTextFormat) -> [String] {
         switch textFormat {
         case .markdown:

@@ -49,13 +49,91 @@ final class MainMenuIconDecoratorTests: XCTestCase {
             AppMenuConfiguration.showHiddenFoldersCommandTitle
         ] + AppMenuConfiguration.markdownFormattingCommandTitles
 
+        // Every one of these titles is now a localization-catalog key, and the decorator
+        // resolves its localized form by looking the ENGLISH key up in the catalog. That
+        // only works if the key is listed in `allEnglishTitleKeys`, which is hand-maintained
+        // — so completeness is asserted here rather than remembered.
+        let englishKeys = Set(AppMenuConfiguration.allEnglishTitleKeys.map(MainMenuIconDecorator.normalizedTitle))
+
         for title in titles {
             let key = MainMenuIconDecorator.normalizedTitle(title)
             XCTAssertNotNil(
                 MainMenuIconDecorator.symbolsByTitle[key],
                 "Menu title \"\(title)\" (key \"\(key)\") has no icon mapping"
             )
+            XCTAssertTrue(
+                englishKeys.contains(key),
+                "Menu title \"\(title)\" (key \"\(key)\") is missing from AppMenuConfiguration.allEnglishTitleKeys — "
+                    + "its icon would be lost in every non-English locale"
+            )
         }
+    }
+
+    /// The runtime map deliberately keeps the English keys as a safety net, so probing it
+    /// can never fail. The thing that can actually regress is the LOCALIZED alias, which is
+    /// what this asserts.
+    func testEveryTitleKeyedEntryGainsALocalizedAliasInAllShippedLocales() {
+        // Passwords / Credit Card: the spec records these AutoFill rows as having no Apple
+        // translation source. macOS 26.5's InputManager.loctable does carry them, so they in
+        // fact resolve today — the exemption stays because that is an AppKit implementation
+        // detail we do not control, and losing these two icons is accepted either way.
+        let acceptedLosses: Set<String> = ["passwords", "credit card"]
+
+        // Rows that need no localized alias because they never reach the title map:
+        // `symbolName(for:)` matches `symbolsByAction` FIRST, and these three carry a
+        // selector. Their `symbolsByTitle` entries are belt-and-braces for English.
+        let selectorForExemptTitle = [
+            "hide others": "hideOtherApplications:",
+            "new": "newDocument:",
+            "zoom": "performZoom:"
+        ]
+        for (title, selector) in selectorForExemptTitle {
+            XCTAssertNotNil(
+                MainMenuIconDecorator.symbolsByAction[selector],
+                "\"\(title)\" is exempt from the localized-alias rule ONLY because \(selector) covers it"
+            )
+        }
+        let resolvedBySelector = Set(selectorForExemptTitle.keys)
+
+        // "Split" is a toolbar/mode label, not a menu row — no Swift literal spells it as a
+        // menu title (the View ▸ Mode picker shows "Preview" for .split), so there is
+        // nothing to translate. The map entry is defensive.
+        let notAMenuTitle: Set<String> = ["split"]
+
+        let exempt = acceptedLosses.union(resolvedBySelector).union(notAMenuTitle)
+        let languages = ["es", "fr", "de", "ja", "zh-Hans"]
+        let aliasesByLanguage = Dictionary(
+            uniqueKeysWithValues: languages.map { ($0, MainMenuIconDecorator.localizedAliases(languageCode: $0)) }
+        )
+
+        for englishNormalized in MainMenuIconDecorator.symbolsByTitle.keys where !exempt.contains(englishNormalized) {
+            for language in languages {
+                XCTAssertNotNil(aliasesByLanguage[language]?[englishNormalized],
+                                "\(englishNormalized): no localized title in \(language)")
+            }
+
+            // A system-provided entry carries real Apple translations, so at least one
+            // language must differ from the English key — otherwise the generated table
+            // is degenerate for that row (this is how the FunctionKeyNames keycap rows,
+            // whose "translation" of Find/Print/Stop was the English word, were caught).
+            // Not "all five": French legitimately keeps "Services", "Substitutions",
+            // "Transformations", and German keeps "Link".
+            if MainMenuIconDecorator.systemProvidedNormalizedKeys.contains(englishNormalized) {
+                XCTAssertTrue(
+                    languages.contains { aliasesByLanguage[$0]?[englishNormalized] != englishNormalized },
+                    "\(englishNormalized): every alias is just the English title — no real translation source"
+                )
+            }
+        }
+    }
+
+    func testRuntimeLanguageDerivationMatchesCatalogFolderNames() {
+        // Locale.language.languageCode collapses zh-Hans to "zh", which matches neither
+        // the SystemMenuItemTitles keys nor the compiled zh-Hans.lproj folder. The
+        // runtime code must use Bundle.main.preferredLocalizations — this pin keeps it so.
+        XCTAssertEqual(MainMenuIconDecorator.runtimeLanguageCode(preferredLocalizations: ["zh-Hans", "en"]),
+                       "zh-Hans")
+        XCTAssertEqual(MainMenuIconDecorator.runtimeLanguageCode(preferredLocalizations: []), "en")
     }
 
     /// Guards the "quit is not a document action" class of copy/paste error in the table:

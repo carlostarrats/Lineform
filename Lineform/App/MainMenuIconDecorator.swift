@@ -135,8 +135,99 @@ enum MainMenuIconDecorator {
             return symbol
         }
 
-        return symbolsByTitle[normalizedTitle(item.title)]
+        return runtimeTitleMap[normalizedTitle(item.title)]
     }
+
+    // MARK: - Localized title matching
+
+    /// The resolved app language, in the form that matches both the compiled
+    /// `<lang>.lproj` folder names and `SystemMenuItemTitles`' keys. NEVER derive this
+    /// from `Locale.language.languageCode` — it collapses "zh-Hans" to "zh", which
+    /// matches neither (verified), silently losing every title-keyed icon in Chinese.
+    static func runtimeLanguageCode(
+        preferredLocalizations: [String] = Bundle.main.preferredLocalizations
+    ) -> String {
+        preferredLocalizations.first ?? "en"
+    }
+
+    /// englishNormalizedKey → the localized title's NORMALIZED form, taken from the
+    /// generated AppKit table. Sorted so a key that two English spellings normalize to
+    /// ("Bold"/"bold") resolves deterministically, and to the Title-cased row — the one
+    /// a menu actually shows.
+    private static func systemAliases(languageCode: String) -> [String: String] {
+        var aliases: [String: String] = [:]
+        for englishTitle in SystemMenuItemTitles.titles.keys.sorted() {
+            let normalized = normalizedTitle(englishTitle)
+            guard symbolsByTitle[normalized] != nil, aliases[normalized] == nil else { continue }
+            if let localized = SystemMenuItemTitles.titles[englishTitle]?[languageCode] {
+                aliases[normalized] = normalizedTitle(localized)
+            }
+        }
+        return aliases
+    }
+
+    /// englishNormalizedKey → the localized title's NORMALIZED form, taken from our own
+    /// localization catalog. The catalog key is the pre-normalization English title,
+    /// exactly as the `AppCommands` literal reads (ASCII "..." kept).
+    ///
+    /// Falls back to the English title when the language has no compiled `.lproj` yet or
+    /// the key is untranslated — the same value `localizedString(forKey:value:)` returns
+    /// once it does exist, so the alias set does not change shape as translations land.
+    private static func catalogAliases(languageCode: String) -> [String: String] {
+        let bundle = Bundle.main.path(forResource: languageCode, ofType: "lproj")
+            .flatMap(Bundle.init(path:))
+
+        var aliases: [String: String] = [:]
+        for title in AppMenuConfiguration.allEnglishTitleKeys {
+            let normalized = normalizedTitle(title)
+            guard symbolsByTitle[normalized] != nil, aliases[normalized] == nil else { continue }
+            let localized = bundle?.localizedString(forKey: title, value: title, table: nil) ?? title
+            aliases[normalized] = normalizedTitle(localized)
+        }
+        return aliases
+    }
+
+    /// englishNormalizedKey → the localized title's NORMALIZED form, for every entry
+    /// that has a translation source (the generated system table, or our catalog).
+    /// Split out from the map builder so the test can assert aliases exist without
+    /// the English fallback masking a miss.
+    static func localizedAliases(languageCode: String) -> [String: String] {
+        var aliases = systemAliases(languageCode: languageCode)
+        for (key, localized) in catalogAliases(languageCode: languageCode) where aliases[key] == nil {
+            aliases[key] = localized
+        }
+        return aliases
+    }
+
+    /// English normalized keys that resolve from the generated system table — the
+    /// test uses this to know which aliases must differ from English pre-translation.
+    static var systemProvidedNormalizedKeys: Set<String> {
+        Set(SystemMenuItemTitles.titles.keys.map(normalizedTitle))
+            .intersection(symbolsByTitle.keys)
+    }
+
+    /// Per-language lookup used by `symbolName(for:)`. English keys stay in the map
+    /// unconditionally: harmless in English, the safety net everywhere else. Built
+    /// once per process — the menu language cannot change mid-run.
+    ///
+    /// BOTH alias sources are registered, not just the one `localizedAliases` picked:
+    /// ~25 titles ("Bold", "Save", "Stop", "Strikethrough"…) exist in AppKit's table AND
+    /// in our catalog, and a translator who chooses a different word than Apple for one
+    /// of our own rows would otherwise lose that row's icon. Extra aliases are free —
+    /// this is a lookup table, and a miss is what costs an icon.
+    static func localizedSymbolsByNormalizedTitle(languageCode: String) -> [String: String] {
+        var map = symbolsByTitle
+        for aliases in [systemAliases(languageCode: languageCode), catalogAliases(languageCode: languageCode)] {
+            for (englishNormalized, localizedNormalized) in aliases {
+                guard let symbol = symbolsByTitle[englishNormalized] else { continue }
+                map[localizedNormalized] = symbol
+            }
+        }
+        return map
+    }
+
+    private static let runtimeTitleMap: [String: String] =
+        localizedSymbolsByNormalizedTitle(languageCode: runtimeLanguageCode())
 
     /// Lowercases, drops trailing ellipses, and removes the app name so "About Lineform",
     /// "Hide Lineform" and "Quit Lineform" map without hard-coding the product name twice.

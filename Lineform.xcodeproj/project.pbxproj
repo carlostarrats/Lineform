@@ -107,6 +107,7 @@
 		1F0000010000000000000034 /* DocumentStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000034 /* DocumentStatistics.swift */; };
 		1F0000010000000000000036 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000036 /* AppCommands.swift */; };
 		1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B1 /* MainMenuIconDecorator.swift */; };
+		1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000320000000000000011 /* SystemMenuItemTitles.swift */; };
 		1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */; };
 		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
 		1F0000010000000000000122 /* LineformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000122 /* LineformColors.swift */; };
@@ -325,6 +326,7 @@
 		1F0000020000000000000034 /* DocumentStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatistics.swift; sourceTree = "<group>"; };
 		1F0000020000000000000036 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B1 /* MainMenuIconDecorator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecorator.swift; sourceTree = "<group>"; };
+		1F0000320000000000000011 /* SystemMenuItemTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMenuItemTitles.swift; sourceTree = "<group>"; };
 		1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLaunchIntroOverlay.swift; sourceTree = "<group>"; };
 		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
 		1F0000020000000000000122 /* LineformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformColors.swift; sourceTree = "<group>"; };
@@ -476,6 +478,7 @@
 				1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */,
 				1F0000020000000000000036 /* AppCommands.swift */,
 				1F00000200000000000004B1 /* MainMenuIconDecorator.swift */,
+				1F0000320000000000000011 /* SystemMenuItemTitles.swift */,
 				1F0000020000000000000201 /* AppUpdater.swift */,
 				1F00000200000000000004C5 /* AnnouncementFeed.swift */,
 				1F00000200000000000004C6 /* AnnouncementFetcher.swift */,
@@ -927,6 +930,7 @@
 				1F0000010000000000000034 /* DocumentStatistics.swift in Sources */,
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
 				1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */,
+				1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */,
 				1F0000010000000000000201 /* AppUpdater.swift in Sources */,
 				1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */,
 				1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */,
