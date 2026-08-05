@@ -22,7 +22,19 @@
   xcrun xcstringstool sync Lineform/Localizable.xcstrings --stringsdata-file-list /tmp/stringsdata-list.txt
   ```
 
-  Check `xcrun xcstringstool sync --help` once for the exact flag spelling on this Xcode (Task 5 pins it); if `sync` proves unable to consume the stringsdata, the fallback is to hand-author each task's keys directly into the catalog JSON from the task's "Produces" list — never skip the verification that keys are present. `SWIFT_EMIT_LOC_STRINGS = YES` is **already set** in both configurations (`project.pbxproj:1144, 1199`) — do not add it again, and do not treat its absence as the explanation for missing keys.
+  **Pinned by Task 5, verified working.** Per-task form — scope `--stringsdata` to only the files THIS task converted, so the task's diff stays reviewable:
+
+  ```sh
+  xcodebuild build -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -derivedDataPath build-loc
+  # Discover paths rather than hardcoding them — the arch directory is arm64 or x86_64:
+  find build-loc -name '<FileName>.stringsdata'
+  xcrun xcstringstool sync Lineform/Localizable.xcstrings --stringsdata <path1> [--stringsdata <path2> ...]
+  ```
+
+  Repeat `--stringsdata` once per file for multi-file tasks. **Delete `build-loc/` before committing** and confirm it is not staged.
+
+  If `sync` fails, the fallback is to hand-author the task's keys directly into the catalog JSON from the task's "Produces" list — never skip verifying the keys are present. `SWIFT_EMIT_LOC_STRINGS = YES` is **already set** (`project.pbxproj:1144, 1199`) — do not add it, and do not treat it as the explanation for missing keys.
+- **SwiftUI literal sites need no code change but DO need a broad sync.** `Text("…")`, `Button("…")`, `.help("…")`, and `.accessibilityLabel("…")` literals are already `LocalizedStringKey`s that resolve from the catalog at runtime — but they only ENTER the catalog via extraction. Seven files carry such strings and appear in no task's Files list: `AnnouncementCard.swift`, `CrossFileSearchResultsView.swift`, `EditorChromeAndControls.swift`, `QuickOpenPalette.swift`, `TabBarView.swift`, `OutlineMarkdownBasicsTabView.swift`, `DebouncedMarkdownPreviewView.swift`, `MarkdownPreviewViewRepresentable.swift`. Per-task narrow syncs never reach them, and Task 13's completeness gate only checks keys already present — so they would ship English in all five locales with every gate green. **Task 13 Step 0 runs one whole-target sync to close this**, and Task 13 Step 3's non-UI filtering is what keeps the resulting noise out.
 - **Never localize an enum `rawValue`** — add a `title` property instead (`OutlineFileSortOrder` and `EditorDisplayMode` are the models to follow).
 - **Text that renders document content stays in the document's language** — callout labels, Markdown syntax, exported HTML. Only app chrome localizes.
 - Font names, "Lineform", and `AppMenuConfiguration.aboutCopyright` / `aboutVersionDisplay` are never translated.
@@ -1125,6 +1137,29 @@ git commit -m "Author InfoPlist and AppShortcuts catalog keys"
 **Interfaces:**
 - Consumes: every key created by Tasks 3–12; both glossaries from Task 2.
 - Produces: the three catalogs fully translated in `es`, `fr`, `de`, `ja`, `zh-Hans`; the gates that keep them that way.
+
+- [ ] **Step 0: Broad sync — pull in the SwiftUI literal sites no task converted**
+
+Per-task syncs only covered files a task edited. SwiftUI literal sites need no
+code change but still must reach the catalog (see Global Constraints), and eight
+files carrying them appear in no task's Files list. Run ONE whole-target sync:
+
+```sh
+xcodebuild build -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -derivedDataPath build-loc
+find build-loc -name '*.stringsdata' -print0 | xargs -0 -I{} echo --stringsdata {} > /tmp/sd-args.txt
+xcrun xcstringstool sync Lineform/Localizable.xcstrings $(tr '\n' ' ' < /tmp/sd-args.txt)
+rm -rf build-loc
+```
+
+Then confirm these strings are now keys — they are the canary that the sweep
+worked: `"Close tab"`, `"Reading Experience"`, `"Dismiss announcement"`,
+`"Jump to file"`, `"Editor mode"`, `"Markdown read view"`. If any is absent,
+stop: the sweep did not do its job and those strings would ship English in all
+five locales with every gate below still green.
+
+This step is why Step 3's non-UI filtering exists — expect the catalog to gain
+keys that are not user-facing copy, and filter them there rather than narrowing
+this sweep.
 
 - [ ] **Step 1: Write the three gate tests (they MUST fail now — no translations exist)**
 
