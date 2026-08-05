@@ -163,9 +163,54 @@ final class LocalizationCatalogTests: XCTestCase {
         for (key, entry) in try catalog("Localizable") where isTranslatable(entry) {
             guard let locs = entry["localizations"] as? [String: [String: Any]] else { continue }
             for (language, expected) in required {
-                guard let plural = (locs[language]?["variations"] as? [String: Any])?["plural"]
-                        as? [String: [String: Any]] else { continue }
-                XCTAssertEqual(Set(plural.keys), expected, "'\(key)' \(language) plural categories")
+                if let plural = (locs[language]?["variations"] as? [String: Any])?["plural"]
+                    as? [String: [String: Any]] {
+                    XCTAssertEqual(Set(plural.keys), expected, "'\(key)' \(language) plural categories")
+                }
+                // A multi-argument counted string keeps its plurals one level down, inside each
+                // substitution variable. Without this the gate walks straight past exactly the
+                // two keys it was written for: dropping `chars` back to a bare "%2$lld
+                // caractères" would restore a sibling of the original French/Spanish defect
+                // with every other gate still green.
+                for (token, spec) in (locs[language]?["substitutions"] as? [String: [String: Any]] ?? [:]) {
+                    guard let plural = (spec["variations"] as? [String: Any])?["plural"]
+                            as? [String: [String: Any]] else {
+                        return XCTFail("'\(key)' \(language) substitution '\(token)' has no plural")
+                    }
+                    XCTAssertEqual(Set(plural.keys), expected,
+                                   "'\(key)' \(language) substitution '\(token)' plural categories")
+                }
+            }
+        }
+    }
+
+    /// The shape of the two multi-argument counted strings, pinned by name. The gate above
+    /// checks whatever variables it finds; this checks that the right variables EXIST — one
+    /// per counted argument in the languages that inflect, and none at all in the two that
+    /// do not. Collapsing back to a single variable is the defect this round was opened for,
+    /// and it is invisible to a gate that only inspects the variables already present.
+    func testMultiArgumentCountedStringsVaryEveryArgumentIndependently() throws {
+        let strings = try catalog("Localizable")
+        for key in ["%lld words — %lld characters",
+                    "Document contains %lld words and %lld characters"] {
+            let entry = try XCTUnwrap(strings[key], "'\(key)' is no longer in the catalog")
+            let locs = try XCTUnwrap(entry["localizations"] as? [String: [String: Any]])
+
+            for language in ["es", "fr", "de"] {
+                let subs = try XCTUnwrap(locs[language]?["substitutions"] as? [String: [String: Any]],
+                                         "'\(key)' \(language) lost its substitutions")
+                XCTAssertEqual(Set(subs.values.compactMap { $0["argNum"] as? Int }), [1, 2],
+                               "'\(key)' \(language) must vary BOTH counted arguments independently")
+            }
+            // ja and zh-Hans have no plural category, so a variable there would be a
+            // single-branch indirection that never chooses anything.
+            for language in ["ja", "zh-Hans"] {
+                XCTAssertNil(locs[language]?["substitutions"],
+                             "'\(key)' \(language) has no plural category to substitute on")
+                XCTAssertNil(locs[language]?["variations"],
+                             "'\(key)' \(language) has no plural category to vary on")
+                XCTAssertNotNil((locs[language]?["stringUnit"] as? [String: Any])?["value"],
+                                "'\(key)' \(language) must be a plain stringUnit")
             }
         }
     }

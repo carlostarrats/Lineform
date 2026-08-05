@@ -88,12 +88,13 @@ final class MainMenuIconDecoratorTests: XCTestCase {
     }
 
     /// A localized title claimed by two English keys with different symbols draws one row's
-    /// glyph on the other. `fr` collapses "AutoFill" and "Fill" to "Remplir"; `zh-Hans`
-    /// collapses "Title" and "Heading" to 标题 — and Title/Heading are both real Format-menu
-    /// rows. Written out of an unordered Dictionary the survivor varied between processes.
+    /// glyph on the other, and written out of an unordered Dictionary the survivor varied
+    /// between processes. ONE such collision is live: `fr` collapses AppKit's "AutoFill" and
+    /// "Fill" to "Remplir", which is Apple's wording and not ours to rename, so determinism is
+    /// the whole fix. The `zh-Hans` Title/Heading collision was RESOLVED instead — see below.
     func testLocalizedAliasCollisionsResolveDeterministically() {
-        // The two live collisions, pinned by name. A `where` filter cannot skip these into
-        // passing, and they fail outright if either table's wording changes.
+        // The live collision, pinned by name. A `where` filter cannot skip it into passing,
+        // and it fails outright if either table's wording changes.
         let french = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: "fr")
         XCTAssertEqual(french["remplir"], MainMenuIconDecorator.symbolsByTitle["autofill"],
                        "fr: \"Remplir\" is both AutoFill and Fill — \"autofill\" sorts first and must win")

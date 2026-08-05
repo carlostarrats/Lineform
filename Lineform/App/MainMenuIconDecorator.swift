@@ -218,12 +218,17 @@ enum MainMenuIconDecorator {
     static func localizedSymbolsByNormalizedTitle(languageCode: String) -> [String: String] {
         var map = symbolsByTitle
         for aliases in [systemAliases(languageCode: languageCode), catalogAliases(languageCode: languageCode)] {
-            // Two English titles can share ONE localized title — fr collapses "AutoFill" and
-            // "Fill" to "Remplir", zh-Hans collapses "Title" and "Heading" to 标题 — and those
-            // pairs carry DIFFERENT symbols. Written straight out of an unordered Dictionary,
-            // the survivor varied between processes: in Chinese, Format ▸ Title drew Heading's
-            // glyph or the reverse, differently on each launch. First sorted English key wins,
-            // so the collision resolves the same way every time.
+            // Two English titles can share ONE localized title carrying a DIFFERENT symbol —
+            // fr collapses AppKit's "AutoFill" and "Fill" to "Remplir". Written straight out of
+            // an unordered Dictionary the survivor varied between processes. First sorted
+            // English key wins, so the collision resolves the same way every time.
+            //
+            // zh-Hans used to be the second case: Apple renders both "Title" and "Heading" as
+            // 标题, so Format ▸ Title drew Heading's glyph or the reverse, differently on each
+            // launch. That one is GONE — Heading is now 小标题 in the catalog and in
+            // `SystemMenuItemTitles`, because two identical labels in one menu was a legibility
+            // bug in its own right. Determinism is still what saves the remaining fr collision,
+            // which is AppKit's own wording and not ours to rename.
             var claimed = Set<String>()
             for englishNormalized in aliases.keys.sorted() {
                 guard let localized = aliases[englishNormalized],
