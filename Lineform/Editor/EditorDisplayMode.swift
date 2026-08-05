@@ -1,3 +1,5 @@
+import Foundation
+
 enum EditorDisplayMode: String, CaseIterable, Equatable, Identifiable {
     case write
     case read
@@ -8,11 +10,11 @@ enum EditorDisplayMode: String, CaseIterable, Equatable, Identifiable {
     var title: String {
         switch self {
         case .write:
-            return "Write"
+            return String(localized: "Write")
         case .read:
-            return "Read"
+            return String(localized: "Read")
         case .split:
-            return "Preview"
+            return String(localized: "Preview")
         }
     }
 }

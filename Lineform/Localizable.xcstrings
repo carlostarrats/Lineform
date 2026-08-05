@@ -1,10 +1,38 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ reading theme" : {
+
+    },
+    "%@ value %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ value %2$@"
+          }
+        }
+      }
+    },
+    "%@, folder" : {
+
+    },
+    "%@, hidden" : {
+
+    },
+    "%@, hidden folder" : {
+
+    },
     "%@..." : {
 
     },
     "%lld characters" : {
+
+    },
+    "%lld pt" : {
+
+    },
+    "%lld px" : {
 
     },
     "%lld words — %lld characters" : {
@@ -17,13 +45,25 @@
         }
       }
     },
+    "(Read / Preview)" : {
+
+    },
+    "Aa" : {
+
+    },
     "About Lineform" : {
+
+    },
+    "Add # Title or ## Section to build an outline." : {
 
     },
     "Allow root folders to expand and collapse" : {
 
     },
     "Autosaved" : {
+
+    },
+    "Block Spacing" : {
 
     },
     "Blockquote" : {
@@ -38,6 +78,9 @@
     "Bulleted List" : {
 
     },
+    "Change" : {
+
+    },
     "Check Document Now" : {
 
     },
@@ -50,16 +93,34 @@
     "Checking…" : {
 
     },
+    "Choose" : {
+
+    },
+    "Close" : {
+
+    },
     "Close Tab" : {
 
     },
     "Code" : {
 
     },
+    "Collapse %@" : {
+
+    },
+    "Collapses the folder" : {
+
+    },
+    "Column Width" : {
+
+    },
     "Convert to Markdown" : {
 
     },
     "Convert to Plain Text" : {
+
+    },
+    "Delete" : {
 
     },
     "Delete..." : {
@@ -78,10 +139,22 @@
         }
       }
     },
+    "Document outline" : {
+
+    },
     "Document updated from disk" : {
 
     },
+    "Expand %@" : {
+
+    },
+    "Expands the folder" : {
+
+    },
     "Export As" : {
+
+    },
+    "Files" : {
 
     },
     "Find" : {
@@ -90,7 +163,16 @@
     "Find & Replace…" : {
 
     },
+    "Font" : {
+
+    },
+    "Font Size" : {
+
+    },
     "Format" : {
+
+    },
+    "Full" : {
 
     },
     "Heading" : {
@@ -111,6 +193,9 @@
     "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed." : {
 
     },
+    "Highlights the current line while you write." : {
+
+    },
     "In-app notifications" : {
 
     },
@@ -126,13 +211,28 @@
     "Jump to File…" : {
 
     },
+    "Jump to heading %@" : {
+
+    },
+    "Keeps the current line centered as you write." : {
+
+    },
     "Last save" : {
+
+    },
+    "Letter Spacing" : {
+
+    },
+    "Line Height" : {
 
     },
     "Lineform Guide" : {
 
     },
     "Link" : {
+
+    },
+    "Markdown Basics" : {
 
     },
     "Mode" : {
@@ -144,6 +244,9 @@
     "New windows open with the sidebar visible." : {
 
     },
+    "No Markdown files" : {
+
+    },
     "Not saved yet" : {
 
     },
@@ -153,10 +256,31 @@
     "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request." : {
 
     },
+    "Off" : {
+
+    },
+    "On" : {
+
+    },
     "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive." : {
 
     },
+    "Open in New Tab" : {
+
+    },
+    "Open in New Window" : {
+
+    },
+    "Opens the file" : {
+
+    },
+    "Outline" : {
+
+    },
     "Pause" : {
+
+    },
+    "Preview" : {
 
     },
     "Print..." : {
@@ -165,13 +289,34 @@
     "Privacy Policy" : {
 
     },
+    "Read" : {
+
+    },
+    "Reading" : {
+
+    },
+    "Reading & Accessibility" : {
+
+    },
     "Reading Experience" : {
+
+    },
+    "Reading Experience Inspector" : {
+
+    },
+    "Reading Ruler" : {
 
     },
     "Reformat Table" : {
 
     },
+    "Rename" : {
+
+    },
     "Rename..." : {
+
+    },
+    "Reset all to default" : {
 
     },
     "Resume" : {
@@ -184,6 +329,9 @@
 
     },
     "Saved" : {
+
+    },
+    "Scanned folder: %@" : {
 
     },
     "Section" : {
@@ -210,7 +358,16 @@
     "Show iCloud in sidebar" : {
 
     },
+    "Show in Finder" : {
+
+    },
     "Show sidebar on launch" : {
+
+    },
+    "Sort folders by" : {
+
+    },
+    "Sort folders by: %@" : {
 
     },
     "Speech" : {
@@ -228,7 +385,13 @@
     "Strikethrough" : {
 
     },
+    "System" : {
+
+    },
     "Terms of Use" : {
+
+    },
+    "Themes" : {
 
     },
     "Title" : {
@@ -240,13 +403,34 @@
     "Toggle Write / Read" : {
 
     },
+    "Typewriter Mode" : {
+
+    },
     "Unsaved changes" : {
+
+    },
+    "Untitled" : {
 
     },
     "Updated" : {
 
     },
     "When off, the iCloud and Workspace sections in the Files sidebar always stay expanded." : {
+
+    },
+    "Workspace" : {
+
+    },
+    "Workspace folder unavailable" : {
+
+    },
+    "Workspace: %@" : {
+
+    },
+    "Write" : {
+
+    },
+    "Writing" : {
 
     },
     "iCloud is not available on this Mac." : {

@@ -14,20 +14,20 @@ struct FontOption: Equatable, Identifiable {
 
     static let groupedOptions: [FontOptionGroup] = [
         FontOptionGroup(
-            name: "System",
+            name: String(localized: "System"),
             options: [
                 FontOption(id: .sfPro, name: "SF Pro", familyName: ".AppleSystemUIFont", source: .system),
                 FontOption(id: .newYork, name: "New York", familyName: "New York", source: .system)
             ]
         ),
         FontOptionGroup(
-            name: "Writing",
+            name: String(localized: "Writing"),
             options: [
                 FontOption(id: .jetBrainsMono, name: "Monospaced", familyName: ".AppleSystemUIFontMonospaced", source: .system)
             ]
         ),
         FontOptionGroup(
-            name: "Reading & Accessibility",
+            name: String(localized: "Reading & Accessibility"),
             options: [
                 FontOption(id: .atkinsonHyperlegible, name: "Atkinson Hyperlegible", familyName: "Atkinson Hyperlegible", source: .bundled),
                 FontOption(id: .openDyslexic, name: "OpenDyslexic", familyName: "OpenDyslexic", source: .bundled),

@@ -15,6 +15,15 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         case .markdownBasics: return "curlybraces"
         }
     }
+
+    /// Display name. `rawValue` stays English forever — it is identity, not copy.
+    var title: String {
+        switch self {
+        case .outline: return String(localized: "Outline")
+        case .files: return String(localized: "Files")
+        case .markdownBasics: return String(localized: "Markdown Basics")
+        }
+    }
 }
 
 struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
@@ -91,7 +100,7 @@ struct OutlineSidebarView: View {
         var id: String { item.id }
     }
 
-    static let emptyStateInstruction = "Add # Title or ## Section to build an outline."
+    static let emptyStateInstruction = String(localized: "Add # Title or ## Section to build an outline.")
     /// Matches the Markdown Basics section header exactly: size 12 medium, inactive-tab grey,
     /// same leading x (pillHorizontalInset + 10) and same y below the divider (tabDividerGap + 4).
     static let emptyStateFontSize: CGFloat = 12
@@ -125,12 +134,12 @@ struct OutlineSidebarView: View {
     // takes the system unemphasized grey (see `rowSelectionFillColor`). Retained for the ⌘K
     // quick-open palette, which is a transient accent-tinted list, not a source list.
     static let rowSelectionFillOpacity = 0.15
-    static let tabTitles = OutlineSidebarTab.allCases.map(\.rawValue)
+    static let tabTitles = OutlineSidebarTab.allCases.map(\.title)
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
     static let tabsUseExplicitThemeAppearance = true
-    static let chooseWorkspaceButtonTitle = "Choose"
-    static let changeWorkspaceButtonTitle = "Change"
+    static let chooseWorkspaceButtonTitle = String(localized: "Choose")
+    static let changeWorkspaceButtonTitle = String(localized: "Change")
     static let filesRowsFillAvailableWidth = true
     /// Left inset of the Files tree from the sidebar edge. Sits at the CHEVRON column so
     /// disclosure chevrons hang here and the icons after them land on `sidebarIconColumnLeading`
@@ -250,9 +259,9 @@ struct OutlineSidebarView: View {
     /// trait; folders and de-emphasized hidden items need to say what they are.
     static func fileRowAccessibilityLabel(name: String, isDirectory: Bool, isHidden: Bool) -> String {
         switch (isDirectory, isHidden) {
-        case (true, true): return "\(name), hidden folder"
-        case (true, false): return "\(name), folder"
-        case (false, true): return "\(name), hidden"
+        case (true, true): return String(localized: "\(name), hidden folder")
+        case (true, false): return String(localized: "\(name), folder")
+        case (false, true): return String(localized: "\(name), hidden")
         case (false, false): return name
         }
     }
@@ -394,7 +403,7 @@ struct OutlineSidebarView: View {
             }
         }
         .frame(minWidth: Self.minimumColumnWidth, idealWidth: Self.idealColumnWidth, maxWidth: Self.maximumColumnWidth)
-        .accessibilityLabel("Document outline")
+        .accessibilityLabel(String(localized: "Document outline"))
     }
 
     @ViewBuilder
@@ -480,7 +489,7 @@ struct OutlineSidebarView: View {
                         .font(.system(size: 13, weight: .medium))
                         .frame(width: 18, alignment: .center)
 
-                    Text("Settings")
+                    Text(String(localized: "Settings"))
                         .font(.system(size: 13, weight: .medium))
 
                     Spacer(minLength: 0)
@@ -877,7 +886,7 @@ private struct OutlineSidebarRow: View {
                 isHovered = hovering
             }
         }
-        .accessibilityLabel("Jump to heading \(node.item.title)")
+        .accessibilityLabel(String(localized: "Jump to heading \(node.item.title)"))
     }
 
     /// The non-active weight; the active heading swaps to `.bold` (see body).
@@ -908,7 +917,7 @@ private struct SidebarTabButton: View {
                     .font(.system(size: 13, weight: .medium))
                     .frame(width: 18, alignment: .center)
 
-                Text(tab.rawValue)
+                Text(tab.title)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
 
                 Spacer(minLength: 0)
@@ -1020,7 +1029,7 @@ final class OutlineFileBrowserStore: ObservableObject {
     )
     @Published var workspaceRoot = OutlineFileRoot(
         id: "workspace",
-        title: "Workspace",
+        title: String(localized: "Workspace"),
         systemImage: "folder",
         state: .unassigned,
         items: []
@@ -1326,7 +1335,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 
     @MainActor
     func chooseWorkspaceFolder() {
-        let panel = folderSelectionPanel(prompt: "Choose")
+        let panel = folderSelectionPanel(prompt: String(localized: "Choose"))
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
@@ -1628,7 +1637,7 @@ final class OutlineFileBrowserStore: ObservableObject {
 
     /// The workspace root's display title: the chosen folder's name, or "Workspace" when unassigned.
     static func workspaceTitle(for url: URL?) -> String {
-        url?.lastPathComponent ?? "Workspace"
+        url?.lastPathComponent ?? String(localized: "Workspace")
     }
 
     private func refreshWorkspaceRoot() {
@@ -1913,7 +1922,7 @@ private struct OutlineFileBrowserView: View {
             // An inline Picker (not hand-rolled Buttons) so the checkmark uses the OS's native
             // selection gutter — matching the Font menu in the Reading Experience panel. The
             // hidden label keeps it header-free, and the custom trigger below is unaffected.
-            Picker("Sort folders by", selection: globalSortOrder) {
+            Picker(String(localized: "Sort folders by"), selection: globalSortOrder) {
                 ForEach(OutlineFileSortOrder.allCases) { order in
                     Text(order.title).tag(order)
                 }
@@ -1924,7 +1933,7 @@ private struct OutlineFileBrowserView: View {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.up.arrow.down")
                     .font(.system(size: 10, weight: .semibold))
-                Text("Sort folders by: \(globalSortOrder.wrappedValue.title)")
+                Text(String(localized: "Sort folders by: \(globalSortOrder.wrappedValue.title)"))
                     .font(.system(size: 12, weight: .medium))
             }
             // Same quiet grey as the inactive tabs above, darkening on hover.
@@ -1946,7 +1955,7 @@ private struct OutlineFileBrowserView: View {
                 isSortHovered = hovering
             }
         }
-        .accessibilityLabel("Sort folders by")
+        .accessibilityLabel(String(localized: "Sort folders by"))
         .accessibilityValue(globalSortOrder.wrappedValue.title)
     }
 
@@ -1990,7 +1999,7 @@ private struct OutlineFileBrowserView: View {
             // a subfolder's disclosure triangle and pressing Choose silently targets that
             // subfolder. Surface the full path so the sidebar can't misrepresent which folder is
             // actually the workspace.
-            .help(rootPath(for: root).map { "Workspace: \($0.path)" } ?? root.title)
+            .help(rootPath(for: root).map { String(localized: "Workspace: \($0.path)") } ?? root.title)
 
             // A dimmed iCloud root (unavailable or connected-but-empty) reads as inactive: no
             // expandable tree, no empty-state line — just the quiet header.
@@ -2001,7 +2010,7 @@ private struct OutlineFileBrowserView: View {
                     // header's disconnected icon already signals that, so don't claim it's empty.
                     if root.state == .available {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("No Markdown files")
+                            Text(String(localized: "No Markdown files"))
                             // "No Markdown files" under a name that matches the folder the user
                             // believes they picked reads as a scan failure. Naming the scanned
                             // path is the only thing that distinguishes "this folder is empty"
@@ -2014,7 +2023,7 @@ private struct OutlineFileBrowserView: View {
                                     // The visible string is elided from the left; announcing
                                     // "…older/Test Folder" would strand a VoiceOver user with
                                     // exactly the ambiguity this line exists to resolve.
-                                    .accessibilityLabel("Scanned folder: \(path)")
+                                    .accessibilityLabel(String(localized: "Scanned folder: \(path)"))
                             }
                         }
                         .font(.system(size: 12))
@@ -2115,7 +2124,9 @@ private struct OutlineFileRootRow: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isCollapsed ? "Expand \(root.title)" : "Collapse \(root.title)")
+                .accessibilityLabel(isCollapsed
+                    ? String(localized: "Expand \(root.title)")
+                    : String(localized: "Collapse \(root.title)"))
             } else {
                 // The chevron slot is ALWAYS reserved (even when collapse is locked off) so the
                 // root icon stays pinned to the shared icon column, aligned with the file/folder
@@ -2133,7 +2144,7 @@ private struct OutlineFileRootRow: View {
                     Image(systemName: OutlineSidebarView.workspaceDisconnectedSystemImage)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                        .accessibilityLabel("Workspace folder unavailable")
+                        .accessibilityLabel(String(localized: "Workspace folder unavailable"))
                 }
 
                 Button {
@@ -2378,7 +2389,9 @@ private struct OutlineFileTreeNodeView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(OutlineSidebarView.fileRowAccessibilityLabel(name: item.name, isDirectory: item.isDirectory, isHidden: item.isHidden))
-        .accessibilityHint(item.isDirectory ? (isCollapsed ? "Expands the folder" : "Collapses the folder") : "Opens the file")
+        .accessibilityHint(item.isDirectory
+            ? (isCollapsed ? String(localized: "Expands the folder") : String(localized: "Collapses the folder"))
+            : String(localized: "Opens the file"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
         .accessibilityAction {
             if item.isDirectory {
@@ -2406,19 +2419,19 @@ private struct OutlineFileTreeNodeView: View {
             Button {
                 openFileInNewTab(item.url)
             } label: {
-                Label("Open in New Tab", systemImage: "plus.rectangle.on.rectangle")
+                Label(String(localized: "Open in New Tab"), systemImage: "plus.rectangle.on.rectangle")
             }
             Button {
                 openFileInNewWindow(item.url)
             } label: {
-                Label("Open in New Window", systemImage: "macwindow.badge.plus")
+                Label(String(localized: "Open in New Window"), systemImage: "macwindow.badge.plus")
             }
             Divider()
         }
         Button {
             renameItem(item)
         } label: {
-            Label(ellipsized ? "Rename..." : "Rename", systemImage: "pencil")
+            Label(ellipsized ? String(localized: "Rename...") : String(localized: "Rename"), systemImage: "pencil")
         }
         if !item.isDirectory {
             // No folder delete (spec): a folder's files are too much to trash from a
@@ -2426,13 +2439,13 @@ private struct OutlineFileTreeNodeView: View {
             Button(role: .destructive) {
                 deleteItem(item)
             } label: {
-                Label(ellipsized ? "Delete..." : "Delete", systemImage: "trash")
+                Label(ellipsized ? String(localized: "Delete...") : String(localized: "Delete"), systemImage: "trash")
             }
         }
         Button {
             revealItem(item)
         } label: {
-            Label("Show in Finder", systemImage: "folder")
+            Label(String(localized: "Show in Finder"), systemImage: "folder")
         }
     }
 

@@ -14,7 +14,7 @@ struct DocumentTab: Identifiable, Equatable {
     }
 
     var title: String {
-        guard let fileURL else { return "Untitled" }
+        guard let fileURL else { return String(localized: "Untitled") }
         return fileURL.lastPathComponent
     }
 
