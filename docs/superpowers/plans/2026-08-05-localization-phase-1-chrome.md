@@ -28,8 +28,15 @@
   xcodebuild build -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -derivedDataPath build-loc
   # Discover paths rather than hardcoding them — the arch directory is arm64 or x86_64:
   find build-loc -name '<FileName>.stringsdata'
-  xcrun xcstringstool sync Lineform/Localizable.xcstrings --stringsdata <path1> [--stringsdata <path2> ...]
+  xcrun xcstringstool sync Lineform/Localizable.xcstrings --skip-marking-strings-stale \
+      --stringsdata <path1> [--stringsdata <path2> ...]
   ```
+
+  **`--skip-marking-strings-stale` is mandatory on every scoped sync.** Without
+  it, syncing one file's stringsdata DELETES every key contributed by other
+  files — Task 6 wiped all eleven of Task 5's keys and caught it only by reading
+  `git diff` before committing. Always `git diff Lineform/Localizable.xcstrings`
+  after syncing and confirm the change is purely additive.
 
   Repeat `--stringsdata` once per file for multi-file tasks. **Delete `build-loc/` before committing** and confirm it is not staged.
 
@@ -920,6 +927,13 @@ extension OutlineSidebarTab {
 
 `FontOption.swift:15-37`: the three `FontOptionGroup(name:)` literals become `String(localized: "System")`, `String(localized: "Writing")`, `String(localized: "Reading & Accessibility")`. Font **names** stay literal. (`FontOptionGroup.id` is its name — session-stable, not persisted; verified acceptable in the spec.)
 
+**Also localize `EditorDisplayMode.title`** (`Lineform/Editor/EditorDisplayMode.swift:8`).
+It supplies the Write / Read / Split mode names to the toolbar picker
+(`Text(mode.title)`) and is in no other task's file list — Task 6 flagged it
+while converting the menu. Its three values are glossary terms (Write, Read,
+Split), so they must use `docs/notes/lineform-glossary.json`'s renderings. As
+with `OutlineSidebarTab`, localize `title` only — never a `rawValue`.
+
 `ReadingExperiencePopover.swift`: sweep labels the same way. The file's view
 type is `ReadingExperienceInspector` (line 3) — there is no type named
 `ReadingExperiencePopover`. The number helper is
@@ -990,6 +1004,13 @@ This is the worklist — the spec counts ×10 NSMenuItem, ×14 NSAlert, ×7 pane
 Every user-facing literal becomes `String(localized:)` at its site (AppKit APIs take `String`, so the wrapped form is the whole mechanism — there is no SwiftUI extraction to lean on here). Specifics:
 
 - Alert/button wording that matches a platform concept takes Apple's glossary wording as the English key unchanged (`"Save"`, `"Cancel"`, `"Don't Save"`, `"Replace"`) — the translation step maps them to Apple's exact terms.
+- **`ExportFormat.title`** (`SaveAsExport.swift:7`) — localize the enum's `title`
+  values here. Until they are, the Export submenu's `Button("\(format.title)...")`
+  in `AppCommands` extracts as the meaningless catalog key `"%@..."` (already
+  present, flagged by Task 6). Once the titles are localized, replace that call
+  site's interpolation so the row reads a localized title plus a literal `...`
+  rather than a translatable `"%@..."` template, and mark the stale `"%@..."`
+  key `shouldTranslate: false` — or remove it — in Task 13 Step 3.
 - `EditorContainerView.swift:2073`, `:2121`, `SaveAsExport.swift:160`: `"Untitled"` → `String(localized: "Untitled")` (spec decision: suggested filenames localize, matching TextEdit).
 - `LineformTextView.swift:971-973` AX strings; the hand-built context menu items in `menu(for:)` (spelling guesses header, Learn/Ignore) — their English keys are the exact AppKit spelling-menu titles so the glossary supplies Apple's wording.
 - Do NOT touch: `CalloutKind.displayName` (document-derived), notification names, pasteboard types, UTType identifiers, log messages.
