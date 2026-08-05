@@ -38,6 +38,19 @@
   `git diff` before committing. Always `git diff Lineform/Localizable.xcstrings`
   after syncing and confirm the change is purely additive.
 
+  **`sync` matches the stringsdata's table name against the target file's
+  BASENAME.** Syncing into a copy under any other filename silently no-ops — it
+  does not error. Anyone "testing the procedure safely" on a scratch copy will
+  conclude sync is broken when it is not. Test on `Localizable.xcstrings` itself
+  and rely on `git diff` / `git checkout` to undo.
+
+  **A bare `xcodebuild build` never merges keys into the catalog — that is not
+  evidence that CLI extraction is impossible.** It is exactly why the `sync` step
+  exists. `LocalizedStringResource` (App Intents titles, descriptions, parameter
+  names) extracts through stringsdata the same as `String(localized:)`; Task 12
+  concluded otherwise from a bare build and nearly left eight Shortcuts-facing
+  strings untranslated. Attempt `sync` before ever hand-authoring.
+
   Repeat `--stringsdata` once per file for multi-file tasks. **Delete `build-loc/` before committing** and confirm it is not staged.
 
   If `sync` fails, the fallback is to hand-author the task's keys directly into the catalog JSON from the task's "Produces" list — never skip verifying the keys are present. `SWIFT_EMIT_LOC_STRINGS = YES` is **already set** (`project.pbxproj:1144, 1199`) — do not add it, and do not treat it as the explanation for missing keys.
