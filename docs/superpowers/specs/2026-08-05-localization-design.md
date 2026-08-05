@@ -16,7 +16,8 @@ Chinese (`zh-Hans`).
 
 Korean was considered and cut: not for complexity — Hangul behaves like Latin
 for layout — but because it is the smallest return of the candidates for a Mac
-writing tool, and every added language costs a native reviewer.
+writing tool. It can be added later as a column in the same catalog; nothing in
+this design forecloses it.
 
 Deliberately excluded, and not to be revisited as part of this work:
 
@@ -114,12 +115,38 @@ and Spanish uses a non-breaking space before numerals. Any string with a count
 ("%d matches", "%d files") is authored as a String Catalog plural variation with
 per-language categories, never assembled from a number and a noun.
 
-**3. Native review before release.**
+**3. A fixed term glossary, enforced by test.**
 
-Each language is read end-to-end in the running app by a native speaker before
-shipping. This is a release gate, not a nice-to-have; it is the only mechanism
-here that catches wording that is correct but unidiomatic. Five languages is five
-reviewers, and that cost is the reason Korean was cut.
+Lineform-specific vocabulary — Write mode, Read mode, Split, Workspace, Tab,
+Outline, Callout, Front matter, Reading profile — is translated once per language
+into a glossary committed under `docs/notes/`, and every occurrence uses it. The
+most common way an otherwise-correct translation reads as sloppy is the same
+English term rendering three different ways across three panels. That is
+mechanically detectable: a test asserts no source term maps to more than one
+translation within a language.
+
+**4. Format-specifier and placeholder parity, enforced by test.**
+
+Every localized string carries the same format specifiers, in the same order, as
+its source. A dropped `%@` is a crash, not a typo. This is a test, not a review
+step.
+
+**5. Back-translation for semantic drift.**
+
+Each translated string is independently rendered back to English and compared to
+the source. Divergence in meaning surfaces where a plausible-sounding translation
+has drifted from what the control actually does.
+
+Mechanisms 1 and 3 carry most of the weight. Platform terminology is not
+invented, so the vocabulary a user encounters most — menu commands, save and
+export, find and replace — is Apple's own professionally translated wording,
+verbatim. What remains to author is Lineform's own copy, fixed to a glossary and
+checked for placeholder parity and semantic drift.
+
+The residual exposure is idiom and tone rather than correctness, and it
+concentrates in the longest strings: the first-launch intro overlay and the
+`MarkdownReference` explanations. Those are kept short and plain in English,
+which is also what makes them translate cleanly.
 
 ## MainMenuIconDecorator
 
@@ -179,11 +206,37 @@ Universal Design; used in Japanese schools and public signage). It is the direct
 counterpart to Atkinson Hyperlegible and is the accessibility fallback for
 Japanese.
 
-Regular and Bold only — CJK does not use italic, so italic cascades to regular.
-Roughly 8 MB against a current font set of about 1 MB. The license file ships in
-`Lineform/Resources/Fonts` and `FontLicenseReview.md` and the README credits are
-updated in the same change, per existing repo policy. **The OFL license file must
-be verified as shipped with the actual font binaries before bundling.**
+**Family:** `BIZUDGothic`, not `BIZUDPGothic`. Upstream ships both; the `P`
+variant is proportional, the unprefixed one is fixed full-width pitch, which is
+the conventional setting for long-form Japanese body text and is what Lineform's
+Read mode is for. Confirm visually during implementation; the swap is a filename
+change if it reads wrong.
+
+**Weights:** Regular and Bold only. CJK does not use italic, so italic cascades
+to regular.
+
+**License — verified 2026-08-05** against
+`https://github.com/googlefonts/morisawa-biz-ud-gothic`:
+
+- SIL Open Font License, Version 1.1. `OFL.txt` present at the repo root.
+- Copyright line, verbatim, to be reproduced exactly:
+  `Copyright 2022 The BIZ UDGothic Project Authors (https://github.com/googlefonts/morisawa-biz-ud-mincho)`
+  The URL naming the *mincho* repository is an upstream error. It is part of the
+  copyright notice and is reproduced as written, not corrected.
+- **No Reserved Font Name.** Unlike OpenDyslexic, which reserves "OpenDyslexic",
+  BIZ UDGothic declares none. Attribution copy must not invent one.
+- "BIZ UDGothic" is a trademark of Morisawa Inc. Bundling is permitted under the
+  OFL; the trademark is credited, not licensed.
+
+**Size — measured, not estimated:** `BIZUDGothic-Regular.ttf` 4,667,380 bytes and
+`BIZUDGothic-Bold.ttf` 4,638,128 bytes, totalling **8.9 MB** against a current
+bundled font set of roughly 1 MB. This is the single largest cost in this design
+and is accepted deliberately: it is what makes the accessibility group honest for
+Japanese rather than decorative.
+
+`OFL-BIZUDGothic.txt` ships alongside the binaries in `Lineform/Resources/Fonts`,
+and `FontLicenseReview.md` plus the README credits are updated in the same
+change, per existing repo policy.
 
 **Chinese has no free UD-class equivalent.** PingFang SC is the best available
 and is already a strong face. For Chinese, accessibility comes from the size,
@@ -237,6 +290,11 @@ is explicitly a known follow-up, not a silent omission.
   entry resolves a symbol in all five locales.
 - A catalog completeness test: no user-facing key is left untranslated in any of
   the five languages.
+- **Glossary consistency**: within a language, no source term from the committed
+  glossary maps to more than one translation.
+- **Placeholder parity**: every localized string carries the same format
+  specifiers, in the same order and count, as its source string. A dropped `%@`
+  is a crash.
 - `MarkdownReferenceTests.testExplanationsStayConcise` currently asserts a length
   ceiling on English copy. Translations expand, so the ceiling is made
   per-language rather than deleted — the sidebar column is narrow and the
@@ -255,7 +313,7 @@ that this work does not deliver. Users discover their language is present.
 
 Nobody leaves a bad review because a small free Mac app is English-only — that is
 an invisible state. The downside of shipping is therefore entirely execution
-risk, which is why native review is a gate rather than a suggestion.
+risk, which is what the translation-quality mechanisms above exist to contain.
 
 ## Out of Scope, Explicitly
 
