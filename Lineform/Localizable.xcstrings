@@ -20,6 +20,9 @@
     "About Lineform" : {
 
     },
+    "Allow root folders to expand and collapse" : {
+
+    },
     "Autosaved" : {
 
     },
@@ -42,6 +45,9 @@
 
     },
     "Check for Updates..." : {
+
+    },
+    "Checking…" : {
 
     },
     "Close Tab" : {
@@ -102,6 +108,12 @@
     "Heading 6" : {
 
     },
+    "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed." : {
+
+    },
+    "In-app notifications" : {
+
+    },
     "Insert Table" : {
 
     },
@@ -129,10 +141,19 @@
     "New Tab" : {
 
     },
+    "New windows open with the sidebar visible." : {
+
+    },
     "Not saved yet" : {
 
     },
     "Numbered List" : {
+
+    },
+    "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request." : {
+
+    },
+    "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive." : {
 
     },
     "Pause" : {
@@ -174,6 +195,9 @@
     "Select Previous Tab" : {
 
     },
+    "Settings" : {
+
+    },
     "Settings…" : {
 
     },
@@ -181,6 +205,12 @@
 
     },
     "Show Spelling and Grammar" : {
+
+    },
+    "Show iCloud in sidebar" : {
+
+    },
+    "Show sidebar on launch" : {
 
     },
     "Speech" : {
@@ -214,6 +244,12 @@
 
     },
     "Updated" : {
+
+    },
+    "When off, the iCloud and Workspace sections in the Files sidebar always stay expanded." : {
+
+    },
+    "iCloud is not available on this Mac." : {
 
     }
   },
