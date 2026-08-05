@@ -1,7 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-
+    "New note in ${applicationName}" : { },
+    "Create a note in ${applicationName}" : { },
+    "Open a file in ${applicationName}" : { }
   },
   "version" : "1.0"
 }

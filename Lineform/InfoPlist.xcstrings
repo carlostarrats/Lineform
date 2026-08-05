@@ -1,7 +1,8 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-
+    "Markdown Document" : { },
+    "Plain Text Document" : { }
   },
   "version" : "1.0"
 }
