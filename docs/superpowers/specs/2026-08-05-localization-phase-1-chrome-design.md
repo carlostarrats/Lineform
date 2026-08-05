@@ -22,9 +22,8 @@ mechanisms of their own. Cost and value split cleanly:
 
 Phase 1 ships a complete, usable localized app. Phase 2
 (`2026-08-05-localization-phase-2-prose-and-fonts-design.md`) is decided after
-seeing Phase 1 run in German and Japanese. Neither phase depends on the other's
-code, but Phase 2 assumes Phase 1's catalog and test-locale infrastructure
-exists.
+seeing Phase 1 run in German and Japanese. Phase 2 depends on Phase 1's catalog
+and test-locale infrastructure; Phase 1 depends on nothing in Phase 2.
 
 ## Goal
 
@@ -86,6 +85,26 @@ In scope:
   Info.plist has **no** `CFBundleDisplayName`; do not add one — "Lineform" is a
   proper noun and is not translated.
 - App Intents phrases, via their own `AppShortcuts.xcstrings`.
+- **The first-launch intro overlay's strings and AX names.** The intro is the
+  one window that blocks the app, and it is the first thing every new user
+  sees — deferring it would make "complete localized app" false on first
+  launch, on a phase that may never be scheduled. Its user-visible copy is
+  small ("Simple markdown editing", "Get Started", "Replay", the stale
+  `<title>Lineform Intro Prototype</title>`), and the mechanism is decided: a
+  string table injected from Swift into the page
+  (`FirstLaunchIntroOverlay.swift:487–496` loads
+  `Resources/FirstLaunchIntro/index.html` into a `WKWebView`; the catalog
+  cannot reach the HTML directly, so strings live in `Localizable.xcstrings`
+  and are handed to the page at load). Injection over per-locale `.lproj` HTML:
+  five diverging documents is the worse maintenance shape. The intro's German
+  layout is checked in Phase 1 too — a handful of short strings in
+  hand-laid-out CSS is a cheap check, and CLAUDE.md requires this window to
+  stay keyboard- and VoiceOver-operable, so the localized AX names ship with
+  the strings.
+- The font picker's **group headings** ("System", "Writing",
+  "Reading & Accessibility") — they render in the reading-experience popover,
+  which is Phase 1 chrome. Font *names* are never translated (proper nouns);
+  everything else font-related is Phase 2.
 - Date, time, and number formatting.
 - Word/character count behavior for CJK.
 
@@ -94,9 +113,9 @@ Deferred to Phase 2:
 - `MarkdownReference` (the sidebar's "Markdown Basics" tab) — its ~30 rows of
   explanatory prose are the highest-idiom-risk strings in the app. The tab's
   *chrome* (its name in the tab strip) is Phase 1; its *content* is Phase 2.
-- The first-launch intro overlay — bundled HTML/JS/CSS in a `WKWebView`
-  (`FirstLaunchIntroOverlay.swift:487–496`), unreachable by the catalog, needs
-  its own mechanism and layout pass.
+  A localized tab name over English reference content is accepted for Phase 1:
+  the content is optional reading, and the syntax column would stay English in
+  every phase regardless (it is Markdown).
 - CJK font cascade and BIZ UDGothic.
 - Read-aloud voice selection.
 - CJK reading-preset tuning.
@@ -123,8 +142,11 @@ Out of scope entirely, with reasons:
   `actionLabel` from a remote English-only JSON with no locale field
   (`AnnouncementFeed.swift:49–51`). Localizing requires a feed schema change — a
   separate decision. Announcements stay English.
-- **Sparkle UI and appcast release notes.** Sparkle supports per-language
-  release notes; adopting that is its own change.
+- **Appcast release notes.** Sparkle supports per-language release notes;
+  adopting that is its own change. Note Sparkle's own dialogs need no work and
+  will NOT stay English: the framework bundles its own localizations for all
+  five target languages and resolves them itself, so the update sheet appears
+  in German for free. Expected behavior, not a defect, when QA meets it.
 - **README, website, App Store metadata, GitHub.** Localized App Store metadata
   is likely the highest-return reach move if a Store release is planned, but it
   is a marketing deliverable, not app code — tracked as its own decision.
@@ -146,8 +168,9 @@ true number falls out of the refactor, not a build.
 - `AppShortcuts.xcstrings` — **required and separate.** `AppShortcut` phrases
   (`LineformAppIntents.swift:53–70`) are not extracted into
   `Localizable.xcstrings`, and every localized phrase must still contain
-  `\(.applicationName)` — `appintentsmetadataprocessor` treats a phrase missing
-  it as a **build error**.
+  `\(.applicationName)` — `appintentsmetadataprocessor` rejects a phrase
+  missing it (documented as an error; whether it fails the build or downgrades
+  to a warning is **verified at the first localized build**, not assumed).
 - `knownRegions` gains the five locales.
 
 No third-party tooling, no new dependency.
@@ -181,9 +204,13 @@ The fix must handle four things:
 3. **Not every system title is in AppKit's tables.** Present: `Writing Tools`,
    `Proofread`, `Rewrite`, `Make Friendly` (`WritingTools.loctable`);
    `Move & Resize`, `Bring All to Front` (`MenuCommands.loctable`); `Services`
-   (`Services.loctable`). **Absent: `Passwords`, `Credit Card`, `Hide Others`.**
-   Those need another source or an accepted icon loss — do not claim the
-   extraction covers them.
+   (`Services.loctable`). **Absent and genuinely title-only: `Passwords` and
+   `Credit Card`** (AutoFill rows, `symbolsByTitle` :292–293). Those two need
+   another source or an accepted icon loss. (`Hide Others` is also absent from
+   the tables but does not matter: `symbolName(for:)` checks `symbolsByAction`
+   first and `"hideOtherApplications:"` is there at :180 — its `"hide others"`
+   title entry at :234 is a dead fallback. Do not hunt for a translation
+   nothing consumes.)
 4. **The loctable language key is `zh_CN`, not `zh-Hans`**, and values are
    `\U`-escaped (`"Preferences\U2026"`). An extraction script written against
    `zh-Hans` returns nothing for Chinese.
@@ -209,9 +236,30 @@ behavior — currently untested; add coverage.
 maximal runs of `CharacterSet.alphanumerics`; CJK prose has no interword spaces,
 so runs break only at punctuation. Measured against the shipped algorithm:
 33 Japanese characters → **3 "words"**; 23 Chinese characters → **2**. It counts
-sentences. **Decision: for CJK text, report characters and suppress the word
-count.** `CFStringTokenizer` segmentation is out of scope — character count is
-the metric CJK writers use.
+sentences. **Decision: suppress the word count and report characters only when
+the document's text is predominantly CJK.** `CFStringTokenizer` segmentation is
+out of scope — character count is the metric CJK writers use.
+
+Because this was previously under-specified, the full rule:
+
+- **Detection is content-based, never locale-based.** An English document under
+  a Japanese UI keeps its valid word count; a Japanese document under an
+  English UI gets the fix. The Goal's "wrong in any non-English locale" phrase
+  describes the date bug, not this one.
+- **The rule:** suppress when more than half of the document's word-forming
+  scalars (those in `CharacterSet.alphanumerics`, the set the counter already
+  walks) are Han, Hiragana, or Katakana. Computed in `DocumentStatistics` in
+  the same single pass and exposed as a flag alongside the counts — the
+  presentation layer receives it, never re-derives it. Mixed documents follow
+  the majority; an English document quoting a Japanese sentence keeps its word
+  count. The flag can flip as a document's balance crosses half, like any other
+  statistic recomputed on edit.
+- **Both composed variants are catalog keys**: the existing
+  `"%lld words — %lld characters"` and a characters-only `"%lld characters"`,
+  each a plural variation, in both `statisticsText` and the separately composed
+  `statusAccessibilityLabel` (`EditorStatusPresentation.swift`).
+- Hangul is space-separated and counts correctly, so this rule deliberately
+  keys on Han/Kana only — nothing changes for Korean text if `ko` ships later.
 
 ## Translation Quality
 
@@ -267,12 +315,17 @@ Tab/Shift-Tab, and Find during active Japanese and Chinese composition.**
 
 ## Testing
 
-- **Pin the test locale.** All suites run under explicit `en`. Roughly twenty
-  assertions across seven files pin English copy
-  (`grep -rn "Not saved yet\|Last save\|No matches\|words —" LineformTests`);
-  sidebar ordering uses `localizedStandardCompare`
-  (`OutlineFileSortOrder.swift:39`) so its tests need pinning too. The affected
-  tests are enumerated and converted — "suites stay green" is not a plan.
+- **Pin the test locale.** All suites run under explicit `en`. English UI copy
+  is pinned across at least: `EditorDisplayModeTests` (twenty status-bar
+  strings — the earlier draft's grep recipe found only this file and was
+  presented as if it found them all), `MarkdownReferenceTests`,
+  `OutlineSidebarViewTests:27`, `OutlineSidebarTabTests:8`, and
+  `MainMenuIconDecoratorTests:32–58`. That list is a floor, not the
+  enumeration. **The real recipe runs after the catalog exists:** for each
+  English value in `Localizable.xcstrings`, grep `LineformTests` for it —
+  mechanical, complete, and impossible before the keys are known. Sidebar
+  ordering uses `localizedStandardCompare` (`OutlineFileSortOrder.swift:39`) so
+  its tests need pinning too.
 - **Decorator**: every `symbolsByTitle` entry resolves in all five locales.
 - **Catalog completeness**: no user-facing key untranslated in any language.
 - **Glossary consistency** and **placeholder parity**, as above.
@@ -281,6 +334,14 @@ Tab/Shift-Tab, and Find during active Japanese and Chinese composition.**
 
 ## Known Traps
 
+- **"Untitled" is four strings with two different jobs.** `DocumentTab.swift:17`
+  is the tab title — chrome, localized. `EditorContainerView.swift:2073`,
+  `:2121`, and `SaveAsExport.swift:160` seed the save/export panels'
+  `nameFieldStringValue` — they become **filenames on disk**. Decision: those
+  localize too ("無題.md"), matching TextEdit and platform convention; a
+  suggested filename is chrome the user edits, not document content. The point
+  of this entry is that the sweep would otherwise make that filesystem-visible
+  call silently.
 - **`String`-raw-value enums where the raw value is display text.**
   `OutlineSidebarTab: String` (`OutlineSidebarView.swift:4–7`) renders
   `rawValue` directly (`:911`) and two tests assert the English titles

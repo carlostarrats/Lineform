@@ -1,4 +1,4 @@
-# Localization Phase 2 — Prose, Intro, and CJK Fonts
+# Localization Phase 2 — Prose and CJK Fonts
 
 Date: 2026-08-05
 Status: Deferred. **Decided after Phase 1 ships and has been seen running in
@@ -37,23 +37,7 @@ The sidebar's "Markdown Basics" tab: ~30 rows of syntax + explanation from
 - The `Row.accessibilityLabel` composition ("… Syntax: …") localizes its
   connective text.
 
-### 2. First-launch intro overlay
-
-**Not SwiftUI.** `FirstLaunchIntroOverlay.swift:487–496` loads
-`Resources/FirstLaunchIntro/index.html` into a `WKWebView`; copy lives in the
-HTML and `intro.js` ("Simple markdown editing", "Get Started", "Replay", plus a
-stale `<title>Lineform Intro Prototype</title>` worth fixing regardless).
-
-- Mechanism: a string table injected from Swift into the page (so strings live
-  in `Localizable.xcstrings` with everything else), over per-locale `.lproj`
-  HTML copies (five diverging documents).
-- Its own layout pass: hand-laid-out CSS where German's 30–35% expansion is not
-  absorbed by autolayout.
-- This is the window CLAUDE.md flags as blocking the app and required to be
-  keyboard- and VoiceOver-operable — its localized strings include the AX names
-  that invariant depends on.
-
-### 3. CJK font cascade
+### 2. CJK font cascade
 
 Declare an explicit fallback in `FontOption.availableFont(size:)` via
 `NSFontDescriptor`'s cascade list: Hiragino Sans for Japanese, PingFang SC for
@@ -67,7 +51,7 @@ Verified by experiment, so the implementation does not re-litigate them:
 `NSFontManager.convert(_:toHaveTrait:)` preserves an attached `.cascadeList`
 (bold/italic keep the fallback).
 
-### 4. BIZ UDGothic — Japanese accessibility fallback
+### 3. BIZ UDGothic — Japanese accessibility fallback
 
 **As a cascade target only, never a picker entry** — a picker entry would face
 every English user with a sixth, unreadable option. It becomes the Japanese
@@ -93,7 +77,7 @@ and non-accessibility faces cascade to Hiragino Sans as normal.
   settle Japanese. It is accepted because a free UD-class face *exists* for
   Japanese and not for Chinese — declining it is choosing a worse experience
   where a better one was available for bundle size alone. **This is the item
-  most likely to be cut when this phase is decided; the cascade (item 3) stands
+  most likely to be cut when this phase is decided; the cascade (item 2) stands
   on its own without it.**
 - **Registration:** files into `Lineform/Resources/Fonts/` (a folder reference —
   `project.pbxproj:161, 844` — so **no pbxproj edit**, unlike the repo's usual
@@ -105,34 +89,37 @@ and non-accessibility faces cascade to Hiragino Sans as normal.
 accessibility comes from the size/line-height/contrast controls. Known
 limitation. **OpenDyslexic has no CJK counterpart and will not get one** — it
 works by weighting letter bottoms so similar Latin letters do not flip; Han
-characters do not fail that way. **Font names are never translated**; group
-headings are. **Substitution is not surfaced in the UI** — the picker reads
+characters do not fail that way. **Font names are never translated**; the
+picker's group headings localize in Phase 1, which owns that rule.
+**Substitution is not surfaced in the UI** — the picker reads
 "Atkinson Hyperlegible" while an all-Japanese document renders in the fallback;
 standard Mac behavior, and the alternatives (hiding fonts per locale, annotating
 pairings) are worse.
 
-### 5. Read-aloud voice
+### 4. Read-aloud voice
 
-`SpeechController.swift:111` builds `AVSpeechUtterance(string:)` with no
+`SpeechController.swift:112` builds `AVSpeechUtterance(string:)` with no
 `voice`, so the system default follows the **UI language** — a Japanese-UI user
 reading an English document gets a Japanese voice. Select the voice from the
 document's detected language (`NSLinguisticTagger`/`NLLanguageRecognizer` on the
 spoken text), not the UI locale.
 
-### 6. CJK reading-preset tuning
+### 5. CJK reading-preset tuning
 
 The reading profiles' line-height and column-width presets are Latin-tuned; CJK
 glyphs are full-width and taller at the same point size, so presets read tighter
 in Japanese and Chinese. A tuning pass against the running app — depends on
 Phase 1's strings being in place to evaluate properly.
 
+Line *breaking* needs no work in either phase: TextKit already performs Japanese
+line breaking correctly, including kinsoku shori. Checked during the original
+design review; inherited from the platform.
+
 ## Testing
 
 - `MarkdownReferenceTests` reworked as above, per-language, explicit `locale:`.
 - Cascade: the declared fallback resolves a real face for Japanese and Chinese
   sample text; BIZ UDGothic (if kept) registers via `BundledFontRegistrar`.
-- Intro overlay: localized AX names present; keyboard operability retained
-  (the CLAUDE.md blocking-window invariant).
 - Voice selection: language detection picks the document language over the UI
   locale for mixed samples.
 
@@ -142,4 +129,5 @@ Phase 1's strings being in place to evaluate properly.
 - Localized Markdown syntax, callout labels, or document templates.
 - Per-document UI language override.
 - CJK word segmentation (`CFStringTokenizer`) for word counts.
-- Quick Look rendered output; announcements; Sparkle UI; appcast notes.
+- Quick Look rendered output; announcements; appcast release notes (Sparkle's
+  own dialogs localize themselves — no work, and not English).
