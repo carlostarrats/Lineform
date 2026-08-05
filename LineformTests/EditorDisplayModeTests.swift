@@ -364,6 +364,8 @@ final class EditorDisplayModeTests: XCTestCase {
 
     func testDisplayModesStaySmallAndOrdered() {
         XCTAssertEqual(EditorDisplayMode.allCases, [.write, .read, .split])
+        // pinned-en: EditorDisplayMode.title is String(localized:) itself — this asserts
+        // its pinned-en resolution, there is no further constant to defer to.
         XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])
     }
 
@@ -913,10 +915,10 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testIndicatorPresentationTextAndIcon() {
-        XCTAssertEqual(EditorStatusIndicator.unsavedChanges.text, "Unsaved changes")
-        XCTAssertEqual(EditorStatusIndicator.saved.text, "Saved")
-        XCTAssertEqual(EditorStatusIndicator.autosaved.text, "Autosaved")
-        XCTAssertEqual(EditorStatusIndicator.updated.text, "Updated")
+        XCTAssertEqual(EditorStatusIndicator.unsavedChanges.text, EditorStatusFormatter.unsavedChangesText)
+        XCTAssertEqual(EditorStatusIndicator.saved.text, EditorStatusFormatter.savedIndicatorText)
+        XCTAssertEqual(EditorStatusIndicator.autosaved.text, EditorStatusFormatter.autosavedIndicatorText)
+        XCTAssertEqual(EditorStatusIndicator.updated.text, EditorStatusFormatter.updatedIndicatorText)
         XCTAssertNil(EditorStatusIndicator.none.text)
         XCTAssertTrue(EditorStatusIndicator.updated.showsReloadIcon)
         XCTAssertFalse(EditorStatusIndicator.unsavedChanges.showsReloadIcon)

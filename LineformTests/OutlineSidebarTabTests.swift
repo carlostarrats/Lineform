@@ -5,6 +5,8 @@ final class OutlineSidebarTabTests: XCTestCase {
     func testTabsIncludeMarkdownBasicsInOrder() {
         XCTAssertEqual(OutlineSidebarTab.allCases, [.outline, .files, .markdownBasics])
         XCTAssertEqual(OutlineSidebarTab.markdownBasics.rawValue, "Markdown Basics")
+        // pinned-en: tabTitles maps OutlineSidebarTab.title, itself String(localized:) — no
+        // further constant to defer to; see testTabTitlesRemainStableInEnglish below.
         XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files", "Markdown Basics"])
     }
 
