@@ -173,6 +173,9 @@
     "Delete..." : {
 
     },
+    "Dismisses the welcome screen and opens a new document" : {
+
+    },
     "Do you want to save changes to “%@” before closing?" : {
 
     },
@@ -239,6 +242,9 @@
 
     },
     "Full" : {
+
+    },
+    "Get Started" : {
 
     },
     "Grant Access" : {
@@ -451,6 +457,9 @@
     "Replacement text" : {
 
     },
+    "Replay" : {
+
+    },
     "Reset all to default" : {
 
     },
@@ -509,6 +518,9 @@
 
     },
     "Show sidebar on launch" : {
+
+    },
+    "Simple markdown editing" : {
 
     },
     "Sort folders by" : {
