@@ -31,7 +31,7 @@ struct SettingsModal: View {
     static let iCloudUnavailableNote = "iCloud is not available on this Mac."
     static let iCloudDisabledNote = "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive."
     static let iCloudEnabledNote = "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed."
-    static let announcementsTitle = "Check for Lineform announcements"
+    static let announcementsTitle = "In-app notifications"
     static let announcementsNote = "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request."
 
     /// Window width the presenting container offers (via GeometryReader).

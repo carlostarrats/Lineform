@@ -54,8 +54,12 @@ enum AppMenuConfiguration {
     static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
     static let privacyPolicyCommandTitle = "Privacy Policy"
     static let termsOfUseCommandTitle = "Terms of Use"
-    static let privacyPolicyURL = "https://lineform-atv.pages.dev/privacy"
-    static let termsOfUseURL = "https://lineform-atv.pages.dev/terms"
+    static let privacyPolicyURL = "https://lineform.app/privacy"
+    static let termsOfUseURL = "https://lineform.app/terms"
+    static let guideCommandTitle = "Lineform Guide"
+    static let guideURL = "https://lineform.app/info/"
+    /// The Help menu still replaces AppKit's default "Lineform Help" row (which opens a help book
+    /// this app does not ship); it now carries the online guide instead of being empty.
     static let suppressesDefaultHelpMenu = true
     static let readingCommandPlacement = AppMenuCommandPlacement.view
     static let showHiddenFoldersCommandTitle = "Show Hidden Folders"
@@ -633,7 +637,11 @@ struct AppCommands: Commands {
         }
 
         CommandGroup(replacing: .help) {
-            EmptyView()
+            Button(AppMenuConfiguration.guideCommandTitle) {
+                if let url = URL(string: AppMenuConfiguration.guideURL) {
+                    NSWorkspace.shared.open(url)
+                }
+            }
         }
     }
 

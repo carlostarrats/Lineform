@@ -19,6 +19,7 @@ struct AnnouncementCard: View {
     var onDismiss: () -> Void
 
     @State private var isHoveringClose = false
+    @State private var isHoveringAction = false
 
     static let cornerRadius: CGFloat = 12
     /// Ideal width. A CAP, not a fixed size — see the `.frame` comment below.
@@ -50,9 +51,23 @@ struct AnnouncementCard: View {
                                 .font(.system(size: 9, weight: .semibold))
                         }
                         .font(.system(size: 11.5, weight: .medium))
+                        // The tint is drawn as a background on a padded label rather than
+                        // by growing the button: the negative outer padding puts the text
+                        // back on the same baseline and left edge it sits at unhovered, so
+                        // hovering tints the row without nudging the card's layout.
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(accentInk.opacity(actionTintOpacity))
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .padding(.horizontal, -6)
+                        .padding(.vertical, -3)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(accentInk)
+                    .onHover { isHoveringAction = $0 }
                     .padding(.top, 3)
                 }
             }
@@ -143,6 +158,13 @@ struct AnnouncementCard: View {
 
     private var secondaryInk: Color {
         MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome)
+    }
+
+    /// Hover wash behind the action label. Heavier on dark chrome for the same reason the
+    /// close button's is: the same alpha reads weaker against a dark card.
+    private var actionTintOpacity: Double {
+        guard isHoveringAction else { return 0 }
+        return usesDarkChrome ? 0.22 : 0.12
     }
 
     /// The one tinted element. Kept to the system accent so it matches whatever the

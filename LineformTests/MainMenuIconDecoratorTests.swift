@@ -37,6 +37,7 @@ final class MainMenuIconDecoratorTests: XCTestCase {
             AppMenuConfiguration.installCommandLineToolCommandTitle,
             AppMenuConfiguration.privacyPolicyCommandTitle,
             AppMenuConfiguration.termsOfUseCommandTitle,
+            AppMenuConfiguration.guideCommandTitle,
             AppMenuConfiguration.saveCommandTitle,
             AppMenuConfiguration.saveAsCommandTitle,
             AppMenuConfiguration.renameFileCommandTitle,

@@ -12,6 +12,8 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertEqual(AppMenuConfiguration.termsOfUseCommandTitle, "Terms of Use")
         XCTAssertTrue(AppMenuConfiguration.privacyPolicyURL.hasPrefix("https://"))
         XCTAssertTrue(AppMenuConfiguration.termsOfUseURL.hasPrefix("https://"))
+        XCTAssertEqual(AppMenuConfiguration.guideCommandTitle, "Lineform Guide")
+        XCTAssertEqual(AppMenuConfiguration.guideURL, "https://lineform.app/info/")
         XCTAssertTrue(AppMenuConfiguration.suppressesDefaultHelpMenu)
         XCTAssertEqual(
             AppMenuConfiguration.aboutPanelOptions()[.applicationVersion] as? String,

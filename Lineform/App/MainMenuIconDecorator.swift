@@ -341,7 +341,9 @@ enum MainMenuIconDecorator {
         "show previous tab": "arrow.left",
         "show next tab": "arrow.right",
         "move tab to new window": "macwindow.on.rectangle",
-        "merge all windows": "square.stack.3d.down.right"
+        "merge all windows": "square.stack.3d.down.right",
+        // Help menu
+        "guide": "book"
     ]
 
     // MARK: - Debug
