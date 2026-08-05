@@ -185,10 +185,14 @@ final class LocalizationCatalogTests: XCTestCase {
     }
 
     /// The shape of the two multi-argument counted strings, pinned by name. The gate above
-    /// checks whatever variables it finds; this checks that the right variables EXIST — one
-    /// per counted argument in the languages that inflect, and none at all in the two that
-    /// do not. Collapsing back to a single variable is the defect this round was opened for,
-    /// and it is invisible to a gate that only inspects the variables already present.
+    /// checks whatever variables it finds; this checks that the right variables EXIST, and
+    /// that each one binds the argument it is named for — one per counted argument in the
+    /// languages that inflect, none at all in the two that do not.
+    ///
+    /// Both of the mutations that motivated this are invisible to a gate that only inspects
+    /// the variables already present and well-formed: DELETING one (collapsing back to a
+    /// single variable) leaves nothing to iterate over, and SWAPPING their `argNum`s leaves
+    /// two perfectly well-formed variables wired to each other's numbers.
     func testMultiArgumentCountedStringsVaryEveryArgumentIndependently() throws {
         let strings = try catalog("Localizable")
         for key in ["%lld words — %lld characters",
@@ -201,6 +205,15 @@ final class LocalizationCatalogTests: XCTestCase {
                                          "'\(key)' \(language) lost its substitutions")
                 XCTAssertEqual(Set(subs.values.compactMap { $0["argNum"] as? Int }), [1, 2],
                                "'\(key)' \(language) must vary BOTH counted arguments independently")
+                // Which token binds WHICH argument, not merely that both indices are spoken
+                // for. Swapping the two — names and text left in place — satisfies every
+                // other check here and prints the character count beside "mot(s)" and the
+                // word count beside "caractère(s)": the wrong number under the wrong noun,
+                // worse than the inflection bug this whole round started from.
+                XCTAssertEqual(subs["words"]?["argNum"] as? Int, 1,
+                               "'\(key)' \(language) 'words' must bind argument 1")
+                XCTAssertEqual(subs["chars"]?["argNum"] as? Int, 2,
+                               "'\(key)' \(language) 'chars' must bind argument 2")
             }
             // ja and zh-Hans have no plural category, so a variable there would be a
             // single-branch indirection that never chooses anything.
