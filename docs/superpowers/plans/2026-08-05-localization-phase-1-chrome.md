@@ -928,11 +928,14 @@ extension OutlineSidebarTab {
 `FontOption.swift:15-37`: the three `FontOptionGroup(name:)` literals become `String(localized: "System")`, `String(localized: "Writing")`, `String(localized: "Reading & Accessibility")`. Font **names** stay literal. (`FontOptionGroup.id` is its name — session-stable, not persisted; verified acceptable in the spec.)
 
 **Also localize `EditorDisplayMode.title`** (`Lineform/Editor/EditorDisplayMode.swift:8`).
-It supplies the Write / Read / Split mode names to the toolbar picker
-(`Text(mode.title)`) and is in no other task's file list — Task 6 flagged it
-while converting the menu. Its three values are glossary terms (Write, Read,
-Split), so they must use `docs/notes/lineform-glossary.json`'s renderings. As
-with `OutlineSidebarTab`, localize `title` only — never a `rawValue`.
+It supplies the mode names to the toolbar picker (`Text(mode.title)`) and is in
+no other task's file list — Task 6 flagged it while converting the menu. Note
+the `.split` case's title is **`"Preview"`**, not `"Split"` (verified during
+Task 7 review; `"Split"` appears in no Swift literal). Use
+`docs/notes/lineform-glossary.json` for the terms it does cover. As with
+`OutlineSidebarTab`, localize `title` only — never a `rawValue`. Add both
+`EditorDisplayMode.allCases.map(\.title)` and `ExportFormat.allCases.map(\.title)`
+to the `allEnglishTitleKeys` completeness test Task 7 builds.
 
 `ReadingExperiencePopover.swift`: sweep labels the same way. The file's view
 type is `ReadingExperienceInspector` (line 3) — there is no type named
