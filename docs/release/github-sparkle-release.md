@@ -65,7 +65,7 @@ https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml
 The product website is:
 
 ```text
-https://lineform-site.vercel.app
+https://lineform.app
 ```
 
 The public direct-download URL used by the website and README is:
