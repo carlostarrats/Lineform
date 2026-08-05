@@ -220,6 +220,9 @@
     "Export As" : {
 
     },
+    "File" : {
+
+    },
     "File Already Open" : {
 
     },
@@ -340,6 +343,9 @@
     "Name" : {
 
     },
+    "New Lineform Note" : {
+
+    },
     "New Note" : {
 
     },
@@ -383,6 +389,12 @@
 
     },
     "Open in New Window" : {
+
+    },
+    "Opens a Markdown or text file in Lineform." : {
+
+    },
+    "Opens a new note in Lineform, pre-filled with the given text. Save it wherever you like." : {
 
     },
     "Opens the file" : {
@@ -565,7 +577,19 @@
     "Terms of Use" : {
 
     },
+    "Text" : {
+
+    },
+    "That file couldn't be opened in Lineform." : {
+
+    },
+    "The Markdown or text file to open." : {
+
+    },
     "The command line tool isn’t available in this build." : {
+
+    },
+    "The note's starting text." : {
 
     },
     "Themes" : {
