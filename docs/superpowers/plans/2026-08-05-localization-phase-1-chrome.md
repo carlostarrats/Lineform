@@ -1185,6 +1185,14 @@ This step is why Step 3's non-UI filtering exists — expect the catalog to gain
 keys that are not user-facing copy, and filter them there rather than narrowing
 this sweep.
 
+**Also convert `ExportPaperSize.displayName`** (`DocumentExportRenderer.swift`)
+in this step — "US Letter", "US Legal", "Tabloid", "A4", "A3", "A5". Surfaced by
+Task 10, whose grep could not see it because it is a plain `String` property, not
+an AppKit call site. Apple localizes paper-size names in its own print UI, so
+these localize too; the ISO names (A4/A3/A5) will simply translate to themselves
+in most languages. Wrap each in `String(localized:)` and include the file in this
+step's sync.
+
 - [ ] **Step 1: Write the three gate tests (they MUST fail now — no translations exist)**
 
 ```swift
