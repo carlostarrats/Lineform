@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@..." : {
+
+    },
     "%lld characters" : {
 
     },
@@ -14,7 +17,46 @@
         }
       }
     },
+    "About Lineform" : {
+
+    },
     "Autosaved" : {
+
+    },
+    "Blockquote" : {
+
+    },
+    "Body" : {
+
+    },
+    "Bold" : {
+
+    },
+    "Bulleted List" : {
+
+    },
+    "Check Document Now" : {
+
+    },
+    "Check Spelling While Typing" : {
+
+    },
+    "Check for Updates..." : {
+
+    },
+    "Close Tab" : {
+
+    },
+    "Code" : {
+
+    },
+    "Convert to Markdown" : {
+
+    },
+    "Convert to Plain Text" : {
+
+    },
+    "Delete..." : {
 
     },
     "Document contains %lld characters" : {
@@ -33,13 +75,139 @@
     "Document updated from disk" : {
 
     },
+    "Export As" : {
+
+    },
+    "Find" : {
+
+    },
+    "Find & Replace…" : {
+
+    },
+    "Format" : {
+
+    },
+    "Heading" : {
+
+    },
+    "Heading 3" : {
+
+    },
+    "Heading 4" : {
+
+    },
+    "Heading 5" : {
+
+    },
+    "Heading 6" : {
+
+    },
+    "Insert Table" : {
+
+    },
+    "Install Command Line Tool..." : {
+
+    },
+    "Italic" : {
+
+    },
+    "Jump to File…" : {
+
+    },
     "Last save" : {
+
+    },
+    "Lineform Guide" : {
+
+    },
+    "Link" : {
+
+    },
+    "Mode" : {
+
+    },
+    "New Tab" : {
 
     },
     "Not saved yet" : {
 
     },
+    "Numbered List" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Print..." : {
+
+    },
+    "Privacy Policy" : {
+
+    },
+    "Reading Experience" : {
+
+    },
+    "Reformat Table" : {
+
+    },
+    "Rename..." : {
+
+    },
+    "Resume" : {
+
+    },
+    "Save" : {
+
+    },
+    "Save As..." : {
+
+    },
     "Saved" : {
+
+    },
+    "Section" : {
+
+    },
+    "Select Next Tab" : {
+
+    },
+    "Select Previous Tab" : {
+
+    },
+    "Settings…" : {
+
+    },
+    "Show Hidden Folders" : {
+
+    },
+    "Show Spelling and Grammar" : {
+
+    },
+    "Speech" : {
+
+    },
+    "Spelling and Grammar" : {
+
+    },
+    "Start Speaking" : {
+
+    },
+    "Stop" : {
+
+    },
+    "Strikethrough" : {
+
+    },
+    "Terms of Use" : {
+
+    },
+    "Title" : {
+
+    },
+    "Toggle Outline" : {
+
+    },
+    "Toggle Write / Read" : {
 
     },
     "Unsaved changes" : {
