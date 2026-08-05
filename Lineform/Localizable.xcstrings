@@ -1,7 +1,53 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld characters" : {
 
+    },
+    "%lld words — %lld characters" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld words — %2$lld characters"
+          }
+        }
+      }
+    },
+    "Autosaved" : {
+
+    },
+    "Document contains %lld characters" : {
+
+    },
+    "Document contains %lld words and %lld characters" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Document contains %1$lld words and %2$lld characters"
+          }
+        }
+      }
+    },
+    "Document updated from disk" : {
+
+    },
+    "Last save" : {
+
+    },
+    "Not saved yet" : {
+
+    },
+    "Saved" : {
+
+    },
+    "Unsaved changes" : {
+
+    },
+    "Updated" : {
+
+    }
   },
   "version" : "1.0"
 }
