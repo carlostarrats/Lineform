@@ -193,6 +193,9 @@
 		1F00000100000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
 		1F00000300000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
 		1F00000100000000000004A3 /* LineformQuickLook.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A3 /* LineformQuickLook.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1F0000310000000000000011 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000001 /* Localizable.xcstrings */; };
+		1F0000310000000000000012 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000002 /* InfoPlist.xcstrings */; };
+		1F0000310000000000000013 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000003 /* AppShortcuts.xcstrings */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -400,6 +403,9 @@
  		1F00000200000000000004A2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
  		1F00000200000000000004A3 /* LineformQuickLook.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LineformQuickLook.appex; sourceTree = BUILT_PRODUCTS_DIR; };
  		1F00000200000000000004A4 /* LineformQuickLook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformQuickLook.entitlements; sourceTree = "<group>"; };
+		1F0000310000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		1F0000310000000000000002 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		1F0000310000000000000003 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -453,6 +459,9 @@
 				1F0000070000000000000016 /* Outline */,
 				1F0000070000000000000018 /* Resources */,
 				1F0000020000000000000003 /* Info.plist */,
+				1F0000310000000000000001 /* Localizable.xcstrings */,
+				1F0000310000000000000002 /* InfoPlist.xcstrings */,
+				1F0000310000000000000003 /* AppShortcuts.xcstrings */,
 			);
 			path = Lineform;
 			sourceTree = "<group>";
@@ -812,6 +821,11 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
+				fr,
+				de,
+				ja,
+				"zh-Hans",
 			);
 			mainGroup = 1F0000070000000000000001;
 			packageReferences = (
@@ -843,6 +857,9 @@
 				1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */,
 				1F0000010000000000000120 /* Fonts in Resources */,
 				1F0000010000000000000131 /* FirstLaunchIntro in Resources */,
+				1F0000310000000000000011 /* Localizable.xcstrings in Resources */,
+				1F0000310000000000000012 /* InfoPlist.xcstrings in Resources */,
+				1F0000310000000000000013 /* AppShortcuts.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
