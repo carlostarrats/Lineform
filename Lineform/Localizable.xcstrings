@@ -104,13 +104,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 値 %@"
+            "value": "%@、値%@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 值 %@"
+            "value": "%@，值 %@"
           }
         }
       }
@@ -568,18 +568,48 @@
     "%lld words — %lld characters": {
       "localizations": {
         "de": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld Wort — %lld Zeichen"
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@words@ — %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Wort"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Wörter"
+                    }
+                  }
                 }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld Wörter — %lld Zeichen"
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Zeichen"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Zeichen"
+                    }
+                  }
                 }
               }
             }
@@ -587,68 +617,158 @@
         },
         "en": {
           "stringUnit": {
-            "state": "new",
-            "value": "%1$lld words — %2$lld characters"
+            "state": "translated",
+            "value": "%#@words@ — %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg word"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg words"
+                    }
+                  }
+                }
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg character"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg characters"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "es": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld palabra — %lld caracteres"
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@words@ — %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg palabra"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg palabras"
+                    }
+                  }
                 }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld palabras — %lld caracteres"
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg carácter"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg caracteres"
+                    }
+                  }
                 }
               }
             }
           }
         },
         "fr": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld mot — %lld caractères"
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@words@ — %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg mot"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg mots"
+                    }
+                  }
                 }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld mots — %lld caractères"
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg caractère"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg caractères"
+                    }
+                  }
                 }
               }
             }
           }
         },
         "ja": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld語 — %lld文字"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld語 — %lld文字"
           }
         },
         "zh-Hans": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld 个词 — %lld 个字符"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个词 — %lld 个字符"
           }
         }
       }
@@ -716,7 +836,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "网页 — 图像路径和链接地址完全按照你所写的方式保留。"
+            "value": "网页——图像路径和链接地址完全按照你所写的方式保留。"
           }
         }
       }
@@ -890,7 +1010,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "添加 # 标题 或 ## 章节 以生成大纲。"
+            "value": "添加 # 标题或 ## 章节以生成大纲。"
           }
         }
       }
@@ -2315,6 +2435,24 @@
             }
           }
         },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Document contains %lld character"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Document contains %lld characters"
+                }
+              }
+            }
+          }
+        },
         "es": {
           "variations": {
             "plural": {
@@ -2380,18 +2518,48 @@
     "Document contains %lld words and %lld characters": {
       "localizations": {
         "de": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Das Dokument enthält %lld Wort und %lld Zeichen"
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Dokument enthält %#@words@ und %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Wort"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Wörter"
+                    }
+                  }
                 }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Das Dokument enthält %lld Wörter und %lld Zeichen"
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Zeichen"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Zeichen"
+                    }
+                  }
                 }
               }
             }
@@ -2399,68 +2567,158 @@
         },
         "en": {
           "stringUnit": {
-            "state": "new",
-            "value": "Document contains %1$lld words and %2$lld characters"
+            "state": "translated",
+            "value": "Document contains %#@words@ and %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg word"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg words"
+                    }
+                  }
+                }
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg character"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg characters"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "es": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "El documento contiene %lld palabra y %lld caracteres"
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento contiene %#@words@ y %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg palabra"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg palabras"
+                    }
+                  }
                 }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "El documento contiene %lld palabras y %lld caracteres"
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg carácter"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg caracteres"
+                    }
+                  }
                 }
               }
             }
           }
         },
         "fr": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Le document contient %lld mot et %lld caractères"
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le document contient %#@words@ et %#@chars@"
+          },
+          "substitutions": {
+            "words": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg mot"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg mots"
+                    }
+                  }
                 }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Le document contient %lld mots et %lld caractères"
+              }
+            },
+            "chars": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg caractère"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg caractères"
+                    }
+                  }
                 }
               }
             }
           }
         },
         "ja": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "書類には%lld語と%lld文字が含まれています"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "書類には%lld語と%lld文字が含まれています"
           }
         },
         "zh-Hans": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "文稿包含 %lld 个词和 %lld 个字符"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "文稿包含 %lld 个词和 %lld 个字符"
           }
         }
       }
@@ -2980,7 +3238,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Voll"
+            "value": "Volle Breite"
           }
         },
         "es": {
@@ -3122,13 +3380,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encabezamiento"
+            "value": "Encabezado"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "En-tête"
+            "value": "Sous-section"
           }
         },
         "ja": {
@@ -3140,7 +3398,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标题"
+            "value": "小标题"
           }
         }
       }
@@ -3156,13 +3414,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encabezam. 3"
+            "value": "Encabezado 3"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ss-section 3"
+            "value": "Sous-section 3"
           }
         },
         "ja": {
@@ -3174,7 +3432,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标题3"
+            "value": "小标题3"
           }
         }
       }
@@ -3190,7 +3448,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encabezam. 4"
+            "value": "Encabezado 4"
           }
         },
         "fr": {
@@ -3208,7 +3466,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标题4"
+            "value": "小标题4"
           }
         }
       }
@@ -3224,7 +3482,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encabezamiento 5"
+            "value": "Encabezado 5"
           }
         },
         "fr": {
@@ -3242,7 +3500,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标题5"
+            "value": "小标题5"
           }
         }
       }
@@ -3258,7 +3516,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encabezamiento 6"
+            "value": "Encabezado 6"
           }
         },
         "fr": {
@@ -3276,7 +3534,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标题6"
+            "value": "小标题6"
           }
         }
       }
@@ -3734,13 +3992,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ir al encabezamiento %@"
+            "value": "Ir al encabezado %@"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aller à l’en-tête %@"
+            "value": "Aller au titre %@"
           }
         },
         "ja": {
@@ -3802,7 +4060,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Última vez guardado"
+            "value": "Último guardado"
           }
         },
         "fr": {
@@ -4136,7 +4394,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Markdown-Ansicht „Lesen“"
+            "value": "Markdown-Leseansicht"
           }
         },
         "es": {
@@ -4556,7 +4814,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Des nouvelles occasionnelles à propos des nouvelles versions, vérifiées une fois par jour. Aucune donnée personnelle n’est envoyée ni collectée. Lorsque l’option est désactivée, Lineform n’effectue aucune requête réseau."
+            "value": "Informations occasionnelles sur les nouvelles versions, vérifiées une fois par jour. Aucune donnée personnelle n’est envoyée ni collectée. Lorsque l’option est désactivée, Lineform n’effectue aucune requête réseau."
           }
         },
         "ja": {
@@ -5078,7 +5336,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "纯 Markdown 源码 — 按输入原样显示 # 和 **。"
+            "value": "纯 Markdown 源码——按输入原样显示 # 和 **。"
           }
         }
       }
@@ -5378,7 +5636,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リーディングルーラー"
+            "value": "リーディングルーラ"
           }
         },
         "zh-Hans": {
@@ -5480,7 +5738,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リリースビルドでアップデートを確認するには、SparkleのEdDSA公開鍵と公開済みのappcastが必要です。"
+            "value": "リリースビルドでLineformがアップデートを確認するには、SparkleのEdDSA公開鍵と公開済みのappcastが必要です。"
           }
         },
         "zh-Hans": {
@@ -5588,7 +5846,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "如同阅读模式的渲染效果 — 包含图像、表格、公式与图表。"
+            "value": "如同阅读模式的渲染效果——包含图像、表格、公式与图表。"
           }
         }
       }
@@ -5774,7 +6032,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restablecer todos los valores por omisión"
+            "value": "Restablecer todo"
           }
         },
         "fr": {
@@ -7498,13 +7756,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aufgabe umschalten"
+            "value": "Aufgabe abhaken"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cambiar la tarea"
+            "value": "Marcar o desmarcar la tarea"
           }
         },
         "fr": {
@@ -7516,13 +7774,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "タスクを切り替え"
+            "value": "タスクにチェックを付ける/外す"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "切换任务"
+            "value": "勾选或取消勾选任务"
           }
         }
       }
@@ -7532,13 +7790,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aufgabe umschalten: %@"
+            "value": "Aufgabe abhaken: %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cambiar la tarea: %@"
+            "value": "Marcar o desmarcar la tarea: %@"
           }
         },
         "fr": {
@@ -7550,13 +7808,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "タスクを切り替え: %@"
+            "value": "タスクにチェックを付ける/外す: %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "切换任务：%@"
+            "value": "勾选或取消勾选任务：%@"
           }
         }
       }

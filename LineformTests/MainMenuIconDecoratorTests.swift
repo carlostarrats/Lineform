@@ -97,9 +97,16 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         let french = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: "fr")
         XCTAssertEqual(french["remplir"], MainMenuIconDecorator.symbolsByTitle["autofill"],
                        "fr: \"Remplir\" is both AutoFill and Fill — \"autofill\" sorts first and must win")
+        // zh-Hans USED to collapse "Title" and "Heading" to 标题, so the Format menu showed
+        // ⌘1 and the H3-H6 submenu under one label and the survivor was decided by sort order.
+        // Task 13 renamed Heading to 小标题 in BOTH the catalog and SystemMenuItemTitles, so
+        // the collision is gone and each row keeps its own symbol. Asserted, not assumed: if
+        // either table drifts back to 标题 this fails rather than silently re-colliding.
         let chinese = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: "zh-Hans")
-        XCTAssertEqual(chinese["标题"], MainMenuIconDecorator.symbolsByTitle["heading"],
-                       "zh-Hans: 标题 is both Title and Heading — \"heading\" sorts first and must win")
+        XCTAssertEqual(chinese["标题"], MainMenuIconDecorator.symbolsByTitle["title"],
+                       "zh-Hans: 标题 is Title alone now — Heading is 小标题")
+        XCTAssertEqual(chinese["小标题"], MainMenuIconDecorator.symbolsByTitle["heading"],
+                       "zh-Hans: 小标题 is Heading")
 
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let first = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: language)

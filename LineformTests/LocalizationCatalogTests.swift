@@ -30,6 +30,36 @@ final class LocalizationCatalogTests: XCTestCase {
         return unit?["value"] as? String
     }
 
+    /// `%#@token@` stands for the token's `argNum`-th argument formatted with its
+    /// `formatSpecifier`. Expanding it lets an explicit-substitution translation be compared
+    /// against its key on the same terms as a plain one — the gate gets stronger, not looser:
+    /// it now asserts every source argument is consumed exactly once.
+    private func expandingSubstitutions(_ value: String, _ localization: [String: Any]) -> String {
+        guard let subs = localization["substitutions"] as? [String: [String: Any]] else { return value }
+        var expanded = value
+        for (token, spec) in subs {
+            guard let argNum = spec["argNum"] as? Int,
+                  let fmt = spec["formatSpecifier"] as? String else { continue }
+            expanded = expanded.replacingOccurrences(of: "%#@\(token)@", with: "%\(argNum)$\(fmt)")
+        }
+        return expanded
+    }
+
+    /// EVERY translated string a language contributes for one key. `translation`'s
+    /// `plural.values.first` picked an arbitrary form, so drift in the others was invisible.
+    private func translations(_ entry: [String: Any], _ language: String) -> [String] {
+        guard let loc = (entry["localizations"] as? [String: [String: Any]])?[language] else { return [] }
+        var out: [String] = []
+        if let v = (loc["stringUnit"] as? [String: Any])?["value"] as? String {
+            out.append(expandingSubstitutions(v, loc))
+        }
+        if let plural = (loc["variations"] as? [String: Any])?["plural"] as? [String: [String: Any]] {
+            out += plural.values.compactMap { ($0["stringUnit"] as? [String: Any])?["value"] as? String }
+                                .map { expandingSubstitutions($0, loc) }
+        }
+        return out
+    }
+
     private func isTranslatable(_ entry: [String: Any]) -> Bool {
         (entry["shouldTranslate"] as? Bool) ?? true
     }
@@ -48,17 +78,27 @@ final class LocalizationCatalogTests: XCTestCase {
 
     func testFormatSpecifiersMatchAcrossLanguages() throws {
         let pattern = try NSRegularExpression(pattern: #"%(\d+\$)?(lld|@|d|ld|lu|f|s)"#)
-        func specifiers(_ s: String) -> [String] {
-            pattern.matches(in: s, range: NSRange(s.startIndex..., in: s))
-                .map { String(s[Range($0.range, in: s)!]) }
+        /// argument index → conversion. A bare specifier takes the next implicit position;
+        /// `%2$lld` names its own. Comparing maps is what lets a substituted translation —
+        /// which must use positional specifiers — validate against an implicitly-numbered key.
+        func specifierMap(_ s: String) -> [Int: String] {
+            var map: [Int: String] = [:]; var next = 1
+            for m in pattern.matches(in: s, range: NSRange(s.startIndex..., in: s)) {
+                let conversion = String(s[Range(m.range(at: 2), in: s)!])
+                if m.range(at: 1).location != NSNotFound,
+                   let n = Int(String(s[Range(m.range(at: 1), in: s)!]).dropLast()) { map[n] = conversion }
+                else { map[next] = conversion; next += 1 }
+            }
+            return map
         }
         for name in ["Localizable", "InfoPlist", "AppShortcuts"] {
             for (key, entry) in try catalog(name) where isTranslatable(entry) {
-                let source = specifiers(key)
+                let source = specifierMap(key)
                 for language in Self.languages {
-                    guard let value = translation(entry, language) else { continue }
-                    XCTAssertEqual(specifiers(value), source,
-                                   "\(name): '\(key)' \(language) placeholder drift")
+                    for value in translations(entry, language) {
+                        XCTAssertEqual(specifierMap(value), source,
+                                       "\(name): '\(key)' \(language) placeholder drift")
+                    }
                 }
             }
         }
@@ -81,6 +121,12 @@ final class LocalizationCatalogTests: XCTestCase {
             "Highlights the current line while you write.",
             "Keeps the current line centered as you write.",
             "Lineform couldn’t write “%@”. Choose a different location and try again.",
+            // The VoiceOver label on the rendered text view. It describes what the user is
+            // reading, and is never mapped back to a menu item the way a mode name is, so
+            // German takes its natural compound "Markdown-Leseansicht" — the rule would have
+            // forced the stiff "Markdown-Ansicht „Lesen“" for the sake of four literal
+            // letters. The other four languages still carry the glossary term unforced.
+            "Markdown read view",
         ]
 
         // Whole-word matching, not substring: "Tab" must not match "Table" and
@@ -103,6 +149,23 @@ final class LocalizationCatalogTests: XCTestCase {
                         value.localizedCaseInsensitiveContains(expected),
                         "'\(key)' \(language): expected glossary term '\(expected)' in '\(value)'")
                 }
+            }
+        }
+    }
+
+    func testPluralCategoriesFollowEachLanguagesRules() throws {
+        // es/fr/de need `one` AND `other`. ja/zh-Hans have no singular category at all —
+        // an inherited `one` from a copy-paste is silently dead weight that never fires.
+        let required: [String: Set<String>] = [
+            "es": ["one", "other"], "fr": ["one", "other"], "de": ["one", "other"],
+            "ja": ["other"], "zh-Hans": ["other"],
+        ]
+        for (key, entry) in try catalog("Localizable") where isTranslatable(entry) {
+            guard let locs = entry["localizations"] as? [String: [String: Any]] else { continue }
+            for (language, expected) in required {
+                guard let plural = (locs[language]?["variations"] as? [String: Any])?["plural"]
+                        as? [String: [String: Any]] else { continue }
+                XCTAssertEqual(Set(plural.keys), expected, "'\(key)' \(language) plural categories")
             }
         }
     }
