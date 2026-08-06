@@ -110,6 +110,33 @@ final class MarkdownReferenceTests: XCTestCase {
         XCTAssertTrue(english.contains("Return starts the next"), "reference no longer describes list continuation")
     }
 
+    /// East Asian Wide and Fullwidth ranges (UAX #11). A CJK character occupies TWO columns,
+    /// so counting `Character`s measured the ja/zh rows at half their real width — the ceiling
+    /// was tight for Latin (2 characters of headroom) and permitted ~2× overflow for CJK.
+    private static let wideScalarRanges: [ClosedRange<UInt32>] = [
+        0x1100...0x115F, 0x2329...0x232A, 0x2E80...0x303E, 0x3041...0x33FF,
+        0x3400...0x4DBF, 0x4E00...0x9FFF, 0xA000...0xA4CF, 0xA960...0xA97F,
+        0xAC00...0xD7A3, 0xF900...0xFAFF, 0xFE10...0xFE19, 0xFE30...0xFE6F,
+        0xFF00...0xFF60, 0xFFE0...0xFFE6, 0x1F300...0x1F64F, 0x1F900...0x1F9FF,
+        0x20000...0x2FFFD, 0x30000...0x3FFFD,
+    ]
+
+    /// Column count, not character count. Measured on the grapheme's FIRST scalar: a
+    /// combining mark never widens the cluster it attaches to.
+    static func displayWidth(of text: String) -> Int {
+        text.reduce(0) { total, character in
+            let scalar = character.unicodeScalars.first?.value ?? 0
+            return total + (wideScalarRanges.contains { $0.contains(scalar) } ? 2 : 1)
+        }
+    }
+
+    func testDisplayWidthCountsEastAsianCharactersAsTwoColumns() {
+        XCTAssertEqual(Self.displayWidth(of: "abc"), 3)
+        XCTAssertEqual(Self.displayWidth(of: "見出し"), 6)
+        XCTAssertEqual(Self.displayWidth(of: "⌘2〜⌘6"), 6, "⌘ is narrow, 〜 is wide")
+        XCTAssertEqual(Self.displayWidth(of: "语法："), 6, "the fullwidth colon is two columns")
+    }
+
     /// Guards the narrow-column rewrite in EVERY language, not just English. The column does not
     /// get wider in German. Pinning only `en` let a 120-character translation ship silently.
     func testExplanationsStayConciseInEveryLanguage() throws {
@@ -117,8 +144,8 @@ final class MarkdownReferenceTests: XCTestCase {
             for section in MarkdownReference.sections(in: try bundle(language)) {
                 for row in section.rows {
                     XCTAssertLessThanOrEqual(
-                        row.explanation.count, 90,
-                        "too wordy for the sidebar in \(language): \(row.syntax) — \(row.explanation)"
+                        Self.displayWidth(of: row.explanation), 90,
+                        "too wide for the sidebar in \(language): \(row.syntax) — \(row.explanation)"
                     )
                 }
             }

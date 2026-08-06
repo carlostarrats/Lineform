@@ -109,6 +109,18 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         XCTAssertEqual(chinese["小标题"], MainMenuIconDecorator.symbolsByTitle["heading"],
                        "zh-Hans: 小标题 is Heading")
 
+        // Where Apple's table and our catalog disagree, `localizedAliases` must report the
+        // string the app DISPLAYS. Spanish "Preview" is `Vista previa` in the catalog and
+        // `Previsualizar` in AppKit's table; reading Apple's here asserted a title Spanish
+        // Lineform shows nowhere. The shipping map still registers BOTH, which is why the
+        // preference is free to change — asserted on the next two lines so it stays free.
+        XCTAssertEqual(MainMenuIconDecorator.localizedAliases(languageCode: "es")["preview"], "vista previa",
+                       "es: the alias must be the catalog title the app renders")
+        let spanish = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: "es")
+        XCTAssertEqual(spanish["vista previa"], MainMenuIconDecorator.symbolsByTitle["preview"])
+        XCTAssertEqual(spanish["previsualizar"], MainMenuIconDecorator.symbolsByTitle["preview"],
+                       "Apple's wording must keep resolving too — a menu row may still carry it")
+
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let first = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: language)
             let second = MainMenuIconDecorator.localizedSymbolsByNormalizedTitle(languageCode: language)

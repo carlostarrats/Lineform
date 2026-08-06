@@ -92,6 +92,20 @@ grounds that Apple ships no translation for them. That is false: macOS 26.5's `I
 carries both, they are in the generated `SystemMenuItemTitles.swift`, and they resolve in all five
 languages today — `MainMenuIconDecoratorTests` asserts it rather than exempting them.
 
+**`localizedAliases(languageCode:)` prefers the CATALOG value over AppKit's.** For ~25 titles the two
+sources disagree — Spanish "Preview" is `Previsualizar` in Apple's table and `Vista previa` in ours —
+and the catalog value is the one the app actually displays, so a test reading Apple's asserted a title
+Spanish Lineform shows nowhere. The preference is safe to state because
+`localizedSymbolsByNormalizedTitle` registers BOTH alias sets regardless (asserted: Spanish resolves
+the Preview symbol under `vista previa` AND `previsualizar`). The catalog lookup must distinguish
+"untranslated" from "translated to the English word" — hence the sentinel in `catalogTitle(_:in:)` —
+or an untranslated catalog key would shadow a real Apple translation with the English fallback.
+
+`Preview` is in `lineform-glossary.json`, so a translator choosing a second word for it now fails
+`testGlossaryTermsTranslateConsistently` instead of quietly splitting the term across screens.
+`Split`, by contrast, has a glossary row but no catalog key — its row is inert, kept for the day the
+mode gains a menu title.
+
 **Test locale.** The default test plan pins the process to `en`/`US` (`EditorDisplayModeTests`,
 `ReadingProfileStoreTests` and others read `Locale(identifier: "en_US")` explicitly) so date formatting,
 plural rules, and string assertions stay byte-identical regardless of the machine running them.
@@ -185,6 +199,13 @@ allowlist entries; the whole-file exemption for `MarkdownReference.swift` is gon
 (`testExplanationsStayConciseInEveryLanguage`) — the column does not get wider in German. German
 expansion of 30–35% put roughly eight rows over the cap, and the fix was to shorten the *English*,
 not to raise the ceiling. Measured headroom at the end of the pass: de 86, fr 87, es 82.
+
+**The ceiling measures DISPLAY WIDTH, not `String.count`.** A CJK character occupies two columns, so
+counting `Character`s measured ja and zh-Hans at half their real width — the gate was tight for Latin
+(2 characters of headroom) and permitted ~2× overflow for CJK, which is the one direction it was never
+meant to be loose in. `MarkdownReferenceTests.displayWidth(of:)` sums UAX #11 East Asian Wide and
+Fullwidth scalars as 2 and everything else as 1, measured on each grapheme's first scalar so a
+combining mark never widens the cluster it attaches to. Same 90 limit, now comparable across scripts.
 
 **Keyboard glyphs survive translation, connective prose does not.** `⌘1`, `⌘2 to ⌘6` and the like
 are glyphs, not words — but the English word joining two of them is not, and shipping it as a

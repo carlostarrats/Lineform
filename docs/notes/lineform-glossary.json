@@ -2,6 +2,7 @@
   "Write": {"es": "Escritura", "fr": "Écriture", "de": "Schreiben", "ja": "執筆", "zh-Hans": "写作"},
   "Read": {"es": "Lectura", "fr": "Lecture", "de": "Lesen", "ja": "閲覧", "zh-Hans": "阅读"},
   "Split": {"es": "Dividido", "fr": "Scindé", "de": "Geteilt", "ja": "分割", "zh-Hans": "拆分"},
+  "Preview": {"es": "Vista previa", "fr": "Aperçu", "de": "Vorschau", "ja": "プレビュー", "zh-Hans": "预览"},
   "Workspace": {"es": "Espacio de trabajo", "fr": "Espace de travail", "de": "Arbeitsbereich", "ja": "ワークスペース", "zh-Hans": "工作区"},
   "Outline": {"es": "Esquema", "fr": "Plan", "de": "Gliederung", "ja": "アウトライン", "zh-Hans": "大纲"},
   "Reading profile": {"es": "Perfil de lectura", "fr": "Profil de lecture", "de": "Leseprofil", "ja": "閲覧プロファイル", "zh-Hans": "阅读配置"},

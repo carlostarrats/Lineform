@@ -138,7 +138,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ 構文: %2$@"
+            "value": "%1$@ 構文：%2$@"
           }
         },
         "zh-Hans": {
@@ -1600,25 +1600,25 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Blockzitat. Return setzt es fort."
+            "value": "Zitatblock. Return setzt ihn fort."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cita en bloque. Return la continúa."
+            "value": "Bloque de cita. Return la continúa."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Citation. Return la continue."
+            "value": "Bloc de citation. Return le continue."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "引用ブロック。Returnで継続します。"
+            "value": "ブロック引用。Returnで継続します。"
           }
         },
         "zh-Hans": {
@@ -1720,7 +1720,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "太字。"
+            "value": "ボールド。"
           }
         },
         "zh-Hans": {
@@ -5162,7 +5162,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "斜体。*アスタリスク*も使えます。単語内のアンダースコアは無視されます。"
+            "value": "イタリック。*アスタリスク*も使えます。単語内のアンダースコアは無視されます。"
           }
         },
         "zh-Hans": {
@@ -8998,13 +8998,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ignorado"
+            "value": "Excluido"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ignoré"
+            "value": "Exclu"
           }
         },
         "ja": {
@@ -9038,7 +9038,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Titre plus petit (plus de # = plus petit). ⌘2 à ⌘6 règlent le niveau."
+            "value": "Sous-section plus petite (plus de # = plus petit). ⌘2 à ⌘6 règlent le niveau."
           }
         },
         "ja": {
@@ -9384,7 +9384,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "打ち消し線。"
+            "value": "取り消し線。"
           }
         },
         "zh-Hans": {
@@ -10694,13 +10694,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durante la búsqueda, salta a la coincidencia siguiente y vuelve al principio."
+            "value": "Durante la búsqueda, salta a la siguiente coincidencia; al final, vuelve al principio."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pendant la recherche, passe à la correspondance suivante, puis revient au début."
+            "value": "Pendant la recherche, passe à la correspondance suivante ; à la fin, revient au début."
           }
         },
         "ja": {
