@@ -14,9 +14,15 @@ struct MarkdownReference {
 
         var id: String { syntax }
 
-        /// VoiceOver reads a coherent phrase — explanation first, then the raw
-        /// syntax — instead of spelling out Markdown punctuation on its own.
-        var accessibilityLabel: String { "\(explanation) Syntax: \(syntax)" }
+        /// VoiceOver reads a coherent phrase — explanation first, then the raw syntax — instead
+        /// of spelling out Markdown punctuation on its own. The CONNECTIVE localizes; the syntax
+        /// never does. This is a method, not a property, because it must be resolvable against an
+        /// explicit bundle for the per-language tests — and because a `String` property passed to
+        /// `.accessibilityLabel(_:)` takes SwiftUI's verbatim overload, which shipped this phrase
+        /// in English however complete the catalog was.
+        func accessibilityLabel(in bundle: Bundle = .main) -> String {
+            String(localized: "\(explanation) Syntax: \(syntax)", bundle: bundle)
+        }
     }
 
     struct Section: Identifiable, Equatable {

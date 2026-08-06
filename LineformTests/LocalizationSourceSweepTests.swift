@@ -35,8 +35,6 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Generated table OF Apple's translations, keyed by English; regenerate with packaging/extract-system-menu-titles.py. Lineform never draws these.",
         "MainMenuIconDecorator.swift":
             "Icon lookup tables — normalized English titles and their per-language aliases. The decorator only ever sets NSMenuItem.image; it writes no titles.",
-        "MarkdownReference.swift":
-            "The Markdown Basics tab's explanation rows, explicitly deferred to Localization Phase 2 by the Phase 1 spec. The tab's NAME is Phase 1 and lives in OutlineSidebarView.",
         "LineformCommandLine.swift":
             "`lineform` CLI diagnostics printed to stderr in a shell, outside the app's localized UI.",
         "LineformAppIntents.swift":
@@ -85,6 +83,10 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "CodeHighlighting.swift|None": "Language keyword highlighted inside a code block — document content.",
         "CodeHighlighting.swift|True": "Language keyword highlighted inside a code block — document content.",
         "CodeHighlighting.swift|False": "Language keyword highlighted inside a code block — document content.",
+        "MarkdownReference.swift|flowchart LR":
+            "Mermaid diagram syntax shown as an example — document content, never localized.",
+        "MarkdownReference.swift|Return":
+            "A keycap legend rendered as code, like the ⌘ glyphs in the explanations.",
 
         // Persisted identity. ReadingProfile is Codable and its `name` is written into the
         // stored active profile, so display goes through the localized ReadingPreset.title.

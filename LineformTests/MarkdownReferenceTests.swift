@@ -86,9 +86,24 @@ final class MarkdownReferenceTests: XCTestCase {
         XCTAssertEqual(row?.rendersSyntaxAsCode, false)
     }
 
-    func testAccessibilityLabelReadsExplanationThenSyntax() {
+    func testAccessibilityLabelReadsExplanationThenSyntax() throws {
         let row = MarkdownReference.Row(syntax: "**bold**", explanation: "Bold.")
-        XCTAssertEqual(row.accessibilityLabel, "Bold. Syntax: **bold**")
+        XCTAssertEqual(row.accessibilityLabel(in: try englishBundle()), "Bold. Syntax: **bold**")
+    }
+
+    /// The connective is app chrome and localizes; the SYNTAX is document content and never does.
+    /// Asserting the shape rather than the wording is deliberate: "Syntax" is an ordinary German
+    /// word, so demanding a rendering that differs from English would force a contorted
+    /// translation. What must hold in every language is the ORDER — explanation first, so
+    /// VoiceOver leads with the meaning — and the syntax reaching the user byte-for-byte.
+    func testAccessibilityLabelKeepsExplanationFirstAndSyntaxVerbatimInEveryLanguage() throws {
+        let row = MarkdownReference.Row(syntax: "**bold**", explanation: "Fett.")
+
+        for language in Self.languages {
+            let label = row.accessibilityLabel(in: try bundle(language))
+            XCTAssertTrue(label.hasPrefix("Fett."), "\(language): explanation must come first — \(label)")
+            XCTAssertTrue(label.hasSuffix("**bold**"), "\(language): syntax must be last and verbatim — \(label)")
+        }
     }
 
     /// Guards the mechanism the whole per-language reference rests on. `String(localized:…locale:)`

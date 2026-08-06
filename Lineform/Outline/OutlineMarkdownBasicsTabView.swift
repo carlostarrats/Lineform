@@ -101,7 +101,7 @@ struct OutlineMarkdownBasicsTabView: View {
                 .fill(Self.rowBackgroundColor(usesDarkChrome: usesDarkChrome))
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.accessibilityLabel)
+        .accessibilityLabel(row.accessibilityLabel())
     }
 
     private func copyButton(for row: MarkdownReference.Row) -> some View {
@@ -152,7 +152,11 @@ private struct CopyButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isCopied ? "Copied" : "Copy \(rowID)")
+        // Two `Text`s, not a ternary of two literals: a ternary's branches are type-checked as
+        // one expression, and whether that lands on `LocalizedStringKey` or the `@_disfavoredOverload`
+        // verbatim `StringProtocol` was never confirmed. `accessibilityLabel(_: Text)` is a distinct,
+        // non-disfavored overload, so each branch is unambiguously a localized position.
+        .accessibilityLabel(isCopied ? Text("Copied") : Text("Copy \(rowID)"))
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) {
                 isHovered = hovering
