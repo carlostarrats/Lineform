@@ -15,6 +15,151 @@ final class MarkdownFontCascadeTests: XCTestCase {
         }
     }
 
+    // MARK: - What the cascade actually RESOLVES
+
+    /// Sample text spanning the interesting cases. All-Han except the last, which mixes Han with
+    /// kana — kana is script-exclusive, Han is not, and the Han is the whole question.
+    private static let chineseSamples = ["今天雪很大", "直骨雪今漢字", "这是中文"]
+    private static let japaneseSamples = ["日本語", "吾輩は猫である"]
+    private static let allSamples = chineseSamples + japaneseSamples
+
+    private func isHan(_ scalar: Unicode.Scalar) -> Bool {
+        (0x4E00...0x9FFF).contains(scalar.value) || (0x3400...0x4DBF).contains(scalar.value)
+    }
+
+    /// The family CoreText actually picks for the character at `index` of `text` in `font`.
+    private func resolvedFamily(_ text: String, _ index: Int, in font: NSFont) -> String {
+        let resolved = CTFontCreateForString(
+            font as CTFont, text as CFString, CFRange(location: index, length: 1)
+        )
+        return CTFontCopyFamilyName(resolved) as String
+    }
+
+    /// `(character, family)` for every HAN character in `text` — the shared characters whose face
+    /// the ordering decides. Kana and script-exclusive punctuation are excluded on purpose.
+    private func hanFamilies(_ text: String, in font: NSFont) -> [(String, String)] {
+        let ns = text as NSString
+        return (0..<ns.length).compactMap { index in
+            let character = ns.substring(with: NSRange(location: index, length: 1))
+            guard let scalar = character.unicodeScalars.first, isHan(scalar) else { return nil }
+            return (character, resolvedFamily(text, index, in: font))
+        }
+    }
+
+    private func cascaded(_ families: [String]) -> NSFont {
+        let descriptors = families.map { NSFontDescriptor(fontAttributes: [.family: $0]) }
+        let base = NSFont.systemFont(ofSize: 17)
+        return NSFont(descriptor: base.fontDescriptor.addingAttributes([.cascadeList: descriptors]),
+                      size: 17) ?? base
+    }
+
+    /// THE REGRESSION, asserted on the RESOLVED face rather than on the cascade list's length.
+    /// Every other cascade test in this file checks only that a list is ATTACHED, which is why a
+    /// hardcoded Japanese-first order shipped green while rendering pure Chinese in a Japanese face
+    /// for every character the two scripts share. `这` is the only character in these samples that
+    /// is simplified-only, so it is the only one that escapes — which is why `这是中文` looked fine
+    /// and hid the bug.
+    func testJapaneseFirstOrderDragsChineseHanIntoTheJapaneseFace() {
+        let font = cascaded(MarkdownFontCascade.japaneseFirst)
+        var draggedIn = 0
+        for sample in Self.chineseSamples {
+            for (character, family) in hanFamilies(sample, in: font) where family == "Hiragino Sans" {
+                draggedIn += 1
+                XCTAssertNotEqual(character, "这", "简体-only 这 should never reach the Japanese face")
+            }
+        }
+        XCTAssertGreaterThan(
+            draggedIn, 8,
+            "Japanese-first no longer pulls shared Han out of the Chinese face — re-measure before "
+                + "concluding the ordering rule is unnecessary"
+        )
+    }
+
+    /// The shipped default, and the reason it is the default: every shared Han character lands in
+    /// PingFang SC for Chinese AND Japanese text. Kana still resolves to Hiragino Sans, because
+    /// kana is script-exclusive and CoreText walks past PingFang for it — the cascade costs
+    /// Japanese readers their kana face nothing.
+    func testSimplifiedChineseFirstPutsEveryHanCharacterInPingFang() {
+        let font = cascaded(MarkdownFontCascade.simplifiedChineseFirst)
+        var checked = 0
+        for sample in Self.allSamples {
+            for (character, family) in hanFamilies(sample, in: font) {
+                checked += 1
+                XCTAssertEqual(family, "PingFang SC", "\(character) in \"\(sample)\"")
+            }
+        }
+        XCTAssertGreaterThan(checked, 15, "the samples stopped containing Han")
+
+        // Kana, the script-exclusive control.
+        XCTAssertEqual(resolvedFamily("吾輩は猫である", 2, in: font), "Hiragino Sans",
+                       "は left the Japanese kana face")
+    }
+
+    /// The default must REPRODUCE the platform, not override it. Measured on macOS 26: an `en`
+    /// machine's bare `.systemFont` already resolves every Han character below through a PingFang
+    /// face — CoreText's implicit substitution is locale-informed, not unchosen. A default that
+    /// moved these characters would be the regression, not the fix. If this ever fails, re-derive
+    /// the default order from a fresh measurement rather than editing the assertion.
+    func testTheNonJapaneseDefaultReproducesThePlatformsHanFace() {
+        let bare = NSFont.systemFont(ofSize: 17)
+        let cascadedFont = cascaded(MarkdownFontCascade.simplifiedChineseFirst)
+
+        for sample in Self.allSamples {
+            for (character, family) in hanFamilies(sample, in: bare) {
+                XCTAssertTrue(family.contains("PingFang"),
+                              "the platform now resolves \(character) to \(family)")
+            }
+            for (character, family) in hanFamilies(sample, in: cascadedFont) {
+                XCTAssertTrue(family.contains("PingFang"),
+                              "the default cascade moved \(character) to \(family)")
+            }
+        }
+    }
+
+    /// Pure, so the language branch is testable without relaunching the app under another UI
+    /// language. `Bundle.main.preferredLocalizations` is the source — NOT `Locale.language.languageCode`,
+    /// which collapses `zh-Hans` to `zh`.
+    func testOrderIsDerivedFromThePreferredLocalization() {
+        for japanese in [["ja"], ["ja-JP"], ["JA"], ["ja", "en"]] {
+            XCTAssertEqual(MarkdownFontCascade.resolvedFallbackFamilies(preferring: japanese),
+                           MarkdownFontCascade.japaneseFirst, "\(japanese)")
+        }
+        for other in [["zh-Hans"], ["zh-Hant"], ["en"], ["de"], ["es"], ["fr"], [], ["en", "ja"]] {
+            XCTAssertEqual(MarkdownFontCascade.resolvedFallbackFamilies(preferring: other),
+                           MarkdownFontCascade.simplifiedChineseFirst, "\(other)")
+        }
+    }
+
+    /// Whichever branch this machine takes, the shipped list must be one of the two declared orders
+    /// and must always be the same two families — the COUNT is what every other test in this file
+    /// asserts against, so only the order may vary.
+    func testShippedOrderIsOneOfTheTwoDeclaredOrders() {
+        XCTAssertTrue(
+            MarkdownFontCascade.fallbackFamilies == MarkdownFontCascade.japaneseFirst
+                || MarkdownFontCascade.fallbackFamilies == MarkdownFontCascade.simplifiedChineseFirst,
+            "\(MarkdownFontCascade.fallbackFamilies)"
+        )
+        XCTAssertEqual(Set(MarkdownFontCascade.japaneseFirst),
+                       Set(MarkdownFontCascade.simplifiedChineseFirst))
+        XCTAssertEqual(MarkdownFontCascade.fallbackFamilies,
+                       MarkdownFontCascade.resolvedFallbackFamilies(
+                           preferring: Bundle.main.preferredLocalizations))
+    }
+
+    /// End to end: a font that went through the app's OWN `applying(to:)` — not a hand-built
+    /// descriptor — resolves shared Han into the family the derived order puts first.
+    func testAppliedCascadeResolvesHanIntoTheLeadingFamily() {
+        let font = MarkdownFontCascade.applying(to: .systemFont(ofSize: 17))
+        let leading = MarkdownFontCascade.fallbackFamilies[0]
+        var checked = 0
+        for sample in Self.allSamples {
+            for (_, family) in hanFamilies(sample, in: font) where family == leading {
+                checked += 1
+            }
+        }
+        XCTAssertGreaterThan(checked, 10, "no Han character reached \(leading)")
+    }
+
     func testApplyingAttachesTheCascadeWithoutChangingTheFamily() {
         let base = NSFont.systemFont(ofSize: 17)
         let cascaded = MarkdownFontCascade.applying(to: base)

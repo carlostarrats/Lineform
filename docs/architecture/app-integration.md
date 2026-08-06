@@ -217,11 +217,53 @@ positions.
 ## CJK font cascade (2026-08-05)
 
 `MarkdownFontCascade` (`Lineform/ReadingExperience/MarkdownFontCascade.swift`) is the ONE definition
-of what a Lineform font falls back to for CJK text: `["Hiragino Sans", "PingFang SC"]`, attached as
-an `NSFontDescriptor` `.cascadeList`. Order matters — CoreText walks the list, so shared Han
-characters resolve in the Japanese face first. Without it CoreText substitutes per glyph and a
-mixed Chinese/Japanese document can render Chinese in a Japanese face; nothing is broken, the
-pairing is simply unchosen.
+of what a Lineform font falls back to for CJK text: `Hiragino Sans` and `PingFang SC`, attached as
+an `NSFontDescriptor` `.cascadeList`. The two families are fixed; the **order is derived**, and the
+count is invariant so nothing downstream has to reason about language.
+
+**What the cascade is for, and what it is not for.** It is for OWNERSHIP: an explicit list is a
+value the app carries, so it survives `NSFontManager.convert` (next paragraph) and the descriptor
+re-derivations behind headings, table cells, and the export/print faces — which is what makes
+screen and export agree rather than each re-deriving a face on its own. It is **not** for
+overriding CoreText's choice of Han face. The original rationale here claimed the implicit pairing
+was "unchosen". That was wrong and is corrected: measured on macOS 26 with `CTFontCreateForString`,
+implicit substitution is locale-informed, and on an `en` machine a bare `.systemFont` already
+resolves every sample below — Chinese and Japanese alike — through PingFang.
+
+**The first shipped order was a regression.** A hardcoded `["Hiragino Sans", "PingFang SC"]` put
+PURE CHINESE into a Japanese face for every character the two scripts share, which is most of a
+Chinese sentence — `这是中文` only escaped because `这` is simplified-only. That is precisely the
+failure the feature was introduced to prevent. Measured, `.systemFont(ofSize: 17)`, macOS 26:
+
+| sample | bare (no cascade) | Hiragino first | PingFang first |
+|---|---|---|---|
+| `今天雪很大` | PingFang UI SC | **Hiragino Sans** | PingFang SC |
+| `直骨雪今漢字` | PingFang UI SC | **Hiragino Sans** | PingFang SC |
+| `这是中文` | PingFang UI SC | PingFang SC + Hiragino Sans | PingFang SC |
+| `日本語` | PingFang UI SC | Hiragino Sans | PingFang SC |
+| `吾輩は猫である` | PingFang UI SC + CJK Symbols Fallback SC | Hiragino Sans | PingFang SC (Han) + Hiragino Sans (kana) |
+
+Kana is the control: it is script-exclusive, so CoreText walks past PingFang for it under either
+order. PingFang-first costs a Japanese reader nothing on kana — it only decides the shared Han.
+Flipping to PingFang-first unconditionally is not the fix either — it just moves the identical harm
+onto Japanese readers.
+
+**So the order comes from `Bundle.main.preferredLocalizations`**, the one signal the platform gives
+about who is reading: a Japanese interface gets `MarkdownFontCascade.japaneseFirst`, every other
+interface — Simplified Chinese included, and all five non-CJK languages — gets
+`simplifiedChineseFirst`, which is what the unmodified platform already does. The default
+REPRODUCES the platform rather than overriding it; a default that moved the `en` resolution off
+PingFang would be the regression, not the fix. Never `Locale.language.languageCode` — it collapses
+`zh-Hans` to `zh` (the standing invariant in `Claude.md`). The mapping is a pure function,
+`resolvedFallbackFamilies(preferring:)`, so the language branch is testable without relaunching the
+app under another UI language.
+
+**The tests assert what the cascade RESOLVES, not that a list is attached.** The Japanese-first
+regression shipped through 18 green assertions because every one of them checked
+`cascadeCount(font) == fallbackFamilies.count`. `MarkdownFontCascadeTests` now runs
+`CTFontCreateForString` over the samples above for both declared orders, and pins the bare platform
+resolution too — so if macOS ever stops resolving `en` through PingFang, the default is re-derived
+rather than silently inherited.
 
 **`NSFontManager.shared.convert(_:toHaveTrait:)` drops the cascade on system fonts.** Measured on
 macOS 26 via `CTFontCopyAttribute(kCTFontCascadeListAttribute)`: the list survives bold and italic

@@ -2,9 +2,25 @@ import AppKit
 
 /// The ONE definition of what a Lineform font falls back to for CJK text.
 ///
-/// Without an explicit cascade list CoreText substitutes per glyph, so the pairing is unchosen
-/// and a mixed Chinese/Japanese document can render Chinese in a Japanese face. Declaring it
-/// costs nothing and makes the choice ours.
+/// What the cascade is FOR: an explicit `.cascadeList` is a value the app owns, so it survives the
+/// places where the implicit system fallback does not — chiefly `convert(_:toHaveTrait:)` below,
+/// and the descriptor re-derivations behind headings, table cells, and the export/print faces.
+/// It is what makes screen and export agree instead of each re-deriving a face on its own.
+///
+/// What it is NOT for: overriding CoreText's choice of Han face. Measured on macOS 26 with
+/// `CTFontCreateForString`, the implicit substitution is NOT unchosen — it is locale-informed, and
+/// on an `en` machine it already resolves every sample below (Chinese and Japanese alike) to
+/// PingFang SC. An earlier revision of this file declared a fixed `["Hiragino Sans", "PingFang SC"]`
+/// on the theory that the pairing was arbitrary. It was not: that order rendered PURE CHINESE in a
+/// Japanese face for every character the two scripts share — which is most of a Chinese sentence,
+/// and is exactly the failure the cascade was introduced to prevent. Flipping it fixed nothing; it
+/// only moved the same harm onto Japanese.
+///
+/// So the order is DERIVED, from the one signal the platform gives us about who is reading:
+/// `Bundle.main.preferredLocalizations`. A Japanese interface gets Hiragino Sans first; every other
+/// interface — including Simplified Chinese, and including the five non-CJK languages we ship —
+/// gets PingFang SC first, which is what the unmodified platform already does. Not
+/// `Locale.language.languageCode`: it collapses `zh-Hans` to `zh` (standing invariant in Claude.md).
 ///
 /// The subtlety is `convert(_:toHaveTrait:)`. Measured on macOS 26: `NSFontManager` PRESERVES an
 /// attached `.cascadeList` for real named families (Helvetica, Atkinson Hyperlegible) and DROPS
@@ -13,9 +29,24 @@ import AppKit
 /// `convert(_:toHaveTrait:)` below, never `NSFontManager` directly.
 enum MarkdownFontCascade {
 
-    /// Both ship with macOS. Order matters: CoreText walks the list, so Japanese resolves before
-    /// Simplified Chinese for Han characters the two share.
-    static let fallbackFamilies = ["Hiragino Sans", "PingFang SC"]
+    /// Both ship with macOS, and the list is always these two in one of two orders — the COUNT is
+    /// invariant, only the order is derived, so nothing downstream has to reason about language.
+    static let japaneseFirst = ["Hiragino Sans", "PingFang SC"]
+    static let simplifiedChineseFirst = ["PingFang SC", "Hiragino Sans"]
+
+    /// The order for a given set of preferred localizations, as `Bundle` reports them
+    /// (`["ja"]`, `["zh-Hans"]`, `["en"]`, …). Pure, so it is testable without relaunching the app
+    /// under another language.
+    ///
+    /// `simplifiedChineseFirst` is the default rather than a neutral "no opinion" because it IS the
+    /// platform's existing resolution on a non-CJK machine — a default that changed it would be the
+    /// regression, not the fix.
+    static func resolvedFallbackFamilies(preferring localizations: [String]) -> [String] {
+        let language = localizations.first?.split(separator: "-").first.map(String.init)?.lowercased()
+        return language == "ja" ? japaneseFirst : simplifiedChineseFirst
+    }
+
+    static let fallbackFamilies = resolvedFallbackFamilies(preferring: Bundle.main.preferredLocalizations)
 
     private nonisolated(unsafe) static let descriptors: [NSFontDescriptor] = fallbackFamilies.map {
         NSFontDescriptor(fontAttributes: [.family: $0])
