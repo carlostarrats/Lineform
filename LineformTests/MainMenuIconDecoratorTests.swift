@@ -147,11 +147,11 @@ final class MainMenuIconDecoratorTests: XCTestCase {
     /// can never fail. The thing that can actually regress is the LOCALIZED alias, which is
     /// what this asserts.
     func testEveryTitleKeyedEntryGainsALocalizedAliasInAllShippedLocales() {
-        // Passwords / Credit Card: the spec records these AutoFill rows as having no Apple
-        // translation source. macOS 26.5's InputManager.loctable does carry them, so they in
-        // fact resolve today — the exemption stays because that is an AppKit implementation
-        // detail we do not control, and losing these two icons is accepted either way.
-        let acceptedLosses: Set<String> = ["passwords", "credit card"]
+        // "Passwords" / "Credit Card" used to be exempted here as having no Apple translation
+        // source. They do have one — macOS 26.5's InputManager.loctable carries both and the
+        // generated SystemMenuItemTitles.swift picks them up — so the exemption was asserting
+        // less than the code delivers. Removed: they now go through the same rule as every
+        // other row, and if AppKit ever drops them this fails instead of passing quietly.
 
         // Rows that need no localized alias because they never reach the title map:
         // `symbolName(for:)` matches `symbolsByAction` FIRST, and these three carry a
@@ -174,7 +174,7 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         // nothing to translate. The map entry is defensive.
         let notAMenuTitle: Set<String> = ["split"]
 
-        let exempt = acceptedLosses.union(resolvedBySelector).union(notAMenuTitle)
+        let exempt = resolvedBySelector.union(notAMenuTitle)
         let languages = ["es", "fr", "de", "ja", "zh-Hans"]
         let aliasesByLanguage = Dictionary(
             uniqueKeysWithValues: languages.map { ($0, MainMenuIconDecorator.localizedAliases(languageCode: $0)) }

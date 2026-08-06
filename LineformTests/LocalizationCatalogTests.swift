@@ -175,7 +175,11 @@ final class LocalizationCatalogTests: XCTestCase {
                 for (token, spec) in (locs[language]?["substitutions"] as? [String: [String: Any]] ?? [:]) {
                     guard let plural = (spec["variations"] as? [String: Any])?["plural"]
                             as? [String: [String: Any]] else {
-                        return XCTFail("'\(key)' \(language) substitution '\(token)' has no plural")
+                        // `XCTFail` returns Void, so `return XCTFail(…)` returned from the whole
+                        // TEST — the first offending key silently ended the sweep and every key
+                        // after it went unchecked.
+                        XCTFail("'\(key)' \(language) substitution '\(token)' has no plural")
+                        continue
                     }
                     XCTAssertEqual(Set(plural.keys), expected,
                                    "'\(key)' \(language) substitution '\(token)' plural categories")

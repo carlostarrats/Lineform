@@ -34,7 +34,8 @@ App chrome is localized into Spanish, French, German, Japanese, and Simplified C
 content (rendered Markdown, callout labels, HTML/PDF export output) never is — see the invariant in
 `CLAUDE.md`. Three String Catalogs carry the strings, one per Xcode target concern:
 `Lineform/Localizable.xcstrings` (UI strings, keyed by the English literal), `Lineform/InfoPlist.xcstrings`
-(bundle display name and localized `Info.plist` entries), and `Lineform/AppShortcuts.xcstrings` (the two
+(exactly two keys, the `Markdown Document` and `Plain Text Document` type names — the spec forbids
+adding a localized bundle display name), and `Lineform/AppShortcuts.xcstrings` (the two
 App Intents' Shortcuts-app copy). `knownRegions` in the pbxproj and the six `<lang>.lproj` folders the
 build emits are the ground truth for which locales actually ship — verify with `ls
 Contents/Resources/*.lproj` in a built app, not by reading the catalog.
@@ -85,9 +86,10 @@ real translation), and an `OVERRIDES` block replaces Apple's own inconsistent Fo
 (fr/es abbreviation drift, and zh-Hans rendering both "Title" and "Heading" as 标题, which collided two
 rows in one submenu) — non-binding for Apple's own menus but load-bearing here because Heading 3–6 are
 Lineform's own `CommandMenu` rows matched against this table as an alias, not a title AppKit ever draws.
-**Two accepted icon losses, permanent**: `Passwords` and `Credit Card` (AutoFill submenu rows) have no
-Apple-provided translation source at all outside English, so they render bare in the other four
-languages — asserted in tests as the only allowed exceptions, not a bug to keep chasing.
+**`Passwords` and `Credit Card`** (AutoFill submenu rows) were recorded as permanent icon losses on the
+grounds that Apple ships no translation for them. That is false: macOS 26.5's `InputManager.loctable`
+carries both, they are in the generated `SystemMenuItemTitles.swift`, and they resolve in all five
+languages today — `MainMenuIconDecoratorTests` asserts it rather than exempting them.
 
 **Test locale.** The default test plan pins the process to `en`/`US` (`EditorDisplayModeTests`,
 `ReadingProfileStoreTests` and others read `Locale(identifier: "en_US")` explicitly) so date formatting,
@@ -96,11 +98,13 @@ Non-English behavior — the decorator's alias resolution, plural category selec
 agreement — is asserted by feeding a language code into the pure functions above
 (`localizedAliases(languageCode:)`, catalog decode) rather than by flipping the process locale.
 
-**The first-launch intro overlay** (`Lineform/App/FirstLaunchIntroOverlay.swift`) is a borderless,
-screen-saver-level `NSWindow` and cannot use SwiftUI's normal environment-driven localization the way
-in-app views do, so its copy is injected as its own small string table rather than reading the catalog
-indirectly through a hosted SwiftUI view — keep this table in sync with the catalog by hand if the
-intro's copy changes.
+**The first-launch intro overlay** (`Lineform/App/FirstLaunchIntroOverlay.swift`) draws its copy in a
+bundled `WKWebView` page, and the catalog cannot reach bundled HTML — that, not the window's
+borderless/screen-saver-level nature, is the constraint (its native button localizes normally). So
+`localizationUserScript()` BUILDS a small string table from the catalog at runtime via
+`String(localized:)` and injects it; nothing is kept in sync with the catalog by hand. The one
+hand-maintained coupling is the `data-l10n-id` attributes in
+`Lineform/Resources/FirstLaunchIntro/index.html`: a new or renamed id has to be added on both sides.
 
 **CJK word counting** (`Lineform/Editor/DocumentStatistics.swift`): the status bar switches from a word
 count to a character count when text `isPredominantlyCJK` — a **content-based**, not locale-based,
@@ -120,11 +124,22 @@ the decorator's title-matching on another).
 run of the default plan: every catalog key is translated in every shipped language
 (`testEveryKeyIsTranslatedInEveryLanguage`), format specifiers (`%@`, `%lld`, …) match in count and order
 across languages (`testFormatSpecifiersMatchAcrossLanguages`), glossary terms translate consistently
-(`testGlossaryTermsTranslateConsistently`), each language's `.stringsdict` plural categories follow that
+(`testGlossaryTermsTranslateConsistently`), each language's catalog plural `variations` follow that
 language's actual plural rules rather than copying English's two-category shape
 (`testPluralCategoriesFollowEachLanguagesRules`), and multi-argument counted strings vary each argument
 independently (`testMultiArgumentCountedStringsVaryEveryArgumentIndependently`). `MainMenuIconDecoratorTests`
-separately asserts the decorator's per-language alias resolution and the two accepted icon losses.
+separately asserts the decorator's per-language alias resolution.
+
+**A sixth gate scans the SOURCE, not the catalog** (`LineformTests/LocalizationSourceSweepTests.swift`).
+The five above all pass on a display string that never reached the catalog at all, which is how ~40
+strings shipped English with every gate green — including `Rename`, `Cancel` and `Delete`, which WERE
+catalog keys and still drew English because they are declared as `String` constants and
+`Button(_:)` / `.alert(_:…)` read a `String` with their VERBATIM overload. The gate lexes every
+`Lineform/**.swift` (comments, multi-line literals and interpolation included — regex handles none of
+the three) and requires each display-copy-shaped literal to be either a catalog key at a
+`LocalizedStringKey` position or a `String(localized:)` call at its definition site. Everything else
+needs an explicit allowlist entry with a one-line reason; a companion test fails any entry that stops
+matching, so the allowlist cannot quietly widen into the hole it was written to close.
 
 ## Accessibility (2026-07-27 audit)
 
