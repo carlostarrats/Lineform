@@ -57,4 +57,27 @@ final class MarkdownReferenceTests: XCTestCase {
         let row = MarkdownReference.Row(syntax: "**bold**", explanation: "Bold.")
         XCTAssertEqual(row.accessibilityLabel, "Bold. Syntax: **bold**")
     }
+
+    /// Guards the mechanism the whole per-language reference rests on. `String(localized:…locale:)`
+    /// formats interpolated VALUES for a locale; it does not choose which .lproj answers. Only a
+    /// bundle does. If this ever inverts, `sections(in:)` is silently English everywhere.
+    func testLanguageResolutionComesFromTheBundleNotTheLocale() throws {
+        let german = try XCTUnwrap(
+            Bundle.main.path(forResource: "de", ofType: "lproj").flatMap(Bundle.init(path:)),
+            "de.lproj missing from the test host — the app's own catalog should ship it"
+        )
+
+        // The positive: a German bundle resolves German.
+        XCTAssertEqual(german.localizedString(forKey: "Don't Save", value: nil, table: nil), "Nicht sichern")
+
+        // The negative: locale: does NOT.
+        XCTAssertEqual(String(localized: "Don't Save", locale: Locale(identifier: "de_DE")), "Don't Save")
+
+        // The form sections(in:) will use.
+        XCTAssertEqual(String(localized: "Don't Save", bundle: german), "Nicht sichern")
+    }
+
+    func testSectionsInMainBundleMatchTheDefaultProperty() {
+        XCTAssertEqual(MarkdownReference.sections(in: .main), MarkdownReference.sections)
+    }
 }
