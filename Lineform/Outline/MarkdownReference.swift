@@ -24,10 +24,18 @@ struct MarkdownReference {
 
         var id: String { identifier ?? syntax }
 
-        /// Only literal Markdown is worth putting on the pasteboard. A label row's cell is a
-        /// translated UI word — copying `スペル` into a Markdown file means nothing there, and the
-        /// button offering it is the bug, not the translation.
-        var offersCopy: Bool { rendersSyntaxAsCode }
+        /// The string this row puts on the pasteboard, or nil when it has nothing to offer.
+        ///
+        /// Only literal Markdown is worth copying. A label row's cell is a translated UI word —
+        /// copying `スペル` into a Markdown file means nothing there, and the button offering it is
+        /// the bug, not the translation.
+        ///
+        /// This is an OPTIONAL rather than an `offersCopy: Bool` on purpose: the view unwraps it to
+        /// build the copy button, so the button cannot be constructed for a row that has no
+        /// copyable text. A `Bool` gate is one deletable `if` away from the bug; this one does not
+        /// compile if the check is removed. Asserted by
+        /// `MarkdownReferenceTests.testOnlyLiteralSyntaxRowsOfferCopy`.
+        var copyableSyntax: String? { rendersSyntaxAsCode ? syntax : nil }
 
         /// VoiceOver reads a coherent phrase — explanation first, then the raw syntax — instead
         /// of spelling out Markdown punctuation on its own. The CONNECTIVE localizes; the syntax

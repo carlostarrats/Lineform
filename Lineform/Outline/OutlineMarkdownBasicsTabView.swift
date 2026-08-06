@@ -91,10 +91,11 @@ struct OutlineMarkdownBasicsTabView: View {
 
             Spacer(minLength: 8)
 
-            // Only the code rows: `row.syntax` is what the button copies, and on a label row that
-            // is a translated UI word, not Markdown.
-            if row.offersCopy {
-                copyButton(for: row)
+            // Only the code rows: a label row's cell is a translated UI word, not Markdown.
+            // `copyableSyntax` is nil there, and `copyButton` takes the unwrapped String — so
+            // deleting this check does not compile, let alone reintroduce the bug.
+            if let copyText = row.copyableSyntax {
+                copyButton(rowID: row.id, copyText: copyText)
             }
         }
         .padding(.horizontal, 10)
@@ -108,21 +109,23 @@ struct OutlineMarkdownBasicsTabView: View {
         .accessibilityLabel(row.accessibilityLabel())
     }
 
-    private func copyButton(for row: MarkdownReference.Row) -> some View {
+    /// Takes the copy text as a non-optional `String`, supplied only by unwrapping
+    /// `Row.copyableSyntax` — a label row cannot reach here.
+    private func copyButton(rowID: String, copyText: String) -> some View {
         CopyButton(
             // Identity is the row's STABLE id; the spoken label is its syntax. They were one value
             // until `Row.identifier` split them — keying "Copied" on translated text is the bug the
             // id exists to prevent, and speaking an internal slug is the bug on the other side.
-            rowID: row.id,
-            syntax: row.syntax,
+            rowID: rowID,
+            syntax: copyText,
             copiedRowID: $copiedRowID,
             usesDarkChrome: usesDarkChrome,
             action: {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(row.syntax, forType: .string)
-                copiedRowID = row.id
+                NSPasteboard.general.setString(copyText, forType: .string)
+                copiedRowID = rowID
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    if copiedRowID == row.id {
+                    if copiedRowID == rowID {
                         copiedRowID = nil
                     }
                 }

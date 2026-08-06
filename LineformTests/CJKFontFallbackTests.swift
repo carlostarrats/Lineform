@@ -199,7 +199,10 @@ final class CJKFontFallbackTests: XCTestCase {
     /// - `MarkdownPreviewRenderer` (13 sites in 8 functions) — the render fixture below, which is
     ///   built to reach ALL of them: heading, table cell + table header, inline bold/italic/code,
     ///   fenced code, callout title, the mermaid and math fallback captions, and inline math's
-    ///   fallback branch. A half-rebuild at any one of those would fail here.
+    ///   two branches. A half-rebuild at any one of those would fail here. The 13th site is the
+    ///   `imagesAsText: true` branch of `appendInlineMath`, which `render(_:profile:)` cannot
+    ///   reach (it defaults the flag to false) — it is reached only from the RTF export path, so
+    ///   the fixture is rendered a SECOND time through the full overload with the flag set.
     /// - `DocumentExportRenderer` (1 site) — the "Normal" preset that lays out raw markdown source,
     ///   the default PDF/Print preset and the highest-CJK-density surface in the app.
     /// - `MarkdownSyntaxHighlighter` (1 site) — the highlighting overlay, including code spans.
@@ -229,8 +232,7 @@ final class CJKFontFallbackTests: XCTestCase {
         // Reaches every one of MarkdownPreviewRenderer's 13 former cascade sites. The bare
         // `render(_:profile:)` overload supplies the Disabled mermaid/math providers, so the two
         // diagram blocks take their captioned-source FALLBACK paths (and log nothing).
-        let rendered = MarkdownPreviewRenderer().render(
-            """
+        let fixture = """
             # 見出し
 
             Body **粗体** and *斜体* and `内联` text
@@ -254,9 +256,8 @@ final class CJKFontFallbackTests: XCTestCase {
             | 標題 | 第二 |
             | --- | --- |
             | 单元格 | 内容 |
-            """,
-            profile: .original
-        )
+            """
+        let rendered = MarkdownPreviewRenderer().render(fixture, profile: .original)
         // Fail loudly if a fixture block stops taking the path it was added for, rather than
         // silently shrinking this test's reach.
         for marker in ["見出し", "粗体", "斜体", "内联", "a+b", "提示内容", "コード",
@@ -264,14 +265,33 @@ final class CJKFontFallbackTests: XCTestCase {
             XCTAssertTrue(rendered.string.contains(marker),
                           "the render fixture stopped reaching \(marker)")
         }
-        var runs = 0
-        rendered.enumerateAttribute(.font, in: NSRange(location: 0, length: rendered.length)) { value, range, _ in
-            guard let font = value as? NSFont else { return }
-            runs += 1
-            XCTAssertNil(self.cascadeCount(font),
-                         "a rendered run declares a cascade list at \(range)")
+
+        // The 13th site: `appendInlineMath`'s `imagesAsText: true` branch, which emits the LaTeX
+        // as monospaced text instead of an attachment. Only DocumentExportRenderer's RTF path
+        // sets this, so the convenience overload above can never reach it.
+        let renderedAsText = MarkdownPreviewRenderer().render(
+            fixture,
+            profile: .original,
+            columnWidth: CGFloat(ReadingProfile.original.columnWidth),
+            mermaidProvider: DisabledMermaidImageProvider(),
+            mathProvider: DisabledMathImageProvider(),
+            diagramLog: NullDiagramFailureLog(),
+            appVersion: "0",
+            imagesAsText: true
+        )
+        XCTAssertTrue(renderedAsText.string.contains("a+b"),
+                      "the imagesAsText fixture stopped reaching inline math")
+
+        for (label, output) in [("rendered", rendered), ("imagesAsText", renderedAsText)] {
+            var runs = 0
+            output.enumerateAttribute(.font, in: NSRange(location: 0, length: output.length)) { value, range, _ in
+                guard let font = value as? NSFont else { return }
+                runs += 1
+                XCTAssertNil(self.cascadeCount(font),
+                             "a \(label) run declares a cascade list at \(range)")
+            }
+            XCTAssertGreaterThan(runs, 3, "the \(label) fixture stopped producing distinct font runs")
         }
-        XCTAssertGreaterThan(runs, 3, "the fixture stopped producing distinct font runs")
 
         // The export path: DocumentExportRenderer.rawSourceAttributedString, reached through the
         // "Normal" preset (`.standard`, `rendersMarkdown == false`) that lays out the raw markdown

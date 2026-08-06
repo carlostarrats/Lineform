@@ -157,14 +157,14 @@ needs an explicit allowlist entry with a one-line reason; a second test fails an
 matching, and a third re-checks the "no UI consumer" entries by probing for reads of those symbols,
 so neither the allowlist nor its reasons can quietly rot into the hole they were written to close.
 
-**Every allowlist is inside a liveness gate — there are five of them, not three.**
+**Every allowlist is inside a liveness gate — there are six of them, not three.**
 `testEveryAllowlistEntryStillMatchesSomething` covers `exemptFiles`, `exemptLiterals` and
 `exemptDeclarations`; `testEveryCalleeAllowlistEntryIsLiveOrRecordedAsUnused` covers `exemptCallees`
 and `localizedStringKeyCallees`, which need a different rule because they name a position in a
 FRAMEWORK API and several are listed before the app has a call site (`Toggle`, `navigationTitle`,
 `precondition`) — so the assertion is on the split: every name is either live or recorded in
 `calleesWithNoCallSiteToday`, and moving between the two is one line. `LocalizationCatalogTests`
-carries the fifth, `glossaryExemptions`, which the sweep cannot see at all; it is a static rather
+carries the sixth, `glossaryExemptions`, which the sweep cannot see at all; it is a static rather
 than a local so `testEveryGlossaryExemptionStillNamesACatalogKey` can assert each entry still names
 a translatable catalog key. An exemption matches the WHOLE key verbatim, the display-width ceiling
 makes rewording these strings likely, and a stale entry silences the glossary check for that string
@@ -190,7 +190,7 @@ authority, and nothing in this file may read as though a cascade shipped. Items 
 UDGothic) and 5 (CJK reading-preset tuning) remain deferred for the reasons already in
 `docs/superpowers/specs/2026-08-05-localization-phase-2-prose-and-fonts-design.md` — 8.9 MB paid by
 every user for item 3, and no mechanism to vary a preset by script without minting new persisted
-profile identities for item 5. The catalog grew 264 → 299 keys.
+profile identities for item 5. The catalog grew 264 → 300 keys.
 
 **`String(localized:…locale:)` cannot select an `.lproj`** — its `locale:` argument formats
 interpolated values, nothing more. Anything that must be *asserted* per language resolves through

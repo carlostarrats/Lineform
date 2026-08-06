@@ -6,8 +6,8 @@ against the code)
 **Status: partially implemented, 2026-08-05 (branch `work-2026-08-05-3`).**
 
 - **Item 1 (`MarkdownReference` prose) — SHIPPED.** `sections(in:)` and
-  `Row.accessibilityLabel(in:)` are bundle-parameterized, the four
-  `rendersSyntaxAsCode == false` label rows localize and the 25 syntax rows do
+  `Row.accessibilityLabel(in:)` are bundle-parameterized, the five
+  `rendersSyntaxAsCode == false` label rows localize and the 24 syntax rows do
   not, the 90-character ceiling is enforced per language, and the
   `MarkdownReference.swift` sweep exemption is closed down to two literals.
 - **Item 2 (CJK font cascade) — BUILT, MEASURED, REMOVED.** It shipped as

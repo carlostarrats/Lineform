@@ -40,13 +40,21 @@ final class SpeechLanguageDetectorTests: XCTestCase {
     /// The detector reads a bounded SAMPLE, not the document. Read-aloud runs this on the whole
     /// extracted text, so an uncapped `processString` hitched in proportion to document size for
     /// an answer the first few hundred words already settle. The ratio is the assertion (absolute
-    /// milliseconds flake on a loaded runner): a 400× longer document must not cost 400× more.
+    /// milliseconds flake on a loaded runner): a 1,000× longer document must not cost 1,000× more.
+    ///
+    /// The fixture size and the threshold are BOTH load-bearing, and both were measured against a
+    /// deliberately uncapped build. At 6,000 repeats (~480 KB) the uncapped implementation came in
+    /// at 3.6–4.8×, so the original `× 8` ceiling passed *with the regression it names*. NLLanguage's
+    /// per-call fixed cost only becomes negligible further out: at 60,000 repeats the uncapped
+    /// implementation goes properly linear and the ratios separate cleanly — capped ~1×, uncapped
+    /// tens of ×. Raising the fixture rather than squeezing the threshold is the version with
+    /// headroom on a loaded runner; do not shrink `long` back down.
     func testDetectionCostDoesNotScaleWithDocumentLength() {
         let paragraph = "The quick brown fox jumps over the lazy dog. It was a bright cold day in April. "
         // Both are longer than the sample cap, so both identify from the SAME number of
         // characters — the only thing that differs is how much text sits behind the cap.
-        let short = String(repeating: paragraph, count: 60)      // ~4.8 KB
-        let long = String(repeating: paragraph, count: 6_000)    // ~480 KB, 100×
+        let short = String(repeating: paragraph, count: 60)       // ~4.8 KB
+        let long = String(repeating: paragraph, count: 60_000)    // ~4.7 MB, 1,000×
 
         XCTAssertEqual(SpeechLanguageDetector.language(for: short), "en")
         XCTAssertEqual(SpeechLanguageDetector.language(for: long), "en",
@@ -61,8 +69,8 @@ final class SpeechLanguageDetectorTests: XCTestCase {
         let shortCost = max(elapsed(short), 0.0005)
         let longCost = elapsed(long)
 
-        XCTAssertLessThan(longCost, shortCost * 8,
-                          "a 100× longer document cost \(longCost / shortCost)× more to identify — "
+        XCTAssertLessThan(longCost, shortCost * 4,
+                          "a 1,000× longer document cost \(longCost / shortCost)× more to identify — "
                               + "the sample cap in SpeechLanguageDetector is gone")
     }
 }

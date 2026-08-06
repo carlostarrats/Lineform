@@ -31,7 +31,7 @@ final class MarkdownReferenceTests: XCTestCase {
     // MARK: - Identity
 
     /// `Section.id` and `Row.id` key SwiftUI `ForEach` and the copy button's transient "Copied"
-    /// state. Every section title and four row syntax cells now localize, so an id derived from
+    /// state. Every section title and five row syntax cells now localize, so an id derived from
     /// display text is an id that changes with the interface language. Asserted across all six
     /// bundles rather than reasoned about.
     func testEveryIdentityIsStableAcrossLanguages() throws {
@@ -257,20 +257,38 @@ final class MarkdownReferenceTests: XCTestCase {
                        "A new label row must be localized — see testLabelRowsLocalize…")
     }
 
-    /// The one predicate, from the other side: only a row whose cell is literal Markdown offers
-    /// the copy button. The four (now five) label rows put a translated UI word in that cell, and
-    /// `OutlineMarkdownBasicsTabView` used to offer "copy" on them too — so a Japanese user could
-    /// put `スペル` on the pasteboard ready to paste into a Markdown file, where it means nothing.
+    /// The copy affordance, from the other side: only a row whose cell is literal Markdown has
+    /// anything to put on the pasteboard. The five label rows put a translated UI word in that
+    /// cell, and `OutlineMarkdownBasicsTabView` used to offer "copy" on them too — so a Japanese
+    /// user could put `スペル` on the pasteboard ready to paste into a Markdown file, where it
+    /// means nothing.
+    ///
+    /// `copyableSyntax` is asserted against a NAMED list, not against `rendersSyntaxAsCode`: the
+    /// property is derived from that flag, so comparing the two is `x == x` and can never fail.
+    /// The view's side of this is structural, not tested here — `copyButton` takes a non-optional
+    /// `String` that only the `if let copyableSyntax` unwrap can supply, so removing the check
+    /// fails to compile.
     func testOnlyLiteralSyntaxRowsOfferCopy() throws {
+        var copyableByID: [String: String?] = [:]
         for row in MarkdownReference.sections(in: try englishBundle()).flatMap(\.rows) {
-            XCTAssertEqual(row.offersCopy, row.rendersSyntaxAsCode,
-                           "\(row.id): copy is offered exactly for literal-Markdown rows")
+            copyableByID[row.id] = row.copyableSyntax
         }
-        let copyable = MarkdownReference.sections(in: try englishBundle())
-            .flatMap(\.rows).filter(\.offersCopy).map(\.syntax)
-        XCTAssertFalse(copyable.contains("Tab"))
-        XCTAssertFalse(copyable.contains("Return"))
-        XCTAssertTrue(copyable.contains("**bold**"))
+
+        // Every label row, by id — the same five `testExactlyFiveRowsAreLabelsNotSyntax` pins.
+        for id in ["block-spacing", "return", "skipped", "spelling", "tab"] {
+            let copyable = try XCTUnwrap(copyableByID[id], "the \(id) row disappeared")
+            XCTAssertNil(copyable, "\(id) is a translated UI word and must offer no copy text")
+        }
+
+        // A code row from each section that has one, spot-checked against its literal Markdown.
+        for syntax in ["# Title", "**bold**", "| a | b |", "```mermaid", "$x^2 + y^2$"] {
+            XCTAssertEqual(copyableByID[syntax] ?? nil, syntax,
+                           "\(syntax) is literal Markdown and must be copyable verbatim")
+        }
+
+        // And nothing outside the five labels is silently withheld.
+        let withoutCopy = copyableByID.filter { $0.value == nil }.keys.sorted()
+        XCTAssertEqual(withoutCopy, ["block-spacing", "return", "skipped", "spelling", "tab"])
     }
 
     /// The committed catalog, read as JSON. Reading is fine; never WRITE it through a serializer.
