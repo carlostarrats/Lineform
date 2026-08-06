@@ -70,6 +70,32 @@ Findings themselves live in commit messages and architecture docs. This file onl
   `replaceActiveTab` now returns success and every call site gates on it. Abandoned-CLI cleanup was
   verified: no dangling App Group entitlement or dead references. Full default suite 1254/0 after.
 
+- **2026-08-06 delta audit (post-`e23f0e4`: the Aug 5–6 localization work).** The largest change
+  since the 07-27 verify — Phase 1 and Phase 2 localization into five languages, touching ~40 source
+  files — plus the speech language/voice split, the localized-title menu-icon decorator, the
+  `MarkdownReference` rewrite, and the CJK font cascade (added `6ae52b2`, removed `33206ad`). Probed,
+  not re-read: catalog argument binding (every `%@`/`%lld`/`%#@…@` substitution resolved per language
+  and per plural branch — 0 mismatches), catalog↔source key reconciliation (all 265 `String(localized:)`
+  literal keys present; all 62 `AppMenuConfiguration.allEnglishTitleKeys` present AND translated in all
+  five languages), menu-icon alias collisions (the fr `AutoFill`/`Fill` → `Remplir` collapse resolves
+  deterministically by sorted English key), and the `MarkdownReference` 90-column ceiling gate
+  (non-vacuous: bundles are `XCTUnwrap`ed, rows asserted non-empty, row ids asserted identical across
+  all six bundles). **Result: no code defects found.** Verified clean besides: zero network call sites
+  outside `AnnouncementFetcher`; the first-launch intro's injected l10n table is JSON-encoded and its
+  navigation policy is file-URL-only with no remote refs in the bundled HTML; `DocumentStatistics` is
+  debounced via `scheduleDerivedRefresh`, not per-keystroke; save timestamps use `Date.FormatStyle`,
+  not a per-render `DateFormatter`; the `MarkdownFontCascade` removal left no source, pbxproj, or test
+  residue; zero compiler warnings; the two surviving `@Environment(\.colorScheme)` reads are the
+  top-level views that DERIVE and thread `usesDarkChrome`, which is the pattern the invariant requires.
+  Default suite 1333/0. Findings were documentation-currency only. (1) This ledger had not recorded the
+  delta — fixed by this note. (2) `Claude.md` and two release runbooks still required a "prominent
+  download" link in the README, which commit `8c24231` had deliberately removed; the owner confirmed on
+  2026-08-06 that the GitHub README carries NO download links, so the rule was inverted into an explicit
+  standing decision rather than the README being "fixed" back. (3) The README does not mention that the
+  app ships in five languages. Left UNFIXED at the owner's request — they are revising the README
+  themselves. Worth re-raising when they do: localization is a shipped, user-facing feature absent from
+  the user-facing feature list.
+
 - **Every row is audited AND verified as of 2026-07-27.** Three rounds: 66 findings raised, 59
   confirmed and fixed. Re-audit a row only when its `Last changed` moves past its `Audited at`.
 - **The verification round is the one that mattered most.** All six areas fixed by the day's

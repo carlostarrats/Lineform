@@ -138,7 +138,7 @@ checking what the submitted build actually ships.
 - [ ] Decide what happens to Direct distribution. If it ends, the appcast, EdDSA keys,
       `verify-update.sh`, the Developer ID cert gates and DMG packaging all retire with it —
       and `CLAUDE.md`'s Release Verification Gates section should shrink to match.
-- [ ] Update README download links and the website to point at the App Store.
+- [ ] Point the website at the App Store. (The README carries no download links by design — see `Claude.md` ▸ Documentation Expectations — so there is nothing to update there.)
 - [ ] Drop the Sparkle credit from public docs once Sparkle is actually gone.
 - [ ] **Tear down the diagram-report backend.** It has been dead since 2026-07-29 and nothing in
       the app or the release process calls it, but both pieces are still live: the Cloudflare

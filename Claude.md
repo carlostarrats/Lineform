@@ -288,8 +288,8 @@ Before claiming a change is complete:
 - Prefer structured parsing/helpers over ad hoc string manipulation when reasonable.
 - Keep Markdown handling structure-preserving.
 - Keep UI native, restrained, and task-focused.
-- Keep app identity surfaces consistent: Finder, Dock, Cmd-Tab, About, DMG, README download links, Sparkle appcast, and release docs should all point to the same versioned build.
-- Treat every public app update as both a manual-download release and an in-app update release. Never ship only a GitHub DMG or only a Sparkle/appcast update: version bumps, release DMGs, GitHub Release assets, README download links, `docs/appcast.xml`, Sparkle signatures, and any referenced delta assets must all describe the same current version before the release is complete.
+- Keep app identity surfaces consistent: Finder, Dock, Cmd-Tab, About, DMG, Sparkle appcast, and release docs should all point to the same versioned build. (The README is NOT one of these surfaces — see the no-download-links rule below.)
+- Treat every public app update as both a manual-download release and an in-app update release. Never ship only a GitHub DMG or only a Sparkle/appcast update: version bumps, release DMGs, GitHub Release assets, `docs/appcast.xml`, Sparkle signatures, and any referenced delta assets must all describe the same current version before the release is complete.
 - Avoid unrelated refactors and metadata churn.
 - Preserve user work in the git tree. Do not revert changes you did not make.
 - Use focused tests for narrow changes and broader tests for shared behavior.
@@ -312,7 +312,8 @@ Keep attribution accurate when changing fonts, bundled resources, README copy, a
 
 Update docs when behavior, workflows, or quality gates change:
 
-- Keep `README.md` user-facing: prominent download, website, privacy, about, credits, and only a compact source-build section.
+- Keep `README.md` user-facing: website, privacy, about, credits, and only a compact source-build section.
+- **The GitHub README carries NO download links — this is the owner's standing decision (2026-08-06), not an omission.** Commit `8c24231` deliberately removed the download section, badges, screenshot, and marketing copy. Do not re-add a download link, a DMG URL, or a release badge to `README.md`; the product website and the GitHub Releases page are where downloads live. A release version bump therefore does NOT touch the README.
 - Use this file for AI coding agent context and repo operating rules — product context, invariants, verification, and policy. It is loaded in full every session, so keep it lean.
 - Use `docs/architecture/*.md` for per-area implementation detail. New feature narrative goes there, not here; add at most a one-line feature entry and, if the change creates a rule that can never be broken, one line under Load-Bearing Invariants.
 - Use `docs/release/github-sparkle-release.md` for GitHub Releases, DMG packaging, and Sparkle appcast steps.

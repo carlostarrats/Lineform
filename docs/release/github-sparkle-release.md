@@ -20,7 +20,7 @@ See `docs/superpowers/specs/2026-07-01-diagram-report-design.md`. This step is o
 4. Package the app as a signed drag-to-Applications DMG.
 5. Generate `docs/appcast.xml`.
 6. Publish the DMG on GitHub Releases and commit `docs/appcast.xml`.
-7. Confirm the public README and website download link point at the current release.
+7. Confirm the website download link points at the current release. (The README carries no download link by design — see `Claude.md` ▸ Documentation Expectations. Do not add one here.)
 
 **Version bump reminder:** `CURRENT_PROJECT_VERSION` and `MARKETING_VERSION` appear in **four** places in `Lineform.xcodeproj/project.pbxproj` — the app target (Debug + Release) **and** the `LineformQuickLook` extension target (Debug + Release). Bump all four together: an embedded app extension whose `CFBundleVersion` doesn't match the parent app fails validation ("CFBundleVersion … must match that of its containing parent app"). The main-app `Info.plist` and the QuickLook `Info.plist` both read these via `$(…)`, so only the pbxproj numbers change.
 
@@ -68,7 +68,7 @@ The product website is:
 https://lineform.app
 ```
 
-The public direct-download URL used by the website and README is:
+The public direct-download URL used by the website is (the README deliberately carries no download link):
 
 ```text
 https://github.com/carlostarrats/Lineform/releases/latest/download/Lineform-1.5.0.dmg
