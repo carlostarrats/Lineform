@@ -138,8 +138,19 @@ catalog keys and still drew English because they are declared as `String` consta
 `Lineform/**.swift` (comments, multi-line literals and interpolation included — regex handles none of
 the three) and requires each display-copy-shaped literal to be either a catalog key at a
 `LocalizedStringKey` position or a `String(localized:)` call at its definition site. Everything else
-needs an explicit allowlist entry with a one-line reason; a companion test fails any entry that stops
-matching, so the allowlist cannot quietly widen into the hole it was written to close.
+needs an explicit allowlist entry with a one-line reason; a second test fails any entry that stops
+matching, and a third re-checks the "no UI consumer" entries by probing for reads of those symbols,
+so neither the allowlist nor its reasons can quietly rot into the hole they were written to close.
+
+**It is a strong default-deny check, not an airtight one** — treat a green run as "nothing obvious
+escaped", not as proof. Its "is this display copy?" filter cannot see: literals containing a
+character outside `alnum` + `` ,.'?!:;&()-/ `` + curly quotes/ellipsis (an em dash, a straight quote,
+a stray `%` — `AppMenuConfiguration.aboutCopyright` is live proof, hidden by its `©`);
+hyphen/slash single tokens (`Auto-Save`); intercapped words (`AutoFill`); lowercase-initial copy of
+fewer than three words (`selected`, `iCloud`); `"""` multi-line literals, which the lexer skips;
+and enum `rawValue`s, skipped structurally and therefore invisible if one is ever drawn directly.
+The full list is on `isDisplayCopy` in the test. Widening the filter trades against false positives
+on the ~500 identifier-shaped literals it currently rejects, so widen deliberately.
 
 ## Accessibility (2026-07-27 audit)
 

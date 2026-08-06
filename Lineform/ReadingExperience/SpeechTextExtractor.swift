@@ -138,7 +138,7 @@ enum SpeechTextExtractor {
             return stripInlineMarkers(trimmedAlt)
         }
         let filename = imageFilename(from: path)
-        return filename.isEmpty ? "Image" : filename
+        return filename.isEmpty ? String(localized: "Image") : filename
     }
 
     // MARK: - Inline token scan
@@ -185,7 +185,10 @@ enum SpeechTextExtractor {
             replacement = stripInlineMarkers(alt)
         } else {
             let filename = imageFilename(from: nsLine.substring(with: match.range(at: 2)))
-            replacement = filename.isEmpty ? "Image" : filename
+            // App-synthesized, not lifted from the document: the same role as
+            // MarkdownPreviewRenderer's placeholder, and read in the system voice's language
+            // (SpeechController sets no `AVSpeechUtterance.voice`).
+            replacement = filename.isEmpty ? String(localized: "Image") : filename
         }
         return Token(range: match.range, replacement: replacement)
     }

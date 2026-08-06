@@ -76,7 +76,11 @@ final class LineformTextViewWritingToolsTests: XCTestCase {
         XCTAssertFalse(LineformTextContextMenuPresentation.commandTitles.contains("Autofill"))
         XCTAssertFalse(LineformTextContextMenuPresentation.commandTitles.contains("AutoFill"))
         XCTAssertFalse(LineformTextContextMenuPresentation.commandTitles.contains("Services"))
-        XCTAssertEqual(LineformTextContextMenuPresentation.excludedSystemPluginTitles, ["Autofill", "AutoFill", "Services"])
+        // There is deliberately no title-matching exclusion list to assert. `menu(for:)` never
+        // calls `super`, builds a fresh NSMenu, and sets `allowsContextMenuPlugIns = false`, so
+        // AutoFill / Writing Tools / Services rows are never INSERTED — nothing to filter, in
+        // any language. A list keyed on English titles was dead code and would have read as a
+        // localization bug; it is gone.
     }
 
     func testContextMenuKeepsOnlyRawTextEditingActionsWhenDocumentIsPlainText() throws {

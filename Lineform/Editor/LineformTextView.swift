@@ -1904,7 +1904,6 @@ enum LineformTextContextMenuPresentation {
         guard let best = guesses.first(where: { !$0.isEmpty }) else { return [] }
         return [best]
     }
-    static let excludedSystemPluginTitles = ["Autofill", "AutoFill", "Services"]
 
     static func conversionTitle(for textFormat: LineformTextFormat) -> String {
         switch textFormat {

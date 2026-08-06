@@ -85,8 +85,6 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "CodeHighlighting.swift|None": "Language keyword highlighted inside a code block — document content.",
         "CodeHighlighting.swift|True": "Language keyword highlighted inside a code block — document content.",
         "CodeHighlighting.swift|False": "Language keyword highlighted inside a code block — document content.",
-        "SpeechTextExtractor.swift|Image":
-            "Read-aloud speaks DOCUMENT content; the alt-text fallback belongs to the document's language, not the app's.",
 
         // Persisted identity. ReadingProfile is Codable and its `name` is written into the
         // stored active profile, so display goes through the localized ReadingPreset.title.
@@ -116,9 +114,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "Theme.swift|High Contrast": "Theme.name has no UI consumer.",
         "ExportTypographyPreset.swift|Normal": "ExportTypographyPreset.displayName has no UI consumer.",
         "ExportTypographyPreset.swift|Styled": "ExportTypographyPreset.displayName has no UI consumer.",
-        "LineformTextView.swift|Autofill":
-            "Matched against AppKit's own context-menu items to REMOVE them, not drawn. (Known limitation: the match is against English titles, so the exclusion is a no-op in other locales — recorded by the final review, not fixed here.)",
-        "LineformTextView.swift|Services": "Matched against AppKit's own context-menu items to REMOVE them, not drawn.",
+        // `testTheNoUIConsumerClaimsAreStillTrue` is what keeps the ten entries above honest:
+        // "nothing reads this" is the claim, and the literal-existence check cannot make it.
 
         // Diagnostics written to the on-disk diagram log, never shown.
         "MathRendering.swift|Math render produced no image": "Diagram-log diagnostic.",
@@ -209,6 +206,44 @@ final class LocalizationSourceSweepTests: XCTestCase {
         }
         for entry in Self.exemptDeclarations.keys {
             XCTAssertTrue(seenDeclarations.contains(entry), "exemptDeclarations: \(entry) matches nothing — delete it")
+        }
+    }
+
+    /// Ten allowlist entries above rest on a claim `testEveryAllowlistEntryStillMatchesSomething`
+    /// cannot make: that nothing READS these symbols into a display position. Someone writing
+    /// `Text(Theme.name)` — the exact regression fixed in `ReadingExperiencePopover`, where
+    /// `Text(preset.profile.name)` drew an untranslated theme name — would leave the sweep green,
+    /// because the literal never moves.
+    ///
+    /// Receiver-qualified textual probes, so this stays cheap. Not airtight: binding the value to
+    /// a local first (`let t = theme; Text(t.name)`) slips past. It catches the direct form, which
+    /// is the form that actually gets written.
+    func testTheNoUIConsumerClaimsAreStillTrue() throws {
+        let probes: [(declaredIn: String, pattern: String, symbol: String, positiveControl: String)] = [
+            ("ReadingProfile.swift", #"\bfocusMode\s*\.\s*displayName\b|\bFocusMode\.\w+\.displayName\b"#,
+             "FocusMode.displayName", "Text(profile.focusMode.displayName)"),
+            ("ExportTypographyPreset.swift", #"\b\w*[tT]ypographyPreset\s*\.\s*displayName\b|\bpreset\s*\.\s*displayName\b"#,
+             "ExportTypographyPreset.displayName", "Text(typographyPreset.displayName)"),
+            ("Theme.swift", #"\btheme\s*\.\s*name\b|\bTheme\.\w+\.name\b"#,
+             "Theme.name", "Text(theme.name)"),
+        ]
+        let sources = try Self.swiftSources()
+        for probe in probes {
+            let regex = try NSRegularExpression(pattern: probe.pattern)
+            func matches(_ text: String) -> Bool {
+                regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+            }
+            // A typo'd pattern would match nothing and pass vacuously.
+            XCTAssertTrue(matches(probe.positiveControl),
+                          "\(probe.symbol): the probe does not match its own positive control")
+            for source in sources where source.name != probe.declaredIn {
+                XCTAssertFalse(
+                    matches(source.text),
+                    "\(source.name) now reads \(probe.symbol). Its allowlist entry says it has no UI "
+                        + "consumer — either that is no longer true and the string must be localized, "
+                        + "or the entry's reason needs rewriting."
+                )
+            }
         }
     }
 
@@ -421,6 +456,25 @@ final class LocalizationSourceSweepTests: XCTestCase {
     /// Conservative on purpose: it must not need updating for every new identifier string, and
     /// it must not silently drop a real sentence. Anything it rejects is either not a word at
     /// all or is shaped like an identifier.
+    ///
+    /// **This is a strong default-deny check, not an airtight one.** Known blind spots, so the
+    /// next reader knows the shape of what it cannot see rather than trusting a green run:
+    ///
+    /// * any character outside `alnum` + `` ,.'?!:;&()-/ `` + curly quotes/ellipsis — an em
+    ///   dash, a straight `"` or `'`, a stray `%`. **There is a live example:**
+    ///   `AppMenuConfiguration.aboutCopyright` ("Copyright © 2026 …, All rights reserved.")
+    ///   renders in the About panel, is not localized, and the `©` hides it from this filter.
+    ///   Whether a copyright line should be translated is the owner's call, so it is left as is
+    ///   rather than allowlisted — but it is NOT evidence the sweep cleared it.
+    /// * hyphen/slash single tokens (`Auto-Save`), which the identifier-shape rule drops;
+    /// * intercapped single words (`AutoFill`), dropped by the PascalCase rule;
+    /// * lowercase-initial copy of fewer than three words (`selected`, `iCloud`);
+    /// * `"""` multi-line literals, which the lexer skips outright;
+    /// * enum `rawValue`s, skipped structurally — correct while the paired `title` is what gets
+    ///   drawn, wrong the moment someone draws a `rawValue` directly.
+    ///
+    /// Widening it is a trade against false positives on the ~500 identifier-shaped literals it
+    /// currently filters out; do that deliberately, not reflexively.
     static func isDisplayCopy(_ literal: String) -> Bool {
         var core = literal
         for placeholder in ["%lld", "%ld", "%@", "%d", "%f"] {
