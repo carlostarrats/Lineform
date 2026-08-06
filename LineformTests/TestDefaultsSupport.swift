@@ -19,6 +19,38 @@ import Foundation
 /// Destroying a suite therefore means removing the domain AND deleting the file — and deleting it
 /// twice, because `cfprefsd` writes the emptied domain back after the first delete (see `destroy`).
 enum TestDefaults {
+    /// Vend a single-use `UserDefaults` suite that no earlier run can have written to.
+    ///
+    /// **A fixed suite name is not isolation.** The name outlives the process, so a test that
+    /// WRITES a key and later asserts that same key is ABSENT poisons its own next run: the value
+    /// is already there before the test does anything.
+    /// `testFirstLaunchIntroCompletionIgnoresLegacyDebugKey` was exactly that shape — it calls
+    /// `markFirstLaunchIntroCompleted` at the end and asserts the versioned key reads `false` at
+    /// the start — and it failed on a developer machine while passing in a fresh checkout, which
+    /// reads exactly like a production regression in `hasCompletedFirstLaunchIntro`.
+    ///
+    /// Destroying the suite first is not a reliable answer, which is why this exists alongside
+    /// `destroy`: `removePersistentDomain` races `cfprefsd`, and under the sandboxed test host a
+    /// suite name can also resolve to a source OUTSIDE the container that the host is then denied
+    /// permission to read or rewrite ("accessing preferences outside an application's container
+    /// requires user-preference-read or file-read-data sandbox access").
+    ///
+    /// Appending a UUID removes the question rather than racing it: the name has never existed
+    /// before, so there is nothing to clear. The plist is still swept at exit.
+    ///
+    /// Note for anyone tracing a defaults bug from the other direction: a suite's search list does
+    /// NOT include the application's own domain. A key sitting in `com.lineform.app.debug` — say,
+    /// because a developer ran the Debug app past its first-launch intro — is invisible through a
+    /// suite instance and cannot be the cause of a test like this one failing.
+    static func makeSuite(_ label: String) -> UserDefaults {
+        let suiteName = "\(label).\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("UserDefaults(suiteName: \"\(suiteName)\") returned nil")
+        }
+        record(suiteName)
+        return defaults
+    }
+
     /// Tear down `defaults` completely: values, registration, and the backing plist.
     static func destroy(_ defaults: UserDefaults, suiteName: String) {
         defaults.removePersistentDomain(forName: suiteName)

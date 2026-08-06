@@ -4,8 +4,7 @@ import XCTest
 @MainActor
 final class ReadingProfileStoreTests: XCTestCase {
     func testPersistsActiveProfileAcrossStoreInstances() {
-        let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreTests")!
-        TestDefaults.destroy(defaults, suiteName: "LineformReadingProfileStoreTests")
+        let defaults = TestDefaults.makeSuite("LineformReadingProfileStoreTests")
 
         let store = ReadingProfileStore(defaults: defaults)
         store.apply(ReadingPreset.paper.profile)
@@ -16,8 +15,7 @@ final class ReadingProfileStoreTests: XCTestCase {
     }
 
     func testFallsBackToOriginalWhenNoProfileIsPersisted() {
-        let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreEmptyTests")!
-        TestDefaults.destroy(defaults, suiteName: "LineformReadingProfileStoreEmptyTests")
+        let defaults = TestDefaults.makeSuite("LineformReadingProfileStoreEmptyTests")
 
         let store = ReadingProfileStore(defaults: defaults)
 
@@ -25,8 +23,7 @@ final class ReadingProfileStoreTests: XCTestCase {
     }
 
     func testMigratesLegacyOriginalProfileToCurrentDefaultWidth() throws {
-        let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreLegacyOriginalTests")!
-        TestDefaults.destroy(defaults, suiteName: "LineformReadingProfileStoreLegacyOriginalTests")
+        let defaults = TestDefaults.makeSuite("LineformReadingProfileStoreLegacyOriginalTests")
         var legacyOriginal = ReadingProfile.original
         legacyOriginal.columnWidth = 680
         defaults.set(try JSONEncoder().encode(legacyOriginal), forKey: "Lineform.activeReadingProfile")
@@ -37,8 +34,7 @@ final class ReadingProfileStoreTests: XCTestCase {
     }
 
     func testResetRestoresDefaultNormalReadingProfile() {
-        let defaults = UserDefaults(suiteName: "LineformReadingProfileStoreResetTests")!
-        TestDefaults.destroy(defaults, suiteName: "LineformReadingProfileStoreResetTests")
+        let defaults = TestDefaults.makeSuite("LineformReadingProfileStoreResetTests")
         let store = ReadingProfileStore(defaults: defaults)
         store.apply(ReadingPreset.dyslexia.profile)
 
@@ -48,8 +44,7 @@ final class ReadingProfileStoreTests: XCTestCase {
     }
 
     func testApplyingReadingPresetUsesPresetTheme() {
-        let defaults = UserDefaults(suiteName: "LineformReadingProfileStorePresetThemeTests")!
-        TestDefaults.destroy(defaults, suiteName: "LineformReadingProfileStorePresetThemeTests")
+        let defaults = TestDefaults.makeSuite("LineformReadingProfileStorePresetThemeTests")
         let store = ReadingProfileStore(defaults: defaults)
         store.update { $0.applyTheme(.night) }
 
