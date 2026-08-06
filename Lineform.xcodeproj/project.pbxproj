@@ -30,6 +30,8 @@
 		1F0000330000000000000021 /* LocalizationSourceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */; };
 		1F0000340000000000000001 /* MarkdownFontCascade.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000340000000000000011 /* MarkdownFontCascade.swift */; };
 		1F0000340000000000000021 /* MarkdownFontCascadeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000340000000000000031 /* MarkdownFontCascadeTests.swift */; };
+		1F0000350000000000000001 /* SpeechLanguageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000011 /* SpeechLanguageDetector.swift */; };
+		1F0000350000000000000021 /* SpeechLanguageDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000031 /* SpeechLanguageDetectorTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
 		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
@@ -244,6 +246,8 @@
 		1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationSourceSweepTests.swift; sourceTree = "<group>"; };
 		1F0000340000000000000011 /* MarkdownFontCascade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFontCascade.swift; sourceTree = "<group>"; };
 		1F0000340000000000000031 /* MarkdownFontCascadeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFontCascadeTests.swift; sourceTree = "<group>"; };
+		1F0000350000000000000011 /* SpeechLanguageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechLanguageDetector.swift; sourceTree = "<group>"; };
+		1F0000350000000000000031 /* SpeechLanguageDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechLanguageDetectorTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
@@ -568,6 +572,7 @@
 				1F0000020000000000000055 /* ReadingExperiencePopover.swift */,
 				1F00000200000000000004AB /* SpeechTextExtractor.swift */,
 				1F00000200000000000004AD /* SpeechController.swift */,
+				1F0000350000000000000011 /* SpeechLanguageDetector.swift */,
 				1F0000340000000000000011 /* MarkdownFontCascade.swift */,
 			);
 			path = ReadingExperience;
@@ -670,6 +675,7 @@
 				1F0000020000000000000326 /* DocumentExportRendererTests.swift */,
 				1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */,
 				1F00000200000000000004AC /* SpeechTextExtractorTests.swift */,
+				1F0000350000000000000031 /* SpeechLanguageDetectorTests.swift */,
 				1F00000200000000000004AE /* SpeechControllerTests.swift */,
 				1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */,
 				1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */,
@@ -958,6 +964,7 @@
 				1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */,
 				1F00000100000000000004AB /* SpeechTextExtractor.swift in Sources */,
 				1F00000100000000000004AD /* SpeechController.swift in Sources */,
+				1F0000350000000000000001 /* SpeechLanguageDetector.swift in Sources */,
 				1F0000340000000000000001 /* MarkdownFontCascade.swift in Sources */,
 				1F0000010000000000000064 /* ReadingAssistRangeResolver.swift in Sources */,
 				1F0000010000000000000065 /* LineformAppNotification.swift in Sources */,
@@ -1045,6 +1052,7 @@
 				1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */,
 				1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */,
 				1F00000100000000000004AC /* SpeechTextExtractorTests.swift in Sources */,
+				1F0000350000000000000021 /* SpeechLanguageDetectorTests.swift in Sources */,
 				1F00000100000000000004AE /* SpeechControllerTests.swift in Sources */,
 				1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */,
 				1F0000010000000000000062 /* ReadingAssistPreferenceTests.swift in Sources */,

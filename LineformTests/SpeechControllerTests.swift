@@ -21,6 +21,9 @@ final class SpeechControllerTests: XCTestCase {
         private(set) var isSpeaking = false
         private(set) var isPaused = false
         private(set) var spokenTexts: [String] = []
+        /// The BCP-47 code the controller passed for the most recent utterance, or nil when it
+        /// declined to override the synthesizer's default.
+        private(set) var spokenLanguageCode: String?
         private(set) var stopCount = 0
         /// Set while a `pause()` has been requested but has not yet reached a word boundary.
         private(set) var hasPendingPause = false
@@ -28,8 +31,9 @@ final class SpeechControllerTests: XCTestCase {
         /// not forwarded.
         private var utteranceIsCurrent = false
 
-        func speak(_ text: String) {
+        func speak(_ text: String, languageCode: String?) {
             spokenTexts.append(text)
+            spokenLanguageCode = languageCode
             isSpeaking = true
             isPaused = false
             utteranceIsCurrent = true
@@ -186,4 +190,24 @@ final class SpeechControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .speaking)
     }
 
+    func testSpeakingPassesTheDocumentsDetectedLanguage() {
+        let fake = FakeSynthesizer()
+        let controller = SpeechController(synthesizer: fake)
+
+        controller.startSpeaking("吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。")
+
+        XCTAssertEqual(fake.spokenLanguageCode, "ja")
+    }
+
+    func testShortTextLeavesTheVoiceUnset() {
+        let fake = FakeSynthesizer()
+        let controller = SpeechController(synthesizer: fake)
+
+        controller.startSpeaking("ok")
+
+        // Assert the call HAPPENED before asserting what it carried: spokenLanguageCode starts nil,
+        // so without this the test passes even if speak() is never reached.
+        XCTAssertEqual(fake.spokenTexts, ["ok"])
+        XCTAssertNil(fake.spokenLanguageCode, "below the floor the system default must be left alone")
+    }
 }
