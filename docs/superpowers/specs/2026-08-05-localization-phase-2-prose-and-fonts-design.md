@@ -10,10 +10,19 @@ against the code)
   `rendersSyntaxAsCode == false` label rows localize and the 25 syntax rows do
   not, the 90-character ceiling is enforced per language, and the
   `MarkdownReference.swift` sweep exemption is closed down to two literals.
-- **Item 2 (CJK font cascade) — SHIPPED**, without item 3.
-  `MarkdownFontCascade` is the one definition; every trait conversion routes
-  through it. The sweep reached further than the three `resolvedFont` consumers
-  named below — see `docs/architecture/app-integration.md`.
+- **Item 2 (CJK font cascade) — BUILT, MEASURED, REMOVED.** It shipped as
+  `MarkdownFontCascade`, was reviewed three times, and every part of the premise
+  below turned out to be false on macOS 26: CoreText's implicit substitution
+  already resolves CJK correctly *including bold* (`.systemFont` +
+  `.boldFontMask` → `.PingFangUITextSC-Bold`), so "`NSFontManager.convert` drops
+  the cascade" was a problem that existed only because we attached a cascade. It
+  also made typography worse — the system picks metric-compatible optical UI
+  variants while a hardcoded list can only name the taller public families, so
+  one mixed document went from line heights `18,18,18,18,18` to `18,24,18,24,24`
+  and PDFs re-paginated; the serif reading font lost Songti SC. The whole feature
+  was reverted. `LineformTests/CJKFontFallbackTests.swift` now pins the platform
+  behaviour instead, and the reasoning is in
+  `docs/architecture/app-integration.md`. Do not rebuild it.
 - **Item 4 (read-aloud voice) — SHIPPED.** `SpeechLanguageDetector` plus a
   widened `SpeechSynthesizing.speak(_:languageCode:)` seam.
 - **Item 3 (BIZ UDGothic) — still deferred**, on the 8.9 MB alone, exactly as
@@ -26,12 +35,11 @@ Four corrections the implementation produced, recorded here so the text below is
 not read as current in these places: glossary exemptions match on the whole
 catalog key rather than the term; the Spanish word for Preview was
 standardized on Apple's `Vista previa` across both phases; "the pairing is
-unchosen" (below, CJK font cascade) is superseded — the shipped cascade
-derives the order from `Bundle.main.preferredLocalizations`, so the pairing
-is chosen by locale, not left to CoreText; and "non-accessibility faces
-cascade to Hiragino Sans as normal" (below, BIZ UDGothic) is superseded the
-same way — only a Japanese interface cascades Hiragino-first, everything else
-cascades PingFang-first. The
+unchosen" (below, CJK font cascade) is simply wrong — CoreText's substitution
+is locale-informed and metric-compatible, which is why item 2 was removed
+rather than re-ordered; and "non-accessibility faces cascade to Hiragino Sans
+as normal" (below, BIZ UDGothic) describes a cascade that no longer exists —
+nothing in the app declares one. The
 `Lineform/Resources/*.md` question under "Unresolved Across Both Phases" was
 **not** taken up and remains open.
 

@@ -452,7 +452,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     private static let reconnectPillVerticalNudge: CGFloat = 6
     private static let reconnectPillGap: CGFloat = 5
     private static let copiedFeedbackDuration: TimeInterval = 1.0
-    private static let pillLabelFont = MarkdownFontCascade.applying(to: .systemFont(ofSize: 11, weight: .medium))
+    private static let pillLabelFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

@@ -33,7 +33,7 @@ final class MarkdownSyntaxHighlighter {
     static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
         // `resolved(for:)`, not `option(for:)?` + a bare-font tail: a RETIRED FontID resolves to
-        // nil and the tail produced an uncascaded face.
+        // nil, and the tail then drew a bare system face while the picker showed the default.
         let font = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         let paragraphStyle = paragraphStyle(for: profile, font: font)
 
@@ -270,9 +270,7 @@ final class MarkdownSyntaxHighlighter {
             return [.foregroundColor: mutedColor]
         case .codeSpan, .codeFence:
             return [
-                // Memoized: this runs once per code token inside the debounced per-keystroke
-                // highlight loop, so it must not realize a font each time.
-                .font: MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize)),
+                .font: NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular),
                 .foregroundColor: Self.inlineCodeColor(for: profile)
             ]
         case .linkText:

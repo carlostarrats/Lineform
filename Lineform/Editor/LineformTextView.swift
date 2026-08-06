@@ -177,7 +177,7 @@ final class LineformTextView: NSTextView {
 
         let theme = Theme.theme(for: profile)
         // `resolved(for:)`, not `option(for:)?` + a bare-font tail: a RETIRED FontID resolves to
-        // nil and the tail produced an uncascaded face.
+        // nil, and the tail then drew a bare system face while the picker showed the default.
         let resolvedFont = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         font = resolvedFont
         textColor = theme.textColor
@@ -1254,9 +1254,7 @@ final class LineformTextView: NSTextView {
         }
 
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: MarkdownFontCascade.applying(
-                to: font ?? .systemFont(ofSize: CGFloat(activeReadingProfile.fontSize))
-            ),
+            .font: font ?? .systemFont(ofSize: CGFloat(activeReadingProfile.fontSize)),
             .foregroundColor: NSColor.secondaryLabelColor,
         ]
         let origin = NSPoint(x: textContainerInset.width, y: textContainerInset.height)

@@ -235,95 +235,66 @@ real inconsistency.
 reflows the entire file and buries the change. Insert new key blocks as text at their sorted
 positions.
 
-## CJK font cascade (2026-08-05)
+## CJK fallback: why Lineform declares NO font cascade (2026-08-05)
 
-`MarkdownFontCascade` (`Lineform/ReadingExperience/MarkdownFontCascade.swift`) is the ONE definition
-of what a Lineform font falls back to for CJK text: `Hiragino Sans` and `PingFang SC`, attached as
-an `NSFontDescriptor` `.cascadeList`. The two families are fixed; the **order is derived**, and the
-count is invariant so nothing downstream has to reason about language.
+Lineform attaches no `.cascadeList` to any font. CJK reaches a face through CoreText's implicit
+substitution, which is what the unmodified platform does. This section exists because the opposite
+was built on this branch — `MarkdownFontCascade`, an explicit `["Hiragino Sans", "PingFang SC"]`
+attached to every resolved font and re-attached after every `NSFontManager` trait conversion — and
+was then measured and **removed**. Do not rebuild it.
 
-**What the cascade is for, and what it is not for.** It is for OWNERSHIP: an explicit list is a
-value the app carries, so it survives `NSFontManager.convert` (next paragraph) and the descriptor
-re-derivations behind headings, table cells, and the export/print faces — which is what makes
-screen and export agree rather than each re-deriving a face on its own. It is **not** for
-overriding CoreText's choice of Han face. The original rationale here claimed the implicit pairing
-was "unchosen". That was wrong and is corrected: measured on macOS 26 with `CTFontCreateForString`,
-implicit substitution is locale-informed, and on an `en` machine a bare `.systemFont` already
-resolves every sample below — Chinese and Japanese alike — through PingFang.
+**The premise was false.** The feature's rationale was that implicit substitution is "unchosen" and
+the app should choose deliberately. Measured on macOS 26 with `CTFontCreateForString`:
 
-**The first shipped order was a regression.** A hardcoded `["Hiragino Sans", "PingFang SC"]` put
-PURE CHINESE into a Japanese face for every character the two scripts share, which is most of a
-Chinese sentence — `这是中文` only escaped because `这` is simplified-only. That is precisely the
-failure the feature was introduced to prevent. Measured, `.systemFont(ofSize: 17)`, macOS 26:
+| primary face | what CJK resolves to, bare |
+|---|---|
+| `.systemFont` | `.PingFang UI SC` / `.PingFangUITextSC-Regular` |
+| `.systemFont` + `.boldFontMask` | `.PingFangUITextSC-Bold` — **traitBold set** |
+| `.monospacedSystemFont` + `.boldFontMask` | `.PingFangUITextSC-Semibold` — traitBold set |
+| `withDesign(.serif)` (the New York reading font) | `Songti SC`, a SERIF Han face |
+| Helvetica, Comic Sans MS | `PingFang SC`, `Songti SC` |
 
-| sample | bare (no cascade) | Hiragino first | PingFang first |
-|---|---|---|---|
-| `今天雪很大` | PingFang UI SC | **Hiragino Sans** | PingFang SC |
-| `直骨雪今漢字` | PingFang UI SC | **Hiragino Sans** | PingFang SC |
-| `这是中文` | PingFang UI SC | PingFang SC + Hiragino Sans | PingFang SC |
-| `日本語` | PingFang UI SC | Hiragino Sans | PingFang SC |
-| `吾輩は猫である` | PingFang UI SC + CJK Symbols Fallback SC | Hiragino Sans | PingFang SC (Han) + Hiragino Sans (kana) |
+So `NSFontManager.convert` dropping an attached cascade — the finding the whole design was built
+around — was a problem that existed **only because we attached one**. Bare, the converted font
+resolves CJK to a correctly-weighted CJK face with no help from us.
 
-Kana is the control: it is script-exclusive, so CoreText walks past PingFang for it under either
-order. PingFang-first costs a Japanese reader nothing on kana — it only decides the shared Han.
-Flipping to PingFang-first unconditionally is not the fix either — it just moves the identical harm
-onto Japanese readers.
+**It degraded typography.** The system substitutes optically-sized UI variants (`.PingFang UI Text
+SC`, `.CJK Symbols Fallback SC`) whose metrics match the Latin primary. The public families a
+hardcoded list can name are taller. One mixed EN/zh/ja document at 16pt, line-fragment heights:
 
-**So the order comes from `Bundle.main.preferredLocalizations`**, the one signal the platform gives
-about who is reading: a Japanese interface gets `MarkdownFontCascade.japaneseFirst`, every other
-interface — Simplified Chinese included, and all five non-CJK languages — gets
-`simplifiedChineseFirst`, which is what the unmodified platform already does. The default
-REPRODUCES the platform rather than overriding it; a default that moved the `en` resolution off
-PingFang would be the regression, not the fix. Never `Locale.language.languageCode` — it collapses
-`zh-Hans` to `zh` (the standing invariant in `Claude.md`). The mapping is a pure function,
-`resolvedFallbackFamilies(preferring:)`, so the language branch is testable without relaunching the
-app under another UI language.
+- bare: `18, 18, 18, 18, 18`
+- with the cascade: `18, 24, 18, 24, 24` — three different line heights on one page
 
-**The tests assert what the cascade RESOLVES, not that a list is attached.** The Japanese-first
-regression shipped through 18 green assertions because every one of them checked
-`cascadeCount(font) == fallbackFamilies.count`. `MarkdownFontCascadeTests` now runs
-`CTFontCreateForString` over the samples above for both declared orders, and pins the bare platform
-resolution too — so if macOS ever stops resolving `en` through PingFang, the default is re-derived
-rather than silently inherited.
+PDF export re-paginated with it (+11% height on a CJK block), and the serif reading font lost its
+serif Han face (Songti SC → PingFang/Hiragino). The cascade also cost 2× per `convert` call on a
+per-keystroke path in Split mode, which is what the `NSCache` memo on `monospaced(ofSize:)` existed
+to offset — a cost that only existed because of the feature.
 
-**`NSFontManager.shared.convert(_:toHaveTrait:)` drops the cascade on system fonts.** Measured on
-macOS 26 via `CTFontCopyAttribute(kCTFontCascadeListAttribute)`: the list survives bold and italic
-conversion for real named families (Helvetica, Atkinson Hyperlegible, OpenDyslexic) and is **nil**
-afterwards for `.systemFont`, `.monospacedSystemFont` and `withDesign(.serif)` — the three faces
-most users actually read. `MarkdownFontCascade.convert` is `NSFontManager`'s convert plus
-re-attachment, and it is the only permitted way to convert a trait in this app;
-`testBareNSFontManagerStillDropsIt` asserts the underlying platform behavior so the helper's reason
-for existing cannot quietly evaporate. Attaching the cascade at font resolution alone ships a
-fallback that works for body text and reverts to per-glyph substitution for every heading, table
-header, callout title, and bold or italic span — precisely the surfaces a body-text check passes.
+**The `japaneseFirst` branch bought nothing.** Deriving the order from
+`Bundle.main.preferredLocalizations` was an attempt to rescue the feature after a hardcoded
+Hiragino-first order was found rendering pure Chinese in a Japanese face (most characters of a
+Chinese sentence are shared Han). But under a Japanese interface that branch simply reproduces the
+original bug, and under the PingFang-first default Japanese still reaches Hiragino through kana,
+which is script-exclusive. Both branches were strictly worse than doing nothing.
 
-**Attachment happens at resolution, never through the family descriptor.** `FontOption.availableFont(size:)`
-attaches it after each of its four branches resolve, so a bogus family still returns nil and the
-`isAvailable` nil-signal is untouched. `resolvedFont`'s own `?? .systemFont` fallback is cascaded
-too — an unavailable font is the case most likely to be rendering someone else's script.
+**What the tests pin now.** `LineformTests/CJKFontFallbackTests.swift` replaces
+`MarkdownFontCascadeTests`. It asserts, bare: every `FontOption` resolves the CJK samples to a real
+glyph in a real family (never LastResort); a bold conversion of system/mono/serif resolves CJK to a
+face with `traitBold`; the serif reading font keeps a serif Han face; a mixed EN/zh/ja document has
+ONE line height at a fixed size; and no font the app resolves or renders with declares a cascade
+list at all. One counterfactual test asserts that a declared cascade *does* break the line-height
+uniformity, so the rule keeps its reason attached rather than remembered.
 
-**The sweep was exhaustive, not limited to the three `resolvedFont` consumers the spec named.**
-Beyond preview, highlighter and the Write-mode text view, the pass brought in the default PDF/Print
-export preset (`DocumentExportRenderer.swift:220` — on-screen CJK cascaded while exported CJK was
-not), the diagram/math fallback captions, `MermaidPieChart`'s title and legend fonts (they draw
-document-derived text), the Read-mode pill label, the first-launch intro's native button, and the
-Save As accessory description. When adding a site that draws user text, attach the cascade.
+The old suite is the cautionary half of this: 18 of its assertions checked only that a list was
+ATTACHED, which is how a Japanese-first order shipped green, and none of them measured a line
+height, which is how the degradation shipped green too.
 
-**`MarkdownFontCascade.monospaced(ofSize:)` is memoized behind an `NSCache`** because the editor's
-code-span and code-fence tokens realize a font per token inside the debounced per-keystroke
-highlight loop. The face depends on nothing but the point size. `NSCache` is thread-safe on its own
-and keys by value for `NSNumber`, so it needs no lock.
-
-**`FontOption.resolved(for:)` is non-optional** (`option(for:) ?? defaultOption`). A `FontID` can be
+**What survived the removal**, because it was never about the cascade:
+`FontOption.resolved(for:)` is non-optional (`option(for:) ?? defaultOption`). A `FontID` can be
 RETIRED — still declared so persisted `ReadingProfile`s decode, but removed from `groupedOptions`
-(`.lexend` today). The old `?? .systemFont(…)` tails at the render sites were reachable through
-exactly that gap and drew an uncascaded face, while the picker showed SF Pro; picker and renderer
-now agree. `ReadingProfileStore` still persists a retired id with no self-heal on decode — a
-pre-existing divergence, unchanged here.
-
-**The Quick Look appex is knowingly out of scope.** It mirrors the renderers by hand and cannot
-import the helper (see the appex note above), so Finder previews of CJK still resolve per glyph.
-That needs its own decision, not a silent copy of the family list.
+(`.lexend` today) — and the old `?? .systemFont(…)` tails at the render sites were reachable
+through exactly that gap, drawing a bare face while the picker showed SF Pro. `ReadingProfileStore`
+still persists a retired id with no self-heal on decode: a pre-existing divergence, unchanged.
 
 ## Read-aloud voice (2026-08-05)
 

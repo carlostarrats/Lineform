@@ -51,9 +51,9 @@ struct FontOption: Equatable, Identifiable {
     /// A `FontID` can be RETIRED: still declared in the enum so persisted `ReadingProfile`s keep
     /// decoding, but removed from `groupedOptions` so it is no longer offered. `.lexend` is one
     /// today. `option(for:)` returns nil for those, and the three render sites' old
-    /// `?? .systemFont(…)` tails then produced an UNCASCADED face — a profile persisted from a
-    /// build where Lexend was selectable rendered CJK by per-glyph substitution while every other
-    /// profile went through the declared cascade.
+    /// `?? .systemFont(…)` tails then drew a bare system face — a profile persisted from a build
+    /// where Lexend was selectable rendered in the system font while the picker showed the
+    /// default option.
     ///
     /// Substituting the whole default OPTION rather than just a font also fixes the retired id's
     /// other properties, and makes the next retirement safe by construction.
@@ -76,28 +76,20 @@ struct FontOption: Equatable, Identifiable {
     }
 
     func availableFont(size: CGFloat) -> NSFont? {
-        // The cascade is attached AFTER resolution, never via the family descriptor: a bogus
-        // family must still resolve to nil, which is what `isAvailable` reads.
         switch id {
         case .sfPro:
-            return MarkdownFontCascade.applying(to: .systemFont(ofSize: size))
+            return .systemFont(ofSize: size)
         case .newYork:
-            // The wrap covers the whole expression, not just the `NSFont(name:)` half —
-            // `NSFont(name: "New York")` returns nil on macOS 26, so in practice it is always the
-            // `systemSerifFont` branch that ships.
-            return (NSFont(name: familyName, size: size) ?? systemSerifFont(size: size))
-                .map(MarkdownFontCascade.applying(to:))
+            return NSFont(name: familyName, size: size) ?? systemSerifFont(size: size)
         case .jetBrainsMono:
-            return MarkdownFontCascade.applying(to: .monospacedSystemFont(ofSize: size, weight: .regular))
+            return .monospacedSystemFont(ofSize: size, weight: .regular)
         default:
-            return NSFont(name: familyName, size: size).map(MarkdownFontCascade.applying(to:))
+            return NSFont(name: familyName, size: size)
         }
     }
 
     func resolvedFont(size: CGFloat) -> NSFont {
-        // The fallback is cascaded too: an unavailable font is the case MOST likely to be
-        // rendering someone else's script.
-        availableFont(size: size) ?? MarkdownFontCascade.applying(to: .systemFont(ofSize: size))
+        availableFont(size: size) ?? .systemFont(ofSize: size)
     }
 
     private func systemSerifFont(size: CGFloat) -> NSFont? {

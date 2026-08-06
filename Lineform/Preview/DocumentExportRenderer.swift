@@ -213,11 +213,7 @@ enum DocumentExportRenderer {
     /// `#`, `**`, backticks, etc. print verbatim, exactly as typed in Write mode.
     @MainActor
     private static func rawSourceAttributedString(_ text: String, preset: ExportTypographyPreset) -> NSAttributedString {
-        // Cascaded: this is the DEFAULT preset for PDF export and Print, and it lays out the whole
-        // raw document — the highest-CJK-density surface in the app. The font here is the app's
-        // choice, not the document's, so leaving it to per-glyph substitution would make the
-        // default PDF resolve CJK differently from the same text in Write mode.
-        let font = MarkdownFontCascade.monospaced(ofSize: preset.bodyPointSize)
+        let font = NSFont.monospacedSystemFont(ofSize: preset.bodyPointSize, weight: .regular)
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineHeightMultiple = preset.lineHeightMultiple ?? 1.2
         return NSAttributedString(string: text, attributes: [

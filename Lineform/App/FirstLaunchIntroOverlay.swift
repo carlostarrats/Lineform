@@ -334,7 +334,7 @@ final class FirstLaunchIntroStartButtonView: NSView {
         layer?.cornerRadius = 31
         layer?.masksToBounds = false
 
-        label.font = MarkdownFontCascade.applying(to: .systemFont(ofSize: 18, weight: .semibold))
+        label.font = .systemFont(ofSize: 18, weight: .semibold)
         label.textColor = NSColor(calibratedWhite: 0.06, alpha: 1)
         label.alignment = .center
 

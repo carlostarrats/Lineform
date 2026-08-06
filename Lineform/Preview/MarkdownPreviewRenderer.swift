@@ -326,13 +326,12 @@ struct MarkdownPreviewRenderer {
 
         let borderColor = theme.textColor.withAlphaComponent(0.25)
         let headerFill = theme.textColor.withAlphaComponent(0.06)
-        let baseFont = (baseAttributes[.font] as? NSFont)
-            ?? MarkdownFontCascade.applying(to: .systemFont(ofSize: CGFloat(profile.fontSize)))
+        let baseFont = (baseAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
         // Table cells render slightly smaller than prose (a common, denser table convention) while
         // still tracking the reading font size — so it scales with the user's accessibility setting
         // and just fits more per column, easing the too-wide case. Relative, never a fixed size.
         let cellFont = NSFont(descriptor: baseFont.fontDescriptor, size: baseFont.pointSize * Self.tableTextScale) ?? baseFont
-        let headerFont = MarkdownFontCascade.convert(cellFont, toHaveTrait: .boldFontMask)
+        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
 
         for (rowIndex, row) in allRows.enumerated() {
             for column in 0..<columns {
@@ -553,9 +552,8 @@ struct MarkdownPreviewRenderer {
         paragraph.firstLineHeadIndent = indentStep
         paragraph.headIndent = indentStep
 
-        let baseFont = (baseBody[.font] as? NSFont)
-            ?? MarkdownFontCascade.applying(to: .systemFont(ofSize: CGFloat(profile.fontSize)))
-        let titleFont = MarkdownFontCascade.convert(baseFont, toHaveTrait: .boldFontMask)
+        let baseFont = (baseBody[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
+        let titleFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
 
         var titleAttributes = baseBody
         titleAttributes[.paragraphStyle] = paragraph
@@ -808,12 +806,7 @@ struct MarkdownPreviewRenderer {
         captionAttributes[.foregroundColor] = Theme.theme(for: profile)
             .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
         if let font = captionAttributes[.font] as? NSFont {
-            // Re-cascade: this OVERWRITES an already-cascaded base font with a fresh system face,
-            // the same drop-the-cascade shape as the NSFontManager bug. The caption is a localized
-            // string — CJK in two shipped languages — and it renders into exports.
-            captionAttributes[.font] = MarkdownFontCascade.applying(
-                to: .systemFont(ofSize: max(10, font.pointSize - 2))
-            )
+            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
         output.append(NSAttributedString(string: String(localized: "Mermaid diagram (source)"), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
@@ -877,11 +870,7 @@ struct MarkdownPreviewRenderer {
         captionAttributes[.foregroundColor] = Theme.theme(for: profile)
             .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
         if let font = captionAttributes[.font] as? NSFont {
-            // Re-cascade, for the same reason as the mermaid caption: overwriting the base font
-            // drops the fallback from a localized string that ships in CJK.
-            captionAttributes[.font] = MarkdownFontCascade.applying(
-                to: .systemFont(ofSize: max(10, font.pointSize - 2))
-            )
+            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
         output.append(NSAttributedString(string: String(localized: "Math (source)"), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
@@ -967,7 +956,7 @@ struct MarkdownPreviewRenderer {
     ) {
         if imagesAsText {
             var codeAttrs = baseAttributes
-            codeAttrs[.font] = MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize))
+            codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
             output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
             return
         }
@@ -992,7 +981,7 @@ struct MarkdownPreviewRenderer {
             output.append(NSAttributedString(attachment: attachment))
         } else {
             var codeAttrs = baseAttributes
-            codeAttrs[.font] = MarkdownFontCascade.monospaced(ofSize: pointSize)
+            codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
             output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
         }
     }
@@ -1004,10 +993,10 @@ struct MarkdownPreviewRenderer {
     private func headingAttributes(level: Int, profile: ReadingProfile, usesBlockSpacing: Bool, headingScale: CGFloat = 1.0) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
         // `resolved(for:)`, not `option(for:)?` + a bare-font tail: a RETIRED FontID resolves to
-        // nil and the tail produced an uncascaded face.
+        // nil, and the tail then drew a bare system face while the picker showed the default.
         let bodyFont = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         let sizeBoost = Self.headingSizeBoosts[level] ?? 0
-        let headingFont = MarkdownFontCascade.convert(bodyFont, toHaveTrait: .boldFontMask)
+        let headingFont = NSFontManager.shared.convert(bodyFont, toHaveTrait: .boldFontMask)
         let resolvedHeadingFont = NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost * headingScale) ?? headingFont
         let paragraphStyle = usesBlockSpacing
             ? MarkdownSyntaxHighlighter.blockSpacingParagraphStyle(for: profile, font: resolvedHeadingFont, additionalSpacing: 4)
@@ -1023,7 +1012,7 @@ struct MarkdownPreviewRenderer {
 
     private func codeAttributes(profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
         var attributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
-        attributes[.font] = MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize))
+        attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
         return attributes
     }
 
@@ -1191,9 +1180,6 @@ struct MarkdownPreviewRenderer {
                 // which enlarges the visual gap BELOW the image; compensate by adding that same
                 // leading to the TOP margin so the picture ends up with EQUAL space above and below.
                 let baseMargin = max(18, CGFloat(profile.paragraphSpacing))
-                // Deliberately NOT cascaded: this font never draws a glyph, it only supplies
-                // ascender/descender/leading for the image's margin math. Attaching a fallback
-                // list here could only perturb a measurement, never fix a missing glyph.
                 let font = (bodyAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: max(1, CGFloat(profile.fontSize)))
                 let naturalLineHeight = max(font.ascender - font.descender + font.leading, font.pointSize)
                 let leadingExtra = max(0, naturalLineHeight * (CGFloat(profile.lineHeightMultiple) - 1))
@@ -1321,14 +1307,14 @@ private struct InlineToken {
         switch kind {
         case .bold:
             if let font = base[.font] as? NSFont {
-                attributes[.font] = MarkdownFontCascade.convert(font, toHaveTrait: .boldFontMask)
+                attributes[.font] = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
             }
         case .italic:
             if let font = base[.font] as? NSFont {
-                attributes[.font] = MarkdownFontCascade.convert(font, toHaveTrait: .italicFontMask)
+                attributes[.font] = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
             }
         case .code:
-            attributes[.font] = MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize))
+            attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
         case .strikethrough:
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         case .image:
