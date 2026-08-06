@@ -144,7 +144,7 @@ enum EditorToolbarAction: CaseIterable, Equatable, Identifiable {
     var title: String {
         switch self {
         case .readingExperience:
-            return "Reading Experience"
+            return String(localized: "Reading Experience")
         }
     }
 

@@ -96,19 +96,20 @@ struct CrossFileSearchResultsView: View {
 
     private var headerText: String {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "Search All Files" }
-        if isSearching && results.isEmpty { return "Searching…" }
-        let files = results.count == 1 ? "1 file" : "\(results.count) files"
-        return "\(files) matching \u{201C}\(trimmed)\u{201D}"
+        if trimmed.isEmpty { return String(localized: "Search All Files") }
+        if isSearching && results.isEmpty { return String(localized: "Searching\u{2026}") }
+        // The count goes through catalog plural variations, not a `== 1` ternary.
+        let files = String(localized: "\(results.count) files")
+        return String(localized: "\(files) matching \u{201C}\(trimmed)\u{201D}")
     }
 
     @ViewBuilder
     private func content(availableWidth: CGFloat) -> some View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            hint("Type to search all files…")
+            hint(String(localized: "Type to search all files…"))
         } else if results.isEmpty && !isSearching {
-            hint("No matches in any file.")
+            hint(String(localized: "No matches in any file."))
         } else {
             // Rows of four equal-width cards, stepping down to fewer columns (and
             // eventually one) as the window narrows.

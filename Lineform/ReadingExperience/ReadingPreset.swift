@@ -204,6 +204,23 @@ struct ReadingPreset: Equatable, Identifiable {
         .focus
     ]
 
+    /// Display name. `profile.name` stays English forever — `ReadingProfile` is `Codable` and
+    /// the name is written into the persisted active profile, so translating it would rewrite
+    /// stored user data and break the equality-based preset match. The `OutlineSidebarTab`
+    /// treatment: identity stays put, a separate `title` localizes. Keyed off the profile's
+    /// stable UUID rather than its name, so the mapping cannot drift with the copy.
+    var title: String {
+        switch profile.id {
+        case Self.original.profile.id: return String(localized: "Original")
+        case Self.quiet.profile.id: return String(localized: "Quiet")
+        case Self.paper.profile.id: return String(localized: "Paper")
+        case Self.code.profile.id: return String(localized: "Code")
+        case Self.calm.profile.id: return String(localized: "Calm")
+        case Self.focus.profile.id: return String(localized: "Focus")
+        default: return profile.name
+        }
+    }
+
     static func matchingPresetID(for profile: ReadingProfile) -> UUID? {
         builtIn.first { preset in
             var presetProfile = preset.profile

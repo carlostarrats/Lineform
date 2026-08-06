@@ -185,10 +185,12 @@ struct EditorContainerView: View {
                 Text(SidebarFileActionPresenter.deleteMessage)
             }
         }
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export PDF", fileName: $pdfExportErrorFileName))
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export RTF", fileName: $rtfExportErrorFileName))
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export HTML", fileName: $htmlExportErrorFileName))
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Save", fileName: $markdownSaveErrorFileName))
+        // `WriteFailureAlert.title` is a `String`, which `.alert(_:isPresented:)` reads with its
+        // verbatim overload — localize here, not by adding the key to the catalog.
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Export PDF"), fileName: $pdfExportErrorFileName))
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Export RTF"), fileName: $rtfExportErrorFileName))
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Export HTML"), fileName: $htmlExportErrorFileName))
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Save"), fileName: $markdownSaveErrorFileName))
         .alert(
             "File Already Open",
             isPresented: Binding(
@@ -1035,9 +1037,11 @@ struct EditorContainerView: View {
         }
         let count = searchMatches.count
         guard count > 0 else {
-            return "No matches"
+            return String(localized: "No matches")
         }
-        return count == 1 ? "1 found" : "\(count) found"
+        // One key with catalog plural variations rather than a `== 1` ternary: the ternary
+        // hard-codes English's plural rule onto every language.
+        return String(localized: "\(count) found")
     }
 
     private func dismissFindReplace() {

@@ -339,7 +339,7 @@ private struct ReadingPresetCard: View {
                     .foregroundStyle(Color(nsColor: theme.textColor))
                     .lineLimit(1)
 
-                Text(preset.profile.name)
+                Text(preset.title)
                     .font(previewFont(size: 12))
                     .foregroundStyle(Color(nsColor: theme.textColor))
                     .lineLimit(1)
@@ -366,7 +366,7 @@ private struct ReadingPresetCard: View {
                 isHovered = hovering
             }
         }
-        .accessibilityLabel(String(localized: "\(preset.profile.name) reading theme"))
+        .accessibilityLabel(String(localized: "\(preset.title) reading theme"))
     }
 
     private var selectedStrokeColor: Color {

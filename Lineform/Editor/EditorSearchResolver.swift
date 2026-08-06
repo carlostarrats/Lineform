@@ -213,12 +213,14 @@ enum EditorSearchResolver {
         }
 
         guard matchCount > 0 else {
-            return "Search for \(trimmedQuery). No matches."
+            return String(localized: "Search for \(trimmedQuery). No matches.")
         }
 
         let safeActiveIndex = min(max(activeIndex ?? 0, 0), matchCount - 1)
-        let matchWord = matchCount == 1 ? "match" : "matches"
-        return "Search for \(trimmedQuery). \(matchCount) \(matchWord). Result \(safeActiveIndex + 1) of \(matchCount)."
+        // The count goes through catalog plural variations, not an English `== 1` ternary
+        // spliced into the sentence.
+        let matches = String(localized: "\(matchCount) matches")
+        return String(localized: "Search for \(trimmedQuery). \(matches). Result \(safeActiveIndex + 1) of \(matchCount).")
     }
 }
 

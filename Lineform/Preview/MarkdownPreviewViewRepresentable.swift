@@ -551,8 +551,12 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         return pills
     }
 
+    /// The pill's drawn label. One constant, because its WIDTH is measured from it — two
+    /// literals would let a translation change the text without changing the hit rect.
+    static let reconnectPillLabel = String(localized: "Reconnect")
+
     private static let reconnectPillWidth: CGFloat = {
-        let labelWidth = ("Reconnect" as NSString).size(withAttributes: [.font: pillLabelFont]).width
+        let labelWidth = (reconnectPillLabel as NSString).size(withAttributes: [.font: pillLabelFont]).width
         return ceil(labelWidth + reconnectPillGap + 11 + 24) // label + gap + glyph + horizontal padding
     }()
 
@@ -618,7 +622,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             .font: Self.pillLabelFont,
             .foregroundColor: theme.textColor.withAlphaComponent(0.85)
         ]
-        let label = "Reconnect" as NSString
+        let label = Self.reconnectPillLabel as NSString
         let labelSize = label.size(withAttributes: attributes)
         let glyphSize = NSSize(width: 11, height: 11)
         let contentWidth = labelSize.width + Self.reconnectPillGap + glyphSize.width

@@ -181,7 +181,7 @@ final class ExportPanelController: NSObject {
 
         var views: [NSView] = [description]
         if format.usesPaper {
-            let label = NSTextField(labelWithString: "Paper Size:")
+            let label = NSTextField(labelWithString: String(localized: "Paper Size:"))
             label.setContentHuggingPriority(.required, for: .horizontal)
             let row = NSStackView(views: [label, paperPopup])
             row.orientation = .horizontal

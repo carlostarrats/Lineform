@@ -27,6 +27,7 @@
 1F0000010000000000000088 /* MarkdownSpellCheckPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */; };
 		1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */; };
 		1F0000320000000000000021 /* LocalizationCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000320000000000000031 /* LocalizationCatalogTests.swift */; };
+		1F0000330000000000000021 /* LocalizationSourceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
 		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
@@ -238,6 +239,7 @@
 1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckPerformanceTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecoratorTests.swift; sourceTree = "<group>"; };
 		1F0000320000000000000031 /* LocalizationCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationCatalogTests.swift; sourceTree = "<group>"; };
+		1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationSourceSweepTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
@@ -649,6 +651,7 @@
 				1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */,
 				1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */,
 				1F0000320000000000000031 /* LocalizationCatalogTests.swift */,
+				1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */,
 				1F0000020000000000000023 /* DocumentStatisticsTests.swift */,
 				1F0000020000000000000041 /* ReadingPresetTests.swift */,
 				1F0000020000000000000042 /* FontOptionTests.swift */,
@@ -1021,6 +1024,7 @@
 				1F0000010000000000000088 /* MarkdownSpellCheckPerformanceTests.swift in Sources */,
 				1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */,
 				1F0000320000000000000021 /* LocalizationCatalogTests.swift in Sources */,
+				1F0000330000000000000021 /* LocalizationSourceSweepTests.swift in Sources */,
 				1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */,
 				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
 				1F0000010000000000000042 /* FontOptionTests.swift in Sources */,

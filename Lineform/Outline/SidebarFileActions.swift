@@ -50,17 +50,20 @@ enum SidebarFileRenaming {
 /// are native SwiftUI `.alert`s presented from `EditorContainerView` — NOT `NSAlert`, which
 /// forces the app icon and standard-alert chrome. Only the rare error path uses `NSAlert`.
 enum SidebarFileActionPresenter {
-    static let renameFileTitle = "Rename File"
-    static let renameFolderTitle = "Rename Folder"
-    static let renameFileMessage = "Renames the file. Its contents are kept."
-    static let renameFolderMessage = "Renames the folder. Its files are kept."
-    static let renameButtonTitle = "Rename"
-    static let cancelButtonTitle = "Cancel"
-    static let deleteButtonTitle = "Delete"
-    static let deleteMessage = "It will be moved to the Trash."
+    // Every one of these is a `String`, and SwiftUI's `Button(_:)` / `.alert(_:…)` pick their
+    // VERBATIM overload for a `String` — being a catalog key is not enough, so the localization
+    // has to happen here, at the definition site.
+    static let renameFileTitle = String(localized: "Rename File")
+    static let renameFolderTitle = String(localized: "Rename Folder")
+    static let renameFileMessage = String(localized: "Renames the file. Its contents are kept.")
+    static let renameFolderMessage = String(localized: "Renames the folder. Its files are kept.")
+    static let renameButtonTitle = String(localized: "Rename")
+    static let cancelButtonTitle = String(localized: "Cancel")
+    static let deleteButtonTitle = String(localized: "Delete")
+    static let deleteMessage = String(localized: "It will be moved to the Trash.")
 
     static func deleteTitle(for url: URL) -> String {
-        "Delete “\(url.lastPathComponent)”?"
+        String(localized: "Delete “\(url.lastPathComponent)”?")
     }
 
     static func showInFinder(_ url: URL) {
