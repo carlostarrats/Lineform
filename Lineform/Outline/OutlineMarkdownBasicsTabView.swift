@@ -92,10 +92,10 @@ struct OutlineMarkdownBasicsTabView: View {
             Spacer(minLength: 8)
 
             // Only the code rows: a label row's cell is a translated UI word, not Markdown.
-            // `copyableSyntax` is nil there, and `copyButton` takes the unwrapped String — so
+            // `copyAffordance()` is nil there, and `copyButton` takes the unwrapped value — so
             // deleting this check does not compile, let alone reintroduce the bug.
-            if let copyText = row.copyableSyntax {
-                copyButton(rowID: row.id, copyText: copyText)
+            if let copy = row.copyAffordance() {
+                copyButton(rowID: row.id, copy: copy)
             }
         }
         .padding(.horizontal, 10)
@@ -105,38 +105,71 @@ struct OutlineMarkdownBasicsTabView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Self.rowBackgroundColor(usesDarkChrome: usesDarkChrome))
         )
+        // Collapsing the row is CORRECT: its AX value should be one coherent phrase
+        // ("Bold. Syntax: **bold**"), not three fragments. But `children: .ignore` also
+        // SUPPRESSES the copy `Button` — it stops existing for VoiceOver, Switch Control and Full
+        // Keyboard Access. An affordance reachable only by pointer needs its action mirror
+        // (Claude.md, accessibility invariants); the Files sidebar rows do the same thing.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(row.accessibilityLabel())
+        .accessibilityActions {
+            if let copy = row.copyAffordance() {
+                Button {
+                    performCopy(rowID: row.id, copyText: copy.text)
+                } label: {
+                    // Already localized at its definition site — this position takes SwiftUI's
+                    // verbatim overload.
+                    Label(copy.label, systemImage: "doc.on.doc")
+                }
+            }
+        }
     }
 
-    /// Takes the copy text as a non-optional `String`, supplied only by unwrapping
-    /// `Row.copyableSyntax` — a label row cannot reach here.
-    private func copyButton(rowID: String, copyText: String) -> some View {
+    /// Takes the affordance as a non-optional value, supplied only by unwrapping
+    /// `Row.copyAffordance()` — a label row cannot reach here.
+    private func copyButton(rowID: String, copy: MarkdownReference.CopyAffordance) -> some View {
         CopyButton(
             // Identity is the row's STABLE id; the spoken label is its syntax. They were one value
             // until `Row.identifier` split them — keying "Copied" on translated text is the bug the
             // id exists to prevent, and speaking an internal slug is the bug on the other side.
             rowID: rowID,
-            syntax: copyText,
+            copyLabel: copy.label,
             copiedRowID: $copiedRowID,
             usesDarkChrome: usesDarkChrome,
-            action: {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(copyText, forType: .string)
-                copiedRowID = rowID
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    if copiedRowID == rowID {
-                        copiedRowID = nil
-                    }
-                }
-            }
+            action: { performCopy(rowID: rowID, copyText: copy.text) }
         )
+    }
+
+    /// The ONE definition of "copy this row": the pasteboard write plus the copied-state
+    /// bookkeeping that flips the button to a checkmark for 1.5s.
+    ///
+    /// Both the visual button and the row's accessibility-action mirror call it. Left inline in the
+    /// button's closure, the mirror would have been a second copy of the same three steps — the
+    /// shape this repo has been burned by repeatedly, and an AX mirror that has drifted from the
+    /// real action is worse than none.
+    private func performCopy(rowID: String, copyText: String) {
+        Self.writeToPasteboard(copyText)
+        copiedRowID = rowID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            if copiedRowID == rowID {
+                copiedRowID = nil
+            }
+        }
+    }
+
+    /// The pasteboard half on its own, with an injectable pasteboard so the DEFAULT test plan can
+    /// assert what lands on it without hosting a window.
+    static func writeToPasteboard(_ syntax: String, to pasteboard: NSPasteboard = .general) {
+        pasteboard.clearContents()
+        pasteboard.setString(syntax, forType: .string)
     }
 }
 
 private struct CopyButton: View {
     let rowID: String
-    let syntax: String
+    /// Already localized (`MarkdownReference.Row.copyAffordance()`), and the SAME string the row's
+    /// accessibility-action mirror uses.
+    let copyLabel: String
     @Binding var copiedRowID: String?
     // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
     // which a nested Button re-derives from the window's drift-prone effectiveAppearance.
@@ -167,8 +200,9 @@ private struct CopyButton: View {
         // Two `Text`s, not a ternary of two literals: a ternary's branches are type-checked as
         // one expression, and whether that lands on `LocalizedStringKey` or the `@_disfavoredOverload`
         // verbatim `StringProtocol` was never confirmed. `accessibilityLabel(_: Text)` is a distinct,
-        // non-disfavored overload, so each branch is unambiguously a localized position.
-        .accessibilityLabel(isCopied ? Text("Copied") : Text("Copy \(syntax)"))
+        // non-disfavored overload, so the literal branch is unambiguously a localized position; the
+        // other branch is already-localized text, so it is verbatim on purpose.
+        .accessibilityLabel(isCopied ? Text("Copied") : Text(verbatim: copyLabel))
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) {
                 isHovered = hovering

@@ -127,9 +127,7 @@ final class ReleaseResourceTests: XCTestCase {
 
     @MainActor
     func testFirstPublicReleaseMigrationClearsLegacyTestingState() {
-        let suiteName = "LineformFirstPublicReleaseMigrationTests"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        TestDefaults.destroy(defaults, suiteName: suiteName)
+        let defaults = TestDefaults.makeSuite("LineformFirstPublicReleaseMigrationTests")
         defaults.set(true, forKey: LineformLaunchDefaults.legacyFirstLaunchIntroCompletedKey)
         defaults.set(Data([0x01]), forKey: "Lineform.outline.workspaceBookmark")
         defaults.set(Data([0x02]), forKey: "Lineform.outline.workspaceSnapshot")
@@ -149,9 +147,7 @@ final class ReleaseResourceTests: XCTestCase {
 
     @MainActor
     func testFirstPublicReleaseMigrationIsIdempotentAfterMarkerIsSet() {
-        let suiteName = "LineformFirstPublicReleaseMigrationIdempotentTests"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        TestDefaults.destroy(defaults, suiteName: suiteName)
+        let defaults = TestDefaults.makeSuite("LineformFirstPublicReleaseMigrationIdempotentTests")
         defaults.set(true, forKey: LineformLaunchDefaults.firstPublicReleaseDefaultsInitializedKey)
         defaults.set(Data([0x01]), forKey: "Lineform.outline.workspaceBookmark")
         var recentDocumentsClearCount = 0
@@ -167,11 +163,17 @@ final class ReleaseResourceTests: XCTestCase {
 
     @MainActor
     func testFirstLaunchIntroCompletionIgnoresLegacyDebugKey() {
-        let suiteName = "LineformFirstLaunchIntroCompletionTests"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        TestDefaults.destroy(defaults, suiteName: suiteName)
+        // Single-use suite, NOT a fixed name: this test writes the versioned key at the end and
+        // asserts it reads `false` at the start, so a reused name hands the next run its own
+        // leftovers and the failure looks like a regression in `hasCompletedFirstLaunchIntro`.
+        let defaults = TestDefaults.makeSuite("LineformFirstLaunchIntroCompletionTests")
+        XCTAssertNil(
+            defaults.object(forKey: LineformLaunchDefaults.firstLaunchIntroCompletedKey),
+            "Suite is not isolated — the assertion below would be testing leftover state, not behaviour."
+        )
         defaults.set(true, forKey: LineformLaunchDefaults.legacyFirstLaunchIntroCompletedKey)
 
+        // The regression guard: completing the OLD intro must not suppress the new one.
         XCTAssertFalse(LineformLaunchDefaults.hasCompletedFirstLaunchIntro(defaults: defaults))
 
         LineformLaunchDefaults.markFirstLaunchIntroCompleted(defaults: defaults)

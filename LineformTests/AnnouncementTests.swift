@@ -304,10 +304,10 @@ private actor FakeAnnouncementFetcher: AnnouncementFetching {
 @MainActor
 final class AnnouncementStoreTests: XCTestCase {
 
-    private func freshDefaults(_ name: String) -> UserDefaults {
-        let defaults = UserDefaults(suiteName: name)!
-        TestDefaults.destroy(defaults, suiteName: name)
-        return defaults
+    /// A suite no earlier run can have written to. See `TestDefaults.makeSuite`: a fixed name is
+    /// shared with every previous run of this test, not isolation from it.
+    private func freshDefaults(_ label: String) -> UserDefaults {
+        TestDefaults.makeSuite(label)
     }
 
     private func announcement(_ id: String, minAppVersion: String? = nil) -> Announcement {

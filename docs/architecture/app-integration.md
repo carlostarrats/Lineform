@@ -204,7 +204,8 @@ rather than `.main`, so the suite survives being run on a non-English Mac.
 **`rendersSyntaxAsCode == false` is the predicate the whole row hangs off.** Five rows put a *label*
 where the other 24 put literal Markdown — `Tab`, `Return`, `Block Spacing`, `Spelling`, `Skipped`.
 Those five are app chrome, so they localize, render as prose rather than code, and offer **no copy
-button**: `Row.offersCopy` is `rendersSyntaxAsCode`. The copy button is an argument *against*
+button**: `Row.copyableSyntax` (and `Row.copyAffordance()`, which pairs that text with its localized
+`Copy %@` label) is nil there. The copy button is an argument *against*
 offering it on a label row, not for localizing one — it puts `row.syntax` on the pasteboard, and on
 a label row that is a translated UI word (a Japanese user was copying `スペル` ready to paste into a
 Markdown file, where it means nothing). The 24 syntax rows never localize: they are document
@@ -214,6 +215,16 @@ reason. `testLabelRowsLocalizeAndSyntaxRowsDoNot` (against the committed catalog
 translation like `Tab` is still asserted rather than skipped), `testExactlyFiveRowsAreLabelsNotSyntax`,
 and `testOnlyLiteralSyntaxRowsOfferCopy` assert the split in every direction. `"flowchart LR"` is
 now the reference's only source-sweep allowlist entry; the whole-file exemption is gone.
+
+**The copy button needs its accessibility mirror.** A Markdown Basics row is collapsed with
+`.accessibilityElement(children: .ignore)` so its AX value is one coherent phrase ("Bold. Syntax:
+`**bold**`") rather than three fragments — which also SUPPRESSES the child copy `Button`, so from
+2026-08-05 the row carries a `.accessibilityActions` mirror (the same pattern as the Files sidebar
+rows). Both the button and the mirror unwrap one `Row.copyAffordance()` and call one
+`performCopy(rowID:copyText:)`; the pasteboard write is the static, pasteboard-injectable
+`OutlineMarkdownBasicsTabView.writeToPasteboard`, which is how the default (window-free) test plan
+asserts what lands on the pasteboard. Keeping copy text and label in one optional is what stops a
+row from offering an action it has no text for, and stops the two labels drifting.
 
 **The 90-character sidebar ceiling holds in all six languages**
 (`testExplanationsStayConciseInEveryLanguage`) — the column does not get wider in German. German
