@@ -6,7 +6,7 @@
   "Outline": {"es": "Esquema", "fr": "Plan", "de": "Gliederung", "ja": "アウトライン", "zh-Hans": "大纲"},
   "Reading profile": {"es": "Perfil de lectura", "fr": "Profil de lecture", "de": "Leseprofil", "ja": "閲覧プロファイル", "zh-Hans": "阅读配置"},
   "Front matter": {"es": "front matter", "fr": "front matter", "de": "Frontmatter", "ja": "フロントマター", "zh-Hans": "front matter"},
-  "Callout": {"es": "Recuadro", "fr": "Encadré", "de": "Hinweis", "ja": "コールアウト", "zh-Hans": "提示框"},
+  "Callout": {"es": "Recuadro", "fr": "Encadré", "de": "Callout", "ja": "コールアウト", "zh-Hans": "提示框"},
   "Tab": {"es": "Pestaña", "fr": "Onglet", "de": "Tab", "ja": "タブ", "zh-Hans": "标签页"},
   "Quick Open": {"es": "Apertura rápida", "fr": "Ouverture rapide", "de": "Schnellöffnen", "ja": "クイックオープン", "zh-Hans": "快速打开"}
 }
