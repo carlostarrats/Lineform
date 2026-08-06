@@ -176,7 +176,11 @@ final class LineformTextView: NSTextView {
         hasAppliedTypography = true
 
         let theme = Theme.theme(for: profile)
-        let resolvedFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
+        // `resolved(for:)`, not `option(for:)?` + a bare `?? .systemFont(…)` tail: a RETIRED
+        // FontID resolves to nil here. The tail renders the SAME face today (the default option
+        // is SF Pro), so this is forward insurance against the next retirement — not a fix for a
+        // visible defect. See `FontOption.resolved(for:)`.
+        let resolvedFont = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         font = resolvedFont
         textColor = theme.textColor
         backgroundColor = theme.backgroundColor

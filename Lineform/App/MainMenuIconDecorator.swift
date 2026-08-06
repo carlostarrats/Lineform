@@ -173,7 +173,11 @@ enum MainMenuIconDecorator {
     /// Falls back to the English title when the language has no compiled `.lproj` yet or
     /// the key is untranslated — the same value `localizedString(forKey:value:)` returns
     /// once it does exist, so the alias set does not change shape as translations land.
-    private static func catalogAliases(languageCode: String) -> [String: String] {
+    /// `translatedOnly` drops the English fallback, leaving only the rows the catalog
+    /// really carries in this language. `localizedAliases` needs that distinction: it
+    /// prefers the catalog, and an untranslated key must not shadow Apple's translation
+    /// with the English word.
+    private static func catalogAliases(languageCode: String, translatedOnly: Bool = false) -> [String: String] {
         let bundle = Bundle.main.path(forResource: languageCode, ofType: "lproj")
             .flatMap(Bundle.init(path:))
 
@@ -181,18 +185,44 @@ enum MainMenuIconDecorator {
         for title in AppMenuConfiguration.allEnglishTitleKeys {
             let normalized = normalizedTitle(title)
             guard symbolsByTitle[normalized] != nil, aliases[normalized] == nil else { continue }
-            let localized = bundle?.localizedString(forKey: title, value: title, table: nil) ?? title
-            aliases[normalized] = normalizedTitle(localized)
+            if let localized = catalogTitle(title, in: bundle) {
+                aliases[normalized] = normalizedTitle(localized)
+            } else if !translatedOnly {
+                aliases[normalized] = normalizedTitle(title)
+            }
         }
         return aliases
+    }
+
+    /// A sentinel no catalog value can equal, so "the key is missing" is distinguishable
+    /// from "the translation happens to be the English word" (which is real for several
+    /// rows — see `englishIsTheTranslation` in the tests).
+    private static let untranslatedSentinel = "\u{0}lineform.untranslated"
+
+    private static func catalogTitle(_ title: String, in bundle: Bundle?) -> String? {
+        guard let bundle else { return nil }
+        let value = bundle.localizedString(forKey: title, value: untranslatedSentinel, table: nil)
+        return value == untranslatedSentinel ? nil : value
     }
 
     /// englishNormalizedKey → the localized title's NORMALIZED form, for every entry
     /// that has a translation source (the generated system table, or our catalog).
     /// Split out from the map builder so the test can assert aliases exist without
     /// the English fallback masking a miss.
+    ///
+    /// The CATALOG value wins where both sources have one. For ~25 titles AppKit and our
+    /// catalog disagree ("Preview" is es `previsualizar` in Apple's table, `Vista previa`
+    /// in ours), and the catalog value is the one the app actually DISPLAYS — a test that
+    /// reads Apple's instead asserts a title Spanish Lineform never shows. This changes
+    /// nothing about which icons resolve: `localizedSymbolsByNormalizedTitle` registers
+    /// BOTH alias sets regardless of what this function prefers.
     static func localizedAliases(languageCode: String) -> [String: String] {
-        var aliases = systemAliases(languageCode: languageCode)
+        var aliases = catalogAliases(languageCode: languageCode, translatedOnly: true)
+        for (key, localized) in systemAliases(languageCode: languageCode) where aliases[key] == nil {
+            aliases[key] = localized
+        }
+        // Catalog rows with no translation yet: the English fallback keeps the alias set's
+        // SHAPE stable as translations land, exactly as before.
         for (key, localized) in catalogAliases(languageCode: languageCode) where aliases[key] == nil {
             aliases[key] = localized
         }

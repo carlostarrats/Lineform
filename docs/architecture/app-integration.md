@@ -92,6 +92,20 @@ grounds that Apple ships no translation for them. That is false: macOS 26.5's `I
 carries both, they are in the generated `SystemMenuItemTitles.swift`, and they resolve in all five
 languages today — `MainMenuIconDecoratorTests` asserts it rather than exempting them.
 
+**`localizedAliases(languageCode:)` prefers the CATALOG value over AppKit's.** For ~25 titles the two
+sources disagree — Spanish "Preview" is `Previsualizar` in Apple's table and `Vista previa` in ours —
+and the catalog value is the one the app actually displays, so a test reading Apple's asserted a title
+Spanish Lineform shows nowhere. The preference is safe to state because
+`localizedSymbolsByNormalizedTitle` registers BOTH alias sets regardless (asserted: Spanish resolves
+the Preview symbol under `vista previa` AND `previsualizar`). The catalog lookup must distinguish
+"untranslated" from "translated to the English word" — hence the sentinel in `catalogTitle(_:in:)` —
+or an untranslated catalog key would shadow a real Apple translation with the English fallback.
+
+`Preview` is in `lineform-glossary.json`, so a translator choosing a second word for it now fails
+`testGlossaryTermsTranslateConsistently` instead of quietly splitting the term across screens.
+`Split`, by contrast, has a glossary row but no catalog key — its row is inert, kept for the day the
+mode gains a menu title.
+
 **Test locale.** The default test plan pins the process to `en`/`US` (`EditorDisplayModeTests`,
 `ReadingProfileStoreTests` and others read `Locale(identifier: "en_US")` explicitly) so date formatting,
 plural rules, and string assertions stay byte-identical regardless of the machine running them.
@@ -143,6 +157,19 @@ needs an explicit allowlist entry with a one-line reason; a second test fails an
 matching, and a third re-checks the "no UI consumer" entries by probing for reads of those symbols,
 so neither the allowlist nor its reasons can quietly rot into the hole they were written to close.
 
+**Every allowlist is inside a liveness gate — there are six of them, not three.**
+`testEveryAllowlistEntryStillMatchesSomething` covers `exemptFiles`, `exemptLiterals` and
+`exemptDeclarations`; `testEveryCalleeAllowlistEntryIsLiveOrRecordedAsUnused` covers `exemptCallees`
+and `localizedStringKeyCallees`, which need a different rule because they name a position in a
+FRAMEWORK API and several are listed before the app has a call site (`Toggle`, `navigationTitle`,
+`precondition`) — so the assertion is on the split: every name is either live or recorded in
+`calleesWithNoCallSiteToday`, and moving between the two is one line. `LocalizationCatalogTests`
+carries the sixth, `glossaryExemptions`, which the sweep cannot see at all; it is a static rather
+than a local so `testEveryGlossaryExemptionStillNamesACatalogKey` can assert each entry still names
+a translatable catalog key. An exemption matches the WHOLE key verbatim, the display-width ceiling
+makes rewording these strings likely, and a stale entry silences the glossary check for that string
+with every other gate still green.
+
 **It is a strong default-deny check, not an airtight one** — treat a green run as "nothing obvious
 escaped", not as proof. Its "is this display copy?" filter cannot see: literals containing a
 character outside `alnum` + `` ,.'?!:;&()-/ `` + curly quotes/ellipsis (an em dash, a straight quote,
@@ -152,6 +179,217 @@ fewer than three words (`selected`, `iCloud`); `"""` multi-line literals, which 
 and enum `rawValue`s, skipped structurally and therefore invisible if one is ever drawn directly.
 The full list is on `isDisplayCopy` in the test. Widening the filter trades against false positives
 on the ~500 identifier-shaped literals it currently rejects, so widen deliberately.
+
+## Localization (Phase 2, 2026-08-05)
+
+Phase 2 shipped two of the spec's five items: the sidebar's Markdown Basics prose (item 1) and
+read-aloud voice selection (item 4). **Item 2, the CJK font cascade, was built, measured, and
+removed** — `MarkdownFontCascade` existed on this branch and no longer does. The measurement and the
+reasoning are in "CJK fallback: why Lineform declares NO font cascade" below; that section is the
+authority, and nothing in this file may read as though a cascade shipped. Items 3 (bundling BIZ
+UDGothic) and 5 (CJK reading-preset tuning) remain deferred for the reasons already in
+`docs/superpowers/specs/2026-08-05-localization-phase-2-prose-and-fonts-design.md` — 8.9 MB paid by
+every user for item 3, and no mechanism to vary a preset by script without minting new persisted
+profile identities for item 5. The catalog grew 264 → 300 keys.
+
+**`String(localized:…locale:)` cannot select an `.lproj`** — its `locale:` argument formats
+interpolated values, nothing more. Anything that must be *asserted* per language resolves through
+`Bundle.main.path(forResource: languageCode, ofType: "lproj")` → `Bundle(path:)`, which is why
+`MarkdownReference.sections(in bundle:)` and `Row.accessibilityLabel(in bundle:)`
+(`Lineform/Outline/MarkdownReference.swift`) take a bundle at all, defaulting to `.main` so no
+production call site changed. `MarkdownReferenceTests.testLanguageResolutionComesFromTheBundleNotTheLocale`
+pins the distinction; the English-asserting tests resolve through an explicit `en.lproj` bundle
+rather than `.main`, so the suite survives being run on a non-English Mac.
+
+**`rendersSyntaxAsCode == false` is the predicate the whole row hangs off.** Five rows put a *label*
+where the other 24 put literal Markdown — `Tab`, `Return`, `Block Spacing`, `Spelling`, `Skipped`.
+Those five are app chrome, so they localize, render as prose rather than code, and offer **no copy
+button**: `Row.offersCopy` is `rendersSyntaxAsCode`. The copy button is an argument *against*
+offering it on a label row, not for localizing one — it puts `row.syntax` on the pasteboard, and on
+a label row that is a translated UI word (a Japanese user was copying `スペル` ready to paste into a
+Markdown file, where it means nothing). The 24 syntax rows never localize: they are document
+content, and they are the only rows worth copying. The two keycaps are treated alike — an earlier
+cut routed `Tab` through the catalog and left `Return` a bare literal exempted with the opposite
+reason. `testLabelRowsLocalizeAndSyntaxRowsDoNot` (against the committed catalog, so a verbatim
+translation like `Tab` is still asserted rather than skipped), `testExactlyFiveRowsAreLabelsNotSyntax`,
+and `testOnlyLiteralSyntaxRowsOfferCopy` assert the split in every direction. `"flowchart LR"` is
+now the reference's only source-sweep allowlist entry; the whole-file exemption is gone.
+
+**The 90-character sidebar ceiling holds in all six languages**
+(`testExplanationsStayConciseInEveryLanguage`) — the column does not get wider in German. German
+expansion of 30–35% put roughly eight rows over the cap, and the fix was to shorten the *English*,
+not to raise the ceiling. Measured headroom at the end of the pass: de 86, fr 87, es 82.
+
+**The ceiling measures DISPLAY WIDTH, not `String.count`.** A CJK character occupies two columns, so
+counting `Character`s measured ja and zh-Hans at half their real width — the gate was tight for Latin
+(2 characters of headroom) and permitted ~2× overflow for CJK, which is the one direction it was never
+meant to be loose in. `MarkdownReferenceTests.displayWidth(of:)` sums UAX #11 East Asian Wide and
+Fullwidth scalars as 2 and everything else as 1, measured on each grapheme's first scalar so a
+combining mark never widens the cluster it attaches to. Same 90 limit, now comparable across scripts.
+
+**Keyboard glyphs survive translation, connective prose does not.** `⌘1`, `⌘2 to ⌘6` and the like
+are glyphs, not words — but the English word joining two of them is not, and shipping it as a
+protected token left "⌘2 to ⌘6" untranslated in all five languages. Protect the glyph, translate
+the sentence around it.
+
+**A cold translation review changed 51 values across the five languages** (`3d3c32a`), reviewed one
+language per reviewer with no knowledge of provenance. Two were outright wrong and both were
+product claims, not style: German rendered "Callout" as `Hinweis`, which is the NOTE label rather
+than the construct, and Spanish said the app draws a *bookmark* for a remote image where the
+English promises a **placeholder** — that sentence is the app's never-fetch-remote-images privacy
+promise, so a wording drift there misstates what the app does. French carried the same loss.
+
+**Spanish "Vista previa" is now the one word for the Preview mode.** The app had three for one
+thing: `Previsualizar` on the toolbar, `Previsualización` in Phase 1's chrome, and Apple's own
+standard `Vista previa`. Standardized on Apple's, deliberately reaching back into Phase 1's keys to
+do it. `SystemMenuItemTitles.swift` still contains `Previsualizar` and must keep it — that file is
+a generated record of AppKit's own wording, not Lineform copy.
+
+**Glossary exemptions match on the WHOLE CATALOG KEY, not the term.** The `Tab` exemption (keycap
+vs. document tab) therefore does not cover a different string that also contains "Tab"; a second
+exemption was needed for the Shift-Tab explanation. It also means an exemption disables the
+consistency gate for *every* term in that string, so a later reword of an exempted key can hide a
+real inconsistency.
+
+**Editing `Localizable.xcstrings` by hand: never round-trip it through a JSON serializer.** It
+reflows the entire file and buries the change. Insert new key blocks as text at their sorted
+positions.
+
+## CJK fallback: why Lineform declares NO font cascade (2026-08-05)
+
+Lineform attaches no `.cascadeList` to any font. CJK reaches a face through CoreText's implicit
+substitution, which is what the unmodified platform does. This section exists because the opposite
+was built on this branch — `MarkdownFontCascade`, an explicit `["Hiragino Sans", "PingFang SC"]`
+attached to every resolved font and re-attached after every `NSFontManager` trait conversion — and
+was then measured and **removed**. Do not rebuild it.
+
+**The premise was false.** The feature's rationale was that implicit substitution is "unchosen" and
+the app should choose deliberately. Measured on macOS 26 with `CTFontCreateForString`:
+
+| primary face | what CJK resolves to, bare |
+|---|---|
+| `.systemFont` | `.PingFang UI SC` / `.PingFangUITextSC-Regular` |
+| `.systemFont` + `.boldFontMask` | `.PingFangUITextSC-Bold` — **traitBold set** |
+| `.monospacedSystemFont` + `.boldFontMask` | `.PingFangUITextSC-Semibold` — traitBold set |
+| `withDesign(.serif)` (the New York reading font) | `Songti SC`, a SERIF Han face |
+| Helvetica, Comic Sans MS | `PingFang SC`, `Songti SC` |
+
+So `NSFontManager.convert` dropping an attached cascade — the finding the whole design was built
+around — was a problem that existed **only because we attached one**. Bare, the converted font
+resolves CJK to a correctly-weighted CJK face with no help from us.
+
+**It degraded typography.** The system substitutes optically-sized UI variants (`.PingFang UI Text
+SC`, `.CJK Symbols Fallback SC`) whose metrics match the Latin primary. The public families a
+hardcoded list can name are taller. One mixed EN/zh/ja document at 16pt, line-fragment heights:
+
+- bare: `18, 18, 18, 18, 18`
+- with the cascade `["Hiragino Sans", "PingFang SC"]`, the order that shipped: `18, 24, 24, 18, 24`
+  — two distinct line heights (18 and 24) on one page. Reversing it to PingFang-first is worse, not
+  better: `18, 22, 27, 18, 27`, three distinct heights.
+
+The fixture is `CJKFontFallbackTests.mixedScriptDocument` (EN / zh / ja / EN / ja) measured through
+`NSLayoutManager` line-fragment rects, and it is the same figure the Phase 2 spec quotes — these two
+numbers are the evidence for a never-do rule and must not be allowed to disagree again.
+
+PDF export re-paginated with it (+11% height on a CJK block), and the serif reading font lost its
+serif Han face (Songti SC → PingFang/Hiragino). The cascade also cost 2× per `convert` call on a
+per-keystroke path in Split mode, which is what the `NSCache` memo on `monospaced(ofSize:)` existed
+to offset — a cost that only existed because of the feature.
+
+**The `japaneseFirst` branch bought nothing.** Deriving the order from
+`Bundle.main.preferredLocalizations` was an attempt to rescue the feature after a hardcoded
+Hiragino-first order was found rendering pure Chinese in a Japanese face (most characters of a
+Chinese sentence are shared Han). But under a Japanese interface that branch simply reproduces the
+original bug, and under the PingFang-first default Japanese still reaches Hiragino through kana,
+which is script-exclusive. Both branches were strictly worse than doing nothing.
+
+**What the tests pin now.** `LineformTests/CJKFontFallbackTests.swift` replaces
+`MarkdownFontCascadeTests`. It asserts, bare: every `FontOption` resolves the CJK samples to a real
+glyph in a real family (never LastResort); a bold conversion of system/mono/serif resolves CJK to a
+face with `traitBold`; the serif reading font keeps a serif Han face; a mixed EN/zh/ja document has
+ONE line height at a fixed size for the system-derived faces (SF Pro, Monospaced); and no font the
+app resolves or renders with declares a cascade list at all. One counterfactual test asserts that a
+declared cascade *does* break the line-height uniformity, so the rule keeps its reason attached
+rather than remembered. Non-system families (New York, Helvetica) have their own CJK metrics and
+were never uniform (New York bare measures roughly `19, 22, 22, 19, 22` on the same fixture) — that
+predates this branch and is inherent to those families, not a regression to fix.
+
+The old suite is the cautionary half of this: 18 of its assertions checked only that a list was
+ATTACHED, which is how a Japanese-first order shipped green, and none of them measured a line
+height, which is how the degradation shipped green too.
+
+**What survived the removal**: `FontOption.resolved(for:)` is non-optional
+(`option(for:) ?? defaultOption`). A `FontID` can be RETIRED — still declared so persisted
+`ReadingProfile`s decode, but removed from `groupedOptions` (`.lexend` today) — and the old
+`?? .systemFont(…)` tails at the three render sites were reachable through exactly that gap.
+
+It is kept as **forward insurance, not as a fix for a visible defect**, and the earlier claim that
+it corrected a user-visible mismatch was wrong. `defaultOption` is SF Pro and its `availableFont`
+IS `.systemFont(ofSize:)`, so post-revert `option(for:)?.resolvedFont(size:) ?? .systemFont(size)`
+and `resolved(for:).resolvedFont(size:)` produce the same face for every declared id — asserted by
+`testRetiredFontIDRendersTheSameFaceAsTheOldBareFontTail`. `ReadingExperienceInspector.visibleFontID`
+already showed the default for a retired id, so nothing on screen disagreed either. The two forms
+diverged only WHILE the cascade existed (the tail alone produced an uncascaded face), which is how
+the gap was found. What the API buys now: the retired id's other properties are corrected too, the
+next retirement cannot structurally reintroduce that divergence, and three independent copies of
+one fallback are gone. `ReadingProfileStore` still persists a retired id with no self-heal on
+decode: a pre-existing divergence, unchanged.
+
+## Read-aloud voice (2026-08-05)
+
+`AVSpeechUtterance` with no `voice` follows the **UI** language, so a Japanese-UI user reading an
+English document heard English spoken by a Japanese voice. `SpeechLanguageDetector`
+(`Lineform/ReadingExperience/SpeechLanguageDetector.swift`) runs `NLLanguageRecognizer` over the
+extracted spoken text and returns a BCP-47 code, or nil. The `SpeechSynthesizing` seam widened to
+`speak(_:languageCode:)` so the protocol, `SystemSpeechSynthesizer`, `SpeechController.startSpeaking`
+and `FakeSynthesizer` move together — and the fake still models the SHIPPING stop/pause semantics
+(a stopped utterance reports `didFinish`; pause defers to a word boundary), which is the standing
+invariant in `CLAUDE.md`.
+
+Two conservative gates: a 12-character minimum and a 0.65 confidence floor, below which the voice
+is left alone. Both are load-bearing rather than padding — gibberish scored Polish at 0.48, which
+the floor rejects. `AVSpeechSynthesisVoice(language:)` returns nil for an uninstalled language and
+that nil is fine: it lands back on the system default. The single floor applies to every script
+even though 12 characters of Japanese carries more evidence than 12 of English; that is heuristic
+tuning, not a defect. `NaturalLanguage` auto-links, so no pbxproj Frameworks-phase edit was needed
+(verified with `otool -L`).
+
+**It identifies from a bounded SAMPLE, not the document.** `SpeechController.startSpeaking` hands it
+the whole extracted text, so an uncapped `processString` made Edit ▸ Speech hitch in proportion to
+document size for an answer the first few hundred words already settle. Leading whitespace is
+dropped lazily, the sample is `prefix(4_000)`, and the 12-character minimum is a prefix-bounded
+count rather than a grapheme walk over the document — all three exist so the cost is O(sample), not
+O(document). `testDetectionCostDoesNotScaleWithDocumentLength` asserts it as a ratio (absolute
+milliseconds flake on a loaded runner).
+
+**Detecting a language is not a reason to override the voice.** The first version assigned
+`AVSpeechSynthesisVoice(language: detected)` whenever detection succeeded, which fixed the edge
+case by breaking the common one: an en-GB or en-AU user reading ordinary English prose lost the
+voice they chose in System Settings ▸ Accessibility ▸ Spoken Content and got en-US Samantha,
+because that initializer picks an arbitrary region for a bare tag. Measured on this machine:
+`fr` → fr-CA Amélie (fr-FR Thomas installed), `zh-Hant` → zh-CN Tingting (zh-TW Meijia installed),
+`en` → en-US Samantha, `pt` → pt-BR, `nl` → nl-BE.
+
+`SpeechVoiceResolver` (`Lineform/ReadingExperience/SpeechVoiceResolver.swift`) is the pure decision:
+detected language + `AVSpeechSynthesisVoice.currentLanguageCode()` + `Locale.current.region` +
+`speechVoices()` → `.keepSystemDefault` / `.voice(identifier:)` / `.language(_:)`. Two rules:
+
+- **The user's selection wins unless the document disagrees with it.** When the detected language is
+  compatible with the system voice's tag, `utterance.voice` is left nil — which IS the user's own
+  Spoken Content selection. Only a genuine mismatch overrides.
+- **An override keeps the region.** An installed voice is chosen by identifier (document's explicit
+  region first, then the user's region, then any region, then a region-less tag, ties broken by
+  `speechVoices()` order so the answer is deterministic). `AVSpeechSynthesisVoice(language:)` is the
+  last resort, for a language with nothing installed; its nil is still fine — it lands back on the
+  system default.
+
+Compatibility is script-aware, and that is load-bearing for Chinese: `zh-Hant` and `zh-CN` share a
+language subtag, so without inferring the script from the region (CN/SG/MY → Hans, TW/HK/MO → Hant)
+a Traditional document "agrees with" a Simplified system voice and is read in Simplified. Voices
+take a supplied `[SpeechVoiceCandidate]` rather than calling `speechVoices()` themselves, so
+`SpeechVoiceResolverTests` asserts region and script preference without depending on which voices
+the running machine has installed. `"Hans"`/`"Hant"` are exempted in `LocalizationSourceSweepTests`
+as ISO 15924 subtags — they are compared against BCP-47 tags, never displayed.
 
 ## Accessibility (2026-07-27 audit)
 

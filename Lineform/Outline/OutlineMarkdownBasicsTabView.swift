@@ -91,7 +91,12 @@ struct OutlineMarkdownBasicsTabView: View {
 
             Spacer(minLength: 8)
 
-            copyButton(for: row)
+            // Only the code rows: a label row's cell is a translated UI word, not Markdown.
+            // `copyableSyntax` is nil there, and `copyButton` takes the unwrapped String — so
+            // deleting this check does not compile, let alone reintroduce the bug.
+            if let copyText = row.copyableSyntax {
+                copyButton(rowID: row.id, copyText: copyText)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -101,20 +106,26 @@ struct OutlineMarkdownBasicsTabView: View {
                 .fill(Self.rowBackgroundColor(usesDarkChrome: usesDarkChrome))
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.accessibilityLabel)
+        .accessibilityLabel(row.accessibilityLabel())
     }
 
-    private func copyButton(for row: MarkdownReference.Row) -> some View {
+    /// Takes the copy text as a non-optional `String`, supplied only by unwrapping
+    /// `Row.copyableSyntax` — a label row cannot reach here.
+    private func copyButton(rowID: String, copyText: String) -> some View {
         CopyButton(
-            rowID: row.id,
+            // Identity is the row's STABLE id; the spoken label is its syntax. They were one value
+            // until `Row.identifier` split them — keying "Copied" on translated text is the bug the
+            // id exists to prevent, and speaking an internal slug is the bug on the other side.
+            rowID: rowID,
+            syntax: copyText,
             copiedRowID: $copiedRowID,
             usesDarkChrome: usesDarkChrome,
             action: {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(row.syntax, forType: .string)
-                copiedRowID = row.id
+                NSPasteboard.general.setString(copyText, forType: .string)
+                copiedRowID = rowID
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    if copiedRowID == row.id {
+                    if copiedRowID == rowID {
                         copiedRowID = nil
                     }
                 }
@@ -125,6 +136,7 @@ struct OutlineMarkdownBasicsTabView: View {
 
 private struct CopyButton: View {
     let rowID: String
+    let syntax: String
     @Binding var copiedRowID: String?
     // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
     // which a nested Button re-derives from the window's drift-prone effectiveAppearance.
@@ -152,7 +164,11 @@ private struct CopyButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isCopied ? "Copied" : "Copy \(rowID)")
+        // Two `Text`s, not a ternary of two literals: a ternary's branches are type-checked as
+        // one expression, and whether that lands on `LocalizedStringKey` or the `@_disfavoredOverload`
+        // verbatim `StringProtocol` was never confirmed. `accessibilityLabel(_: Text)` is a distinct,
+        // non-disfavored overload, so each branch is unambiguously a localized position.
+        .accessibilityLabel(isCopied ? Text("Copied") : Text("Copy \(syntax)"))
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) {
                 isHovered = hovering

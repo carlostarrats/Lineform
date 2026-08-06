@@ -115,6 +115,40 @@
         }
       }
     },
+    "%@ Syntax: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ Syntax: %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ Sintaxis: %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ Syntaxe : %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 構文：%2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 语法：%2$@"
+          }
+        }
+      }
+    },
     "%@ value %@": {
       "localizations": {
         "de": {
@@ -1024,7 +1058,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "(Lectura / Previsualización)"
+            "value": "(Lectura / Vista previa)"
           }
         },
         "fr": {
@@ -1255,6 +1289,40 @@
         }
       }
     },
+    "Adds space around blocks in Read and Preview.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fügt in Lesen und Vorschau Abstand um Blöcke hinzu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añade espacio alrededor de los bloques en Lectura y Vista previa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoute de l’espace autour des blocs en Lecture et Aperçu."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閲覧とプレビューでブロックの周囲に余白を追加します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在阅读和预览中为块级内容增加间距。"
+          }
+        }
+      }
+    },
     "All Files": {
       "localizations": {
         "de": {
@@ -1353,6 +1421,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "允许根文件夹展开和折叠"
+          }
+        }
+      }
+    },
+    "Also sequence, class, ER, state, xy, and pie. Other types show their source.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auch sequence, class, ER, state, xy und pie. Andere Typen zeigen ihren Quelltext."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "También sequence, class, ER, state, xy y pie. Los demás tipos muestran su código."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Également sequence, class, ER, state, xy et pie. Les autres types affichent leur code."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sequence、class、ER、state、xy、pieにも対応しています。他の種類はソースを表示します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还支持 sequence、class、ER、state、xy 和 pie。其他类型显示源码。"
           }
         }
       }
@@ -1493,6 +1595,40 @@
         }
       }
     },
+    "Blockquote. Return continues it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zitatblock. Return setzt ihn fort."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloque de cita. Return la continúa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloc de citation. Return le continue."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブロック引用。Returnで継続します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "块引用。Return 继续引用。"
+          }
+        }
+      }
+    },
     "Body": {
       "localizations": {
         "de": {
@@ -1561,6 +1697,40 @@
         }
       }
     },
+    "Bold.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fett."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Negrita."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gras."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ボールド。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粗体。"
+          }
+        }
+      }
+    },
     "Bulleted List": {
       "localizations": {
         "de": {
@@ -1591,6 +1761,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "项目符号列表"
+          }
+        }
+      }
+    },
+    "Bulleted list. Return starts the next; Return on an empty one ends it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufzählung. Return beginnt den nächsten Punkt; bei leerem Punkt endet sie."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista con viñetas. Return inicia la siguiente; en una viñeta vacía, termina la lista."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liste à puces. Return crée la suivante ; sur une puce vide, la liste se termine."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "箇条書き。Returnで次の項目を追加し、空の項目でReturnを押すと終了します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目符号列表。Return 开始下一项；在空项上按 Return 结束列表。"
+          }
+        }
+      }
+    },
+    "Callout. Also TIP, IMPORTANT, WARNING, CAUTION. Add a title after the marker.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Callout. Auch TIP, IMPORTANT, WARNING, CAUTION. Titel nach dem Marker ergänzen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recuadro. También TIP, IMPORTANT, WARNING, CAUTION. Añade un título tras el marcador."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encadré. Également TIP, IMPORTANT, WARNING, CAUTION. Ajoutez un titre après le marqueur."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コールアウト。TIP、IMPORTANT、WARNING、CAUTIONも使えます。マーカーの後にタイトルを追加。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提示框。还支持 TIP、IMPORTANT、WARNING、CAUTION。可在标记后添加标题。"
           }
         }
       }
@@ -1659,6 +1897,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消"
+          }
+        }
+      }
+    },
+    "Centered equation block.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zentrierter Formelblock."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloque de ecuación centrado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloc d’équation centré."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中央揃えの数式ブロック。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "居中的公式块。"
           }
         }
       }
@@ -2067,6 +2339,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "代码"
+          }
+        }
+      }
+    },
+    "Code, math, front matter, and link addresses are never flagged.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code, Formeln, Frontmatter und Linkadressen werden nie markiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El código, las fórmulas, el front matter y las direcciones de enlaces nunca se marcan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le code, les formules, le front matter et les adresses de liens ne sont jamais signalés."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コード、数式、フロントマター、リンクのアドレスは対象外です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代码、公式、front matter 和链接地址不会被标记。"
           }
         }
       }
@@ -2785,6 +3091,40 @@
         }
       }
     },
+    "Diagrams": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagramme"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagramas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagrammes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "図"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图表"
+          }
+        }
+      }
+    },
     "Dismiss announcement": {
       "localizations": {
         "de": {
@@ -2849,6 +3189,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭欢迎屏幕并打开新文稿"
+          }
+        }
+      }
+    },
+    "Divider. At the very top of a file, --- opens front matter instead.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trennlinie. Ganz am Anfang einer Datei öffnet --- stattdessen Frontmatter."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Separador. Al principio del archivo, --- abre el front matter en su lugar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Séparateur. Tout en haut du fichier, --- ouvre plutôt le front matter."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "区切り線。ファイルの先頭にある---はフロントマターの開始です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分隔线。若 --- 位于文件最开头，则改为开启 front matter。"
           }
         }
       }
@@ -3473,6 +3847,74 @@
         }
       }
     },
+    "Fenced code block. Highlighted in Read and Preview, with a copy button.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code-Block. In Lesen und Vorschau hervorgehoben, mit Button zum Kopieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloque de código. Resaltado en Lectura y Vista previa, con botón de copia."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloc de code. Coloration syntaxique en Lecture et Aperçu, avec un bouton de copie."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コードブロック。閲覧とプレビューで色分けされ、コピーボタンが付きます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代码块。在阅读和预览中高亮显示，并带有拷贝按钮。"
+          }
+        }
+      }
+    },
+    "Fenced mermaid block renders as a diagram in Read/Preview. Write shows source.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mermaid-Block wird in Lesen/Vorschau als Diagramm gezeigt, in Schreiben als Quelltext."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloque mermaid: diagrama en Lectura/Vista previa; en Escritura, el código."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloc mermaid : diagramme en Lecture/Aperçu ; en Écriture, le code source."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mermaidブロックは閲覧とプレビューで図になります。執筆ではソースを表示します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mermaid 代码块在阅读/预览中渲染为图表；写作模式下显示源码。"
+          }
+        }
+      }
+    },
     "File": {
       "localizations": {
         "de": {
@@ -3915,6 +4357,40 @@
         }
       }
     },
+    "Header row, then |---|---|, then rows. Colons align. ⌃⌘T inserts, ⌃⌘R tidies.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopfzeile, |---|---|, dann Zeilen. Doppelpunkte richten aus. ⌃⌘T fügt ein, ⌃⌘R ordnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encabezado, |---|---| y filas. Los dos puntos alinean el texto. ⌃⌘T inserta, ⌃⌘R alinea."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En-tête, |---|---| et lignes. Les deux-points alignent le texte. ⌃⌘T insère, ⌃⌘R aligne."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "見出し行、|---|---|、データ行の順。コロンで配置を指定。⌃⌘Tで挿入、⌃⌘Rで整形。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表头行，然后是 |---|---|，再是数据行。冒号控制对齐。⌃⌘T 插入，⌃⌘R 整理。"
+          }
+        }
+      }
+    },
     "Heading": {
       "localizations": {
         "de": {
@@ -4255,6 +4731,40 @@
         }
       }
     },
+    "Image. Local files show in Read and Preview; web addresses stay a placeholder.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild. Lokale Dateien erscheinen in Lesen und Vorschau; Web-Adressen als Platzhalter."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imagen. Archivos locales en Lectura y Vista previa; las web, un marcador de posición."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image. Fichiers locaux affichés en Lecture et Aperçu ; adresses web, un espace réservé."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画像。ローカルのファイルは閲覧とプレビューで表示。Web上の画像はプレースホルダのままです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像。本地文件在阅读和预览中显示；网络地址仅显示占位图。"
+          }
+        }
+      }
+    },
     "In-app notifications": {
       "localizations": {
         "de": {
@@ -4289,6 +4799,108 @@
         }
       }
     },
+    "Indent two spaces to nest a list item.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Verschachteln den Listenpunkt um zwei Leerzeichen einrücken."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sangra dos espacios para anidar un elemento de la lista."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indentez de deux espaces pour imbriquer un élément de liste."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スペース2つ分インデントすると、リスト項目が入れ子になります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缩进两个空格即可嵌套列表项。"
+          }
+        }
+      }
+    },
+    "Inline code.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inline-Code."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código en línea."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code en ligne."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インラインコード。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "行内代码。"
+          }
+        }
+      }
+    },
+    "Inline math.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inline-Formel."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fórmula en línea."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formule en ligne."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インライン数式。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "行内公式。"
+          }
+        }
+      }
+    },
     "Insert Table": {
       "localizations": {
         "de": {
@@ -4319,6 +4931,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "插入表格"
+          }
+        }
+      }
+    },
+    "Inside a table, moves to the next cell. Shift-Tab goes back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt in einer Tabelle zur nächsten Zelle. Shift-Tab geht zurück."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dentro de una tabla, va a la celda siguiente. Shift-Tab retrocede."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans un tableau, passe à la cellule suivante. Shift-Tab revient en arrière."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表の中では次のセルに移動します。Shift-Tabで前に戻ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在表格中移动到下一个单元格。Shift-Tab 返回上一个。"
           }
         }
       }
@@ -4489,6 +5135,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "斜体"
+          }
+        }
+      }
+    },
+    "Italic. *asterisks* work too; underscores inside a word are left alone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kursiv. *Sternchen* funktionieren auch; Unterstriche im Wort bleiben unberührt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursiva. Los *asteriscos* también funcionan; el guion bajo dentro de una palabra, no."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Italique. Les *astérisques* aussi ; les tirets bas à l’intérieur d’un mot sont ignorés."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "イタリック。*アスタリスク*も使えます。単語内のアンダースコアは無視されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斜体。也可使用 *星号*；单词内部的下划线不生效。"
           }
         }
       }
@@ -4693,6 +5373,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "写作时使当前行保持居中。"
+          }
+        }
+      }
+    },
+    "LaTeX supported: fractions, roots, Greek, sums, integrals.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LaTeX wird unterstützt: Brüche, Wurzeln, griechische Buchstaben, Summen, Integrale."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compatible con LaTeX: fracciones, raíces, letras griegas, sumas e integrales."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LaTeX pris en charge : fractions, racines, grec, sommes, intégrales."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LaTeXに対応: 分数、根号、ギリシャ文字、総和、積分。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持 LaTeX：分数、根号、希腊字母、求和、积分。"
           }
         }
       }
@@ -4935,6 +5649,40 @@
         }
       }
     },
+    "Link.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enlace."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lien."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンク。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接。"
+          }
+        }
+      }
+    },
     "Markdown Basics": {
       "localizations": {
         "de": {
@@ -5071,6 +5819,40 @@
         }
       }
     },
+    "Math": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formeln"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fórmulas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formules"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数式"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数学公式"
+          }
+        }
+      }
+    },
     "Math (source)": {
       "localizations": {
         "es": {
@@ -5203,6 +5985,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mermaid 图表。%@"
+          }
+        }
+      }
+    },
+    "Misspellings underline as you type. Nothing is autocorrected.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechtschreibfehler werden beim Tippen unterstrichen. Nichts wird automatisch korrigiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los errores se subrayan mientras escribes. No se corrige nada automáticamente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les fautes sont soulignées à la frappe. Rien n’est corrigé automatiquement."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "入力中、つづりの誤りに下線が引かれます。自動修正は行いません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入时会为拼写错误加下划线。不会自动更正任何内容。"
           }
         }
       }
@@ -5645,6 +6461,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "编号列表"
+          }
+        }
+      }
+    },
+    "Numbered list. Return keeps the count going.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nummerierte Liste. Return zählt weiter."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista numerada. Return continúa la numeración."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liste numérotée. Return poursuit la numérotation."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "番号付きリスト。Returnで番号が続きます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编号列表。Return 继续编号。"
           }
         }
       }
@@ -6295,6 +7145,40 @@
         }
       }
     },
+    "Plain dollar amounts stay as text.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reine Dollarbeträge bleiben normaler Text."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las cantidades en dólares se mantienen como texto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les montants en dollars restent du texte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通常のドル金額はテキストのままです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "普通的美元金额仍显示为文本。"
+          }
+        }
+      }
+    },
     "Plain markdown source — shows #, ** as typed.": {
       "localizations": {
         "de": {
@@ -6340,7 +7224,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Previsualizar"
+            "value": "Vista previa"
           }
         },
         "fr": {
@@ -7281,6 +8165,40 @@
         }
       }
     },
+    "Return": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return"
+          }
+        }
+      }
+    },
     "Rich Text (.rtf)": {
       "localizations": {
         "de": {
@@ -8103,6 +9021,74 @@
         }
       }
     },
+    "Skipped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgenommen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Excluido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exclu"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対象外"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排除项"
+          }
+        }
+      }
+    },
+    "Smaller heading (more # = smaller). ⌘2 to ⌘6 set the level.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleinere Überschrift (mehr # = kleiner). ⌘2 bis ⌘6 legen die Ebene fest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encabezado más pequeño (más # = más pequeño). ⌘2 a ⌘6 fijan el nivel."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous-section plus petite (plus de # = plus petit). ⌘2 à ⌘6 règlent le niveau."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小さい見出し（#が多いほど小さい）。⌘2〜⌘6でレベルを設定。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "较小的标题（# 越多越小）。⌘2 至 ⌘6 设置级别。"
+          }
+        }
+      }
+    },
     "Sort folders by": {
       "localizations": {
         "de": {
@@ -8201,6 +9187,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "语音"
+          }
+        }
+      }
+    },
+    "Spelling": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechtschreibung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ortografía"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orthographe"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スペル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拼写"
           }
         }
       }
@@ -8375,6 +9395,40 @@
         }
       }
     },
+    "Strikethrough.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durchgestrichen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Barré."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取り消し線。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除线。"
+          }
+        }
+      }
+    },
     "Styled PDF": {
       "localizations": {
         "de": {
@@ -8477,6 +9531,40 @@
         }
       }
     },
+    "Tab": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        }
+      }
+    },
     "Tabloid": {
       "localizations": {
         "de": {
@@ -8507,6 +9595,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "小报用纸"
+          }
+        }
+      }
+    },
+    "Task, done. Click to toggle.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe, erledigt. Zum Umschalten klicken."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarea completada. Haz clic para cambiar el estado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tâche terminée. Cliquez pour changer d’état."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了したタスク。クリックで切り替えます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成的任务。点按可切换。"
+          }
+        }
+      }
+    },
+    "Task, not done. Return starts the next one.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe, offen. Return beginnt die nächste."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarea sin completar. Return inicia la siguiente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tâche à faire. Return crée la suivante."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未完了のタスク。Returnで次の項目を作成します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未完成的任务。Return 开始下一项。"
           }
         }
       }
@@ -9153,6 +10309,40 @@
         }
       }
     },
+    "Top-level heading. ⌘1 sets it, ⌘0 clears it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überschrift der obersten Ebene. ⌘1 setzt sie, ⌘0 entfernt sie."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encabezado de nivel superior. ⌘1 lo aplica, ⌘0 lo quita."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titre de premier niveau. ⌘1 l’applique, ⌘0 le supprime."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最上位の見出し。⌘1で設定、⌘0で解除します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一级标题。⌘1 设置，⌘0 清除。"
+          }
+        }
+      }
+    },
     "Type to search all files…": {
       "localizations": {
         "es": {
@@ -9523,6 +10713,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭后，“文件”边栏中的 iCloud 与工作区部分将始终保持展开。"
+          }
+        }
+      }
+    },
+    "While searching, jumps to the next match; wraps around.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt bei der Suche zum nächsten Treffer; beginnt am Ende wieder von vorn."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durante la búsqueda, salta a la siguiente coincidencia; al final, vuelve al principio."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendant la recherche, passe à la correspondance suivante ; à la fin, revient au début."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索中は次の該当箇所に移動します。末尾に達すると先頭に戻ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索时跳到下一个匹配项；到末尾后回到开头。"
           }
         }
       }

@@ -104,12 +104,14 @@ final class LocalizationCatalogTests: XCTestCase {
         }
     }
 
-    func testGlossaryTermsTranslateConsistently() throws {
-        let glossaryURL = repoRoot().appendingPathComponent("docs/notes/lineform-glossary.json")
-        let glossary = try XCTUnwrap(
-            try JSONSerialization.jsonObject(with: Data(contentsOf: glossaryURL)) as? [String: [String: String]])
-        // Keys whose English is a whole glossary term used in a different sense may
-        // be exempted here, with a comment saying why. Empty until proven needed.
+    // Keys whose English is a whole glossary term used in a different sense may
+    // be exempted here, with a comment saying why.
+    //
+    // This is a static, not a local, so `testEveryGlossaryExemptionStillNamesACatalogKey` can
+    // reach it: an exemption that stops matching a real key silences the consistency check for
+    // that string with nothing to notice it. The display-width ceiling makes rewording these
+    // strings likely, so the risk is not theoretical.
+    private static let glossaryExemptions: Set<String> = [
         // Three keys use "write" as the ordinary verb, not as the name of Write mode. The
         // glossary rendering is a NOUN in every language ("Escritura", "Écriture",
         // "Schreiben", "執筆", "写作"), so forcing it in here would replace a natural verb
@@ -117,17 +119,51 @@ final class LocalizationCatalogTests: XCTestCase {
         // "durante la Escritura", and "Lineform no ha podido escribir" would claim the app
         // failed at the mode rather than at the file write. The mode itself is carried by
         // the "Write" and "Toggle Write / Read" keys, which are NOT exempt.
-        let exemptions: Set<String> = [
-            "Highlights the current line while you write.",
-            "Keeps the current line centered as you write.",
-            "Lineform couldn’t write “%@”. Choose a different location and try again.",
-            // The VoiceOver label on the rendered text view. It describes what the user is
-            // reading, and is never mapped back to a menu item the way a mode name is, so
-            // German takes its natural compound "Markdown-Leseansicht" — the rule would have
-            // forced the stiff "Markdown-Ansicht „Lesen“" for the sake of four literal
-            // letters. The other four languages still carry the glossary term unforced.
-            "Markdown read view",
-        ]
+        "Highlights the current line while you write.",
+        "Keeps the current line centered as you write.",
+        "Lineform couldn’t write “%@”. Choose a different location and try again.",
+        // The VoiceOver label on the rendered text view. It describes what the user is
+        // reading, and is never mapped back to a menu item the way a mode name is, so
+        // German takes its natural compound "Markdown-Leseansicht" — the rule would have
+        // forced the stiff "Markdown-Ansicht „Lesen“" for the sake of four literal
+        // letters. The other four languages still carry the glossary term unforced.
+        "Markdown read view",
+        // The glossary's "Tab" is the document tab (Pestaña / Onglet / タブ / 标签页). The
+        // Markdown reference's "Tab" is the keycap, which stays "Tab" in every language.
+        "Tab",
+        // Same keycap, second sighting: the hyphen in "Shift-Tab" is a word boundary, so the
+        // document-tab term matches inside it. Exemptions are matched on the WHOLE key, so
+        // the "Tab" entry above does not cover this one — it needs its own. "Shift-Tab" is a
+        // key combination printed on the keyboard and is reproduced verbatim in all five
+        // languages; translating it would name a UI element that does not exist.
+        // Note the cost: an exemption is matched on the WHOLE key, so it silences the
+        // glossary check for EVERY term in that string, not just the one that collided.
+        "Inside a table, moves to the next cell. Shift-Tab goes back.",
+    ]
+
+    /// An exemption names a catalog key VERBATIM, so a reworded key leaves a dead entry behind and
+    /// the new wording quietly loses glossary checking — silently, because every other gate stays
+    /// green. `LocalizationSourceSweepTests` has the same rule for its own allowlists; this list
+    /// was outside every liveness gate, and this branch added a whole key to it.
+    func testEveryGlossaryExemptionStillNamesACatalogKey() throws {
+        let strings = try catalog("Localizable")
+        for exemption in Self.glossaryExemptions {
+            guard let entry = strings[exemption] else {
+                XCTFail("glossary exemption '\(exemption)' is not a catalog key any more — "
+                        + "reword the entry to match, or delete it")
+                continue
+            }
+            XCTAssertTrue(isTranslatable(entry),
+                          "glossary exemption '\(exemption)' names a key the glossary check would "
+                              + "skip anyway — delete it")
+        }
+    }
+
+    func testGlossaryTermsTranslateConsistently() throws {
+        let glossaryURL = repoRoot().appendingPathComponent("docs/notes/lineform-glossary.json")
+        let glossary = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: glossaryURL)) as? [String: [String: String]])
+        let exemptions = Self.glossaryExemptions
 
         // Whole-word matching, not substring: "Tab" must not match "Table" and
         // "Read" must not match "Reading & Accessibility".

@@ -35,8 +35,6 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Generated table OF Apple's translations, keyed by English; regenerate with packaging/extract-system-menu-titles.py. Lineform never draws these.",
         "MainMenuIconDecorator.swift":
             "Icon lookup tables — normalized English titles and their per-language aliases. The decorator only ever sets NSMenuItem.image; it writes no titles.",
-        "MarkdownReference.swift":
-            "The Markdown Basics tab's explanation rows, explicitly deferred to Localization Phase 2 by the Phase 1 spec. The tab's NAME is Phase 1 and lives in OutlineSidebarView.",
         "LineformCommandLine.swift":
             "`lineform` CLI diagnostics printed to stderr in a shell, outside the app's localized UI.",
         "LineformAppIntents.swift":
@@ -68,6 +66,10 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "BundledFontRegistrar.swift|Fonts": "Bundle subdirectory name.",
         "DiagramLog.swift|Library/Application Support": "File-system path component.",
+        "SpeechVoiceResolver.swift|Hans":
+            "ISO 15924 script subtag compared against BCP-47 voice tags, never displayed.",
+        "SpeechVoiceResolver.swift|Hant":
+            "ISO 15924 script subtag compared against BCP-47 voice tags, never displayed.",
 
         // Typeface names. Never translated (plan Global Constraints); only the descriptive
         // "Monospaced" label is, and it is String(localized:) in the same array.
@@ -85,6 +87,10 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "CodeHighlighting.swift|None": "Language keyword highlighted inside a code block — document content.",
         "CodeHighlighting.swift|True": "Language keyword highlighted inside a code block — document content.",
         "CodeHighlighting.swift|False": "Language keyword highlighted inside a code block — document content.",
+        "MarkdownReference.swift|flowchart LR":
+            "Mermaid diagram syntax shown as an example — document content, never localized. The "
+            + "keycap legends `Tab` and `Return` used to sit here too; both are label rows now and "
+            + "route through the catalog, so this is the reference's only remaining exemption.",
 
         // Persisted identity. ReadingProfile is Codable and its `name` is written into the
         // stored active profile, so display goes through the localized ReadingPreset.title.
@@ -132,6 +138,21 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "Menu", "Stepper", "Section", "alert", "confirmationDialog", "help", "searchable",
         "accessibilityLabel", "accessibilityHint", "accessibilityValue", "navigationTitle",
         "tabItem",
+    ]
+
+    /// Names from the two lists above that no bare literal in `Lineform/` currently sits directly
+    /// inside. They are kept because the rule is about the framework position, not about today's
+    /// call sites — but they are recorded, not assumed, by
+    /// `testEveryCalleeAllowlistEntryIsLiveOrRecordedAsUnused`.
+    ///
+    /// "No call site" here means no call site the LEXER attributes to this callee: `Toggle`,
+    /// `Menu`, `accessibilityHint` and `accessibilityValue` are all used in the app, but always
+    /// with a `String(localized:)` argument, so the innermost enclosing call is `String`. Which is
+    /// the good outcome — the entry is a safety net for a bare literal that has not been written.
+    private static let calleesWithNoCallSiteToday: Set<String> = [
+        "SecureField", "Link", "Stepper", "Toggle", "Menu", "confirmationDialog", "navigationTitle",
+        "tabItem", "accessibilityHint", "accessibilityValue",
+        "assertionFailure", "precondition", "preconditionFailure",
     ]
 
     // MARK: - The gate
@@ -207,6 +228,28 @@ final class LocalizationSourceSweepTests: XCTestCase {
         for entry in Self.exemptDeclarations.keys {
             XCTAssertTrue(seenDeclarations.contains(entry), "exemptDeclarations: \(entry) matches nothing — delete it")
         }
+    }
+
+    /// The other two allowlists — `exemptCallees` and `localizedStringKeyCallees` — were outside
+    /// the liveness gate above, which is how a whole class of entry stayed unchecked. They cannot
+    /// use the same rule verbatim: they name a POSITION in a framework API, so several are
+    /// deliberately listed before the app has a call site for them (`Toggle`, `navigationTitle`,
+    /// `precondition`). So the assertion is on the split itself — every name is either live here
+    /// or recorded as not-yet-used, and it is a one-line move between the two. Nothing is silent.
+    func testEveryCalleeAllowlistEntryIsLiveOrRecordedAsUnused() throws {
+        var seenCallees: Set<String> = []
+        for source in try Self.swiftSources() {
+            for literal in Self.literals(in: source.text) {
+                if let callee = literal.callee { seenCallees.insert(callee) }
+            }
+        }
+
+        let declared = Set(Self.exemptCallees.keys).union(Self.localizedStringKeyCallees)
+        XCTAssertEqual(
+            declared.subtracting(seenCallees), Self.calleesWithNoCallSiteToday,
+            "a callee allowlist entry changed liveness. A name that gained a call site must be "
+                + "removed from calleesWithNoCallSiteToday; a name that lost its last one must be "
+                + "added (or deleted, if the rule is dead)")
     }
 
     /// Ten allowlist entries above rest on a claim `testEveryAllowlistEntryStillMatchesSomething`

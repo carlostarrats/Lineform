@@ -230,7 +230,9 @@ struct ReadingExperienceInspector: View {
 
     static func visibleFontID(for profile: ReadingProfile) -> FontID {
         guard FontOption.option(for: profile.fontID)?.isAvailable == true else {
-            return .sfPro
+            // One definition of "the default", shared with `FontOption.resolved(for:)` — a second
+            // hardcoded `.sfPro` here could drift out of agreement with what actually renders.
+            return FontOption.defaultOption.id
         }
         return profile.fontID
     }

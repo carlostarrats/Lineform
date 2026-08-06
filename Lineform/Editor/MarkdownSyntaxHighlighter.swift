@@ -32,7 +32,11 @@ final class MarkdownSyntaxHighlighter {
 
     static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
-        let font = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
+        // `resolved(for:)`, not `option(for:)?` + a bare `?? .systemFont(…)` tail: a RETIRED
+        // FontID resolves to nil here. The tail renders the SAME face today (the default option
+        // is SF Pro), so this is forward insurance against the next retirement — not a fix for a
+        // visible defect. See `FontOption.resolved(for:)`.
+        let font = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         let paragraphStyle = paragraphStyle(for: profile, font: font)
 
         return [

@@ -116,7 +116,10 @@ Deferred to Phase 2:
   A localized tab name over English reference content is accepted for Phase 1:
   the content is optional reading, and the syntax column would stay English in
   every phase regardless (it is Markdown).
-- CJK font cascade and BIZ UDGothic.
+- CJK font cascade and BIZ UDGothic. **(Superseded — see the status header of
+  `2026-08-05-localization-phase-2-prose-and-fonts-design.md`. The cascade was
+  built, measured, and REMOVED in Phase 2; BIZ UDGothic stays deferred. Nothing
+  here is live work.)**
 - Read-aloud voice selection.
 - CJK reading-preset tuning.
 
