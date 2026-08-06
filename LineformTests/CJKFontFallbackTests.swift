@@ -191,20 +191,34 @@ final class CJKFontFallbackTests: XCTestCase {
     /// The guard against rebuilding the feature by halves: no font the app resolves, and no font
     /// it renders with, carries a fallback list.
     ///
-    /// This originally covered only `FontOption.resolvedFont` and `MarkdownPreviewRenderer`'s
-    /// output — two of the SEVEN sites the removed `MarkdownFontCascade` used to attach to (see
-    /// `git show 33206ad`). Widened to also cover the export path (`DocumentExportRenderer`, the
-    /// default PDF/Print preset and the highest-CJK-density surface in the app) and the live
-    /// editor's applied typography and syntax highlighting (`LineformTextView`,
-    /// `MarkdownSyntaxHighlighter`).
+    /// The removed `MarkdownFontCascade` attached at **26 call sites across 9 files**
+    /// (`git grep -n MarkdownFontCascade 33206ad^ -- Lineform/`, excluding the cascade's own file).
+    /// This test covers **4 of those 9 files**:
     ///
-    /// Three former sites are NOT reached here, and can't be without adding test-only surface to
-    /// production code: `MermaidPieChart.MermaidPieRenderer.image` builds its title/legend fonts as
-    /// LOCAL variables and returns only a rasterized `NSImage` — there is no attributed string or
-    /// font attribute left to inspect once it's pixels. `SaveAsExport.ExportPanelController`'s font
-    /// lives on an `NSSavePanel` accessory view, and constructing an `NSSavePanel` (an `NSWindow`
-    /// subclass) is forbidden in the default test plan. `FirstLaunchIntroOverlay`'s font lives on a
-    /// `private let label` with no accessor.
+    /// - `FontOption` (5 sites) — the `resolvedFont` loop below.
+    /// - `MarkdownPreviewRenderer` (13 sites in 8 functions) — the render fixture below, which is
+    ///   built to reach ALL of them: heading, table cell + table header, inline bold/italic/code,
+    ///   fenced code, callout title, the mermaid and math fallback captions, and inline math's
+    ///   fallback branch. A half-rebuild at any one of those would fail here.
+    /// - `DocumentExportRenderer` (1 site) — the "Normal" preset that lays out raw markdown source,
+    ///   the default PDF/Print preset and the highest-CJK-density surface in the app.
+    /// - `MarkdownSyntaxHighlighter` (1 site) — the highlighting overlay, including code spans.
+    ///
+    /// **Five files are NOT covered.** Three cannot be without adding test-only surface to
+    /// production code: `MermaidPieRenderer.image` builds its title/legend fonts as LOCAL variables
+    /// and returns only a rasterized `NSImage` — there is no font attribute left to read once it is
+    /// pixels (`testMermaidPieChartDrawsInkForItsCJKTitle` goes at it through the raster instead).
+    /// `SaveAsExport.ExportPanelController`'s
+    /// font lives on an `NSSavePanel` accessory view, and constructing an `NSSavePanel` (an
+    /// `NSWindow` subclass) is forbidden in the default test plan. `FirstLaunchIntroOverlay`'s font
+    /// lives on a `private let label` with no accessor. `MarkdownPreviewViewRepresentable`'s
+    /// `pillLabelFont` (the copy/Reconnect pill) is the same shape — a `private static let`.
+    ///
+    /// The fifth is `LineformTextView`: its former site was `drawEmptyStatePlaceholderIfNeeded`,
+    /// which builds a transient attributed string and draws it immediately, so there is nothing
+    /// left to read back. The `editorTextView.font` assertion below covers `applyTypography` — a
+    /// site the cascade never touched — and is deliberately labelled as such rather than counted
+    /// as coverage of the former one.
     @MainActor
     func testNoResolvedOrRenderedFontDeclaresACascadeList() throws {
         for option in FontOption.groupedOptions.flatMap(\.options) where option.isAvailable {
@@ -212,10 +226,44 @@ final class CJKFontFallbackTests: XCTestCase {
                          "\(option.name) declares a cascade list")
         }
 
+        // Reaches every one of MarkdownPreviewRenderer's 13 former cascade sites. The bare
+        // `render(_:profile:)` overload supplies the Disabled mermaid/math providers, so the two
+        // diagram blocks take their captioned-source FALLBACK paths (and log nothing).
         let rendered = MarkdownPreviewRenderer().render(
-            "# 見出し\n\nBody **粗体** and `内联` text\n\n```\nコード\n```\n\n| 標題 | 第二 |\n| --- | --- |\n| 单元格 | 内容 |\n",
+            """
+            # 見出し
+
+            Body **粗体** and *斜体* and `内联` text
+
+            行内数学 $a+b$ 之后
+
+            > [!NOTE] 注意
+            > 提示内容
+
+            ```
+            コード
+            ```
+
+            ```mermaid
+            flowchart TD
+            A-->B
+            ```
+
+            $$x^2$$
+
+            | 標題 | 第二 |
+            | --- | --- |
+            | 单元格 | 内容 |
+            """,
             profile: .original
         )
+        // Fail loudly if a fixture block stops taking the path it was added for, rather than
+        // silently shrinking this test's reach.
+        for marker in ["見出し", "粗体", "斜体", "内联", "a+b", "提示内容", "コード",
+                       "Mermaid diagram (source)", "Math (source)", "单元格"] {
+            XCTAssertTrue(rendered.string.contains(marker),
+                          "the render fixture stopped reaching \(marker)")
+        }
         var runs = 0
         rendered.enumerateAttribute(.font, in: NSRange(location: 0, length: rendered.length)) { value, range, _ in
             guard let font = value as? NSFont else { return }
@@ -247,13 +295,17 @@ final class CJKFontFallbackTests: XCTestCase {
         }
         XCTAssertGreaterThan(exportRuns, 0, "the export fixture stopped producing font runs")
 
-        // The live editor's applied typography (LineformTextView.applyTypography) and its syntax
-        // highlighting overlay (MarkdownSyntaxHighlighter, including the code-span/code-fence font).
+        // LineformTextView.applyTypography — NOT one of the former cascade sites (that was
+        // `drawEmptyStatePlaceholderIfNeeded`, which is unreachable from a test). Kept only
+        // because it pins the font the editor actually installs, one composition step past the
+        // `resolvedFont` loop above.
         let editorTextView = LineformTextView()
         editorTextView.applyTypography(.original)
         XCTAssertNil(cascadeCount(try XCTUnwrap(editorTextView.font)),
                      "LineformTextView's applied typography declares a cascade list")
 
+        // The syntax highlighting overlay (MarkdownSyntaxHighlighter, including the
+        // code-span/code-fence font) — this one IS a former cascade site.
         editorTextView.string = "中文段落 `内联代码` 日本語\n\n```\nコード块\n```\n"
         MarkdownSyntaxHighlighter().highlight(textView: editorTextView, profile: .original)
         var highlightRuns = 0
@@ -312,12 +364,37 @@ final class CJKFontFallbackTests: XCTestCase {
 
     /// A retired id substitutes the whole default OPTION, not just a face — so its other
     /// properties are corrected too, which a bare system font would not have done.
+    @MainActor
     func testRetiredFontIDResolvesToTheDefaultOption() {
         XCTAssertNil(FontOption.option(for: .lexend), "Lexend is no longer retired — pick another id")
         XCTAssertEqual(FontOption.resolved(for: .lexend), FontOption.defaultOption)
         XCTAssertEqual(FontOption.defaultOption.id, .sfPro)
         // A live id must still resolve to itself, not to the default.
         XCTAssertEqual(FontOption.resolved(for: .newYork).id, .newYork)
+        // One definition of "the default": the picker must show what the renderer substitutes.
+        XCTAssertEqual(ReadingExperienceInspector.visibleFontID(for: {
+            var profile = ReadingProfile.original
+            profile.fontID = .lexend
+            return profile
+        }()), FontOption.defaultOption.id)
+    }
+
+    /// The honest boundary of what `resolved(for:)` buys, pinned so the comments above it stay
+    /// true: post-cascade it renders the SAME face as the bare `?? .systemFont(…)` tail it
+    /// replaced, for EVERY declared id — retired ones included. It is forward insurance against
+    /// the next retirement, not a fix for a defect a user can see today.
+    ///
+    /// If this ever fails, the two forms have diverged and the "forward insurance" framing in
+    /// `FontOption.resolved(for:)` becomes a live-bug story again — update the comments with it.
+    func testRetiredFontIDRendersTheSameFaceAsTheOldBareFontTail() {
+        for id in FontID.allCases {
+            for size in [11, 17, 24] as [CGFloat] {
+                let old = FontOption.option(for: id)?.resolvedFont(size: size) ?? .systemFont(ofSize: size)
+                let new = FontOption.resolved(for: id).resolvedFont(size: size)
+                XCTAssertEqual(old.fontName, new.fontName, "\(id) at \(size)pt: face differs")
+                XCTAssertEqual(old.pointSize, new.pointSize, "\(id) at \(size)pt: size differs")
+            }
+        }
     }
 
     /// The nil signal `isAvailable` depends on: a bogus family must resolve to nil, or every
@@ -331,12 +408,62 @@ final class CJKFontFallbackTests: XCTestCase {
     }
 
     /// The pie renderer draws DOCUMENT-DERIVED text (a `pie title 销售额` title and its slice
-    /// labels) into a raster bound for PDF and Print — it must still render CJK.
-    func testMermaidPieChartRendersCJKTitleAndLabels() throws {
-        let model = try XCTUnwrap(MermaidPieChart.parse("pie title 销售额\n \"苹果\" : 30\n \"梨\" : 10"))
-        let image = MermaidPieRenderer.image(
-            model: model, background: .white, foreground: .black, scale: 2
-        )
-        XCTAssertNotNil(image)
+    /// labels) into a raster bound for PDF and Print. Its fonts are local variables inside
+    /// `MermaidPieRenderer.image` and its output is pixels, so this asserts on the raster: the
+    /// title band must actually carry ink, and it must be the TITLE's ink (the same model with no
+    /// title is 24pt shorter and blank where the title was).
+    ///
+    /// A bare `XCTAssertNotNil(image)` would pass with tofu, with Latin text, and with a cascade
+    /// re-attached — so it is not used here.
+    func testMermaidPieChartDrawsInkForItsCJKTitle() throws {
+        let titled = try XCTUnwrap(MermaidPieChart.parse("pie title 销售额\n \"苹果\" : 30\n \"梨\" : 10"))
+        let untitled = try XCTUnwrap(MermaidPieChart.parse("pie\n \"苹果\" : 30\n \"梨\" : 10"))
+
+        let titledBitmap = try XCTUnwrap(bitmap(for: titled))
+        let untitledBitmap = try XCTUnwrap(bitmap(for: untitled))
+
+        // The title band is `padding (16) ..< padding + titleHeight (24)` in POINTS, at scale 2.
+        XCTAssertEqual(titledBitmap.pixelsHigh - untitledBitmap.pixelsHigh, 48,
+                       "the title band is no longer 24pt at scale 2 — re-derive the band below")
+        XCTAssertGreaterThan(inkFraction(in: titledBitmap, pointRows: 16..<40), 0.001,
+                             "the CJK title drew no ink")
+        XCTAssertEqual(inkFraction(in: untitledBitmap, pointRows: 0..<12), 0, accuracy: 0.0001,
+                       "the untitled control is not blank where the title band would be")
+
+        // The exact faces `MermaidPieRenderer.image` builds must reach real CJK glyphs.
+        assertResolvesCJK(.systemFont(ofSize: 15, weight: .semibold), "pie title font")
+        assertResolvesCJK(.systemFont(ofSize: 12), "pie legend font")
+    }
+
+    private func bitmap(for model: MermaidPieModel) -> NSBitmapImageRep? {
+        guard
+            let image = MermaidPieRenderer.image(
+                model: model, background: .white, foreground: .black, scale: 2
+            ),
+            let rep = image.representations.compactMap({ $0 as? NSBitmapImageRep }).first
+        else {
+            return nil
+        }
+        return rep
+    }
+
+    /// The fraction of pixels in `pointRows` (measured in POINTS from the top, scaled by 2) that
+    /// are darker than the white background.
+    private func inkFraction(in bitmap: NSBitmapImageRep, pointRows: Range<Int>) -> Double {
+        let rows = (pointRows.lowerBound * 2)..<min(pointRows.upperBound * 2, bitmap.pixelsHigh)
+        guard !rows.isEmpty else { return 0 }
+        var inked = 0
+        var total = 0
+        for y in rows {
+            for x in stride(from: 0, to: bitmap.pixelsWide, by: 1) {
+                total += 1
+                if let color = bitmap.colorAt(x: x, y: y),
+                   let rgb = color.usingColorSpace(.sRGB),
+                   rgb.brightnessComponent < 0.85 {
+                    inked += 1
+                }
+            }
+        }
+        return total == 0 ? 0 : Double(inked) / Double(total)
     }
 }

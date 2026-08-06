@@ -992,8 +992,10 @@ struct MarkdownPreviewRenderer {
 
     private func headingAttributes(level: Int, profile: ReadingProfile, usesBlockSpacing: Bool, headingScale: CGFloat = 1.0) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
-        // `resolved(for:)`, not `option(for:)?` + a bare-font tail: a RETIRED FontID resolves to
-        // nil, and the tail then drew a bare system face while the picker showed the default.
+        // `resolved(for:)`, not `option(for:)?` + a bare `?? .systemFont(…)` tail: a RETIRED
+        // FontID resolves to nil here. The tail renders the SAME face today (the default option
+        // is SF Pro), so this is forward insurance against the next retirement — not a fix for a
+        // visible defect. See `FontOption.resolved(for:)`.
         let bodyFont = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         let sizeBoost = Self.headingSizeBoosts[level] ?? 0
         let headingFont = NSFontManager.shared.convert(bodyFont, toHaveTrait: .boldFontMask)

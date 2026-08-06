@@ -318,12 +318,22 @@ The old suite is the cautionary half of this: 18 of its assertions checked only 
 ATTACHED, which is how a Japanese-first order shipped green, and none of them measured a line
 height, which is how the degradation shipped green too.
 
-**What survived the removal**, because it was never about the cascade:
-`FontOption.resolved(for:)` is non-optional (`option(for:) ?? defaultOption`). A `FontID` can be
-RETIRED — still declared so persisted `ReadingProfile`s decode, but removed from `groupedOptions`
-(`.lexend` today) — and the old `?? .systemFont(…)` tails at the render sites were reachable
-through exactly that gap, drawing a bare face while the picker showed SF Pro. `ReadingProfileStore`
-still persists a retired id with no self-heal on decode: a pre-existing divergence, unchanged.
+**What survived the removal**: `FontOption.resolved(for:)` is non-optional
+(`option(for:) ?? defaultOption`). A `FontID` can be RETIRED — still declared so persisted
+`ReadingProfile`s decode, but removed from `groupedOptions` (`.lexend` today) — and the old
+`?? .systemFont(…)` tails at the three render sites were reachable through exactly that gap.
+
+It is kept as **forward insurance, not as a fix for a visible defect**, and the earlier claim that
+it corrected a user-visible mismatch was wrong. `defaultOption` is SF Pro and its `availableFont`
+IS `.systemFont(ofSize:)`, so post-revert `option(for:)?.resolvedFont(size:) ?? .systemFont(size)`
+and `resolved(for:).resolvedFont(size:)` produce the same face for every declared id — asserted by
+`testRetiredFontIDRendersTheSameFaceAsTheOldBareFontTail`. `ReadingExperienceInspector.visibleFontID`
+already showed the default for a retired id, so nothing on screen disagreed either. The two forms
+diverged only WHILE the cascade existed (the tail alone produced an uncascaded face), which is how
+the gap was found. What the API buys now: the retired id's other properties are corrected too, the
+next retirement cannot structurally reintroduce that divergence, and three independent copies of
+one fallback are gone. `ReadingProfileStore` still persists a retired id with no self-heal on
+decode: a pre-existing divergence, unchanged.
 
 ## Read-aloud voice (2026-08-05)
 

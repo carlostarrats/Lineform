@@ -50,13 +50,23 @@ struct FontOption: Equatable, Identifiable {
     ///
     /// A `FontID` can be RETIRED: still declared in the enum so persisted `ReadingProfile`s keep
     /// decoding, but removed from `groupedOptions` so it is no longer offered. `.lexend` is one
-    /// today. `option(for:)` returns nil for those, and the three render sites' old
-    /// `?? .systemFont(…)` tails then drew a bare system face — a profile persisted from a build
-    /// where Lexend was selectable rendered in the system font while the picker showed the
-    /// default option.
+    /// today. `option(for:)` returns nil for those, and a profile persisted from a build where
+    /// Lexend was selectable used to reach the bare `?? .systemFont(…)` tail at each of the
+    /// three render sites.
     ///
-    /// Substituting the whole default OPTION rather than just a font also fixes the retired id's
-    /// other properties, and makes the next retirement safe by construction.
+    /// That tail is NOT a live defect. `defaultOption` is SF Pro and its `availableFont` IS
+    /// `.systemFont(ofSize:)`, so `option(for:)?.resolvedFont(size:) ?? .systemFont(size)` and
+    /// `resolved(for:).resolvedFont(size:)` produce the same face for every declared `FontID`,
+    /// retired or not — asserted by `testRetiredFontIDRendersTheSameFaceAsTheOldBareFontTail`.
+    /// The picker agrees too: `ReadingExperienceInspector.visibleFontID` already shows the default
+    /// for a retired id. The two only diverged while the (since removed) `MarkdownFontCascade`
+    /// was attached — the tail produced an UNCASCADED face while every other font in the app got
+    /// a cascade, which is how the gap was found in the first place.
+    ///
+    /// So this is kept as FORWARD INSURANCE, not as a fix for anything a user can see today:
+    /// substituting the whole default OPTION also corrects the retired id's other properties, it
+    /// makes the next retirement structurally incapable of reintroducing that divergence, and it
+    /// deletes three copies of a fallback that otherwise has to be right independently.
     static func resolved(for id: FontID) -> FontOption {
         option(for: id) ?? defaultOption
     }
