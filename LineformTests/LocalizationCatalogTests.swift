@@ -130,6 +130,12 @@ final class LocalizationCatalogTests: XCTestCase {
             // The glossary's "Tab" is the document tab (Pestaña / Onglet / タブ / 标签页). The
             // Markdown reference's "Tab" is the keycap, which stays "Tab" in every language.
             "Tab",
+            // Same keycap, second sighting: the hyphen in "Shift-Tab" is a word boundary, so the
+            // document-tab term matches inside it. Exemptions are matched on the WHOLE key, so
+            // the "Tab" entry above does not cover this one — it needs its own. "Shift-Tab" is a
+            // key combination printed on the keyboard and is reproduced verbatim in all five
+            // languages; translating it would name a UI element that does not exist.
+            "Inside a table, moves to the next cell. Shift-Tab goes back.",
         ]
 
         // Whole-word matching, not substring: "Tab" must not match "Table" and

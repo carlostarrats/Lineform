@@ -2,24 +2,42 @@ import XCTest
 @testable import Lineform
 
 final class MarkdownReferenceTests: XCTestCase {
-    func testSectionsCoverEveryGroupAndAreNonEmpty() {
-        let titles = MarkdownReference.sections.map(\.title)
-        XCTAssertEqual(titles, ["Markdown Basics", "Diagrams", "Math", "Spelling", "Search"])
-        for section in MarkdownReference.sections {
+    private static let languages = ["en", "es", "fr", "de", "ja", "zh-Hans"]
+
+    private func bundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "\(language).lproj missing from the test host"
+        )
+    }
+
+    /// Explicitly the ENGLISH rendering. `.main` is NOT the fix — `MarkdownReference.sections`
+    /// is *defined* as `sections(in: .main)`, so on a Mac or CI runner configured for German
+    /// `.main` resolves German and every English-asserting test below fails. The built app's
+    /// `en.lproj` carries no `Localizable.strings`, so a lookup there returns the key — which
+    /// is the English text.
+    private func englishBundle() throws -> Bundle { try bundle("en") }
+
+    func testSectionsCoverEveryGroupAndAreNonEmpty() throws {
+        // The group SET is the invariant; naming the titles is how we catch a dropped section.
+        // Per-language shape is covered by testSectionTitlesLocalize.
+        let sections = MarkdownReference.sections(in: try englishBundle())
+        XCTAssertEqual(sections.map(\.title), ["Markdown Basics", "Diagrams", "Math", "Spelling", "Search"])
+        for section in sections {
             XCTAssertFalse(section.rows.isEmpty, section.title)
         }
     }
 
-    func testBasicsIncludesCoreSyntax() {
-        let basics = MarkdownReference.sections.first { $0.title == "Markdown Basics" }
+    func testBasicsIncludesCoreSyntax() throws {
+        let basics = MarkdownReference.sections(in: try englishBundle()).first { $0.title == "Markdown Basics" }
         let syntaxes = basics?.rows.map(\.syntax) ?? []
         for expected in ["# Title", "**bold**", "- [x] done", "| a | b |", "> [!NOTE]", "```swift"] {
             XCTAssertTrue(syntaxes.contains(expected), "missing \(expected)")
         }
     }
 
-    func testBasicsIncludesCalloutSyntax() {
-        let basics = MarkdownReference.sections.first { $0.title == "Markdown Basics" }
+    func testBasicsIncludesCalloutSyntax() throws {
+        let basics = MarkdownReference.sections(in: try englishBundle()).first { $0.title == "Markdown Basics" }
         let syntaxes = basics?.rows.map(\.syntax) ?? []
         XCTAssertTrue(syntaxes.contains("> [!NOTE]"), "missing callout row")
     }
@@ -27,27 +45,39 @@ final class MarkdownReferenceTests: XCTestCase {
     // The tab is where users look for shortcuts, so the keyboard aids have to stay named here
     // when the editor gains them — heading levels, list continuation, and table authoring all
     // shipped without the reference mentioning them once.
-    func testReferenceNamesTheEditingShortcuts() {
-        let explanations = MarkdownReference.sections.flatMap(\.rows).map(\.explanation).joined(separator: " ")
-        for expected in ["⌘1", "⌘0", "⌘2 to ⌘6", "⌃⌘T", "⌃⌘R", "Shift-Tab", "Return starts the next"] {
-            XCTAssertTrue(explanations.contains(expected), "reference no longer mentions \(expected)")
+    func testReferenceNamesTheEditingShortcuts() throws {
+        // The glyphs are UI, not prose: they must survive translation in EVERY language.
+        for language in Self.languages {
+            let explanations = MarkdownReference.sections(in: try bundle(language))
+                .flatMap(\.rows).map(\.explanation).joined(separator: " ")
+            for expected in ["⌘1", "⌘0", "⌘2 to ⌘6", "⌃⌘T", "⌃⌘R", "Shift-Tab"] {
+                XCTAssertTrue(explanations.contains(expected), "\(language) lost the shortcut glyph \(expected)")
+            }
         }
+
+        // English prose, so it is pinned to the English bundle rather than the host's language.
+        let english = MarkdownReference.sections(in: try englishBundle())
+            .flatMap(\.rows).map(\.explanation).joined(separator: " ")
+        XCTAssertTrue(english.contains("Return starts the next"), "reference no longer describes list continuation")
     }
 
-    // Guards the narrow-column rewrite: a future edit can't silently re-bloat copy.
-    func testExplanationsStayConcise() {
-        for section in MarkdownReference.sections {
-            for row in section.rows {
-                XCTAssertLessThanOrEqual(
-                    row.explanation.count, 90,
-                    "too wordy for the sidebar: \(row.syntax) — \(row.explanation)"
-                )
+    /// Guards the narrow-column rewrite in EVERY language, not just English. The column does not
+    /// get wider in German. Pinning only `en` let a 120-character translation ship silently.
+    func testExplanationsStayConciseInEveryLanguage() throws {
+        for language in Self.languages {
+            for section in MarkdownReference.sections(in: try bundle(language)) {
+                for row in section.rows {
+                    XCTAssertLessThanOrEqual(
+                        row.explanation.count, 90,
+                        "too wordy for the sidebar in \(language): \(row.syntax) — \(row.explanation)"
+                    )
+                }
             }
         }
     }
 
-    func testBlockSpacingIsNotRenderedAsCode() {
-        let row = MarkdownReference.sections
+    func testBlockSpacingIsNotRenderedAsCode() throws {
+        let row = MarkdownReference.sections(in: try englishBundle())
             .flatMap(\.rows)
             .first { $0.syntax == "Block Spacing" }
         XCTAssertEqual(row?.rendersSyntaxAsCode, false)
@@ -81,12 +111,10 @@ final class MarkdownReferenceTests: XCTestCase {
         XCTAssertEqual(MarkdownReference.sections(in: .main), MarkdownReference.sections)
     }
 
-    private func germanBundle() throws -> Bundle {
-        try XCTUnwrap(Bundle.main.path(forResource: "de", ofType: "lproj").flatMap(Bundle.init(path:)))
-    }
+    private func germanBundle() throws -> Bundle { try bundle("de") }
 
     func testSectionTitlesLocalize() throws {
-        let english = MarkdownReference.sections(in: .main).map(\.title)
+        let english = MarkdownReference.sections(in: try englishBundle()).map(\.title)
         let german = MarkdownReference.sections(in: try germanBundle()).map(\.title)
 
         XCTAssertEqual(english, ["Markdown Basics", "Diagrams", "Math", "Spelling", "Search"])
@@ -99,7 +127,7 @@ final class MarkdownReferenceTests: XCTestCase {
 
     func testLabelRowsLocalizeAndSyntaxRowsDoNot() throws {
         let german = try germanBundle()
-        let englishRows = MarkdownReference.sections(in: .main).flatMap(\.rows)
+        let englishRows = MarkdownReference.sections(in: try englishBundle()).flatMap(\.rows)
         let germanRows = MarkdownReference.sections(in: german).flatMap(\.rows)
 
         XCTAssertEqual(germanRows.count, englishRows.count)
@@ -117,8 +145,9 @@ final class MarkdownReferenceTests: XCTestCase {
         }
     }
 
-    func testExactlyFourRowsAreLabelsNotSyntax() {
-        let labels = MarkdownReference.sections.flatMap(\.rows).filter { !$0.rendersSyntaxAsCode }
+    func testExactlyFourRowsAreLabelsNotSyntax() throws {
+        let labels = MarkdownReference.sections(in: try englishBundle())
+            .flatMap(\.rows).filter { !$0.rendersSyntaxAsCode }
         XCTAssertEqual(labels.count, 4, "A new label row must be localized — see testLabelRowsLocalize…")
     }
 }
