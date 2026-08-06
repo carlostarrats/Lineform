@@ -18,8 +18,16 @@ against the code)
   the cascade" was a problem that existed only because we attached a cascade. It
   also made typography worse — the system picks metric-compatible optical UI
   variants while a hardcoded list can only name the taller public families, so
-  one mixed document went from line heights `18,18,18,18,18` to `18,24,18,24,24`
-  and PDFs re-paginated; the serif reading font lost Songti SC. The whole feature
+  one mixed document went from line heights `18, 18, 18, 18, 18` to
+  `18, 24, 24, 18, 24` and PDFs re-paginated; the serif reading font lost Songti
+  SC. (Re-measured 2026-08-05: the five-line EN/zh/ja/EN/ja fixture in
+  `CJKFontFallbackTests.mixedScriptDocument`, SF Pro 16pt, `NSLayoutManager`
+  line-fragment heights, cascade `["Hiragino Sans", "PingFang SC"]` — the order
+  that shipped. An earlier draft of this line said `18,24,18,24,24`, which
+  matches neither the fixture's line order nor either cascade order; the figure
+  above is the measured one and agrees with
+  `docs/architecture/app-integration.md`. A PingFang-first cascade is not better,
+  it is worse: `18, 22, 27, 18, 27`, three distinct heights.) The whole feature
   was reverted. `LineformTests/CJKFontFallbackTests.swift` now pins the platform
   behaviour instead, and the reasoning is in
   `docs/architecture/app-integration.md`. Do not rebuild it.

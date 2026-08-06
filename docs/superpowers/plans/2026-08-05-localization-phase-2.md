@@ -1,5 +1,24 @@
 # Localization Phase 2 Implementation Plan
 
+> ## STATUS, 2026-08-05: item 2 (the CJK font cascade) WAS REVERTED. Do not rebuild it.
+>
+> This plan is a **historical record of what was attempted**, kept unrewritten so the reasoning that
+> led to a wrong feature stays legible. Items 1 (Markdown Basics prose) and 4 (read-aloud voice)
+> shipped. **Item 2 shipped as `MarkdownFontCascade`, was then measured on macOS 26, and was removed**
+> (commits `33206ad` + `a53c56d`). Every cascade task, design note, and test below — roughly 77
+> mentions — describes a file that no longer exists, and none of it is an instruction.
+>
+> Why it was reverted, in one paragraph: CoreText's implicit substitution already resolves CJK
+> correctly *including bold* (`.systemFont` + `.boldFontMask` → `.PingFangUITextSC-Bold`), so
+> "`NSFontManager.convert` drops the cascade" was a problem that existed only because we attached a
+> cascade. Worse, the system substitutes metric-compatible optically-sized UI variants while a
+> hardcoded list can only name the taller public families: one mixed EN/zh/ja document at 16pt went
+> from line heights `18, 18, 18, 18, 18` to `18, 24, 24, 18, 24`, PDFs re-paginated, and the serif
+> reading font lost its serif Han face (Songti SC). `Claude.md` and
+> `docs/architecture/app-integration.md` ("CJK fallback: why Lineform declares NO font cascade") now
+> forbid rebuilding it; `LineformTests/CJKFontFallbackTests.swift` replaces `MarkdownFontCascadeTests`
+> and pins the platform behaviour instead.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Localize the Markdown Basics sidebar prose, give the font stack an explicit CJK fallback that survives bold/italic, and pick the read-aloud voice from the document's language instead of the UI's.
@@ -14,10 +33,12 @@
 
 The spec has five items. This plan implements **items 1, 2, and 4**.
 
-- **Item 3 (BIZ UDGothic, 8.9 MB) is deferred.** It is the spec's own "most likely to be cut," it needs a product call on bundle size, and its size figure is still unverified. Item 2 stands on its own without it. Adding it later is additive: two files into `Lineform/Resources/Fonts/`, two names into `BundledFontRegistrar.fontFileNames`, one entry into `ReleaseResourceTests`'s license list, and one extra family in `MarkdownFontCascade.fallbackFamilies` — plus the five-surface credit sweep in the spec.
+- **Item 3 (BIZ UDGothic, 8.9 MB) is deferred.** It is the spec's own "most likely to be cut," it needs a product call on bundle size, and its size figure is still unverified. Item 2 stands on its own without it. Adding it later is additive: two files into `Lineform/Resources/Fonts/`, two names into `BundledFontRegistrar.fontFileNames`, and one entry into `ReleaseResourceTests`'s license list — plus the five-surface credit sweep in the spec. **(Corrected after the revert: this step originally also said "one extra family in `MarkdownFontCascade.fallbackFamilies`". There is no such file and no cascade to extend — a bundled family reaches CJK text the same way every other family does, through CoreText substitution. Adding a `.cascadeList` is forbidden; see the status banner.)**
 - **Item 5 (CJK preset tuning) is out.** The spec says it should not be built as written: there is no mechanism to vary a preset by script, and `ReadingProfile.name` is persisted `Codable` identity. It needs a schema decision first, not a tuning pass.
 
 If you want item 3 in, say so before Task 5 — that is where the cascade families are defined.
+**(Corrected after the revert: Task 5 no longer exists in the shipped code. Item 3 is now independent
+of anything in this plan.)**
 
 ## Global Constraints
 
@@ -1220,7 +1241,15 @@ Under Load-Bearing Invariants, one line each — in the **Localization** group:
 
 and in the **Rendering** group:
 
-> - `NSFontManager.shared.convert(_:toHaveTrait:)` DROPS an attached `.cascadeList` on `.systemFont`, `.monospacedSystemFont`, and `withDesign(.serif)` while preserving it for named families. Every trait conversion goes through `MarkdownFontCascade.convert`, or CJK text silently reverts to per-glyph substitution for headings, table headers, callout titles, and every bold/italic span — the exact surfaces a body-text-only check passes.
+> - ~~`NSFontManager.shared.convert(_:toHaveTrait:)` DROPS an attached `.cascadeList` on `.systemFont`, `.monospacedSystemFont`, and `withDesign(.serif)` while preserving it for named families. Every trait conversion goes through `MarkdownFontCascade.convert`, or CJK text silently reverts to per-glyph substitution for headings, table headers, callout titles, and every bold/italic span — the exact surfaces a body-text-only check passes.~~
+
+**RETRACTED — this is the exact claim the revert measured false, and it is NOT in `Claude.md`.**
+The drop is real but harmless, because the bare converted font is already correct: measured on
+macOS 26, `.systemFont` + `.boldFontMask` resolves CJK to `.PingFangUITextSC-Bold`, with `traitBold`
+set, and `.monospacedSystemFont` + `.boldFontMask` to `.PingFangUITextSC-Semibold`. "Reverts to
+per-glyph substitution" was never a degradation — substitution is the correct, metric-compatible
+result. What `Claude.md` and `docs/architecture/app-integration.md` carry instead is the opposite
+rule: Lineform declares no cascade list anywhere, and `CJKFontFallbackTests` asserts it.
 
 Remember `CLAUDE.md` is tracked as `Claude.md` — `git add CLAUDE.md` stages nothing and silently drops the edit. Use `git add Claude.md` and confirm with `git status`.
 

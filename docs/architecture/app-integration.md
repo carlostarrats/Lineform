@@ -157,6 +157,19 @@ needs an explicit allowlist entry with a one-line reason; a second test fails an
 matching, and a third re-checks the "no UI consumer" entries by probing for reads of those symbols,
 so neither the allowlist nor its reasons can quietly rot into the hole they were written to close.
 
+**Every allowlist is inside a liveness gate — there are five of them, not three.**
+`testEveryAllowlistEntryStillMatchesSomething` covers `exemptFiles`, `exemptLiterals` and
+`exemptDeclarations`; `testEveryCalleeAllowlistEntryIsLiveOrRecordedAsUnused` covers `exemptCallees`
+and `localizedStringKeyCallees`, which need a different rule because they name a position in a
+FRAMEWORK API and several are listed before the app has a call site (`Toggle`, `navigationTitle`,
+`precondition`) — so the assertion is on the split: every name is either live or recorded in
+`calleesWithNoCallSiteToday`, and moving between the two is one line. `LocalizationCatalogTests`
+carries the fifth, `glossaryExemptions`, which the sweep cannot see at all; it is a static rather
+than a local so `testEveryGlossaryExemptionStillNamesACatalogKey` can assert each entry still names
+a translatable catalog key. An exemption matches the WHOLE key verbatim, the display-width ceiling
+makes rewording these strings likely, and a stale entry silences the glossary check for that string
+with every other gate still green.
+
 **It is a strong default-deny check, not an airtight one** — treat a green run as "nothing obvious
 escaped", not as proof. Its "is this display copy?" filter cannot see: literals containing a
 character outside `alnum` + `` ,.'?!:;&()-/ `` + curly quotes/ellipsis (an em dash, a straight quote,
@@ -169,9 +182,12 @@ on the ~500 identifier-shaped literals it currently rejects, so widen deliberate
 
 ## Localization (Phase 2, 2026-08-05)
 
-Phase 2 shipped three of the spec's five items: the sidebar's Markdown Basics prose (item 1), the
-CJK font cascade (item 2), and read-aloud voice selection (item 4). Items 3 (bundling BIZ UDGothic)
-and 5 (CJK reading-preset tuning) remain deferred for the reasons already in
+Phase 2 shipped two of the spec's five items: the sidebar's Markdown Basics prose (item 1) and
+read-aloud voice selection (item 4). **Item 2, the CJK font cascade, was built, measured, and
+removed** — `MarkdownFontCascade` existed on this branch and no longer does. The measurement and the
+reasoning are in "CJK fallback: why Lineform declares NO font cascade" below; that section is the
+authority, and nothing in this file may read as though a cascade shipped. Items 3 (bundling BIZ
+UDGothic) and 5 (CJK reading-preset tuning) remain deferred for the reasons already in
 `docs/superpowers/specs/2026-08-05-localization-phase-2-prose-and-fonts-design.md` — 8.9 MB paid by
 every user for item 3, and no mechanism to vary a preset by script without minting new persisted
 profile identities for item 5. The catalog grew 264 → 299 keys.
@@ -185,15 +201,19 @@ production call site changed. `MarkdownReferenceTests.testLanguageResolutionCome
 pins the distinction; the English-asserting tests resolve through an explicit `en.lproj` bundle
 rather than `.main`, so the suite survives being run on a non-English Mac.
 
-**`rendersSyntaxAsCode == false` is the predicate deciding which syntax-column cells localize.**
-Four rows put an English *label* where the other 25 put literal Markdown — `Tab`, `Block Spacing`,
-`Spelling`, `Skipped` — and those four localize (the row's copy button otherwise puts an English
-word on the pasteboard in a Japanese sidebar). The 25 syntax rows never do: they are document
-content. A new label row must be localized and a new syntax row must not;
-`testLabelRowsLocalizeAndSyntaxRowsDoNot` and `testExactlyFourRowsAreLabelsNotSyntax` assert the
-split in both directions, so neither side can drift by accident. `"Return"` and `"flowchart LR"`
-are the two syntax literals that read as display copy to the source sweep and carry explicit
-allowlist entries; the whole-file exemption for `MarkdownReference.swift` is gone.
+**`rendersSyntaxAsCode == false` is the predicate the whole row hangs off.** Five rows put a *label*
+where the other 24 put literal Markdown — `Tab`, `Return`, `Block Spacing`, `Spelling`, `Skipped`.
+Those five are app chrome, so they localize, render as prose rather than code, and offer **no copy
+button**: `Row.offersCopy` is `rendersSyntaxAsCode`. The copy button is an argument *against*
+offering it on a label row, not for localizing one — it puts `row.syntax` on the pasteboard, and on
+a label row that is a translated UI word (a Japanese user was copying `スペル` ready to paste into a
+Markdown file, where it means nothing). The 24 syntax rows never localize: they are document
+content, and they are the only rows worth copying. The two keycaps are treated alike — an earlier
+cut routed `Tab` through the catalog and left `Return` a bare literal exempted with the opposite
+reason. `testLabelRowsLocalizeAndSyntaxRowsDoNot` (against the committed catalog, so a verbatim
+translation like `Tab` is still asserted rather than skipped), `testExactlyFiveRowsAreLabelsNotSyntax`,
+and `testOnlyLiteralSyntaxRowsOfferCopy` assert the split in every direction. `"flowchart LR"` is
+now the reference's only source-sweep allowlist entry; the whole-file exemption is gone.
 
 **The 90-character sidebar ceiling holds in all six languages**
 (`testExplanationsStayConciseInEveryLanguage`) — the column does not get wider in German. German
@@ -263,7 +283,13 @@ SC`, `.CJK Symbols Fallback SC`) whose metrics match the Latin primary. The publ
 hardcoded list can name are taller. One mixed EN/zh/ja document at 16pt, line-fragment heights:
 
 - bare: `18, 18, 18, 18, 18`
-- with the cascade: `18, 24, 24, 18, 24` — two distinct line heights (18 and 24) on one page
+- with the cascade `["Hiragino Sans", "PingFang SC"]`, the order that shipped: `18, 24, 24, 18, 24`
+  — two distinct line heights (18 and 24) on one page. Reversing it to PingFang-first is worse, not
+  better: `18, 22, 27, 18, 27`, three distinct heights.
+
+The fixture is `CJKFontFallbackTests.mixedScriptDocument` (EN / zh / ja / EN / ja) measured through
+`NSLayoutManager` line-fragment rects, and it is the same figure the Phase 2 spec quotes — these two
+numbers are the evidence for a never-do rule and must not be allowed to disagree again.
 
 PDF export re-paginated with it (+11% height on a CJK block), and the serif reading font lost its
 serif Han face (Songti SC → PingFang/Hiragino). The cascade also cost 2× per `convert` call on a
@@ -317,6 +343,14 @@ that nil is fine: it lands back on the system default. The single floor applies 
 even though 12 characters of Japanese carries more evidence than 12 of English; that is heuristic
 tuning, not a defect. `NaturalLanguage` auto-links, so no pbxproj Frameworks-phase edit was needed
 (verified with `otool -L`).
+
+**It identifies from a bounded SAMPLE, not the document.** `SpeechController.startSpeaking` hands it
+the whole extracted text, so an uncapped `processString` made Edit ▸ Speech hitch in proportion to
+document size for an answer the first few hundred words already settle. Leading whitespace is
+dropped lazily, the sample is `prefix(4_000)`, and the 12-character minimum is a prefix-bounded
+count rather than a grapheme walk over the document — all three exist so the cost is O(sample), not
+O(document). `testDetectionCostDoesNotScaleWithDocumentLength` asserts it as a ratio (absolute
+milliseconds flake on a loaded runner).
 
 **Detecting a language is not a reason to override the voice.** The first version assigned
 `AVSpeechSynthesisVoice(language: detected)` whenever detection succeeded, which fixed the edge
