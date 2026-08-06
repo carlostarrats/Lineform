@@ -85,10 +85,10 @@ final class SpeechController: ObservableObject {
     }
 }
 
-/// Production adapter over `AVSpeechSynthesizer` (system default rate; voice from the document's
-/// detected language, falling back to the system default when detection declines). Offline,
-/// no network, no entitlement. Not unit-tested — it is the real audio path; the state machine it
-/// drives is tested via `SpeechSynthesizing`.
+/// Production adapter over `AVSpeechSynthesizer` (system default rate; the user's own Spoken
+/// Content voice unless the document is positively in another language, per `SpeechVoiceResolver`).
+/// Offline, no network, no entitlement. Not unit-tested — it is the real audio path; the state
+/// machine it drives is tested via `SpeechSynthesizing`, and the voice choice via the resolver.
 final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpeechSynthesizerDelegate {
     // Set exactly once by `SpeechController.init` before any speech starts, then only read from the
     // didFinish callback (which hops to main before invoking). No concurrent mutation, so the
@@ -113,11 +113,26 @@ final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpeechSynth
 
     func speak(_ text: String, languageCode: String?) {
         let utterance = AVSpeechUtterance(string: text)
-        // Only override when detection was confident AND the system actually has that voice.
-        // AVSpeechSynthesisVoice(language:) returns nil for an uninstalled language, and
-        // assigning nil is the same as never setting it.
-        if let languageCode {
-            utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
+        // The user's own Spoken Content voice wins unless the document is positively in another
+        // language — `SpeechVoiceResolver` owns that judgement (and the region preference behind
+        // it); see its doc comment for why an unconditional override was a regression.
+        switch SpeechVoiceResolver.decision(
+            detectedLanguage: languageCode,
+            systemDefaultLanguage: AVSpeechSynthesisVoice.currentLanguageCode(),
+            preferredRegion: Locale.current.region?.identifier,
+            availableVoices: AVSpeechSynthesisVoice.speechVoices().map {
+                SpeechVoiceCandidate(identifier: $0.identifier, language: $0.language)
+            }
+        ) {
+        case .keepSystemDefault:
+            break                       // leaving `voice` nil IS the user's own selection
+        case .voice(let identifier):
+            // Nil for a voice that vanished between the enumeration and here; assigning nil is the
+            // same as never setting it, so the default still applies.
+            utterance.voice = AVSpeechSynthesisVoice(identifier: identifier)
+        case .language(let tag):
+            // Nothing installed matched; let AVFoundation resolve the bare tag (nil if uninstalled).
+            utterance.voice = AVSpeechSynthesisVoice(language: tag)
         }
         currentUtterance = utterance
         synthesizer.speak(utterance)

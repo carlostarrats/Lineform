@@ -344,6 +344,35 @@ even though 12 characters of Japanese carries more evidence than 12 of English; 
 tuning, not a defect. `NaturalLanguage` auto-links, so no pbxproj Frameworks-phase edit was needed
 (verified with `otool -L`).
 
+**Detecting a language is not a reason to override the voice.** The first version assigned
+`AVSpeechSynthesisVoice(language: detected)` whenever detection succeeded, which fixed the edge
+case by breaking the common one: an en-GB or en-AU user reading ordinary English prose lost the
+voice they chose in System Settings ▸ Accessibility ▸ Spoken Content and got en-US Samantha,
+because that initializer picks an arbitrary region for a bare tag. Measured on this machine:
+`fr` → fr-CA Amélie (fr-FR Thomas installed), `zh-Hant` → zh-CN Tingting (zh-TW Meijia installed),
+`en` → en-US Samantha, `pt` → pt-BR, `nl` → nl-BE.
+
+`SpeechVoiceResolver` (`Lineform/ReadingExperience/SpeechVoiceResolver.swift`) is the pure decision:
+detected language + `AVSpeechSynthesisVoice.currentLanguageCode()` + `Locale.current.region` +
+`speechVoices()` → `.keepSystemDefault` / `.voice(identifier:)` / `.language(_:)`. Two rules:
+
+- **The user's selection wins unless the document disagrees with it.** When the detected language is
+  compatible with the system voice's tag, `utterance.voice` is left nil — which IS the user's own
+  Spoken Content selection. Only a genuine mismatch overrides.
+- **An override keeps the region.** An installed voice is chosen by identifier (document's explicit
+  region first, then the user's region, then any region, then a region-less tag, ties broken by
+  `speechVoices()` order so the answer is deterministic). `AVSpeechSynthesisVoice(language:)` is the
+  last resort, for a language with nothing installed; its nil is still fine — it lands back on the
+  system default.
+
+Compatibility is script-aware, and that is load-bearing for Chinese: `zh-Hant` and `zh-CN` share a
+language subtag, so without inferring the script from the region (CN/SG/MY → Hans, TW/HK/MO → Hant)
+a Traditional document "agrees with" a Simplified system voice and is read in Simplified. Voices
+take a supplied `[SpeechVoiceCandidate]` rather than calling `speechVoices()` themselves, so
+`SpeechVoiceResolverTests` asserts region and script preference without depending on which voices
+the running machine has installed. `"Hans"`/`"Hant"` are exempted in `LocalizationSourceSweepTests`
+as ISO 15924 subtags — they are compared against BCP-47 tags, never displayed.
+
 ## Accessibility (2026-07-27 audit)
 
 - **The first-launch intro must be dismissable without a mouse.** It is a borderless,
