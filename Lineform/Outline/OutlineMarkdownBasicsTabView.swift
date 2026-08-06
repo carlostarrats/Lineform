@@ -106,7 +106,11 @@ struct OutlineMarkdownBasicsTabView: View {
 
     private func copyButton(for row: MarkdownReference.Row) -> some View {
         CopyButton(
+            // Identity is the row's STABLE id; the spoken label is its syntax. They were one value
+            // until `Row.identifier` split them — keying "Copied" on translated text is the bug the
+            // id exists to prevent, and speaking an internal slug is the bug on the other side.
             rowID: row.id,
+            syntax: row.syntax,
             copiedRowID: $copiedRowID,
             usesDarkChrome: usesDarkChrome,
             action: {
@@ -125,6 +129,7 @@ struct OutlineMarkdownBasicsTabView: View {
 
 private struct CopyButton: View {
     let rowID: String
+    let syntax: String
     @Binding var copiedRowID: String?
     // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
     // which a nested Button re-derives from the window's drift-prone effectiveAppearance.
@@ -156,7 +161,7 @@ private struct CopyButton: View {
         // one expression, and whether that lands on `LocalizedStringKey` or the `@_disfavoredOverload`
         // verbatim `StringProtocol` was never confirmed. `accessibilityLabel(_: Text)` is a distinct,
         // non-disfavored overload, so each branch is unambiguously a localized position.
-        .accessibilityLabel(isCopied ? Text("Copied") : Text("Copy \(rowID)"))
+        .accessibilityLabel(isCopied ? Text("Copied") : Text("Copy \(syntax)"))
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) {
                 isHovered = hovering

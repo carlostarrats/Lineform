@@ -28,6 +28,52 @@ final class MarkdownReferenceTests: XCTestCase {
         }
     }
 
+    // MARK: - Identity
+
+    /// `Section.id` and `Row.id` key SwiftUI `ForEach` and the copy button's transient "Copied"
+    /// state. Every section title and four row syntax cells now localize, so an id derived from
+    /// display text is an id that changes with the interface language. Asserted across all six
+    /// bundles rather than reasoned about.
+    func testEveryIdentityIsStableAcrossLanguages() throws {
+        var sectionIDs: [String]?
+        var rowIDs: [String]?
+
+        for language in Self.languages {
+            let sections = MarkdownReference.sections(in: try bundle(language))
+            let sectionsHere = sections.map(\.id)
+            let rowsHere = sections.flatMap(\.rows).map(\.id)
+
+            if let sectionIDs {
+                XCTAssertEqual(sectionsHere, sectionIDs, "section ids changed in \(language)")
+                XCTAssertEqual(rowsHere, rowIDs, "row ids changed in \(language)")
+            } else {
+                sectionIDs = sectionsHere
+                rowIDs = rowsHere
+            }
+        }
+
+        // A duplicate id silently collapses two ForEach rows and makes one copy button light up
+        // the other's checkmark.
+        let sections = try XCTUnwrap(sectionIDs)
+        let rows = try XCTUnwrap(rowIDs)
+        XCTAssertEqual(Set(sections).count, sections.count, "duplicate section id in \(sections)")
+        XCTAssertEqual(Set(rows).count, rows.count, "duplicate row id in \(rows)")
+        XCTAssertFalse(sections.isEmpty)
+        XCTAssertFalse(rows.isEmpty)
+    }
+
+    /// The rule in both directions: a LABEL row localizes its syntax and therefore MUST carry an
+    /// explicit identifier; a literal-syntax row is document content and may fall through to it.
+    func testLabelRowsCarryAnExplicitIdentifier() throws {
+        for row in MarkdownReference.sections(in: try englishBundle()).flatMap(\.rows) {
+            if row.rendersSyntaxAsCode {
+                XCTAssertEqual(row.id, row.syntax, "\(row.syntax) no longer identifies by its syntax")
+            } else {
+                XCTAssertNotNil(row.identifier, "label row \"\(row.syntax)\" has a translated id")
+            }
+        }
+    }
+
     func testBasicsIncludesCoreSyntax() throws {
         let basics = MarkdownReference.sections(in: try englishBundle()).first { $0.title == "Markdown Basics" }
         let syntaxes = basics?.rows.map(\.syntax) ?? []
