@@ -22,10 +22,16 @@ against the code)
   under-specified: there is no mechanism to vary a preset by script without
   minting new persisted profile identities. Decide the schema first.
 
-Two corrections the implementation produced, recorded here so the text below is
-not read as current in these two places: glossary exemptions match on the whole
-catalog key rather than the term, and the Spanish word for Preview was
-standardized on Apple's `Vista previa` across both phases. The
+Four corrections the implementation produced, recorded here so the text below is
+not read as current in these places: glossary exemptions match on the whole
+catalog key rather than the term; the Spanish word for Preview was
+standardized on Apple's `Vista previa` across both phases; "the pairing is
+unchosen" (below, CJK font cascade) is superseded — the shipped cascade
+derives the order from `Bundle.main.preferredLocalizations`, so the pairing
+is chosen by locale, not left to CoreText; and "non-accessibility faces
+cascade to Hiragino Sans as normal" (below, BIZ UDGothic) is superseded the
+same way — only a Japanese interface cascades Hiragino-first, everything else
+cascades PingFang-first. The
 `Lineform/Resources/*.md` question under "Unresolved Across Both Phases" was
 **not** taken up and remains open.
 
@@ -177,7 +183,8 @@ Declare an explicit fallback via `NSFontDescriptor`'s cascade list: Hiragino
 Sans for Japanese, PingFang SC for Simplified Chinese. Both ship with macOS —
 `NSFont(name:)` resolves each, re-confirmed 2026-08-05 on macOS 26. Today
 CoreText substitutes per glyph — nothing is broken, but the pairing is unchosen
-and a mixed Chinese/Japanese document can render Chinese in a Japanese face.
+(superseded — see status header) and a mixed Chinese/Japanese document can
+render Chinese in a Japanese face.
 
 Measured on macOS 26, so the implementation does not re-litigate them — and the
 second result overturns what the first draft asserted:
@@ -254,7 +261,8 @@ each:
 every English user with a sixth, unreadable option. It becomes the Japanese
 cascade target for Atkinson Hyperlegible and OpenDyslexic specifically, so the
 accessibility group is honest for Japanese rather than decorative. Comic Sans
-and non-accessibility faces cascade to Hiragino Sans as normal.
+and non-accessibility faces cascade to Hiragino Sans as normal (superseded —
+see status header).
 
 - **Family:** `BIZUDGothic` (fixed full-width pitch — conventional for
   long-form Japanese body text), not proportional `BIZUDPGothic`. Confirm

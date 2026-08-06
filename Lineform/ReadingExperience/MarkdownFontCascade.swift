@@ -9,8 +9,10 @@ import AppKit
 ///
 /// What it is NOT for: overriding CoreText's choice of Han face. Measured on macOS 26 with
 /// `CTFontCreateForString`, the implicit substitution is NOT unchosen — it is locale-informed, and
-/// on an `en` machine it already resolves every sample below (Chinese and Japanese alike) to
-/// PingFang SC. An earlier revision of this file declared a fixed `["Hiragino Sans", "PingFang SC"]`
+/// on an `en` machine it already resolves the Han samples below (Chinese and Japanese alike) to a
+/// PingFang face (the private `.PingFang UI SC`; bare kana resolves separately, to
+/// `.CJK Symbols Fallback SC` — hence testing with `contains("PingFang")`, never a pinned private
+/// name). An earlier revision of this file declared a fixed `["Hiragino Sans", "PingFang SC"]`
 /// on the theory that the pairing was arbitrary. It was not: that order rendered PURE CHINESE in a
 /// Japanese face for every character the two scripts share — which is most of a Chinese sentence,
 /// and is exactly the failure the cascade was introduced to prevent. Flipping it fixed nothing; it
