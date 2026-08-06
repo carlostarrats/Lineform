@@ -101,12 +101,19 @@ enum MermaidPieChart {
 /// the calm look of every other diagram. We draw the raster ourselves (top-left origin via a
 /// flipped image), so no `uprightForMacOS` flip is required.
 enum MermaidPieRenderer {
+
+    /// Cascaded: both draw DOCUMENT-DERIVED text — a `pie title 销售额` diagram's title and its
+    /// slice labels — baked into a raster that goes into PDF and Print. Hoisted out of `image`
+    /// so the cascade is assertable and the faces are built once, not per render.
+    nonisolated(unsafe) static let titleFont = MarkdownFontCascade.applying(to: .systemFont(ofSize: 15, weight: .semibold))
+    nonisolated(unsafe) static let legendFont = MarkdownFontCascade.applying(to: .systemFont(ofSize: 12))
+
     static func image(model: MermaidPieModel, background: NSColor,
                       foreground: NSColor, scale: CGFloat) -> NSImage? {
         let pieDiameter: CGFloat = 200
         let padding: CGFloat = 16
-        let titleFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
-        let legendFont = NSFont.systemFont(ofSize: 12)
+        let titleFont = Self.titleFont
+        let legendFont = Self.legendFont
         let rowHeight: CGFloat = 20
         let swatch: CGFloat = 12
 

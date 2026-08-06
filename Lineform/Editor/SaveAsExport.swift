@@ -173,7 +173,7 @@ final class ExportPanelController: NSObject {
     private func makeAccessory() -> NSView {
         let description = NSTextField(wrappingLabelWithString: format.description)
         description.textColor = .secondaryLabelColor
-        description.font = .systemFont(ofSize: 11)
+        description.font = MarkdownFontCascade.applying(to: .systemFont(ofSize: 11))
         description.alignment = .center
         description.isSelectable = false
         description.setContentHuggingPriority(.defaultLow, for: .horizontal)

@@ -67,14 +67,23 @@ final class MarkdownFontCascadeTests: XCTestCase {
     // MARK: - Wiring
 
     func testEveryFontOptionCarriesTheCascade() {
+        var checked = 0
         for option in FontOption.groupedOptions.flatMap(\.options) where option.isAvailable {
             let font = option.resolvedFont(size: 17)
+            checked += 1
             XCTAssertEqual(
                 cascadeCount(font),
                 MarkdownFontCascade.fallbackFamilies.count,
                 "\(option.name) resolved without the CJK fallback"
             )
         }
+        // A floor, because `where option.isAvailable` can silently shrink the loop to nothing on a
+        // machine missing the optional families — in the limit this test would assert nothing at
+        // all and still pass. SF Pro, New York, and Monospaced are always resolvable.
+        XCTAssertGreaterThanOrEqual(
+            checked, 3,
+            "fewer options than the always-available set — this test has stopped covering anything"
+        )
     }
 
     /// The nil-signal `isAvailable` depends on must survive the cascade: a bogus family still has
@@ -85,10 +94,21 @@ final class MarkdownFontCascadeTests: XCTestCase {
         XCTAssertFalse(bogus.isAvailable)
     }
 
+    /// Goes through `availableFont`, NOT `resolvedFont`: `resolvedFont`'s own fallback is cascaded
+    /// too (Step 3a), so if `.newYork` ever started resolving to nil this test would pass through
+    /// that fallback while the serif branch was silently broken.
     func testNewYorkFallsThroughToTheSerifDesignWithCascadeIntact() throws {
         let newYork = try XCTUnwrap(FontOption.option(for: .newYork))
-        let font = newYork.resolvedFont(size: 17)
-        XCTAssertNotNil(CTFontCopyAttribute(font as CTFont, kCTFontCascadeListAttribute))
+        let font = try XCTUnwrap(newYork.availableFont(size: 17), "New York resolved to nil")
+
+        XCTAssertEqual(cascadeCount(font), MarkdownFontCascade.fallbackFamilies.count)
+        // Whichever branch produced it, it must actually be the serif face — not the sans-serif
+        // system font arriving via some other path.
+        let family = font.familyName ?? ""
+        XCTAssertTrue(
+            family.contains("New York") || family.contains("Serif"),
+            "expected the New York / serif design, got \(family)"
+        )
     }
 
     /// `resolvedFont`'s own `?? .systemFont` fallback is the case MOST likely to be rendering
@@ -165,5 +185,131 @@ final class MarkdownFontCascadeTests: XCTestCase {
             )
         }
         XCTAssertTrue(sawMonospaced, "the fixture produced no code-span runs")
+    }
+
+    // MARK: - Descriptor re-derivations
+
+    /// Headings and table cells are rebuilt with `NSFont(descriptor:size:)` after the trait
+    /// conversion (`MarkdownPreviewRenderer` heading size boost, table cell scale). That
+    /// `NSFontDescriptor` carries `.cascadeList` through was asserted from reasoning alone;
+    /// this repo has a track record of two implementations of one concept disagreeing, so pin it.
+    @MainActor
+    func testRenderedCJKHeadingAndTableCellsCarryTheCascade() throws {
+        let rendered = MarkdownPreviewRenderer().render(
+            "# 見出し\n\n| 標題 | 第二 |\n| --- | --- |\n| 单元格 | 内容 |\n",
+            profile: .original
+        )
+
+        // The heading is the first run.
+        let headingFont = try XCTUnwrap(rendered.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+        XCTAssertEqual(
+            cascadeCount(headingFont), MarkdownFontCascade.fallbackFamilies.count,
+            "the heading lost the cascade through its descriptor re-derivation"
+        )
+
+        // Every table cell: locate them by the text they contain rather than by index, so the
+        // assertion survives a change in how the table is stitched into the output.
+        let ns = rendered.string as NSString
+        for cell in ["標題", "第二", "单元格", "内容"] {
+            let range = ns.range(of: cell)
+            XCTAssertNotEqual(range.location, NSNotFound, "\(cell) is missing from the rendered table")
+            guard range.location != NSNotFound else { continue }
+            let font = try XCTUnwrap(
+                rendered.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont
+            )
+            XCTAssertEqual(
+                cascadeCount(font), MarkdownFontCascade.fallbackFamilies.count,
+                "table cell \"\(cell)\" lost the cascade"
+            )
+        }
+    }
+
+    // MARK: - Sites outside the original sweep
+
+    /// `ExportTypographyPreset.standard` is the DEFAULT for PDF export and Print, and its
+    /// `rendersMarkdown == false` branch lays out the entire raw document in one monospaced face —
+    /// the highest-CJK-density surface in the app.
+    @MainActor
+    func testDefaultExportPresetLaysOutRawSourceWithTheCascade() throws {
+        XCTAssertFalse(ExportTypographyPreset.standard.rendersMarkdown,
+                       "the default preset now renders markdown — this test covers the raw-source branch")
+
+        let textView = DocumentExportRenderer.makeExportTextView(
+            text: "# 見出し\n\n中文段落。\n",
+            profile: .original,
+            paper: .usLetter,
+            preset: .standard
+        )
+        let storage = try XCTUnwrap(textView.textStorage)
+        XCTAssertGreaterThan(storage.length, 0)
+
+        let font = try XCTUnwrap(storage.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+        XCTAssertEqual(cascadeCount(font), MarkdownFontCascade.fallbackFamilies.count,
+                       "the default PDF/Print face resolves CJK per-glyph while Write mode does not")
+    }
+
+    /// The mermaid and math source captions OVERWRITE an already-cascaded base font with a fresh
+    /// system face — the same drop-the-cascade shape as the `NSFontManager` bug. They draw
+    /// localized strings, which are CJK in two shipped languages.
+    @MainActor
+    func testDiagramAndMathFallbackCaptionsCarryTheCascade() throws {
+        // A deliberately invalid diagram and an empty math block both take the captioned-source
+        // fallback path.
+        let rendered = MarkdownPreviewRenderer().render(
+            "```mermaid\nnot a real diagram\n```\n\n$$\n$$\n",
+            profile: .original
+        )
+
+        var sawCaption = false
+        for caption in ["Mermaid diagram (source)", "Math (source)"] {
+            let range = (rendered.string as NSString).range(of: caption)
+            guard range.location != NSNotFound else { continue }
+            sawCaption = true
+            let font = try XCTUnwrap(
+                rendered.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont
+            )
+            XCTAssertEqual(cascadeCount(font), MarkdownFontCascade.fallbackFamilies.count,
+                           "the \"\(caption)\" caption lost the cascade")
+        }
+        XCTAssertTrue(sawCaption, "neither fallback caption rendered — the fixture no longer covers them")
+    }
+
+    /// The pie renderer draws DOCUMENT-DERIVED text (a `pie title 销售额` title and its slice
+    /// labels) into a raster that goes into PDF.
+    func testMermaidPieChartFontsCarryTheCascade() {
+        XCTAssertEqual(cascadeCount(MermaidPieRenderer.titleFont),
+                       MarkdownFontCascade.fallbackFamilies.count)
+        XCTAssertEqual(cascadeCount(MermaidPieRenderer.legendFont),
+                       MarkdownFontCascade.fallbackFamilies.count)
+    }
+
+    func testMermaidPieChartRendersCJKTitleAndLabels() throws {
+        let model = try XCTUnwrap(MermaidPieChart.parse("pie title 销售额\n \"苹果\" : 30\n \"梨\" : 10"))
+        let image = MermaidPieRenderer.image(
+            model: model, background: .white, foreground: .black, scale: 2
+        )
+        XCTAssertNotNil(image)
+    }
+
+    // MARK: - Memoization
+
+    /// `applying(to:)` realizes a font, and the editor runs the code-span/fence face once per
+    /// token inside the debounced per-keystroke highlight loop. The face depends on nothing but
+    /// the point size, so it must be cached rather than rebuilt.
+    func testMonospacedIsMemoizedPerPointSize() {
+        let first = MarkdownFontCascade.monospaced(ofSize: 17)
+        let second = MarkdownFontCascade.monospaced(ofSize: 17)
+        XCTAssertTrue(first === second, "the cascaded monospaced face is rebuilt on every call")
+
+        let other = MarkdownFontCascade.monospaced(ofSize: 13)
+        XCTAssertEqual(other.pointSize, 13, accuracy: 0.001)
+        XCTAssertFalse(first === other, "different point sizes must not share a cache entry")
+    }
+
+    func testMonospacedIsCascadedAndFixedPitch() {
+        let font = MarkdownFontCascade.monospaced(ofSize: 17)
+        XCTAssertTrue(font.isFixedPitch)
+        XCTAssertEqual(cascadeCount(font), MarkdownFontCascade.fallbackFamilies.count)
+        XCTAssertEqual(font.pointSize, 17, accuracy: 0.001)
     }
 }

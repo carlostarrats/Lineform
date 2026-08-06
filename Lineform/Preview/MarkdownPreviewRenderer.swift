@@ -808,7 +808,12 @@ struct MarkdownPreviewRenderer {
         captionAttributes[.foregroundColor] = Theme.theme(for: profile)
             .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
         if let font = captionAttributes[.font] as? NSFont {
-            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
+            // Re-cascade: this OVERWRITES an already-cascaded base font with a fresh system face,
+            // the same drop-the-cascade shape as the NSFontManager bug. The caption is a localized
+            // string — CJK in two shipped languages — and it renders into exports.
+            captionAttributes[.font] = MarkdownFontCascade.applying(
+                to: .systemFont(ofSize: max(10, font.pointSize - 2))
+            )
         }
         output.append(NSAttributedString(string: String(localized: "Mermaid diagram (source)"), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
@@ -872,7 +877,11 @@ struct MarkdownPreviewRenderer {
         captionAttributes[.foregroundColor] = Theme.theme(for: profile)
             .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
         if let font = captionAttributes[.font] as? NSFont {
-            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
+            // Re-cascade, for the same reason as the mermaid caption: overwriting the base font
+            // drops the fallback from a localized string that ships in CJK.
+            captionAttributes[.font] = MarkdownFontCascade.applying(
+                to: .systemFont(ofSize: max(10, font.pointSize - 2))
+            )
         }
         output.append(NSAttributedString(string: String(localized: "Math (source)"), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
@@ -958,9 +967,7 @@ struct MarkdownPreviewRenderer {
     ) {
         if imagesAsText {
             var codeAttrs = baseAttributes
-            codeAttrs[.font] = MarkdownFontCascade.applying(
-                to: .monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
-            )
+            codeAttrs[.font] = MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize))
             output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
             return
         }
@@ -985,9 +992,7 @@ struct MarkdownPreviewRenderer {
             output.append(NSAttributedString(attachment: attachment))
         } else {
             var codeAttrs = baseAttributes
-            codeAttrs[.font] = MarkdownFontCascade.applying(
-                to: .monospacedSystemFont(ofSize: pointSize, weight: .regular)
-            )
+            codeAttrs[.font] = MarkdownFontCascade.monospaced(ofSize: pointSize)
             output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
         }
     }
@@ -1016,9 +1021,7 @@ struct MarkdownPreviewRenderer {
 
     private func codeAttributes(profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
         var attributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
-        attributes[.font] = MarkdownFontCascade.applying(
-            to: .monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
-        )
+        attributes[.font] = MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize))
         return attributes
     }
 
@@ -1323,9 +1326,7 @@ private struct InlineToken {
                 attributes[.font] = MarkdownFontCascade.convert(font, toHaveTrait: .italicFontMask)
             }
         case .code:
-            attributes[.font] = MarkdownFontCascade.applying(
-                to: .monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
-            )
+            attributes[.font] = MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize))
         case .strikethrough:
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         case .image:

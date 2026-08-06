@@ -34,4 +34,24 @@ enum MarkdownFontCascade {
     static func convert(_ font: NSFont, toHaveTrait trait: NSFontTraitMask) -> NSFont {
         applying(to: NSFontManager.shared.convert(font, toHaveTrait: trait))
     }
+
+    /// Cascaded monospaced faces, memoized by point size.
+    ///
+    /// `applying(to:)` builds a descriptor and realizes a font. The editor's code-span and
+    /// code-fence tokens run it inside the debounced per-keystroke highlight loop — once per
+    /// token, so a fenced block costs one realization per line. The face depends on nothing but
+    /// the point size, so it is cached. Use this instead of `applying(to: .monospacedSystemFont(…))`.
+    ///
+    /// `NSCache` is thread-safe on its own, which is why this needs no lock of its own.
+    private nonisolated(unsafe) static let monospacedCache = NSCache<NSNumber, NSFont>()
+
+    static func monospaced(ofSize size: CGFloat) -> NSFont {
+        let key = NSNumber(value: Double(size))
+        if let cached = monospacedCache.object(forKey: key) {
+            return cached
+        }
+        let font = applying(to: .monospacedSystemFont(ofSize: size, weight: .regular))
+        monospacedCache.setObject(font, forKey: key)
+        return font
+    }
 }

@@ -268,9 +268,9 @@ final class MarkdownSyntaxHighlighter {
             return [.foregroundColor: mutedColor]
         case .codeSpan, .codeFence:
             return [
-                .font: MarkdownFontCascade.applying(
-                    to: .monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
-                ),
+                // Memoized: this runs once per code token inside the debounced per-keystroke
+                // highlight loop, so it must not realize a font each time.
+                .font: MarkdownFontCascade.monospaced(ofSize: CGFloat(profile.fontSize)),
                 .foregroundColor: Self.inlineCodeColor(for: profile)
             ]
         case .linkText:
