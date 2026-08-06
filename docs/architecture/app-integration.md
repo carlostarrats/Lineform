@@ -34,8 +34,9 @@ App chrome is localized into Spanish, French, German, Japanese, and Simplified C
 content (rendered Markdown, callout labels, HTML/PDF export output) never is — see the invariant in
 `CLAUDE.md`. Three String Catalogs carry the strings, one per Xcode target concern:
 `Lineform/Localizable.xcstrings` (UI strings, keyed by the English literal), `Lineform/InfoPlist.xcstrings`
-(exactly two keys, the `Markdown Document` and `Plain Text Document` type names — the spec forbids
-adding a localized bundle display name), and `Lineform/AppShortcuts.xcstrings` (the two
+(the `Markdown Document` and `Plain Text Document` type names plus the `NSHumanReadableCopyright`
+About-panel string — the spec forbids adding a localized bundle display name), and
+`Lineform/AppShortcuts.xcstrings` (the two
 App Intents' Shortcuts-app copy). `knownRegions` in the pbxproj and the six `<lang>.lproj` folders the
 build emits are the ground truth for which locales actually ship — verify with `ls
 Contents/Resources/*.lproj` in a built app, not by reading the catalog.
@@ -145,7 +146,7 @@ so neither the allowlist nor its reasons can quietly rot into the hole they were
 **It is a strong default-deny check, not an airtight one** — treat a green run as "nothing obvious
 escaped", not as proof. Its "is this display copy?" filter cannot see: literals containing a
 character outside `alnum` + `` ,.'?!:;&()-/ `` + curly quotes/ellipsis (an em dash, a straight quote,
-a stray `%` — `AppMenuConfiguration.aboutCopyright` is live proof, hidden by its `©`);
+a stray `%` — a literal like `"Draft — do not ship"` would slip past hidden by its em dash);
 hyphen/slash single tokens (`Auto-Save`); intercapped words (`AutoFill`); lowercase-initial copy of
 fewer than three words (`selected`, `iCloud`); `"""` multi-line literals, which the lexer skips;
 and enum `rawValue`s, skipped structurally and therefore invisible if one is ever drawn directly.

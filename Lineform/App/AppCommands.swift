@@ -37,6 +37,12 @@ enum AppMenuConfiguration {
     /// drifts silently on a version bump — it shipped as V1.2.0 while the app was 1.3.0. The
     /// release checklist in `Lineform/Resources/ReleaseReadiness.md` now calls it out explicitly.
     static let aboutVersionDisplay = "V1.5.0"
+    /// The Info.plist `NSHumanReadableCopyright` pair for `ReleaseResourceTests`, not display
+    /// copy — the visible About-panel copyright comes from `NSHumanReadableCopyright` itself
+    /// (localized via `Lineform/InfoPlist.xcstrings`), which macOS's standard About panel reads
+    /// automatically. This constant must stay a plain English literal matching the Info.plist
+    /// SOURCE string exactly; wrapping it in `String(localized:)` would compare a resolved
+    /// string against a source string and quietly stop testing what it exists to test.
     static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
     static let saveCommandTitle = String(localized: "Save")
     static let saveAsCommandTitle = String(localized: "Save As...")

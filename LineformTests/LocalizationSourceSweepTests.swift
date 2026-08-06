@@ -461,11 +461,9 @@ final class LocalizationSourceSweepTests: XCTestCase {
     /// next reader knows the shape of what it cannot see rather than trusting a green run:
     ///
     /// * any character outside `alnum` + `` ,.'?!:;&()-/ `` + curly quotes/ellipsis — an em
-    ///   dash, a straight `"` or `'`, a stray `%`. **There is a live example:**
-    ///   `AppMenuConfiguration.aboutCopyright` ("Copyright © 2026 …, All rights reserved.")
-    ///   renders in the About panel, is not localized, and the `©` hides it from this filter.
-    ///   Whether a copyright line should be translated is the owner's call, so it is left as is
-    ///   rather than allowlisted — but it is NOT evidence the sweep cleared it.
+    ///   dash, a straight `"` or `'`, a stray `%`. A hypothetical: a literal like `"Draft — do
+    ///   not ship"` would pass through undetected because the em dash hides it from this filter,
+    ///   and the sweep going green would NOT be evidence it was cleared.
     /// * hyphen/slash single tokens (`Auto-Save`), which the identifier-shape rule drops;
     /// * intercapped single words (`AutoFill`), dropped by the PascalCase rule;
     /// * lowercase-initial copy of fewer than three words (`selected`, `iCloud`);
