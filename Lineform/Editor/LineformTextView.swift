@@ -176,7 +176,9 @@ final class LineformTextView: NSTextView {
         hasAppliedTypography = true
 
         let theme = Theme.theme(for: profile)
-        let resolvedFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
+        // `resolved(for:)`, not `option(for:)?` + a bare-font tail: a RETIRED FontID resolves to
+        // nil and the tail produced an uncascaded face.
+        let resolvedFont = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         font = resolvedFont
         textColor = theme.textColor
         backgroundColor = theme.backgroundColor

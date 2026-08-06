@@ -1003,7 +1003,9 @@ struct MarkdownPreviewRenderer {
 
     private func headingAttributes(level: Int, profile: ReadingProfile, usesBlockSpacing: Bool, headingScale: CGFloat = 1.0) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
-        let bodyFont = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
+        // `resolved(for:)`, not `option(for:)?` + a bare-font tail: a RETIRED FontID resolves to
+        // nil and the tail produced an uncascaded face.
+        let bodyFont = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         let sizeBoost = Self.headingSizeBoosts[level] ?? 0
         let headingFont = MarkdownFontCascade.convert(bodyFont, toHaveTrait: .boldFontMask)
         let resolvedHeadingFont = NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost * headingScale) ?? headingFont

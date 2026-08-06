@@ -32,7 +32,9 @@ final class MarkdownSyntaxHighlighter {
 
     static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
         let theme = Theme.theme(for: profile)
-        let font = FontOption.option(for: profile.fontID)?.resolvedFont(size: CGFloat(profile.fontSize)) ?? .systemFont(ofSize: CGFloat(profile.fontSize))
+        // `resolved(for:)`, not `option(for:)?` + a bare-font tail: a RETIRED FontID resolves to
+        // nil and the tail produced an uncascaded face.
+        let font = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         let paragraphStyle = paragraphStyle(for: profile, font: font)
 
         return [

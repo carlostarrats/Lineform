@@ -291,6 +291,59 @@ final class MarkdownFontCascadeTests: XCTestCase {
         XCTAssertNotNil(image)
     }
 
+    // MARK: - Retired FontIDs
+
+    /// A `FontID` can be RETIRED: still declared in the enum so persisted `ReadingProfile`s keep
+    /// decoding, but dropped from `groupedOptions` so it is no longer offered. `.lexend` is one
+    /// today, and `ReadingProfile` is `Codable` with NO fontID sanitization on decode — so a
+    /// profile persisted from a build where it was selectable still arrives carrying it.
+    ///
+    /// This pins the CLASS, not today's instance: EVERY declared id must reach a cascaded font
+    /// through ALL THREE render consumers, so the next retirement is safe by construction.
+    @MainActor
+    func testEveryDeclaredFontIDYieldsACascadedFontThroughAllThreeConsumers() throws {
+        let retired = FontID.allCases.filter { FontOption.option(for: $0) == nil }
+        XCTAssertFalse(
+            retired.isEmpty,
+            "no FontID is retired any more — if one was un-retired, keep this test covering the class"
+        )
+
+        for id in FontID.allCases {
+            var profile = ReadingProfile.original
+            profile.fontID = id
+            let label = "\(id)\(retired.contains(id) ? " (retired)" : "")"
+
+            // 1. The preview renderer's body font.
+            let rendered = MarkdownPreviewRenderer().render("中文段落。", profile: profile)
+            let bodyFont = try XCTUnwrap(rendered.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+            XCTAssertEqual(cascadeCount(bodyFont), MarkdownFontCascade.fallbackFamilies.count,
+                           "preview body font uncascaded for \(label)")
+
+            // 2. The editor's base attributes.
+            let base = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+            let baseFont = try XCTUnwrap(base[.font] as? NSFont)
+            XCTAssertEqual(cascadeCount(baseFont), MarkdownFontCascade.fallbackFamilies.count,
+                           "highlighter base font uncascaded for \(label)")
+
+            // 3. The text view's applied typography.
+            let textView = LineformTextView()
+            textView.applyTypography(profile)
+            let viewFont = try XCTUnwrap(textView.font)
+            XCTAssertEqual(cascadeCount(viewFont), MarkdownFontCascade.fallbackFamilies.count,
+                           "text view font uncascaded for \(label)")
+        }
+    }
+
+    /// A retired id substitutes the whole default OPTION, not just a face — so its other
+    /// properties are corrected too, which a cascaded bare font would not have done.
+    func testRetiredFontIDResolvesToTheDefaultOption() {
+        XCTAssertNil(FontOption.option(for: .lexend), "Lexend is no longer retired — pick another id")
+        XCTAssertEqual(FontOption.resolved(for: .lexend), FontOption.defaultOption)
+        XCTAssertEqual(FontOption.defaultOption.id, .sfPro)
+        // A live id must still resolve to itself, not to the default.
+        XCTAssertEqual(FontOption.resolved(for: .newYork).id, .newYork)
+    }
+
     // MARK: - Memoization
 
     /// `applying(to:)` realizes a font, and the editor runs the code-span/fence face once per
