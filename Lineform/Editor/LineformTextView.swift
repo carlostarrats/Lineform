@@ -1252,7 +1252,9 @@ final class LineformTextView: NSTextView {
         }
 
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: font ?? .systemFont(ofSize: CGFloat(activeReadingProfile.fontSize)),
+            .font: MarkdownFontCascade.applying(
+                to: font ?? .systemFont(ofSize: CGFloat(activeReadingProfile.fontSize))
+            ),
             .foregroundColor: NSColor.secondaryLabelColor,
         ]
         let origin = NSPoint(x: textContainerInset.width, y: textContainerInset.height)

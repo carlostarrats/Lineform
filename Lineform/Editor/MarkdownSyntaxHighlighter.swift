@@ -268,7 +268,9 @@ final class MarkdownSyntaxHighlighter {
             return [.foregroundColor: mutedColor]
         case .codeSpan, .codeFence:
             return [
-                .font: NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular),
+                .font: MarkdownFontCascade.applying(
+                    to: .monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
+                ),
                 .foregroundColor: Self.inlineCodeColor(for: profile)
             ]
         case .linkText:

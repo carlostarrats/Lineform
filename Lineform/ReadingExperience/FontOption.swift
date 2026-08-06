@@ -57,20 +57,28 @@ struct FontOption: Equatable, Identifiable {
     }
 
     func availableFont(size: CGFloat) -> NSFont? {
+        // The cascade is attached AFTER resolution, never via the family descriptor: a bogus
+        // family must still resolve to nil, which is what `isAvailable` reads.
         switch id {
         case .sfPro:
-            return .systemFont(ofSize: size)
+            return MarkdownFontCascade.applying(to: .systemFont(ofSize: size))
         case .newYork:
-            return NSFont(name: familyName, size: size) ?? systemSerifFont(size: size)
+            // The wrap covers the whole expression, not just the `NSFont(name:)` half —
+            // `NSFont(name: "New York")` returns nil on macOS 26, so in practice it is always the
+            // `systemSerifFont` branch that ships.
+            return (NSFont(name: familyName, size: size) ?? systemSerifFont(size: size))
+                .map(MarkdownFontCascade.applying(to:))
         case .jetBrainsMono:
-            return .monospacedSystemFont(ofSize: size, weight: .regular)
+            return MarkdownFontCascade.applying(to: .monospacedSystemFont(ofSize: size, weight: .regular))
         default:
-            return NSFont(name: familyName, size: size)
+            return NSFont(name: familyName, size: size).map(MarkdownFontCascade.applying(to:))
         }
     }
 
     func resolvedFont(size: CGFloat) -> NSFont {
-        availableFont(size: size) ?? .systemFont(ofSize: size)
+        // The fallback is cascaded too: an unavailable font is the case MOST likely to be
+        // rendering someone else's script.
+        availableFont(size: size) ?? MarkdownFontCascade.applying(to: .systemFont(ofSize: size))
     }
 
     private func systemSerifFont(size: CGFloat) -> NSFont? {
