@@ -37,6 +37,26 @@ struct MarkdownReference {
         /// `MarkdownReferenceTests.testOnlyLiteralSyntaxRowsOfferCopy`.
         var copyableSyntax: String? { rendersSyntaxAsCode ? syntax : nil }
 
+        /// What the copy affordance puts on the pasteboard and what it is CALLED, resolved together.
+        ///
+        /// The row is collapsed for assistive tech (`.accessibilityElement(children: .ignore)`),
+        /// which suppresses the visual copy `Button` — so the affordance also exists as a row-level
+        /// `.accessibilityActions` mirror. Both read this one value: the pasteboard text and the
+        /// label are unwrapped in a single step, so a row cannot end up with one and not the other,
+        /// and the button and its mirror cannot come to speak different words.
+        ///
+        /// nil for the five LABEL rows, exactly like `copyableSyntax` — they have no copy button and
+        /// must have no copy action either.
+        func copyAffordance(in bundle: Bundle = .main) -> CopyAffordance? {
+            guard let syntax = copyableSyntax else { return nil }
+            // Localized HERE, at the definition site: the label is a `String`, so `Button(label)` /
+            // `Label(label, systemImage:)` take SwiftUI's verbatim overload and would ship English
+            // for a literal built at the call site. `Copy %@` is an existing catalog key, shared
+            // with the Read-mode code-block pill. It speaks the SYNTAX — never `Row.id`, which is
+            // an internal slug for the five label rows.
+            return CopyAffordance(text: syntax, label: String(localized: "Copy \(syntax)", bundle: bundle))
+        }
+
         /// VoiceOver reads a coherent phrase — explanation first, then the raw syntax — instead
         /// of spelling out Markdown punctuation on its own. The CONNECTIVE localizes; the syntax
         /// never does. This is a method, not a property, because it must be resolvable against an
@@ -46,6 +66,14 @@ struct MarkdownReference {
         func accessibilityLabel(in bundle: Bundle = .main) -> String {
             String(localized: "\(explanation) Syntax: \(syntax)", bundle: bundle)
         }
+    }
+
+    /// The copy affordance's two halves, produced only by `Row.copyAffordance()`.
+    struct CopyAffordance: Equatable {
+        /// The literal Markdown written to the pasteboard.
+        let text: String
+        /// The localized name spoken by VoiceOver and shown in the actions rotor.
+        let label: String
     }
 
     struct Section: Identifiable, Equatable {

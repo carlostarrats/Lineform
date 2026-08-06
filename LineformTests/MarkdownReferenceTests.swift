@@ -292,6 +292,76 @@ final class MarkdownReferenceTests: XCTestCase {
     }
 
     /// The committed catalog, read as JSON. Reading is fine; never WRITE it through a serializer.
+    // MARK: - The copy affordance and its accessibility mirror
+
+    /// The row is collapsed with `.accessibilityElement(children: .ignore)`, which suppresses the
+    /// copy `Button` outright — so the copy affordance also exists as a row-level accessibility
+    /// action, and both halves read `Row.copyAffordance()`. The five label rows must have neither.
+    ///
+    /// This is what makes "no copy affordance at all" assertable without hosting a window: the view
+    /// builds BOTH the button and the action from this one optional, so nil here is nil in both.
+    func testOnlyLiteralSyntaxRowsOfferACopyAffordance() throws {
+        let bundle = try englishBundle()
+        var affordanceByID: [String: MarkdownReference.CopyAffordance?] = [:]
+        for row in MarkdownReference.sections(in: bundle).flatMap(\.rows) {
+            affordanceByID[row.id] = row.copyAffordance(in: bundle)
+        }
+
+        for id in ["block-spacing", "return", "skipped", "spelling", "tab"] {
+            let affordance = try XCTUnwrap(affordanceByID[id], "the \(id) row disappeared")
+            XCTAssertNil(affordance,
+                         "\(id) is a translated UI word: no copy button and no copy action either")
+        }
+
+        let withoutAffordance = affordanceByID.filter { $0.value == nil }.keys.sorted()
+        XCTAssertEqual(withoutAffordance, ["block-spacing", "return", "skipped", "spelling", "tab"],
+                       "a code row lost its copy affordance, which removes its VoiceOver action too")
+    }
+
+    /// The action speaks the SYNTAX, never `Row.id` — which is an internal slug (`block-spacing`)
+    /// on the rows that carry one — and it is localized at its definition site, through the
+    /// existing `Copy %@` key rather than a duplicate.
+    func testCopyAffordanceLabelSpeaksTheSyntaxAndLocalizes() throws {
+        let english = try englishBundle()
+        let row = try XCTUnwrap(MarkdownReference.sections(in: english).flatMap(\.rows)
+            .first { $0.syntax == "**bold**" })
+        let label = try XCTUnwrap(row.copyAffordance(in: english)).label
+        XCTAssertEqual(label, "Copy **bold**")
+
+        // Per language, against the committed catalog's `Copy %@` — a bare literal at the call
+        // site would read "Copy **bold**" in all six.
+        let template = try XCTUnwrap(Self.catalogTranslations()["Copy %@"],
+                                     "the shared `Copy %@` key vanished from the catalog")
+        for language in Self.languages where language != "en" {
+            let translated = try XCTUnwrap(template[language], "`Copy %@` has no \(language) entry")
+            let localized = try XCTUnwrap(row.copyAffordance(in: try bundle(language))).label
+            XCTAssertEqual(localized, translated.replacingOccurrences(of: "%@", with: "**bold**"),
+                           "\(language): the copy action label did not resolve from the catalog")
+        }
+    }
+
+    /// What the action actually DOES. The pasteboard write is factored out of the button's closure
+    /// precisely so the accessibility mirror and the button share it — and so it can be exercised
+    /// here, against a scratch pasteboard, with no window and no `NSPasteboard.general` clobbering.
+    /// `@MainActor` because the view type is — the pasteboard is created and read on the same
+    /// actor that writes it. No window is constructed; this stays in the DEFAULT test plan.
+    @MainActor
+    func testCopyWritesTheRowsLiteralSyntaxToThePasteboard() throws {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.lineform.tests.markdown-basics-copy"))
+        defer { pasteboard.releaseGlobally() }
+
+        for row in MarkdownReference.sections(in: try englishBundle()).flatMap(\.rows) {
+            guard let affordance = row.copyAffordance(in: try englishBundle()) else { continue }
+            OutlineMarkdownBasicsTabView.writeToPasteboard(affordance.text, to: pasteboard)
+            XCTAssertEqual(pasteboard.string(forType: .string), row.syntax,
+                           "\(row.id) put something other than its literal syntax on the pasteboard")
+        }
+
+        // And it REPLACES rather than appends — the button can be pressed twice.
+        OutlineMarkdownBasicsTabView.writeToPasteboard("# Title", to: pasteboard)
+        XCTAssertEqual(pasteboard.string(forType: .string), "# Title")
+    }
+
     private static func catalogTranslations() throws -> [String: [String: String]] {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
