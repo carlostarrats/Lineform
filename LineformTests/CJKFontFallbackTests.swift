@@ -12,7 +12,7 @@ import XCTest
 /// particular, and the cascade made typography WORSE: the system picks optically-sized UI variants
 /// (`.PingFang UI Text SC`) whose metrics match the Latin primary, while the public families a
 /// hardcoded list can name are taller, so one mixed document went from uniform line heights to
-/// three different heights on one page, and exports re-paginated.
+/// two distinct heights on one page, and exports re-paginated.
 ///
 /// So these tests pin the PLATFORM behaviour we now depend on, plus the absence of a cascade.
 /// If one of them fails, re-measure with `CTFontCreateForString` before concluding anything —
@@ -149,7 +149,7 @@ final class CJKFontFallbackTests: XCTestCase {
     /// THE regression, and the test that would have caught it. The system faces the app reads by
     /// default substitute an optically-sized UI variant whose metrics match the Latin primary, so a
     /// mixed EN/zh/ja page has ONE line height. Measured at 16pt: 18/18/18/18/18 bare, versus
-    /// 18/24/18/24/24 with `["Hiragino Sans", "PingFang SC"]` declared.
+    /// 18/24/24/18/24 with `["Hiragino Sans", "PingFang SC"]` declared.
     func testMixedScriptLinesShareOneLineHeight() throws {
         let faces: [(String, NSFont)] = [
             ("SF Pro", try XCTUnwrap(FontOption.option(for: .sfPro)?.resolvedFont(size: 16))),
@@ -190,6 +190,21 @@ final class CJKFontFallbackTests: XCTestCase {
 
     /// The guard against rebuilding the feature by halves: no font the app resolves, and no font
     /// it renders with, carries a fallback list.
+    ///
+    /// This originally covered only `FontOption.resolvedFont` and `MarkdownPreviewRenderer`'s
+    /// output — two of the SEVEN sites the removed `MarkdownFontCascade` used to attach to (see
+    /// `git show 33206ad`). Widened to also cover the export path (`DocumentExportRenderer`, the
+    /// default PDF/Print preset and the highest-CJK-density surface in the app) and the live
+    /// editor's applied typography and syntax highlighting (`LineformTextView`,
+    /// `MarkdownSyntaxHighlighter`).
+    ///
+    /// Three former sites are NOT reached here, and can't be without adding test-only surface to
+    /// production code: `MermaidPieChart.MermaidPieRenderer.image` builds its title/legend fonts as
+    /// LOCAL variables and returns only a rasterized `NSImage` — there is no attributed string or
+    /// font attribute left to inspect once it's pixels. `SaveAsExport.ExportPanelController`'s font
+    /// lives on an `NSSavePanel` accessory view, and constructing an `NSSavePanel` (an `NSWindow`
+    /// subclass) is forbidden in the default test plan. `FirstLaunchIntroOverlay`'s font lives on a
+    /// `private let label` with no accessor.
     @MainActor
     func testNoResolvedOrRenderedFontDeclaresACascadeList() throws {
         for option in FontOption.groupedOptions.flatMap(\.options) where option.isAvailable {
@@ -209,6 +224,50 @@ final class CJKFontFallbackTests: XCTestCase {
                          "a rendered run declares a cascade list at \(range)")
         }
         XCTAssertGreaterThan(runs, 3, "the fixture stopped producing distinct font runs")
+
+        // The export path: DocumentExportRenderer.rawSourceAttributedString, reached through the
+        // "Normal" preset (`.standard`, `rendersMarkdown == false`) that lays out the raw markdown
+        // source — the exact site the removed cascade's comment called out by name.
+        let exportTextView = DocumentExportRenderer.makeExportTextView(
+            text: "中文段落 日本語の文章 **粗体**",
+            profile: .original,
+            paper: .usLetter,
+            preset: .standard
+        )
+        var exportRuns = 0
+        if let exportStorage = exportTextView.textStorage {
+            exportStorage.enumerateAttribute(
+                .font, in: NSRange(location: 0, length: exportStorage.length)
+            ) { value, range, _ in
+                guard let font = value as? NSFont else { return }
+                exportRuns += 1
+                XCTAssertNil(self.cascadeCount(font),
+                             "an exported run declares a cascade list at \(range)")
+            }
+        }
+        XCTAssertGreaterThan(exportRuns, 0, "the export fixture stopped producing font runs")
+
+        // The live editor's applied typography (LineformTextView.applyTypography) and its syntax
+        // highlighting overlay (MarkdownSyntaxHighlighter, including the code-span/code-fence font).
+        let editorTextView = LineformTextView()
+        editorTextView.applyTypography(.original)
+        XCTAssertNil(cascadeCount(try XCTUnwrap(editorTextView.font)),
+                     "LineformTextView's applied typography declares a cascade list")
+
+        editorTextView.string = "中文段落 `内联代码` 日本語\n\n```\nコード块\n```\n"
+        MarkdownSyntaxHighlighter().highlight(textView: editorTextView, profile: .original)
+        var highlightRuns = 0
+        if let highlightStorage = editorTextView.textStorage {
+            highlightStorage.enumerateAttribute(
+                .font, in: NSRange(location: 0, length: highlightStorage.length)
+            ) { value, range, _ in
+                guard let font = value as? NSFont else { return }
+                highlightRuns += 1
+                XCTAssertNil(self.cascadeCount(font),
+                             "a syntax-highlighted run declares a cascade list at \(range)")
+            }
+        }
+        XCTAssertGreaterThan(highlightRuns, 0, "the highlighting fixture stopped producing font runs")
     }
 
     // MARK: - Retired FontIDs (kept: unrelated to the cascade, and a real fix)

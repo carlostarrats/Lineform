@@ -263,7 +263,7 @@ SC`, `.CJK Symbols Fallback SC`) whose metrics match the Latin primary. The publ
 hardcoded list can name are taller. One mixed EN/zh/ja document at 16pt, line-fragment heights:
 
 - bare: `18, 18, 18, 18, 18`
-- with the cascade: `18, 24, 18, 24, 24` — three different line heights on one page
+- with the cascade: `18, 24, 24, 18, 24` — two distinct line heights (18 and 24) on one page
 
 PDF export re-paginated with it (+11% height on a CJK block), and the serif reading font lost its
 serif Han face (Songti SC → PingFang/Hiragino). The cascade also cost 2× per `convert` call on a
@@ -281,9 +281,12 @@ which is script-exclusive. Both branches were strictly worse than doing nothing.
 `MarkdownFontCascadeTests`. It asserts, bare: every `FontOption` resolves the CJK samples to a real
 glyph in a real family (never LastResort); a bold conversion of system/mono/serif resolves CJK to a
 face with `traitBold`; the serif reading font keeps a serif Han face; a mixed EN/zh/ja document has
-ONE line height at a fixed size; and no font the app resolves or renders with declares a cascade
-list at all. One counterfactual test asserts that a declared cascade *does* break the line-height
-uniformity, so the rule keeps its reason attached rather than remembered.
+ONE line height at a fixed size for the system-derived faces (SF Pro, Monospaced); and no font the
+app resolves or renders with declares a cascade list at all. One counterfactual test asserts that a
+declared cascade *does* break the line-height uniformity, so the rule keeps its reason attached
+rather than remembered. Non-system families (New York, Helvetica) have their own CJK metrics and
+were never uniform (New York bare measures roughly `19, 22, 22, 19, 22` on the same fixture) — that
+predates this branch and is inherent to those families, not a regression to fix.
 
 The old suite is the cautionary half of this: 18 of its assertions checked only that a list was
 ATTACHED, which is how a Japanese-first order shipped green, and none of them measured a line
