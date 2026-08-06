@@ -414,6 +414,21 @@ unreachable from the UI, "delete" is the honest answer and localization never
 arises; if something is meant to surface them, that is a Phase 1 gap, not a
 Phase 2 one. The existing exclusion test is the precedent for either answer.
 
+**Disposition (settled 2026-08-05): LEAVE, with this reason recorded. Nothing is
+deleted and nothing is translated.** The four bundled files — `MarkdownGuide.md`,
+`Help.md`, `Privacy.md`, `AccessibilityNutritionLabel.md` — ship in the app
+bundle and no app code opens any of them, so localizing them buys a user
+nothing: there is no surface on which a translated copy would ever be read.
+Deleting them is not free either — `ReleaseResourceTests.swift:110` asserts
+`MarkdownGuide.md` ships, so "delete" is a test change plus a packaging change
+in a localization pass that has no business touching either, and the files are a
+few kilobytes of Markdown against an 8.9 MB font we already declined. They also
+document real product commitments (privacy, accessibility) that are worth having
+inside the shipped bundle even unreached. So: no translation, no deletion. If a
+later phase gives them a UI surface — a Help viewer, an in-app privacy sheet —
+that phase owns their localization, and this paragraph is the record that the
+silence was a decision rather than an omission.
+
 ## Testing
 
 - `MarkdownReferenceTests` reworked per the table in item 1 — all seven re-keyed
