@@ -49,10 +49,10 @@ final class LineformUpdaterController {
 private extension NSAlert {
     static func lineformUpdatesNotConfigured() -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = "Updates are not configured for this build."
-        alert.informativeText = "Release builds need a Sparkle EdDSA public key and a published appcast before Lineform can check for updates."
+        alert.messageText = String(localized: "Updates are not configured for this build.")
+        alert.informativeText = String(localized: "Release builds need a Sparkle EdDSA public key and a published appcast before Lineform can check for updates.")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         return alert
     }
 }

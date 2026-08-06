@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Generate SystemMenuItemTitles.swift from the AppKit .loctable files.
+
+System-provided menu items ("Writing Tools", "Services", window management…)
+arrive already localized from AppKit, so our catalog has no key for them; this
+compiled dictionary is how MainMenuIconDecorator recognizes their localized
+titles. Regenerate on a new macOS if system menu wording changes.
+"""
+import json, re, subprocess
+from pathlib import Path
+
+APPKIT = Path("/System/Library/Frameworks/AppKit.framework/Versions/C/Resources")
+LANGS = {"es": "es", "fr": "fr", "de": "de", "ja": "ja", "zh_CN": "zh-Hans"}
+DECORATOR = Path(__file__).resolve().parent.parent / "Lineform/App/MainMenuIconDecorator.swift"
+
+# Rows AppKit ships from a NIB rather than a string table: the loctable has every
+# translation but no "en" value at all (the English is baked into the nib), so the
+# English-keyed sweep below cannot see them. Named here so the Edit-menu submenus
+# that have no selector of their own keep their icons outside English.
+# Keycap names, not menu commands: this table maps "Find", "Print", "Pause" and
+# "Stop" to the legend printed on a keyboard key, which several languages leave in
+# English. Reading it produced entries whose "translation" was the English word.
+EXCLUDED_TABLES = {"FunctionKeyNames.loctable"}
+
+NIB_KEYED = {
+    "Substitutions": ("NSSpellChecker.loctable", "200136.title"),
+    "Transformations": ("NSTextViewContextMenu.loctable", "336.title"),
+}
+
+# Applied AFTER the sweep, per language. Apple's wording wins everywhere else; these
+# rows are the exception because they are NOT system-provided menu items. Format ▸
+# Heading and its H3-H6 children are Lineform's own `CommandMenu` rows, so this table
+# is only an ALIAS the decorator matches localized titles against — it is not a title
+# AppKit ever draws. That makes Apple's own inconsistency non-binding, and it is severe
+# enough to be unreadable when the four rows sit in one submenu:
+#   * fr shipped "Ss-section 3" (an abbreviation of nothing anyone reads) directly above
+#     the unabbreviated "Sous-section 4", under a parent titled "En-tête" — which in
+#     French means a PAGE HEADER, a third word for one concept in one submenu.
+#   * es abbreviated 3 and 4 ("Encabezam.") but not 5 and 6, arbitrarily.
+#   * zh-Hans rendered both "Title" (⌘1) and "Heading" as 标题, so the submenu and the
+#     row above it carried the same label and the submenu's first child read 标题3.
+# The catalog carries the SAME strings for these keys; the two must agree or the row
+# loses its SF Symbol outside English (MainMenuIconDecorator reverse-maps by title).
+OVERRIDES = {
+    "Heading":   {"fr": "Sous-section", "es": "Encabezado", "zh-Hans": "小标题"},
+    "Heading 3": {"fr": "Sous-section 3", "es": "Encabezado 3", "zh-Hans": "小标题3"},
+    "Heading 4": {"es": "Encabezado 4", "zh-Hans": "小标题4"},
+    "Heading 5": {"es": "Encabezado 5", "zh-Hans": "小标题5"},
+    "Heading 6": {"es": "Encabezado 6", "zh-Hans": "小标题6"},
+}
+
+def normalized(title):
+    t = title.replace("Lineform", "").strip()
+    while t.endswith("…") or t.endswith("."):
+        t = t[:-1]
+    return t.strip().lower()
+
+src = DECORATOR.read_text()
+body = src[src.index("symbolsByTitle: [String: String] = ["):]
+body = body[:body.index("\n    ]")]
+wanted = {normalized(k): None for k in re.findall(r'"([^"]+)"\s*:', body)}
+
+def load(table):
+    return json.loads(subprocess.run(
+        ["plutil", "-convert", "json", "-o", "-", str(table)],
+        capture_output=True, check=True).stdout)
+
+found = {}
+for en_value, (table_name, key) in NIB_KEYED.items():
+    data = load(APPKIT / table_name)
+    entry = {}
+    for loc_key, our_key in LANGS.items():
+        value = data.get(loc_key, {}).get(key)
+        if isinstance(value, str):
+            entry[our_key] = value
+    if len(entry) != len(LANGS):
+        raise SystemExit(f"NIB_KEYED entry {en_value!r} ({table_name}/{key}) is incomplete: {entry}")
+    found[en_value] = entry
+
+for table in sorted(APPKIT.glob("*.loctable")):
+    if table.name in EXCLUDED_TABLES:
+        continue
+    data = load(table)
+    english = data.get("en", {})
+    for key, en_value in english.items():
+        if not isinstance(en_value, str) or normalized(en_value) not in wanted:
+            continue
+        entry = {}
+        for loc_key, our_key in LANGS.items():
+            value = data.get(loc_key, {}).get(key)
+            if isinstance(value, str):
+                entry[our_key] = value
+        if len(entry) == len(LANGS):
+            found.setdefault(en_value, entry)
+
+for en_value, replacements in OVERRIDES.items():
+    if en_value not in found:
+        raise SystemExit(f"OVERRIDES names {en_value!r}, which the sweep did not find")
+    for lang, value in replacements.items():
+        if lang not in found[en_value]:
+            raise SystemExit(f"OVERRIDES names {en_value!r}/{lang}, which the sweep did not find")
+        found[en_value][lang] = value
+
+lines = ["// Generated by packaging/extract-system-menu-titles.py — do not edit by hand.",
+         "// Localized titles of SYSTEM-provided menu items, which AppKit localizes itself",
+         "// and our catalog therefore cannot resolve. Keyed by English title, then language.",
+         "enum SystemMenuItemTitles {",
+         "    static let titles: [String: [String: String]] = ["]
+for en_value in sorted(found):
+    entry = ", ".join(f'"{lang}": "{found[en_value][lang]}"' for lang in sorted(found[en_value]))
+    lines.append(f'        "{en_value}": [{entry}],')
+lines += ["    ]", "}", ""]
+Path(DECORATOR.parent / "SystemMenuItemTitles.swift").write_text("\n".join(lines))
+print(f"{len(found)} system titles")

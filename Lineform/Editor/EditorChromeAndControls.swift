@@ -18,7 +18,7 @@ struct EditorAuxiliaryPresentation: Equatable {
     static let readingExperience = EditorAuxiliaryPresentation(
         kind: .nativeInspector,
         presenter: .systemInspector,
-        accessibilityLabel: "Reading Experience Inspector",
+        accessibilityLabel: String(localized: "Reading Experience Inspector"),
         minimumWidth: 280,
         idealWidth: 320,
         maximumWidth: 380,

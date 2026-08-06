@@ -318,7 +318,7 @@ struct FirstLaunchIntroStartButton: NSViewRepresentable {
 /// a first launch that no VoiceOver, keyboard-only, or Switch Control user could get out of.
 final class FirstLaunchIntroStartButtonView: NSView {
     private let dismiss: () -> Void
-    private let label = NSTextField(labelWithString: "Get Started")
+    private let label = NSTextField(labelWithString: String(localized: "Get Started"))
     private let arrowLayer = CAShapeLayer()
     private var trackingArea: NSTrackingArea?
     private var isHovered = false {
@@ -349,8 +349,8 @@ final class FirstLaunchIntroStartButtonView: NSView {
 
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Get Started")
-        setAccessibilityHelp("Dismisses the welcome screen and opens a new document")
+        setAccessibilityLabel(String(localized: "Get Started"))
+        setAccessibilityHelp(String(localized: "Dismisses the welcome screen and opens a new document"))
         // The label is drawn text, not a child control: hide it so VoiceOver reports one button,
         // not a button containing a static text of the same name.
         label.setAccessibilityElement(false)
@@ -398,7 +398,13 @@ final class FirstLaunchIntroStartButtonView: NSView {
 
     override func layout() {
         super.layout()
-        label.frame = NSRect(x: 30, y: 18, width: 112, height: 24)
+        // Sized from `label.intrinsicContentSize`, not a fixed 112pt, so a longer localized
+        // string (e.g. German) isn't clipped: it's clamped to the space between the label's
+        // left inset and the arrow glyph, the same room the original fixed width assumed.
+        let labelX: CGFloat = 30
+        let maxLabelWidth = max(0, (bounds.width - 54) - 8 - labelX)
+        let labelWidth = min(max(label.intrinsicContentSize.width, 112), maxLabelWidth)
+        label.frame = NSRect(x: labelX, y: 18, width: labelWidth, height: 24)
         arrowLayer.frame = CGRect(x: bounds.width - 54, y: 22, width: 28, height: 18)
         arrowLayer.path = Self.makeArrowPath().cgPath
         layer?.cornerRadius = bounds.height / 2
@@ -488,6 +494,14 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "lineformIntro")
 
+        // The String Catalog cannot reach the bundled HTML, so its two user-facing strings are
+        // injected at document-end via a user script. If encoding somehow fails, inject nothing:
+        // the HTML's own English text is a safe fallback, and a crash here would be a crash at
+        // first launch — the worst possible moment.
+        if let script = Self.localizationUserScript() {
+            configuration.userContentController.addUserScript(script)
+        }
+
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
@@ -501,6 +515,31 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: WKWebView, context: Context) {}
+
+    /// Builds the script that hands the HTML page its two `data-l10n-id`-tagged strings.
+    /// `nil` on encode failure — deliberately unwrapped nowhere in this path — so the caller
+    /// falls back to the page's own English text rather than crashing first launch.
+    private static func localizationUserScript() -> WKUserScript? {
+        let l10n: [String: String] = [
+            "tagline": String(localized: "Simple markdown editing"),
+            "replay": String(localized: "Replay")
+        ]
+        guard
+            let data = try? JSONEncoder().encode(l10n),
+            let json = String(data: data, encoding: .utf8)
+        else {
+            return nil
+        }
+
+        let source = """
+        const l10n = \(json);
+        document.querySelectorAll('[data-l10n-id]').forEach(el => {
+            const value = l10n[el.getAttribute('data-l10n-id')];
+            if (value) el.textContent = value;
+        });
+        """
+        return WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+    }
 
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let dismiss: () -> Void

@@ -176,4 +176,11 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(lightBackground.blueComponent, expectedLightBackground.blueComponent, accuracy: 0.005)
         XCTAssertLessThan(darkBackground.redComponent, 0.3)
     }
+
+    func testDecimalTextFollowsLocale() {
+        XCTAssertEqual(ReadingExperienceInspector.decimalText(1.5, maximumFractionDigits: 1,
+                                                              locale: Locale(identifier: "de_DE")), "1,5")
+        XCTAssertEqual(ReadingExperienceInspector.decimalText(1.5, maximumFractionDigits: 1,
+                                                              locale: Locale(identifier: "en_US")), "1.5")
+    }
 }

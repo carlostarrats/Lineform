@@ -31,59 +31,151 @@ enum ManualSaveIntentMonitor {
 }
 
 enum AppMenuConfiguration {
-    static let aboutCommandTitle = "About Lineform"
-    static let settingsCommandTitle = "Settings…"
+    static let aboutCommandTitle = String(localized: "About Lineform")
+    static let settingsCommandTitle = String(localized: "Settings…")
     /// MUST match `MARKETING_VERSION` in the project. This is a hand-maintained string, so it
     /// drifts silently on a version bump — it shipped as V1.2.0 while the app was 1.3.0. The
     /// release checklist in `Lineform/Resources/ReleaseReadiness.md` now calls it out explicitly.
     static let aboutVersionDisplay = "V1.5.0"
+    /// The Info.plist `NSHumanReadableCopyright` pair for `ReleaseResourceTests`, not display
+    /// copy — the visible About-panel copyright comes from `NSHumanReadableCopyright` itself
+    /// (localized via `Lineform/InfoPlist.xcstrings`), which macOS's standard About panel reads
+    /// automatically. This constant must stay a plain English literal matching the Info.plist
+    /// SOURCE string exactly; wrapping it in `String(localized:)` would compare a resolved
+    /// string against a source string and quietly stop testing what it exists to test.
     static let aboutCopyright = "Copyright © 2026 Carlos Tarrats. All rights reserved."
-    static let saveCommandTitle = "Save"
-    static let saveAsCommandTitle = "Save As..."
+    static let saveCommandTitle = String(localized: "Save")
+    static let saveAsCommandTitle = String(localized: "Save As...")
     static let saveAsCommandKeyEquivalent = "S"
     // Three-period ellipsis matches the surrounding File-menu titles ("Save As...").
-    static let renameFileCommandTitle = "Rename..."
-    static let deleteFileCommandTitle = "Delete..."
-    static let jumpToFileCommandTitle = "Jump to File…"
+    static let renameFileCommandTitle = String(localized: "Rename...")
+    static let deleteFileCommandTitle = String(localized: "Delete...")
+    static let jumpToFileCommandTitle = String(localized: "Jump to File…")
     static let jumpToFileCommandKeyEquivalent = "k"
     /// Format > Link's shortcut letter. Was "k" until quick-open claimed Cmd+K
     /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
     static let linkCommandKeyEquivalent = "l"
-    static let printCommandTitle = "Print..."
-    static let checkForUpdatesCommandTitle = "Check for Updates..."
-    static let installCommandLineToolCommandTitle = "Install Command Line Tool..."
-    static let privacyPolicyCommandTitle = "Privacy Policy"
-    static let termsOfUseCommandTitle = "Terms of Use"
+    static let printCommandTitle = String(localized: "Print...")
+    static let checkForUpdatesCommandTitle = String(localized: "Check for Updates...")
+    static let installCommandLineToolCommandTitle = String(localized: "Install Command Line Tool...")
+    static let privacyPolicyCommandTitle = String(localized: "Privacy Policy")
+    static let termsOfUseCommandTitle = String(localized: "Terms of Use")
     static let privacyPolicyURL = "https://lineform.app/privacy"
     static let termsOfUseURL = "https://lineform.app/terms"
-    static let guideCommandTitle = "Lineform Guide"
+    static let guideCommandTitle = String(localized: "Lineform Guide")
     static let guideURL = "https://lineform.app/info/"
     /// The Help menu still replaces AppKit's default "Lineform Help" row (which opens a help book
     /// this app does not ship); it now carries the online guide instead of being empty.
     static let suppressesDefaultHelpMenu = true
     static let readingCommandPlacement = AppMenuCommandPlacement.view
-    static let showHiddenFoldersCommandTitle = "Show Hidden Folders"
+    static let showHiddenFoldersCommandTitle = String(localized: "Show Hidden Folders")
     static let showHiddenFoldersCommandKeyEquivalent = "."
-    static let findCommandTitle = "Find"
+    static let findCommandTitle = String(localized: "Find")
     static let findCommandKeyEquivalent = "f"
     // ⌥⌘F — the macOS-standard Find & Replace shortcut (TextEdit/Pages).
-    static let findReplaceCommandTitle = "Find & Replace…"
-    static let spellingMenuTitle = "Spelling and Grammar"
-    static let checkSpellingWhileTypingTitle = "Check Spelling While Typing"
-    static let showSpellingPanelTitle = "Show Spelling and Grammar"
-    static let checkDocumentNowTitle = "Check Document Now"
+    static let findReplaceCommandTitle = String(localized: "Find & Replace…")
+    static let spellingMenuTitle = String(localized: "Spelling and Grammar")
+    static let checkSpellingWhileTypingTitle = String(localized: "Check Spelling While Typing")
+    static let showSpellingPanelTitle = String(localized: "Show Spelling and Grammar")
+    static let checkDocumentNowTitle = String(localized: "Check Document Now")
     static let findReplaceCommandKeyEquivalent = "f"
     static let usesTopLevelReadingMenu = false
     static let addsWritingToolsToEditMenu = false
     static let exposesAppleWritingTools = false
     static let markdownFormattingCommandTitles = [
+        String(localized: "Title"),
+        String(localized: "Section"),
+        String(localized: "Bold"),
+        String(localized: "Italic"),
+        String(localized: "Code"),
+        String(localized: "Bulleted List"),
+        String(localized: "Link")
+    ]
+
+    /// Every English menu title this app declares, byte-for-byte as the literal reads —
+    /// including the deliberate mix of ASCII "..." and real "…" ellipses, because these
+    /// are localization-catalog keys and a catalog lookup is an exact string match.
+    ///
+    /// `MainMenuIconDecorator` reads this to learn each row's LOCALIZED title: its icon
+    /// table is keyed by normalized English, so without the localized alias ~108 menu
+    /// rows lose their SF Symbol in every non-English locale — invisibly, since nothing
+    /// in the English build changes. Completeness is asserted by
+    /// `MainMenuIconDecoratorTests.testConfiguredCommandTitlesAllHaveIcons`, not remembered.
+    ///
+    /// A registrar that appended keys as the constants above initialize was rejected:
+    /// Swift static stored properties are lazy, so the array would be empty or partial
+    /// at the moment the decorator builds its map.
+    static let allEnglishTitleKeys: [String] = [
+        // Application menu
+        "About Lineform",
+        "Settings…",
+        "Check for Updates...",
+        "Install Command Line Tool...",
+        "Privacy Policy",
+        "Terms of Use",
+        // File menu
+        "Save",
+        "Save As...",
+        "Export As",
+        // ExportFormat.title — the Export As submenu's rows.
+        "HTML",
+        "PDF",
+        "Styled PDF",
+        "Rich Text (.rtf)",
+        "Rename...",
+        "Delete...",
+        "Jump to File…",
+        "Print...",
+        "New Tab",
+        "Close Tab",
+        "Select Next Tab",
+        "Select Previous Tab",
+        // Edit menu
+        "Find",
+        "Find & Replace…",
+        "Spelling and Grammar",
+        "Check Spelling While Typing",
+        "Show Spelling and Grammar",
+        "Check Document Now",
+        "Speech",
+        "Start Speaking",
+        "Pause",
+        "Resume",
+        "Stop",
+        // Format menu
+        "Format",
         "Title",
         "Section",
+        "Heading",
+        "Heading 3",
+        "Heading 4",
+        "Heading 5",
+        "Heading 6",
+        "Body",
         "Bold",
         "Italic",
         "Code",
+        "Strikethrough",
+        "Blockquote",
         "Bulleted List",
-        "Link"
+        "Numbered List",
+        "Link",
+        "Insert Table",
+        "Reformat Table",
+        "Convert to Plain Text",
+        "Convert to Markdown",
+        // View menu
+        "Mode",
+        // EditorDisplayMode.title — the Mode picker's rows.
+        "Write",
+        "Read",
+        "Preview",
+        "Toggle Write / Read",
+        "Toggle Outline",
+        "Show Hidden Folders",
+        "Reading Experience",
+        // Help menu
+        "Lineform Guide"
     ]
 
     static func formatCommandTitles(for textFormat: LineformTextFormat) -> [String] {
@@ -98,9 +190,9 @@ enum AppMenuConfiguration {
     static func conversionCommandTitle(for textFormat: LineformTextFormat) -> String {
         switch textFormat {
         case .markdown:
-            return "Convert to Plain Text"
+            return String(localized: "Convert to Plain Text")
         case .plainText:
-            return "Convert to Markdown"
+            return String(localized: "Convert to Markdown")
         }
     }
 
@@ -320,7 +412,7 @@ struct AppCommands: Commands {
         // directly under Save and owns ⌘⇧S — macOS otherwise binds ⌘⇧S to Duplicate and pushes a
         // custom Save As below the native items.
         CommandGroup(replacing: .saveItem) {
-            Button("Save") {
+            Button(String(localized: "Save")) {
                 DocumentSaveStatus.shared.noteManualSaveIntent()
                 NSApp.sendAction(NSSelectorFromString("saveDocument:"), to: nil, from: nil)
             }
@@ -338,9 +430,9 @@ struct AppCommands: Commands {
             // Export writes a COPY in another format and never touches the open document —
             // deliberately separate from Save As, which retargets the .md file itself. No
             // keyboard shortcuts: exporting is infrequent and a four-row submenu is already fast.
-            Menu("Export As") {
+            Menu(String(localized: "Export As")) {
                 ForEach(ExportFormat.allCases, id: \.rawValue) { format in
-                    Button("\(format.title)...") {
+                    Button(format.title + "...") {
                         LineformAppNotification.exportDocument.post(
                             object: LineformAppNotification.activeWindowPayload(value: String(format.rawValue))
                         )
@@ -375,42 +467,42 @@ struct AppCommands: Commands {
 
         }
 
-        CommandMenu("Format") {
+        CommandMenu(String(localized: "Format")) {
             if activeTextFormat == .markdown {
-                Button("Title") {
+                Button(String(localized: "Title")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleTitleMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("1", modifiers: .command)
 
-                Button("Section") {
+                Button(String(localized: "Section")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleSectionMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("2", modifiers: .command)
 
-                Menu("Heading") {
-                    Button("Heading 3") {
+                Menu(String(localized: "Heading")) {
+                    Button(String(localized: "Heading 3")) {
                         NSApp.sendAction(#selector(LineformTextView.toggleHeading3Markdown(_:)), to: nil, from: nil)
                     }
                     .keyboardShortcut("3", modifiers: .command)
 
-                    Button("Heading 4") {
+                    Button(String(localized: "Heading 4")) {
                         NSApp.sendAction(#selector(LineformTextView.toggleHeading4Markdown(_:)), to: nil, from: nil)
                     }
                     .keyboardShortcut("4", modifiers: .command)
 
-                    Button("Heading 5") {
+                    Button(String(localized: "Heading 5")) {
                         NSApp.sendAction(#selector(LineformTextView.toggleHeading5Markdown(_:)), to: nil, from: nil)
                     }
                     .keyboardShortcut("5", modifiers: .command)
 
-                    Button("Heading 6") {
+                    Button(String(localized: "Heading 6")) {
                         NSApp.sendAction(#selector(LineformTextView.toggleHeading6Markdown(_:)), to: nil, from: nil)
                     }
                     .keyboardShortcut("6", modifiers: .command)
 
                     Divider()
 
-                    Button("Body") {
+                    Button(String(localized: "Body")) {
                         NSApp.sendAction(#selector(LineformTextView.toggleBodyMarkdown(_:)), to: nil, from: nil)
                     }
                     .keyboardShortcut("0", modifiers: .command)
@@ -418,43 +510,43 @@ struct AppCommands: Commands {
 
                 Divider()
 
-                Button("Bold") {
+                Button(String(localized: "Bold")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleBoldMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("b", modifiers: .command)
 
-                Button("Italic") {
+                Button(String(localized: "Italic")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleItalicMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("i", modifiers: .command)
 
-                Button("Code") {
+                Button(String(localized: "Code")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleInlineCodeMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("`", modifiers: .command)
 
-                Button("Strikethrough") {
+                Button(String(localized: "Strikethrough")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleStrikethroughMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("x", modifiers: [.command, .shift])
 
                 Divider()
 
-                Button("Blockquote") {
+                Button(String(localized: "Blockquote")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleBlockquoteMarkdown(_:)), to: nil, from: nil)
                 }
 
-                Button("Bulleted List") {
+                Button(String(localized: "Bulleted List")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleUnorderedListMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("8", modifiers: [.command, .shift])
 
-                Button("Numbered List") {
+                Button(String(localized: "Numbered List")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleOrderedListMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("7", modifiers: [.command, .shift])
 
-                Button("Link") {
+                Button(String(localized: "Link")) {
                     NSApp.sendAction(#selector(LineformTextView.toggleLinkMarkdown(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut(
@@ -464,12 +556,12 @@ struct AppCommands: Commands {
 
                 Divider()
 
-                Button("Insert Table") {
+                Button(String(localized: "Insert Table")) {
                     NSApp.sendAction(#selector(LineformTextView.insertMarkdownTable(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("t", modifiers: [.command, .control])
 
-                Button("Reformat Table") {
+                Button(String(localized: "Reformat Table")) {
                     NSApp.sendAction(#selector(LineformTextView.reformatMarkdownTable(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("r", modifiers: [.command, .control])
@@ -494,13 +586,13 @@ struct AppCommands: Commands {
         }
 
         CommandGroup(after: .toolbar) {
-            Picker("Mode", selection: displayModeSelection) {
+            Picker(String(localized: "Mode"), selection: displayModeSelection) {
                 ForEach(EditorDisplayMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
             }
 
-            Button("Toggle Write / Read") {
+            Button(String(localized: "Toggle Write / Read")) {
                 let target = displayModeMenuState.displayMode.toggledWriteRead
                 displayModeMenuState.setDisplayMode(target)
                 LineformAppNotification.setDisplayMode.post(
@@ -509,7 +601,7 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("e", modifiers: .command)
 
-            Button("Toggle Outline") {
+            Button(String(localized: "Toggle Outline")) {
                 LineformAppNotification.toggleOutline.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("0", modifiers: [.command, .option])
@@ -520,7 +612,7 @@ struct AppCommands: Commands {
                     modifiers: [.command, .shift]
                 )
 
-            Button("Reading Experience") {
+            Button(String(localized: "Reading Experience")) {
                 LineformAppNotification.showReadingExperience.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
@@ -581,17 +673,17 @@ struct AppCommands: Commands {
 
             // No default keyboard shortcuts (macOS ships none for read-aloud transport; avoid
             // collisions). Always enabled like Print — a post with no key window is a safe no-op.
-            Menu("Speech") {
-                Button("Start Speaking") {
+            Menu(String(localized: "Speech")) {
+                Button(String(localized: "Start Speaking")) {
                     LineformAppNotification.startSpeaking.post(object: LineformAppNotification.activeWindowPayload())
                 }
 
-                Button(speechMenuState.state == .paused ? "Resume" : "Pause") {
+                Button(speechMenuState.state == .paused ? String(localized: "Resume") : String(localized: "Pause")) {
                     LineformAppNotification.pauseResumeSpeech.post(object: LineformAppNotification.activeWindowPayload())
                 }
                 .disabled(speechMenuState.state == .idle)
 
-                Button("Stop") {
+                Button(String(localized: "Stop")) {
                     LineformAppNotification.stopSpeech.post(object: LineformAppNotification.activeWindowPayload())
                 }
                 .disabled(speechMenuState.state == .idle)
@@ -601,7 +693,7 @@ struct AppCommands: Commands {
         // Tab commands live in the File menu, alongside the standard document commands.
         // Close Tab uses ⌘⇧W so it does not collide with the system Close Window (⌘W).
         CommandGroup(after: .newItem) {
-            Button("New Tab") {
+            Button(String(localized: "New Tab")) {
                 LineformAppNotification.newTab.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("t", modifiers: .command)
@@ -618,19 +710,19 @@ struct AppCommands: Commands {
         }
 
         CommandGroup(after: .saveItem) {
-            Button("Close Tab") {
+            Button(String(localized: "Close Tab")) {
                 LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
 
             Divider()
 
-            Button("Select Next Tab") {
+            Button(String(localized: "Select Next Tab")) {
                 LineformAppNotification.selectNextTab.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("]", modifiers: .command)
 
-            Button("Select Previous Tab") {
+            Button(String(localized: "Select Previous Tab")) {
                 LineformAppNotification.selectPreviousTab.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("[", modifiers: .command)

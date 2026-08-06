@@ -45,6 +45,7 @@ Core product principles:
 - In-app announcements: a once-a-day read of a small static JSON file on the marketing site surfaces at most one dismissible card in the editor. No account, no identifier, no server. The Settings toggle (default on) gates the network request itself, not just the display.
 - Local release/help resources bundled in the app.
 - SF Symbol icons on every main-menu row, matching Apple's iconed menus on macOS 26.
+- Localized interface: Spanish, French, German, Japanese, and Simplified Chinese — app chrome only; text that renders document content stays in the document's language.
 
 Deep reference lives in `docs/architecture/` — verbatim, not summarized. **Read the file for an area
 before changing anything in it**; each one records decisions that were paid for in regressions.
@@ -157,6 +158,13 @@ file named after it carries the full story and the reasoning.
 - `MainMenuIconDecorator` observes every `NSMenu` in the process (a detached SwiftUI `CommandMenu` has no supermenu to test), so any menu it must not touch carries `MainMenuIconDecorator.excludedMenuIdentifier`. Without it the editor's right-click menu came up wearing main-menu SF Symbols.
 - Main-menu icons must be applied to the menu that POSTS the notification, never by walking `NSApp.mainMenu` on a tracking hook. SwiftUI builds `CommandMenu` replacements DETACHED and swaps them in, so the walk decorates the outgoing menu while the bare one is drawn. `didAddItem` is not enough on its own: SwiftUI updates a `CommandMenu`'s EXISTING items in place when it opens, clearing `image` with no insertion to observe, which is why `didChangeItem` is observed too — the `isDecorating` guard is what keeps our own `image` writes from feeding back.
 - Releases must build from a CLEAN `Release/Lineform.app`. `Contents/Helpers/lineform` is written after `xcodebuild`, so a leftover copy from a previous run makes the next build's CodeSign step fail with "code object is not signed at all".
+
+**Localization** (`app-integration.md`)
+- Text that renders DOCUMENT CONTENT (callout labels, Markdown syntax) is never localized — HTML export is one-to-one with the source and the Quick Look appex mirrors the renderers by hand. Only app chrome localizes.
+- UI strings route through `String(localized:)` with the English text as the catalog key. A bare literal at an AppKit call site silently ships English in every other language — nothing fails, it just doesn't translate.
+- Never localize an enum `rawValue` — it is persisted identity (UserDefaults, file contents, test fixtures). Add a `title` property instead.
+- `MainMenuIconDecorator` resolves its title-keyed icons (all but the four rows exempted in `MainMenuIconDecoratorTests`) by localized menu title, so its runtime language must come from `Bundle.main.preferredLocalizations`, never `Locale.language.languageCode` — the latter collapses `zh-Hans` to `zh`, matching nothing and silently losing every title-keyed icon in Chinese.
+- Catalog membership is NOT localization. `Button(someString)` / `.alert(someString,…)` pick SwiftUI's VERBATIM overload, so a `String` constant ships English however complete the catalog is — localize at the DEFINITION site. `LocalizationSourceSweepTests` scans the source for this; its allowlist needs a reason per entry.
 
 - A perf gate's fixture must sit at the WORST case, not a convenient one. `MarkdownSpellCheckPerformanceTests` pinned the caret to the document midpoint while the prefix walk runs from offset 0 to the scope's end — so it measured exactly half the real per-keystroke cost, and the headroom above its floor was half what the numbers claimed.
 

@@ -772,7 +772,7 @@ struct MarkdownPreviewRenderer {
 
         switch outcome {
         case .image(let image):
-            image.accessibilityDescription = "Mermaid diagram. \(source)"
+            image.accessibilityDescription = String(localized: "Mermaid diagram. \(source)")
             let attachment = BlockRenderedAttachment()
             attachment.image = image
             let natural = image.size
@@ -808,7 +808,7 @@ struct MarkdownPreviewRenderer {
         if let font = captionAttributes[.font] as? NSFont {
             captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
-        output.append(NSAttributedString(string: "Mermaid diagram (source)", attributes: captionAttributes))
+        output.append(NSAttributedString(string: String(localized: "Mermaid diagram (source)"), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
         output.append(NSAttributedString(string: source, attributes: codeAttributes))
     }
@@ -845,7 +845,7 @@ struct MarkdownPreviewRenderer {
 
         switch outcome {
         case .image(let image, _):
-            image.accessibilityDescription = "Math. \(latex)"
+            image.accessibilityDescription = String(localized: "Math. \(latex)")
             let attachment = BlockRenderedAttachment()
             attachment.image = image
             let natural = image.size
@@ -872,7 +872,7 @@ struct MarkdownPreviewRenderer {
         if let font = captionAttributes[.font] as? NSFont {
             captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
-        output.append(NSAttributedString(string: "Math (source)", attributes: captionAttributes))
+        output.append(NSAttributedString(string: String(localized: "Math (source)"), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
         output.append(NSAttributedString(string: latex, attributes: codeAttributes))
     }
@@ -971,7 +971,7 @@ struct MarkdownPreviewRenderer {
             scale: scale
         )
         if case .image(let image, let descent) = outcome {
-            image.accessibilityDescription = "Math. \(span.latex)"
+            image.accessibilityDescription = String(localized: "Math. \(span.latex)")
             let attachment = NSTextAttachment()
             attachment.image = image
             let size = image.size
@@ -1131,7 +1131,7 @@ struct MarkdownPreviewRenderer {
             label = alt
         } else {
             let filename = Self.imageFilename(from: nsLine.substring(with: match.range(at: 2)))
-            label = filename.isEmpty ? "Image" : filename
+            label = filename.isEmpty ? String(localized: "Image") : filename
         }
         return InlineToken(kind: .image, text: "🖼 \(label)", range: match.range)
     }
@@ -1188,7 +1188,7 @@ struct MarkdownPreviewRenderer {
                 NSGraphicsContext.current?.imageInterpolation = .high
                 baseImage.draw(in: NSRect(x: 0, y: bottomMargin, width: width, height: height))
                 padded.unlockFocus()
-                padded.accessibilityDescription = alt.isEmpty ? "Image" : alt
+                padded.accessibilityDescription = alt.isEmpty ? String(localized: "Image") : alt
                 let attachment = BlockRenderedAttachment()
                 attachment.image = padded
                 attachment.appliesViewportHeightCap = true
@@ -1234,7 +1234,7 @@ struct MarkdownPreviewRenderer {
             label = alt
         } else {
             let filename = Self.imageFilename(from: path)
-            label = filename.isEmpty ? "Image" : filename
+            label = filename.isEmpty ? String(localized: "Image") : filename
         }
         var placeholderAttributes = attributes
         placeholderAttributes[.foregroundColor] = NSColor.linkColor

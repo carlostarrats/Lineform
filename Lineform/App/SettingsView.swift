@@ -12,7 +12,7 @@ struct SettingsModal: View {
     var usesDarkChrome: Bool
     var dismiss: () -> Void
 
-    static let title = "Settings"
+    static let title = String(localized: "Settings")
     static let contentWidth: CGFloat = 460
     /// The card fits inside narrow windows (minimum editor width is ~300pt): it
     /// takes its ideal width when the window allows, else shrinks with margins.
@@ -22,17 +22,17 @@ struct SettingsModal: View {
     static let animationDuration = MuseModalChrome.animationDuration
     static let entranceYOffset = MuseModalChrome.entranceYOffset
 
-    static let showSidebarOnLaunchTitle = "Show sidebar on launch"
-    static let showSidebarOnLaunchNote = "New windows open with the sidebar visible."
-    static let allowCollapseTitle = "Allow root folders to expand and collapse"
-    static let allowCollapseNote = "When off, the iCloud and Workspace sections in the Files sidebar always stay expanded."
-    static let showICloudTitle = "Show iCloud in sidebar"
-    static let iCloudCheckingNote = "Checking…"
-    static let iCloudUnavailableNote = "iCloud is not available on this Mac."
-    static let iCloudDisabledNote = "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive."
-    static let iCloudEnabledNote = "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed."
-    static let announcementsTitle = "In-app notifications"
-    static let announcementsNote = "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request."
+    static let showSidebarOnLaunchTitle = String(localized: "Show sidebar on launch")
+    static let showSidebarOnLaunchNote = String(localized: "New windows open with the sidebar visible.")
+    static let allowCollapseTitle = String(localized: "Allow root folders to expand and collapse")
+    static let allowCollapseNote = String(localized: "When off, the iCloud and Workspace sections in the Files sidebar always stay expanded.")
+    static let showICloudTitle = String(localized: "Show iCloud in sidebar")
+    static let iCloudCheckingNote = String(localized: "Checking…")
+    static let iCloudUnavailableNote = String(localized: "iCloud is not available on this Mac.")
+    static let iCloudDisabledNote = String(localized: "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive.")
+    static let iCloudEnabledNote = String(localized: "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed.")
+    static let announcementsTitle = String(localized: "In-app notifications")
+    static let announcementsNote = String(localized: "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request.")
 
     /// Window width the presenting container offers (via GeometryReader).
     var availableWidth: CGFloat
@@ -101,7 +101,7 @@ struct SettingsModal: View {
         }
         .museModalCard(
             width: Self.cardWidth(availableWidth: availableWidth),
-            accessibilityLabel: "Settings",
+            accessibilityLabel: Self.title,
             usesDarkChrome: usesDarkChrome
         )
         .task { await iCloud.refresh() }

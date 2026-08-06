@@ -26,6 +26,8 @@
 1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */; };
 1F0000010000000000000088 /* MarkdownSpellCheckPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */; };
 		1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */; };
+		1F0000320000000000000021 /* LocalizationCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000320000000000000031 /* LocalizationCatalogTests.swift */; };
+		1F0000330000000000000021 /* LocalizationSourceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
 		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
@@ -107,6 +109,7 @@
 		1F0000010000000000000034 /* DocumentStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000034 /* DocumentStatistics.swift */; };
 		1F0000010000000000000036 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000036 /* AppCommands.swift */; };
 		1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B1 /* MainMenuIconDecorator.swift */; };
+		1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000320000000000000011 /* SystemMenuItemTitles.swift */; };
 		1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */; };
 		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
 		1F0000010000000000000122 /* LineformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000122 /* LineformColors.swift */; };
@@ -193,6 +196,9 @@
 		1F00000100000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
 		1F00000300000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A5 /* QuickLookMarkdownRenderer.swift */; };
 		1F00000100000000000004A3 /* LineformQuickLook.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A3 /* LineformQuickLook.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1F0000310000000000000011 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000001 /* Localizable.xcstrings */; };
+		1F0000310000000000000012 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000002 /* InfoPlist.xcstrings */; };
+		1F0000310000000000000013 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000003 /* AppShortcuts.xcstrings */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -232,6 +238,8 @@
 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckRegionsTests.swift; sourceTree = "<group>"; };
 1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckPerformanceTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecoratorTests.swift; sourceTree = "<group>"; };
+		1F0000320000000000000031 /* LocalizationCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationCatalogTests.swift; sourceTree = "<group>"; };
+		1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationSourceSweepTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
@@ -322,6 +330,7 @@
 		1F0000020000000000000034 /* DocumentStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatistics.swift; sourceTree = "<group>"; };
 		1F0000020000000000000036 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B1 /* MainMenuIconDecorator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecorator.swift; sourceTree = "<group>"; };
+		1F0000320000000000000011 /* SystemMenuItemTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMenuItemTitles.swift; sourceTree = "<group>"; };
 		1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLaunchIntroOverlay.swift; sourceTree = "<group>"; };
 		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
 		1F0000020000000000000122 /* LineformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformColors.swift; sourceTree = "<group>"; };
@@ -400,6 +409,9 @@
  		1F00000200000000000004A2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
  		1F00000200000000000004A3 /* LineformQuickLook.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LineformQuickLook.appex; sourceTree = BUILT_PRODUCTS_DIR; };
  		1F00000200000000000004A4 /* LineformQuickLook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformQuickLook.entitlements; sourceTree = "<group>"; };
+		1F0000310000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		1F0000310000000000000002 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		1F0000310000000000000003 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -453,6 +465,9 @@
 				1F0000070000000000000016 /* Outline */,
 				1F0000070000000000000018 /* Resources */,
 				1F0000020000000000000003 /* Info.plist */,
+				1F0000310000000000000001 /* Localizable.xcstrings */,
+				1F0000310000000000000002 /* InfoPlist.xcstrings */,
+				1F0000310000000000000003 /* AppShortcuts.xcstrings */,
 			);
 			path = Lineform;
 			sourceTree = "<group>";
@@ -467,6 +482,7 @@
 				1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */,
 				1F0000020000000000000036 /* AppCommands.swift */,
 				1F00000200000000000004B1 /* MainMenuIconDecorator.swift */,
+				1F0000320000000000000011 /* SystemMenuItemTitles.swift */,
 				1F0000020000000000000201 /* AppUpdater.swift */,
 				1F00000200000000000004C5 /* AnnouncementFeed.swift */,
 				1F00000200000000000004C6 /* AnnouncementFetcher.swift */,
@@ -634,6 +650,8 @@
 				1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */,
 				1F0000020000000000000088 /* MarkdownSpellCheckPerformanceTests.swift */,
 				1F00000200000000000004B2 /* MainMenuIconDecoratorTests.swift */,
+				1F0000320000000000000031 /* LocalizationCatalogTests.swift */,
+				1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */,
 				1F0000020000000000000023 /* DocumentStatisticsTests.swift */,
 				1F0000020000000000000041 /* ReadingPresetTests.swift */,
 				1F0000020000000000000042 /* FontOptionTests.swift */,
@@ -812,6 +830,11 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
+				fr,
+				de,
+				ja,
+				"zh-Hans",
 			);
 			mainGroup = 1F0000070000000000000001;
 			packageReferences = (
@@ -843,6 +866,9 @@
 				1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */,
 				1F0000010000000000000120 /* Fonts in Resources */,
 				1F0000010000000000000131 /* FirstLaunchIntro in Resources */,
+				1F0000310000000000000011 /* Localizable.xcstrings in Resources */,
+				1F0000310000000000000012 /* InfoPlist.xcstrings in Resources */,
+				1F0000310000000000000013 /* AppShortcuts.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -910,6 +936,7 @@
 				1F0000010000000000000034 /* DocumentStatistics.swift in Sources */,
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
 				1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */,
+				1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */,
 				1F0000010000000000000201 /* AppUpdater.swift in Sources */,
 				1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */,
 				1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */,
@@ -996,6 +1023,8 @@
 				1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */,
 				1F0000010000000000000088 /* MarkdownSpellCheckPerformanceTests.swift in Sources */,
 				1F00000100000000000004B2 /* MainMenuIconDecoratorTests.swift in Sources */,
+				1F0000320000000000000021 /* LocalizationCatalogTests.swift in Sources */,
+				1F0000330000000000000021 /* LocalizationSourceSweepTests.swift in Sources */,
 				1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */,
 				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
 				1F0000010000000000000042 /* FontOptionTests.swift in Sources */,

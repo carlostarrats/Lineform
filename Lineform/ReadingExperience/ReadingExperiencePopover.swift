@@ -29,7 +29,7 @@ struct ReadingExperienceInspector: View {
     static let resetTopSpacing: CGFloat = 20
     static let usesResetSeparator = false
     static let presetGridColumnCount = 3
-    static let themeTitle = "Themes"
+    static let themeTitle = String(localized: "Themes")
     static let themeTitleFontSize: CGFloat = 13
     static let controlLabelFontSize: CGFloat = 13
     static let controlQualifierFontSize: CGFloat = 11
@@ -39,8 +39,8 @@ struct ReadingExperienceInspector: View {
     static let themeToFontSpacing: CGFloat = 10
     static let usesReadingAidsSectionLabel = false
     static let sectionLabelFontSize: CGFloat = 13
-    static let readingRulerDescription = "Highlights the current line while you write."
-    static let typewriterModeDescription = "Keeps the current line centered as you write."
+    static let readingRulerDescription = String(localized: "Highlights the current line while you write.")
+    static let typewriterModeDescription = String(localized: "Keeps the current line centered as you write.")
     static let aidToggleCheckboxesAlignTrailing = true
     static let usesNativeUIFontOutsideThemePreviews = true
     static let usesMonospacedInspectorValueFont = false
@@ -61,7 +61,7 @@ struct ReadingExperienceInspector: View {
         .font(Self.inspectorUIFont())
         .environment(\.colorScheme, Self.colorScheme(usesDarkChrome: usesDarkChrome))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Reading Experience Inspector")
+        .accessibilityLabel(String(localized: "Reading Experience Inspector"))
     }
 
     private var controls: some View {
@@ -70,8 +70,8 @@ struct ReadingExperienceInspector: View {
                 presetGrid
                     .padding(.bottom, Self.themeToFontSpacing)
 
-                PickerRow(title: "Font") {
-                    Picker("Font", selection: fontSelection) {
+                PickerRow(title: String(localized: "Font")) {
+                    Picker(String(localized: "Font"), selection: fontSelection) {
                         ForEach(FontOption.availableGroupedOptions) { group in
                             Section(group.name) {
                                 ForEach(group.options) { option in
@@ -85,56 +85,56 @@ struct ReadingExperienceInspector: View {
                 }
 
                 InspectorSliderRow(
-                    title: "Font Size",
+                    title: String(localized: "Font Size"),
                     valueText: Self.valueText(for: \.fontSize, in: store.activeProfile),
                     value: numericBinding(\.fontSize, range: Self.fontSizeRange),
                     range: Self.fontSizeRange
                 )
 
                 InspectorSliderRow(
-                    title: "Line Height",
+                    title: String(localized: "Line Height"),
                     valueText: Self.valueText(for: \.lineHeightMultiple, in: store.activeProfile),
                     value: numericBinding(\.lineHeightMultiple, range: Self.lineHeightRange),
                     range: Self.lineHeightRange
                 )
 
                 InspectorSliderRow(
-                    title: "Block Spacing",
-                    subtitle: "(Read / Preview)",
+                    title: String(localized: "Block Spacing"),
+                    subtitle: String(localized: "(Read / Preview)"),
                     valueText: Self.valueText(for: \.paragraphSpacing, in: store.activeProfile),
                     value: numericBinding(\.paragraphSpacing, range: 0...24),
                     range: 0...24
                 )
 
                 InspectorSliderRow(
-                    title: "Letter Spacing",
+                    title: String(localized: "Letter Spacing"),
                     valueText: Self.valueText(for: \.letterSpacing, in: store.activeProfile),
                     value: numericBinding(\.letterSpacing, range: 0...1.2),
                     range: 0...1.2
                 )
 
                 InspectorSliderRow(
-                    title: "Column Width",
+                    title: String(localized: "Column Width"),
                     valueText: Self.valueText(for: \.columnWidth, in: store.activeProfile),
                     value: numericBinding(\.columnWidth, range: ReadingProfile.columnWidthMinimum...ReadingProfile.columnWidthMaximum),
                     range: ReadingProfile.columnWidthMinimum...ReadingProfile.columnWidthMaximum
                 )
 
                 InspectorToggleRow(
-                    title: "Reading Ruler",
+                    title: String(localized: "Reading Ruler"),
                     subtitle: Self.readingRulerDescription,
                     isOn: boolBinding(\.readingRulerEnabled)
                 )
 
                 InspectorToggleRow(
-                    title: "Typewriter Mode",
+                    title: String(localized: "Typewriter Mode"),
                     subtitle: Self.typewriterModeDescription,
                     isOn: boolBinding(\.typewriterModeEnabled)
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
                     InspectorControlRow {
-                        HoverFeedbackButton("Reset all to default") {
+                        HoverFeedbackButton(String(localized: "Reset all to default")) {
                             store.resetToDefault()
                         }
                     }
@@ -152,7 +152,7 @@ struct ReadingExperienceInspector: View {
     // beneath it — the title just sits above the scrolling controls.
     private var header: some View {
         HStack(spacing: 8) {
-            Text("Reading")
+            Text(String(localized: "Reading"))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.primary)
 
@@ -171,7 +171,7 @@ struct ReadingExperienceInspector: View {
             }
             .buttonStyle(.plain)
             .contentShape(Circle())
-            .help("Close")
+            .help(String(localized: "Close"))
             .onHover { isCloseHovered = $0 }
             .animation(.easeOut(duration: 0.12), value: isCloseHovered)
         }
@@ -240,13 +240,13 @@ struct ReadingExperienceInspector: View {
 
         switch keyPath {
         case \ReadingProfile.fontSize:
-            return "\(roundedInteger(value)) pt"
+            return String(localized: "\(roundedInteger(value)) pt")
         case \ReadingProfile.lineHeightMultiple:
             return decimalText(value, maximumFractionDigits: 2)
         case \ReadingProfile.columnWidth:
-            return ReadingProfile.isFullWidthColumn(value) ? "Full" : "\(roundedInteger(value)) px"
+            return ReadingProfile.isFullWidthColumn(value) ? String(localized: "Full") : String(localized: "\(roundedInteger(value)) px")
         case \ReadingProfile.paragraphSpacing, \ReadingProfile.insertionPointWidth:
-            return "\(roundedInteger(value)) px"
+            return String(localized: "\(roundedInteger(value)) px")
         case \ReadingProfile.letterSpacing:
             return decimalText(value, maximumFractionDigits: 1)
         default:
@@ -276,8 +276,10 @@ struct ReadingExperienceInspector: View {
         Int(value.rounded())
     }
 
-    private static func decimalText(_ value: Double, maximumFractionDigits: Int) -> String {
+    static func decimalText(_ value: Double, maximumFractionDigits: Int,
+                             locale: Locale = .autoupdatingCurrent) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = locale
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = maximumFractionDigits
         return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.\(maximumFractionDigits)f", value)
@@ -337,7 +339,7 @@ private struct ReadingPresetCard: View {
                     .foregroundStyle(Color(nsColor: theme.textColor))
                     .lineLimit(1)
 
-                Text(preset.profile.name)
+                Text(preset.title)
                     .font(previewFont(size: 12))
                     .foregroundStyle(Color(nsColor: theme.textColor))
                     .lineLimit(1)
@@ -364,7 +366,7 @@ private struct ReadingPresetCard: View {
                 isHovered = hovering
             }
         }
-        .accessibilityLabel("\(preset.profile.name) reading theme")
+        .accessibilityLabel(String(localized: "\(preset.title) reading theme"))
     }
 
     private var selectedStrokeColor: Color {
@@ -440,7 +442,7 @@ private struct InspectorSliderRow: View {
                         ))
                         .foregroundStyle(.secondary)
                         .frame(minWidth: 54, alignment: .trailing)
-                        .accessibilityLabel("\(accessibilityTitle) value \(valueText)")
+                        .accessibilityLabel(String(localized: "\(accessibilityTitle) value \(valueText)"))
                 }
 
                 Slider(value: $value, in: range)
@@ -490,7 +492,7 @@ private struct InspectorToggleRow: View {
                 Toggle(title, isOn: $isOn)
                     .labelsHidden()
                     .accessibilityLabel(title)
-                    .accessibilityValue(isOn ? "On" : "Off")
+                    .accessibilityValue(isOn ? String(localized: "On") : String(localized: "Off"))
             }
         }
     }

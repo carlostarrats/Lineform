@@ -30,12 +30,14 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
         }
 
         let alert = NSAlert()
-        alert.messageText = "Save changes before closing?"
-        alert.informativeText = "This window has \(dirtyTabs.count) tab(s) with unsaved changes. Closing this window will discard those changes unless you save them."
+        alert.messageText = String(localized: "Save changes before closing?")
+        // "tab(s)" was an English-only dodge around pluralization; the catalog carries real
+        // plural variations per language instead (and English finally reads "1 tab").
+        alert.informativeText = String(localized: "This window has \(dirtyTabs.count) tabs with unsaved changes. Closing this window will discard those changes unless you save them.")
         // Save All is the default (Return); Cancel is Escape; Don't Save takes a deliberate click.
-        alert.addButton(withTitle: "Save All")      // .alertFirstButtonReturn
-        alert.addButton(withTitle: "Cancel")        // .alertSecondButtonReturn
-        alert.addButton(withTitle: "Don't Save")    // .alertThirdButtonReturn
+        alert.addButton(withTitle: String(localized: "Save All"))      // .alertFirstButtonReturn
+        alert.addButton(withTitle: String(localized: "Cancel"))        // .alertSecondButtonReturn
+        alert.addButton(withTitle: String(localized: "Don't Save"))    // .alertThirdButtonReturn
         alert.buttons[0].keyEquivalent = "\r"
         alert.buttons[1].keyEquivalent = "\u{1b}"
         alert.buttons[2].keyEquivalent = ""

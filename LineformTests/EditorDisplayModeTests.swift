@@ -364,6 +364,8 @@ final class EditorDisplayModeTests: XCTestCase {
 
     func testDisplayModesStaySmallAndOrdered() {
         XCTAssertEqual(EditorDisplayMode.allCases, [.write, .read, .split])
+        // pinned-en: EditorDisplayMode.title is String(localized:) itself — this asserts
+        // its pinned-en resolution, there is no further constant to defer to.
         XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])
     }
 
@@ -853,9 +855,11 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testStatusBarFormatsCountsWithEmDash() {
+        let text = "the quick brown fox jumps over the lazy dog and runs away quickly through the meadow"
+        let stats = DocumentStatistics(text: text)
         XCTAssertEqual(
-            EditorStatusFormatter.statisticsText(wordCount: 304, characterCount: 2345),
-            "304 words — 2345 characters"
+            EditorStatusFormatter.statisticsText(for: stats),
+            "16 words — 84 characters"
         )
     }
 
@@ -911,10 +915,10 @@ final class EditorDisplayModeTests: XCTestCase {
     }
 
     func testIndicatorPresentationTextAndIcon() {
-        XCTAssertEqual(EditorStatusIndicator.unsavedChanges.text, "Unsaved changes")
-        XCTAssertEqual(EditorStatusIndicator.saved.text, "Saved")
-        XCTAssertEqual(EditorStatusIndicator.autosaved.text, "Autosaved")
-        XCTAssertEqual(EditorStatusIndicator.updated.text, "Updated")
+        XCTAssertEqual(EditorStatusIndicator.unsavedChanges.text, EditorStatusFormatter.unsavedChangesText)
+        XCTAssertEqual(EditorStatusIndicator.saved.text, EditorStatusFormatter.savedIndicatorText)
+        XCTAssertEqual(EditorStatusIndicator.autosaved.text, EditorStatusFormatter.autosavedIndicatorText)
+        XCTAssertEqual(EditorStatusIndicator.updated.text, EditorStatusFormatter.updatedIndicatorText)
         XCTAssertNil(EditorStatusIndicator.none.text)
         XCTAssertTrue(EditorStatusIndicator.updated.showsReloadIcon)
         XCTAssertFalse(EditorStatusIndicator.unsavedChanges.showsReloadIcon)
@@ -1052,17 +1056,19 @@ final class EditorDisplayModeTests: XCTestCase {
             minute: 6
         ).date)
 
+        // `Date.FormatStyle` renders the AM/PM separator as U+202F (narrow no-break space),
+        // not a plain space — the system-produced string, not the legacy hand-built pattern.
         XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: nil, now: now, calendar: calendar), "Not saved yet")
-        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: today, now: now, calendar: calendar), "Last save 9:05 AM")
-        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: earlierDate, now: now, calendar: calendar), "Last save May 25, 2026 at 2:06 PM")
+        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: today, now: now, calendar: calendar), "Last save 9:05\u{202F}AM")
+        XCTAssertEqual(EditorStatusFormatter.lastSavedText(for: earlierDate, now: now, calendar: calendar), "Last save May 25, 2026 at 2:06\u{202F}PM")
 
         XCTAssertEqual(
             EditorStatusFormatter.lastSavedDisplay(for: today, now: now, calendar: calendar),
-            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "9:05 AM")
+            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "9:05\u{202F}AM")
         )
         XCTAssertEqual(
             EditorStatusFormatter.lastSavedDisplay(for: earlierDate, now: now, calendar: calendar),
-            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "May 25, 2026 at 2:06 PM")
+            EditorStatusFormatter.LastSavedDisplay(label: "Last save", detail: "May 25, 2026 at 2:06\u{202F}PM")
         )
     }
 
@@ -1137,5 +1143,40 @@ final class EditorDisplayModeTests: XCTestCase {
         return 0.2126 * linearized(rgb.redComponent)
             + 0.7152 * linearized(rgb.greenComponent)
             + 0.0722 * linearized(rgb.blueComponent)
+    }
+}
+
+final class EditorStatusDateFormattingTests: XCTestCase {
+    private var calendar: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+    private let date = Date(timeIntervalSince1970: 1_785_942_240) // 2026-08-05 15:04:00 UTC (verified)
+
+    func testGermanLocaleUses24HourClockAndGermanMonth() throws {
+        let display = EditorStatusFormatter.lastSavedDisplay(
+            for: date, now: date.addingTimeInterval(90_000),
+            calendar: calendar, locale: Locale(identifier: "de_DE"))
+        XCTAssertEqual(display.label, "Last save")
+        let detail = try XCTUnwrap(display.detail)
+        XCTAssertTrue(detail.contains("15:04"), "expected 24h clock, got \(detail)")
+        XCTAssertFalse(detail.contains("PM"))
+        XCTAssertFalse(detail.contains("Aug 5"), "English month order leaked: \(detail)")
+    }
+
+    func testJapaneseLocaleSameDayUses24HourClock() throws {
+        let display = EditorStatusFormatter.lastSavedDisplay(
+            for: date, now: date, calendar: calendar, locale: Locale(identifier: "ja_JP"))
+        XCTAssertEqual(try XCTUnwrap(display.detail).contains("15:04"), true)
+    }
+
+    func testEnglishOutputUnchanged() {
+        let display = EditorStatusFormatter.lastSavedDisplay(
+            for: date, now: date.addingTimeInterval(90_000),
+            calendar: calendar, locale: Locale(identifier: "en_US"))
+        // `Date.FormatStyle` renders the AM/PM separator as U+202F (narrow no-break space),
+        // not a plain space — the system-produced string, not the legacy hand-built pattern.
+        XCTAssertEqual(display.detail, "Aug 5, 2026 at 3:04\u{202F}PM")
     }
 }

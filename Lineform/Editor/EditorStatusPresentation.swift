@@ -14,10 +14,10 @@ enum EditorStatusFormatter {
         }
     }
 
-    static let updatedIndicatorText = "Updated"
-    static let unsavedChangesText = "Unsaved changes"
-    static let savedIndicatorText = "Saved"
-    static let autosavedIndicatorText = "Autosaved"
+    static let updatedIndicatorText = String(localized: "Updated")
+    static let unsavedChangesText = String(localized: "Unsaved changes")
+    static let savedIndicatorText = String(localized: "Saved")
+    static let autosavedIndicatorText = String(localized: "Autosaved")
 
     struct MetadataSegments: Equatable {
         /// The unsaved-state label ("Not saved yet") when the document has never been
@@ -27,8 +27,18 @@ enum EditorStatusFormatter {
         var neutralText: String
     }
 
-    static func statisticsText(wordCount: Int, characterCount: Int) -> String {
-        "\(wordCount) words — \(characterCount) characters"
+    static func statisticsText(for statistics: DocumentStatistics) -> String {
+        if statistics.isPredominantlyCJK {
+            return String(localized: "\(statistics.characterCount) characters")
+        }
+        return String(localized: "\(statistics.wordCount) words — \(statistics.characterCount) characters")
+    }
+
+    static func statusAccessibilityText(for statistics: DocumentStatistics) -> String {
+        if statistics.isPredominantlyCJK {
+            return String(localized: "Document contains \(statistics.characterCount) characters")
+        }
+        return String(localized: "Document contains \(statistics.wordCount) words and \(statistics.characterCount) characters")
     }
 
     static func metadataSegments(lastSavedDisplay: LastSavedDisplay, statisticsText: String) -> MetadataSegments {
@@ -69,29 +79,22 @@ enum EditorStatusFormatter {
         }
     }
 
-    static func lastSavedText(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String {
-        lastSavedDisplay(for: date, now: now, calendar: calendar).accessibilityText
+    static func lastSavedText(for date: Date?, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .autoupdatingCurrent) -> String {
+        lastSavedDisplay(for: date, now: now, calendar: calendar, locale: locale).accessibilityText
     }
 
-    static func lastSavedDisplay(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> LastSavedDisplay {
+    static func lastSavedDisplay(for date: Date?, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .autoupdatingCurrent) -> LastSavedDisplay {
         guard let date else {
-            return LastSavedDisplay(label: "Not saved yet", detail: nil)
+            return LastSavedDisplay(label: String(localized: "Not saved yet"), detail: nil)
         }
 
-        let timeZone = calendar.timeZone
-        if calendar.isDate(date, inSameDayAs: now) {
-            return LastSavedDisplay(label: "Last save", detail: formatted(date, format: "h:mm a", timeZone: timeZone))
-        }
-
-        return LastSavedDisplay(label: "Last save", detail: formatted(date, format: "MMM d, yyyy 'at' h:mm a", timeZone: timeZone))
-    }
-
-    private static func formatted(_ date: Date, format: String, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timeZone
-        formatter.dateFormat = format
-        return formatter.string(from: date)
+        // Locale-aware system styles, never a hand-built pattern: a pattern string
+        // localizes the words but not the order, joiner, or clock convention.
+        var style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+        style = calendar.isDate(date, inSameDayAs: now)
+            ? style.hour().minute()
+            : style.year().month(.abbreviated).day().hour().minute()
+        return LastSavedDisplay(label: String(localized: "Last save"), detail: date.formatted(style))
     }
 }
 
@@ -153,10 +156,10 @@ enum EditorStatusIndicator: Equatable {
     var accessibilityLabel: String? {
         switch self {
         case .none: return nil
-        case .unsavedChanges: return "Unsaved changes"
-        case .saved: return "Saved"
-        case .autosaved: return "Autosaved"
-        case .updated: return "Document updated from disk"
+        case .unsavedChanges: return String(localized: "Unsaved changes")
+        case .saved: return String(localized: "Saved")
+        case .autosaved: return String(localized: "Autosaved")
+        case .updated: return String(localized: "Document updated from disk")
         }
     }
 }
@@ -212,7 +215,7 @@ struct EditorStatusBar: View {
             metadataText(segments)
                 .font(.caption)
                 .lineLimit(1)
-                .accessibilityLabel("\(lastSavedDisplay.accessibilityText), \(statusAccessibilityLabel)")
+                .accessibilityLabel(Text(verbatim: "\(lastSavedDisplay.accessibilityText), \(statusAccessibilityLabel)"))
         }
         .padding(.horizontal, Self.horizontalInset)
         .padding(.vertical, 6)

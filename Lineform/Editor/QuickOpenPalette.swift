@@ -61,7 +61,7 @@ struct QuickOpenPalette: View {
         // how the two modals drifted apart; do not re-inline it here.
         .museModalCard(
             width: min(Self.maximumCardWidth, max(280, availableWidth - 48)),
-            accessibilityLabel: "Jump to File",
+            accessibilityLabel: String(localized: "Jump to File"),
             // The rows and search field carry their own padding.
             padding: 0,
             usesDarkChrome: usesDarkChrome
@@ -78,9 +78,9 @@ struct QuickOpenPalette: View {
     private var resultsList: some View {
         let results = results
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            hintRow("Type to search files…")
+            hintRow(String(localized: "Type to search files…"))
         } else if results.isEmpty {
-            hintRow("No matches")
+            hintRow(String(localized: "No matches"))
         } else {
             // ScrollView greedily fills its maxHeight even with two rows, which left the
             // card tall and empty; cap the frame at the CONTENT's estimated height so the

@@ -26,13 +26,13 @@ enum CommandLineToolInstaller {
     static func presentInstaller() {
         guard let helper = bundledHelperURL else {
             showManualFallback(destination: defaultInstallDirectory + "/lineform",
-                               reason: "The command line tool isn’t available in this build.")
+                               reason: String(localized: "The command line tool isn’t available in this build."))
             return
         }
 
         let panel = NSSavePanel()
-        panel.title = "Install Command Line Tool"
-        panel.message = "Choose where to install the lineform command (default: \(defaultInstallDirectory))."
+        panel.title = String(localized: "Install Command Line Tool")
+        panel.message = String(localized: "Choose where to install the lineform command (default: \(defaultInstallDirectory)).")
         panel.nameFieldStringValue = "lineform"
         panel.directoryURL = URL(fileURLWithPath: defaultInstallDirectory, isDirectory: true)
         panel.canCreateDirectories = true
@@ -47,7 +47,7 @@ enum CommandLineToolInstaller {
             showSuccess(destination: destination.path)
         } catch {
             showManualFallback(destination: destination.path,
-                               reason: "Couldn’t create the link at \(destination.path).")
+                               reason: String(localized: "Couldn’t create the link at \(destination.path)."))
         }
     }
 
@@ -59,8 +59,8 @@ enum CommandLineToolInstaller {
         // as the command name: the save panel pre-fills "lineform" but lets the user rename it.
         let command = (destination as NSString).lastPathComponent
         let alert = NSAlert()
-        alert.messageText = "Command line tool installed"
-        alert.informativeText = """
+        alert.messageText = String(localized: "Command line tool installed")
+        alert.informativeText = String(localized: """
         \(command) was linked to \(destination).
 
         Open a new Terminal window, then run:
@@ -70,8 +70,8 @@ enum CommandLineToolInstaller {
         Or pipe input into it:
 
         some-command | \(command) -
-        """
-        alert.addButton(withTitle: "OK")
+        """)
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 
@@ -80,9 +80,9 @@ enum CommandLineToolInstaller {
         let needsSudo = destination.hasPrefix("/usr/") || destination.hasPrefix("/opt/")
         let command = (needsSudo ? "sudo " : "") + manualCommand(destination: destination)
         let alert = NSAlert()
-        alert.messageText = "Install manually"
-        alert.informativeText = "\(reason)\n\nRun this in Terminal:\n\n\(command)"
-        alert.addButton(withTitle: "OK")
+        alert.messageText = String(localized: "Install manually")
+        alert.informativeText = String(localized: "\(reason)\n\nRun this in Terminal:\n\n\(command)")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 }

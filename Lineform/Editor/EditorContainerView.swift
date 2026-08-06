@@ -185,10 +185,12 @@ struct EditorContainerView: View {
                 Text(SidebarFileActionPresenter.deleteMessage)
             }
         }
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export PDF", fileName: $pdfExportErrorFileName))
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export RTF", fileName: $rtfExportErrorFileName))
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Export HTML", fileName: $htmlExportErrorFileName))
-        .modifier(WriteFailureAlert(title: "Couldn\u{2019}t Save", fileName: $markdownSaveErrorFileName))
+        // `WriteFailureAlert.title` is a `String`, which `.alert(_:isPresented:)` reads with its
+        // verbatim overload — localize here, not by adding the key to the catalog.
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Export PDF"), fileName: $pdfExportErrorFileName))
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Export RTF"), fileName: $rtfExportErrorFileName))
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Export HTML"), fileName: $htmlExportErrorFileName))
+        .modifier(WriteFailureAlert(title: String(localized: "Couldn\u{2019}t Save"), fileName: $markdownSaveErrorFileName))
         .alert(
             "File Already Open",
             isPresented: Binding(
@@ -1035,9 +1037,11 @@ struct EditorContainerView: View {
         }
         let count = searchMatches.count
         guard count > 0 else {
-            return "No matches"
+            return String(localized: "No matches")
         }
-        return count == 1 ? "1 found" : "\(count) found"
+        // One key with catalog plural variations rather than a `== 1` ternary: the ternary
+        // hard-codes English's plural rule onto every language.
+        return String(localized: "\(count) found")
     }
 
     private func dismissFindReplace() {
@@ -1953,10 +1957,7 @@ struct EditorContainerView: View {
     }
 
     private var statisticsText: String {
-        EditorStatusFormatter.statisticsText(
-            wordCount: documentStatistics.wordCount,
-            characterCount: documentStatistics.characterCount
-        )
+        EditorStatusFormatter.statisticsText(for: documentStatistics)
     }
 
     private var lastSavedDisplay: EditorStatusFormatter.LastSavedDisplay {
@@ -1976,7 +1977,7 @@ struct EditorContainerView: View {
     }
 
     private var statusAccessibilityLabel: String {
-        return "Document contains \(documentStatistics.wordCount) words and \(documentStatistics.characterCount) characters"
+        EditorStatusFormatter.statusAccessibilityText(for: documentStatistics)
     }
 
     private func notificationMatchesActiveWindow(_ notification: Notification) -> Bool {
@@ -2036,10 +2037,12 @@ struct EditorContainerView: View {
             panel.canChooseFiles = true
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = true
-            panel.prompt = "Grant Access"
-            panel.message = "This document uses \(unresolved.count) image\(unresolved.count == 1 ? "" : "s") "
-                + "stored outside the folders Lineform can access. Choose the folder or files to "
-                + "include them in the PDF, or Cancel to export without them."
+            panel.prompt = String(localized: "Grant Access")
+            // The plural is a catalog variation, not a `+ "s"` in the format string: a
+            // concatenated suffix is untranslatable (no other language pluralizes by appending
+            // one letter to the noun), and it left the catalog holding a `%@` placeholder that
+            // carried no meaning of its own.
+            panel.message = String(localized: "This document uses \(unresolved.count) images stored outside the folders Lineform can access. Choose the folder or files to include them in the PDF, or Cancel to export without them.")
             if panel.runModal() == .OK {
                 for url in panel.urls where url.startAccessingSecurityScopedResource() {
                     granted.append(url)
@@ -2070,7 +2073,7 @@ struct EditorContainerView: View {
     private func saveAsDocument() {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
-        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "Untitled")
         panel.nameFieldStringValue = "\(base).md"
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
 
@@ -2118,7 +2121,7 @@ struct EditorContainerView: View {
     private func exportDocument(_ format: ExportFormat) {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
-        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "Untitled")
         let controller = ExportPanelController(
             panel: panel,
             baseName: base,

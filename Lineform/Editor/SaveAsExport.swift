@@ -9,20 +9,20 @@ enum ExportFormat: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .html: return "HTML"
-        case .pdf: return "PDF"
-        case .styledPDF: return "Styled PDF"
-        case .rtf: return "Rich Text (.rtf)"
+        case .html: return String(localized: "HTML")
+        case .pdf: return String(localized: "PDF")
+        case .styledPDF: return String(localized: "Styled PDF")
+        case .rtf: return String(localized: "Rich Text (.rtf)")
         }
     }
 
     /// Shown under the format's name in the export panel.
     var description: String {
         switch self {
-        case .html: return "A web page — your image and link paths kept exactly as written."
-        case .pdf: return "Plain markdown source — shows #, ** as typed."
-        case .styledPDF: return "Rendered like Read mode — with images, tables, math & diagrams."
-        case .rtf: return "Styled text for Word, Pages & Google Docs."
+        case .html: return String(localized: "A web page — your image and link paths kept exactly as written.")
+        case .pdf: return String(localized: "Plain markdown source — shows #, ** as typed.")
+        case .styledPDF: return String(localized: "Rendered like Read mode — with images, tables, math & diagrams.")
+        case .rtf: return String(localized: "Styled text for Word, Pages & Google Docs.")
         }
     }
 
@@ -157,7 +157,7 @@ final class ExportPanelController: NSObject {
         self.format = format
         super.init()
 
-        let name = baseName.isEmpty ? "Untitled" : baseName
+        let name = baseName.isEmpty ? String(localized: "Untitled") : baseName
         panel.nameFieldStringValue = "\(name).\(format.pathExtension)"
         panel.allowedContentTypes = [format.contentType]
 
@@ -165,7 +165,7 @@ final class ExportPanelController: NSObject {
         if paperTitles.indices.contains(selectedPaper) { paperPopup.selectItem(at: selectedPaper) }
         // The adjacent "Paper Size:" text field is not programmatically associated, so VoiceOver
         // would otherwise announce only the selected value with no field name.
-        paperPopup.setAccessibilityLabel("Paper Size")
+        paperPopup.setAccessibilityLabel(String(localized: "Paper Size"))
 
         panel.accessoryView = makeAccessory()
     }
@@ -181,7 +181,7 @@ final class ExportPanelController: NSObject {
 
         var views: [NSView] = [description]
         if format.usesPaper {
-            let label = NSTextField(labelWithString: "Paper Size:")
+            let label = NSTextField(labelWithString: String(localized: "Paper Size:"))
             label.setContentHuggingPriority(.required, for: .horizontal)
             let row = NSStackView(views: [label, paperPopup])
             row.orientation = .horizontal

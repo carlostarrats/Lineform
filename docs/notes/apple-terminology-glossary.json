@@ -1,0 +1,3726 @@
+{
+ " — ": {
+  "de": " — ",
+  "es": " — ",
+  "fr": " — ",
+  "ja": " — ",
+  "zh-Hans": " — "
+ },
+ " ▶ ": {
+  "de": " ▶ ",
+  "es": " ▶ ",
+  "fr": " ▶ ",
+  "ja": " ▶ ",
+  "zh-Hans": " ▶ "
+ },
+ "%1$@ %2$@": {
+  "de": "%1$@ %2$@",
+  "es": "%1$@ %2$@",
+  "fr": "%1$@ %2$@",
+  "ja": "%1$@%2$@",
+  "zh-Hans": "%1$@%2$@"
+ },
+ "%1$@ cannot open files in the “%2$@” format.": {
+  "de": "%1$@ kann Dateien im %2$@-Format nicht öffnen.",
+  "es": "%1$@ no puede abrir archivos en formato “%2$@”.",
+  "fr": "%1$@ ne peut pas ouvrir les fichiers au format « %2$@ ».",
+  "ja": "“%1$@”は%2$@フォーマットのファイルを開けません。",
+  "zh-Hans": "“%1$@”打不开格式为“%2$@”的文件。"
+ },
+ "%1$@ copy %2$@": {
+  "de": "%1$@ Kopie %2$@",
+  "es": "%1$@ copia %2$@",
+  "fr": "%1$@ - copie %2$@",
+  "ja": "%1$@のコピー%2$@",
+  "zh-Hans": "%1$@_副本%2$@"
+ },
+ "%1$@ wants to use the restricted Service “%2$@.”": {
+  "de": "%1$@ möchte den eingeschränkten Dienst „%2$@“ verwenden.",
+  "es": "%1$@ quiere usar el servicio restringido “%2$@”.",
+  "fr": "%1$@ veut utiliser le service limité « %2$@ ».",
+  "ja": "“%1$@”が制限されたサービス“%2$@”を使おうとしています。",
+  "zh-Hans": "“%1$@”想使用受限制的服务“%2$@”。"
+ },
+ "%@": {
+  "de": "%@",
+  "es": "%@",
+  "fr": "%@",
+  "ja": "%@",
+  "zh-Hans": "%@"
+ },
+ "%@ (Autosaved)": {
+  "de": "%@ (Automatisch gesichert)",
+  "es": "%@ (guardado automáticamente)",
+  "fr": "%@ (enregistré automatiquement)",
+  "ja": "%@（自動保存）",
+  "zh-Hans": "%@（自动保存）"
+ },
+ "%@ You can also discard your changes to close the document.": {
+  "de": "%@ Du kannst deine Änderungen auch verwerfen, um das Dokument zu schließen.",
+  "es": "%@ También puedes descartar los cambios para cerrar el documento.",
+  "fr": "%@ Vous pouvez également annuler les modifications pour fermer le document.",
+  "ja": "%@変更内容を破棄して書類を閉じることもできます。",
+  "zh-Hans": "%@你也可以放弃更改来关闭文稿。"
+ },
+ "%@ You can also duplicate the document or discard your changes to close it.": {
+  "de": "%@ Du kannst das Dokument auch duplizieren oder die Änderungen verwerfen, um es zu schließen.",
+  "es": "%@ También puedes duplicar el documento o descartar los cambios para cerrar el documento.",
+  "fr": "%@ Vous pouvez également dupliquer le document ou annuler vos modifications pour le fermer.",
+  "ja": "%@書類を複製するか、または変更内容を破棄して閉じることもできます。",
+  "zh-Hans": "%@你也可以复制该文稿或放弃更改来关闭该文稿。"
+ },
+ "%@ cannot open files of this type.": {
+  "de": "%@ kann Dateien dieses Typs nicht öffnen.",
+  "es": "%@ no puede abrir archivos de este tipo.",
+  "fr": "%@ ne peut pas ouvrir les fichiers de ce type.",
+  "ja": "“%@”はこのタイプのファイルを開けません。",
+  "zh-Hans": "“%@”打不开这种类型的文件。"
+ },
+ "%@ copy": {
+  "de": "%@ Kopie",
+  "es": "%@ copia",
+  "fr": "%@ - copie",
+  "ja": "%@のコピー",
+  "zh-Hans": "%@_副本"
+ },
+ "%@ stopped sharing, or you no longer have permission to continue editing.": {
+  "de": "%@ hat das Teilen beendet oder du hast keine Bearbeitungsrechte mehr.",
+  "es": "%@ ha dejado de compartir o ya no tienes autorización para seguir editando.",
+  "fr": "%@ a arrêté le partage ou vous ne disposez plus des autorisations nécessaires pour le modifier.",
+  "ja": "%@さんが共有を停止したか、あなたに編集を続けるためのアクセス権がなくなりました。",
+  "zh-Hans": "%@已停止共享，或者你不再有权限继续编辑。"
+ },
+ "%@ stopped sharing, or you no longer have permission to continue viewing.": {
+  "de": "%@ hat das Teilen beendet oder du hast keine Zugriffsrechte mehr.",
+  "es": "%@ ha dejado de compartir o ya no tienes autorización para seguir visualizando.",
+  "fr": "%@ a arrêté le partage ou vous ne disposez plus des autorisations nécessaires pour le consulter.",
+  "ja": "%@さんが共有を停止したか、あなたに閲覧を続けるためのアクセス権がなくなりました。",
+  "zh-Hans": "%@已停止共享，或者你不再有权限继续查看。"
+ },
+ "%@, %@": {
+  "de": "%@, %@",
+  "es": "%@, %@",
+  "fr": "%@, %@",
+  "ja": "%@、%@",
+  "zh-Hans": "%@，%@"
+ },
+ "360 Search": {
+  "de": "360 Search",
+  "es": "360 Search",
+  "fr": "360 Search",
+  "ja": "360 Search",
+  "zh-Hans": "360搜索"
+ },
+ "<no name>": {
+  "de": "<kein Name>",
+  "es": "<sin nombre>",
+  "fr": "<aucun nom>",
+  "ja": "＜名称なし＞",
+  "zh-Hans": "<无名称>"
+ },
+ "A file or folder with the same name already exists in the folder “%@”. Replacing it will overwrite its current contents.": {
+  "de": "Es existiert bereits eine Datei oder ein Ordner mit demselben Namen im Ordner „%@“. Beim Ersetzen wird der Inhalt überschrieben.",
+  "es": "Ya existe un archivo o una carpeta con este nombre en la carpeta “%@”. Si lo reemplazas, se borrará el contenido actual.",
+  "fr": "Un fichier ou dossier du même nom se trouve déjà dans le dossier « %@ ». Si vous le remplacez, le contenu d’origine sera perdu.",
+  "ja": "同じ名前のファイルまたはフォルダが“%@”フォルダにすでに存在しています。これを置き換えると現在の内容が上書きされます。",
+  "zh-Hans": "“%@”文件夹中已存在同名文件或文件夹。若替换，则会覆盖其当前内容。"
+ },
+ "A file or folder with the same name already exists on the %@. Replacing it will overwrite its current contents.": {
+  "de": "Es existiert bereits eine Datei oder ein Ordner mit demselben Namen auf dem %@. Beim Ersetzen wird der Inhalt überschrieben.",
+  "es": "Ya existe un archivo o una carpeta con este nombre en %@. Si lo reemplazas, se borrará el contenido actual.",
+  "fr": "Un fichier ou dossier du même nom se trouve déjà sur le %@. Si vous le remplacez, le contenu d’origine sera perdu.",
+  "ja": "同じ名前のファイルまたはフォルダが“%@”にすでに存在しています。これを置き換えると現在の内容が上書きされます。",
+  "zh-Hans": "“%@”中已存在同名文件或文件夹。若替换，则会覆盖其当前内容。"
+ },
+ "A new copy of “%@” has been created. Would you like to keep it?": {
+  "de": "Eine neue Kopie von „%@“ wurde erstellt. Möchtest du diese behalten?",
+  "es": "Se ha creado una nueva copia de “%@”. ¿Quieres conservarla?",
+  "fr": "Une nouvelle copie de « %@ » a été créée. Voulez-vous la conserver ?",
+  "ja": "“%@”の新しいコピーが作成されました。残しますか?",
+  "zh-Hans": "已创建了“%@”的新副本。你想保留它吗？"
+ },
+ "A3": {
+  "de": "DIN A3",
+  "es": "A3",
+  "fr": "A3",
+  "ja": "A3",
+  "zh-Hans": "A3"
+ },
+ "A4": {
+  "de": "DIN A4",
+  "es": "A4",
+  "fr": "A4",
+  "ja": "A4",
+  "zh-Hans": "A4"
+ },
+ "A5": {
+  "de": "DIN A5",
+  "es": "A5",
+  "fr": "A5",
+  "ja": "A5",
+  "zh-Hans": "A5"
+ },
+ "About This Mac": {
+  "de": "Über diesen Mac",
+  "es": "Acerca de este Mac",
+  "fr": "À propos de ce Mac",
+  "ja": "このMacについて",
+  "zh-Hans": "关于本机"
+ },
+ "Accent": {
+  "de": "Akzentfarbe",
+  "es": "Contraste",
+  "fr": "Accent",
+  "ja": "アクセント",
+  "zh-Hans": "强调色"
+ },
+ "Add Link…": {
+  "de": "Link hinzufügen …",
+  "es": "Añadir enlace…",
+  "fr": "Ajouter un lien…",
+  "ja": "リンクを追加…",
+  "zh-Hans": "添加链接…"
+ },
+ "Add People": {
+  "de": "Personen hinzufügen",
+  "es": "Añadir personas",
+  "fr": "Ajouter des personnes",
+  "ja": "人を追加",
+  "zh-Hans": "添加用户"
+ },
+ "Alias": {
+  "de": "Alias",
+  "es": "Crear alias",
+  "fr": "Alias",
+  "ja": "エイリアス",
+  "zh-Hans": "替身"
+ },
+ "An error occurred while resolving the conflict. %@": {
+  "de": "Beim Lösen des Konflikts ist ein Fehler aufgetreten. %@",
+  "es": "Se ha producido un error durante la resolución del conflicto. %@",
+  "fr": "Une erreur est survenue pendant la résolution du conflit. %@",
+  "ja": "競合の解決中にエラーが発生しました。%@",
+  "zh-Hans": "解决冲突时发生错误。%@"
+ },
+ "An item named “%@” already exists in this location. Do you want to replace it with this document?": {
+  "de": "An diesem Ort existiert bereits ein Objekt mit dem Namen „%@“. Möchtest du es durch dieses Dokument ersetzen?",
+  "es": "Ya existe un ítem denominado “%@” en esta ubicación. ¿Quieres reemplazarlo por este documento?",
+  "fr": "Un élément nommé « %@ » existe déjà à cet emplacement. Souhaitez-vous le remplacer par ce document ?",
+  "ja": "“%@”という項目は、この場所にすでに存在します。この書類で置き換えてもよろしいですか?",
+  "zh-Hans": "此位置中已经存在一个名为“%@”的项。你要使用此文稿替换它吗？"
+ },
+ "An item with the same name “%@” already exists in the same folder.": {
+  "de": "Es existiert bereits ein Objekt mit demselben Namen „%@“ in diesem Ordner.",
+  "es": "Ya existe un ítem con el nombre “%@” en la misma carpeta.",
+  "fr": "Un élément également nommé « %@ » se trouve déjà dans le même dossier.",
+  "ja": "同じ名前の項目“%@”がこのフォルダ内にすでにあります。",
+  "zh-Hans": "同一文件夹已经存在具有相同名称“%@”的项。"
+ },
+ "App Store": {
+  "de": "App Store",
+  "es": "App Store",
+  "fr": "App Store",
+  "ja": "App Store",
+  "zh-Hans": "App Store"
+ },
+ "App Store…": {
+  "de": "App Store …",
+  "es": "App Store…",
+  "fr": "App Store…",
+  "ja": "App Store…",
+  "zh-Hans": "App Store…"
+ },
+ "Applications": {
+  "de": "Apps",
+  "es": "Aplicaciones",
+  "fr": "Applications",
+  "ja": "アプリケーション",
+  "zh-Hans": "应用程序"
+ },
+ "Are you sure you want to move the document to the Trash?": {
+  "de": "Möchtest du das Dokument wirklich in den Papierkorb bewegen?",
+  "es": "¿Seguro que quieres trasladar el documento a la papelera?",
+  "fr": "Souhaitez-vous vraiment placer le document dans la Corbeille ?",
+  "ja": "書類をゴミ箱に入れてもよろしいですか?",
+  "zh-Hans": "确定要将文稿移到废纸篓吗？"
+ },
+ "Are you sure you want to move “%@” on this Mac to iCloud?": {
+  "de": "Möchtest du „%@“ auf diesem Mac wirklich in iCloud bewegen?",
+  "es": "¿Seguro que quieres trasladar “%@” de este Mac a iCloud?",
+  "fr": "Souhaitez-vous vraiment déplacer « %@ » de ce Mac vers iCloud ?",
+  "ja": "このMac上の“%@”をiCloudに移動してもよろしいですか?",
+  "zh-Hans": "确定要将这台Mac上的“%@”移到iCloud吗？"
+ },
+ "Are you sure you want to permanently delete all old versions of the document “%@”?": {
+  "de": "Möchtest du wirklich alle älteren Versionen des Dokuments „%@“ endgültig löschen?",
+  "es": "¿Seguro que quieres eliminar definitivamente las versiones antiguas del documento “%@”?",
+  "fr": "Voulez-vous vraiment supprimer définitivement toutes les anciennes versions du document « %@ » ?",
+  "ja": "書類“%@”のすべての古いバージョンを完全に削除してもよろしいですか?",
+  "zh-Hans": "确定要永久删除文稿“%@”的所有旧版本吗？"
+ },
+ "Are you sure you want to permanently delete this version of the document “%@”?": {
+  "de": "Möchtest du wirklich diese Version des Dokuments „%@“ endgültig löschen?",
+  "es": "¿Seguro que quieres eliminar definitivamente esta versión del documento “%@”?",
+  "fr": "Voulez-vous vraiment supprimer définitivement cette version du document « %@ » ?",
+  "ja": "書類“%@”のこのバージョンを完全に削除してもよろしいですか?",
+  "zh-Hans": "确定要永久删除文稿“%@”的这个版本吗？"
+ },
+ "Are you sure you want to use a name that begins with a period “.”?": {
+  "de": "Möchtest du wirklich, dass der Name mit einem Punkt „.“ beginnt?",
+  "es": "¿Seguro que quieres usar un nombre que empiece por un punto “.”?",
+  "fr": "Voulez-vous vraiment utiliser un nom commençant par un point « . » ?",
+  "ja": "“.”（ピリオド）で始まる名前を使ってもよろしいですか?",
+  "zh-Hans": "确定要使用以句点“.”开头的名称吗？"
+ },
+ "Arrange": {
+  "de": "Anordnen",
+  "es": "Disposición",
+  "fr": "Organiser",
+  "ja": "配置",
+  "zh-Hans": "排列"
+ },
+ "Arrange in Front": {
+  "de": "Aufräumen",
+  "es": "Traer al frente",
+  "fr": "Organiser au premier plan",
+  "ja": "ウインドウを整理",
+  "zh-Hans": "排在前面"
+ },
+ "Ask to use…": {
+  "de": "Zugriffserlaubnis anfragen …",
+  "es": "Pedir permiso…",
+  "fr": "Demander à utiliser…",
+  "ja": "使用を依頼…",
+  "zh-Hans": "请求使用…"
+ },
+ "Asking to use…": {
+  "de": "Zugriffserlaubnis anfragen …",
+  "es": "Pidiendo permiso para usar…",
+  "fr": "Demande d’utilisation…",
+  "ja": "使用を依頼中…",
+  "zh-Hans": "正在请求使用…"
+ },
+ "Automatic": {
+  "de": "Automatisch",
+  "es": "Automático",
+  "fr": "Automatique",
+  "ja": "自動",
+  "zh-Hans": "自动"
+ },
+ "Automatic by Language": {
+  "de": "Automatisch nach Sprache",
+  "es": "Automático por idioma",
+  "fr": "Automatique par langue",
+  "ja": "言語ごとに自動",
+  "zh-Hans": "按照语言自动拼写"
+ },
+ "B4": {
+  "de": "DIN B4",
+  "es": "B4",
+  "fr": "B4",
+  "ja": "B4",
+  "zh-Hans": "B4"
+ },
+ "B5": {
+  "de": "DIN B5",
+  "es": "B5",
+  "fr": "B5",
+  "ja": "B5",
+  "zh-Hans": "B5"
+ },
+ "Baidu": {
+  "de": "Baidu",
+  "es": "Baidu",
+  "fr": "Baidu",
+  "ja": "Baidu",
+  "zh-Hans": "百度"
+ },
+ "Bing": {
+  "de": "Bing",
+  "es": "Bing",
+  "fr": "Bing",
+  "ja": "Bing",
+  "zh-Hans": "必应"
+ },
+ "Blue": {
+  "de": "Blau",
+  "es": "Azul",
+  "fr": "Bleu",
+  "ja": "ブルー",
+  "zh-Hans": "蓝色"
+ },
+ "Bottom": {
+  "de": "Unten",
+  "es": "Inferior",
+  "fr": "Bas",
+  "ja": "下",
+  "zh-Hans": "底部"
+ },
+ "Bottom & Quarters": {
+  "de": "Unten & Viertel",
+  "es": "Inferior y cuartos",
+  "fr": "Bas et quarts",
+  "ja": "下と4分割",
+  "zh-Hans": "底部与四等分"
+ },
+ "Bottom & Top": {
+  "de": "Unten & Oben",
+  "es": "Inferior y superior",
+  "fr": "Bas et haut",
+  "ja": "下と上",
+  "zh-Hans": "底部与顶部"
+ },
+ "Bottom Left": {
+  "de": "Unten links",
+  "es": "Parte inferior izquierda",
+  "fr": "En bas à gauche",
+  "ja": "左下",
+  "zh-Hans": "左下"
+ },
+ "Bottom Right": {
+  "de": "Unten rechts",
+  "es": "Parte inferior derecha",
+  "fr": "En bas à droite",
+  "ja": "右下",
+  "zh-Hans": "右下"
+ },
+ "Bring All to Front": {
+  "de": "Alle nach vorne bringen",
+  "es": "Traer todo al frente",
+  "fr": "Tout ramener au premier plan",
+  "ja": "すべてを手前に移動",
+  "zh-Hans": "前置全部窗口"
+ },
+ "Browse All Versions…": {
+  "de": "Alle Versionen durchsuchen …",
+  "es": "Explorar todas las versiones…",
+  "fr": "Parcourir toutes les versions…",
+  "ja": "すべてのバージョンをブラウズ…",
+  "zh-Hans": "浏览所有版本…"
+ },
+ "Browse Versions…": {
+  "de": "Alle Versionen durchsuchen …",
+  "es": "Explorar las versiones…",
+  "fr": "Parcourir les versions…",
+  "ja": "バージョンをブラウズ…",
+  "zh-Hans": "浏览版本…"
+ },
+ "Building…": {
+  "de": "Erstellen …",
+  "es": "Construyendo…",
+  "fr": "Assemblage…",
+  "ja": "ビルド中…",
+  "zh-Hans": "正在构建…"
+ },
+ "Buy More Storage": {
+  "de": "Mehr Speicher kaufen",
+  "es": "Comprar más espacio de almacenamiento",
+  "fr": "Acheter du stockage supplémentaire",
+  "ja": "さらに容量を購入",
+  "zh-Hans": "购买更多储存空间"
+ },
+ "Cancel": {
+  "de": "Abbrechen",
+  "es": "Cancelar",
+  "fr": "Annuler",
+  "ja": "キャンセル",
+  "zh-Hans": "取消"
+ },
+ "Canceling…": {
+  "de": "Abbrechen …",
+  "es": "Cancelando…",
+  "fr": "Annulation…",
+  "ja": "キャンセル中…",
+  "zh-Hans": "正在取消…"
+ },
+ "Cannot display the move panel.": {
+  "de": "Der Bereich „Bewegen“ kann nicht angezeigt werden.",
+  "es": "No se puede mostrar el panel de traslado.",
+  "fr": "Impossible d’afficher la sous-fenêtre de déplacement.",
+  "ja": "移動パネルを表示できません。",
+  "zh-Hans": "无法显示移动面板。"
+ },
+ "Center": {
+  "de": "Zentriert",
+  "es": "Centrar",
+  "fr": "Centrer",
+  "ja": "中央に配置",
+  "zh-Hans": "居中"
+ },
+ "Change Back to “%@”": {
+  "de": "Zurück zu „%@“",
+  "es": "Volver a “%@”",
+  "fr": "Rétablir « %@ »",
+  "ja": "“%@”に戻す",
+  "zh-Hans": "改回到“%@”"
+ },
+ "Change Grammar": {
+  "de": "Grammatik ändern",
+  "es": "Cambiar gramática",
+  "fr": "Modifier ce point de grammaire",
+  "ja": "文法を変更",
+  "zh-Hans": "更改语法"
+ },
+ "Change Print Settings": {
+  "de": "Druckereinstellungen ändern",
+  "es": "Cambiar los ajustes de impresión.",
+  "fr": "Modifier les réglages d’impression",
+  "ja": "プリント設定の変更",
+  "zh-Hans": "更改打印设置"
+ },
+ "Change Spelling": {
+  "de": "Rechtschreibung ändern",
+  "es": "Cambiar palabra",
+  "fr": "Modifier l’orthographe",
+  "ja": "スペルを変更",
+  "zh-Hans": "更改拼写"
+ },
+ "Check Grammar With Spelling": {
+  "de": "Rechtschreib- und Grammatikprüfung",
+  "es": "Comprobar gramática con la ortografía",
+  "fr": "Vérifier la grammaire et l’orthographe",
+  "ja": "スペルと一緒に文法をチェック",
+  "zh-Hans": "检查拼写和语法"
+ },
+ "Check Spelling": {
+  "de": "Rechtschreibung prüfen",
+  "es": "Comprobar ortografía",
+  "fr": "Vérifier l’orthographe",
+  "ja": "スペルチェック",
+  "zh-Hans": "检查拼写"
+ },
+ "Check Spelling While Typing": {
+  "de": "Während der Texteingabe prüfen",
+  "es": "Comprobar ortografía mientras se escribe",
+  "fr": "Vérifier l’orthographe lors de la saisie",
+  "ja": "入力中にスペルチェック",
+  "zh-Hans": "键入时检查拼写"
+ },
+ "Clear Menu": {
+  "de": "Einträge löschen",
+  "es": "Vaciar menú",
+  "fr": "Effacer le menu",
+  "ja": "メニューを消去",
+  "zh-Hans": "清除菜单"
+ },
+ "Click Save Anyway to keep your changes and save the changes made by the other application as a version, or click Revert to keep the changes from the other application and save your changes as a version. You can also click Save As to save your changes to a different file.": {
+  "de": "Klicke auf „Trotzdem sichern“, um deine Änderungen zu sichern und die Änderungen des anderen Programms als Version im Versionsverlauf zu sichern, oder klicke auf „Letzte Version“, um die Änderungen des anderen Programms zu behalten und deine Änderungen als Version im Versionsverlauf zu sichern. Du kannst auch auf „Sichern unter“ klicken, um deine Änderungen als andere Datei zu sichern.",
+  "es": "Haz clic en “Guardar de todos modos” para conservar tus cambios y guardar como una versión los cambios realizados por la otra aplicación, o haz clic en Restaurar para conservar los cambios realizados por la otra aplicación y guardar tus cambios como una versión. Asimismo, puedes hacer clic en “Guardar como” para guardar tus cambios en otro archivo.",
+  "fr": "Cliquez sur Enregistrer quand même pour conserver vos modifications et enregistrer une version contenant les modifications effectuées par l’autre application ; ou cliquez sur Rétablir pour conserver les modifications provenant de l’autre application et enregistrer vos modifications en tant que version. Vous pouvez également cliquer sur Enregistrer sous pour enregistrer vos modifications dans un nouveau fichier.",
+  "ja": "“このまま保存”をクリックすると、変更内容が保持され、ほかのアプリケーションによる変更はバージョンとして保存されます。または、“戻す”をクリックすると、ほかのアプリケーションによる変更が保持され、変更内容はバージョンとして保存されます。“別名で保存”をクリックして、変更内容を別のファイルに保存することもできます。",
+  "zh-Hans": "点按“仍然保存”来保留你的更改并将其他应用程序的更改保存为另一个版本，或者点按“复原”来保留其他应用程序的更改并将你的更改保存为另一个版本。你也可以点按“保存为”以将你的更改保存到其他文件。"
+ },
+ "Clipboard": {
+  "de": "Zwischenablage",
+  "es": "Portapapeles",
+  "fr": "Presse-papiers",
+  "ja": "クリップボード",
+  "zh-Hans": "剪贴板"
+ },
+ "Close": {
+  "de": "Schließen",
+  "es": "Cerrar",
+  "fr": "Fermer",
+  "ja": "閉じる",
+  "zh-Hans": "关闭"
+ },
+ "Close All": {
+  "de": "Alle schließen",
+  "es": "Cerrar todo",
+  "fr": "Tout fermer",
+  "ja": "すべてを閉じる",
+  "zh-Hans": "全部关闭"
+ },
+ "Close Document": {
+  "de": "Dokument schließen",
+  "es": "Cerrar documento",
+  "fr": "Fermer le document",
+  "ja": "書類を閉じる",
+  "zh-Hans": "关闭文稿"
+ },
+ "Close Other Tabs": {
+  "de": "Andere Tabs schließen",
+  "es": "Cerrar el resto de pestañas",
+  "fr": "Fermer les autres onglets",
+  "ja": "その他のタブを閉じる",
+  "zh-Hans": "关闭其他标签页"
+ },
+ "Close Presentation": {
+  "de": "Präsentation schließen",
+  "es": "Cerrar presentación",
+  "fr": "Fermer la présentation",
+  "ja": "プレゼンテーションを閉じる",
+  "zh-Hans": "关闭演示文稿"
+ },
+ "Close Quick Look": {
+  "de": "Übersicht schließen",
+  "es": "Cerrar “Vista rápida”",
+  "fr": "Fermer le coup d’œil",
+  "ja": "クイックルックを閉じる",
+  "zh-Hans": "关闭快速查看"
+ },
+ "Close Spreadsheet": {
+  "de": "Tabellenkalkulation schließen",
+  "es": "Cerrar hoja de cálculo",
+  "fr": "Fermer la feuille de calcul",
+  "ja": "スプレッドシートを閉じる",
+  "zh-Hans": "关闭电子表格"
+ },
+ "Close Tab": {
+  "de": "Tab schließen",
+  "es": "Cerrar pestaña",
+  "fr": "Fermer l’onglet",
+  "ja": "タブを閉じる",
+  "zh-Hans": "关闭标签页"
+ },
+ "Close Window": {
+  "de": "Fenster schließen",
+  "es": "Cerrar ventana",
+  "fr": "Fermer la fenêtre",
+  "ja": "ウインドウを閉じる",
+  "zh-Hans": "关闭窗口"
+ },
+ "Colors": {
+  "de": "Farben",
+  "es": "Colores",
+  "fr": "Couleurs",
+  "ja": "カラー",
+  "zh-Hans": "颜色"
+ },
+ "Compose…": {
+  "de": "Verfassen …",
+  "es": "Escribir…",
+  "fr": "Rédiger…",
+  "ja": "作文…",
+  "zh-Hans": "创作…"
+ },
+ "Confirm Service": {
+  "de": "Dienst bestätigen",
+  "es": "Confirmar servicio",
+  "fr": "Confirmer le service",
+  "ja": "サービスを確認",
+  "zh-Hans": "确认服务"
+ },
+ "Connect As…": {
+  "de": "Verbinden als …",
+  "es": "Conectar como…",
+  "fr": "Se connecter comme…",
+  "ja": "別名で接続…",
+  "zh-Hans": "连接身份…"
+ },
+ "Connected": {
+  "de": "Verbunden",
+  "es": "Conectado",
+  "fr": "Connecté",
+  "ja": "接続済み",
+  "zh-Hans": "已连接"
+ },
+ "Connected as: %@": {
+  "de": "Verbunden als „%@“",
+  "es": "^[Conectado](inflect: true, inflectionAlternative: \"Te has conectado\") como: %@",
+  "fr": "Utilisateur connecté : %@",
+  "ja": "%@として接続済み",
+  "zh-Hans": "已连接身份：%@"
+ },
+ "Connecting…": {
+  "de": "Verbinden …",
+  "es": "Conectando…",
+  "fr": "Connexion…",
+  "ja": "接続中…",
+  "zh-Hans": "正在连接…"
+ },
+ "Connection Failed": {
+  "de": "Verbindung fehlgeschlagen",
+  "es": "Error de conexión",
+  "fr": "Échec de la connexion",
+  "ja": "接続できませんでした",
+  "zh-Hans": "连接失败"
+ },
+ "Copy": {
+  "de": "Kopieren",
+  "es": "Copiar",
+  "fr": "Copier",
+  "ja": "コピー",
+  "zh-Hans": "拷贝"
+ },
+ "Copy Link": {
+  "de": "Link kopieren",
+  "es": "Copiar enlace",
+  "fr": "Copier le lien",
+  "ja": "リンクをコピー",
+  "zh-Hans": "拷贝链接"
+ },
+ "Correct Spelling Automatically": {
+  "de": "Rechtschreibung automatisch korrigieren",
+  "es": "Corregir ortografía automáticamente",
+  "fr": "Corriger l’orthographe automatiquement",
+  "ja": "スペルを自動的に修正",
+  "zh-Hans": "自动纠正拼写"
+ },
+ "Create Key Points": {
+  "de": "Hauptpunkte erstellen",
+  "es": "Crear puntos clave",
+  "fr": "Créer des points clés",
+  "ja": "要点を作成する",
+  "zh-Hans": "创建要点"
+ },
+ "Customize Toolbar…": {
+  "de": "Symbolleiste anpassen …",
+  "es": "Personalizar barra de herramientas…",
+  "fr": "Personnaliser la barre d’outils…",
+  "ja": "ツールバーをカスタマイズ…",
+  "zh-Hans": "自定义工具栏…"
+ },
+ "Cut": {
+  "de": "Ausschneiden",
+  "es": "Cortar",
+  "fr": "Couper",
+  "ja": "カット",
+  "zh-Hans": "剪切"
+ },
+ "Cycle Through Windows": {
+  "de": "Nächstes Fenster",
+  "es": "Recorrer ventanas",
+  "fr": "Faire défiler les fenêtres",
+  "ja": "ウインドウを巡回",
+  "zh-Hans": "循环显示窗口"
+ },
+ "Delete": {
+  "de": "Löschen",
+  "es": "Eliminar",
+  "fr": "Supprimer",
+  "ja": "削除",
+  "zh-Hans": "删除"
+ },
+ "Delete Copy": {
+  "de": "Kopie löschen",
+  "es": "Eliminar copia",
+  "fr": "Supprimer la copie",
+  "ja": "コピーを削除",
+  "zh-Hans": "删除副本"
+ },
+ "Delete Old Versions…": {
+  "de": "Alte Versionen löschen …",
+  "es": "Eliminar versiones antiguas…",
+  "fr": "Supprimer les anciennes versions…",
+  "ja": "古いバージョンを削除…",
+  "zh-Hans": "删除旧版本…"
+ },
+ "Delete This Version…": {
+  "de": "Diese Version löschen …",
+  "es": "Eliminar esta versión…",
+  "fr": "Supprimer cette version…",
+  "ja": "このバージョンを削除…",
+  "zh-Hans": "删除此版本…"
+ },
+ "Delete and Quit": {
+  "de": "Löschen und beenden",
+  "es": "Eliminar y salir",
+  "fr": "Supprimer et quitter",
+  "ja": "削除して終了",
+  "zh-Hans": "删除并退出"
+ },
+ "Development": {
+  "de": "Entwicklung",
+  "es": "Desarrollo",
+  "fr": "Développement",
+  "ja": "開発",
+  "zh-Hans": "开发"
+ },
+ "Discard": {
+  "de": "Verwerfen",
+  "es": "Descartar",
+  "fr": "Éliminer",
+  "ja": "破棄",
+  "zh-Hans": "放弃"
+ },
+ "Discard Changes": {
+  "de": "Änderungen verwerfen",
+  "es": "No guardar cambios",
+  "fr": "Éliminer les modifications",
+  "ja": "変更内容を破棄",
+  "zh-Hans": "放弃更改"
+ },
+ "Disconnect": {
+  "de": "Trennen",
+  "es": "Desconectar",
+  "fr": "Se déconnecter",
+  "ja": "接続解除",
+  "zh-Hans": "断开连接"
+ },
+ "Do you really want to copy the contents of the dragged items into the text?": {
+  "de": "Willst du wirklich den Inhalt der verschobenen Objekte in den Text kopieren?",
+  "es": "¿Seguro que quieres copiar el contenido de los ítems arrastrados en el texto?",
+  "fr": "Voulez-vous vraiment copier le contenu des éléments que vous faites glisser dans le texte ?",
+  "ja": "テキストの中にドラッグした項目の内容をコピーしてもよろしいですか?",
+  "zh-Hans": "你确定要将所拖移项的内容拷贝到文本中吗？"
+ },
+ "Do you want to delete the document “%@” which was removed from iCloud on another device?": {
+  "de": "Möchtest du das Dokument „%@“ löschen, das von iCloud über ein anderes Gerät entfernt wurde?",
+  "es": "¿Quieres eliminar el documento “%@”, que se ha eliminado de iCloud desde otro dispositivo?",
+  "fr": "Souhaitez-vous supprimer le document « %@ » qui a été supprimé d’iCloud sur un autre appareil ?",
+  "ja": "別のデバイスでiCloudから削除した書類“%@”を削除しますか?",
+  "zh-Hans": "你要删除“%@”吗？该文稿已通过其他设备从iCloud移除。"
+ },
+ "Do you want to keep the document “%@” which was moved to the Trash on another device?": {
+  "de": "Möchtest du das Dokument „%@“ behalten, das auf einem anderen Gerät in den Papierkorb bewegt wurde?",
+  "es": "¿Quieres conservar el documento “%@”, que se ha trasladado a la papelera en otro dispositivo?",
+  "fr": "Souhaitez-vous conserver le document « %@ » qui a été placé dans la corbeille sur un autre appareil ?",
+  "ja": "別のデバイスでゴミ箱に入れた書類“%@”を残しますか?",
+  "zh-Hans": "你要保留已在其他设备上被移到废纸篓的文稿“%@”吗？"
+ },
+ "Do you want to keep this new copy “%@”?": {
+  "de": "Möchtest du diese neue Kopie „%@“ behalten?",
+  "es": "¿Quieres conservar esta copia nueva “%@”?",
+  "fr": "Souhaitez-vous conserver cette nouvelle copie de « %@ » ?",
+  "ja": "この新しいコピー“%@”を残しますか?",
+  "zh-Hans": "你要保留此新副本“%@”吗？"
+ },
+ "Do you want to keep this new document “%@”?": {
+  "de": "Möchtest du dieses neue Dokument „%@“ behalten?",
+  "es": "¿Quieres conservar este documento nuevo “%@”?",
+  "fr": "Souhaitez-vous conserver ce nouveau document « %@ » ?",
+  "ja": "この新しい書類“%@”を残しますか?",
+  "zh-Hans": "你要保留此新文稿“%@”吗？"
+ },
+ "Do you want to replace the existing item?": {
+  "de": "Willst du das vorhandene Objekt ersetzen?",
+  "es": "¿Quieres reemplazar el ítem existente?",
+  "fr": "Souhaitez-vous remplacer l’élément existant ?",
+  "ja": "既存の項目を置き換えますか?",
+  "zh-Hans": "你要替换现有项吗？"
+ },
+ "Do you want to revert the document “%@” to a previous state?": {
+  "de": "Möchtest du das Dokument „%@“ auf einen früheren Zustand zurücksetzen?",
+  "es": "¿Quieres restaurar el documento “%@” a un estado anterior?",
+  "fr": "Souhaitez-vous revenir à une version précédente du document « %@ » ?",
+  "ja": "書類“%@”を直前の状態に戻しますか?",
+  "zh-Hans": "你要将文稿“%@”复原到以前的状态吗？"
+ },
+ "Do you want to revert the document “%@” to the last opened version?": {
+  "de": "Möchtest du das Dokument „%@“ auf die zuletzt geöffnete Version zurücksetzen?",
+  "es": "¿Quieres restaurar la última versión abierta del documento “%@”?",
+  "fr": "Souhaitez-vous revenir à la dernière version ouverte du document « %@ » ?",
+  "ja": "書類“%@”を最後に開いたバージョンに戻しますか?",
+  "zh-Hans": "你要将文稿“%@”复原到上次打开的版本吗？"
+ },
+ "Do you want to revert the document “%@” to the last saved version?": {
+  "de": "Möchtest du das Dokument „%@“ auf die zuletzt gesicherte Version zurücksetzen?",
+  "es": "¿Quieres restaurar la última versión guardada del documento “%@”?",
+  "fr": "Souhaitez-vous revenir à la dernière version enregistrée du document « %@ » ?",
+  "ja": "書類“%@”を最後に保存したバージョンに戻しますか?",
+  "zh-Hans": "你要将文稿“%@”复原到上次保存的版本吗？"
+ },
+ "Do you want to revert the document “%@” to the previous saved version?": {
+  "de": "Möchtest du das Dokument „%@“ auf die frühere gesicherte Version zurücksetzen?",
+  "es": "¿Quieres restaurar la versión anterior guardada del documento “%@”?",
+  "fr": "Souhaitez-vous revenir à la version enregistrée précédente du document « %@ » ?",
+  "ja": "書類“%@”を直前に保存したバージョンに戻しますか?",
+  "zh-Hans": "你要将文稿“%@”复原到以前保存的版本吗？"
+ },
+ "Do you want to revert the document “%@” to the previous version?": {
+  "de": "Möchtest du das Dokument „%@“ auf die frühere Version zurücksetzen?",
+  "es": "¿Quieres restaurar la versión anterior del documento “%@”?",
+  "fr": "Souhaitez-vous revenir à la version précédente du document « %@ » ?",
+  "ja": "書類“%@”を直前のバージョンに戻しますか?",
+  "zh-Hans": "你要将文稿“%@”复原到以前的版本吗？"
+ },
+ "Do you want to revert to the most recently saved version of the document “%@”?": {
+  "de": "Möchtest du zur letzten gesicherten Version des Dokuments „%@“ zurückkehren?",
+  "es": "¿Quieres restaurar la última versión guardada del documento “%@”?",
+  "fr": "Souhaitez-vous revenir à la dernière version enregistrée du document « %@ » ?",
+  "ja": "書類“%@”を最後に保存した内容に戻しますか?",
+  "zh-Hans": "你想复原到文稿“%@”最近保存过的版本吗？"
+ },
+ "Do you want to save the changes made to the document “%@”?": {
+  "de": "Möchtest du die Änderungen am Dokument „%@“ sichern?",
+  "es": "¿Quieres guardar los cambios realizados en el documento “%@”?",
+  "fr": "Souhaitez-vous enregistrer les modifications apportées au document « %@ » ?",
+  "ja": "書類“%@”に加えた変更を保存しますか?",
+  "zh-Hans": "你要保存对文稿“%@”所做的更改吗？"
+ },
+ "Do you want to save your changes to it anyway?": {
+  "de": "Möchtest du die Änderungen trotzdem sichern?",
+  "es": "¿Quieres guardar los cambios de todos modos?",
+  "fr": "Voulez-vous quand même enregistrer les modifications ?",
+  "ja": "変更内容を保存しますか?",
+  "zh-Hans": "你仍要保存对它的更改吗？"
+ },
+ "Documents": {
+  "de": "Dokumente",
+  "es": "Documentos",
+  "fr": "Documents",
+  "ja": "書類",
+  "zh-Hans": "文稿"
+ },
+ "Done": {
+  "de": "Fertig",
+  "es": "Aceptar",
+  "fr": "Fermer",
+  "ja": "完了",
+  "zh-Hans": "完成"
+ },
+ "Don’t Save": {
+  "de": "Nicht sichern",
+  "es": "No guardar",
+  "fr": "Ne pas enregistrer",
+  "ja": "保存しない",
+  "zh-Hans": "不保存"
+ },
+ "Drag your favorite items into the toolbar…": {
+  "de": "Bewege deine Favoriten in die Symbolleiste …",
+  "es": "Arrastra tus ítems favoritos hasta la barra de herramientas…",
+  "fr": "Faites glisser vos éléments favoris dans la barre d’outils…",
+  "ja": "よく使う項目をツールバーにドラッグしてください…",
+  "zh-Hans": "将喜爱的项目拖入工具栏…"
+ },
+ "Due to these unexpected changes, %@ may be unable to save your changes. Click Revert to load the changes made by the other application. Click Save Anyway to attempt to overwrite the changes made by the other application. You can also click Save As to attempt to save your changes to a different file.": {
+  "de": "Aufgrund dieser unerwarteten Änderungen ist %@ unter Umständen nicht in der Lage, deine Änderungen zu sichern. Klicke auf „Letzte Version“, um die von einem anderen Programm durchgeführten Änderungen zu laden. Klicke auf „Trotzdem sichern“, um die von anderen Programmen gemachten Änderungen zu überschreiben. Du kannst auch auf „Sichern unter“ klicken, um deine Änderungen als andere Datei zu sichern.",
+  "es": "Debido a estos cambios inesperados, es posible que %@ no pueda guardar los tuyos. Haz clic en Restaurar para cargar los cambios realizados por la otra aplicación. Haz clic en “Guardar de todos modos” para intentar reemplazar los cambios realizados por la otra aplicación. Asimismo, puedes hacer clic en “Guardar como” para intentar guardar tus cambios en otro archivo.",
+  "fr": "En raison de modifications inattendues, %@ ne pourra peut-être pas enregistrer vos modifications. Cliquez sur Rétablir pour charger les modifications apportées par l’autre application. Cliquez sur Enregistrer quand même pour tenter d’écraser les modifications apportées par l’autre application. Vous pouvez également cliquer sur Enregistrer sous pour tenter d’enregistrer vos modifications dans un nouveau fichier.",
+  "ja": "予期しない変更が起きたため、%@では変更内容を保存できない可能性があります。“戻す”をクリックすると、ほかのアプリケーションによる変更が読み込まれます。“このまま保存”をクリックすると、ほかのアプリケーションによる変更の上書きを試みます。“別名で保存”をクリックして、変更内容を別のファイルに保存することを試みることもできます。",
+  "zh-Hans": "由于这些意外的更改，“%@”可能无法保存你的更改。点按“复原”以载入其他应用程序的更改。点按“仍然保存”以尝试覆盖其他应用程序的更改。你也可以点按“保存为”以尝试将你的更改保存到其他文件。"
+ },
+ "Duplicate": {
+  "de": "Duplizieren",
+  "es": "Duplicar",
+  "fr": "Dupliquer",
+  "ja": "複製",
+  "zh-Hans": "复制"
+ },
+ "Edit": {
+  "de": "Bearbeiten",
+  "es": "Editar",
+  "fr": "Modifier",
+  "ja": "編集",
+  "zh-Hans": "编辑"
+ },
+ "Edit Link…": {
+  "de": "Link bearbeiten …",
+  "es": "Editar enlace…",
+  "fr": "Modifier le lien…",
+  "ja": "リンクを編集…",
+  "zh-Hans": "编辑链接…"
+ },
+ "Edit a Copy": {
+  "de": "Kopie bearbeiten",
+  "es": "Editar una copia",
+  "fr": "Modifier une copie",
+  "ja": "コピーを編集",
+  "zh-Hans": "编辑副本"
+ },
+ "Enter Full Screen": {
+  "de": "Vollbildmodus",
+  "es": "Usar pantalla completa",
+  "fr": "Activer le mode plein écran",
+  "ja": "フルスクリーンにする",
+  "zh-Hans": "进入全屏幕"
+ },
+ "Entire Screen": {
+  "de": "Ganzer Bildschirm",
+  "es": "Pantalla entera",
+  "fr": "Tout l’écran",
+  "ja": "画面全体",
+  "zh-Hans": "整个屏幕"
+ },
+ "Error": {
+  "de": "Fehler",
+  "es": "Error",
+  "fr": "Erreur",
+  "ja": "エラー",
+  "zh-Hans": "错误"
+ },
+ "Error while printing.": {
+  "de": "Fehler beim Drucken.",
+  "es": "Error al imprimir.",
+  "fr": "Erreur lors de l’impression.",
+  "ja": "プリント中にエラーが起きました。",
+  "zh-Hans": "打印时发生错误。"
+ },
+ "Executive": {
+  "de": "US Executive",
+  "es": "Ejecutivo",
+  "fr": "Executive",
+  "ja": "エグゼクティブ",
+  "zh-Hans": "行政用纸"
+ },
+ "Exit Full Screen": {
+  "de": "Vollbildmodus aus",
+  "es": "Salir de pantalla completa",
+  "fr": "Quitter le mode plein écran",
+  "ja": "フルスクリーンを解除",
+  "zh-Hans": "退出全屏幕"
+ },
+ "Exit Tab Overview": {
+  "de": "Tabübersicht beenden",
+  "es": "Salir de la visión general de pestañas",
+  "fr": "Quitter l’aperçu des onglets",
+  "ja": "タブの概要を終了",
+  "zh-Hans": "退出标签页概览"
+ },
+ "Export": {
+  "de": "Exportieren",
+  "es": "Exportar",
+  "fr": "Exporter",
+  "ja": "書き出す",
+  "zh-Hans": "导出"
+ },
+ "Export As:": {
+  "de": "Exportieren als:",
+  "es": "Exportar como:",
+  "fr": "Exporter comme :",
+  "ja": "書き出し名:",
+  "zh-Hans": "导出为："
+ },
+ "Export…": {
+  "de": "Exportieren …",
+  "es": "Exportar…",
+  "fr": "Exporter…",
+  "ja": "書き出す…",
+  "zh-Hans": "导出…"
+ },
+ "File": {
+  "de": "Ablage",
+  "es": "Archivo",
+  "fr": "Fichier",
+  "ja": "ファイル",
+  "zh-Hans": "文件"
+ },
+ "Files and Folders": {
+  "de": "Dateien und Ordner",
+  "es": "Archivos y carpetas",
+  "fr": "Fichiers et dossiers",
+  "ja": "ファイルとフォルダ",
+  "zh-Hans": "文件和文件夹"
+ },
+ "Fill": {
+  "de": "Füllen",
+  "es": "Rellenar",
+  "fr": "Remplir",
+  "ja": "画面全体に表示",
+  "zh-Hans": "填充"
+ },
+ "Fill & Arrange": {
+  "de": "Füllen & Anordnen",
+  "es": "Rellenar y ordenar",
+  "fr": "Remplir et organiser",
+  "ja": "画面全体に配置",
+  "zh-Hans": "填充与排列"
+ },
+ "Finder hides files that begin with a period.": {
+  "de": "Der Finder blendet Dateien aus, die mit einem „Punkt“ beginnen.",
+  "es": "El Finder oculta los archivos que empiezan por un punto.",
+  "fr": "Le Finder masque les fichiers commençant par un point.",
+  "ja": "ピリオドで始まるファイルはFinderに表示されません。",
+  "zh-Hans": "访达会隐藏以句点开头的文件。"
+ },
+ "Flexible Space": {
+  "de": "Flexibler Zwischenraum",
+  "es": "Espacio flexible",
+  "fr": "Espace ajustable",
+  "ja": "伸縮自在のスペース",
+  "zh-Hans": "可调间距"
+ },
+ "Fonts": {
+  "de": "Schriften",
+  "es": "Tipos de letra",
+  "fr": "Polices",
+  "ja": "フォント",
+  "zh-Hans": "字体"
+ },
+ "Force Quit %@": {
+  "de": "%@ sofort beenden",
+  "es": "Forzar salida de %@",
+  "fr": "Forcer à quitter %@",
+  "ja": "%@を強制終了",
+  "zh-Hans": "强制退出“%@”"
+ },
+ "Force Quit…": {
+  "de": "Sofort beenden …",
+  "es": "Forzar salida…",
+  "fr": "Forcer à quitter…",
+  "ja": "強制終了…",
+  "zh-Hans": "强制退出…"
+ },
+ "Full Screen": {
+  "de": "Vollbild",
+  "es": "Pantalla completa",
+  "fr": "Plein écran",
+  "ja": "フルスクリーン",
+  "zh-Hans": "全屏幕"
+ },
+ "Full Screen Tile": {
+  "de": "Vollbildkachel",
+  "es": "Ventana a pantalla completa",
+  "fr": "Occuper toute une moitié de l’écran",
+  "ja": "フルスクリーンのタイル表示",
+  "zh-Hans": "全屏幕平铺"
+ },
+ "General": {
+  "de": "Allgemein",
+  "es": "General",
+  "fr": "Général",
+  "ja": "一般",
+  "zh-Hans": "通用"
+ },
+ "Go to App Store": {
+  "de": "Zum App Store",
+  "es": "Ir a App Store",
+  "fr": "Accéder à l’App Store",
+  "ja": "App Storeへ移動",
+  "zh-Hans": "前往App Store"
+ },
+ "Go to iCloud.com": {
+  "de": "Zu iCloud.com",
+  "es": "Ir a iCloud.com",
+  "fr": "Accéder à iCloud.com",
+  "ja": "iCloud.comへ移動",
+  "zh-Hans": "访问iCloud.com"
+ },
+ "Google": {
+  "de": "Google",
+  "es": "Google",
+  "fr": "Google",
+  "ja": "Google",
+  "zh-Hans": "Google"
+ },
+ "Halves": {
+  "de": "Hälften",
+  "es": "Mitades",
+  "fr": "Moitiés",
+  "ja": "2分割",
+  "zh-Hans": "二等分"
+ },
+ "Help": {
+  "de": "Hilfe",
+  "es": "Ayuda",
+  "fr": "Aide",
+  "ja": "ヘルプ",
+  "zh-Hans": "帮助"
+ },
+ "Hide Inspector": {
+  "de": "Informationen ausblenden",
+  "es": "Ocultar inspector",
+  "fr": "Masquer l’inspecteur",
+  "ja": "インスペクタを非表示",
+  "zh-Hans": "隐藏检查器"
+ },
+ "Hide Sidebar": {
+  "de": "Seitenleiste ausblenden",
+  "es": "Ocultar barra lateral",
+  "fr": "Masquer la barre latérale",
+  "ja": "サイドバーを非表示",
+  "zh-Hans": "隐藏边栏"
+ },
+ "Hide Spelling and Grammar": {
+  "de": "Rechtschreibung und Grammatik ausblenden",
+  "es": "Ocultar ortografía y gramática",
+  "fr": "Masquer l’orthographe et la grammaire",
+  "ja": "スペルと文法を非表示",
+  "zh-Hans": "隐藏拼写和语法"
+ },
+ "Hide Substitutions": {
+  "de": "Ersetzungen ausblenden",
+  "es": "Ocultar sustituciones",
+  "fr": "Masquer les substitutions",
+  "ja": "自動置換を非表示",
+  "zh-Hans": "隐藏替换"
+ },
+ "Hide Tab Bar": {
+  "de": "Tableiste ausblenden",
+  "es": "Ocultar barra de pestañas",
+  "fr": "Masquer la barre d’onglets",
+  "ja": "タブバーを非表示",
+  "zh-Hans": "隐藏标签页栏"
+ },
+ "Hide Toolbar": {
+  "de": "Symbolleiste ausblenden",
+  "es": "Ocultar barra de herramientas",
+  "fr": "Masquer la barre d’outils",
+  "ja": "ツールバーを非表示",
+  "zh-Hans": "隐藏工具栏"
+ },
+ "Highlight": {
+  "de": "Hervorheben",
+  "es": "Resaltado",
+  "fr": "Surligner",
+  "ja": "強調表示",
+  "zh-Hans": "高亮标记"
+ },
+ "Icon Only": {
+  "de": "Nur Symbol",
+  "es": "Solo iconos",
+  "fr": "Icône seulement",
+  "ja": "アイコンのみ",
+  "zh-Hans": "仅图标"
+ },
+ "Icon and Text": {
+  "de": "Symbol und Text",
+  "es": "Iconos y texto",
+  "fr": "Icône et texte",
+  "ja": "アイコンとテキスト",
+  "zh-Hans": "图标和文本"
+ },
+ "If you choose to revert it to a previous state, it will also be unlocked. Recent changes will be saved in your version history.": {
+  "de": "Wenn du das Dokument zurücksetzt, wird der Schreibschutz aufgehoben. Letzte Änderungen werden in deinem Versionsverlauf gesichert.",
+  "es": "Si eliges restaurarlo a un estado anterior, el documento también se desbloqueará. Los cambios recientes se guardarán en el historial de versiones.",
+  "fr": "Si vous choisissez de revenir à un état précédent, il sera également déverrouillé. Les modifications récentes seront enregistrées dans votre historique des versions.",
+  "ja": "以前の状態に戻すことを選択した場合は、ロックも解除されます。最近の変更内容はバージョン履歴に保存されます。",
+  "zh-Hans": "若选择将它复原到以前的状态，它也会被解锁。最近更改的内容将保存在版本历史记录中。"
+ },
+ "If you choose to revert, the document will be unlocked. Recent changes will be saved in your version history.": {
+  "de": "Wenn du das Dokument zurücksetzt, wird der Schreibschutz aufgehoben. Letzte Änderungen werden in deinem Versionsverlauf gesichert.",
+  "es": "Si eliges restaurar el documento, este se desbloqueará. Los cambios recientes se guardarán en el historial de versiones.",
+  "fr": "Si vous choisissez de revenir à une version précédente, le document sera déverrouillé. Les modifications récentes seront enregistrées dans votre historique des versions.",
+  "ja": "戻すことを選択した場合は、書類のロックが解除されます。最近の変更内容はバージョン履歴に保存されます。",
+  "zh-Hans": "若选择复原，文稿将被解锁。最近更改的内容将保存在版本历史记录中。"
+ },
+ "If you don’t review these documents, they will all be deleted.": {
+  "de": "Wenn du diese Dokumente nicht überprüfst, werden alle gelöscht.",
+  "es": "Si no revisas estos documentos, se eliminarán todos.",
+  "fr": "Si vous ne revoyez pas ces documents, ils seront tous supprimés.",
+  "ja": "これらの書類を確認しないと、すべて削除されます。",
+  "zh-Hans": "如果不复查这些文稿，它们都将被删除。"
+ },
+ "If you don’t review your documents, all untitled documents will be deleted and your other changes will be saved.": {
+  "de": "Wenn du deine Dokumente nicht überprüfst, werden alle nicht benannten Dokumente gelöscht und deine anderen Änderungen werden gesichert.",
+  "es": "Si no revisas los documentos, todos los documentos sin título se eliminarán y los demás cambios se guardarán.",
+  "fr": "Si vous ne revoyez pas vos documents, tous les documents sans titre seront supprimés et vos autres modifications seront enregistrées.",
+  "ja": "書類を確認しないと、すべての名称未設定の書類は削除され、その他の変更内容が保存されます。",
+  "zh-Hans": "如果不复查你的文稿，所有未命名的文稿都将被删除，你的其他更改将被保存。"
+ },
+ "If you don’t review your documents, all your changes will be lost.": {
+  "de": "Wenn du die Dokumente nicht überprüfst, gehen alle Änderungen verloren.",
+  "es": "Si no guardas los documentos, se perderán los cambios realizados.",
+  "fr": "Si vous ne revoyez pas vos documents, toutes les modifications seront perdues.",
+  "ja": "書類を確認しないと、すべての変更内容が失われます。",
+  "zh-Hans": "如果不复查你的文稿，所有更改的内容都会丢失。"
+ },
+ "If you don’t review your documents, all your changes will be saved.": {
+  "de": "Wenn du die Dokumente nicht überprüfst, werden alle Änderungen gesichert.",
+  "es": "Si no revisas los documentos, se guardarán todos los cambios realizados.",
+  "fr": "Si vous ne revoyez pas vos documents, toutes les modifications seront enregistrées.",
+  "ja": "書類を確認しないと、すべての変更内容が保存されます。",
+  "zh-Hans": "如果不复查你的文稿，所有更改的内容都将保存。"
+ },
+ "If you keep it, it will remain stored in iCloud.": {
+  "de": "Wird das Objekt behalten, bleibt es in iCloud gespeichert.",
+  "es": "Si la conservas, seguirá estando guardada en iCloud.",
+  "fr": "Si vous le conservez, il restera stocké dans iCloud.",
+  "ja": "残す場合は、iCloudに保存されたままです。",
+  "zh-Hans": "若保留，它仍将储存在iCloud中。"
+ },
+ "If you want to make changes to this document, click Edit.": {
+  "de": "Klicke auf „Bearbeiten“, wenn du Änderungen an diesem Dokument vornehmen möchtest.",
+  "es": "Si quieres realizar cambios en este documento, haz clic en Editar.",
+  "fr": "Si vous souhaitez apporter des modifications à ce document, cliquez sur Édition.",
+  "ja": "この書類に変更を加えたい場合は、“編集”をクリックしてください。",
+  "zh-Hans": "如果要更改此文稿，请点按“编辑”。"
+ },
+ "If you want to make changes to this document, click Edit. To keep the file unchanged and work with a copy, click Edit a Copy.": {
+  "de": "Wenn du dieses Dokument ändern möchtest, klicke auf „Bearbeiten“. Wenn du die Datei unverändert lassen und mit einer Kopie arbeiten möchtest, klicke auf „Kopie bearbeiten“.",
+  "es": "Si quieres modificar este documento, haz clic en Editar. Si quieres dejar el archivo intacto y trabajar en una copia, haz clic en “Editar una copia”.",
+  "fr": "Si vous souhaitez apporter des modifications à ce document, cliquez sur Édition. Pour conserver le fichier tel quel et travailler sur une copie, cliquez sur Modifier une copie.",
+  "ja": "この書類に変更を加えたい場合は、“編集”をクリックしてください。ファイルは変更せずにコピーで作業するには、“コピーを編集”をクリックしてください。",
+  "zh-Hans": "若要更改此文稿，请点按“编辑”。若要只改动副本而保持文件不变，请点按“编辑副本”。"
+ },
+ "If you want to make changes to this document, click Unlock.": {
+  "de": "Klicke auf „Schutz aufheben“, wenn du Änderungen an diesem Dokument vornehmen möchtest.",
+  "es": "Si quieres realizar cambios en este documento, haz clic en Desbloquear.",
+  "fr": "Si vous souhaitez apporter des modifications à ce document, cliquez sur Déverrouiller.",
+  "ja": "この書類に変更を加えたい場合は、“ロックを解除”をクリックしてください。",
+  "zh-Hans": "如果要更改此文稿，请点按“解锁”。"
+ },
+ "If you want to make changes to this document, click Unlock. To keep the file unchanged and work with a copy, click Duplicate.": {
+  "de": "Wenn du dieses Dokument ändern möchtest, klicke auf „Schutz aufheben“. Wenn du die Datei unverändert lassen und mit einer Kopie arbeiten möchtest, klicke auf „Duplizieren“.",
+  "es": "Si quieres modificar este documento, haz clic en Desbloquear. Si quieres dejar el archivo intacto y trabajar en una copia, haz clic en Duplicar.",
+  "fr": "Si vous souhaitez effectuer des modifications à ce document, cliquez sur Déverrouiller. Pour conserver le fichier tel quel et travailler sur une copie, cliquez sur Dupliquer.",
+  "ja": "この書類に変更を加えたい場合は、“ロックを解除”をクリックしてください。ファイルは変更せずにコピーで作業するには、“複製”をクリックしてください。",
+  "zh-Hans": "若要更改此文稿，请点按“解锁”。若要只改动副本而保持文件不变，请点按“复制”。"
+ },
+ "Ignore Grammar": {
+  "de": "Grammatik ignorieren",
+  "es": "Ignorar gramática",
+  "fr": "Ignorer ce point de grammaire",
+  "ja": "文法を無視",
+  "zh-Hans": "忽略语法"
+ },
+ "Ignore Spelling": {
+  "de": "Schreibweise ignorieren",
+  "es": "Ignorar palabra",
+  "fr": "Ignorer l’orthographe",
+  "ja": "スペルを無視",
+  "zh-Hans": "忽略拼写"
+ },
+ "In Selection": {
+  "de": "In der Auswahl",
+  "es": "En la selección",
+  "fr": "Dans la sélection",
+  "ja": "選択範囲のみ",
+  "zh-Hans": "所选内容"
+ },
+ "Inspector": {
+  "de": "Informationen",
+  "es": "Inspector",
+  "fr": "Inspecteur",
+  "ja": "インスペクタ",
+  "zh-Hans": "检查器"
+ },
+ "Internet": {
+  "de": "Internet",
+  "es": "Internet",
+  "fr": "Internet",
+  "ja": "インターネット",
+  "zh-Hans": "互联网"
+ },
+ "It will be saved to the “%@” folder, or you can specify another location.": {
+  "de": "Es wird im Ordner „%@“ gesichert. Oder du wählst einen anderen Ort.",
+  "es": "Se guardará en la carpeta “%@” o en la que tú elijas.",
+  "fr": "Il sera enregistré soit dans le dossier « %@ », soit dans l’emplacement de votre choix.",
+  "ja": "“%@”フォルダに保存されます。また、別の場所に保存することもできます。",
+  "zh-Hans": "它将被保存到“%@”文件夹中，或你可以指定另一个位置。"
+ },
+ "It will be saved under this new name, or you can provide another name.": {
+  "de": "Es wird unter diesem neuen Namen gesichert. Oder du gibst einen neuen Namen ein.",
+  "es": "El documento se guardará con este nombre si no especificas otro.",
+  "fr": "Il sera enregistré soit sous ce nouveau nom, soit sous celui que vous aurez choisi.",
+  "ja": "この新しい名前を使って保存されます。また、別の名前を指定することもできます。",
+  "zh-Hans": "将以这个新名称保存，你也可以提供其他名称。"
+ },
+ "It’s time to update!": {
+  "de": "Zeit für ein Update!",
+  "es": "Es necesario actualizar.",
+  "fr": "Il est temps de mettre à jour !",
+  "ja": "アップデートが必要です!",
+  "zh-Hans": "该更新了！"
+ },
+ "Keep": {
+  "de": "Behalten",
+  "es": "Conservar",
+  "fr": "Conserver",
+  "ja": "残す",
+  "zh-Hans": "保留"
+ },
+ "Keep Both Files": {
+  "de": "Beide Dateien behalten",
+  "es": "Guardar ambos",
+  "fr": "Garder les deux",
+  "ja": "両方ともファイルを残す",
+  "zh-Hans": "保留这两个文件"
+ },
+ "Last Opened": {
+  "de": "Zuletzt geöffnet",
+  "es": "Última apertura",
+  "fr": "Dernière ouverture",
+  "ja": "最後に開いたバージョン",
+  "zh-Hans": "上次打开的版本"
+ },
+ "Last Opened Version": {
+  "de": "Zuletzt geöffnete Version",
+  "es": "Última versión abierta",
+  "fr": "Dernière version ouverte",
+  "ja": "最後に開いたバージョン",
+  "zh-Hans": "上次打开的版本"
+ },
+ "Last Saved": {
+  "de": "Zuletzt gesichert",
+  "es": "Última vez guardado",
+  "fr": "Dernier enregistrement",
+  "ja": "最後に保存したバージョン",
+  "zh-Hans": "上次保存的版本"
+ },
+ "Last Saved Version": {
+  "de": "Zuletzt gesicherte Version",
+  "es": "Última versión guardada",
+  "fr": "Dernière version enregistrée",
+  "ja": "最後に保存したバージョン",
+  "zh-Hans": "上次保存的版本"
+ },
+ "Learn Grammar": {
+  "de": "Grammatik lernen",
+  "es": "Aprender gramática",
+  "fr": "Mémoriser ce point de grammaire",
+  "ja": "文法を追加",
+  "zh-Hans": "学习语法"
+ },
+ "Learn Spelling": {
+  "de": "Schreibweise lernen",
+  "es": "Aprender palabra",
+  "fr": "Mémoriser l’orthographe",
+  "ja": "スペルを追加",
+  "zh-Hans": "学习拼写"
+ },
+ "Left": {
+  "de": "Links",
+  "es": "Izquierda",
+  "fr": "Gauche",
+  "ja": "左",
+  "zh-Hans": "左侧"
+ },
+ "Left & Quarters": {
+  "de": "Links & Viertel",
+  "es": "Izquierda y cuartos",
+  "fr": "Gauche et quarts",
+  "ja": "左と4分割",
+  "zh-Hans": "左侧与四等分"
+ },
+ "Left & Right": {
+  "de": "Links & Rechts",
+  "es": "Izquierda y derecha",
+  "fr": "Gauche et droite",
+  "ja": "左と右",
+  "zh-Hans": "左侧与右侧"
+ },
+ "Left of Screen": {
+  "de": "Linke Bildschirmseite",
+  "es": "Izquierda de la pantalla",
+  "fr": "Gauche de l’écran",
+  "ja": "画面左側",
+  "zh-Hans": "屏幕左侧"
+ },
+ "Legal": {
+  "de": "US lang",
+  "es": "Legal",
+  "fr": "Legal",
+  "ja": "リーガル",
+  "zh-Hans": "法定用纸"
+ },
+ "Letter": {
+  "de": "US Brief",
+  "es": "Carta",
+  "fr": "Lettre US",
+  "ja": "レター",
+  "zh-Hans": "信纸"
+ },
+ "List…": {
+  "de": "Liste …",
+  "es": "Lista…",
+  "fr": "Liste…",
+  "ja": "リスト…",
+  "zh-Hans": "列表…"
+ },
+ "Location": {
+  "de": "Umgebung",
+  "es": "Ubicación",
+  "fr": "Emplacement",
+  "ja": "場所",
+  "zh-Hans": "位置"
+ },
+ "Location (%@)": {
+  "de": "Umgebung (%@)",
+  "es": "Ubicación (%@)",
+  "fr": "Emplacement (%@)",
+  "ja": "場所（%@）",
+  "zh-Hans": "位置(%@)"
+ },
+ "Lock Screen": {
+  "de": "Bildschirm sperren",
+  "es": "Bloquear pantalla",
+  "fr": "Verrouiller l’écran",
+  "ja": "ロック画面",
+  "zh-Hans": "锁定屏幕"
+ },
+ "Log Out": {
+  "de": "Abmelden",
+  "es": "Cerrar sesión",
+  "fr": "Fermer la session",
+  "ja": "ログアウト",
+  "zh-Hans": "退出登录"
+ },
+ "Log Out %@": {
+  "de": "%@ abmelden",
+  "es": "Cerrar sesión de %@",
+  "fr": "Fermer la session %@",
+  "ja": "%@をログアウト",
+  "zh-Hans": "退出登录“%@”"
+ },
+ "Log Out %@…": {
+  "de": "%@ abmelden …",
+  "es": "Cerrar sesión de %@…",
+  "fr": "Fermer la session %@…",
+  "ja": "%@をログアウト…",
+  "zh-Hans": "退出登录“%@”…"
+ },
+ "Log Out…": {
+  "de": "Abmelden …",
+  "es": "Cerrar sesión…",
+  "fr": "Fermer la session…",
+  "ja": "ログアウト…",
+  "zh-Hans": "退出登录…"
+ },
+ "Look Up in Dictionary": {
+  "de": "Im Lexikon nachschlagen",
+  "es": "Consultar el diccionario",
+  "fr": "Rechercher dans le dictionnaire",
+  "ja": "辞書で調べる",
+  "zh-Hans": "在词典中查询"
+ },
+ "Look Up “%@”": {
+  "de": "„%@“ nachschlagen",
+  "es": "Consultar “%@”",
+  "fr": "Rechercher « %@ »",
+  "ja": "“%@”を調べる",
+  "zh-Hans": "查询“%@”"
+ },
+ "Look Up “%@…”": {
+  "de": "„%@“ nachschlagen …",
+  "es": "Consultar “%@…”",
+  "fr": "Rechercher « %@ »…",
+  "ja": "“%@…”を調べる",
+  "zh-Hans": "查询“%@…”"
+ },
+ "Make Concise": {
+  "de": "Kompakt formulieren",
+  "es": "Convertir en conciso",
+  "fr": "Rendre concis",
+  "ja": "簡潔にする",
+  "zh-Hans": "更简洁"
+ },
+ "Make Friendly": {
+  "de": "Freundlich formulieren",
+  "es": "Convertir en cordial",
+  "fr": "Rendre informel",
+  "ja": "フレンドリーにする",
+  "zh-Hans": "更友好"
+ },
+ "Make Link": {
+  "de": "Link erstellen",
+  "es": "Convertir en enlace",
+  "fr": "Créer un lien",
+  "ja": "リンクを作成",
+  "zh-Hans": "使成为链接"
+ },
+ "Make List": {
+  "de": "Liste erstellen",
+  "es": "Crear lista",
+  "fr": "Convertir en liste",
+  "ja": "リストにする",
+  "zh-Hans": "制作列表"
+ },
+ "Make Professional": {
+  "de": "Sachlich formulieren",
+  "es": "Convertir en profesional",
+  "fr": "Rendre professionnel",
+  "ja": "プロフェッショナルにする",
+  "zh-Hans": "更正式"
+ },
+ "Make Table": {
+  "de": "Tabelle erstellen",
+  "es": "Crear tabla",
+  "fr": "Convertir en tableau",
+  "ja": "表にする",
+  "zh-Hans": "制作表格"
+ },
+ "Make Window Full Screen": {
+  "de": "Vollbildmodus für Fenster",
+  "es": "Mostrar ventana a pantalla completa",
+  "fr": "Afficher la fenêtre en plein écran",
+  "ja": "ウインドウをフルスクリーン表示",
+  "zh-Hans": "全屏显示窗口"
+ },
+ "Manage Shared File": {
+  "de": "Geteilte Datei verwalten",
+  "es": "Gestionar el archivo compartido",
+  "fr": "Gérer le fichier partagé",
+  "ja": "共有ファイルを管理",
+  "zh-Hans": "管理共享文件"
+ },
+ "Manage Shared Folder": {
+  "de": "Geteilten Ordner verwalten",
+  "es": "Gestionar la carpeta compartida",
+  "fr": "Gérer le dossier partagé",
+  "ja": "共有フォルダを管理",
+  "zh-Hans": "管理共享文件夹"
+ },
+ "Merge All Windows": {
+  "de": "Alle Fenster zusammenführen",
+  "es": "Fusionar todas las ventanas",
+  "fr": "Fusionner toutes les fenêtres",
+  "ja": "すべてのウインドウを結合",
+  "zh-Hans": "合并所有窗口"
+ },
+ "Messaging": {
+  "de": "Messaging",
+  "es": "Mensajería",
+  "fr": "Messagerie électronique",
+  "ja": "メッセージ送信",
+  "zh-Hans": "通信"
+ },
+ "Minimize": {
+  "de": "Minimieren",
+  "es": "Minimizar",
+  "fr": "Minimiser",
+  "ja": "しまう",
+  "zh-Hans": "最小化"
+ },
+ "Minimize All": {
+  "de": "Alle im Dock ablegen",
+  "es": "Minimizar todo",
+  "fr": "Minimiser toutes les fenêtres",
+  "ja": "すべてをしまう",
+  "zh-Hans": "全部最小化"
+ },
+ "Mint": {
+  "de": "Minze",
+  "es": "Turquesa",
+  "fr": "Menthe",
+  "ja": "ミント",
+  "zh-Hans": "薄荷色"
+ },
+ "More…": {
+  "de": "Mehr …",
+  "es": "Más…",
+  "fr": "Plus…",
+  "ja": "さらに見る…",
+  "zh-Hans": "更多…"
+ },
+ "Mount the volume and try opening the document again.": {
+  "de": "Aktiviere das Volume und versuche erneut, das Dokument zu öffnen.",
+  "es": "Monta el volumen e intenta abrir el documento de nuevo.",
+  "fr": "Montez le volume et réessayez d’ouvrir le document.",
+  "ja": "ボリュームをマウントして、書類を開き直してください。",
+  "zh-Hans": "装载此宗卷并再次尝试打开该文稿。"
+ },
+ "Move": {
+  "de": "Bewegen",
+  "es": "Trasladar",
+  "fr": "Déplacer",
+  "ja": "移動",
+  "zh-Hans": "移动"
+ },
+ "Move & Resize": {
+  "de": "Bewegen & Skalieren",
+  "es": "Trasladar y redimensionar",
+  "fr": "Déplacer et redimensionner",
+  "ja": "移動とサイズ変更",
+  "zh-Hans": "移动与调整大小"
+ },
+ "Move Document": {
+  "de": "Dokument bewegen",
+  "es": "Trasladar documento",
+  "fr": "Déplacer le document",
+  "ja": "書類を移動",
+  "zh-Hans": "移动文稿"
+ },
+ "Move Tab to New Window": {
+  "de": "Tab in ein neues Fenster bewegen",
+  "es": "Trasladar pestaña a una nueva ventana",
+  "fr": "Placer l’onglet dans une nouvelle fenêtre",
+  "ja": "タブを新しいウインドウに移動",
+  "zh-Hans": "将标签页移到新窗口"
+ },
+ "Move To": {
+  "de": "Bewegen in",
+  "es": "Trasladar a",
+  "fr": "Déplacer vers",
+  "ja": "移動",
+  "zh-Hans": "移到"
+ },
+ "Move To:": {
+  "de": "Bewegen:",
+  "es": "Trasladar a:",
+  "fr": "Déplacer vers :",
+  "ja": "移動先:",
+  "zh-Hans": "移到："
+ },
+ "Move To…": {
+  "de": "Bewegen …",
+  "es": "Trasladar a…",
+  "fr": "Déplacer vers…",
+  "ja": "移動…",
+  "zh-Hans": "移到…"
+ },
+ "Move Window Back to Mac": {
+  "de": "Fenster zurück auf deinen Mac bewegen",
+  "es": "Trasladar ventana de vuelta al Mac",
+  "fr": "Replacer la fenêtre sur le Mac",
+  "ja": "ウインドウをMacに戻す",
+  "zh-Hans": "将窗口移回Mac"
+ },
+ "Move Window to Desktop": {
+  "de": "Fenster auf den Schreibtisch bewegen",
+  "es": "Trasladar ventana al escritorio",
+  "fr": "Déplacer la fenêtre sur le bureau",
+  "ja": "ウインドウをデスクトップに移動",
+  "zh-Hans": "将窗口移到桌面"
+ },
+ "Move this document out of the Trash and try again.": {
+  "de": "Hole dieses Dokument aus dem Papierkorb und versuche es erneut.",
+  "es": "Retira este documento de la papelera e inténtalo de nuevo.",
+  "fr": "Sortez ce document de la corbeille et réessayez.",
+  "ja": "この書類をゴミ箱から取り出してから、やり直してください。",
+  "zh-Hans": "将此文稿移出废纸篓，然后重试。"
+ },
+ "Move to %@": {
+  "de": "Auf „%@“ bewegen",
+  "es": "Trasladar a %@",
+  "fr": "Déplacer vers %@",
+  "ja": "%@に移動",
+  "zh-Hans": "移到“%@”"
+ },
+ "Move to iCloud": {
+  "de": "Übertragen",
+  "es": "Trasladar a iCloud",
+  "fr": "Déplacer vers iCloud",
+  "ja": "iCloudに移動",
+  "zh-Hans": "移到iCloud"
+ },
+ "Move to iPad": {
+  "de": "Auf iPad bewegen",
+  "es": "Trasladar al iPad",
+  "fr": "Déplacer vers l’iPad",
+  "ja": "iPadに移動",
+  "zh-Hans": "移到iPad"
+ },
+ "Name Change": {
+  "de": "Namen ändern",
+  "es": "Cambio de nombre",
+  "fr": "Modifier le nom",
+  "ja": "名前を変更",
+  "zh-Hans": "名称更改"
+ },
+ "Names longer than 31 characters are not supported on the destination volume.": {
+  "de": "Namen mit mehr als 31 Zeichen werden auf dem Zielvolume nicht unterstützt.",
+  "es": "No se admiten nombres de más de 31 caracteres en el volumen de destino.",
+  "fr": "Les noms de plus de 31 caractères ne sont pas pris en charge sur le volume de destination.",
+  "ja": "保存先のボリュームは、31文字を超える名前に対応していません。",
+  "zh-Hans": "目的宗卷不支持长度大于31个字符的名称。"
+ },
+ "Network Settings…": {
+  "de": "Netzwerkeinstellungen …",
+  "es": "Ajustes de red…",
+  "fr": "Réglages Réseau…",
+  "ja": "ネットワーク設定…",
+  "zh-Hans": "网络设置…"
+ },
+ "New Document": {
+  "de": "Neues Dokument",
+  "es": "Nuevo documento",
+  "fr": "Nouveau document",
+  "ja": "新規書類",
+  "zh-Hans": "新建文稿"
+ },
+ "No Document": {
+  "de": "Kein Dokument",
+  "es": "Ningún documento",
+  "fr": "Aucun document",
+  "ja": "書類なし",
+  "zh-Hans": "无文稿"
+ },
+ "No Guesses Found": {
+  "de": "Keine Vorschläge gefunden",
+  "es": "No se han encontrado sugerencias",
+  "fr": "Aucune proposition trouvée",
+  "ja": "候補が見つかりません",
+  "zh-Hans": "未找到猜测的内容"
+ },
+ "No Services Apply": {
+  "de": "Keine Dienste verfügbar",
+  "es": "Ningún servicio aplicable",
+  "fr": "Aucun service adéquat",
+  "ja": "サービスは適用できません",
+  "zh-Hans": "没有服务可应用"
+ },
+ "No document could be created. %@": {
+  "de": "Es konnte kein Dokument erstellt werden. %@",
+  "es": "No se ha podido crear ningún documento. %@",
+  "fr": "Aucun document n’a pu être créé. %@",
+  "ja": "書類を作成できませんでした。%@",
+  "zh-Hans": "未能创建文稿。%@"
+ },
+ "No pages from the document were selected to be printed.": {
+  "de": "Es wurde keine Seite des Dokuments zum Drucken ausgewählt.",
+  "es": "No se han seleccionado páginas del documento para imprimirse.",
+  "fr": "Aucune page du document n’a été sélectionnée pour l’impression.",
+  "ja": "プリントする対象のページが指定されていません。",
+  "zh-Hans": "没有选择文稿中要打印的页面。"
+ },
+ "Not Connected": {
+  "de": "Nicht verbunden",
+  "es": "Sin conexión",
+  "fr": "Non connecté",
+  "ja": "未接続",
+  "zh-Hans": "未连接"
+ },
+ "Not Now": {
+  "de": "Später",
+  "es": "Ahora no",
+  "fr": "Plus tard",
+  "ja": "今はしない",
+  "zh-Hans": "以后"
+ },
+ "Not found": {
+  "de": "Nicht gefunden",
+  "es": "No encontrado",
+  "fr": "Introuvable",
+  "ja": "見つかりません",
+  "zh-Hans": "未找到"
+ },
+ "Open": {
+  "de": "Öffnen",
+  "es": "Abrir",
+  "fr": "Ouvrir",
+  "ja": "開く",
+  "zh-Hans": "打开"
+ },
+ "Open Link": {
+  "de": "Link öffnen",
+  "es": "Abrir enlace",
+  "fr": "Ouvrir le lien",
+  "ja": "リンクを開く",
+  "zh-Hans": "打开链接"
+ },
+ "Open Recent": {
+  "de": "Benutzte Dokumente",
+  "es": "Abrir recientes",
+  "fr": "Ouvrir l’élément récent",
+  "ja": "最近使った項目を開く",
+  "zh-Hans": "打开最近使用"
+ },
+ "Open Text Settings…": {
+  "de": "Texteinstellungen öffnen …",
+  "es": "Abrir ajustes de texto…",
+  "fr": "Ouvrir les réglages Texte…",
+  "ja": "テキスト設定を開く…",
+  "zh-Hans": "打开文本设置…"
+ },
+ "Open With": {
+  "de": "Öffnen mit",
+  "es": "Abrir con",
+  "fr": "Ouvrir avec",
+  "ja": "このアプリケーションで開く",
+  "zh-Hans": "打开方式"
+ },
+ "Open on iCloud.com": {
+  "de": "Auf iCloud.com öffnen",
+  "es": "Abrir en iCloud.com",
+  "fr": "Ouvrir sur iCloud.com",
+  "ja": "iCloud.comで開く",
+  "zh-Hans": "在iCloud.com上打开"
+ },
+ "Orange": {
+  "de": "Orange",
+  "es": "Naranja",
+  "fr": "Orange",
+  "ja": "オレンジ",
+  "zh-Hans": "橙色"
+ },
+ "Other Format": {
+  "de": "Anderes Format",
+  "es": "Otro formato",
+  "fr": "Autre format",
+  "ja": "その他のフォーマット",
+  "zh-Hans": "其他格式"
+ },
+ "Page %1$ld of %2$ld": {
+  "de": "Seite %1$ld von %2$ld",
+  "es": "Página %1$ld de %2$ld",
+  "fr": "Page %1$ld sur %2$ld",
+  "ja": "%1$ld / %2$ldページ ",
+  "zh-Hans": "页码：%1$ld/%2$ld"
+ },
+ "Page %ld": {
+  "de": "Seite %ld",
+  "es": "Página %ld",
+  "fr": "Page %ld",
+  "ja": "%ldページ",
+  "zh-Hans": "第%ld页"
+ },
+ "Paste": {
+  "de": "Einsetzen",
+  "es": "Pegar",
+  "fr": "Coller",
+  "ja": "ペースト",
+  "zh-Hans": "粘贴"
+ },
+ "Paste and Match Style": {
+  "de": "Einsetzen und Stil anpassen",
+  "es": "Pegar con el mismo estilo",
+  "fr": "Coller et adapter le style",
+  "ja": "ペーストしてスタイルを合わせる",
+  "zh-Hans": "粘贴并匹配样式"
+ },
+ "Paste and Retain Style": {
+  "de": "Einsetzen und Stil beibehalten",
+  "es": "Pegar y conservar estilo",
+  "fr": "Coller et conserver le style",
+  "ja": "ペーストしてスタイルを保持",
+  "zh-Hans": "粘贴并保留样式"
+ },
+ "Pause All Animations": {
+  "de": "Alle Animationen anhalten",
+  "es": "Pausar todas las animaciones",
+  "fr": "Mettre en pause toutes les animations",
+  "ja": "すべてのアニメーションを一時停止",
+  "zh-Hans": "暂停所有动画"
+ },
+ "Pause Animation": {
+  "de": "Animation anhalten",
+  "es": "Pausar animación",
+  "fr": "Mettre en pause l’animation",
+  "ja": "アニメーションを一時停止",
+  "zh-Hans": "暂停动画"
+ },
+ "Pictures": {
+  "de": "Bilder",
+  "es": "Imágenes",
+  "fr": "Images",
+  "ja": "ピクチャ",
+  "zh-Hans": "图片"
+ },
+ "Pin Tab": {
+  "de": "Tab fixieren",
+  "es": "Anclar pestaña",
+  "fr": "Épingler l’onglet",
+  "ja": "タブを固定",
+  "zh-Hans": "固定标签页"
+ },
+ "Pink": {
+  "de": "Pink",
+  "es": "Rosa",
+  "fr": "Rose",
+  "ja": "ピンク",
+  "zh-Hans": "粉色"
+ },
+ "Play All Animations": {
+  "de": "Alle Animationen wiedergeben",
+  "es": "Reproducir todas las animaciones",
+  "fr": "Lire toutes les animations",
+  "ja": "すべてのアニメーションを再生",
+  "zh-Hans": "播放所有动画"
+ },
+ "Play Animation": {
+  "de": "Animation wiedergeben",
+  "es": "Reproducir animación",
+  "fr": "Lire l’animation",
+  "ja": "アニメーションを再生",
+  "zh-Hans": "播放动画"
+ },
+ "Please choose a filename that is no longer than 31 characters.": {
+  "de": "Wähle einen Dateinamen mit höchstens 31 Zeichen.",
+  "es": "Selecciona un nombre de archivo que no tenga más de 31 caracteres.",
+  "fr": "Veuillez choisir un nom de fichier comportant au maximum 31 caractères.",
+  "ja": "31文字以下のファイル名を選んでください。",
+  "zh-Hans": "请选取长度不大于31个字符的文件名。"
+ },
+ "Please try locating the file again or selecting a different file.": {
+  "de": "Versuche die Datei erneut zu finden oder wähle eine andere.",
+  "es": "Intenta buscar de nuevo el archivo o seleccionar otro.",
+  "fr": "Réessayez de localiser le fichier ou sélectionnez un autre fichier.",
+  "ja": "もう一度ファイルを探してみるか、別のファイルを選択してみてください。",
+  "zh-Hans": "请尝试再次找到该文件或者选择其他的文件。"
+ },
+ "Please try selecting a different file.": {
+  "de": "Versuche, eine andere Datei auszuwählen.",
+  "es": "Inténtalo seleccionando otro archivo.",
+  "fr": "Sélectionnez un autre fichier.",
+  "ja": "別のファイルを選択してみてください。",
+  "zh-Hans": "请尝试选择其他的文件。"
+ },
+ "Please try selecting a different location.": {
+  "de": "Versuche, einen anderen Ort auszuwählen.",
+  "es": "Inténtalo seleccionando otra ubicación.",
+  "fr": "Sélectionnez un autre emplacement.",
+  "ja": "別の場所を選択してみてください。",
+  "zh-Hans": "请尝试选择其他的位置。"
+ },
+ "Please try the operation again.": {
+  "de": "Versuche den Vorgang erneut.",
+  "es": "Inténtalo de nuevo.",
+  "fr": "Réessayez l’opération.",
+  "ja": "もう一度操作をしてみてください。",
+  "zh-Hans": "请重试该操作。"
+ },
+ "Preferences": {
+  "de": "Einstellungen",
+  "es": "Preferencias",
+  "fr": "Préférences",
+  "ja": "環境設定",
+  "zh-Hans": "偏好设置"
+ },
+ "Preferences…": {
+  "de": "Einstellungen …",
+  "es": "Preferencias…",
+  "fr": "Préférences…",
+  "ja": "環境設定…",
+  "zh-Hans": "偏好设置…"
+ },
+ "Preparing…": {
+  "de": "Vorbereiten …",
+  "es": "Preparando…",
+  "fr": "Préparation…",
+  "ja": "準備中…",
+  "zh-Hans": "正在准备…"
+ },
+ "Preview": {
+  "de": "Vorschau",
+  "es": "Previsualizar",
+  "fr": "Aperçu",
+  "ja": "プレビュー",
+  "zh-Hans": "预览"
+ },
+ "Previous Save": {
+  "de": "Zuvor gesichert",
+  "es": "Guardado anterior",
+  "fr": "Enregistrement précédent",
+  "ja": "直前の保存",
+  "zh-Hans": "以前保存的版本"
+ },
+ "Previous Version": {
+  "de": "Vorherige Version",
+  "es": "Versión anterior",
+  "fr": "Version précédente",
+  "ja": "直前のバージョン",
+  "zh-Hans": "上一个版本"
+ },
+ "Print": {
+  "de": "Drucken",
+  "es": "Imprimir",
+  "fr": "Imprimer",
+  "ja": "プリント",
+  "zh-Hans": "打印"
+ },
+ "Processing page: %@": {
+  "de": "Bearbeiten der Seite: %@",
+  "es": "Procesando página: %@",
+  "fr": "Traitement de la page : %@",
+  "ja": "処理中のページ: %@",
+  "zh-Hans": "正在处理页面：%@"
+ },
+ "Proofread": {
+  "de": "Korrekturlesen",
+  "es": "Revisar",
+  "fr": "Relecture",
+  "ja": "校正",
+  "zh-Hans": "校对"
+ },
+ "Purchase additional storage or remove some documents from iCloud.": {
+  "de": "Kaufe zusätzlichen Speicherplatz oder entferne einige Dokumente aus iCloud.",
+  "es": "Compra espacio de almacenamiento adicional o borra algunos documentos de iCloud.",
+  "fr": "Acheter de l’espace de stockage supplémentaire ou supprimer des documents d’iCloud.",
+  "ja": "追加のストレージを購入するか、iCloudから不要な書類を削除してください。",
+  "zh-Hans": "请购买附加储存空间，或者从iCloud中移除一些文稿。"
+ },
+ "Purple": {
+  "de": "Lila",
+  "es": "Morado",
+  "fr": "Violet",
+  "ja": "パープル",
+  "zh-Hans": "紫色"
+ },
+ "Quarters": {
+  "de": "Viertel",
+  "es": "Cuartos",
+  "fr": "Quarts",
+  "ja": "4分割",
+  "zh-Hans": "四等分"
+ },
+ "Quick Look Attachment": {
+  "de": "Übersicht des Anhangs",
+  "es": "Vista rápida del archivo adjunto",
+  "fr": "Coup d’œil sur la pièce jointe",
+  "ja": "添付ファイルをクイックルック",
+  "zh-Hans": "快速查看附件"
+ },
+ "Quick Look Attachments": {
+  "de": "Übersicht der Anhänge",
+  "es": "Vista rápida de los archivos adjuntos",
+  "fr": "Coup d’œil sur les pièces jointes",
+  "ja": "添付ファイルをクイックルック",
+  "zh-Hans": "快速查看附件"
+ },
+ "Quit": {
+  "de": "Beenden",
+  "es": "Salir",
+  "fr": "Quitter",
+  "ja": "終了",
+  "zh-Hans": "退出"
+ },
+ "Quit Anyway": {
+  "de": "Trotzdem beenden",
+  "es": "Salir",
+  "fr": "Quitter quand même",
+  "ja": "このまま終了",
+  "zh-Hans": "仍要退出"
+ },
+ "Quit and Close All Windows": {
+  "de": "Beenden und alle Fenster schließen",
+  "es": "Salir y cerrar todas las ventanas",
+  "fr": "Quitter et fermer toutes les fenêtres",
+  "ja": "終了（ウインドウをすべて閉じる）",
+  "zh-Hans": "退出并关闭所有窗口"
+ },
+ "Quit and Keep Windows": {
+  "de": "Beenden und Fenster beibehalten",
+  "es": "Salir y mantener ventanas",
+  "fr": "Quitter et garder les fenêtres",
+  "ja": "終了（ほかのウインドウは保持）",
+  "zh-Hans": "退出并保留窗口"
+ },
+ "Recent Items": {
+  "de": "Benutzte Objekte",
+  "es": "Ítems recientes",
+  "fr": "Éléments récents",
+  "ja": "最近使った項目",
+  "zh-Hans": "最近使用的项目"
+ },
+ "Recent changes will be saved in your version history.": {
+  "de": "Letzte Änderungen werden in deinem Versionsverlauf gesichert.",
+  "es": "Los cambios recientes se guardarán en el historial de versiones.",
+  "fr": "Les modifications récentes seront enregistrées dans votre historique des versions.",
+  "ja": "最近加えた変更はバージョン履歴に保存されます。",
+  "zh-Hans": "最近更改的内容将保存在你的版本历史记录中。"
+ },
+ "Remove Item": {
+  "de": "Objekt entfernen",
+  "es": "Eliminar ítem",
+  "fr": "Supprimer l’élément",
+  "ja": "項目を削除",
+  "zh-Hans": "移除项"
+ },
+ "Remove Link": {
+  "de": "Link entfernen",
+  "es": "Eliminar enlace",
+  "fr": "Supprimer le lien",
+  "ja": "リンクを削除",
+  "zh-Hans": "移除链接"
+ },
+ "Remove Window from Set": {
+  "de": "Fenster aus Satz entfernen",
+  "es": "Eliminar ventana del grupo",
+  "fr": "Supprimer la fenêtre du groupe",
+  "ja": "ウインドウをセットから削除",
+  "zh-Hans": "从组中移除窗口"
+ },
+ "Rename Anyway": {
+  "de": "Trotzdem umbenennen",
+  "es": "Renombrar de todos modos",
+  "fr": "Renommer quand même",
+  "ja": "名前を変更",
+  "zh-Hans": "仍然重新命名"
+ },
+ "Rename…": {
+  "de": "Umbenennen …",
+  "es": "Renombrar…",
+  "fr": "Renommer…",
+  "ja": "名称変更…",
+  "zh-Hans": "重新命名…"
+ },
+ "Replace": {
+  "de": "Ersetzen",
+  "es": "Reemplazar",
+  "fr": "Remplacer",
+  "ja": "置き換え",
+  "zh-Hans": "替换"
+ },
+ "Replace All": {
+  "de": "Alles ersetzen",
+  "es": "Reemplazar todo",
+  "fr": "Tout remplacer",
+  "ja": "すべて置き換え",
+  "zh-Hans": "全部替换"
+ },
+ "Replace Text Automatically": {
+  "de": "Text automatisch ersetzen",
+  "es": "Reemplazar texto automáticamente",
+  "fr": "Remplacer le texte automatiquement",
+  "ja": "テキストを自動的に置き換える",
+  "zh-Hans": "自动替换文本"
+ },
+ "Replace Tiled Window": {
+  "de": "Angeordnetes Fenster ersetzen",
+  "es": "Reemplazar ventana ajustada",
+  "fr": "Remplacer la fenêtre en mosaïque",
+  "ja": "タイル表示されたウインドウを置き換える",
+  "zh-Hans": "替换平铺窗口"
+ },
+ "Replace With “%@”": {
+  "de": "Ersetzen durch „%@“",
+  "es": "Reemplazar por “%@”",
+  "fr": "Remplacer « %@ » par",
+  "ja": "“%@”で置き換える",
+  "zh-Hans": "使用“%@”替换"
+ },
+ "Request denied": {
+  "de": "Anfrage abgelehnt",
+  "es": "Petición denegada",
+  "fr": "Demande refusée",
+  "ja": "要求が拒否されました",
+  "zh-Hans": "请求遭拒绝"
+ },
+ "Restart": {
+  "de": "Neustart",
+  "es": "Reiniciar",
+  "fr": "Redémarrer",
+  "ja": "再起動",
+  "zh-Hans": "重新启动"
+ },
+ "Restart…": {
+  "de": "Neustart …",
+  "es": "Reiniciar…",
+  "fr": "Redémarrer…",
+  "ja": "再起動…",
+  "zh-Hans": "重新启动…"
+ },
+ "Restore a Copy": {
+  "de": "Eine Kopie wiederherstellen",
+  "es": "Restaurar una copia",
+  "fr": "Restaurer une copie",
+  "ja": "コピーを復元",
+  "zh-Hans": "恢复副本"
+ },
+ "Return to Previous Size": {
+  "de": "Zur vorherigen Größe wechseln",
+  "es": "Volver al tamaño anterior",
+  "fr": "Rétablir la taille précédente",
+  "ja": "前のサイズに戻す",
+  "zh-Hans": "恢复上一个大小"
+ },
+ "Revert": {
+  "de": "Letzte Version",
+  "es": "Restaurar",
+  "fr": "Rétablir",
+  "ja": "戻す",
+  "zh-Hans": "复原"
+ },
+ "Revert Changes": {
+  "de": "Änderungen zurücksetzen",
+  "es": "Deshacer cambios",
+  "fr": "Annuler les modifications",
+  "ja": "変更を元に戻す",
+  "zh-Hans": "复原更改"
+ },
+ "Revert To": {
+  "de": "Zurücksetzen auf",
+  "es": "Volver a",
+  "fr": "Revenir à",
+  "ja": "バージョンを戻す",
+  "zh-Hans": "复原到"
+ },
+ "Revert to the last opened version to undo all your changes.": {
+  "de": "Kehre zur letzten geöffneten Version zurück und widerrufe alle Änderungen.",
+  "es": "Restaura la última versión abierta para deshacer todos los cambios.",
+  "fr": "Revenez à la dernière version ouverte pour annuler toutes vos modifications.",
+  "ja": "最後に開いたバージョンに戻して変更内容をすべて取り消します。",
+  "zh-Hans": "复原到上一个打开的版本以撤销所有更改。"
+ },
+ "Review Changes…": {
+  "de": "Änderungen überprüfen …",
+  "es": "Revisar cambios…",
+  "fr": "Vérifier les modifications…",
+  "ja": "変更内容を確認…",
+  "zh-Hans": "复查更改…"
+ },
+ "Review Unsaved": {
+  "de": "Ungesicherte Dateien anzeigen",
+  "es": "Revisar lo no guardado",
+  "fr": "Revoir la version non enregistrée",
+  "ja": "保存されていない書類を確認",
+  "zh-Hans": "复查未保存的文稿"
+ },
+ "Rewrite": {
+  "de": "Umformulieren",
+  "es": "Reescribir",
+  "fr": "Réécriture",
+  "ja": "書き直し",
+  "zh-Hans": "改写"
+ },
+ "Right": {
+  "de": "Rechts",
+  "es": "Derecha",
+  "fr": "Droite",
+  "ja": "右",
+  "zh-Hans": "右侧"
+ },
+ "Right & Left": {
+  "de": "Rechts & Links",
+  "es": "Derecha e izquierda",
+  "fr": "Droite et gauche",
+  "ja": "右と左",
+  "zh-Hans": "右侧与左侧"
+ },
+ "Right & Quarters": {
+  "de": "Rechts & Viertel",
+  "es": "Derecha y cuartos",
+  "fr": "Droite et quarts",
+  "ja": "右と4分割",
+  "zh-Hans": "右侧与四等分"
+ },
+ "Right of Screen": {
+  "de": "Rechte Bildschirmseite",
+  "es": "Derecha de la pantalla",
+  "fr": "Droite de l’écran",
+  "ja": "画面右側",
+  "zh-Hans": "屏幕右侧"
+ },
+ "Run Service": {
+  "de": "Dienst ausführen",
+  "es": "Ejecutar servicio",
+  "fr": "Lancer le service",
+  "ja": "サービスを実行",
+  "zh-Hans": "运行服务"
+ },
+ "Save": {
+  "de": "Sichern",
+  "es": "Guardar",
+  "fr": "Enregistrer",
+  "ja": "保存",
+  "zh-Hans": "保存"
+ },
+ "Save Anyway": {
+  "de": "Trotzdem sichern",
+  "es": "Guardar de todos modos",
+  "fr": "Enregistrer quand même",
+  "ja": "このまま保存",
+  "zh-Hans": "仍要保存"
+ },
+ "Save As:": {
+  "de": "Sichern unter:",
+  "es": "Guardar como:",
+  "fr": "Enregistrer sous :",
+  "ja": "名前:",
+  "zh-Hans": "保存为："
+ },
+ "Save As…": {
+  "de": "Sichern unter …",
+  "es": "Guardar como…",
+  "fr": "Enregistrer sous…",
+  "ja": "別名で保存…",
+  "zh-Hans": "保存为…"
+ },
+ "Save and Quit": {
+  "de": "Sichern und beenden",
+  "es": "Guardar y salir",
+  "fr": "Enregistrer et quitter",
+  "ja": "保存して終了",
+  "zh-Hans": "保存并退出"
+ },
+ "Save changes to “%@”?": {
+  "de": "Änderungen an „%@“ sichern?",
+  "es": "¿Quieres guardar los cambios realizados en “%@”?",
+  "fr": "Enregistrer les modifications de « %@ » ?",
+  "ja": "“%@”への変更を保存しますか?",
+  "zh-Hans": "保存对“%@”的更改吗？"
+ },
+ "Save…": {
+  "de": "Sichern …",
+  "es": "Guardar…",
+  "fr": "Enregistrer…",
+  "ja": "保存…",
+  "zh-Hans": "保存…"
+ },
+ "Search": {
+  "de": "Suchen",
+  "es": "Buscar",
+  "fr": "Rechercher",
+  "ja": "検索",
+  "zh-Hans": "搜索"
+ },
+ "Search the Web": {
+  "de": "Websuche",
+  "es": "Buscar en internet",
+  "fr": "Rechercher sur le Web",
+  "ja": "Webで検索",
+  "zh-Hans": "搜索网页"
+ },
+ "Search with %@": {
+  "de": "Mit %@ suchen",
+  "es": "Buscar con %@",
+  "fr": "Rechercher avec %@",
+  "ja": "%@で検索",
+  "zh-Hans": "用“%@”搜索"
+ },
+ "Searching": {
+  "de": "Suchen",
+  "es": "Búsqueda",
+  "fr": "Recherche",
+  "ja": "検索",
+  "zh-Hans": "搜索"
+ },
+ "Select All": {
+  "de": "Alles auswählen",
+  "es": "Seleccionar todo",
+  "fr": "Tout sélectionner",
+  "ja": "すべてを選択",
+  "zh-Hans": "全选"
+ },
+ "Send %@ Feedback": {
+  "de": "%@ Feedback senden",
+  "es": "Enviar opinión sobre %@",
+  "fr": "Envoyer des commentaires à %@",
+  "ja": "%@のフィードバックを送信",
+  "zh-Hans": "发送“%@”反馈"
+ },
+ "Send %@ Feedback to Apple": {
+  "de": "%@-Feedback an Apple senden",
+  "es": "Enviar opinión sobre %@ a Apple",
+  "fr": "Envoyer une évaluation sur %@ à Apple",
+  "ja": "%@のフィードバックをAppleに送信",
+  "zh-Hans": "将%[tt]@的使用反馈发送给Apple"
+ },
+ "Separator": {
+  "de": "Trennlinie",
+  "es": "Separador",
+  "fr": "Séparateur",
+  "ja": "区切り線",
+  "zh-Hans": "分隔符"
+ },
+ "Servers": {
+  "de": "Server",
+  "es": "Servidores",
+  "fr": "Serveurs",
+  "ja": "サーバ",
+  "zh-Hans": "服务器"
+ },
+ "Services": {
+  "de": "Dienste",
+  "es": "Servicios",
+  "fr": "Services",
+  "ja": "サービス",
+  "zh-Hans": "服务"
+ },
+ "Services Settings are not available because System Settings could not be opened.": {
+  "de": "Die Dienste-Einstellungen sind nicht verfügbar, da die Systemeinstellungen nicht geöffnet werden konnten.",
+  "es": "Los ajustes de los servicios no están disponibles porque no se ha podido abrir Ajustes del Sistema.",
+  "fr": "Les réglages Services ne sont pas disponibles car il est impossible d’ouvrir Réglages Système.",
+  "ja": "“システム設定”を開けなかったため、“サービス設定”を使用できません。",
+  "zh-Hans": "“服务设置”不可用，因为“系统设置”无法打开。"
+ },
+ "Services Settings…": {
+  "de": "Dienste-Einstellungen …",
+  "es": "Ajustes de los servicios…",
+  "fr": "Réglages Services…",
+  "ja": "サービス設定…",
+  "zh-Hans": "服务设置…"
+ },
+ "Set Up…": {
+  "de": "Konfigurieren …",
+  "es": "Configurar…",
+  "fr": "Configurer…",
+  "ja": "設定…",
+  "zh-Hans": "设置…"
+ },
+ "Settings…": {
+  "de": "Einstellungen …",
+  "es": "Ajustes…",
+  "fr": "Réglages…",
+  "ja": "設定…",
+  "zh-Hans": "设置…"
+ },
+ "Share": {
+  "de": "Teilen",
+  "es": "Compartir",
+  "fr": "Partager",
+  "ja": "共有",
+  "zh-Hans": "共享"
+ },
+ "Share File": {
+  "de": "Datei teilen",
+  "es": "Compartir archivo",
+  "fr": "Partager le fichier",
+  "ja": "ファイルを共有",
+  "zh-Hans": "共享文件"
+ },
+ "Share Folder": {
+  "de": "Ordner teilen",
+  "es": "Compartir carpeta",
+  "fr": "Partager le dossier",
+  "ja": "フォルダを共有",
+  "zh-Hans": "共享文件夹"
+ },
+ "Shortcuts": {
+  "de": "Kurzbefehle",
+  "es": "Atajos",
+  "fr": "Raccourcis",
+  "ja": "ショートカット",
+  "zh-Hans": "快捷指令"
+ },
+ "Show All Tabs": {
+  "de": "Alle Tabs einblenden",
+  "es": "Mostrar todas las pestañas",
+  "fr": "Afficher tous les onglets",
+  "ja": "すべてのタブを表示",
+  "zh-Hans": "显示所有标签页"
+ },
+ "Show Color Panel": {
+  "de": "Farbfenster anzeigen",
+  "es": "Mostrar el panel de colores",
+  "fr": "Afficher le tableau des couleurs",
+  "ja": "カラーパネルを表示します",
+  "zh-Hans": "显示颜色面板"
+ },
+ "Show Font Panel": {
+  "de": "Schriftfenster anzeigen",
+  "es": "Mostrar el panel de tipos de letra",
+  "fr": "Afficher le tableau des polices",
+  "ja": "フォントパネルを表示します",
+  "zh-Hans": "显示字体面板"
+ },
+ "Show Inspector": {
+  "de": "Informationen einblenden",
+  "es": "Mostrar inspector",
+  "fr": "Afficher l’inspecteur",
+  "ja": "インスペクタを表示",
+  "zh-Hans": "显示检查器"
+ },
+ "Show Next Tab": {
+  "de": "Nächsten Tab anzeigen",
+  "es": "Mostrar pestaña siguiente",
+  "fr": "Afficher l’onglet suivant",
+  "ja": "次のタブを表示",
+  "zh-Hans": "显示下一个标签页"
+ },
+ "Show People": {
+  "de": "Personen anzeigen",
+  "es": "Mostrar personas",
+  "fr": "Afficher les personnes",
+  "ja": "人を表示",
+  "zh-Hans": "显示成员"
+ },
+ "Show Previous Tab": {
+  "de": "Vorherigen Tab anzeigen",
+  "es": "Mostrar pestaña anterior",
+  "fr": "Afficher l’onglet précédent",
+  "ja": "前のタブを表示",
+  "zh-Hans": "显示上一个标签页"
+ },
+ "Show Sidebar": {
+  "de": "Seitenleiste einblenden",
+  "es": "Mostrar barra lateral",
+  "fr": "Afficher la barre latérale",
+  "ja": "サイドバーを表示",
+  "zh-Hans": "显示边栏"
+ },
+ "Show Spelling and Grammar": {
+  "de": "Rechtschreibung und Grammatik einblenden",
+  "es": "Mostrar ortografía y gramática",
+  "fr": "Afficher l’orthographe et la grammaire",
+  "ja": "スペルと文法を表示",
+  "zh-Hans": "显示拼写和语法"
+ },
+ "Show Substitutions": {
+  "de": "Ersetzungen einblenden",
+  "es": "Mostrar sustituciones",
+  "fr": "Afficher les substitutions",
+  "ja": "自動置換を表示",
+  "zh-Hans": "显示替换"
+ },
+ "Show Tab Bar": {
+  "de": "Tableiste einblenden",
+  "es": "Mostrar barra de pestañas",
+  "fr": "Afficher la barre d’onglets",
+  "ja": "タブバーを表示",
+  "zh-Hans": "显示标签页栏"
+ },
+ "Show Toolbar": {
+  "de": "Symbolleiste einblenden",
+  "es": "Mostrar barra de herramientas",
+  "fr": "Afficher la barre d’outils",
+  "ja": "ツールバーを表示",
+  "zh-Hans": "显示工具栏"
+ },
+ "Show Writing Tools": {
+  "de": "Schreibtools anzeigen",
+  "es": "Mostrar las herramientas de escritura",
+  "fr": "Afficher les outils d’écriture",
+  "ja": "作文ツールを表示",
+  "zh-Hans": "显示写作工具"
+ },
+ "Show Writing Tools Panel": {
+  "de": "Bereich „Schreibtools“ anzeigen",
+  "es": "Mostrar panel de herramientas de escritura",
+  "fr": "Afficher le panneau Outils d’écriture",
+  "ja": "作文ツールパネルを表示",
+  "zh-Hans": "显示写作工具面板"
+ },
+ "Show “%@” in Finder": {
+  "de": "„%@“ im Finder anzeigen",
+  "es": "Mostrar “%@” en el Finder",
+  "fr": "Afficher « %@ » dans le Finder",
+  "ja": "“%@”をFinderに表示",
+  "zh-Hans": "在访达中显示“%@”"
+ },
+ "Shut Down": {
+  "de": "Ausschalten",
+  "es": "Apagar",
+  "fr": "Éteindre",
+  "ja": "システム終了",
+  "zh-Hans": "关机"
+ },
+ "Shut Down…": {
+  "de": "Ausschalten …",
+  "es": "Apagar equipo…",
+  "fr": "Éteindre…",
+  "ja": "システム終了…",
+  "zh-Hans": "关机…"
+ },
+ "Sidebar": {
+  "de": "Seitenleiste",
+  "es": "Barra lateral",
+  "fr": "Barre latérale",
+  "ja": "サイドバー",
+  "zh-Hans": "边栏"
+ },
+ "Sleep": {
+  "de": "Ruhezustand",
+  "es": "Reposo",
+  "fr": "Suspendre l’activité",
+  "ja": "スリープ",
+  "zh-Hans": "睡眠"
+ },
+ "Sogou": {
+  "de": "Sogou",
+  "es": "Sogou",
+  "fr": "Sogou",
+  "ja": "捜狗",
+  "zh-Hans": "搜狗"
+ },
+ "Space": {
+  "de": "Zwischenraum",
+  "es": "Espacio",
+  "fr": "Espace",
+  "ja": "スペース",
+  "zh-Hans": "间距"
+ },
+ "Spelling": {
+  "de": "Rechtschreibung",
+  "es": "Ortografía",
+  "fr": "Orthographe",
+  "ja": "スペル",
+  "zh-Hans": "拼写"
+ },
+ "Spelling Language": {
+  "de": "Sprache für Rechtschreibprüfung",
+  "es": "Idioma de la ortografía",
+  "fr": "Langue du correcteur orthographique",
+  "ja": "スペル言語",
+  "zh-Hans": "拼写语言"
+ },
+ "Spelling and Grammar": {
+  "de": "Rechtschreibung und Grammatik",
+  "es": "Ortografía y gramática",
+  "fr": "Orthographe et grammaire",
+  "ja": "スペルと文法",
+  "zh-Hans": "拼写和语法"
+ },
+ "Startup Disk…": {
+  "de": "Startvolume …",
+  "es": "Disco de arranque…",
+  "fr": "Disque de démarrage…",
+  "ja": "起動ディスク…",
+  "zh-Hans": "启动磁盘…"
+ },
+ "Summarize": {
+  "de": "Zusammenfassen",
+  "es": "Resumir",
+  "fr": "Résumer",
+  "ja": "要約する",
+  "zh-Hans": "生成摘要"
+ },
+ "System Information": {
+  "de": "Systeminformationen",
+  "es": "Información del Sistema",
+  "fr": "Informations système",
+  "ja": "システム情報",
+  "zh-Hans": "系统信息"
+ },
+ "System Settings…": {
+  "de": "Systemeinstellungen …",
+  "es": "Ajustes del Sistema…",
+  "fr": "Réglages Système…",
+  "ja": "システム設定…",
+  "zh-Hans": "系统设置…"
+ },
+ "Table…": {
+  "de": "Tabelle …",
+  "es": "Tabla…",
+  "fr": "Tableau…",
+  "ja": "表…",
+  "zh-Hans": "表格…"
+ },
+ "Tabloid": {
+  "de": "US Tabloid",
+  "es": "Tabloide",
+  "fr": "Tabloïd",
+  "ja": "タブロイド",
+  "zh-Hans": "小报用纸"
+ },
+ "Text": {
+  "de": "Text",
+  "es": "Texto",
+  "fr": "Texte",
+  "ja": "テキスト",
+  "zh-Hans": "文本"
+ },
+ "Text Only": {
+  "de": "Nur Text",
+  "es": "Solo texto",
+  "fr": "Texte seulement",
+  "ja": "テキストのみ",
+  "zh-Hans": "仅文本"
+ },
+ "The autosaved document “%1$@” could not be reopened. %2$@": {
+  "de": "Das automatisch gesicherte Dokument „%1$@“ konnte nicht erneut geöffnet werden. %2$@",
+  "es": "El documento “%1$@” guardado automáticamente no se ha podido abrir de nuevo. %2$@",
+  "fr": "Le document « %1$@ » enregistré automatiquement n’a pas pu être rouvert. %2$@",
+  "ja": "自動保存された書類“%1$@”を再開できませんでした。%2$@",
+  "zh-Hans": "未能重新打开自动保存的文稿“%1$@”。%2$@"
+ },
+ "The changes made by the other application will be lost if you save. Save anyway?": {
+  "de": "Die von dem anderen Programm vorgenommenen Änderungen gehen beim Sichern verloren. Möchtest du dennoch sichern?",
+  "es": "Si guardas el documento, los cambios realizados por la otra aplicación se perderán. ¿Quieres guardarlo de todos modos?",
+  "fr": "Les modifications apportées par l’autre application seront perdues si vous enregistrez. Voulez-vous quand même enregistrer ?",
+  "ja": "保存すると、ほかのアプリケーションで加えられた変更は失われます。それでも保存しますか?",
+  "zh-Hans": "如果保存，其他应用程序所做的更改将会丢失。仍要保存吗？"
+ },
+ "The document could not be autosaved. %@": {
+  "de": "Das Dokument konnte nicht automatisch gesichert werden. %@",
+  "es": "El documento no se ha podido guardar automáticamente. %@",
+  "fr": "Le document n’a pas pu être enregistré automatiquement. %@",
+  "ja": "書類を自動保存できませんでした。%@",
+  "zh-Hans": "该文稿未能自动保存。%@"
+ },
+ "The document “%1$@” could not be autosaved. %2$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht automatisch gesichert werden. %2$@",
+  "es": "El documento “%1$@” no se ha podido guardar automáticamente. %2$@",
+  "fr": "Le document « %1$@ » n’a pas pu être enregistré automatiquement. %2$@",
+  "ja": "書類“%1$@”を自動保存できませんでした。%2$@",
+  "zh-Hans": "未能将文稿“%1$@”自动保存。%2$@"
+ },
+ "The document “%1$@” could not be exported as “%2$@”. %3$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht als „%2$@“ exportiert werden. %3$@",
+  "es": "El documento “%1$@” no se ha podido exportar como “%2$@”. %3$@",
+  "fr": "Le document « %1$@ » n’a pas pu être exporté sous le nom « %2$@ ». %3$@",
+  "ja": "書類“%1$@”を“%2$@”として書き出せませんでした。%3$@",
+  "zh-Hans": "未能将文稿“%1$@”导出为“%2$@”。%3$@"
+ },
+ "The document “%1$@” could not be opened for printing. %2$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht zum Drucken geöffnet werden. %2$@",
+  "es": "El documento “%1$@” no se ha podido abrir para imprimirlo. %2$@",
+  "fr": "Le document « %1$@ » n’a pas pu être ouvert pour impression. %2$@",
+  "ja": "書類“%1$@”をプリントするために開けませんでした。%2$@",
+  "zh-Hans": "未能打开文稿“%1$@”以进行打印。%2$@"
+ },
+ "The document “%1$@” could not be opened. %2$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht geöffnet werden. %2$@",
+  "es": "El documento “%1$@” no se ha podido abrir. %2$@",
+  "fr": "Le document « %1$@ » n’a pas pu être ouvert. %2$@",
+  "ja": "書類“%1$@”を開けませんでした。%2$@",
+  "zh-Hans": "未能打开文稿“%1$@”。%2$@"
+ },
+ "The document “%1$@” could not be printed. %2$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht gedruckt werden. %2$@",
+  "es": "El documento “%1$@” no se ha podido imprimir. %2$@",
+  "fr": "Le document « %1$@ » n’a pas pu être imprimé. %2$@",
+  "ja": "書類“%1$@”をプリントできませんでした。%2$@",
+  "zh-Hans": "未能打印文稿“%1$@”。%2$@"
+ },
+ "The document “%1$@” could not be reverted. %2$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht zurückgesetzt werden. %2$@",
+  "es": "No se ha podido volver a la versión anterior del documento “%1$@”. %2$@",
+  "fr": "Le document « %1$@ » n’a pas pu revenir à la version antérieure. %2$@",
+  "ja": "書類“%1$@”を元に戻せませんでした。%2$@",
+  "zh-Hans": "未能复原文稿“%1$@”。%2$@"
+ },
+ "The document “%1$@” could not be saved as “%2$@”. %3$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht unter „%2$@“ gesichert werden. %3$@",
+  "es": "El documento “%1$@” no se ha podido guardar como “%2$@”. %3$@",
+  "fr": "Le document « %1$@ » n’a pas pu être enregistré comme « %2$@ ». %3$@",
+  "ja": "書類“%1$@”を“%2$@”として保存できませんでした。 %3$@",
+  "zh-Hans": "未能将文稿“%1$@”保存为“%2$@”。%3$@"
+ },
+ "The document “%1$@” could not be saved. %2$@": {
+  "de": "Das Dokument „%1$@“ konnte nicht gesichert werden. %2$@",
+  "es": "El documento “%1$@” no se ha podido guardar. %2$@",
+  "fr": "Le document « %1$@ » n’a pas pu être enregistré. %2$@",
+  "ja": "書類“%1$@”を保存できませんでした。%2$@",
+  "zh-Hans": "未能保存文稿“%1$@”。%2$@"
+ },
+ "The document “%1$@” couldn’t be opened because the volume “%2$@” couldn’t be mounted.": {
+  "de": "Das Dokument „%1$@“ konnte nicht geöffnet werden, da das Volume „%2$@“ nicht aktiviert werden konnte.",
+  "es": "No se ha podido abrir el documento “%1$@” porque el volumen “%2$@” no se ha podido montar.",
+  "fr": "Le document « %1$@ » n’a pas pu être ouvert, car le volume « %2$@ » n’a pas pu être monté.",
+  "ja": "ボリューム“%2$@”をマウントできなかったため、書類“%1$@”を開けませんでした。",
+  "zh-Hans": "未能打开文稿“%1$@”，因为未能装载宗卷“%2$@”。"
+ },
+ "The document “%@” couldn’t be opened because an unknown error occurred.": {
+  "de": "Das Dokument „%@“ konnte nicht geöffnet werden, da ein unbekannter Fehler aufgetreten ist.",
+  "es": "El documento “%@” no se ha podido abrir por un error desconocido.",
+  "fr": "Le document « %@ » n’a pas pu être ouvert car une erreur inconnue s’est produite.",
+  "ja": "不明なエラーが発生したため、“%@”という書類を開けませんでした。",
+  "zh-Hans": "无法打开文稿“%@”，因为发生了未知错误。"
+ },
+ "The document “%@” has been moved.": {
+  "de": "Das Dokument „%@“ wurde verschoben.",
+  "es": "El documento “%@” ha cambiado de ubicación.",
+  "fr": "Le document « %@ » a été déplacé.",
+  "ja": "書類“%@”は移動されています。",
+  "zh-Hans": "文稿“%@”已被移动。"
+ },
+ "The document “%@” is in the Trash.": {
+  "de": "Das Dokument „%@“ liegt im Papierkorb.",
+  "es": "El documento “%@” está en la papelera.",
+  "fr": "Le document « %@ » est dans la corbeille.",
+  "ja": "書類“%@”はゴミ箱の中にあります。",
+  "zh-Hans": "文稿“%@”在废纸篓中。"
+ },
+ "The document “%@” is on a volume that does not support permanent version storage.": {
+  "de": "Das Dokument „%@“ befindet sich auf einem Volume, das das permanente Sichern von Versionen nicht unterstützt.",
+  "es": "El documento “%@” se encuentra en un volumen incompatible con el almacenamiento permanente de versiones.",
+  "fr": "Le document « %@ » se trouve sur un volume qui ne prend pas en charge le stockage permanent de version.",
+  "ja": "書類“%@”があるボリュームは、バージョン履歴の保存には対応していません。",
+  "zh-Hans": "文稿“%@”所在的宗卷不支持永久性的版本储存。"
+ },
+ "The document “%@” is on a volume that is too small to support permanent version storage.": {
+  "de": "Das Dokument „%@“ befindet sich auf einem Volume, das zu klein ist, um die dauerhafte Speicherung von Versionen zu unterstützen.",
+  "es": "El documento “%@” se encuentra en un volumen demasiado pequeño para ser compatible con el almacenamiento permanente de versiones.",
+  "fr": "Le document « %@ » se trouve sur un volume trop petit pour prendre en charge le stockage permanent de version.",
+  "ja": "書類“%@”があるボリュームは小さすぎるため、バージョン履歴の保存には対応できません。",
+  "zh-Hans": "文稿“%@”所在的宗卷太小，不支持永久性的版本储存。"
+ },
+ "The file cannot be found.": {
+  "de": "Der Datei wurde nicht gefunden.",
+  "es": "No se encuentra el archivo.",
+  "fr": "Le fichier est introuvable.",
+  "ja": "ファイルが見つかりません。",
+  "zh-Hans": "找不到文件。"
+ },
+ "The file cannot be unlocked.": {
+  "de": "Die Datei kann nicht entsperrt werden.",
+  "es": "El archivo no se puede desbloquear.",
+  "fr": "Le fichier ne peut être déverrouillé.",
+  "ja": "このファイルのロックを解除できません。",
+  "zh-Hans": "无法解锁文件。"
+ },
+ "The file has been changed by another application.": {
+  "de": "Die Datei wurde von einem anderen Programm geändert.",
+  "es": "Otra aplicación ha modificado el archivo.",
+  "fr": "Le fichier a été modifié par une autre application.",
+  "ja": "このファイルは、別のアプリケーションによって変更されました。",
+  "zh-Hans": "该文件已被其他应用程序更改。"
+ },
+ "The file hasn’t been changed recently.": {
+  "de": "Die Datei wurde schon länger nicht geändert.",
+  "es": "El archivo no se ha modificado recientemente.",
+  "fr": "Le fichier n’a pas été modifié récemment.",
+  "ja": "このファイルは最近変更されていません。",
+  "zh-Hans": "该文件最近尚未更改。"
+ },
+ "The file is in a location not intended for editing.": {
+  "de": "Die Datei befindet sich an einem Ort, der für die Bearbeitung nicht vorgesehen ist.",
+  "es": "El archivo está en una ubicación no destinada para la edición.",
+  "fr": "Le fichier se trouve à un emplacement où les modifications ne sont pas prévues.",
+  "ja": "編集を意図していない場所にファイルがあります。",
+  "zh-Hans": "文件的所在位置不是专用于编辑的位置。"
+ },
+ "The file is locked because it is in the Trash.": {
+  "de": "Die Datei ist geschützt, da sie sich im Papierkorb befindet.",
+  "es": "El archivo está bloqueado porque está en la papelera.",
+  "fr": "Le fichier est verrouillé car il se trouve dans la corbeille.",
+  "ja": "ファイルはゴミ箱の中にあるためロックされています。",
+  "zh-Hans": "文件已锁定，因为在废纸篓中。"
+ },
+ "The file is locked.": {
+  "de": "Die Datei ist geschützt.",
+  "es": "El archivo está bloqueado.",
+  "fr": "Le fichier est verrouillé.",
+  "ja": "ファイルがロックされています。",
+  "zh-Hans": "文件被锁定。"
+ },
+ "The file is on a read-only volume and cannot be unlocked.": {
+  "de": "Die Datei ist auf einem schreibgeschützten Volume und kann nicht entsperrt werden.",
+  "es": "El archivo se encuentra en un volumen de solo lectura y no se puede desbloquear.",
+  "fr": "Ce fichier est situé sur un volume en lecture seule et ne peut être déverrouillé.",
+  "ja": "このファイルはアクセス権が読み出しのみに設定されているボリュームにあるため、ロックを解除できません。",
+  "zh-Hans": "文件在只读宗卷，无法解锁。"
+ },
+ "The file “%@” cannot be found.": {
+  "de": "Die Datei „%@“ wurde nicht gefunden.",
+  "es": "No se encuentra el archivo “%@”.",
+  "fr": "Le fichier « %@ » est introuvable.",
+  "ja": "ファイル“%@”が見つかりません。",
+  "zh-Hans": "找不到文件“%@”。"
+ },
+ "The file “%@” cannot be unlocked.": {
+  "de": "Die Datei „%@“ kann nicht entsperrt werden.",
+  "es": "El archivo “%@” no se puede desbloquear.",
+  "fr": "Le fichier « %@ » ne peut être déverrouillé.",
+  "ja": "ファイル“%@”のロックを解除できません。",
+  "zh-Hans": "无法解锁文件“%@”。"
+ },
+ "The file “%@” hasn’t been changed recently. Are you sure you want to edit it?": {
+  "de": "Die Datei „%@“ wurde schon länger nicht geändert. Möchtest du sie wirklich bearbeiten?",
+  "es": "El archivo “%@” no se ha modificado recientemente. ¿Seguro que quieres editarlo?",
+  "fr": "Le fichier « %@ » n’a pas été modifié récemment. Souhaitez-vous vraiment le modifier ?",
+  "ja": "ファイル“%@”は最近変更されていません。本当に編集しますか?",
+  "zh-Hans": "文件“%@”最近尚未更改。确定要编辑该文件吗？"
+ },
+ "The file “%@” is in a location not intended for editing.": {
+  "de": "Die Datei „%@“ befindet sich an einem Ort, der für die Bearbeitung nicht vorgesehen ist.",
+  "es": "El archivo “%@” se encuentra en una ubicación no destinada para la edición.",
+  "fr": "Le fichier « %@ » se trouve à un emplacement où les modifications ne sont pas prévues.",
+  "ja": "編集を意図していない場所にファイル“%@”があります。",
+  "zh-Hans": "文件“%@”的所在位置不是专用于编辑的位置。"
+ },
+ "The file “%@” is locked because it is in the Trash.": {
+  "de": "Die Datei „%@“ ist geschützt, da sie sich im Papierkorb befindet.",
+  "es": "El archivo “%@” está bloqueado porque está en la papelera.",
+  "fr": "Le fichier « %@ » est verrouillé car il se trouve dans la corbeille.",
+  "ja": "ファイル“%@”はゴミ箱の中にあるためロックされています。",
+  "zh-Hans": "文件“%@”已锁定，因为在废纸篓中。"
+ },
+ "The file “%@” is locked.": {
+  "de": "Die Datei „%@“ ist geschützt.",
+  "es": "El archivo “%@” está bloqueado",
+  "fr": "Le fichier « %@ » est verrouillé.",
+  "ja": "ファイル“%@”がロックされています。",
+  "zh-Hans": "文件“%@”已被锁定。"
+ },
+ "The file “%@” is on a read-only volume and cannot be unlocked.": {
+  "de": "Die Datei „%@“ ist auf einem schreibgeschützten Volume und kann nicht entsperrt werden.",
+  "es": "El archivo “%@” se encuentra en un volumen de solo lectura y no se puede desbloquear.",
+  "fr": "Ce fichier « %@ » est situé sur un volume en lecture seule et ne peut être déverrouillé.",
+  "ja": "ファイル“%@”はアクセス権が読み出しのみに設定されているボリュームにあるため、ロックを解除できません。",
+  "zh-Hans": "文件“%@”在只读宗卷，无法解锁。"
+ },
+ "The location of the document “%@” cannot be determined.": {
+  "de": "Der Ort des Dokuments „%@“ konnte nicht festgestellt werden.",
+  "es": "Imposible encontrar la ubicación del documento “%@”.",
+  "fr": "L’emplacement du document « %@ » n’a pu être déterminé.",
+  "ja": "書類“%@”の場所を判断できません。",
+  "zh-Hans": "不能确定文稿“%@”的位置。"
+ },
+ "The name “%@” can’t be used.": {
+  "de": "Der Name „%@“ kann nicht verwendet werden.",
+  "es": "No puede utilizarse el nombre “%@”.",
+  "fr": "Le nom « %@ » ne peut être utilisé.",
+  "ja": "“%@”という名前は使用できません。",
+  "zh-Hans": "不能使用名称“%@”。"
+ },
+ "The open file operation failed to connect to the open and save panel service.": {
+  "de": "Der Vorgang „Datei öffnen“ konnte sich nicht mit dem Bereichsdienst „Öffnen und Sichern“ verbinden.",
+  "es": "Error de conexión al servicio del panel “Abrir y guardar” al abrir el archivo.",
+  "fr": "L’ouverture de fichier n’a pas réussi à se connecter au service d’ouverture et d’enregistrement de la sous-fenêtre.",
+  "ja": "ファイルを開く/保存パネルのサービスに接続できませんでした。",
+  "zh-Hans": "打开文件操作未能连接打开和保存面板服务。"
+ },
+ "The open file operation failed.": {
+  "de": "Der Vorgang „Datei öffnen“ ist fehlgeschlagen.",
+  "es": "Error al abrir el archivo.",
+  "fr": "L’ouverture de fichier a échoué.",
+  "ja": "ファイルを開く操作に失敗しました。",
+  "zh-Hans": "打开文件操作失败。"
+ },
+ "The original document can’t be changed, so a duplicate with your changes has been created.": {
+  "de": "Das Originaldokument kann nicht geändert werden. Daher wurde ein Duplikat mit deinen Änderungen erstellt.",
+  "es": "El documento original no puede cambiarse, así que se ha creado un duplicado con tus cambios.",
+  "fr": "Le document original ne peut être modifié : une copie qui contient vos modifications a été créée.",
+  "ja": "元の書類を変更できないため、変更内容を含む複製が作成されました。",
+  "zh-Hans": "不能更改原始文稿，因此已创建包含你的更改的副本。"
+ },
+ "The original document “%1$@” could not be reverted. %2$@": {
+  "de": "Das Originaldokument „%1$@“ konnte nicht zurückgesetzt werden. %2$@",
+  "es": "No se ha podido volver a la versión anterior del documento original “%1$@”. %2$@",
+  "fr": "Impossible de rétablir le document d’origine « %1$@ ». %2$@",
+  "ja": "元の書類“%1$@”を元に戻せませんでした。%2$@",
+  "zh-Hans": "未能复原原始文稿“%1$@”。%2$@"
+ },
+ "The panel could not be displayed.": {
+  "de": "Der Bereich konnte nicht angezeigt werden.",
+  "es": "No se ha podido mostrar el panel.",
+  "fr": "La sous-fenêtre ne peut pas être affichée.",
+  "ja": "パネルを表示できませんでした。",
+  "zh-Hans": "面板无法显示。"
+ },
+ "The recent document “%@” could not be opened.": {
+  "de": "Das zuletzt benutzte Dokument „%@“ konnte nicht geöffnet werden.",
+  "es": "El documento reciente “%@” no ha podido abrirse.",
+  "fr": "Le document récent « %@ » n’a pu être ouvert.",
+  "ja": "最近使った書類“%@”を開けませんでした。",
+  "zh-Hans": "最近使用过的文稿“%@”未能打开。"
+ },
+ "The recent document “%@” is missing.": {
+  "de": "Das zuletzt benutzte Dokument „%@“ fehlt.",
+  "es": "Imposible encontrar el documento reciente “%@”.",
+  "fr": "Le document récent « %@ » est introuvable.",
+  "ja": "最近使った書類“%@”が見つかりません。",
+  "zh-Hans": "最近使用过的文稿“%@”已丢失。"
+ },
+ "The save file operation failed to connect to the open and save panel service.": {
+  "de": "Der Vorgang „Datei sichern“ konnte sich nicht mit dem Bereichsdienst „Öffnen und Sichern“ verbinden.",
+  "es": "Error de conexión al servicio del panel “Abrir y guardar” al guardar el archivo.",
+  "fr": "L’enregistrement de fichier n’a pas réussi à se connecter au service d’ouverture et d’enregistrement de la sous-fenêtre.",
+  "ja": "ファイルを開く/保存パネルのサービスに接続できませんでした。",
+  "zh-Hans": "保存文件操作未能连接打开和保存面板服务。"
+ },
+ "The save file operation failed.": {
+  "de": "Der Vorgang „Datei sichern“ ist fehlgeschlagen.",
+  "es": "Error al guardar el archivo.",
+  "fr": "L’enregistrement de fichier a échoué.",
+  "ja": "ファイルの保存操作に失敗しました。",
+  "zh-Hans": "保存文件操作失败。"
+ },
+ "The volume “%@” couldn’t be mounted.": {
+  "de": "Das Volume „%@“ konnte nicht aktiviert werden.",
+  "es": "No se ha podido montar el volumen “%@”.",
+  "fr": "Le volume « %@ » n’a pas pu être monté.",
+  "ja": "ボリューム“%@”をマウントできませんでした。",
+  "zh-Hans": "宗卷“%@”未能装载。"
+ },
+ "There is not enough space to save this document to iCloud.": {
+  "de": "Der Speicherplatz reicht nicht aus, um dieses Dokument in iCloud zu sichern.",
+  "es": "No hay suficiente espacio para guardar este documento en iCloud.",
+  "fr": "L’espace est insuffisant pour enregistrer ce document sur iCloud.",
+  "ja": "この書類をiCloudに保存するために十分な空き領域がありません。",
+  "zh-Hans": "iCloud上没有足够的空间来保存此文稿。"
+ },
+ "This document can no longer be used because its file has become unreadable, so it must be closed.": {
+  "de": "Dieses Dokument kann nicht mehr verwendet werden, da die Datei nicht mehr lesbar ist. Es wird deshalb geschlossen.",
+  "es": "Este documento ya no se puede utilizar porque su archivo no se puede leer, así que debe cerrarse.",
+  "fr": "Ce document ne peut être utilisé car le fichier est désormais illisible ; il doit être fermé.",
+  "ja": "この書類は、ファイルが読み取り不可になったために使用できなくなりました。閉じる必要があります。",
+  "zh-Hans": "此文稿已不再可用，因为其文件已不可读，因此必须将它关闭。"
+ },
+ "This document can’t be shared because it is in the Trash.": {
+  "de": "Dieses Dokument kann nicht geteilt werden, da es sich im Papierkorb befindet.",
+  "es": "Este documento no se puede abrir porque está en la papelera.",
+  "fr": "Ce document ne peut pas être partagé car il se trouve dans la corbeille.",
+  "ja": "この書類はゴミ箱の中にあるため共有できません。",
+  "zh-Hans": "不能共享此文稿，因为它在废纸篓中。"
+ },
+ "This document has been renamed to “%@”.": {
+  "de": "Dieses Dokument wurde in „%@“ umbenannt.",
+  "es": "El nuevo nombre del documento es “%@”.",
+  "fr": "Ce document a été renommé « %@ ».",
+  "ja": "この書類の名前は“%@”に変更されています。",
+  "zh-Hans": "此文稿已重新命名为“%@”。"
+ },
+ "This document hasn’t been edited recently.": {
+  "de": "Dieses Dokument wurde schon länger nicht geändert.",
+  "es": "Este documento no se ha editado recientemente.",
+  "fr": "Ce document n’a pas été modifié récemment.",
+  "ja": "この書類は最近編集されていません。",
+  "zh-Hans": "此文稿最近尚未编辑。"
+ },
+ "This document is in the Trash.": {
+  "de": "Dieses Dokument liegt im Papierkorb.",
+  "es": "Este documento está en la papelera.",
+  "fr": "Ce document est dans la corbeille.",
+  "ja": "この書類はゴミ箱の中にあります。",
+  "zh-Hans": "此文稿在废纸篓中。"
+ },
+ "This document is no longer available.": {
+  "de": "Dieses Dokument ist nicht mehr verfügbar.",
+  "es": "Este documento ya no está disponible.",
+  "fr": "Ce document n’est plus disponible.",
+  "ja": "この書類は使用できなくなりました。",
+  "zh-Hans": "此文稿不再可用。"
+ },
+ "This document’s file has been changed by another application since you opened or saved it.": {
+  "de": "Die Datei dieses Dokuments wurde von einem anderen Programm geändert, seitdem du sie das letzte Mal geöffnet oder gesichert hast.",
+  "es": "Desde la última vez que abriste o guardaste el archivo de este documento, ha sido modificado por otra aplicación.",
+  "fr": "Le fichier de ce document a été modifié par une autre application depuis que vous l’avez ouvert ou enregistré pour la dernière fois.",
+  "ja": "この書類は、最後に開いたか保存した後に、別のアプリケーションによって変更されています。",
+  "zh-Hans": "自你打开或保存此文稿以来，它的文件已被另一个应用程序所更改。"
+ },
+ "This document’s file has been changed by another application.": {
+  "de": "Die Datei dieses Dokuments wurde von einem anderen Programm geändert.",
+  "es": "Otra aplicación ha modificado el archivo de este documento.",
+  "fr": "Le fichier de ce document a été modifié par une autre application.",
+  "ja": "この書類のファイルは、別のアプリケーションによって変更されました。",
+  "zh-Hans": "该文稿的文件已被其他应用程序更改。"
+ },
+ "This presentation is no longer available.": {
+  "de": "Diese Präsentation ist nicht mehr verfügbar.",
+  "es": "Esta presentación ya no está disponible.",
+  "fr": "Cette présentation n’est plus disponible.",
+  "ja": "このプレゼンテーションは使用できなくなりました。",
+  "zh-Hans": "此演示文稿不再可用。"
+ },
+ "This spreadsheet is no longer available.": {
+  "de": "Diese Tabelle ist nicht mehr verfügbar.",
+  "es": "Esta hoja de cálculo ya no está disponible.",
+  "fr": "Cette feuille de calcul n’est plus disponible.",
+  "ja": "このスプレッドシートは使用できなくなりました。",
+  "zh-Hans": "此电子表格不再可用。"
+ },
+ "This version is stored in Time Machine and cannot be deleted.": {
+  "de": "Diese Version ist in Time Machine gespeichert und kann nicht gelöscht werden.",
+  "es": "Esta versión está guardada en Time Machine y no se puede eliminar.",
+  "fr": "Cette version est stockée dans Time Machine est ne peut pas être supprimée.",
+  "ja": "このバージョンはTime Machineに保存されているため削除できません。",
+  "zh-Hans": "此版本储存在时间机器中，无法删除。"
+ },
+ "This word may not agree with the rest of the sentence.": {
+  "de": "Dieses Wort passt möglicherweise nicht zum Rest des Satzes.",
+  "es": "Es posible que esta palabra no concuerde con el resto de la frase.",
+  "fr": "Il se peut que ce mot ne soit pas en accord avec le reste de la phrase.",
+  "ja": "この単語は文の残りの部分に合わない可能性があります。",
+  "zh-Hans": "这个词可能不适合句子的语境。"
+ },
+ "This word was not found in the spelling dictionary.": {
+  "de": "Dieses Wort wurde im Rechtschreibwörterbuch nicht gefunden.",
+  "es": "No se ha encontrado esta palabra en el diccionario de ortografía.",
+  "fr": "Ce mot est introuvable dans le dictionnaire orthographique.",
+  "ja": "この単語はスペル辞書に見つかりませんでした。",
+  "zh-Hans": "在拼写词典中找不到这个词。"
+ },
+ "Tile Window to Left of Screen": {
+  "de": "Fenster auf der linken Bildschirmseite anordnen",
+  "es": "Ajustar ventana a la izquierda de la pantalla",
+  "fr": "Placer la fenêtre à gauche de l’écran",
+  "ja": "ウインドウを画面左側にタイル表示",
+  "zh-Hans": "将窗口平铺到屏幕左侧"
+ },
+ "Tile Window to Right of Screen": {
+  "de": "Fenster auf der rechten Bildschirmseite anordnen",
+  "es": "Ajustar ventana a la derecha de la pantalla",
+  "fr": "Placer la fenêtre à droite de l’écran",
+  "ja": "ウインドウを画面右側にタイル表示",
+  "zh-Hans": "将窗口平铺到屏幕右侧"
+ },
+ "To add people to this document, move it to iCloud.": {
+  "de": "Um Personen zu diesem Dokument hinzuzufügen, bewege es in iCloud.",
+  "es": "Para añadir personas a este documento, trasládalo a iCloud.",
+  "fr": "Pour ajouter des personnes à ce document, déplacez-le vers iCloud.",
+  "ja": "この書類に人を追加するには、iCloudに移動してください。",
+  "zh-Hans": "若要为此文稿添加用户，请将其移到iCloud。"
+ },
+ "To manage collaboration settings, get the latest version of Keynote from the Mac App Store or use Keynote on iCloud.com.": {
+  "de": "Zum Verwalten der Zusammenarbeitseinstellungen musst du die neueste Version von Keynote aus dem Mac App Store herunterladen oder Keynote auf iCloud.com verwenden.",
+  "es": "Para gestionar los ajustes de colaboración, obtén la versión más reciente de Keynote en Mac App Store o utiliza Keynote en iCloud.com.",
+  "fr": "Pour gérer les réglages de collaboration, obtenez la dernière version de Keynote dans le Mac App Store ou utilisez Keynote sur iCloud.com.",
+  "ja": "共同作業設定を管理するには、Mac App Storeから最新バージョンのKeynoteを入手するか、iCloud.comのKeynoteを使用してください。",
+  "zh-Hans": "若要管理协作设置，请从Mac App Store获取最新版本的Keynote讲演或者使用iCloud.com上的Keynote讲演。"
+ },
+ "To manage collaboration settings, get the latest version of Numbers from the Mac App Store or use Numbers on iCloud.com.": {
+  "de": "Zum Verwalten der Zusammenarbeitseinstellungen musst du die neueste Version von Numbers aus dem Mac App Store herunterladen oder Numbers auf iCloud.com verwenden.",
+  "es": "Para gestionar los ajustes de colaboración, obtén la versión más reciente de Numbers en Mac App Store o utiliza Numbers en iCloud.com.",
+  "fr": "Pour gérer les réglages de collaboration, obtenez la dernière version de Numbers dans le Mac App Store ou utilisez Numbers sur iCloud.com.",
+  "ja": "共同作業設定を管理するには、Mac App Storeから最新バージョンのNumbersを入手するか、iCloud.comのNumbersを使用してください。",
+  "zh-Hans": "若要管理协作设置，请从Mac App Store获取最新版本的Numbers表格或者使用iCloud.com上的Numbers表格。"
+ },
+ "To manage collaboration settings, get the latest version of Pages from the Mac App Store or use Pages on iCloud.com.": {
+  "de": "Zum Verwalten der Zusammenarbeitseinstellungen musst du die neueste Version von Pages aus dem Mac App Store herunterladen oder Pages auf iCloud.com verwenden.",
+  "es": "Para gestionar los ajustes de colaboración, obtén la versión más reciente de Pages en Mac App Store o utiliza Pages en iCloud.com.",
+  "fr": "Pour gérer les réglages de collaboration, obtenez la dernière version de Pages dans le Mac App Store ou utilisez Pages sur iCloud.com.",
+  "ja": "共同作業設定を管理するには、Mac App Storeから最新バージョンのPagesを入手するか、iCloud.comのPagesを使用してください。",
+  "zh-Hans": "若要管理协作设置，请从Mac App Store获取最新版本的Pages文稿或者使用iCloud.com上的Pages文稿。"
+ },
+ "To print this file, you must set up a printer.": {
+  "de": "Um diese Datei ausdrucken zu können, musst du zunächst einen Drucker konfigurieren.",
+  "es": "Para imprimir este archivo, debes configurar una impresora.",
+  "fr": "Vous devez configurer une imprimante avant d’imprimer ce fichier.",
+  "ja": "このファイルをプリントするには、プリンタを設定する必要があります。",
+  "zh-Hans": "若要打印此文件，你必须设置一台打印机。"
+ },
+ "To set up a printer, choose Apple menu > System Settings, click Printers & Scanners, and then click the Add (+) button.": {
+  "de": "Zum Einrichten eines Druckers wähle im Apple-Menü die Option „Systemeinstellungen“, klicke auf „Drucker & Scanner“ und anschließend auf die Taste „+“ (Hinzufügen).",
+  "es": "Para configurar una impresora, selecciona menú Apple > Ajustes del Sistema, haz clic en “Impresoras y escáneres” y, a continuación, haz clic en el botón Añadir (+).",
+  "fr": "Pour configurer une imprimante, choisissez le menu Pomme > Réglages Système, cliquez sur « Imprimantes et scanners », puis sur le bouton Ajouter (+).",
+  "ja": "プリンタを設定するには、アップルメニュー＞“システム設定”と選択し、“プリンタとスキャナ”をクリックしてから、“追加”（+）ボタンをクリックします。",
+  "zh-Hans": "若要设置打印机，请选取苹果菜单 >“系统设置”，点按“打印机与扫描仪”，然后点按添加按钮(+)。"
+ },
+ "To share this document, get the latest version of Pages from the Mac App Store or use Pages on iCloud.com.": {
+  "de": "Zum Teilen dieses Dokuments musst du die neueste Version von Pages aus dem Mac App Store herunterladen oder Pages auf iCloud.com verwenden.",
+  "es": "Para compartir este documento, obtén la versión más reciente de Pages en Mac App Store o utiliza Pages en iCloud.com.",
+  "fr": "Pour partager ce document, téléchargez la dernière version de Pages dans le Mac App Store ou utilisez Pages sur iCloud.com.",
+  "ja": "この書類を共有するには、Mac App Storeから最新バージョンのPagesを入手するか、iCloud.comのPagesを使用してください。",
+  "zh-Hans": "若要共享此文稿，请从Mac App Store获取最新版本的Pages文稿或者使用iCloud.com上的Pages文稿。"
+ },
+ "To share this presentation, get the latest version of Keynote from the Mac App Store or use Keynote on iCloud.com.": {
+  "de": "Zum Teilen dieser Präsentation musst du die neueste Version von Keynote aus dem Mac App Store herunterladen oder Keynote auf iCloud.com verwenden.",
+  "es": "Para compartir esta presentación, obtén la versión más reciente de Keynote en Mac App Store o utiliza Keynote en iCloud.com.",
+  "fr": "Pour partager cette présentation, téléchargez la dernière version de Keynote dans le Mac App Store ou utilisez Keynote sur iCloud.com.",
+  "ja": "このプレゼンテーションを共有するには、Mac App Storeから最新バージョンのKeynoteを入手するか、iCloud.comのKeynoteを使用してください。",
+  "zh-Hans": "若要共享此讲演文稿，请从Mac App Store获取最新版本的Keynote讲演或者使用iCloud.com上的Keynote讲演。"
+ },
+ "To share this spreadsheet, get the latest version of Numbers from the Mac App Store or use Numbers on iCloud.com.": {
+  "de": "Zum Teilen dieser Tabellenkalkulation musst du die neueste Version von Numbers aus dem Mac App Store herunterladen oder Numbers auf iCloud.com verwenden.",
+  "es": "Para compartir esta hoja de cálculo, obtén la versión más reciente de Numbers en Mac App Store o utiliza Numbers en iCloud.com.",
+  "fr": "Pour partager cette feuille de calcul, téléchargez la dernière version de Numbers dans le Mac App Store ou utilisez Numbers sur iCloud.com.",
+  "ja": "このスプレッドシートを共有するには、Mac App Storeから最新バージョンのNumbersを入手するか、iCloud.comのNumbersを使用してください。",
+  "zh-Hans": "若要共享此电子表格，请从Mac App Store获取最新版本的Numbers表格或者使用iCloud.com上的Numbers表格。"
+ },
+ "Toggle Inspector": {
+  "de": "Informationen ein-/ausblenden",
+  "es": "Mostrar/ocultar inspector",
+  "fr": "Afficher/masquer l’inspecteur",
+  "ja": "インスペクタの表示/非表示を切り替える",
+  "zh-Hans": "切换检查器"
+ },
+ "Top": {
+  "de": "Oben",
+  "es": "Superior",
+  "fr": "Haut",
+  "ja": "上",
+  "zh-Hans": "顶部"
+ },
+ "Top & Bottom": {
+  "de": "Oben & Unten",
+  "es": "Superior e inferior",
+  "fr": "Haut et bas",
+  "ja": "上と下",
+  "zh-Hans": "顶部与底部"
+ },
+ "Top & Quarters": {
+  "de": "Oben & Viertel",
+  "es": "Superior y cuartos",
+  "fr": "Haut et quarts",
+  "ja": "上と4分割",
+  "zh-Hans": "顶部与四等分"
+ },
+ "Top Left": {
+  "de": "Oben links",
+  "es": "Parte superior izquierda",
+  "fr": "En haut à gauche",
+  "ja": "左上",
+  "zh-Hans": "左上"
+ },
+ "Top Right": {
+  "de": "Oben rechts",
+  "es": "Parte superior derecha",
+  "fr": "En haut à droite",
+  "ja": "右上",
+  "zh-Hans": "右上"
+ },
+ "Try using a name with fewer characters, or with no punctuation marks.": {
+  "de": "Versuche, einen Namen mit weniger Zeichen oder ohne Satzzeichen zu verwenden.",
+  "es": "Intenta utilizar un nombre con menos caracteres o sin signos de puntuación.",
+  "fr": "Essayez d’utiliser un nom comportant moins de caractères ou ne présentant aucun signe de ponctuation.",
+  "ja": "もっと少ない文字数にするか、句読点記号のない別の名前を使用してください。",
+  "zh-Hans": "请尝试使用字符较少，或不含标点符号的名称。"
+ },
+ "Unable to grant permissions to “%@” because it is no longer in the given location.": {
+  "de": "„%@“ konnten keine Berechtigungen erteilt werden, da sich die Datei nicht mehr am angegebenen Ort befindet.",
+  "es": "No se puede dar permiso para acceder a “%@” porque ya no está en esa ubicación.",
+  "fr": "Impossible d’accorder les autorisations à « %@ » car cet élément n’est plus à l’emplacement indiqué.",
+  "ja": "もう指定された場所にないため、“%@”へのアクセス権を与えることはできません。",
+  "zh-Hans": "无法将权限授予“%@”，因为它已不在给定的位置。"
+ },
+ "Unable to open “%@” due to an internal permissions error.": {
+  "de": "„%@“ konnte aufgrund eines internen Berechtigungsfehlers nicht geöffnet werden.",
+  "es": "No se puede abrir “%@” por un error de permisos interno.",
+  "fr": "Impossible d’ouvrir « %@ » en raison d’une erreur d’autorisation interne.",
+  "ja": "内部のアクセス権エラーにより“%@”を開けません。",
+  "zh-Hans": "因为内部权限错误，无法打开“%@”。"
+ },
+ "Undo Smart Dash": {
+  "de": "Intelligenten Bindestrich widerrufen",
+  "es": "Deshacer guion inteligente",
+  "fr": "Annuler Tirets intelligents",
+  "ja": "スマートダッシュ記号の取り消し",
+  "zh-Hans": "撤销智能破折号"
+ },
+ "Undo Smart Quote": {
+  "de": "Intelligente Anführungszeichen widerrufen",
+  "es": "Deshacer comilla tipográfica",
+  "fr": "Annuler Guillemets courbes",
+  "ja": "スマート引用符の取り消し",
+  "zh-Hans": "撤销智能引号"
+ },
+ "Unlearn Grammar": {
+  "de": "Grammatik verlernen",
+  "es": "Descartar gramática",
+  "fr": "Oublier ce point de grammaire",
+  "ja": "文法を削除",
+  "zh-Hans": "忘记语法"
+ },
+ "Unlearn Spelling": {
+  "de": "Rechtschreibung verlernen",
+  "es": "Descartar ortografía",
+  "fr": "Oublier l’orthographe",
+  "ja": "スペルを削除",
+  "zh-Hans": "忘记拼写"
+ },
+ "Unlock": {
+  "de": "Schutz aufheben",
+  "es": "Desbloquear",
+  "fr": "Déverrouiller",
+  "ja": "ロックを解除",
+  "zh-Hans": "解锁"
+ },
+ "Unpin Tab": {
+  "de": "Tab loslösen",
+  "es": "Desanclar pestaña",
+  "fr": "Ne plus épingler l’onglet",
+  "ja": "タブを固定解除",
+  "zh-Hans": "取消固定标签页"
+ },
+ "Unsaved %1$@ Document %2$ld": {
+  "de": "Ungesichertes %1$@-Dokument %2$ld",
+  "es": "Documento de %1$@ sin guardar %2$ld",
+  "fr": "Document %1$@ %2$ld non enregistré",
+  "ja": "保存されていない%1$@書類%2$ld",
+  "zh-Hans": "未保存的“%1$@”文稿%2$ld"
+ },
+ "Unsaved %@ Document": {
+  "de": "Ungesichertes %@-Dokument",
+  "es": "Documento de %@ no guardado",
+  "fr": "Document %@ non enregistré",
+  "ja": "保存されていない%@書類",
+  "zh-Hans": "未保存的“%@”文稿"
+ },
+ "Untitled": {
+  "de": "Ohne Titel",
+  "es": "Sin título",
+  "fr": "Sans titre",
+  "ja": "名称未設定",
+  "zh-Hans": "未命名"
+ },
+ "Untitled (%@)": {
+  "de": "Ohne Titel (%@)",
+  "es": "Sin título (%@)",
+  "fr": "Sans titre (%@)",
+  "ja": "名称未設定（%@）",
+  "zh-Hans": "未命名（%@）"
+ },
+ "Upgrade Storage": {
+  "de": "Speicher erweitern",
+  "es": "Ampliar almacenamiento",
+  "fr": "Mettre à niveau le stockage",
+  "ja": "ストレージをアップグレード",
+  "zh-Hans": "升级储存空间"
+ },
+ "Uppercase": {
+  "de": "Großbuchstaben",
+  "es": "Mayúsculas",
+  "fr": "Majuscules",
+  "ja": "大文字",
+  "zh-Hans": "大写"
+ },
+ "Use .%@": {
+  "de": "„.%@“ verwenden",
+  "es": "Usar .%@",
+  "fr": "Utiliser .%@",
+  "ja": "“.%@”を使用",
+  "zh-Hans": "使用.%@"
+ },
+ "Use Both": {
+  "de": "Beide verwenden",
+  "es": "Usar ambos",
+  "fr": "Utiliser les deux",
+  "ja": "両方を使用",
+  "zh-Hans": "使用两者"
+ },
+ "Use Default Set": {
+  "de": "Standardsatz verwenden",
+  "es": "Utilizar conjunto por omisión",
+  "fr": "Utiliser l’ensemble par défaut",
+  "ja": "デフォルトセットを使用",
+  "zh-Hans": "使用默认组"
+ },
+ "Use “.”": {
+  "de": "„.“ verwenden",
+  "es": "Usar “.”",
+  "fr": "Utiliser « . »",
+  "ja": "“.”を使用",
+  "zh-Hans": "使用“.”"
+ },
+ "Using disc drive…": {
+  "de": "Laufwerk verwenden …",
+  "es": "Usando la unidad de disco…",
+  "fr": "Utilisation du lecteur de disque…",
+  "ja": "ディスクドライブを使用中…",
+  "zh-Hans": "正在使用光盘驱动器…"
+ },
+ "View": {
+  "de": "Darstellung",
+  "es": "Visualización",
+  "fr": "Présentation",
+  "ja": "表示",
+  "zh-Hans": "显示"
+ },
+ "Waiting for disc drive…": {
+  "de": "Warten auf das Laufwerk …",
+  "es": "Esperando a la unidad de disco…",
+  "fr": "Attente du lecteur de disque…",
+  "ja": "ディスクドライブを待っています…",
+  "zh-Hans": "正在等待光盘驱动器…"
+ },
+ "Warning": {
+  "de": "Achtung",
+  "es": "Advertencia",
+  "fr": "Attention",
+  "ja": "警告",
+  "zh-Hans": "警告"
+ },
+ "Window": {
+  "de": "Fenster",
+  "es": "Ventana",
+  "fr": "Fenêtre",
+  "ja": "ウインドウ",
+  "zh-Hans": "窗口"
+ },
+ "Writing Tools": {
+  "de": "Schreibtools",
+  "es": "Herramientas de escritura",
+  "fr": "Outils d’écriture",
+  "ja": "作文ツール",
+  "zh-Hans": "写作工具"
+ },
+ "Yahoo!": {
+  "de": "Yahoo!",
+  "es": "Yahoo!",
+  "fr": "Yahoo!",
+  "ja": "Yahoo!",
+  "zh-Hans": "Yahoo!"
+ },
+ "You can choose to save your changes, or delete this copy immediately. The original attachment in Mail will not be modified. You can’t undo this action.": {
+  "de": "Du kannst wählen, ob deine Änderungen gesichert oder diese Kopie sofort gelöscht werden soll. Der Originalanhang in Mail wird nicht geändert. Du kannst diese Aktion nicht widerrufen.",
+  "es": "Puedes guardar los cambios o eliminar esta copia inmediatamente. El archivo adjunto original no se modificará en Mail. Esta acción no se puede deshacer.",
+  "fr": "Vous pouvez choisir d’enregistrer vos modifications ou de supprimer cette copie immédiatement. La pièce jointe originale dans Mail ne sera pas modifiée. Cette action est irréversible.",
+  "ja": "変更内容を保存するか、このコピーを今すぐ削除するかを選択できます。“メール”内の元の添付ファイルは変更されません。この操作は取り消せません。",
+  "zh-Hans": "你可以选取保存更改或立即删除此副本。“邮件”中的原始附件将不被修改。此操作无法撤销。"
+ },
+ "You can choose to save your changes, or delete this copy immediately. The original document will not be modified. You can’t undo this action.": {
+  "de": "Du kannst wählen, ob deine Änderungen gesichert oder diese Kopie sofort gelöscht werden soll. Das Originaldokument wird nicht geändert. Du kannst diese Aktion nicht widerrufen.",
+  "es": "Puedes guardar los cambios o eliminar esta copia inmediatamente. El documento original no se modificará. Esta acción no se puede deshacer.",
+  "fr": "Vous pouvez choisir d’enregistrer vos modifications ou de supprimer cette copie immédiatement. Le document original ne sera pas modifié. Vous ne pouvez pas annuler cette action.",
+  "ja": "変更内容を保存するか、このコピーを今すぐ削除するかを選択できます。元の書類は変更されません。この操作は取り消せません。",
+  "zh-Hans": "你可以选取保存更改，或者立即删除此副本。原始文稿将不被修改。此操作无法撤销。"
+ },
+ "You can choose to save your changes, or delete this document immediately. You can’t undo this action.": {
+  "de": "Du kannst deine Änderungen sichern oder das Dokument sofort löschen. Diese Aktion kann nicht widerrufen werden.",
+  "es": "Puedes guardar los cambios o eliminar este documento inmediatamente. Esta acción no se puede deshacer.",
+  "fr": "Vous pouvez choisir d’enregistrer vos modifications ou de supprimer ce document immédiatement. Vous ne pouvez pas annuler cette action.",
+  "ja": "変更内容を保存するか、この書類を今すぐ削除するかを選択できます。この操作は取り消せません。",
+  "zh-Hans": "你可以选择保存更改，或者立即删除此文稿。此操作无法撤销。"
+ },
+ "You can choose to use both, so that your file name ends in “.%1$@.%2$@”.": {
+  "de": "Du kannst auch beide verwenden, sodass der Name mit „.%1$@.%2$@“ endet.",
+  "es": "Puedes usar ambas, de modo que el nombre del archivo acabe en “.%1$@.%2$@”.",
+  "fr": "Vous pouvez choisir d’utiliser les deux afin que le nom de votre fichier se termine par « .%1$@.%2$@ ».",
+  "ja": "両方の拡張子を使ってファイル名の末尾を“.%1$@.%2$@”として保存できます。",
+  "zh-Hans": "你可选取“使用两者”，这样你的文件名就会以“.%1$@.%2$@”结尾。"
+ },
+ "You can choose to use the standard extension instead.": {
+  "de": "Du kannst stattdessen das Standard-Suffix verwenden.",
+  "es": "Puedes usar la extensión estándar, si quieres.",
+  "fr": "Vous pouvez choisir de plutôt utiliser l’extension standard.",
+  "ja": "代わりに標準拡張子を使用できます。",
+  "zh-Hans": "你可选取以改用标准的扩展名。"
+ },
+ "You can discard your changes to close the document.": {
+  "de": "Du kannst deine Änderungen verwerfen, um das Dokument zu schließen.",
+  "es": "Puedes descartar los cambios para cerrar el documento.",
+  "fr": "Vous pouvez également annuler les modifications pour fermer le document.",
+  "ja": "変更内容を破棄して書類を閉じることができます。",
+  "zh-Hans": "你也可以放弃更改来关闭文稿。"
+ },
+ "You can duplicate the document or discard your changes to close it.": {
+  "de": "Du kannst das Dokument duplizieren oder die Änderungen verwerfen, um es zu schließen.",
+  "es": "Puedes duplicar el documento o descartar los cambios para cerrar el documento.",
+  "fr": "Vous pouvez dupliquer le document ou annuler vos modifications pour le fermer.",
+  "ja": "書類を複製するか、または変更内容を破棄して閉じることができます。",
+  "zh-Hans": "你可以复制该文稿或放弃更改来关闭该文稿。"
+ },
+ "You can duplicate this document and edit the duplicate.": {
+  "de": "Du kannst dieses Dokument duplizieren und das Duplikat bearbeiten.",
+  "es": "Puedes duplicar el documento y editar la copia.",
+  "fr": "Vous pouvez dupliquer ce document et modifier le document dupliqué.",
+  "ja": "この書類を複製して、複製したバージョンを編集できます。",
+  "zh-Hans": "你可以复制此文稿并编辑副本。"
+ },
+ "You can duplicate this document and edit the duplicate. Only the duplicate will include your changes.": {
+  "de": "Du kannst dieses Dokument duplizieren und das Duplikat bearbeiten. Die Änderungen sind dann nur im Duplikat enthalten.",
+  "es": "Puedes duplicar el documento y editar la copia. Los cambios solo tendrán lugar en la copia.",
+  "fr": "Vous pouvez dupliquer ce document et éditer le document dupliqué. Seul ce dernier contiendra vos modifications.",
+  "ja": "この書類を複製して、複製したバージョンを編集できます。複製したバージョンにのみ変更内容が適用されます。",
+  "zh-Hans": "你可以复制此文稿并编辑副本。你的更改将仅包括在副本中。"
+ },
+ "You can move this document out of the Trash to another location, or close it.": {
+  "de": "Du kannst dieses Dokument aus dem Papierkorb an einen anderen Ort bewegen oder es schließen.",
+  "es": "Puedes sacar este documento de la papelera para enviarlo a otra ubicación, o puedes cerrarlo.",
+  "fr": "Vous pouvez déplacer ce document de la corbeille vers un autre emplacement ou le fermer.",
+  "ja": "この書類をゴミ箱から取り出して別の場所に移動するか、閉じることができます。",
+  "zh-Hans": "你可以将此文稿从废纸篓移到其他位置，或关闭它。"
+ },
+ "You can only add people to documents in iCloud.": {
+  "de": "Personen können nur zu Dokumenten in iCloud hinzugefügt werden.",
+  "es": "Solo puedes añadir personas a los documentos de iCloud",
+  "fr": "Vous ne pouvez ajouter des personnes à des documents que dans iCloud.",
+  "ja": "人を追加できるのはiCloud内の書類だけです。",
+  "zh-Hans": "你只能为iCloud中的文稿添加用户。"
+ },
+ "You can revert it to the state it was in when you last opened it, or browse older versions. If you choose to revert it to a previous state, it will also be unlocked. Recent changes will be saved in your version history.": {
+  "de": "Du kannst das Dokument auf den Zustand beim letzten Öffnen zurücksetzen oder ältere Versionen durchsuchen. Wenn du es auf eine vorherige Version zurücksetzt, wird der Schreibschutz aufgehoben. Die letzten Änderungen werden im Versionsverlauf gesichert.",
+  "es": "Puedes restaurarlo al estado de la última vez que lo abriste o buscar versiones anteriores. Si lo restauras a un estado anterior, se desbloqueará. Los cambios recientes se guardarán en el historial de versiones.",
+  "fr": "Vous pouvez revenir à la version du document tel qu’il était lors de sa dernière ouverture, ou parcourir des versions plus anciennes. Si vous choisissez de revenir à un état antérieur, il sera également déverrouillé. Les modifications récentes seront enregistrées dans l’historique des versions.",
+  "ja": "最後に開いたときの状態に戻すか、以前のバージョンをブラウズするかを選択できます。以前の状態に戻す場合は、ロックも解除されます。最近の変更内容はバージョン履歴に保存されます。",
+  "zh-Hans": "你可以将它复原到上次打开的状态，或浏览较旧的版本。若选择将它复原到以前的状态，它也将被解锁。最近更改的内容将保存在你的版本历史记录中。"
+ },
+ "You can revert it to the state it was in when you last opened it, or browse older versions. Recent changes will be saved in your version history.": {
+  "de": "Du kannst es auf die zuletzt geöffnete Version zurücksetzen oder ältere Versionen durchsuchen. Letzte Änderungen werden in deinem Versionsverlauf gesichert.",
+  "es": "Puedes restaurarlo al estado de la última vez que lo abriste o buscar versiones anteriores. Los cambios recientes se guardarán en el historial de versiones.",
+  "fr": "Vous pouvez revenir à la version du document tel qu’il était lors de sa dernière ouverture, ou bien parcourir des versions plus anciennes. Les modifications récentes seront enregistrées dans l’historique des versions.",
+  "ja": "最後に開いた状態に戻すか、以前のバージョンをブラウズするかを選択できます。最近の変更内容はバージョン履歴に保存されます。",
+  "zh-Hans": "你可以将它复原到上次打开的状态，或浏览较旧的版本。最近更改的将保存在你的版本历史记录中。"
+ },
+ "You can revert it to the state it was in when you last saved it, or browse older versions. If you choose to revert it to a previous state, it will also be unlocked. Recent changes will be saved in your version history.": {
+  "de": "Du kannst das Dokument auf die zuletzt gesicherte Version zurücksetzen oder ältere Versionen durchsuchen. Wenn du es auf eine vorherige Version zurücksetzt, wird der Schreibschutz aufgehoben. Die letzten Änderungen werden im Versionsverlauf gesichert.",
+  "es": "Puedes restaurarlo al estado de la última vez que lo guardaste o buscar versiones anteriores. Si lo restauras a un estado anterior, se desbloqueará. Los cambios recientes se guardarán en el historial de versiones.",
+  "fr": "Vous pouvez revenir à la version du document tel qu’il était lors de son dernier enregistrement, ou parcourir des versions plus anciennes. Si vous choisissez de revenir à un état antérieur, il sera également déverrouillé. Les modifications récentes seront enregistrées dans l’historique des versions.",
+  "ja": "最後に保存したときの状態に戻すか、以前のバージョンをブラウズするかを選択できます。以前の状態に戻す場合は、ロックも解除されます。最近の変更内容はバージョン履歴に保存されます。",
+  "zh-Hans": "你可以将它复原到上次保存的状态，或浏览较旧的版本。若选择将它复原到以前的状态，它也将被解锁。最近更改的内容将保存在你的版本历史记录中。"
+ },
+ "You can revert it to the state it was in when you last saved it, or browse older versions. Recent changes will be saved in your version history.": {
+  "de": "Du kannst es auf die zuletzt gesicherte Version zurücksetzen oder ältere Versionen durchsuchen. Letzte Änderungen werden in deinem Versionsverlauf gesichert.",
+  "es": "Puedes restaurarlo al estado de la última vez que lo guardaste o buscar versiones anteriores. Los cambios recientes se guardarán en el historial de versiones.",
+  "fr": "Vous pouvez revenir à la version du document tel qu’il était lors de son dernier enregistrement, ou parcourir des versions plus anciennes. Les modifications récentes seront enregistrées dans l’historique des versions.",
+  "ja": "最後に保存した状態に戻すか、以前のバージョンをブラウズするかを選択できます。最近の変更内容はバージョン履歴に保存されます。",
+  "zh-Hans": "你可以将它复原到上次保存的状态，或浏览较旧的版本。最近更改的内容将保存在你的版本历史记录中。"
+ },
+ "You can revert to undo the changes since you last saved the document.": {
+  "de": "Du kannst die Änderungen rückgängig machen, die seit dem Sichern des Dokuments vorgenommen wurden.",
+  "es": "Puedes deshacer los cambios efectuados desde la última vez que guardaste el documento.",
+  "fr": "Vous pouvez revenir à la version précédente pour annuler les modifications, car vous êtes la dernière personne à avoir enregistré le document.",
+  "ja": "元に戻すことで、この書類を最後に保存してからの変更を取り消すことができます。",
+  "zh-Hans": "你可以复原到这样一个版本：撤销自上次保存该文稿以来所做的更改。"
+ },
+ "You can save a copy if you do not want to delete it.": {
+  "de": "Du kannst eine Kopie sichern, wenn du es nicht löschen willst.",
+  "es": "Si no quieres eliminarlo, puedes guardar una copia.",
+  "fr": "Vous pouvez en enregistrer une copie si vous ne souhaitez pas le supprimer.",
+  "ja": "削除したくない場合はコピーを保存できます。",
+  "zh-Hans": "若不想删除，你可以保存副本。"
+ },
+ "You can save to another location.": {
+  "de": "Du kannst an einem anderen Ort sichern.",
+  "es": "Guárdalo en otra ubicación.",
+  "fr": "Vous pouvez enregistrer dans un autre emplacement.",
+  "ja": "別の場所に保存できます。",
+  "zh-Hans": "你可以保存到另一位置。"
+ },
+ "You can specify where to save it.": {
+  "de": "Du kannst angeben, wo das Dokument gesichert werden soll.",
+  "es": "Indica dónde guardarlo.",
+  "fr": "Vous pouvez spécifier où l’enregistrer.",
+  "ja": "保存場所を指定できます。",
+  "zh-Hans": "你可以指定它的保存位置。"
+ },
+ "You cannot save this document with extension “.%1$@” at the end of the name. The required extension is “.%2$@”.": {
+  "de": "Du kannst dieses Dokument nicht mit dem Suffix „.%1$@“ sichern. Das Suffix „.%2$@“ wird benötigt.",
+  "es": "Imposible guardar este documento con la extensión “.%1$@” al final del nombre. La extensión debe ser “.%2$@”.",
+  "fr": "Impossible d’enregistrer ce document avec l’extension « .%1$@ » après le nom. L’extension exigée est « .%2$@ ».",
+  "ja": "この書類のファイル名の末尾に“.%1$@”という拡張子を付けて保存することはできません。必要な拡張子は“.%2$@”です。",
+  "zh-Hans": "你不能使用以扩展名“.%1$@”结尾的名称来保存此文稿。要求的扩展名为“.%2$@”。"
+ },
+ "You can’t undo this action.": {
+  "de": "Diese Aktion kann nicht widerrufen werden.",
+  "es": "Esta acción no se puede deshacer.",
+  "fr": "Cette opération est irréversible.",
+  "ja": "この操作は取り消せません。",
+  "zh-Hans": "此操作无法撤销。"
+ },
+ "You do not have permissions to open “%@”.": {
+  "de": "Du hast nicht die erforderlichen Zugriffsrechte, um „%@“ anzuzeigen.",
+  "es": "No tienes permiso para ver “%@”.",
+  "fr": "Vous n’êtes pas autorisé à ouvrir « %@ ».",
+  "ja": "“%@”を開くためのアクセス権がありません。",
+  "zh-Hans": "你没有权限打开“%@”。"
+ },
+ "You do not have permissions to save to the given location.": {
+  "de": "Du hast an dem angegebenen Ort keine Berechtigung zum Sichern.",
+  "es": "No tienes permiso para guardar el archivo en esa ubicación.",
+  "fr": "Vous n’êtes pas autorisé à enregistrer de fichier à cet emplacement.",
+  "ja": "指定された場所に保存するためのアクセス権がありません。",
+  "zh-Hans": "你没有权限保存到给定的位置。"
+ },
+ "You don’t have permission to unlock the file “%@”.": {
+  "de": "Du hast nicht die Zugriffsrechte, um die Datei „%@“ zu entsperren.",
+  "es": "No tienes autorización para desbloquear el archivo “%@”.",
+  "fr": "Vous n’avez pas l’autorisation de déverrouiller le fichier « %@ ».",
+  "ja": "ファイル“%@”のロックを解除するために必要なアクセス権がありません。",
+  "zh-Hans": "你没有解锁文件“%@”的权限。"
+ },
+ "You don’t have permission to unlock the file.": {
+  "de": "Du hast nicht die Zugriffsrechte, um die Datei zu entsperren.",
+  "es": "No tienes autorización para a desbloquear el archivo.",
+  "fr": "Vous n’avez pas l’autorisation de déverrouiller ce fichier.",
+  "ja": "このファイルのロックを解除するために必要なアクセス権がありません。",
+  "zh-Hans": "你没有解锁文件的权限。"
+ },
+ "You don’t have permission to write to the folder that the file is in.": {
+  "de": "Du hast nicht die erforderlichen Schreibrechte für den Ordner, in dem sich die Datei befindet.",
+  "es": "No tienes permiso para escribir en la carpeta donde se encuentra el archivo.",
+  "fr": "Vous ne possédez pas l’autorisation d’écriture dans le dossier qui contient le fichier.",
+  "ja": "そのファイルを含むフォルダに書き込むためのアクセス権がありません。",
+  "zh-Hans": "你没有权限写到该文件所在的文件夹。"
+ },
+ "You don’t have permission to write to the folder that the file “%@” is in.": {
+  "de": "Du hast nicht die erforderlichen Schreibrechte für den Ordner, in dem sich die Datei „%@“ befindet.",
+  "es": "No tienes permiso para escribir en la carpeta donde se encuentra el archivo “%@”.",
+  "fr": "Vous ne possédez pas l’autorisation d’écriture dans le dossier qui contient le fichier « %@ ».",
+  "ja": "ファイル“%@”を含むフォルダに書き込むためのアクセス権がありません。",
+  "zh-Hans": "你没有权限写到文件“%@”所在的文件夹。"
+ },
+ "You don’t own the file and don’t have permission to write to it.": {
+  "de": "Du bist nicht Eigentümer:in der Datei und hast nicht die erforderlichen Schreibrechte.",
+  "es": "El archivo no te pertenece y no tienes permiso para escribir en él.",
+  "fr": "Vous n’êtes pas propriétaire du fichier et ne disposez pas de l’autorisation d’écriture sur celui-ci.",
+  "ja": "ファイルの所有者ではないため、そのファイルに書き込む権限がありません。",
+  "zh-Hans": "你不是文件的所有者，因此没有权限写到该文件。"
+ },
+ "You don’t own the file “%@” and don’t have permission to write to it.": {
+  "de": "Du bist nicht Eigentümer:in der Datei „%@“ und hast nicht die erforderlichen Schreibrechte.",
+  "es": "El archivo “%@” no te pertenece y no tienes permiso para escribir en él.",
+  "fr": "Vous n’êtes pas propriétaire du fichier « %@ » et ne disposez pas de l’autorisation d’écriture sur celui-ci.",
+  "ja": "あなたはファイル“%@”の所有者ではなく、そのファイルに書き込む権限がありません。",
+  "zh-Hans": "你不是文件“%@”的所有者，因此没有权限写到该文件。"
+ },
+ "You have %1$@ %2$@ documents with unconfirmed changes. Do you want to review these changes before quitting?": {
+  "de": "Es existieren %1$@ %2$@-Dokumente mit noch nicht bestätigten Änderungen. Möchtest du die Änderungen überprüfen, bevor das Programm beendet wird?",
+  "es": "Hay %1$@ documentos de %2$@ con cambios sin confirmar. ¿Quieres revisar los cambios antes de cerrar la aplicación?",
+  "fr": "%1$@ de vos documents %2$@ comportent des modifications non confirmées. Souhaitez-vous revoir ces dernières avant de quitter ?",
+  "ja": "変更内容を確認していない%1$@個の%2$@書類があります。終了する前にこれらの変更内容を確認しますか?",
+  "zh-Hans": "你有%1$@个“%2$@”文稿未确认更改的内容。你要在退出前复查这些更改的内容吗？"
+ },
+ "You have %1$@ %2$@ documents with unsaved changes. Do you want to review these changes before quitting?": {
+  "de": "Es existieren %1$@ %2$@-Dokumente mit noch nicht gesicherten Änderungen. Möchtest du die Änderungen überprüfen, bevor das Programm beendet wird?",
+  "es": "Hay %1$@ documentos de %2$@ sin guardar. ¿Quieres revisar los cambios antes de cerrar la aplicación?",
+  "fr": "%1$@ de vos documents %2$@ comportent des modifications non enregistrées. Souhaitez-vous revoir ces dernières avant de quitter ?",
+  "ja": "変更内容を保存していない%1$@個の%2$@書類があります。終了する前にこれらの変更内容を確認しますか?",
+  "zh-Hans": "你有%1$@个“%2$@”文稿未保存更改的内容。你要在退出前复查这些更改的内容吗？"
+ },
+ "You have %1$@ untitled %2$@ documents. Do you want to review these documents before quitting?": {
+  "de": "Es existieren %1$@ unbenannte %2$@-Dokumente. Möchtest du diese Dokumente überprüfen, bevor das Programm beendet wird?",
+  "es": "Hay %1$@ documentos de %2$@ sin título. ¿Quieres revisar los cambios realizados en ellos antes de cerrar la aplicación?",
+  "fr": "%1$@ de vos documents %2$@ sont sans titre. Souhaitez-vous revoir ces documents avant de quitter ?",
+  "ja": "%1$@個の名称未設定の%2$@書類があります。終了する前にこれらの書類を確認しますか?",
+  "zh-Hans": "你有%1$@个未命名的“%2$@”文稿。你要在退出前复查这些文稿吗？"
+ },
+ "You have unsaved documents.": {
+  "de": "Einige deiner Dokumente sind nicht gesichert.",
+  "es": "Algunos documentos no están guardados.",
+  "fr": "Certains documents n’ont pas été enregistrés.",
+  "ja": "保存していない書類があります。",
+  "zh-Hans": "你有一些文稿未保存。"
+ },
+ "You have used the extension “.%1$@” at the end of the name. The standard extension is “.%2$@”.": {
+  "de": "Du hast das Suffix „.%1$@“ bereits am Ende des Namens verwendet. Das Standard-Suffix ist „.%2$@“.",
+  "es": "Has utilizado la extensión “.%1$@” al final del nombre. La extensión estándar es “.%2$@”.",
+  "fr": "Vous avez utilisé l’extension « .%1$@ » après le nom. L’extension standard est « .%2$@ ».",
+  "ja": "この書類のファイル名の末尾に“.%1$@”という拡張子を使用しています。標準拡張子は“.%2$@”です。",
+  "zh-Hans": "你已经在名称的结尾使用了扩展名“.%1$@”。标准的扩展名为“.%2$@”。"
+ },
+ "You should move it out of the Trash or duplicate it.": {
+  "de": "Du musst es aus dem Papierkorb bewegen oder duplizieren.",
+  "es": "Deberías sacarlo de la papelera o duplicarlo.",
+  "fr": "Retirez-le de la corbeille ou dupliquez-le.",
+  "ja": "ゴミ箱から取り出すか、複製する必要があります。",
+  "zh-Hans": "你应该将它移出废纸篓或复制它。"
+ },
+ "You will not be able to access older versions of this document once you close it.": {
+  "de": "Du kannst nicht auf ältere Versionen dieses Dokuments zugreifen, nachdem es geschlossen wurde.",
+  "es": "No podrás acceder a versiones anteriores de este documento después de cerrarlo.",
+  "fr": "Vous ne pourrez pas accéder à d’anciennes versions du document une fois celui-ci fermé.",
+  "ja": "この書類を閉じると、古いバージョンにはアクセスできなくなります。",
+  "zh-Hans": "在关闭此文稿后，你将无法访问此文稿的旧版本。"
+ },
+ "Your changes have been saved and you will not be able to access older versions of this document once you close it. To undo your changes, click Revert.": {
+  "de": "Deine Änderungen wurden gespeichert. Sobald du dieses Dokument schließt, kannst du nicht mehr auf ältere Versionen davon zugreifen. Um die Änderungen rückgängig zu machen, klicke auf „Letzte Version“.",
+  "es": "Los cambios se han guardado y no podrás acceder a las versiones anteriores de este documento después de cerrarlo. Para deshacer los cambios, haz clic en Restaurar.",
+  "fr": "Vos modifications ont été enregistrées et vous ne pourrez pas accéder à d’anciennes versions du document une fois celui-ci fermé. Pour annuler vos modifications, cliquez sur Rétablir.",
+  "ja": "変更内容が保存されました。この書類を閉じると、古いバージョンにアクセスできなくなります。変更内容を取り消すには、“戻す”をクリックしてください。",
+  "zh-Hans": "你的更改已保存，而且在关闭此文稿后，你将无法访问此文稿的旧版本。若要撤销更改，请点按“复原”。"
+ },
+ "Your changes will be lost if you don’t save them.": {
+  "de": "Deine Änderungen gehen verloren, wenn du diese nicht sicherst.",
+  "es": "Si no guardas los cambios, se perderán.",
+  "fr": "Vos modifications seront perdues si vous ne les enregistrez pas.",
+  "ja": "保存しないと、変更内容は失われます。",
+  "zh-Hans": "如果不保存，你更改的内容将会丢失。"
+ },
+ "Your changes will not be saved until the problem is resolved.": {
+  "de": "Deine Änderungen werden erst gesichert, wenn das Problem behoben wurde.",
+  "es": "Los cambios no se guardarán hasta que se resuelva el problema.",
+  "fr": "Vos modifications ne seront pas enregistrées tant que le problème ne sera pas résolu.",
+  "ja": "変更内容は、問題が解決するまで保存されません。",
+  "zh-Hans": "问题解决之前将无法保存你的更改。"
+ },
+ "Your current changes will be lost.": {
+  "de": "Deine aktuellen Änderungen gehen dabei verloren.",
+  "es": "Se perderán los cambios no guardados.",
+  "fr": "Vos modifications actuelles seront perdues.",
+  "ja": "現在の変更内容は失われます。",
+  "zh-Hans": "你当前更改的内容将会丢失。"
+ },
+ "Your new document was created successfully. You can try to open the original document and browse versions to revert your changes.": {
+  "de": "Dein neues Dokument wurde erfolgreich erstellt. Du kannst versuchen, das Originaldokument zu öffnen und beide Versionen miteinander zu vergleichen, um Änderungen rückgängig zu machen.",
+  "es": "Tu nuevo documento se ha creado correctamente. Puedes intentar abrir el documento original y explorar las versiones para restaurar los cambios.",
+  "fr": "Création du nouveau document réussie. Vous pouvez essayer d’ouvrir le document d’origine et de parcourir les versions pour rétablir les modifications.",
+  "ja": "新規書類は正しく作成されました。変更内容を元に戻すために元の書類を開いてバージョンをブラウズしてみてください。",
+  "zh-Hans": "你的新文稿已成功创建。你可以尝试打开原始文稿并浏览要复原更改的版本。"
+ },
+ "Zoom All": {
+  "de": "Alle zoomen",
+  "es": "Aplicar zoom a todas las ventanas",
+  "fr": "Réduire/agrandir toutes les fenêtres",
+  "ja": "すべてを拡大/縮小",
+  "zh-Hans": "全部缩放"
+ },
+ "iCloud does not yet have all of your recent changes for this document because iCloud servers are currently unreachable.": {
+  "de": "iCloud verfügt noch nicht über alle neuesten Änderungen an diesem Dokument, da die iCloud-Server derzeit nicht erreichbar sind.",
+  "es": "iCloud aún no tiene todos los cambios recientes para este documento porque en este momento no es posible contactar con los servidores de iCloud.",
+  "fr": "Toutes vos dernières modifications sur ce document ne sont pas encore sur iCloud car les serveurs iCloud sont actuellement injoignables.",
+  "ja": "現在iCloudサーバに接続できないため、この書類の最近の変更内容はまだすべては反映されていません。",
+  "zh-Hans": "iCloud尚未获得此文稿的所有最近更改，因为iCloud服务器当前无法连通。"
+ },
+ "iPad": {
+  "de": "iPad",
+  "es": "iPad",
+  "fr": "iPad",
+  "ja": "iPad",
+  "zh-Hans": "iPad"
+ },
+ "zZxcva": {
+  "de": "zZxcva",
+  "es": "zZxcva",
+  "fr": "zZxcva",
+  "ja": "zZxcva",
+  "zh-Hans": "zZxcva"
+ },
+ "“%1$@” could not be handled because %2$@ cannot open files in the “%3$@” format.": {
+  "de": "„%1$@“ konnte nicht bearbeitet werden, da %2$@ Dateien im %3$@-Format nicht öffnen kann.",
+  "es": "“%1$@” no ha podido procesarse porque %2$@ no puede abrir archivos en formato “%3$@”.",
+  "fr": "« %1$@ » n’a pas pu être géré car %2$@ ne peut pas ouvrir les fichiers au format « %3$@ ».",
+  "ja": "“%2$@”は%3$@フォーマットでファイルを開けないため、“%1$@”は処理できません。",
+  "zh-Hans": "未能处理“%1$@”，因为“%2$@”打不开格式为“%3$@”的文件。"
+ },
+ "“%1$@” could not be handled because %2$@ cannot open files of this type.": {
+  "de": "„%1$@“ konnte nicht bearbeitet werden, da %2$@ Dateien dieses Typs nicht öffnen kann.",
+  "es": "“%1$@” no ha podido procesarse porque %2$@ no puede abrir archivos de este tipo.",
+  "fr": "« %1$@ » n’a pas pu être géré car %2$@ ne peut pas ouvrir les fichiers de ce type.",
+  "ja": "“%2$@”はこのタイプのファイルを開けないため、“%1$@”は処理できません。",
+  "zh-Hans": "未能处理“%1$@”，因为“%2$@”打不开这种类型的文件。"
+ },
+ "“%@”": {
+  "de": "„%@“",
+  "es": "“%@”",
+  "fr": "« %@ »",
+  "ja": "“%@”",
+  "zh-Hans": "“%@”"
+ },
+ "“%@” already exists. Do you want to replace it?": {
+  "de": "„%@“ existiert bereits. Möchtest du das Objekt ersetzen?",
+  "es": "“%@” ya existe. ¿Quieres reemplazarlo?",
+  "fr": "« %@ » existe déjà. Souhaitez-vous le remplacer ?",
+  "ja": "“%@”はすでに存在しています。置き換えてもよろしいですか?",
+  "zh-Hans": "“%@”已存在。你要替换它吗？"
+ },
+ "“%@” would be located in the Trash.": {
+  "de": "„%@“ würde sich im Papierkorb befinden.",
+  "es": "“%@” se colocará en la papelera.",
+  "fr": "« %@ » se trouverait dans la Corbeille.",
+  "ja": "“%@”はゴミ箱に移されます。",
+  "zh-Hans": "“%@”将被放到废纸篓中。"
+ },
+ "… or drag the default set into the toolbar.": {
+  "de": "… oder bewege den Standardsatz in die Symbolleiste.",
+  "es": "…o arrastra el conjunto por omisión hasta la barra de herramientas.",
+  "fr": "… ou faites glisser l’ensemble par défaut sur la barre d’outils.",
+  "ja": "… または、デフォルトセットをツールバーにドラッグしてください。",
+  "zh-Hans": "…或者将默认的一组拖入工具栏。"
+ }
+}

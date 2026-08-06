@@ -31,7 +31,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         scrollView.drawsBackground = true
 
         let textView = MarkdownPreviewTextView()
-        textView.setAccessibilityLabel("Markdown read view")
+        textView.setAccessibilityLabel(String(localized: "Markdown read view"))
         textView.setAccessibilityRole(.textArea)
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onImageReconnect = onImageReconnect
@@ -551,8 +551,12 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         return pills
     }
 
+    /// The pill's drawn label. One constant, because its WIDTH is measured from it — two
+    /// literals would let a translation change the text without changing the hit rect.
+    static let reconnectPillLabel = String(localized: "Reconnect")
+
     private static let reconnectPillWidth: CGFloat = {
-        let labelWidth = ("Reconnect" as NSString).size(withAttributes: [.font: pillLabelFont]).width
+        let labelWidth = (reconnectPillLabel as NSString).size(withAttributes: [.font: pillLabelFont]).width
         return ceil(labelWidth + reconnectPillGap + 11 + 24) // label + gap + glyph + horizontal padding
     }()
 
@@ -618,7 +622,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             .font: Self.pillLabelFont,
             .foregroundColor: theme.textColor.withAlphaComponent(0.85)
         ]
-        let label = "Reconnect" as NSString
+        let label = Self.reconnectPillLabel as NSString
         let labelSize = label.size(withAttributes: attributes)
         let glyphSize = NSSize(width: 11, height: 11)
         let contentWidth = labelSize.width + Self.reconnectPillGap + glyphSize.width
@@ -720,7 +724,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             guard let value = value as? NSValue else { return }
             codeBlockNumber += 1
             let sourceRange = value.rangeValue
-            actions.append(NSAccessibilityCustomAction(name: "Copy code block \(codeBlockNumber)") { [weak self] in
+            actions.append(NSAccessibilityCustomAction(name: String(localized: "Copy code block \(codeBlockNumber)")) { [weak self] in
                 self?.copyCodeBlockToPasteboard(sourceRange: sourceRange) ?? false
             })
         }
@@ -729,7 +733,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             guard value != nil,
                   let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue else { return }
             let sourceRange = sourceValue.rangeValue
-            actions.append(NSAccessibilityCustomAction(name: "Reconnect image") { [weak self] in
+            actions.append(NSAccessibilityCustomAction(name: String(localized: "Reconnect image")) { [weak self] in
                 self?.onImageReconnect(sourceRange)
                 return true
             })
@@ -740,7 +744,9 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
             let sourceRange = value.rangeValue
             let lineText = string.substring(with: string.lineRange(for: range))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let name = lineText.isEmpty ? "Toggle task" : "Toggle task: \(lineText)"
+            let name = lineText.isEmpty
+                ? String(localized: "Toggle task")
+                : String(localized: "Toggle task: \(lineText)")
             actions.append(NSAccessibilityCustomAction(name: name) { [weak self] in
                 self?.onCheckboxToggle(sourceRange)
                 return true

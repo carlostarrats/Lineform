@@ -12,9 +12,9 @@ enum OutlineFileSortOrder: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .name: return "Name"
-        case .dateCreated: return "Date Created"
-        case .dateModified: return "Date Modified"
+        case .name: return String(localized: "Name")
+        case .dateCreated: return String(localized: "Date Created")
+        case .dateModified: return String(localized: "Date Modified")
         }
     }
 
