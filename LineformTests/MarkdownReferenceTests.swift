@@ -50,7 +50,10 @@ final class MarkdownReferenceTests: XCTestCase {
         for language in Self.languages {
             let explanations = MarkdownReference.sections(in: try bundle(language))
                 .flatMap(\.rows).map(\.explanation).joined(separator: " ")
-            for expected in ["⌘1", "⌘0", "⌘2 to ⌘6", "⌃⌘T", "⌃⌘R", "Shift-Tab"] {
+            // The GLYPHS are protected, not the connective between them: "⌘2 to ⌘6" as one
+            // token forced an English "to" into all five translations. "bis"/"à"/"a"/"〜"/"至"
+            // are prose and belong to the translator.
+            for expected in ["⌘1", "⌘0", "⌘2", "⌘6", "⌃⌘T", "⌃⌘R", "Shift-Tab"] {
                 XCTAssertTrue(explanations.contains(expected), "\(language) lost the shortcut glyph \(expected)")
             }
         }

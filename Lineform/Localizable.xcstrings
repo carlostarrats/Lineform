@@ -4708,13 +4708,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imagen. Se ven los archivos locales en Lectura y Previsualización; las web, no."
+            "value": "Imagen. Archivos locales visibles en Lectura y Previsualización; las web, un marcador."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Image. Les fichiers locaux s’affichent en Lecture et Aperçu ; pas les adresses web."
+            "value": "Image. Fichiers locaux affichés en Lecture et Aperçu ; adresses web, un substitut."
           }
         },
         "ja": {
@@ -8992,31 +8992,31 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kleinere Überschrift (mehr # = kleiner). ⌘2 to ⌘6 legen die Ebene fest."
+            "value": "Kleinere Überschrift (mehr # = kleiner). ⌘2 bis ⌘6 legen die Ebene fest."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encabezado menor (más # = más pequeño). ⌘2 to ⌘6 fijan el nivel."
+            "value": "Encabezado menor (más # = más pequeño). ⌘2 a ⌘6 fijan el nivel."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Titre plus petit (plus de # = plus petit). ⌘2 to ⌘6 règlent le niveau."
+            "value": "Titre plus petit (plus de # = plus petit). ⌘2 à ⌘6 règlent le niveau."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "小さい見出し（#が多いほど小さい）。⌘2 to ⌘6でレベルを設定。"
+            "value": "小さい見出し（#が多いほど小さい）。⌘2〜⌘6でレベルを設定。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "较小的标题（# 越多越小）。⌘2 to ⌘6 设置级别。"
+            "value": "较小的标题（# 越多越小）。⌘2 至 ⌘6 设置级别。"
           }
         }
       }

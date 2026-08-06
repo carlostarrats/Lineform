@@ -135,6 +135,8 @@ final class LocalizationCatalogTests: XCTestCase {
             // the "Tab" entry above does not cover this one — it needs its own. "Shift-Tab" is a
             // key combination printed on the keyboard and is reproduced verbatim in all five
             // languages; translating it would name a UI element that does not exist.
+            // Note the cost: an exemption is matched on the WHOLE key, so it silences the
+            // glossary check for EVERY term in that string, not just the one that collided.
             "Inside a table, moves to the next cell. Shift-Tab goes back.",
         ]
 
