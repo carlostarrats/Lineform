@@ -91,7 +91,11 @@ struct OutlineMarkdownBasicsTabView: View {
 
             Spacer(minLength: 8)
 
-            copyButton(for: row)
+            // Only the code rows: `row.syntax` is what the button copies, and on a label row that
+            // is a translated UI word, not Markdown.
+            if row.offersCopy {
+                copyButton(for: row)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

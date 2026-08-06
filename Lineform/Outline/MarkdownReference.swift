@@ -7,19 +7,27 @@ import Foundation
 struct MarkdownReference {
     struct Row: Identifiable, Equatable {
         /// A stable identity that does NOT depend on translated text. Left nil, it falls back to
-        /// `syntax` — safe for the 25 literal-syntax rows, which are document content and never
-        /// localize. The four LABEL rows (`rendersSyntaxAsCode == false`) localize their syntax and
-        /// so must carry one explicitly, or their `ForEach` identity and the copy button's
-        /// "Copied" state would be keyed on a translated string.
+        /// `syntax` — safe for the 24 literal-syntax rows, which are document content and never
+        /// localize. The five LABEL rows (`rendersSyntaxAsCode == false`) localize their syntax and
+        /// so must carry one explicitly, or their `ForEach` identity would be keyed on a translated
+        /// string.
         /// `testEveryIdentityIsStableAcrossLanguages` asserts this in both directions.
         var identifier: String?
         var syntax: String
         var explanation: String
-        /// Most rows render `syntax` in a monospaced "code" style. A few (e.g.
-        /// "Block Spacing") are a plain label, not literal syntax.
+        /// Most rows render `syntax` in a monospaced "code" style. A few (e.g. "Block Spacing",
+        /// and the `Tab`/`Return` keycaps) are a plain label, not literal syntax. This is the one
+        /// predicate the whole row hangs off: a label row's `syntax` cell is app chrome, so it
+        /// localizes and it offers no copy button; a code row's is document content, so it never
+        /// localizes and it does.
         var rendersSyntaxAsCode: Bool = true
 
         var id: String { identifier ?? syntax }
+
+        /// Only literal Markdown is worth putting on the pasteboard. A label row's cell is a
+        /// translated UI word — copying `スペル` into a Markdown file means nothing there, and the
+        /// button offering it is the bug, not the translation.
+        var offersCopy: Bool { rendersSyntaxAsCode }
 
         /// VoiceOver reads a coherent phrase — explanation first, then the raw syntax — instead
         /// of spelling out Markdown punctuation on its own. The CONNECTIVE localizes; the syntax
@@ -63,8 +71,9 @@ struct MarkdownReference {
             Row(syntax: "[text](url)", explanation: String(localized: "Link.", bundle: bundle)),
             Row(syntax: "![alt](url)", explanation: String(localized: "Image. Local files show in Read and Preview; web addresses stay a placeholder.", bundle: bundle)),
             Row(syntax: "| a | b |", explanation: String(localized: "Header row, then |---|---|, then rows. Colons align. ⌃⌘T inserts, ⌃⌘R tidies.", bundle: bundle)),
-            // A keycap legend, so it stays "Tab" in every language — but it routes through the
-            // catalog anyway, because a language that DOES relabel the key has nowhere else to say so.
+            // A keycap legend: a LABEL row, by the rule on `rendersSyntaxAsCode` below. It stays
+            // "Tab" in every language, but routes through the catalog anyway, because a language
+            // that DOES relabel the key has nowhere else to say so. `Return` is the other one.
             Row(identifier: "tab", syntax: String(localized: "Tab", bundle: bundle),
                 explanation: String(localized: "Inside a table, moves to the next cell. Shift-Tab goes back.", bundle: bundle),
                 rendersSyntaxAsCode: false),
@@ -91,8 +100,9 @@ struct MarkdownReference {
                 rendersSyntaxAsCode: false),
         ]),
         Section(id: "search", title: String(localized: "Search", bundle: bundle), rows: [
-            // "Return" is a KEY NAME rendered as code — it stays verbatim.
-            Row(syntax: "Return", explanation: String(localized: "While searching, jumps to the next match; wraps around.", bundle: bundle)),
+            Row(identifier: "return", syntax: String(localized: "Return", bundle: bundle),
+                explanation: String(localized: "While searching, jumps to the next match; wraps around.", bundle: bundle),
+                rendersSyntaxAsCode: false),
         ]),
         ]
     }

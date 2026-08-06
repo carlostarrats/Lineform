@@ -216,29 +216,82 @@ final class MarkdownReferenceTests: XCTestCase {
         XCTAssertNotEqual(german[3], english[3], "Spelling should be translated in German")
     }
 
+    /// Every label row is asserted, including the two keycaps. An inequality check could not do
+    /// that: `Tab` and `Return` are reproduced verbatim in German and Japanese, so the old test
+    /// `continue`d past `Tab` and only three of the four label rows were really covered. What must
+    /// hold is that the cell RESOLVED THROUGH THE CATALOG — assert it against the committed
+    /// `Localizable.xcstrings`, which is true whether or not the translation differs.
     func testLabelRowsLocalizeAndSyntaxRowsDoNot() throws {
-        let german = try germanBundle()
-        let englishRows = MarkdownReference.sections(in: try englishBundle()).flatMap(\.rows)
-        let germanRows = MarkdownReference.sections(in: german).flatMap(\.rows)
+        let catalog = try Self.catalogTranslations()
+        let english = try englishBundle()
+        let englishRows = MarkdownReference.sections(in: english).flatMap(\.rows)
 
-        XCTAssertEqual(germanRows.count, englishRows.count)
+        for language in Self.languages {
+            let rows = MarkdownReference.sections(in: try bundle(language)).flatMap(\.rows)
+            XCTAssertEqual(rows.count, englishRows.count, "\(language): row count drifted")
 
-        for (en, de) in zip(englishRows, germanRows) {
-            if en.rendersSyntaxAsCode {
-                XCTAssertEqual(de.syntax, en.syntax, "Markdown syntax must never translate: \(en.syntax)")
-            } else if en.syntax == "Tab" {
-                // A keycap legend. Apple ships "Tab" untranslated in de/ja; the key exists in the
-                // catalog so other languages CAN differ, but equality here is correct, not a miss.
-                continue
-            } else {
-                XCTAssertNotEqual(de.syntax, en.syntax, "Label row should translate: \(en.syntax)")
+            for (en, localized) in zip(englishRows, rows) {
+                if en.rendersSyntaxAsCode {
+                    XCTAssertEqual(localized.syntax, en.syntax,
+                                   "\(language): Markdown syntax must never translate: \(en.syntax)")
+                } else {
+                    // English is the catalog KEY, not a localization: an `en.lproj` lookup
+                    // returns the key itself.
+                    let expected = language == "en"
+                        ? en.syntax
+                        : try XCTUnwrap(
+                            catalog[en.syntax]?[language],
+                            "label row \"\(en.syntax)\" has no \(language) catalog entry — it is "
+                                + "not routing through String(localized:)")
+                    XCTAssertEqual(localized.syntax, expected,
+                                   "\(language): label row \"\(en.syntax)\" did not resolve from the catalog")
+                }
             }
         }
     }
 
-    func testExactlyFourRowsAreLabelsNotSyntax() throws {
+    func testExactlyFiveRowsAreLabelsNotSyntax() throws {
         let labels = MarkdownReference.sections(in: try englishBundle())
             .flatMap(\.rows).filter { !$0.rendersSyntaxAsCode }
-        XCTAssertEqual(labels.count, 4, "A new label row must be localized — see testLabelRowsLocalize…")
+        XCTAssertEqual(labels.map(\.id).sorted(), ["block-spacing", "return", "skipped", "spelling", "tab"],
+                       "A new label row must be localized — see testLabelRowsLocalize…")
+    }
+
+    /// The one predicate, from the other side: only a row whose cell is literal Markdown offers
+    /// the copy button. The four (now five) label rows put a translated UI word in that cell, and
+    /// `OutlineMarkdownBasicsTabView` used to offer "copy" on them too — so a Japanese user could
+    /// put `スペル` on the pasteboard ready to paste into a Markdown file, where it means nothing.
+    func testOnlyLiteralSyntaxRowsOfferCopy() throws {
+        for row in MarkdownReference.sections(in: try englishBundle()).flatMap(\.rows) {
+            XCTAssertEqual(row.offersCopy, row.rendersSyntaxAsCode,
+                           "\(row.id): copy is offered exactly for literal-Markdown rows")
+        }
+        let copyable = MarkdownReference.sections(in: try englishBundle())
+            .flatMap(\.rows).filter(\.offersCopy).map(\.syntax)
+        XCTAssertFalse(copyable.contains("Tab"))
+        XCTAssertFalse(copyable.contains("Return"))
+        XCTAssertTrue(copyable.contains("**bold**"))
+    }
+
+    /// The committed catalog, read as JSON. Reading is fine; never WRITE it through a serializer.
+    private static func catalogTranslations() throws -> [String: [String: String]] {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Lineform/Localizable.xcstrings")
+        let root = try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? [String: Any]
+        let strings = root?["strings"] as? [String: [String: Any]] ?? [:]
+        var out: [String: [String: String]] = [:]
+        for (key, entry) in strings {
+            let localizations = entry["localizations"] as? [String: [String: Any]] ?? [:]
+            var values: [String: String] = [:]
+            for (language, localization) in localizations {
+                if let value = (localization["stringUnit"] as? [String: Any])?["value"] as? String {
+                    values[language] = value
+                }
+            }
+            out[key] = values
+        }
+        return out
     }
 }

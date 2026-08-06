@@ -16,10 +16,25 @@ enum SpeechLanguageDetector {
     /// Shorter than this and there is nothing to judge — "ok" is not evidence of English.
     private static let minimumCharacters = 12
 
+    /// Language identification saturates long before this; a few thousand characters is already
+    /// far more evidence than the confidence floor needs. Without a cap, `processString` walked
+    /// the WHOLE document on the Edit ▸ Speech path — a hitch proportional to document size, paid
+    /// to reach the same answer. Read-aloud starts at the caret and reads on, so the opening of
+    /// the passage is also the most representative sample there is.
+    private static let maximumSampleCharacters = 4_000
+
     /// - Returns: a BCP-47 language code (`"en"`, `"ja"`, `"zh-Hans"`), or nil to leave the
     ///   synthesizer's default alone.
     static func language(for text: String) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Dropping the leading whitespace lazily, then taking the prefix, keeps this O(sample)
+        // rather than O(document): `trimmingCharacters` on the full string would copy all of it
+        // just to find the head. Trailing whitespace inside the sample is harmless to the
+        // recognizer, so only a short sample is trimmed at all.
+        let sample = text.drop(while: \.isWhitespace).prefix(maximumSampleCharacters)
+        // A prefix-bounded count: `sample.count` is a grapheme walk, and all this has to decide
+        // is "at least twelve".
+        guard sample.prefix(minimumCharacters).count == minimumCharacters else { return nil }
+        let trimmed = sample.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= minimumCharacters else { return nil }
 
         let recognizer = NLLanguageRecognizer()
