@@ -74,6 +74,14 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "FontOption.swift|Atkinson Hyperlegible": "Typeface name.",
         "FontOption.swift|Comic Sans MS": "Typeface name.",
 
+        // The CJK fallback families. Unlike the names above these are never DISPLAYED at all —
+        // they are handed straight to CoreText as `NSFontDescriptor` family attributes, so a
+        // translated value would resolve to no font and silently drop the fallback.
+        "MarkdownFontCascade.swift|Hiragino Sans":
+            "A CoreText font family identifier, not display copy. Localizing it would break font resolution.",
+        "MarkdownFontCascade.swift|PingFang SC":
+            "A CoreText font family identifier, not display copy. Localizing it would break font resolution.",
+
         // Document content, which the CLAUDE.md invariant forbids translating.
         "MarkdownBlockGrouping.swift|Note": "GitHub callout label — document content, stays in the document's language.",
         "MarkdownBlockGrouping.swift|Tip": "GitHub callout label — document content.",
