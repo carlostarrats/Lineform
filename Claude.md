@@ -45,7 +45,7 @@ Core product principles:
 - In-app announcements: a once-a-day read of a small static JSON file on the marketing site surfaces at most one dismissible card in the editor. No account, no identifier, no server. The Settings toggle (default on) gates the network request itself, not just the display.
 - Local release/help resources bundled in the app.
 - SF Symbol icons on every main-menu row, matching Apple's iconed menus on macOS 26.
-- Localized interface: Spanish, French, German, Japanese, and Simplified Chinese — app chrome only; text that renders document content stays in the document's language.
+- Localized interface: Spanish, French, German, Japanese, and Simplified Chinese — app chrome only, including the sidebar's Markdown Basics prose; text that renders document content stays in the document's language. CJK text falls back through one declared cascade, and read-aloud picks its voice from the document's detected language rather than the interface's.
 
 Deep reference lives in `docs/architecture/` — verbatim, not summarized. **Read the file for an area
 before changing anything in it**; each one records decisions that were paid for in regressions.
@@ -141,6 +141,7 @@ file named after it carries the full story and the reasoning.
 - Every inline walk that appends plain runs between tokens must `unescape` them — `inlineMarkdown`, `inlineWithMath`, and `MarkdownHTMLRenderer.inlineHTML` are three implementations of one loop, and `inlineWithMath` had the lookbehind without the unescape, so adding one `$x$` to a line turned off escape processing for the whole line.
 - Every `MarkdownInlineSyntax` opener carries `(?<!\\)` AND `unescape(_:)` runs on the plain runs between tokens. They are one feature: without the lookbehind `` \`x\` `` opened a code span and ate the backticks; without the unescape, declining to open left a bare `\*` on screen. Never unescape a code span's contents or a link/image DESTINATION.
 - A path written into `![](…)` goes through `ImageLinkRewrite.markdownDestination(for:)` — a bare `)` ends the destination, so `photo (1).png` produced a link the app could not parse back. `ImageResolver` resolves the literal path FIRST, then its percent-decoded form (never the other way round).
+- `NSFontManager.shared.convert(_:toHaveTrait:)` DROPS an attached `.cascadeList` on `.systemFont`, `.monospacedSystemFont` and `withDesign(.serif)` while preserving it for named families. Every trait conversion goes through `MarkdownFontCascade.convert`, and every font-resolution site attaches the cascade — otherwise CJK silently reverts to per-glyph substitution for headings, table headers, callout titles and every bold/italic span, the exact surfaces a body-text-only check passes.
 
 **Export** (`export-and-print.md`)
 - `com.apple.security.print` must stay in BOTH entitlements files or printing fails outright.
@@ -165,6 +166,7 @@ file named after it carries the full story and the reasoning.
 - Never localize an enum `rawValue` — it is persisted identity (UserDefaults, file contents, test fixtures). Add a `title` property instead.
 - `MainMenuIconDecorator` resolves its title-keyed icons (all but the four rows exempted in `MainMenuIconDecoratorTests`) by localized menu title, so its runtime language must come from `Bundle.main.preferredLocalizations`, never `Locale.language.languageCode` — the latter collapses `zh-Hans` to `zh`, matching nothing and silently losing every title-keyed icon in Chinese.
 - Catalog membership is NOT localization. `Button(someString)` / `.alert(someString,…)` pick SwiftUI's VERBATIM overload, so a `String` constant ships English however complete the catalog is — localize at the DEFINITION site. `LocalizationSourceSweepTests` scans the source for this; its allowlist needs a reason per entry.
+- `String(localized:…locale:)` selects a value FORMAT, never an `.lproj`. Per-language assertions resolve through `Bundle(path: "<lang>.lproj")` — which is why `MarkdownReference.sections(in:)` and `Row.accessibilityLabel(in:)` take a bundle at all. The reference's 90-character sidebar ceiling then holds in EVERY language: the column does not get wider in German, so shorten the ENGLISH rather than raise the cap.
 
 - A perf gate's fixture must sit at the WORST case, not a convenient one. `MarkdownSpellCheckPerformanceTests` pinned the caret to the document midpoint while the prefix walk runs from offset 0 to the scope's end — so it measured exactly half the real per-keystroke cost, and the headroom above its floor was half what the numbers claimed.
 
@@ -174,6 +176,7 @@ file named after it carries the full story and the reasoning.
   configurations and the emitted `Metadata.appintents` (`ReleaseResourceTests`), and the rescan
   debounce exceeding the FSEvents coalescing latency (`OutlineSidebarViewTests`). Each had already
   shipped broken or could only be caught by hand.
+- The repo-wide gates (`LocalizationSourceSweepTests`, `LocalizationCatalogTests`) belong in EVERY scoped `-only-testing` run, not only runs whose feature is localization. Any change that merely ADDS a hard-coded string trips the sweep, so scoping a run to the feature's own suites left that gate red across three tasks undetected.
 - Never construct an `NSWindow` in the DEFAULT test plan — it crashes the test host. Window-hosting tests belong in `LineformHosted`.
 - The test host IS the app, so `applicationDidFinishLaunching` runs on EVERY `xcodebuild test`. Anything wired there that calls out — network, XPC, a daemon — fires once per test run unless it is guarded by `AnnouncementStore.isRunningUnderTests` (`XCTestConfigurationFilePath`). The announcement check shipped without that guard and made the suite issue a live request to the production feed. Guard at the LAUNCH CALL SITE, never inside the method under test, or the tests for it become silent no-ops that still pass.
 - When QA'ing a build by hand, open files with `open -a "$BUILT_PRODUCTS_DIR/Lineform.app" file.md`. A bare `open file.md` hands the file to whatever Lineform Launch Services prefers — usually an installed release — and reads exactly like your fix failing.

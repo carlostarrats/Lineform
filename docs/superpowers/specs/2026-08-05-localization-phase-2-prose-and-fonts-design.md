@@ -2,7 +2,34 @@
 
 Date: 2026-08-05 (revised 2026-08-05 after Phase 1 shipped and was reviewed
 against the code)
-Status: Deferred. **Decided after Phase 1 ships and has been seen running in
+
+**Status: partially implemented, 2026-08-05 (branch `work-2026-08-05-3`).**
+
+- **Item 1 (`MarkdownReference` prose) — SHIPPED.** `sections(in:)` and
+  `Row.accessibilityLabel(in:)` are bundle-parameterized, the four
+  `rendersSyntaxAsCode == false` label rows localize and the 25 syntax rows do
+  not, the 90-character ceiling is enforced per language, and the
+  `MarkdownReference.swift` sweep exemption is closed down to two literals.
+- **Item 2 (CJK font cascade) — SHIPPED**, without item 3.
+  `MarkdownFontCascade` is the one definition; every trait conversion routes
+  through it. The sweep reached further than the three `resolvedFont` consumers
+  named below — see `docs/architecture/app-integration.md`.
+- **Item 4 (read-aloud voice) — SHIPPED.** `SpeechLanguageDetector` plus a
+  widened `SpeechSynthesizing.speak(_:languageCode:)` seam.
+- **Item 3 (BIZ UDGothic) — still deferred**, on the 8.9 MB alone, exactly as
+  argued below. Item 2 stands without it.
+- **Item 5 (CJK reading-preset tuning) — still deferred**, and still
+  under-specified: there is no mechanism to vary a preset by script without
+  minting new persisted profile identities. Decide the schema first.
+
+Two corrections the implementation produced, recorded here so the text below is
+not read as current in these two places: glossary exemptions match on the whole
+catalog key rather than the term, and the Spanish word for Preview was
+standardized on Apple's `Vista previa` across both phases. The
+`Lineform/Resources/*.md` question under "Unresolved Across Both Phases" was
+**not** taken up and remains open.
+
+Original status: Deferred. **Decided after Phase 1 ships and has been seen running in
 German and Japanese.** Companion to
 `2026-08-05-localization-phase-1-chrome-design.md`, which carries the shared
 context: language set, refactor mechanism, translation-quality mechanisms, and

@@ -153,6 +153,134 @@ and enum `rawValue`s, skipped structurally and therefore invisible if one is eve
 The full list is on `isDisplayCopy` in the test. Widening the filter trades against false positives
 on the ~500 identifier-shaped literals it currently rejects, so widen deliberately.
 
+## Localization (Phase 2, 2026-08-05)
+
+Phase 2 shipped three of the spec's five items: the sidebar's Markdown Basics prose (item 1), the
+CJK font cascade (item 2), and read-aloud voice selection (item 4). Items 3 (bundling BIZ UDGothic)
+and 5 (CJK reading-preset tuning) remain deferred for the reasons already in
+`docs/superpowers/specs/2026-08-05-localization-phase-2-prose-and-fonts-design.md` — 8.9 MB paid by
+every user for item 3, and no mechanism to vary a preset by script without minting new persisted
+profile identities for item 5. The catalog grew 264 → 299 keys.
+
+**`String(localized:…locale:)` cannot select an `.lproj`** — its `locale:` argument formats
+interpolated values, nothing more. Anything that must be *asserted* per language resolves through
+`Bundle.main.path(forResource: languageCode, ofType: "lproj")` → `Bundle(path:)`, which is why
+`MarkdownReference.sections(in bundle:)` and `Row.accessibilityLabel(in bundle:)`
+(`Lineform/Outline/MarkdownReference.swift`) take a bundle at all, defaulting to `.main` so no
+production call site changed. `MarkdownReferenceTests.testLanguageResolutionComesFromTheBundleNotTheLocale`
+pins the distinction; the English-asserting tests resolve through an explicit `en.lproj` bundle
+rather than `.main`, so the suite survives being run on a non-English Mac.
+
+**`rendersSyntaxAsCode == false` is the predicate deciding which syntax-column cells localize.**
+Four rows put an English *label* where the other 25 put literal Markdown — `Tab`, `Block Spacing`,
+`Spelling`, `Skipped` — and those four localize (the row's copy button otherwise puts an English
+word on the pasteboard in a Japanese sidebar). The 25 syntax rows never do: they are document
+content. A new label row must be localized and a new syntax row must not;
+`testLabelRowsLocalizeAndSyntaxRowsDoNot` and `testExactlyFourRowsAreLabelsNotSyntax` assert the
+split in both directions, so neither side can drift by accident. `"Return"` and `"flowchart LR"`
+are the two syntax literals that read as display copy to the source sweep and carry explicit
+allowlist entries; the whole-file exemption for `MarkdownReference.swift` is gone.
+
+**The 90-character sidebar ceiling holds in all six languages**
+(`testExplanationsStayConciseInEveryLanguage`) — the column does not get wider in German. German
+expansion of 30–35% put roughly eight rows over the cap, and the fix was to shorten the *English*,
+not to raise the ceiling. Measured headroom at the end of the pass: de 86, fr 87, es 82.
+
+**Keyboard glyphs survive translation, connective prose does not.** `⌘1`, `⌘2 to ⌘6` and the like
+are glyphs, not words — but the English word joining two of them is not, and shipping it as a
+protected token left "⌘2 to ⌘6" untranslated in all five languages. Protect the glyph, translate
+the sentence around it.
+
+**A cold translation review changed 51 values across the five languages** (`3d3c32a`), reviewed one
+language per reviewer with no knowledge of provenance. Two were outright wrong and both were
+product claims, not style: German rendered "Callout" as `Hinweis`, which is the NOTE label rather
+than the construct, and Spanish said the app draws a *bookmark* for a remote image where the
+English promises a **placeholder** — that sentence is the app's never-fetch-remote-images privacy
+promise, so a wording drift there misstates what the app does. French carried the same loss.
+
+**Spanish "Vista previa" is now the one word for the Preview mode.** The app had three for one
+thing: `Previsualizar` on the toolbar, `Previsualización` in Phase 1's chrome, and Apple's own
+standard `Vista previa`. Standardized on Apple's, deliberately reaching back into Phase 1's keys to
+do it. `SystemMenuItemTitles.swift` still contains `Previsualizar` and must keep it — that file is
+a generated record of AppKit's own wording, not Lineform copy.
+
+**Glossary exemptions match on the WHOLE CATALOG KEY, not the term.** The `Tab` exemption (keycap
+vs. document tab) therefore does not cover a different string that also contains "Tab"; a second
+exemption was needed for the Shift-Tab explanation. It also means an exemption disables the
+consistency gate for *every* term in that string, so a later reword of an exempted key can hide a
+real inconsistency.
+
+**Editing `Localizable.xcstrings` by hand: never round-trip it through a JSON serializer.** It
+reflows the entire file and buries the change. Insert new key blocks as text at their sorted
+positions.
+
+## CJK font cascade (2026-08-05)
+
+`MarkdownFontCascade` (`Lineform/ReadingExperience/MarkdownFontCascade.swift`) is the ONE definition
+of what a Lineform font falls back to for CJK text: `["Hiragino Sans", "PingFang SC"]`, attached as
+an `NSFontDescriptor` `.cascadeList`. Order matters — CoreText walks the list, so shared Han
+characters resolve in the Japanese face first. Without it CoreText substitutes per glyph and a
+mixed Chinese/Japanese document can render Chinese in a Japanese face; nothing is broken, the
+pairing is simply unchosen.
+
+**`NSFontManager.shared.convert(_:toHaveTrait:)` drops the cascade on system fonts.** Measured on
+macOS 26 via `CTFontCopyAttribute(kCTFontCascadeListAttribute)`: the list survives bold and italic
+conversion for real named families (Helvetica, Atkinson Hyperlegible, OpenDyslexic) and is **nil**
+afterwards for `.systemFont`, `.monospacedSystemFont` and `withDesign(.serif)` — the three faces
+most users actually read. `MarkdownFontCascade.convert` is `NSFontManager`'s convert plus
+re-attachment, and it is the only permitted way to convert a trait in this app;
+`testBareNSFontManagerStillDropsIt` asserts the underlying platform behavior so the helper's reason
+for existing cannot quietly evaporate. Attaching the cascade at font resolution alone ships a
+fallback that works for body text and reverts to per-glyph substitution for every heading, table
+header, callout title, and bold or italic span — precisely the surfaces a body-text check passes.
+
+**Attachment happens at resolution, never through the family descriptor.** `FontOption.availableFont(size:)`
+attaches it after each of its four branches resolve, so a bogus family still returns nil and the
+`isAvailable` nil-signal is untouched. `resolvedFont`'s own `?? .systemFont` fallback is cascaded
+too — an unavailable font is the case most likely to be rendering someone else's script.
+
+**The sweep was exhaustive, not limited to the three `resolvedFont` consumers the spec named.**
+Beyond preview, highlighter and the Write-mode text view, the pass brought in the default PDF/Print
+export preset (`DocumentExportRenderer.swift:220` — on-screen CJK cascaded while exported CJK was
+not), the diagram/math fallback captions, `MermaidPieChart`'s title and legend fonts (they draw
+document-derived text), the Read-mode pill label, the first-launch intro's native button, and the
+Save As accessory description. When adding a site that draws user text, attach the cascade.
+
+**`MarkdownFontCascade.monospaced(ofSize:)` is memoized behind an `NSCache`** because the editor's
+code-span and code-fence tokens realize a font per token inside the debounced per-keystroke
+highlight loop. The face depends on nothing but the point size. `NSCache` is thread-safe on its own
+and keys by value for `NSNumber`, so it needs no lock.
+
+**`FontOption.resolved(for:)` is non-optional** (`option(for:) ?? defaultOption`). A `FontID` can be
+RETIRED — still declared so persisted `ReadingProfile`s decode, but removed from `groupedOptions`
+(`.lexend` today). The old `?? .systemFont(…)` tails at the render sites were reachable through
+exactly that gap and drew an uncascaded face, while the picker showed SF Pro; picker and renderer
+now agree. `ReadingProfileStore` still persists a retired id with no self-heal on decode — a
+pre-existing divergence, unchanged here.
+
+**The Quick Look appex is knowingly out of scope.** It mirrors the renderers by hand and cannot
+import the helper (see the appex note above), so Finder previews of CJK still resolve per glyph.
+That needs its own decision, not a silent copy of the family list.
+
+## Read-aloud voice (2026-08-05)
+
+`AVSpeechUtterance` with no `voice` follows the **UI** language, so a Japanese-UI user reading an
+English document heard English spoken by a Japanese voice. `SpeechLanguageDetector`
+(`Lineform/ReadingExperience/SpeechLanguageDetector.swift`) runs `NLLanguageRecognizer` over the
+extracted spoken text and returns a BCP-47 code, or nil. The `SpeechSynthesizing` seam widened to
+`speak(_:languageCode:)` so the protocol, `SystemSpeechSynthesizer`, `SpeechController.startSpeaking`
+and `FakeSynthesizer` move together — and the fake still models the SHIPPING stop/pause semantics
+(a stopped utterance reports `didFinish`; pause defers to a word boundary), which is the standing
+invariant in `CLAUDE.md`.
+
+Two conservative gates: a 12-character minimum and a 0.65 confidence floor, below which the voice
+is left alone. Both are load-bearing rather than padding — gibberish scored Polish at 0.48, which
+the floor rejects. `AVSpeechSynthesisVoice(language:)` returns nil for an uninstalled language and
+that nil is fine: it lands back on the system default. The single floor applies to every script
+even though 12 characters of Japanese carries more evidence than 12 of English; that is heuristic
+tuning, not a defect. `NaturalLanguage` auto-links, so no pbxproj Frameworks-phase edit was needed
+(verified with `otool -L`).
+
 ## Accessibility (2026-07-27 audit)
 
 - **The first-launch intro must be dismissable without a mouse.** It is a borderless,
