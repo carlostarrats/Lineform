@@ -127,6 +127,9 @@ final class LocalizationCatalogTests: XCTestCase {
             // forced the stiff "Markdown-Ansicht „Lesen“" for the sake of four literal
             // letters. The other four languages still carry the glossary term unforced.
             "Markdown read view",
+            // The glossary's "Tab" is the document tab (Pestaña / Onglet / タブ / 标签页). The
+            // Markdown reference's "Tab" is the keycap, which stays "Tab" in every language.
+            "Tab",
         ]
 
         // Whole-word matching, not substring: "Tab" must not match "Table" and

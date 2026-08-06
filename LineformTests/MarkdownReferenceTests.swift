@@ -80,4 +80,45 @@ final class MarkdownReferenceTests: XCTestCase {
     func testSectionsInMainBundleMatchTheDefaultProperty() {
         XCTAssertEqual(MarkdownReference.sections(in: .main), MarkdownReference.sections)
     }
+
+    private func germanBundle() throws -> Bundle {
+        try XCTUnwrap(Bundle.main.path(forResource: "de", ofType: "lproj").flatMap(Bundle.init(path:)))
+    }
+
+    func testSectionTitlesLocalize() throws {
+        let english = MarkdownReference.sections(in: .main).map(\.title)
+        let german = MarkdownReference.sections(in: try germanBundle()).map(\.title)
+
+        XCTAssertEqual(english, ["Markdown Basics", "Diagrams", "Math", "Spelling", "Search"])
+        XCTAssertEqual(german.count, english.count)
+        // "Diagrams"→"Diagramme" and "Math"→"Formeln" are near-cognates; asserting the whole
+        // array would just re-encode the translation. Assert that translation HAPPENED instead.
+        XCTAssertNotEqual(german[0], english[0], "Markdown Basics should be translated in German")
+        XCTAssertNotEqual(german[3], english[3], "Spelling should be translated in German")
+    }
+
+    func testLabelRowsLocalizeAndSyntaxRowsDoNot() throws {
+        let german = try germanBundle()
+        let englishRows = MarkdownReference.sections(in: .main).flatMap(\.rows)
+        let germanRows = MarkdownReference.sections(in: german).flatMap(\.rows)
+
+        XCTAssertEqual(germanRows.count, englishRows.count)
+
+        for (en, de) in zip(englishRows, germanRows) {
+            if en.rendersSyntaxAsCode {
+                XCTAssertEqual(de.syntax, en.syntax, "Markdown syntax must never translate: \(en.syntax)")
+            } else if en.syntax == "Tab" {
+                // A keycap legend. Apple ships "Tab" untranslated in de/ja; the key exists in the
+                // catalog so other languages CAN differ, but equality here is correct, not a miss.
+                continue
+            } else {
+                XCTAssertNotEqual(de.syntax, en.syntax, "Label row should translate: \(en.syntax)")
+            }
+        }
+    }
+
+    func testExactlyFourRowsAreLabelsNotSyntax() {
+        let labels = MarkdownReference.sections.flatMap(\.rows).filter { !$0.rendersSyntaxAsCode }
+        XCTAssertEqual(labels.count, 4, "A new label row must be localized — see testLabelRowsLocalize…")
+    }
 }
