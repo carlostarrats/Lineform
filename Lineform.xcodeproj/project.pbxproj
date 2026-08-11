@@ -57,8 +57,6 @@
 		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
 		1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000324 /* TestPlanGuardTests.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
-		1F0000010000000000000220 /* LineformCommandLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000220 /* LineformCommandLine.swift */; };
-		1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000221 /* CommandLineToolTests.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
 		1F0000170000000000000001 /* MermaidTypeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */; };
 		1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000180000000000000002 /* MermaidPieChartTests.swift */; };
@@ -84,7 +82,6 @@
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
 		1F0000010000000000000233 /* DiagramLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000233 /* DiagramLogTests.swift */; };
-		1F0000010000000000000222 /* CommandLineToolInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000222 /* CommandLineToolInstaller.swift */; };
 		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
 		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
 		1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000301 /* OutlineFileSortOrder.swift */; };
@@ -175,12 +172,10 @@
 		1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000143 /* EditorChromeAndControls.swift */; };
 		1F0000010000000000000144 /* MarkdownHeadingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000144 /* MarkdownHeadingParser.swift */; };
 		1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000148 /* EditorFloatingControlSupport.swift */; };
-		1F0000010000000000000201 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000201 /* AppUpdater.swift */; };
 		1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C5 /* AnnouncementFeed.swift */; };
 		1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C6 /* AnnouncementFetcher.swift */; };
 		1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C7 /* AnnouncementStore.swift */; };
 		1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C8 /* AnnouncementCard.swift */; };
-		1F0000010000000000000202 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000001 /* Sparkle */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
 		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
 		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
@@ -277,8 +272,6 @@
 		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000324 /* TestPlanGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlanGuardTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
-		1F0000020000000000000220 /* LineformCommandLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformCommandLine.swift; sourceTree = "<group>"; };
-		1F0000020000000000000221 /* CommandLineToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
 		1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidTypeClassifierTests.swift; sourceTree = "<group>"; };
 		1F0000180000000000000002 /* MermaidPieChartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChartTests.swift; sourceTree = "<group>"; };
@@ -310,7 +303,6 @@
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000233 /* DiagramLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLogTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000222 /* CommandLineToolInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolInstaller.swift; sourceTree = "<group>"; };
 		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
 		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
 		1F0000020000000000000301 /* OutlineFileSortOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileSortOrder.swift; sourceTree = "<group>"; };
@@ -395,7 +387,6 @@
 		1F0000020000000000000143 /* EditorChromeAndControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorChromeAndControls.swift; sourceTree = "<group>"; };
 		1F0000020000000000000144 /* MarkdownHeadingParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingParser.swift; sourceTree = "<group>"; };
 		1F0000020000000000000148 /* EditorFloatingControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFloatingControlSupport.swift; sourceTree = "<group>"; };
- 		1F0000020000000000000201 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C5 /* AnnouncementFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFeed.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C6 /* AnnouncementFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFetcher.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C7 /* AnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementStore.swift; sourceTree = "<group>"; };
@@ -429,7 +420,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1F0000010000000000000202 /* Sparkle in Frameworks */,
 				1F0000010000000000000203 /* BeautifulMermaid in Frameworks */,
 				1F00000100000000000002A1 /* SwiftMath in Frameworks */,
 				1F00000100000000000004B0 /* AppIntents.framework in Frameworks */,
@@ -467,7 +457,6 @@
 			isa = PBXGroup;
 			children = (
 				1F0000070000000000000011 /* App */,
-				1F0000070000000000000019 /* CommandLineTool */,
 				1F0000070000000000000012 /* Documents */,
 				1F0000070000000000000013 /* Editor */,
 				1F0000070000000000000014 /* ReadingExperience */,
@@ -493,22 +482,12 @@
 				1F0000020000000000000036 /* AppCommands.swift */,
 				1F00000200000000000004B1 /* MainMenuIconDecorator.swift */,
 				1F0000320000000000000011 /* SystemMenuItemTitles.swift */,
-				1F0000020000000000000201 /* AppUpdater.swift */,
 				1F00000200000000000004C5 /* AnnouncementFeed.swift */,
 				1F00000200000000000004C6 /* AnnouncementFetcher.swift */,
 				1F00000200000000000004C7 /* AnnouncementStore.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
-				1F0000020000000000000222 /* CommandLineToolInstaller.swift */,
 			);
 			path = App;
-			sourceTree = "<group>";
-		};
-		1F0000070000000000000019 /* CommandLineTool */ = {
-			isa = PBXGroup;
-			children = (
-				1F0000020000000000000220 /* LineformCommandLine.swift */,
-			);
-			path = CommandLineTool;
 			sourceTree = "<group>";
 		};
 		1F0000070000000000000012 /* Documents */ = {
@@ -700,7 +679,6 @@
 				1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */,
 				1F0000020000000000000213 /* DocumentReloadControllerTests.swift */,
 				1F0000020000000000000214 /* LiveReloadScrollTests.swift */,
-				1F0000020000000000000221 /* CommandLineToolTests.swift */,
 				1F0000020000000000000232 /* MermaidRenderingTests.swift */,
 				1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */,
 				1F0000180000000000000002 /* MermaidPieChartTests.swift */,
@@ -771,7 +749,6 @@
  			);
 			name = Lineform;
 			packageProductDependencies = (
-				1F0000130000000000000001 /* Sparkle */,
 				1F0000130000000000000002 /* BeautifulMermaid */,
 				1F00001300000000000002A2 /* SwiftMath */,
 			);
@@ -853,7 +830,6 @@
 			);
 			mainGroup = 1F0000070000000000000001;
 			packageReferences = (
-				1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */,
 				1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */,
 			);
@@ -929,8 +905,6 @@
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
 				1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */,
 				1F0000010000000000000211 /* DocumentReloadController.swift in Sources */,
-				1F0000010000000000000220 /* LineformCommandLine.swift in Sources */,
-				1F0000010000000000000222 /* CommandLineToolInstaller.swift in Sources */,
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
 				1F0000010000000000000016 /* LineformTextView.swift in Sources */,
@@ -952,7 +926,6 @@
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
 				1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */,
 				1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */,
-				1F0000010000000000000201 /* AppUpdater.swift in Sources */,
 				1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */,
 				1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */,
 				1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */,
@@ -1077,7 +1050,6 @@
 				1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */,
 				1F0000010000000000000213 /* DocumentReloadControllerTests.swift in Sources */,
 				1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */,
-				1F0000010000000000000221 /* CommandLineToolTests.swift in Sources */,
 				1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */,
 				1F0000170000000000000001 /* MermaidTypeClassifierTests.swift in Sources */,
 				1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */,
@@ -1268,7 +1240,6 @@
 				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
@@ -1291,7 +1262,6 @@
 				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -1416,14 +1386,6 @@
  /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.9.2;
-			};
-		};
 		1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/lukilabs/beautiful-mermaid-swift";
@@ -1443,11 +1405,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		1F0000130000000000000001 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1F0000140000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
 		1F0000130000000000000002 /* BeautifulMermaid */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */;

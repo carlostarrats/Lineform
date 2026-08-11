@@ -1,46 +1,6 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "%@\n\nRun this in Terminal:\n\n%@": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@\n\nFühre dies im Terminal aus:\n\n%@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@\n\nRun this in Terminal:\n\n%2$@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@\n\nEjecuta esto en el Terminal:\n\n%@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@\n\nExécutez ceci dans Terminal :\n\n%@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@\n\nターミナルで次を実行してください:\n\n%@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@\n\n在“终端”中运行以下命令：\n\n%@"
-          }
-        }
-      }
-    },
     "%@ matching “%@”": {
       "localizations": {
         "en": {
@@ -185,46 +145,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@，值 %@"
-          }
-        }
-      }
-    },
-    "%@ was linked to %@.\n\nOpen a new Terminal window, then run:\n\n%@ yourfile.md\n\nOr pipe input into it:\n\nsome-command | %@ -": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ wurde mit %@ verknüpft.\n\nÖffne ein neues Terminal-Fenster und führe dann aus:\n\n%@ deinedatei.md\n\nOder leite Eingaben hinein:\n\nirgendein-befehl | %@ -"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@ was linked to %2$@.\n\nOpen a new Terminal window, then run:\n\n%3$@ yourfile.md\n\nOr pipe input into it:\n\nsome-command | %4$@ -"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ se ha enlazado a %@.\n\nAbre una ventana nueva del Terminal y ejecuta:\n\n%@ tuarchivo.md\n\nO canaliza la entrada hacia él:\n\nun-comando | %@ -"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ a été lié à %@.\n\nOuvrez une nouvelle fenêtre du Terminal, puis exécutez :\n\n%@ votrefichier.md\n\nOu redirigez une entrée vers cet outil :\n\nune-commande | %@ -"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@を%@にリンクしました。\n\n新しいターミナルウインドウを開いて、次を実行してください:\n\n%@ yourfile.md\n\nまたは入力をパイプで渡します:\n\nsome-command | %@ -"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已将 %@ 链接到 %@。\n\n打开新的“终端”窗口，然后运行：\n\n%@ yourfile.md\n\n或将输入通过管道传给它：\n\nsome-command | %@ -"
           }
         }
       }
@@ -2037,40 +1957,6 @@
         }
       }
     },
-    "Check for Updates...": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nach Updates suchen ..."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Buscar actualizaciones..."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rechercher les mises à jour..."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アップデートを確認..."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "检查更新..."
-          }
-        }
-      }
-    },
     "Checking…": {
       "localizations": {
         "de": {
@@ -2135,40 +2021,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "选取"
-          }
-        }
-      }
-    },
-    "Choose where to install the lineform command (default: %@).": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wähle aus, wo der Befehl „lineform“ installiert werden soll (Standard: %@)."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elige dónde instalar el comando lineform (por omisión: %@)."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choisissez où installer la commande lineform (par défaut : %@)."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "lineformコマンドのインストール先を選択してください（デフォルト: %@）。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选取 lineform 命令的安装位置（默认：%@）。"
           }
         }
       }
@@ -2475,40 +2327,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "栏宽"
-          }
-        }
-      }
-    },
-    "Command line tool installed": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Befehlszeilenprogramm installiert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Herramienta de línea de comandos instalada"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Outil de ligne de commande installé"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コマンドラインツールをインストールしました"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已安装命令行工具"
           }
         }
       }
@@ -2849,40 +2667,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法保存"
-          }
-        }
-      }
-    },
-    "Couldn’t create the link at %@.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Link konnte unter %@ nicht erstellt werden."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se ha podido crear el enlace en %@."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossible de créer le lien dans %@."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@にリンクを作成できませんでした。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法在 %@ 创建链接。"
           }
         }
       }
@@ -4965,108 +4749,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在表格中移动到下一个单元格。Shift-Tab 返回上一个。"
-          }
-        }
-      }
-    },
-    "Install Command Line Tool": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Befehlszeilenprogramm installieren"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instalar la herramienta de línea de comandos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installer l’outil de ligne de commande"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コマンドラインツールをインストール"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装命令行工具"
-          }
-        }
-      }
-    },
-    "Install Command Line Tool...": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Befehlszeilenprogramm installieren ..."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instalar la herramienta de línea de comandos..."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installer l’outil de ligne de commande..."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コマンドラインツールをインストール..."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装命令行工具..."
-          }
-        }
-      }
-    },
-    "Install manually": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manuell installieren"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instalar manualmente"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installer manuellement"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手動でインストール"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手动安装"
           }
         }
       }
@@ -7655,40 +7337,6 @@
         }
       }
     },
-    "Release builds need a Sparkle EdDSA public key and a published appcast before Lineform can check for updates.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Release-Builds benötigen einen öffentlichen Sparkle-EdDSA-Schlüssel und einen veröffentlichten Appcast, bevor Lineform nach Updates suchen kann."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las versiones de lanzamiento necesitan una clave pública EdDSA de Sparkle y un appcast publicado para que Lineform pueda buscar actualizaciones."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les versions finales nécessitent une clé publique EdDSA Sparkle et un appcast publié pour que Lineform puisse rechercher des mises à jour."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リリースビルドでLineformがアップデートを確認するには、SparkleのEdDSA公開鍵と公開済みのappcastが必要です。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发布版本需要 Sparkle EdDSA 公钥和已发布的 appcast，Lineform 才能检查更新。"
-          }
-        }
-      }
-    },
     "Rename": {
       "localizations": {
         "de": {
@@ -9803,40 +9451,6 @@
         }
       }
     },
-    "The command line tool isn’t available in this build.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das Befehlszeilenprogramm ist in diesem Build nicht verfügbar."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La herramienta de línea de comandos no está disponible en esta versión."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’outil de ligne de commande n’est pas disponible dans cette version."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このビルドではコマンドラインツールを利用できません。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此构建版本中没有命令行工具。"
-          }
-        }
-      }
-    },
     "The note's starting text.": {
       "localizations": {
         "de": {
@@ -10645,40 +10259,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已更新"
-          }
-        }
-      }
-    },
-    "Updates are not configured for this build.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Für diesen Build sind keine Updates konfiguriert."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las actualizaciones no están configuradas para esta versión."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les mises à jour ne sont pas configurées pour cette version."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このビルドではアップデートが構成されていません。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此构建版本未配置更新。"
           }
         }
       }

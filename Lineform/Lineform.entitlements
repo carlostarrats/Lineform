@@ -15,11 +15,6 @@
 	     at all — see docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md), so
 	     it has no consumer. The App ID and both provisioning profiles still carry the
 	     capability, so re-adding this key needs no portal work. -->
-	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
-	<array>
-		<string>com.lineform.app-spki</string>
-		<string>com.lineform.app-spks</string>
-	</array>
 	<key>com.apple.application-identifier</key>
 	<string>TV4QZT7A7X.com.lineform.app</string>
 	<key>com.apple.developer.team-identifier</key>

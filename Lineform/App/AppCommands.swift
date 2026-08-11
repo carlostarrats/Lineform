@@ -56,8 +56,6 @@ enum AppMenuConfiguration {
     /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
     static let linkCommandKeyEquivalent = "l"
     static let printCommandTitle = String(localized: "Print...")
-    static let checkForUpdatesCommandTitle = String(localized: "Check for Updates...")
-    static let installCommandLineToolCommandTitle = String(localized: "Install Command Line Tool...")
     static let privacyPolicyCommandTitle = String(localized: "Privacy Policy")
     static let termsOfUseCommandTitle = String(localized: "Terms of Use")
     static let privacyPolicyURL = "https://lineform.app/privacy"
@@ -109,8 +107,6 @@ enum AppMenuConfiguration {
         // Application menu
         "About Lineform",
         "Settings…",
-        "Check for Updates...",
-        "Install Command Line Tool...",
         "Privacy Policy",
         "Terms of Use",
         // File menu
@@ -338,7 +334,6 @@ struct AppCommands: Commands {
     @ObservedObject private var currentFileMenuState: LineformCurrentFileMenuState
     @ObservedObject private var speechMenuState: LineformSpeechMenuState
     @ObservedObject private var settingsStore: LineformSettingsStore
-    private let updaterController: LineformUpdaterController
 
     init(
         textFormatMenuState: LineformTextFormatMenuState = .shared,
@@ -346,8 +341,7 @@ struct AppCommands: Commands {
         hiddenFoldersMenuState: HiddenFoldersMenuState = .shared,
         currentFileMenuState: LineformCurrentFileMenuState = .shared,
         speechMenuState: LineformSpeechMenuState = .shared,
-        settingsStore: LineformSettingsStore = .shared,
-        updaterController: LineformUpdaterController = .shared
+        settingsStore: LineformSettingsStore = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
         _displayModeMenuState = ObservedObject(wrappedValue: displayModeMenuState)
@@ -355,7 +349,6 @@ struct AppCommands: Commands {
         _currentFileMenuState = ObservedObject(wrappedValue: currentFileMenuState)
         _speechMenuState = ObservedObject(wrappedValue: speechMenuState)
         _settingsStore = ObservedObject(wrappedValue: settingsStore)
-        self.updaterController = updaterController
     }
 
     var body: some Commands {
@@ -386,14 +379,6 @@ struct AppCommands: Commands {
             .keyboardShortcut(",", modifiers: .command)
 
             Divider()
-
-            Button(AppMenuConfiguration.checkForUpdatesCommandTitle) {
-                updaterController.checkForUpdates()
-            }
-
-            Button(AppMenuConfiguration.installCommandLineToolCommandTitle) {
-                CommandLineToolInstaller.presentInstaller()
-            }
 
             Button(AppMenuConfiguration.privacyPolicyCommandTitle) {
                 if let url = URL(string: AppMenuConfiguration.privacyPolicyURL) {

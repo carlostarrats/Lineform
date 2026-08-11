@@ -4,7 +4,6 @@ import SwiftUI
 struct LineformApp: App {
     @NSApplicationDelegateAdaptor(LineformAppDelegate.self) private var appDelegate
     @StateObject private var textFormatMenuState = LineformTextFormatMenuState.shared
-    private let updaterController = LineformUpdaterController.shared
 
     init() {
         BundledFontRegistrar.registerFonts()
@@ -20,10 +19,7 @@ struct LineformApp: App {
             height: LineformWindowDefaults.defaultHeight
         )
         .commands {
-            AppCommands(
-                textFormatMenuState: textFormatMenuState,
-                updaterController: updaterController
-            )
+            AppCommands(textFormatMenuState: textFormatMenuState)
         }
         // Settings deliberately has NO `Settings { }` scene: it presents as a
         // Muse-style in-window modal (SettingsModal, same chrome as the Info

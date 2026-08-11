@@ -7,11 +7,10 @@ name: Deploy docs to Pages
 # trigger a Pages run at all.
 #
 # The site is a plain static serve of docs/ (docs/.nojekyll is present); we upload
-# docs/ wholesale so every site path stays byte-for-byte stable. NOTE: Sparkle app
-# updates do NOT depend on this site — the shipped SUFeedURL is the raw-content URL
-# (https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml),
-# which serves straight from the git blob on push. A delayed or failed Pages deploy
-# never blocks in-app updates; this deploys the public docs site only.
+# docs/ wholesale so every site path stays byte-for-byte stable. Nothing the app does
+# at runtime depends on this site: Lineform ships through the Mac App Store and has no
+# self-updater, and the announcements feed is served from the marketing site, not here.
+# This deploys the public docs site and nothing else.
 #
 # STATUS: the Pages source was flipped to build_type=workflow on 2026-07-03
 # (gh api -X PUT repos/carlostarrats/Lineform/pages -f build_type=workflow; site

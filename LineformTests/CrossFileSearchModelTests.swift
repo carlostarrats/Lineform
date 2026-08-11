@@ -37,6 +37,15 @@ final class CrossFileSearchModelTests: XCTestCase {
         XCTAssertEqual(model.results.map(\.name), ["a.md"])
     }
 
+    func testFilenameMatchIsReturnedWhenContentsCannotBeRead() async {
+        let model = CrossFileSearchModel(reader: StubReader(texts: [:]), debounceInterval: 0)
+        await model.search(query: "launch", entries: [entry("/launch-plan.md")])?.value
+
+        XCTAssertEqual(model.results.map(\.name), ["launch-plan.md"])
+        XCTAssertEqual(model.results.first?.matchCount, 1)
+        XCTAssertEqual(model.results.first?.snippets, [])
+    }
+
     func testEmptyQueryClearsResultsWithoutSearching() async {
         let model = CrossFileSearchModel(reader: StubReader(texts: [:]), debounceInterval: 0)
         await model.search(query: "needle", entries: [])?.value

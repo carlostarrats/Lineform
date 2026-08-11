@@ -14,6 +14,9 @@ struct CrossFileSearchResult: Identifiable, Equatable {
     let name: String
     let relativePath: String
     let rootTitle: String
+    /// Query hits in the filename. These are kept separate from document hits so the
+    /// card can emphasize its title without pretending a filename is source text.
+    let filenameMatches: [NSRange]
     let matchCount: Int
     let snippets: [CrossFileSearchSnippet]
 }
@@ -35,17 +38,19 @@ enum CrossFileSearchResolver {
     // is a runaway guard, not a display budget.
     static let maximumSnippetsPerFile = 100
 
-    static func result(for entry: QuickOpenEntry, text: String, query: String) -> CrossFileSearchResult? {
-        let matches = EditorSearchResolver.matches(in: text, query: query)
-        guard !matches.isEmpty else { return nil }
+    static func result(for entry: QuickOpenEntry, text: String?, query: String) -> CrossFileSearchResult? {
+        let filenameMatches = EditorSearchResolver.matches(in: entry.name, query: query)
+        let contentMatches = text.map { EditorSearchResolver.matches(in: $0, query: query) } ?? []
+        guard !filenameMatches.isEmpty || !contentMatches.isEmpty else { return nil }
         return CrossFileSearchResult(
             id: entry.id,
             url: entry.url,
             name: entry.name,
             relativePath: entry.relativePath,
             rootTitle: entry.rootTitle,
-            matchCount: matches.count,
-            snippets: snippets(in: text, matches: matches)
+            filenameMatches: filenameMatches,
+            matchCount: filenameMatches.count + contentMatches.count,
+            snippets: text.map { snippets(in: $0, matches: contentMatches) } ?? []
         )
     }
 

@@ -11,8 +11,8 @@ import AppKit
 // Services targeting THIS app bundle, so it lands in Lineform (never TextEdit for a .txt) and the
 // sandbox grants access to a user-picked file the same way a Finder double-click does. A new note
 // is staged into the app's OWN container (always writable under the sandbox) and opened through the
-// document system, so it becomes a real, autosaving document the user can then Save As anywhere —
-// mirroring the `lineform -` piped-stdin CLI path.
+// document system, so it becomes a real, autosaving document the user can then Save As anywhere
+// (a truly untitled DocumentGroup document cannot be created pre-filled).
 
 struct NewLineformNoteIntent: AppIntent {
     static let title: LocalizedStringResource = "New Lineform Note"

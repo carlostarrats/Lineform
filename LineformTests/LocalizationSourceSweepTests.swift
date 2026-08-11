@@ -35,8 +35,6 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Generated table OF Apple's translations, keyed by English; regenerate with packaging/extract-system-menu-titles.py. Lineform never draws these.",
         "MainMenuIconDecorator.swift":
             "Icon lookup tables — normalized English titles and their per-language aliases. The decorator only ever sets NSMenuItem.image; it writes no titles.",
-        "LineformCommandLine.swift":
-            "`lineform` CLI diagnostics printed to stderr in a shell, outside the app's localized UI.",
         "LineformAppIntents.swift":
             "Every literal is a LocalizedStringResource / IntentDescription / @Parameter title / AppShortcut phrase. Those types localize a bare literal by construction and extract into Localizable.xcstrings and AppShortcuts.xcstrings, where LocalizationCatalogTests covers them.",
     ]

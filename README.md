@@ -9,7 +9,6 @@
 - See external edits automatically: an open document reloads when its file changes on disk, so what your tools (or agents) write shows up without reopening.
 - Browse your writing in the Files sidebar — your Lineform iCloud Drive folder and any workspace folder you choose — and switch files in the same window, Apple Notes-style.
 - Optionally show hidden folders in the Files sidebar (like `.claude` or `.github`) to reach Markdown that lives alongside your code.
-- Open files from the terminal with the bundled `lineform` command (`lineform notes.md`, or pipe with `some-command | lineform -`); install it from **Lineform → Install Command Line Tool…**.
 - See Mermaid diagrams rendered natively in Read and Preview modes (Write mode shows the source); a malformed or very large diagram falls back to a labeled source block rather than blocking the window.
 - Write LaTeX math inline with `$…$` and as centered blocks with `$$…$$`, rendered natively in Read and Preview modes (Write mode shows the source); invalid math falls back to its source. Ordinary dollar amounts like "$5" are left untouched.
 - Switch between Write, Read, and Preview modes.
@@ -35,24 +34,23 @@ Lineform is local-first.
 - Documents stay wherever you save them.
 - Files remain ordinary Markdown or text files.
 
-Lineform contacts the network in only two cases: Sparkle update checks, and a once-a-day read of a small public announcements file on the Lineform website, which sends no identifier and can be turned off in Settings. **Your document content never leaves your device.**
+Lineform contacts the network in exactly one case: a once-a-day read of a small public announcements file on the Lineform website, which sends no identifier and can be turned off in Settings. **Your document content never leaves your device.**
 
 Full [Privacy](https://lineform.app/privacy) and [Terms of Use](https://lineform.app/terms) are published online and linked from the app's menu.
 
 ## Agent workflow
 
-Lineform is a good place to read and review what your coding agent writes. With the bundled
-`lineform` command line tool, a [Claude Code](https://code.claude.com) hook can open every
-Markdown file your agent writes or edits — see the copy-paste recipe at
+Lineform is a good place to read and review what your coding agent writes. A
+[Claude Code](https://code.claude.com) hook can open every Markdown file your agent writes or
+edits — see the copy-paste recipe at
 [lineform.app/hooks](https://lineform.app/hooks) (also in
 [`docs/agent-hooks.md`](docs/agent-hooks.md), verified against Claude Code v2.1.198). Combined
 with live reload, the file refreshes in place as the agent works.
 
 ## Updates
 
-Lineform includes a **Check for Updates...** menu item in the app menu.
-
-Release builds use [Sparkle](https://sparkle-project.org) for update checks once a Sparkle EdDSA public key and published appcast are configured. Development or unsigned test builds may show an "Updates are not configured for this build" message.
+Lineform is distributed through the Mac App Store, which handles updates. The app ships no
+self-update mechanism of its own.
 
 ## Requirements
 
@@ -64,8 +62,6 @@ Release builds use [Sparkle](https://sparkle-project.org) for update checks once
 Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version; the current release is 1.5.0.
 
 ## Credits
-
-Lineform uses [Sparkle](https://sparkle-project.org) for macOS update checking.
 
 Lineform renders Mermaid diagrams with [BeautifulMermaid](https://github.com/lukilabs/beautiful-mermaid-swift) (MIT), a native Swift renderer.
 
@@ -99,7 +95,7 @@ xcodebuild test \
   -parallel-testing-enabled NO
 ```
 
-Release packaging notes live in [docs/release/github-sparkle-release.md](docs/release/github-sparkle-release.md).
+Release notes for maintainers live in [docs/release/app-store-release.md](docs/release/app-store-release.md).
 
 ## License
 

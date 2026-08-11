@@ -205,9 +205,7 @@ struct CrossFileSearchResultsView: View {
 
     private func cardHeader(_ result: CrossFileSearchResult) -> some View {
         HStack(spacing: 8) {
-            Text(result.name)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(primaryColor)
+            Text(filenameText(result))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
@@ -219,6 +217,20 @@ struct CrossFileSearchResultsView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(sortLabelColor)
         }
+    }
+
+    /// Filename hits are highlighted in the card title itself, rather than manufactured
+    /// into source-text snippets. That keeps a filename-only result truthful while still
+    /// making it immediately clear why the file appears in the All Files results.
+    private func filenameText(_ result: CrossFileSearchResult) -> AttributedString {
+        var attributed = AttributedString(result.name)
+        attributed.font = .system(size: 13, weight: .semibold)
+        attributed.foregroundColor = primaryColor
+        for match in result.filenameMatches.reversed() {
+            guard let range = Range(match, in: attributed) else { continue }
+            attributed[range].font = .system(size: 13, weight: .bold)
+        }
+        return attributed
     }
 
     /// The file's directory within its root — never repeats the filename. A root-level

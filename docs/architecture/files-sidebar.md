@@ -25,18 +25,20 @@ and the scan stays lazy) remain there under Load-Bearing Invariants.
 - Only the Release/production build carries an iCloud entitlement (`iCloud.com.lineform.app`, in `Lineform/Lineform.entitlements`). Debug builds intentionally ship **no** iCloud entitlement (`LineformDebug.entitlements` has none), so `iCloudContainerIdentifier` resolves to nil there and the iCloud root is treated as unavailable. When the iCloud container can't resolve (no entitlement in Debug, or a Release user not signed into iCloud), the Files sidebar **hides the iCloud root entirely** (`OutlineSidebarView.rootIsVisible`) rather than showing a dead entry — so **Debug never shows an iCloud root at all**, and only the Workspace root appears. (Connected-but-empty iCloud is instead shown dimmed with no chevron via `iCloudRootIsDimmed`.) This is deliberate isolation: dev/CI build churn can never touch (and let macOS purge) the real users' production container, and — critically — a restricted iCloud entitlement cannot be satisfied under ad-hoc ("Sign to Run Locally") signing, so giving Debug one would stop the test host from launching on CI. Do not add an iCloud entitlement to Debug. (A separate registered `*.debug` container was tried and rejected for exactly this CI-launch reason.)
 - The live iCloud scan (resolving the ubiquity container + enumerating the directory) is expensive and must not run on the main thread at view construction — it would block launch and perturb hosted-view layout. It is deferred to `OutlineFileBrowserStore.refreshICloud()`, invoked when the Files tab actually appears. Init only loads the cached snapshot. Preserve this laziness.
 - The store keeps the user's iCloud working set materialized via `ensureDownloaded(...)` (`FileManager.startDownloadingUbiquitousItem`), so evicted (dataless) files don't appear in search yet fail to open or drag. This is realized through the `UbiquitousItemDownloader` protocol so it is testable without real iCloud files.
-- App-owned containers are still subject to iCloud purge when macOS believes the app was uninstalled. The durable additional protections are operational, not code: ship updates via Sparkle's atomic in-place swap (never instruct users to delete the old app and drag a new one), and do not run-then-delete locally built Release/Export copies of `com.lineform.app` while signed into the production iCloud account.
+- App-owned containers are still subject to iCloud purge when macOS believes the app was uninstalled. The durable additional protections are operational, not code: ship updates through the App Store, which replaces the app in place (never instruct users to delete the old app and drag a new one; TestFlight builds count as locally installed copies here too), and do not run-then-delete locally built Release/Export copies of `com.lineform.app` while signed into the production iCloud account.
 
 ## Toggle, watcher, and sort (audited 2026-07-27)
 
-**Hidden-folders OFF deleted real files from the tree.** The OFF branch filtered the last
-hidden-INCLUSIVE scan in memory, on the stated claim that it is a superset of the visible tree. It is
-not: `items(in:)` applies the 80-per-folder cap BEFORE any hidden filtering, so hidden entries spend
-cap slots that a real hidden-off scan would have given to ordinary files — those files then vanished,
-and the wrong tree persisted until something else forced a rescan. This is the same reasoning that
-already made `applySortOrderChange` re-scan rather than re-sort ("the cap is applied in display
-order, so order decides membership"); the hidden path simply never got it. It now re-scans a live
-root. In-memory `filteredForDisplay` is kept only for the cached/disconnected fallbacks in
+**The Files tree is document-only, including its folders.** `items(in:)` admits only supported
+documents (`.md`, `.markdown`, `.txt`) and directories while scanning, then drops a directory
+whose bounded scanned subtree is empty. This keeps image-only and empty folders out of the sidebar
+while preserving the flat, lazy renderer. There is no arbitrary per-folder item cap; the lazy
+renderer keeps large folders from eagerly laying out every row. A directory is retained only when
+it leads to a supported document within `maximumTreeDepth`.
+
+**Hidden-folder changes re-scan live roots.** The live scan is the source of truth for both the
+snapshot and the visible tree, so toggling Show Hidden Folders always re-scans an available root.
+In-memory `filteredForDisplay` is kept only for cached/disconnected fallbacks in
 `refreshWorkspaceRoot`, where no scan is possible.
 
 **A moved workspace folder killed live refresh for the session.** `workspaceURL` is assigned in two

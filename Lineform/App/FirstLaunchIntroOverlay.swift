@@ -91,8 +91,6 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
                 )
             }
         }
-        // Piped-file housekeeping runs in the unsandboxed `lineform` helper (the sandboxed app
-        // cannot enumerate the helper's real Application Support directory).
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {

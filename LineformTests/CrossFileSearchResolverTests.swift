@@ -38,6 +38,26 @@ final class CrossFileSearchResolverTests: XCTestCase {
         XCTAssertNil(CrossFileSearchResolver.result(for: entry(), text: "anything", query: "   "))
     }
 
+    func testFilenameMatchReturnsResultWhenContentsDoNotMatch() {
+        let result = CrossFileSearchResolver.result(
+            for: entry(name: "Launch Plan.md"), text: "nothing relevant", query: "launch"
+        )
+
+        XCTAssertEqual(result?.matchCount, 1)
+        XCTAssertEqual(result?.filenameMatches, [NSRange(location: 0, length: 6)])
+        XCTAssertEqual(result?.snippets, [])
+    }
+
+    func testFilenameAndContentsMatchesContributeToTheSameResult() {
+        let result = CrossFileSearchResolver.result(
+            for: entry(name: "launch.md"), text: "launch once\nlaunch twice", query: "launch"
+        )
+
+        XCTAssertEqual(result?.matchCount, 3)
+        XCTAssertEqual(result?.filenameMatches.count, 1)
+        XCTAssertEqual(result?.snippets.count, 2)
+    }
+
     func testLongLineSnippetIsElidedAroundTheMatch() {
         let prefix = String(repeating: "a", count: 200)
         let suffix = String(repeating: "b", count: 200)
@@ -126,7 +146,8 @@ final class CrossFileSearchResolverTests: XCTestCase {
         func make(_ name: String, _ path: String, _ count: Int) -> CrossFileSearchResult {
             CrossFileSearchResult(
                 id: path, url: URL(fileURLWithPath: "/\(path)"), name: name,
-                relativePath: path, rootTitle: "Workspace", matchCount: count,
+                relativePath: path, rootTitle: "Workspace", filenameMatches: [],
+                matchCount: count,
                 snippets: [CrossFileSearchSnippet(lineText: "x", matchRange: NSRange(location: 0, length: 1))]
             )
         }

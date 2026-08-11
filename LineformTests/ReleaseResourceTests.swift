@@ -37,10 +37,10 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertEqual(entitlements["com.apple.security.app-sandbox"] as? Bool, true)
         XCTAssertEqual(entitlements["com.apple.security.files.user-selected.read-write"] as? Bool, true)
         XCTAssertEqual(entitlements["com.apple.security.network.client"] as? Bool, true)
-        XCTAssertEqual(
-            entitlements["com.apple.security.temporary-exception.mach-lookup.global-name"] as? [String],
-            ["com.lineform.app-spki", "com.lineform.app-spks"]
-        )
+        // Sparkle is gone (App Store distribution): its two mach-lookup exceptions went with
+        // it. A temporary-exception entitlement is a review flag on its own, so assert the
+        // absence rather than remember it.
+        XCTAssertNil(entitlements["com.apple.security.temporary-exception.mach-lookup.global-name"])
         XCTAssertEqual(entitlements["com.apple.application-identifier"] as? String, "TV4QZT7A7X.com.lineform.app")
         XCTAssertEqual(entitlements["com.apple.developer.team-identifier"] as? String, "TV4QZT7A7X")
         XCTAssertEqual(entitlements["com.apple.developer.icloud-container-environment"] as? String, "Production")
@@ -84,16 +84,31 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.5.0")
-        XCTAssertEqual(info["SUFeedURL"] as? String, "https://raw.githubusercontent.com/carlostarrats/Lineform/main/docs/appcast.xml")
-        XCTAssertNotNil(info["SUPublicEDKey"] as? String)
-        XCTAssertEqual(info["SUEnableInstallerLauncherService"] as? Bool, true)
-        XCTAssertNil(info["SUEnableInstallerConnectionService"])
-        XCTAssertNil(info["SUEnableInstallerStatusService"])
+        // No SU* keys: App Store apps may not ship their own updater, and Sparkle's
+        // unsandboxed helpers fail upload validation outright.
+        for sparkleKey in [
+            "SUFeedURL", "SUPublicEDKey", "SUEnableAutomaticChecks",
+            "SUEnableInstallerLauncherService", "SUEnableInstallerConnectionService",
+            "SUEnableInstallerStatusService"
+        ] {
+            XCTAssertNil(info[sparkleKey], "\(sparkleKey) must not survive into an App Store build.")
+        }
         XCTAssertEqual(
             info["NSHumanReadableCopyright"] as? String,
             AppMenuConfiguration.aboutCopyright
         )
         XCTAssertNotNil(Bundle.main.url(forResource: "AppIcon", withExtension: "icns"))
+    }
+
+    /// Both keys are App Store submission requirements and neither has any effect on a local
+    /// build, so nothing else would notice if they went missing. Missing
+    /// `LSApplicationCategoryType` is an outright rejection; missing
+    /// `ITSAppUsesNonExemptEncryption` stops every submission to ask the export question by hand.
+    func testInfoPlistCarriesAppStoreSubmissionKeys() throws {
+        let info = try XCTUnwrap(Bundle.main.infoDictionary)
+
+        XCTAssertEqual(info["LSApplicationCategoryType"] as? String, "public.app-category.productivity")
+        XCTAssertEqual(info["ITSAppUsesNonExemptEncryption"] as? Bool, false)
     }
 
     func testInfoPlistDeclaresLineformICloudDocumentsContainer() throws {
@@ -195,34 +210,6 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertTrue(project.contains("CODE_SIGN_ENTITLEMENTS = Lineform/Lineform.entitlements;"))
         XCTAssertTrue(project.contains("com.apple.iCloud = {"))
         XCTAssertTrue(project.contains("enabled = 1;"))
-    }
-
-    func testReleaseScriptAllowsXcodeToProvisionICloudProfile() throws {
-        let testFileURL = URL(fileURLWithPath: #filePath)
-        let scriptURL = testFileURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("packaging/build-release.sh")
-        let script = try String(contentsOf: scriptURL, encoding: .utf8)
-
-        XCTAssertTrue(script.contains("CODE_SIGN_STYLE=\"${CODE_SIGN_STYLE:-Automatic}\""))
-        XCTAssertTrue(script.contains("CODE_SIGN_STYLE=\"$CODE_SIGN_STYLE\""))
-        XCTAssertTrue(script.contains("-allowProvisioningUpdates"))
-        XCTAssertTrue(script.contains("DEVELOPER_ID_PROFILE_PATH"))
-        XCTAssertTrue(script.contains("embedded.provisionprofile"))
-    }
-
-    func testDMGScriptSignsCompressedDiskImageContainer() throws {
-        let testFileURL = URL(fileURLWithPath: #filePath)
-        let scriptURL = testFileURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("packaging/build-dmg.sh")
-        let script = try String(contentsOf: scriptURL, encoding: .utf8)
-
-        XCTAssertTrue(script.contains("DMG_CODE_SIGN_IDENTITY"))
-        XCTAssertTrue(script.contains("Developer ID Application: Carlos Tarrats (TV4QZT7A7X)"))
-        XCTAssertTrue(script.contains("codesign --force --sign \"$DMG_CODE_SIGN_IDENTITY\" \"$FINAL_DMG\""))
     }
 
     /// `com.apple.security.print` must be in BOTH entitlement files or printing fails outright —

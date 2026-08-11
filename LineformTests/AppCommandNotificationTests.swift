@@ -6,8 +6,6 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertEqual(AppMenuConfiguration.aboutCommandTitle, "About Lineform")
         XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.5.0")
         XCTAssertEqual(AppMenuConfiguration.aboutCopyright, "Copyright © 2026 Carlos Tarrats. All rights reserved.")
-        XCTAssertEqual(AppMenuConfiguration.checkForUpdatesCommandTitle, "Check for Updates...")
-        XCTAssertEqual(AppMenuConfiguration.installCommandLineToolCommandTitle, "Install Command Line Tool...")
         XCTAssertEqual(AppMenuConfiguration.privacyPolicyCommandTitle, "Privacy Policy")
         XCTAssertEqual(AppMenuConfiguration.termsOfUseCommandTitle, "Terms of Use")
         XCTAssertTrue(AppMenuConfiguration.privacyPolicyURL.hasPrefix("https://"))

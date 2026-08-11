@@ -361,8 +361,6 @@ enum MainMenuIconDecorator {
         // Application menu
         "about": "info.circle",
         "settings": "gearshape",
-        "check for updates": "arrow.triangle.2.circlepath",
-        "install command line tool": "terminal",
         "privacy policy": "hand.raised",
         "terms of use": "doc.text",
         "services": "square.grid.2x2",

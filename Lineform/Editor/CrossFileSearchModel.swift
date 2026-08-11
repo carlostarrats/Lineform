@@ -109,7 +109,9 @@ final class CrossFileSearchModel: ObservableObject {
         var collected: [CrossFileSearchResult] = []
         for entry in entries {
             guard !Task.isCancelled else { return collected }
-            guard let text = reader.readSearchableText(at: entry.url) else { continue }
+            // A filename match must remain useful even when an iCloud file is evicted or
+            // its contents cannot be read. Content search remains best-effort as before.
+            let text = reader.readSearchableText(at: entry.url)
             if let result = CrossFileSearchResolver.result(for: entry, text: text, query: query) {
                 collected.append(result)
             }

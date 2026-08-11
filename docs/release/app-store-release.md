@@ -1,15 +1,18 @@
 # Mac App Store release — deploy-day runbook
 
 Everything that only matters on the day Lineform is actually submitted to the Mac App Store.
-Nothing here is ongoing work. The one engineering change that must land before this runbook is
-useful is removing Sparkle. (A sandboxed `lineform` helper was investigated and abandoned — it
-cannot work; see the first precondition.)
+The App Store is now the **only** channel: on 2026-08-06 Sparkle, the `lineform` CLI, and the
+entire Direct/DMG path (`packaging/build-release.sh`, `build-dmg.sh`, `notarize-dmg.sh`,
+`generate-appcast.sh`, `verify-update.sh`, `docs/appcast.xml`, `docs/release-notes/`, and the
+Release Build workflow) were deleted. There is no fallback distribution to fall back to — this
+runbook is the release process.
 
 Read `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before touching signing.
 
 ## 0. Preconditions — do not start until all are true
 
-- [ ] **DECIDED 2026-07-29: the `lineform` CLI does NOT ship in the App Store build.** Omit
+- [x] **DONE 2026-08-06 — the `lineform` CLI is gone from the tree entirely.** (Decided
+      2026-07-29.) It does not ship in the App Store build. Originally: omit
       `Contents/Helpers/lineform`, and remove the "Install Command Line Tool…" item from
       `AppCommands.swift` in that build — a menu item installing a helper the bundle does not
       contain is a broken affordance.
@@ -29,7 +32,7 @@ Read `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before touchi
       website must stop claiming it for any App Store release. Detail:
       `docs/superpowers/specs/2026-07-29-sandboxed-cli-helper-design.md`.
 
-- [ ] Sparkle is gone: the SPM dependency, `Lineform/App/AppUpdater.swift`, the
+- [x] **DONE 2026-08-06 — Sparkle is gone:** the SPM dependency, `Lineform/App/AppUpdater.swift`, the
       "Check for Updates…" item in `AppCommands.swift`, `SUFeedURL` + `SUPublicEDKey` in
       `Lineform/Info.plist`, and the `com.apple.security.temporary-exception.mach-lookup.global-name`
       pair (`com.lineform.app-spki` / `-spks`) in `Lineform/Lineform.entitlements`.
@@ -40,8 +43,9 @@ Read `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before touchi
 
 ## 1. Info.plist keys
 
-Two keys are missing and both are required or strongly wanted. They are harmless in the current
-Direct build, so they can land any time before submission.
+**DONE 2026-08-06 — both keys are in `Lineform/Info.plist`**, and
+`ReleaseResourceTests.testInfoPlistCarriesAppStoreSubmissionKeys` fails if either goes missing.
+Neither has any effect on a local build, which is why nothing else would notice.
 
 ```xml
 <key>LSApplicationCategoryType</key>
@@ -91,9 +95,15 @@ does not contain the capability.
 
 ## 3. Build and submit
 
-Submission goes through Xcode archive → Organizer (or `altool`/`notarytool` equivalents), **not**
-`packaging/build-release.sh`. That script and most of its gates are for Developer ID + DMG +
-notarize + staple, none of which apply here.
+Submission goes through Xcode archive → Organizer (or `altool`/`notarytool` equivalents). There
+is no build script: `packaging/build-release.sh` and the rest of the Developer ID + DMG + notarize
++ staple chain were deleted with Direct distribution. `packaging/` now holds only the two
+localization extraction scripts.
+
+The gates those scripts enforced do not disappear, they move. Cert-in-provisioning-profile is §2
+above. The clean-build rule (never archive over a stale `Lineform.app`) is now yours to keep by
+hand. Nested-bundle signing is caught by Organizer's Validate App rather than by a hand-rolled
+re-sign list.
 
 - [ ] `xcodebuild archive` with the App Store profile.
 - [ ] Validate in Organizer before uploading — this is where an unsandboxed nested binary is caught.
@@ -101,6 +111,38 @@ notarize + staple, none of which apply here.
       `AppIntents.framework` must stay LINKED in the app target's Frameworks phase; `import
       AppIntents` alone emits nothing and the Shortcuts/Spotlight/Siri actions silently never
       register. This already shipped broken once.
+
+## 3b. TestFlight — testing the build you actually upload
+
+TestFlight supports Mac apps, and it is the only way to run Lineform in the configuration the
+store will ship: sandboxed, signed by Apple, against the Mac App Store provisioning profile. A
+Direct build cannot tell you any of that. Same upload feeds both TestFlight and the store — there
+is no separate beta build.
+
+- [ ] **Validate in Organizer first** (§3). It is the cheap gate: an unsandboxed nested binary —
+      Sparkle's XPC services, `Contents/Helpers/lineform` — fails there, before an upload is
+      spent. TestFlight cannot tell you anything about the preconditions in §0; those must
+      already be done or the archive will not validate.
+- [ ] Add yourself as an **internal tester** (App Store Connect users on the team; up to 100, 30
+      devices each). Internal builds need **no Beta App Review** and appear minutes after
+      processing. External testing (up to 10,000) needs review on the first build and is not
+      worth the wait for self-testing.
+- [ ] Testers install the **TestFlight app from the Mac App Store** (requires macOS 12+; the
+      deployment target is 14.0, so every supported Mac qualifies), then install Lineform from it.
+- [ ] Builds **expire after 90 days**.
+
+**What to actually exercise.** "It launches" is not "it works" — the same rule as the Direct
+release. The sandbox and bookmark paths are what a TestFlight build exists to prove: open a
+workspace folder, quit, relaunch, and open a file from that folder again (a same-session
+`NSOpenPanel` grant hides bookmark bugs). Then check the Files sidebar's iCloud root, since the
+App Store profile is where the iCloud entitlement is first exercised for real. See
+`docs/postmortems/2026-07-02-launch-brick-and-file-access.md`.
+
+**The iCloud caveat is the same one as everywhere else, and it bites here.** A TestFlight build
+carries bundle ID `com.lineform.app` and the same `iCloud.com.lineform.app` container as the
+Direct build — installing it replaces the local copy, and *deleting* it afterwards is exactly the
+uninstall signal that trips the app-container purge. Do not run-then-delete TestFlight builds
+while signed into the production iCloud account.
 
 ## 4. App Privacy questionnaire
 
@@ -118,10 +160,9 @@ account system, no analytics, and no path that sends document content anywhere.
 
 ## 4b. Verify at review time
 
-- [ ] **"Install Command Line Tool…" must not appear in an App Store build.** If the CLI is
-      omitted (the recommendation above), the menu item has to go with it — an item that installs
-      a helper the build does not contain is a broken affordance, and it points at
-      `/usr/local/bin`, which review would question anyway.
+- [x] **DONE 2026-08-06 — "Install Command Line Tool…" is gone from the app menu**, along with
+      "Check for Updates…". Neither the item nor the helper it installed exists any more. (It
+      pointed at `/usr/local/bin`, which review would have questioned regardless.)
 
 ## 5. Metadata
 
@@ -130,16 +171,25 @@ keywords, support URL, marketing URL, age rating, copyright.
 
 Keep claims consistent with `POSITIONING_AND_MARKETING.md`: **free** and **source-available**
 (never "open source" — PolyForm Shield 1.0.0), "No AI inside" is accurate and intentional, and
-only Atkinson Hyperlegible + OpenDyslexic are bundled fonts. Do not describe the CLI without
-checking what the submitted build actually ships.
+only Atkinson Hyperlegible + OpenDyslexic are bundled fonts. **Never describe a CLI or in-app
+updates** — neither exists any more, and that doc's older CLI copy is stale (it is untracked, so
+release tooling never corrects it).
 
 ## 6. After it ships
 
-- [ ] Decide what happens to Direct distribution. If it ends, the appcast, EdDSA keys,
-      `verify-update.sh`, the Developer ID cert gates and DMG packaging all retire with it —
-      and `CLAUDE.md`'s Release Verification Gates section should shrink to match.
-- [ ] Point the website at the App Store. (The README carries no download links by design — see `Claude.md` ▸ Documentation Expectations — so there is nothing to update there.)
-- [ ] Drop the Sparkle credit from public docs once Sparkle is actually gone.
+- [ ] **Point the website at the App Store listing, and take down the DMG download.** This is the
+      only remaining path for a new user to get the app — `docs/appcast.xml` is deleted, so every
+      copy of Lineform already installed from a DMG will check for updates once, get nothing, and
+      stay on its current version forever. Those users are only reachable through the website and
+      whatever channels you announce on. (The README carries no download links by design — see
+      `Claude.md` ▸ Documentation Expectations — so there is nothing to update there.)
+- [ ] Consider whether the existing GitHub Releases and their DMG assets stay up. They still work
+      as downloads and are now the only thing contradicting "the App Store is the only channel."
+- [ ] **Revoke or retire the Sparkle EdDSA private key** (it signed the appcast; nothing signs
+      anything now) and the `SPARKLE_PUBLIC_ED_KEY` GitHub Actions secret, which no workflow reads.
+- [ ] Developer ID is the only way to hand someone an arbitrary build, and it no longer has a
+      script. TestFlight (§3b) replaces it only for registered testers, only for builds that
+      already passed store validation, and only for 90 days at a time.
 - [ ] **Tear down the diagram-report backend.** It has been dead since 2026-07-29 and nothing in
       the app or the release process calls it, but both pieces are still live: the Cloudflare
       Worker `lineform-diagram-report` (on the `lineform` workers.dev subdomain) and the private
@@ -150,8 +200,8 @@ checking what the submitted build actually ships.
 
 ## Notes for whoever runs this
 
-- The App Store build and any Direct build share bundle ID `com.lineform.app` and the same iCloud
-  container. Do not run-then-delete locally built Release/Export copies while signed into the
+- Every build — App Store, TestFlight, and any local Release/Export copy — shares bundle ID
+  `com.lineform.app` and the same iCloud container. Do not run-then-delete locally built copies while signed into the
   production iCloud account — that is what trips the container uninstall purge.
 - A sandboxed binary cannot run under ad-hoc signing at all; it SIGTRAPs before `main`. Anything
   sandboxed is therefore untestable in Debug, which is why the helper keeps a Debug/Release

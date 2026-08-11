@@ -14,7 +14,7 @@ protocol AnnouncementFetching: Sendable {
     func fetch() async -> [Announcement]?
 }
 
-/// The one network call in the app that isn't Sparkle.
+/// The only network call in the app.
 ///
 /// Privacy shape, which is the point of the feature: a plain GET of a static file.
 /// No request body, no query string, no custom headers, no cookies, no credentials,

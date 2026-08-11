@@ -37,6 +37,4 @@ Documents stay wherever the user saves them. Lineform does not add accounts, ana
 
 ## Credits
 
-Lineform uses Sparkle for macOS software update checking.
-
 Lineform bundles Atkinson Hyperlegible from Braille Institute of America, Inc. and OpenDyslexic from Abbie Gonzalez under the SIL Open Font License 1.1.
