@@ -40,12 +40,10 @@ Full [Privacy](https://lineform.app/privacy) and [Terms of Use](https://lineform
 
 ## Agent workflow
 
-Lineform is a good place to read and review what your coding agent writes. A
+Lineform is a good place to read and review what your coding agent writes. An optional
 [Claude Code](https://code.claude.com) hook can open every Markdown file your agent writes or
-edits — see the copy-paste recipe at
-[lineform.app/hooks](https://lineform.app/hooks) (also in
-[`docs/agent-hooks.md`](docs/agent-hooks.md), verified against Claude Code v2.1.198). Combined
-with live reload, the file refreshes in place as the agent works.
+edits; the copy-paste recipe is in [`docs/agent-hooks.md`](docs/agent-hooks.md), verified against
+Claude Code v2.1.198. Combined with live reload, the file refreshes in place as the agent works.
 
 ## Updates
 
