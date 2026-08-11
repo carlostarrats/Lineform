@@ -106,10 +106,10 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testFilesTreeIndentStepIsGenerousEnoughToCarryNestingWithoutGuideLines() {
-        // Nesting is conveyed by indentation + chevrons alone (native macOS source-list
-        // convention, no vertical guide lines), so the per-level step must be non-trivial.
-        XCTAssertEqual(OutlineSidebarView.filesTreeIndentStep, 14)
+    func testFilesTreeIndentStepMatchesCompactFolderDisclosureDesign() {
+        // Tree folders swap the shared-column folder glyph for their disclosure chevron, so a
+        // compact 6pt step is enough to convey nesting without pulling the icon off that column.
+        XCTAssertEqual(OutlineSidebarView.filesTreeIndentStep, 6)
     }
 
     @MainActor
