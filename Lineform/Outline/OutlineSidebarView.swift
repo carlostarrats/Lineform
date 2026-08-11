@@ -1006,7 +1006,6 @@ final class OutlineFileBrowserStore: ObservableObject {
     static let workspaceSortOrderDefaultsKey = "Lineform.outline.sortOrder.workspace"
     static let lastKnownICloudAvailableDefaultsKey = "Lineform.outline.lastKnownICloudAvailable"
     static let maximumTreeDepth = 4
-    static let maximumChildrenPerFolder = 80
     /// Trailing debounce for FSEvents-driven rescans (Task 5). Autosave-while-typing writes
     /// fire the monitor; without a debounce each coalesced tick ran the recursive directory
     /// walk synchronously on the main thread ~every `DirectoryEventMonitor.coalescingLatency`
@@ -1045,14 +1044,9 @@ final class OutlineFileBrowserStore: ObservableObject {
                 refreshICloudRoot()
                 refreshWorkspaceRoot()
             } else {
-                // Toggling OFF also re-SCANS a live root, for the same reason `applySortOrderChange`
-                // does: the 80-per-folder cap is applied in display order, BEFORE any hidden
-                // filtering, so a hidden-inclusive scan is not a superset of the hidden-off tree —
-                // hidden entries spend cap slots that would otherwise hold real files. Filtering
-                // the old scan in memory therefore DELETED ordinary Markdown files from the tree
-                // (one per hidden entry the cap retained), and the wrong tree persisted until
-                // something else forced a rescan. In-memory filtering is kept only where no live
-                // scan is possible — the cached/disconnected fallbacks in `refreshWorkspaceRoot`.
+                // Toggling OFF re-scans live roots so the backing snapshot and the display stay
+                // in sync. Cached/disconnected fallbacks still filter in memory because no live
+                // scan is possible there.
                 refreshICloudRoot()
                 refreshWorkspaceRoot()
             }
@@ -1095,12 +1089,8 @@ final class OutlineFileBrowserStore: ObservableObject {
         }
     }
 
-    /// A sort change re-SCANS a live root rather than re-sorting the cached tree: the
-    /// 80-per-folder cap is applied in display order, so the order decides WHICH children
-    /// are retained, not just their arrangement (re-sorting 80 name-first files can never
-    /// surface the recently-modified ones the old cap discarded). Only cached/disconnected
-    /// trees fall back to an in-memory re-sort. Sort changes originate from the visible
-    /// Files tab's sort row, so the scan is as sanctioned as the tab-appear refresh.
+    /// A sort change re-scans a live root so its snapshot, dates, and directory contents are
+    /// refreshed together. Only cached/disconnected trees fall back to an in-memory re-sort.
     private func applySortOrderChange(toICloudRoot: Bool) {
         if toICloudRoot {
             if resolvedICloudDocumentsURL != nil {
@@ -1202,9 +1192,8 @@ final class OutlineFileBrowserStore: ObservableObject {
         // One global Sort row now drives both roots, so the two persisted keys must agree. They
         // could disagree only on a profile carried over from 1.2.0, which had a separate row per
         // section: the row reads the iCloud key while the workspace tree is SCANNED with the
-        // workspace key, so the label described an order the files were not in — and because the
-        // 80-per-folder cap is applied in display order, it also mis-described which files are on
-        // screen. Reconcile once at load, preferring the workspace value: a user with no iCloud
+        // workspace key, so the label described an order the files were not in. Reconcile once
+        // at load, preferring the workspace value: a user with no iCloud
         // root visible could only ever have set that one.
         //
         // Assigned through the `Published(initialValue:)` backing storage, never by plain
@@ -1781,15 +1770,14 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// Deliberately CONSERVATIVE: scans with hidden folders INCLUDED (regardless of
     /// the user's Show Hidden Folders setting), so a folder whose only content is
     /// dot-folder Markdown still counts as non-empty — the guard must never allow
-    /// hiding a root the sidebar could visibly render files under. Depth-limited to
-    /// one level because `items(in:)` includes a directory regardless of its
-    /// contents, so emptiness is decided entirely by the top-level enumeration (no
-    /// full-tree walk on large iCloud folders). Read-only; never writes.
+    /// hiding a root the sidebar could visibly render files under. It inspects one
+    /// child-folder level, matching the document-only sidebar definition without
+    /// walking a whole large iCloud tree. Read-only; never writes.
     static func documentsFolderIsEmpty(at url: URL, fileManager: FileManager) -> Bool {
         items(
             in: url,
             fileManager: fileManager,
-            depth: maximumTreeDepth - 1,
+            depth: maximumTreeDepth - 2,
             showsHiddenFolders: true
         ).isEmpty
     }
@@ -1814,14 +1802,13 @@ final class OutlineFileBrowserStore: ObservableObject {
             options: options
         )) ?? []
 
-        // Resolve each child's shallow attributes first (children left empty — no recursion
-        // yet), then sort and cap. Recursing only into the retained children keeps the
-        // per-folder cap from being defeated by folders with thousands of subdirectories:
-        // we build subtrees for the ~80 we keep, not for every sibling we're about to
-        // discard. Output is identical to sort-then-recurse because the sort order depends
-        // only on `isDirectory`, `name`, and the item's own creation/modification dates,
-        // all shallow attributes known here (and never on `children`).
-        let shallow = urls.compactMap { childURL -> OutlineFileTreeItem? in
+        // Resolve and sort each child's shallow attributes first (children left empty — no
+        // recursion yet). Empty directories are removed before the tree is published, so they
+        // cannot obscure document-bearing folders.
+        // A directory is kept only when its scanned subtree contains a supported document;
+        // folders that contain only images, build artifacts, or nothing are not useful in a
+        // document-only browser.
+        let candidates = urls.compactMap { childURL -> OutlineFileTreeItem? in
             guard let values = try? childURL.resourceValues(forKeys: resourceKeys) else {
                 return nil
             }
@@ -1859,10 +1846,15 @@ final class OutlineFileBrowserStore: ObservableObject {
             )
         }
         .sorted { OutlineFileSortOrder.areInIncreasingOrder($0, $1, order: sortOrder) }
-        .prefix(maximumChildrenPerFolder)
 
-        return shallow.map { item in
-            guard item.isDirectory else { return item }
+        var visible: [OutlineFileTreeItem] = []
+        visible.reserveCapacity(candidates.count)
+        for item in candidates {
+            guard item.isDirectory else {
+                visible.append(item)
+                continue
+            }
+
             var populated = item
             populated.children = items(
                 in: item.url,
@@ -1872,8 +1864,11 @@ final class OutlineFileBrowserStore: ObservableObject {
                 inheritedHidden: item.isHidden,
                 sortOrder: sortOrder
             )
-            return populated
+            if !populated.children.isEmpty {
+                visible.append(populated)
+            }
         }
+        return visible
     }
 }
 
@@ -1896,6 +1891,9 @@ private struct OutlineFileBrowserView: View {
     var openFileInNewWindow: (URL) -> Void = { _ in }
     @State private var collapsedIDs: Set<String> = []
     @State private var isSortHovered = false
+    #if DEBUG
+    @State private var visibleFileRowIDs: Set<String> = []
+    #endif
 
     var body: some View {
         // "Show Hidden Folders" now lives in the View menu (⌘⇧.), so the Files tab is just
@@ -1903,6 +1901,13 @@ private struct OutlineFileBrowserView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
                 globalSortRow
+
+                #if DEBUG
+                Text(verbatim: "Debug · visible file rows (diagnostic): \(visibleFileRowIDs.count)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                    .padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)
+                #endif
 
                 if OutlineSidebarView.iCloudRootVisible(state: store.iCloudRoot.state, showICloudInSidebar: settings.showICloudInSidebar) {
                     rootView(store.iCloudRoot)
@@ -2038,8 +2043,9 @@ private struct OutlineFileBrowserView: View {
                     // old recursive non-lazy VStacks laid out every row at once (~3,840 on a big
                     // workspace), which froze typing/file-switching (Task 5's real cause). Direct
                     // children start at depth 1 so they indent one step past the root's icon.
+                    let rows = OutlineSidebarView.visibleFileRows(root.items, collapsedIDs: collapsedIDs)
                     LazyVStack(alignment: .leading, spacing: 1) {
-                        ForEach(OutlineSidebarView.visibleFileRows(root.items, collapsedIDs: collapsedIDs)) { flatRow in
+                        ForEach(rows) { flatRow in
                             OutlineFileTreeNodeView(
                                 item: flatRow.item,
                                 depth: flatRow.depth,
@@ -2051,7 +2057,17 @@ private struct OutlineFileBrowserView: View {
                                 deleteItem: deleteItem,
                                 revealItem: revealItem,
                                 openFileInNewTab: openFileInNewTab,
-                                openFileInNewWindow: openFileInNewWindow
+                                openFileInNewWindow: openFileInNewWindow,
+                                rowDidAppear: { id in
+                                    #if DEBUG
+                                    visibleFileRowIDs.insert(id)
+                                    #endif
+                                },
+                                rowDidDisappear: { id in
+                                    #if DEBUG
+                                    visibleFileRowIDs.remove(id)
+                                    #endif
+                                }
                             )
                         }
                     }
@@ -2302,6 +2318,8 @@ private struct OutlineFileTreeNodeView: View {
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     var openFileInNewTab: (URL) -> Void = { _ in }
     var openFileInNewWindow: (URL) -> Void = { _ in }
+    var rowDidAppear: (String) -> Void = { _ in }
+    var rowDidDisappear: (String) -> Void = { _ in }
     @State private var isHovered = false
 
     private var isCollapsed: Bool {
@@ -2384,6 +2402,8 @@ private struct OutlineFileTreeNodeView: View {
                 isHovered = hovering
             }
         }
+        .onAppear { rowDidAppear(item.id) }
+        .onDisappear { rowDidDisappear(item.id) }
         .contextMenu {
             rowActionButtons(ellipsized: true)
         }

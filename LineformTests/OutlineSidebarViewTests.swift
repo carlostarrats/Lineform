@@ -313,6 +313,83 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
+    func testFilesTabOmitsFoldersWithoutSupportedDocuments() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let emptyFolder = folder.appendingPathComponent("Empty", isDirectory: true)
+        let imagesFolder = folder.appendingPathComponent("images", isDirectory: true)
+        let draftsFolder = folder.appendingPathComponent("Drafts", isDirectory: true)
+        try FileManager.default.createDirectory(at: emptyFolder, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: imagesFolder, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: draftsFolder, withIntermediateDirectories: true)
+        try Data().write(to: imagesFolder.appendingPathComponent("cover.png"))
+        try "# Draft".write(
+            to: draftsFolder.appendingPathComponent("chapter.md"), atomically: true, encoding: .utf8
+        )
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
+        store.refreshICloud()
+
+        XCTAssertEqual(store.iCloudRoot.items.map(\.name), ["Drafts"])
+        XCTAssertEqual(store.iCloudRoot.items.first?.children.map(\.name), ["chapter.md"])
+    }
+
+    @MainActor
+    func testFilesTabListsMoreThanEightyDocuments() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        for index in 0..<120 {
+            try "# Note".write(
+                to: folder.appendingPathComponent("Note \(index).md"), atomically: true, encoding: .utf8
+            )
+        }
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
+        store.refreshICloud()
+
+        XCTAssertEqual(store.iCloudRoot.items.count, 120)
+    }
+
+    @MainActor
+    func testFilesTabScansFiveThousandDocumentsWithoutTruncation() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        for index in 0..<5_000 {
+            FileManager.default.createFile(
+                atPath: folder.appendingPathComponent("Note \(index).md").path,
+                contents: Data(),
+                attributes: nil
+            )
+        }
+
+        let suiteName = "LineformTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { TestDefaults.destroy(defaults, suiteName: suiteName) }
+
+        let store = OutlineFileBrowserStore(defaults: defaults, iCloudDocumentsURLProvider: { _ in folder })
+        store.refreshICloud()
+
+        XCTAssertEqual(store.iCloudRoot.items.count, 5_000)
+    }
+
+    @MainActor
     func testFilesTabCreatesLineformICloudDocumentsFolderWhenContainerIsMaterialized() {
         let missingFolder = FileManager.default.temporaryDirectory
             .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)
@@ -1320,6 +1397,24 @@ extension OutlineSidebarViewTests {
         let collapsed = OutlineSidebarView.visibleFileRows(items, collapsedIDs: [folderA.id])
         XCTAssertEqual(collapsed.map(\.item.name), ["A", "B.md"])
         XCTAssertEqual(collapsed.map(\.depth), [1, 1])
+    }
+
+    @MainActor
+    func testLargeFileTreeProducesFlatRowsWithoutRetainingSubtrees() {
+        let items = (0..<5_000).map { index in
+            OutlineFileTreeItem(
+                url: URL(fileURLWithPath: "/workspace/Note \(index).md"),
+                name: "Note \(index).md",
+                isDirectory: false,
+                children: []
+            )
+        }
+
+        let rows = OutlineSidebarView.visibleFileRows(items, collapsedIDs: [])
+
+        XCTAssertEqual(rows.count, 5_000)
+        XCTAssertTrue(rows.allSatisfy { $0.item.children.isEmpty })
+        XCTAssertTrue(rows.allSatisfy { $0.depth == 1 })
     }
 
     @MainActor
