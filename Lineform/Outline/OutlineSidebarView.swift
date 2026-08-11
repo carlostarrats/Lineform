@@ -164,10 +164,10 @@ struct OutlineSidebarView: View {
     static let filesSortRowShowsForAvailableRootsOnly = true
 
     /// Per-level horizontal indent for Files-tab tree rows. Nesting is carried by indentation +
-    /// disclosure chevrons alone (the native macOS source-list convention — Finder, Notes, Mail —
-    /// no vertical guide lines), so the step is generous enough for the eye to track structure by
-    /// row x-position.
-    static let filesTreeIndentStep: CGFloat = 14
+    /// the folder/disclosure glyph (the native macOS source-list convention — Finder, Notes,
+    /// Mail — no vertical guide lines), so the step is generous enough for the eye to track
+    /// structure by row x-position.
+    static let filesTreeIndentStep: CGFloat = 6
 
     /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
     /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
@@ -2335,25 +2335,15 @@ private struct OutlineFileTreeNodeView: View {
     }
 
     private var row: some View {
-        // spacing 0 with explicit per-element leading padding, so the chevron can sit in a wider,
-        // right-aligned slot (nudged toward the icon, smaller glyph) without moving the icon or
-        // text — the slot width + gap still sum to the default 18, pinning the icon column.
+        // Keep the reserved disclosure slot so files and folders share the root's fixed icon
+        // column. A folder uses that icon column itself: closed shows a folder until hover reveals
+        // a right chevron; expanded shows a down chevron.
         HStack(spacing: 0) {
-            Group {
-                if item.isDirectory {
-                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(rowForegroundColor)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                        .opacity(0)
-                }
-            }
-            .frame(width: OutlineSidebarView.filesChevronSlotWidth, alignment: .trailing)
+            Color.clear
+                .frame(width: OutlineSidebarView.filesChevronSlotWidth)
 
-            Image(systemName: item.isDirectory ? "folder" : "doc.text")
-                .font(.system(size: 11, weight: .semibold))
+            Image(systemName: treeItemSystemImage)
+                .font(.system(size: treeItemUsesDisclosureGlyph ? 9 : 11, weight: .semibold))
                 .foregroundStyle(rowForegroundColor)
                 .frame(width: 18)
                 .padding(.leading, 2)
@@ -2369,9 +2359,9 @@ private struct OutlineFileTreeNodeView: View {
 
             Spacer(minLength: 0)
         }
-        // depth starts at 1 for a root's direct children; the whole child tree begins 14pt past
+        // depth starts at 1 for a root's direct children; the whole child tree begins 6pt past
         // the root chrome, and each deeper level indents one `filesTreeIndentStep` from there.
-        .padding(.leading, 14 + CGFloat(depth - 1) * OutlineSidebarView.filesTreeIndentStep)
+        .padding(.leading, 6 + CGFloat(depth - 1) * OutlineSidebarView.filesTreeIndentStep)
         .padding(.trailing, 6)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
@@ -2464,6 +2454,21 @@ private struct OutlineFileTreeNodeView: View {
         } else {
             collapsedIDs.insert(item.id)
         }
+    }
+
+    /// One icon column communicates a folder's state: a closed folder keeps the familiar folder
+    /// glyph, hover previews its right-facing disclosure chevron, and an expanded folder becomes
+    /// a downward chevron. Files remain document glyphs, so their alignment is unchanged.
+    private var treeItemSystemImage: String {
+        guard item.isDirectory else { return "doc.text" }
+        if isCollapsed {
+            return isHovered ? "chevron.right" : "folder"
+        }
+        return "chevron.down"
+    }
+
+    private var treeItemUsesDisclosureGlyph: Bool {
+        item.isDirectory && (!isCollapsed || isHovered)
     }
 
     /// The row fill: the macOS sidebar selection — the system unemphasized selection grey on the
