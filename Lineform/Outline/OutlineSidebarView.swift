@@ -1891,9 +1891,6 @@ private struct OutlineFileBrowserView: View {
     var openFileInNewWindow: (URL) -> Void = { _ in }
     @State private var collapsedIDs: Set<String> = []
     @State private var isSortHovered = false
-    #if DEBUG
-    @State private var visibleFileRowIDs: Set<String> = []
-    #endif
 
     var body: some View {
         // "Show Hidden Folders" now lives in the View menu (⌘⇧.), so the Files tab is just
@@ -1902,14 +1899,7 @@ private struct OutlineFileBrowserView: View {
             LazyVStack(alignment: .leading, spacing: 8) {
                 globalSortRow
 
-                #if DEBUG
-                Text(verbatim: "Debug · visible file rows (diagnostic): \(visibleFileRowIDs.count)")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                    .padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)
-                #endif
-
-                if OutlineSidebarView.iCloudRootVisible(state: store.iCloudRoot.state, showICloudInSidebar: settings.showICloudInSidebar) {
+                if iCloudRootIsVisible {
                     rootView(store.iCloudRoot)
                 }
                 rootView(store.workspaceRoot)
@@ -1986,13 +1976,17 @@ private struct OutlineFileBrowserView: View {
         // Whether root collapsing is allowed only decides if a chevron is drawn; the chevron
         // slot is ALWAYS reserved so root/file/folder icons stay pinned to the shared icon
         // column whether or not a chevron is visible (no left-shift on lock).
-        let lockExpanded = self.lockExpanded
+        let usesMinimalWorkspaceChrome = root.id == "workspace" && !iCloudRootIsVisible
+        // A lone workspace is the Files tab's fixed context, so it stays expanded with no
+        // disclosure affordance. When iCloud is visible, both roots honor the collapse setting.
+        let lockExpanded = self.lockExpanded || usesMinimalWorkspaceChrome
 
         VStack(alignment: .leading, spacing: 2) {
             OutlineFileRootRow(
                 root: root,
                 isCollapsed: isRootCollapsed(root.id, lockExpanded: lockExpanded),
                 lockExpanded: lockExpanded,
+                usesMinimalWorkspaceChrome: usesMinimalWorkspaceChrome,
                 usesDarkChrome: usesDarkChrome,
                 toggleCollapsed: { toggle(root.id) },
                 chooseWorkspaceFolder: store.chooseWorkspaceFolder
@@ -2057,17 +2051,7 @@ private struct OutlineFileBrowserView: View {
                                 deleteItem: deleteItem,
                                 revealItem: revealItem,
                                 openFileInNewTab: openFileInNewTab,
-                                openFileInNewWindow: openFileInNewWindow,
-                                rowDidAppear: { id in
-                                    #if DEBUG
-                                    visibleFileRowIDs.insert(id)
-                                    #endif
-                                },
-                                rowDidDisappear: { id in
-                                    #if DEBUG
-                                    visibleFileRowIDs.remove(id)
-                                    #endif
-                                }
+                                openFileInNewWindow: openFileInNewWindow
                             )
                         }
                     }
@@ -2085,6 +2069,13 @@ private struct OutlineFileBrowserView: View {
             return OutlineSidebarView.iCloudRootIsDimmed(state: root.state, isEmpty: root.items.isEmpty)
         }
         return root.state == .unavailable
+    }
+
+    private var iCloudRootIsVisible: Bool {
+        OutlineSidebarView.iCloudRootVisible(
+            state: store.iCloudRoot.state,
+            showICloudInSidebar: settings.showICloudInSidebar
+        )
     }
 
     /// Whether the root sections are locked open right now: the user's explicit
@@ -2121,6 +2112,9 @@ private struct OutlineFileRootRow: View {
     var root: OutlineFileRoot
     var isCollapsed: Bool
     var lockExpanded: Bool = false
+    /// A lone workspace is already the Files tab's context, so it needs no hierarchy chrome. Its
+    /// desktop glyph distinguishes the user-selected workspace from a folder in the file tree.
+    var usesMinimalWorkspaceChrome = false
     // Threaded from the theme (see SidebarTabButton) rather than read from ambient colorScheme,
     // which a nested Button re-derives from the window's drift-prone effectiveAppearance.
     var usesDarkChrome: Bool
@@ -2130,11 +2124,11 @@ private struct OutlineFileRootRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Root headers use a leading icon only for iCloud (the cloud). The workspace
-            // root is plain text. An expandable root still uses a chevron; a non-expandable
-            // header renders as plain views so VoiceOver doesn't announce an "Expand/Collapse"
-            // affordance it can't honor.
-            if showsDisclosure {
+            // An expandable root uses a chevron; a non-expandable header renders as plain views
+            // so VoiceOver doesn't announce an "Expand/Collapse" affordance it can't honor.
+            if usesMinimalWorkspaceChrome {
+                rootLeadingContent(showsChevron: false)
+            } else if showsDisclosure {
                 Button(action: toggleCollapsed) {
                     rootLeadingContent(showsChevron: true)
                         .contentShape(Rectangle())
@@ -2226,7 +2220,7 @@ private struct OutlineFileRootRow: View {
                 .padding(.leading, OutlineSidebarView.filesChevronToIconGap)
 
             titleLabel
-                .padding(.leading, 6)
+                .padding(.leading, 8)
         }
     }
 
@@ -2234,17 +2228,17 @@ private struct OutlineFileRootRow: View {
     private var rootIcon: some View {
         if root.id == "icloud", root.state != .unavailable {
             Image(systemName: "icloud")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                 .frame(width: 18, alignment: .center)
                 .opacity(root.state == .disconnected ? 0.48 : 1)
                 .accessibilityHidden(true)
         } else if root.id == "workspace", root.state != .unavailable {
-            // A folder icon on the workspace header keeps it in the shared icon column
-            // (matching the file/folder rows below it), like the iCloud cloud icon.
-            Image(systemName: "folder")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            // This denotes the selected workspace rather than a folder in its file tree.
+            Image(systemName: "tray.full")
+                .font(.system(size: 13, weight: .medium))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
                 .frame(width: 18, alignment: .center)
                 .opacity(root.state == .disconnected ? 0.48 : 1)
                 .accessibilityHidden(true)
@@ -2318,8 +2312,6 @@ private struct OutlineFileTreeNodeView: View {
     var revealItem: (OutlineFileTreeItem) -> Void = { _ in }
     var openFileInNewTab: (URL) -> Void = { _ in }
     var openFileInNewWindow: (URL) -> Void = { _ in }
-    var rowDidAppear: (String) -> Void = { _ in }
-    var rowDidDisappear: (String) -> Void = { _ in }
     @State private var isHovered = false
 
     private var isCollapsed: Bool {
@@ -2350,21 +2342,21 @@ private struct OutlineFileTreeNodeView: View {
             Group {
                 if item.isDirectory {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(rowForegroundColor)
                 } else {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 8, weight: .semibold))
                         .opacity(0)
                 }
             }
             .frame(width: OutlineSidebarView.filesChevronSlotWidth, alignment: .trailing)
 
             Image(systemName: item.isDirectory ? "folder" : "doc.text")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(rowForegroundColor)
                 .frame(width: 18)
-                .padding(.leading, OutlineSidebarView.filesChevronToIconGap)
+                .padding(.leading, 2)
 
             Text(item.name)
                 // Selected rows carry weight as well as colour, matching the sidebar's tab
@@ -2373,14 +2365,13 @@ private struct OutlineFileTreeNodeView: View {
                 .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(rowForegroundColor)
                 .lineLimit(1)
-                .padding(.leading, 6)
+                .padding(.leading, 4)
 
             Spacer(minLength: 0)
         }
-        // depth starts at 1 for a root's direct children; that first level sits at the chevron
-        // column (leading 0), each deeper level indents one `filesTreeIndentStep`. The chevron
-        // then hangs and the icon lands on the shared icon column.
-        .padding(.leading, CGFloat(depth - 1) * OutlineSidebarView.filesTreeIndentStep)
+        // depth starts at 1 for a root's direct children; the whole child tree begins 14pt past
+        // the root chrome, and each deeper level indents one `filesTreeIndentStep` from there.
+        .padding(.leading, 14 + CGFloat(depth - 1) * OutlineSidebarView.filesTreeIndentStep)
         .padding(.trailing, 6)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
         .background {
@@ -2402,8 +2393,6 @@ private struct OutlineFileTreeNodeView: View {
                 isHovered = hovering
             }
         }
-        .onAppear { rowDidAppear(item.id) }
-        .onDisappear { rowDidDisappear(item.id) }
         .contextMenu {
             rowActionButtons(ellipsized: true)
         }
