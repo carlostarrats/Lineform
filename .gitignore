@@ -13,3 +13,9 @@ POSITIONING_AND_MARKETING.md
 
 # Written by packaging/generate-appcast.sh for hand-merging; never published.
 docs/appcast.generated.xml
+
+# Local App Store archive/export output. Keep metadata under .asc/ tracked.
+.asc/artifacts/
+.asc/export/
+.asc/reports/
+.asc/metadata/review/

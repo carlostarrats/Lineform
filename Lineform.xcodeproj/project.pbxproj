@@ -1229,7 +1229,7 @@
 				CODE_SIGN_ENTITLEMENTS = Lineform/LineformDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
@@ -1237,7 +1237,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
@@ -1249,17 +1249,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Lineform/Lineform.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20;
-				DEVELOPMENT_TEAM = "";
+				CURRENT_PROJECT_VERSION = 21;
+				DEVELOPMENT_TEAM = TV4QZT7A7X;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.0;
+				PROVISIONING_PROFILE_SPECIFIER = "Lineform Mac App Store";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
@@ -1294,12 +1296,12 @@
 			};
  			name = Release;
  		};
- 		1F0000120000000000000007 /* Debug */ = {
- 			isa = XCBuildConfiguration;
- 			buildSettings = {
- 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
- 				CODE_SIGN_STYLE = Automatic;
- 				CURRENT_PROJECT_VERSION = 20;
+		1F0000120000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 21;
  				DEVELOPMENT_TEAM = "";
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1311,7 +1313,7 @@
  					"@executable_path/../../../../Frameworks",
  				);
  				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
- 				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.0;
  				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug.quicklook;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				SKIP_INSTALL = YES;
@@ -1319,13 +1321,14 @@
  			};
  			name = Debug;
  		};
- 		1F0000120000000000000008 /* Release */ = {
- 			isa = XCBuildConfiguration;
- 			buildSettings = {
- 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
- 				CODE_SIGN_STYLE = Automatic;
- 				CURRENT_PROJECT_VERSION = 20;
- 				DEVELOPMENT_TEAM = "";
+		1F0000120000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 21;
+				DEVELOPMENT_TEAM = TV4QZT7A7X;
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
  				INFOPLIST_KEY_CFBundleDisplayName = "Lineform Quick Look";
@@ -1336,8 +1339,9 @@
  					"@executable_path/../../../../Frameworks",
  				);
  				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
- 				MARKETING_VERSION = 1.5.0;
- 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.quicklook;
+				MARKETING_VERSION = 1.6.0;
+				PROVISIONING_PROFILE_SPECIFIER = "Lineform Quick Look Mac App Store";
+				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.quicklook;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				SKIP_INSTALL = YES;
  				SWIFT_VERSION = 6.0;

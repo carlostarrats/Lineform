@@ -1,0 +1,7 @@
+{
+  "description": "Lineformは、実際のファイルを手放さずに集中して書きたい人のための、無料のMacネイティブMarkdownエディタです。Finder、iCloud Drive、Git、または好きなフォルダにある通常の.md／.txt書類を、書く・読む・プレビューできます。\n\n書く、読む、見直す\n• クリーンなMarkdownで書き、書く・読む・並べて表示するプレビューモードを切り替えられます。\n• 複数の書類をタブで開き、見出しアウトラインで移動し、ファイル内／複数ファイルを検索して、任意の書類へすばやく移動できます。\n• 一般的なMarkdown書式、表、タスクリスト、コールアウト、構文ハイライト付きコード、Mermaid図、LaTeX数式を使用できます。\n\n長文を読むために\n• 文字サイズ、行間、余白、列幅、集中表示、テーマ、コントラストを調整できます。\n• ディスレクシアに配慮したAtkinson HyperlegibleまたはOpenDyslexicの閲覧用フォントを選べます。\n• macOSに搭載された音声で書類を読み上げます。\n\n本物のファイル、ネイティブMACOS\n• Finder、iCloud Drive、Git、または選択したフォルダ内のMarkdown／テキストファイルを直接扱えます。\n• 自然に自動保存し、FinderのQuick LookでMarkdownをプレビューし、HTML、PDF、スタイル付きPDF、リッチテキストに書き出せます。\n• ショートカットを使ってメモを作成したり、ファイルをLineformで開いたりできます。\n\n設計からプライベート\n• アカウント、解析、書類のアップロード、AIはありません。\n• リモート画像をダウンロードしません。スペルチェックと読み上げはMac上のmacOSサービスを使用します。\n\nLineformにはmacOS 14以降が必要です。",
+  "keywords": "エディタ,文章作成,メモ,プレーンテキスト,リーダー,プレビュー,mermaid,latex,git,ファイル",
+  "marketingUrl": "https://lineform.app",
+  "supportUrl": "https://github.com/carlostarrats/Lineform/issues",
+  "promotionalText": "Mac上の実際のファイルを、落ち着いて書く・読む・見直すためのネイティブMarkdownエディタ。"
+}

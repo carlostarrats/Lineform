@@ -1,0 +1,7 @@
+{
+  "description": "Lineform 是一款免费的原生 Mac Markdown 编辑器，适合想专注写作又不愿放弃真实文件的人。可在 Finder、iCloud Drive、Git 或任意文件夹中直接编写、阅读和预览普通 .md 与 .txt 文档。\n\n写作、阅读与审阅\n• 使用简洁的 Markdown 写作，并在写作、阅读和并排预览模式之间切换。\n• 在标签页中打开多份文档，通过标题大纲导航，在单个文件或所有文件中搜索，并快速跳转到任何文档。\n• 使用熟悉的 Markdown 格式、表格、任务列表、提示框、语法高亮代码、Mermaid 图表和 LaTeX 数学公式。\n\n专为长文阅读而设计\n• 调整字体大小、行高、页边距、栏宽、专注模式、主题和对比度。\n• 选择适合阅读障碍人士的 Atkinson Hyperlegible 或 OpenDyslexic 字体。\n• 使用 macOS 内置语音朗读文档。\n\n真实文件，原生 MACOS\n• 直接处理 Finder、iCloud Drive、Git 或所选文件夹中的 Markdown 和文本文件。\n• 自然地自动保存，通过 Finder 的 Quick Look 预览 Markdown，并导出为 HTML、PDF、带样式的 PDF 或富文本。\n• 运行快捷指令来创建笔记或在 Lineform 中打开文件。\n\n隐私设计\n• 没有帐户、分析、文档上传或 AI。\n• 绝不下载远程图片。拼写检查和朗读均使用你 Mac 上的 macOS 服务。\n\nLineform 需要 macOS 14 或更高版本。",
+  "keywords": "编辑器,写作,笔记,纯文本,阅读器,预览,mermaid,latex,git,文件",
+  "marketingUrl": "https://lineform.app",
+  "supportUrl": "https://github.com/carlostarrats/Lineform/issues",
+  "promotionalText": "在 Mac 上从容地写作、阅读和审阅真实文件的原生 Markdown 编辑器。"
+}
