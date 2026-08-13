@@ -40,6 +40,9 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertEqual(OutlineSidebarView.filesContentHorizontalPadding, 6)
         XCTAssertEqual(OutlineSidebarView.filesRootRowHeight, 28)
         XCTAssertEqual(OutlineSidebarView.filesChildRowHeight, 26)
+        XCTAssertEqual(OutlineSidebarView.filesRootCardCornerRadius, 14)
+        XCTAssertEqual(OutlineSidebarView.filesRowBackgroundHorizontalInset, 6)
+        XCTAssertEqual(OutlineSidebarView.filesRootCardTopOutset, 3)
         XCTAssertLessThan(OutlineSidebarView.filesUnavailableRootOpacity, 0.7)
         XCTAssertTrue(OutlineSidebarView.filesActionUsesPillStyle)
         XCTAssertTrue(OutlineSidebarView.filesActionButtonsUseHighContrastFill)
@@ -81,6 +84,25 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .unavailable, isEmpty: true))
         XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .unassigned, isEmpty: true))
         XCTAssertFalse(OutlineSidebarView.iCloudRootIsDimmed(state: .disconnected, isEmpty: true))
+    }
+
+    @MainActor
+    func testRootCardFadesOnlyForAnExpandedVisibleTree() {
+        XCTAssertTrue(OutlineSidebarView.rootCardIsExpanded(
+            state: .available, isCollapsed: false, isDimmed: false
+        ))
+        XCTAssertTrue(OutlineSidebarView.rootCardIsExpanded(
+            state: .disconnected, isCollapsed: false, isDimmed: false
+        ))
+        XCTAssertFalse(OutlineSidebarView.rootCardIsExpanded(
+            state: .available, isCollapsed: true, isDimmed: false
+        ))
+        XCTAssertFalse(OutlineSidebarView.rootCardIsExpanded(
+            state: .available, isCollapsed: false, isDimmed: true
+        ))
+        XCTAssertFalse(OutlineSidebarView.rootCardIsExpanded(
+            state: .unavailable, isCollapsed: false, isDimmed: false
+        ))
     }
 
     @MainActor
