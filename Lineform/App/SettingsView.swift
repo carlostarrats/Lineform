@@ -29,8 +29,7 @@ struct SettingsModal: View {
     static let showICloudTitle = String(localized: "Show iCloud in sidebar")
     static let iCloudCheckingNote = String(localized: "Checking…")
     static let iCloudUnavailableNote = String(localized: "iCloud is not available on this Mac.")
-    static let iCloudDisabledNote = String(localized: "Only available when your Lineform iCloud folder is empty. This hides iCloud in Lineform's sidebar; it does not delete anything from iCloud Drive.")
-    static let iCloudEnabledNote = String(localized: "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed.")
+    static let iCloudEnabledNote = String(localized: "Hides iCloud in Lineform's sidebar. Saving a new document starts outside Lineform iCloud; you can still choose iCloud.")
     static let announcementsTitle = String(localized: "In-app notifications")
     static let announcementsNote = String(localized: "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request.")
 
@@ -130,16 +129,13 @@ struct SettingsModal: View {
     }
 
     /// The iCloud row's explanatory line tracks the probe state: checking →
-    /// unavailable → blocked-because-not-empty → the plain description.
+    /// unavailable → the plain description.
     private var iCloudNote: String {
         if iCloud.isChecking {
             return Self.iCloudCheckingNote
         }
         if iCloud.isUnavailable {
             return Self.iCloudUnavailableNote
-        }
-        if iCloudToggleDisabled {
-            return Self.iCloudDisabledNote
         }
         return Self.iCloudEnabledNote
     }

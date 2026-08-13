@@ -100,11 +100,11 @@ final class LineformSettingsStore: ObservableObject {
     }
 }
 
-/// Availability + emptiness of the app's iCloud folder, for the Settings iCloud toggle.
+/// Availability of the app's iCloud folder, for the Settings iCloud toggle.
 enum ICloudFolderStatus: Equatable {
     case unavailable   // no iCloud / not signed in / Debug (no entitlement)
-    case empty         // container resolves, no display content — may hide the root
-    case notEmpty      // container resolves and has content — hiding is disallowed
+    case empty         // container resolves, no display content
+    case notEmpty      // container resolves and has content
 }
 
 /// Read-only probe of the iCloud folder. Behind a protocol so the Settings
@@ -194,21 +194,18 @@ final class ICloudSettingViewModel: ObservableObject {
     /// made the setting look missing.
     var isUnavailable: Bool { status == .unavailable }
 
-    /// The folder is confirmed empty, so turning the toggle OFF is allowed.
+    /// Exposed for the status probe tests and for callers that need to distinguish an empty root.
     var canHideICloud: Bool { status == .empty }
 
-    /// The emptiness guard only blocks turning iCloud OFF — re-showing a hidden root
-    /// is always safe, so a user can never get stuck unable to bring iCloud back.
-    /// While the probe is unresolved (checking) or iCloud is unavailable, the toggle
-    /// is inert either way.
+    /// A visible iCloud folder may always be hidden: this is a display/default-save preference,
+    /// never a destructive operation. Only an unresolved or unavailable container disables the
+    /// control, because in that state there is no meaningful iCloud destination to configure.
     func isToggleDisabled(currentlyShown: Bool) -> Bool {
         switch status {
         case nil, .unavailable:
             return true
-        case .empty:
+        case .empty, .notEmpty:
             return false
-        case .notEmpty:
-            return currentlyShown
         }
     }
 

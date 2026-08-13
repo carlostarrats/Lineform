@@ -4379,36 +4379,36 @@
         }
       }
     },
-    "Hides iCloud in Lineform's sidebar; nothing in iCloud Drive is changed.": {
+    "Hides iCloud in Lineform's sidebar. Saving a new document starts outside Lineform iCloud; you can still choose iCloud.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Blendet iCloud in der Seitenleiste von Lineform aus; in iCloud Drive wird nichts geändert."
+            "value": "Blendet iCloud in der Seitenleiste von Lineform aus. Beim Sichern eines neuen Dokuments wird zunächst ein Ort außerhalb von Lineform iCloud gewählt; iCloud kann weiterhin gewählt werden."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oculta iCloud en la barra lateral de Lineform; no se modifica nada en iCloud Drive."
+            "value": "Oculta iCloud en la barra lateral de Lineform. Al guardar un documento nuevo, se empieza fuera de iCloud de Lineform; aún puedes elegir iCloud."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Masque iCloud dans la barre latérale de Lineform ; rien n’est modifié dans iCloud Drive."
+            "value": "Masque iCloud dans la barre latérale de Lineform. L’enregistrement d’un nouveau document commence hors d’iCloud Lineform ; vous pouvez toujours choisir iCloud."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "LineformのサイドバーからiCloudを非表示にします。iCloud Drive内のデータは変更されません。"
+            "value": "LineformのサイドバーからiCloudを非表示にします。新規書類を保存するときはLineformのiCloud以外から始まりますが、iCloudを選択することもできます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 Lineform 的边栏中隐藏 iCloud；不会更改 iCloud 云盘中的任何内容。"
+            "value": "在 Lineform 的边栏中隐藏 iCloud。保存新文稿时会从 Lineform iCloud 之外的位置开始；你仍可选择 iCloud。"
           }
         }
       }

@@ -145,6 +145,21 @@ enum SaveAsConflict {
     }
 }
 
+/// Chooses the initial directory for an untitled document's Save As panel. This is a proposal,
+/// not a restriction: users can always navigate to any location, including iCloud, in the native
+/// panel. When iCloud is hidden in Lineform, however, the system must not silently steer a new
+/// document back to Lineform's own iCloud container.
+enum NewDocumentSaveLocation {
+    static func preferredDirectory(
+        showICloudInSidebar: Bool,
+        workspaceURL: URL?,
+        documentsDirectory: URL?
+    ) -> URL? {
+        guard !showICloudInSidebar else { return nil }
+        return workspaceURL ?? documentsDirectory
+    }
+}
+
 /// Owns the export panel's accessory: a one-line description of the chosen format, plus a Paper
 /// Size popup for the two PDF formats. There is no Format popup — File ▸ Export As already chose
 /// the format, so the panel only collects what is still open.

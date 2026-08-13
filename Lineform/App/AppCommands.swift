@@ -399,7 +399,18 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .saveItem) {
             Button(String(localized: "Save")) {
                 DocumentSaveStatus.shared.noteManualSaveIntent()
-                NSApp.sendAction(NSSelectorFromString("saveDocument:"), to: nil, from: nil)
+                // An untitled tab has no destination. Route its first save through the
+                // same Save As panel as ⌘⇧S so the iCloud-sidebar preference can choose
+                // a non-iCloud starting folder. Sending AppKit's generic saveDocument:
+                // here lets the document system reopen its iCloud document scope even
+                // after the user hid it.
+                if currentFileMenuState.currentFileURL == nil {
+                    LineformAppNotification.saveAsDocument.post(
+                        object: LineformAppNotification.activeWindowPayload()
+                    )
+                } else {
+                    NSApp.sendAction(NSSelectorFromString("saveDocument:"), to: nil, from: nil)
+                }
             }
             .keyboardShortcut("s", modifiers: .command)
 

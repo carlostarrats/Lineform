@@ -237,11 +237,12 @@ extension LineformSettingsTests {
         XCTAssertTrue(vm.canHideICloud)
     }
 
-    func testViewModelNotEmptyBlocksHiding() async {
+    func testViewModelNotEmptyStillAllowsHiding() async {
         let vm = ICloudSettingViewModel(probe: StubProbe(result: .notEmpty), seededStatus: nil)
         await vm.refresh()
         XCTAssertFalse(vm.isUnavailable)
         XCTAssertFalse(vm.canHideICloud)
+        XCTAssertFalse(vm.isToggleDisabled(currentlyShown: true))
     }
 
     func testViewModelSeededStatusRendersImmediatelyWithoutChecking() {
@@ -251,12 +252,11 @@ extension LineformSettingsTests {
         XCTAssertTrue(vm.isUnavailable)
     }
 
-    func testViewModelToggleDisableGuardOnlyBlocksTurningOff() async {
+    func testViewModelToggleDisableGuardAllowsBothStatesWhenICloudIsAvailable() async {
         let vm = ICloudSettingViewModel(probe: StubProbe(result: .notEmpty), seededStatus: nil)
         await vm.refresh()
-        // Shown + folder not empty → can't turn off (disabled).
-        XCTAssertTrue(vm.isToggleDisabled(currentlyShown: true))
-        // Hidden + folder not empty → re-showing is always allowed (never stuck).
+        // Hiding a non-empty folder is non-destructive, so it must not trap the user on.
+        XCTAssertFalse(vm.isToggleDisabled(currentlyShown: true))
         XCTAssertFalse(vm.isToggleDisabled(currentlyShown: false))
 
         let emptyVM = ICloudSettingViewModel(probe: StubProbe(result: .empty), seededStatus: nil)
@@ -304,10 +304,11 @@ extension LineformSettingsTests {
         XCTAssertTrue(SettingsModal.allowCollapseNote.contains("iCloud and Workspace"))
         XCTAssertTrue(SettingsModal.allowCollapseNote.contains("Files sidebar"))
         XCTAssertEqual(SettingsModal.showICloudTitle, "Show iCloud in sidebar")
-        // The iCloud notes must promise no destructive iCloud action.
-        XCTAssertTrue(SettingsModal.iCloudDisabledNote.contains("empty"))
-        XCTAssertTrue(SettingsModal.iCloudDisabledNote.lowercased().contains("does not delete"))
-        XCTAssertTrue(SettingsModal.iCloudEnabledNote.lowercased().contains("nothing in icloud drive is changed"))
+        // The iCloud note makes both effects explicit: sidebar visibility and the starting
+        // location for a new document's save panel.
+        XCTAssertTrue(SettingsModal.iCloudEnabledNote.lowercased().contains("sidebar"))
+        XCTAssertTrue(SettingsModal.iCloudEnabledNote.lowercased().contains("new document"))
+        XCTAssertTrue(SettingsModal.iCloudEnabledNote.lowercased().contains("choose icloud"))
         XCTAssertEqual(SettingsModal.iCloudCheckingNote, "Checking…")
         XCTAssertEqual(SettingsModal.iCloudUnavailableNote, "iCloud is not available on this Mac.")
     }

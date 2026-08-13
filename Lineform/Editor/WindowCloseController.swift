@@ -20,9 +20,12 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
             return originalDelegate?.windowShouldClose?(sender) ?? true
         }
 
-        let dirtyTabs = tabStore.tabs.filter { tab in
-            tab.id != tabStore.selectedTabID
-                && tab.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
+        // This includes the selected tab. Saved documents are represented by NSDocument's
+        // native dirty state, but untitled tabs deliberately keep that state clear so typing
+        // cannot trigger an automatic Save panel. DocumentTab is the one definition that covers
+        // both without losing the close-time prompt.
+        let dirtyTabs = tabStore.tabs.filter {
+            $0.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
         }
 
         guard !dirtyTabs.isEmpty else {
@@ -54,6 +57,9 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
             return false
         case .alertThirdButtonReturn:
             // Don't Save — discard and proceed with the normal close.
+            // Clear the active NSDocument too, otherwise AppKit would immediately present its
+            // own second sheet for a saved active tab after this controller's explicit choice.
+            (sender.windowController?.document as? NSDocument)?.updateChangeCount(.changeCleared)
             return originalDelegate?.windowShouldClose?(sender) ?? true
         default:
             // Cancel — keep the window open.
