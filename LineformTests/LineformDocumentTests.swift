@@ -11,6 +11,40 @@ final class LineformDocumentTests: XCTestCase {
         XCTAssertEqual(document.textFormat, .markdown)
     }
 
+    func testHiddenICloudPrefersWorkspaceForAnUntitledSave() {
+        let workspace = URL(fileURLWithPath: "/tmp/Lineform Workspace", isDirectory: true)
+        let documents = URL(fileURLWithPath: "/tmp/Documents", isDirectory: true)
+
+        XCTAssertEqual(
+            NewDocumentSaveLocation.preferredDirectory(
+                showICloudInSidebar: false,
+                workspaceURL: workspace,
+                documentsDirectory: documents
+            ),
+            workspace
+        )
+    }
+
+    func testHiddenICloudFallsBackToDocumentsForAnUntitledSave() {
+        let documents = URL(fileURLWithPath: "/tmp/Documents", isDirectory: true)
+
+        XCTAssertEqual(
+            NewDocumentSaveLocation.preferredDirectory(
+                showICloudInSidebar: false,
+                workspaceURL: nil,
+                documentsDirectory: documents
+            ),
+            documents
+        )
+        XCTAssertNil(
+            NewDocumentSaveLocation.preferredDirectory(
+                showICloudInSidebar: true,
+                workspaceURL: nil,
+                documentsDirectory: documents
+            )
+        )
+    }
+
     func testDocumentReadsUTF8MarkdownData() throws {
         let source = Data("# Title\n\nPortable Markdown.\n".utf8)
 

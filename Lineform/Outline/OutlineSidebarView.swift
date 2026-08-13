@@ -147,6 +147,14 @@ struct OutlineSidebarView: View {
     static let filesContentHorizontalPadding: CGFloat = 6
     static let filesRootRowHeight: CGFloat = 28
     static let filesChildRowHeight: CGFloat = 26
+    /// Workspace and iCloud roots sit on a soft card. A closed root uses the card's solid
+    /// leading colour; an open root carries that colour into a downward fade so the section
+    /// stays grouped without boxing in a long tree.
+    static let filesRootCardCornerRadius: CGFloat = 14
+    static let filesRowBackgroundHorizontalInset: CGFloat = 6
+    /// The root card reaches equally beyond its header above and below, matching the Change
+    /// pill's trailing inset.
+    static let filesRootCardTopOutset: CGFloat = 3
     static let filesUnavailableRootOpacity = 0.56
     static let filesActionUsesPillStyle = true
     static let filesActionButtonsUseHighContrastFill = true
@@ -168,6 +176,15 @@ struct OutlineSidebarView: View {
     /// Mail — no vertical guide lines), so the step is generous enough for the eye to track
     /// structure by row x-position.
     static let filesTreeIndentStep: CGFloat = 6
+
+    static func filesRootCardStartColor(usesDarkChrome: Bool) -> Color {
+        Color(nsColor: NSColor(
+            srgbRed: usesDarkChrome ? 43.0 / 255.0 : 245.0 / 255.0,
+            green: usesDarkChrome ? 43.0 / 255.0 : 245.0 / 255.0,
+            blue: usesDarkChrome ? 43.0 / 255.0 : 245.0 / 255.0,
+            alpha: 1
+        ))
+    }
 
     /// A root shows a disclosure chevron only when it has an expandable child area — i.e. it
     /// actually has files. Empty/unavailable/unassigned roots have nothing to expand.
@@ -205,6 +222,16 @@ struct OutlineSidebarView: View {
     /// off restores the prior in-session state).
     static func rootIsCollapsed(isInCollapsedSet: Bool, lockExpanded: Bool) -> Bool {
         !lockExpanded && isInCollapsedSet
+    }
+
+    /// Card treatment follows the actual visible state: unavailable, empty iCloud, and
+    /// collapsed roots stay solid; only a displayed tree receives the downward fade.
+    static func rootCardIsExpanded(
+        state: OutlineFileRootState,
+        isCollapsed: Bool,
+        isDimmed: Bool
+    ) -> Bool {
+        (state == .available || state == .disconnected) && !isCollapsed && !isDimmed
     }
 
     /// Flattens a file tree into the rows currently VISIBLE (depth-first: parent, then its
@@ -1981,6 +2008,12 @@ private struct OutlineFileBrowserView: View {
         // disclosure affordance. When iCloud is visible, both roots honor the collapse setting.
         let lockExpanded = self.lockExpanded || usesMinimalWorkspaceChrome
 
+        let isExpanded = OutlineSidebarView.rootCardIsExpanded(
+            state: root.state,
+            isCollapsed: isRootCollapsed(root.id, lockExpanded: lockExpanded),
+            isDimmed: rootIsDimmed(root)
+        )
+
         VStack(alignment: .leading, spacing: 2) {
             OutlineFileRootRow(
                 root: root,
@@ -2062,6 +2095,12 @@ private struct OutlineFileBrowserView: View {
         }
         .opacity(rootIsDimmed(root) ? OutlineSidebarView.filesUnavailableRootOpacity : 1)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            rootCardBackground(isExpanded: isExpanded)
+                // Keep the root header centered in its card: the card extends equally beyond
+                // the row above and below, without changing content or hit-target geometry.
+                .padding(.vertical, -OutlineSidebarView.filesRootCardTopOutset)
+        }
     }
 
     private func rootIsDimmed(_ root: OutlineFileRoot) -> Bool {
@@ -2104,6 +2143,28 @@ private struct OutlineFileBrowserView: View {
             collapsedIDs.remove(id)
         } else {
             collapsedIDs.insert(id)
+        }
+    }
+
+    @ViewBuilder
+    private func rootCardBackground(isExpanded: Bool) -> some View {
+        let shape = RoundedRectangle(
+            cornerRadius: OutlineSidebarView.filesRootCardCornerRadius,
+            style: .continuous
+        )
+        if isExpanded {
+            shape.fill(
+                LinearGradient(
+                    colors: [
+                        OutlineSidebarView.filesRootCardStartColor(usesDarkChrome: usesDarkChrome),
+                        OutlineSidebarView.filesRootCardStartColor(usesDarkChrome: usesDarkChrome).opacity(0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        } else {
+            shape.fill(OutlineSidebarView.filesRootCardStartColor(usesDarkChrome: usesDarkChrome))
         }
     }
 }
@@ -2367,6 +2428,9 @@ private struct OutlineFileTreeNodeView: View {
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(rowBackgroundStyle)
+                // The highlight is deliberately inset from the root card's edges. The row's
+                // layout remains full width, preserving the shared icon column and hit target.
+                .padding(.horizontal, OutlineSidebarView.filesRowBackgroundHorizontalInset)
         }
         .contentShape(Rectangle())
         .onTapGesture {

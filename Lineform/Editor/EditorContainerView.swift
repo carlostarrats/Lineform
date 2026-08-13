@@ -580,6 +580,13 @@ struct EditorContainerView: View {
             // earlier ⌘S/Save As — so a still-pending manual intent no longer applies.
             documentSaveStatus.noteUserEdit()
             tabStore.updateActiveTab(document: document)
+            // A FileDocument binding marks its backing NSDocument edited as text changes.
+            // That is correct for a real file (and enables native autosave), but an untitled tab
+            // has no user-chosen destination. Leaving the change count set makes AppKit start an
+            // automatic save and present a save panel while the writer is merely typing. Keep
+            // untitled work in memory; WindowCloseController uses DocumentTab.hasUnsavedWork to
+            // provide the user-initiated close/save prompt instead.
+            clearUntitledAutosaveStateIfNeeded()
             // Heavy full-document work (count/outline/search) is coalesced to run once
             // after a brief typing pause instead of on every keystroke.
             scheduleDerivedRefresh(for: newValue)
@@ -1438,17 +1445,20 @@ struct EditorContainerView: View {
         displayMode = tab.displayMode
         recomputeDerivedNow(for: tab.document.text)
 
-        // Sync the system dirty state with the incoming tab. Untitled documents with any
-        // content are marked edited so the window close sheet prompts to save; a clean saved
-        // file is NOT edited (see DocumentTab.hasUnsavedWork — an unconditional emptiness
-        // check here previously marked every real file edited, forcing spurious autosaves).
+        // Sync the system dirty state with the incoming tab. An untitled tab is deliberately
+        // kept clear in NSDocument: setting its change count starts AppKit's automatic save flow
+        // and can show a save panel without a user action. WindowCloseController guards its
+        // in-memory work through DocumentTab.hasUnsavedWork instead. A clean saved file is NOT
+        // edited (an unconditional emptiness check here previously marked every real file
+        // edited, forcing spurious autosaves).
         let isEdited = tab.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
-        if isEdited {
+        let shouldUseNativeAutosave = isEdited && tab.fileURL != nil
+        if shouldUseNativeAutosave {
             backingDocument.updateChangeCount(.changeDone)
         } else {
             backingDocument.updateChangeCount(.changeCleared)
         }
-        activeWindow?.isDocumentEdited = isEdited
+        activeWindow?.isDocumentEdited = shouldUseNativeAutosave
         // KNOWN LIMITATION (intentional): tabs share the window's single undo manager, so
         // switching tabs clears undo history — a user cannot ⌘Z edits made in a tab after
         // switching away and back. Per-tab undo stacks are a large, regression-prone change
@@ -1463,7 +1473,7 @@ struct EditorContainerView: View {
         DispatchQueue.main.async { [weak backingDocument, weak window = activeWindow] in
             guard let backingDocument else { return }
             backingDocument.undoManager?.removeAllActions()
-            window?.isDocumentEdited = isEdited
+            window?.isDocumentEdited = shouldUseNativeAutosave
         }
 
         registerReloadWatcher()
@@ -1705,6 +1715,16 @@ struct EditorContainerView: View {
             // the highlight so the newly-real file shows as selected in the Files tab.
             currentFileURL = reloadWatcherURL
         }
+    }
+
+    /// Suppresses NSDocument autosave only until the writer has explicitly chosen a destination.
+    /// Existing files retain the system's native autosave behavior.
+    private func clearUntitledAutosaveStateIfNeeded() {
+        guard currentFileURL == nil,
+              let backingDocument = activeWindow?.windowController?.document as? NSDocument
+        else { return }
+        backingDocument.updateChangeCount(.changeCleared)
+        activeWindow?.isDocumentEdited = false
     }
 
     private func applyReload(_ result: ReloadResult) {
@@ -2076,6 +2096,16 @@ struct EditorContainerView: View {
         let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "Untitled")
         panel.nameFieldStringValue = "\(base).md"
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        // A hidden iCloud root must not remain the implied destination for a new file. This only
+        // proposes a local/workspace folder; the native panel still lets the writer explicitly
+        // navigate to iCloud or any other permitted destination.
+        if currentFileURL == nil {
+            panel.directoryURL = NewDocumentSaveLocation.preferredDirectory(
+                showICloudInSidebar: settings.showICloudInSidebar,
+                workspaceURL: fileBrowserStore.workspaceURL,
+                documentsDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            )
+        }
 
         let write: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else { return }
