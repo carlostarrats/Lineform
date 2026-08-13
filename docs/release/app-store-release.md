@@ -119,6 +119,29 @@ store will ship: sandboxed, signed by Apple, against the Mac App Store provision
 Direct build cannot tell you any of that. Same upload feeds both TestFlight and the store — there
 is no separate beta build.
 
+### Local release access
+
+This release Mac already has the `asc` App Store Connect CLI installed and authenticated through
+its default keychain-backed profile. **Use it first** for live App Store Connect checks and
+TestFlight distribution; do not treat browser sign-in, an exported `.p8` file, or an `altool`
+username/app-password as a blocker before running `asc doctor`. The credential itself is private
+and must never be committed or printed.
+
+Useful checks and the required distribution action:
+
+```sh
+asc doctor
+asc testflight groups list --app 6800480078 --internal
+asc builds list --app 6800480078 --version <version> --build-number <build> --output json
+asc builds add-groups --build-id <build-id> --group <internal-group-id>
+asc testflight groups links view --group-id <internal-group-id> --type builds --paginate
+```
+
+The current internal group is **Lineform Internal** (`LI` in App Store Connect). Its opaque ID
+must be obtained from the list command rather than copied into automation: group IDs can change.
+Successful package upload is not TestFlight distribution; assigning the build to this group and
+verifying the resulting association is the completion gate.
+
 - [ ] **Validate in Organizer first** (§3). It is the cheap gate: an unsandboxed nested binary —
       Sparkle's XPC services, `Contents/Helpers/lineform` — fails there, before an upload is
       spent. TestFlight cannot tell you anything about the preconditions in §0; those must
@@ -127,6 +150,12 @@ is no separate beta build.
       devices each). Internal builds need **no Beta App Review** and appear minutes after
       processing. External testing (up to 10,000) needs review on the first build and is not
       worth the wait for self-testing.
+- [ ] **Assign every uploaded build to its intended internal TestFlight group before calling the
+      upload complete.** Uploading creates a new build but does **not** inherit the previous
+      build's group assignment. For Lineform self-testing, add the new build to the existing
+      internal group (currently `LI`) and confirm that the build shows that group in App Store
+      Connect. Testers already in the group receive the new build as an update; they do not need
+      a new invitation.
 - [ ] Testers install the **TestFlight app from the Mac App Store** (requires macOS 12+; the
       deployment target is 14.0, so every supported Mac qualifies), then install Lineform from it.
 - [ ] Builds **expire after 90 days**.
