@@ -463,6 +463,7 @@ enum MainMenuIconDecorator {
         "enter full screen": "arrow.up.left.and.arrow.down.right",
         "exit full screen": "arrow.down.right.and.arrow.up.left",
         // Window menu
+        "new window": "macwindow.badge.plus",
         "minimize": "minus.circle",
         "zoom": "arrow.up.left.and.arrow.down.right.square",
         "fill": "rectangle.fill",

@@ -113,6 +113,7 @@ final class FirstLaunchIntroPresenter {
     private var hiddenAppWindows: [NSWindow] = []
     private var shouldOpenUntitledDocumentAfterDismiss = false
     private var shouldAllowNextUntitledDocumentOpen = false
+    private var isDismissing = false
 
     static var shouldShowIntro: Bool {
         let environmentForcesIntro = ProcessInfo.processInfo.environment["LINEFORM_SHOW_FIRST_LAUNCH_INTRO"] == "1"
@@ -178,6 +179,13 @@ final class FirstLaunchIntroPresenter {
     }
 
     private func dismiss() {
+        // The overlay has both keyboard and pointer activation paths. Treat completion as a
+        // one-shot transition so a double-click cannot enqueue a second new document while the
+        // fade is still running.
+        guard !isDismissing else {
+            return
+        }
+        isDismissing = true
         LineformLaunchDefaults.markFirstLaunchIntroCompleted()
         shouldOpenUntitledDocumentAfterDismiss = true
         guard let window else {
@@ -224,19 +232,11 @@ final class FirstLaunchIntroPresenter {
 
         shouldOpenUntitledDocumentAfterDismiss = false
         shouldAllowNextUntitledDocumentOpen = true
-        do {
-            let document = try NSDocumentController.shared.openUntitledDocumentAndDisplay(false)
-            if document.windowControllers.isEmpty {
-                document.makeWindowControllers()
-            }
-            for windowController in document.windowControllers {
-                windowController.window?.animationBehavior = .none
-                windowController.showWindow(nil)
-                windowController.window?.makeKeyAndOrderFront(nil)
-            }
-        } catch {
-            NSDocumentController.shared.newDocument(nil)
-        }
+        // Use the document controller's normal New command. `openUntitledDocumentAndDisplay(false)`
+        // creates a document without asking the DocumentGroup to present it, which can leave the
+        // first-launch overlay gone but no editor window visible. The standard action is the same
+        // route as File ▸ New and guarantees a DocumentGroup window is requested.
+        NSDocumentController.shared.newDocument(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 }
@@ -500,7 +500,7 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
             configuration.userContentController.addUserScript(script)
         }
 
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = FirstLaunchIntroArtworkWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsBackForwardNavigationGestures = false
@@ -571,5 +571,15 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
                 decisionHandler(.cancel)
             }
         }
+    }
+}
+
+/// The intro's artwork is bundled WebGL, not an interactive web surface. Let the native,
+/// accessible Get Started control above it receive pointer input reliably on every macOS release.
+/// In particular, a WKWebView's composited layer can otherwise win hit testing over a sibling
+/// AppKit view even when SwiftUI places that sibling later in a ZStack.
+private final class FirstLaunchIntroArtworkWebView: WKWebView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }

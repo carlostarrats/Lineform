@@ -38,6 +38,13 @@ Lineform contacts the network in exactly one case: a once-a-day read of a small 
 
 Full [Privacy](https://lineform.app/privacy) and [Terms of Use](https://lineform.app/terms) are published online and linked from the app's menu.
 
+## Support
+
+For questions, bug reports, feature requests, or other help with Lineform, please use the
+[Lineform Issues page](https://github.com/carlostarrats/Lineform/issues). Include your macOS
+version, Lineform version, and the steps that reproduce a problem; never attach a document that
+contains private writing unless you are comfortable sharing it publicly.
+
 ## Agent workflow
 
 Lineform is a good place to read and review what your coding agent writes. An optional

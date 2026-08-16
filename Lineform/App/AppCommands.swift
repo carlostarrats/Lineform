@@ -170,6 +170,9 @@ enum AppMenuConfiguration {
         "Toggle Outline",
         "Show Hidden Folders",
         "Reading Experience",
+        // Window menu
+        "Window",
+        "New Window",
         // Help menu
         "Lineform Guide"
     ]
@@ -730,6 +733,16 @@ struct AppCommands: Commands {
                     NSWorkspace.shared.open(url)
                 }
             }
+        }
+
+        // DocumentGroup does not guarantee a Window menu after the last document window closes.
+        // Keep a native, discoverable route back into the app instead of leaving the menu bar with
+        // no way to reopen Lineform other than quitting and relaunching.
+        CommandMenu(String(localized: "Window")) {
+            Button(String(localized: "New Window")) {
+                NSDocumentController.shared.newDocument(nil)
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
         }
     }
 
