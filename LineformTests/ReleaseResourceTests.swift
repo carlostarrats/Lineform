@@ -83,7 +83,7 @@ final class ReleaseResourceTests: XCTestCase {
 
         XCTAssertEqual(info["CFBundleIconFile"] as? String, "AppIcon")
         XCTAssertEqual(info["CFBundleIconName"] as? String, "AppIcon")
-        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.6.0")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.6.1")
         // No SU* keys: App Store apps may not ship their own updater, and Sparkle's
         // unsandboxed helpers fail upload validation outright.
         for sparkleKey in [
