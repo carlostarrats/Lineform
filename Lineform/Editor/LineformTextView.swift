@@ -1,4 +1,82 @@
 import AppKit
+import Combine
+
+/// Direct AppKit-to-AppKit bridge for Split scrolling. The bounds notification from one pane
+/// moves the other pane in the same event turn; routing this through SwiftUI state makes Preview
+/// visibly trail the gesture by one or more update cycles.
+@MainActor
+final class SplitScrollSynchronizer: ObservableObject {
+    weak var editor: LineformTextView?
+    weak var preview: MarkdownPreviewTextView?
+    var isLinked = true
+    private var isApplyingLinkedScroll = false
+
+    func connect(editor: LineformTextView) {
+        self.editor = editor
+    }
+
+    func connect(preview: MarkdownPreviewTextView) {
+        self.preview = preview
+    }
+
+    func editorDidScroll() {
+        synchronizeOrigin(from: editor, to: preview)
+    }
+
+    func previewDidScroll() {
+        synchronizeOrigin(from: preview, to: editor)
+    }
+
+    func alignPreviewToEditor() {
+        synchronizeOrigin(from: editor, to: preview, requiresLink: false)
+    }
+
+    /// Assign only the source clip view's physical Y. No history, delta derivation, source lookup,
+    /// rendered-range mapping, glyph query, layout pass, proportional conversion, animation, or
+    /// deferred correction occurs.
+    private func synchronizeOrigin(
+        from source: NSTextView?,
+        to destination: NSTextView?,
+        requiresLink: Bool = true
+    ) {
+        guard
+            (!requiresLink || isLinked),
+            !isApplyingLinkedScroll,
+            let sourceY = source?.enclosingScrollView?.contentView.bounds.origin.y,
+            let destinationScrollView = destination?.enclosingScrollView
+        else {
+            return
+        }
+        guard abs(destinationScrollView.contentView.bounds.origin.y - sourceY) > 0.001 else { return }
+
+        applyLinkedScroll {
+            setVerticalOrigin(sourceY, in: destinationScrollView)
+        }
+    }
+
+    private func setVerticalOrigin(_ requestedY: CGFloat, in scrollView: NSScrollView) {
+        let maximumY = max(0, (scrollView.documentView?.frame.height ?? 0) - scrollView.contentView.bounds.height)
+        var origin = scrollView.contentView.bounds.origin
+        origin.y = min(max(0, requestedY), maximumY)
+        if let clipView = scrollView.contentView as? LineformEditorClipView {
+            clipView.setBoundsOriginBypassingVerticalLock(origin)
+        } else {
+            scrollView.contentView.setBoundsOrigin(origin)
+        }
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    private func applyLinkedScroll(_ apply: () -> Void) {
+        guard !isApplyingLinkedScroll else { return }
+        isApplyingLinkedScroll = true
+        defer { isApplyingLinkedScroll = false }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            apply()
+        }
+    }
+}
 
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = String(localized: "Start writing...")
@@ -44,6 +122,7 @@ final class LineformTextView: NSTextView {
     /// the source-text range currently at the top of the viewport (or nearest the top for an
     /// empty/short document), used by the outline sidebar to bold its active heading.
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
+    weak var splitScrollSynchronizer: SplitScrollSynchronizer?
     var smoothsHorizontalInsetChanges = false
     var correctsEmptyInsertionPointToFinalColumn = false
     /// The open document's containing folder, threaded from the coordinator. A dragged or pasted
@@ -364,7 +443,7 @@ final class LineformTextView: NSTextView {
     /// (Re)binds the scroll-bounds observer to the CURRENT enclosing clip view. Removing first
     /// makes this correct across re-parenting (a new scroll view) and safe to call repeatedly;
     /// with no scroll view it simply stops observing.
-    private func updateScrollBoundsObservation() {
+    func updateScrollBoundsObservation() {
         NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
         guard let clipView = enclosingScrollView?.contentView else { return }
         clipView.postsBoundsChangedNotifications = true
@@ -377,6 +456,7 @@ final class LineformTextView: NSTextView {
     }
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {
+        splitScrollSynchronizer?.editorDidScroll()
         scheduleVisibleTokensRefreshAfterScroll()
         scheduleVisibleTopRangeReportAfterScroll()
     }

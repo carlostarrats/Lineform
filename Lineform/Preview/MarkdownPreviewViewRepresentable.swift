@@ -21,6 +21,7 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
     /// location to the top of the viewport — set by an outline click or a mode-switch position
     /// restore, then cleared. Mirrors the Write-mode editor's `requestedScrollToTopRange`.
     @Binding var requestedScrollToTopRange: NSRange?
+    var splitScrollSynchronizer: SplitScrollSynchronizer?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -36,8 +37,11 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onImageReconnect = onImageReconnect
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
+        textView.splitScrollSynchronizer = splitScrollSynchronizer
 
         scrollView.documentView = textView
+        textView.updateScrollBoundsObservation()
+        splitScrollSynchronizer?.connect(preview: textView)
         textView.apply(text: text, profile: profile, documentDirectory: documentDirectory)
         return scrollView
     }
@@ -51,6 +55,8 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onImageReconnect = onImageReconnect
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
+        textView.splitScrollSynchronizer = splitScrollSynchronizer
+        splitScrollSynchronizer?.connect(preview: textView)
         textView.apply(text: text, profile: profile, documentDirectory: documentDirectory)
 
         if let range = requestedScrollToTopRange {
@@ -76,6 +82,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     /// is a range in the rendered text; the receiver maps it back to the source via the
     /// `.headingSourceRange` attribute attached to headings.
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
+    weak var splitScrollSynchronizer: SplitScrollSynchronizer?
     private var activeProfile = ReadingProfile.original
     private var renderedText: String?
     private var renderedProfile: ReadingProfile?
@@ -771,7 +778,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         NSObject.cancelPreviousPerformRequests(withTarget: self)
     }
 
-    private func updateScrollBoundsObservation() {
+    func updateScrollBoundsObservation() {
         NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
         guard let clipView = enclosingScrollView?.contentView else { return }
         clipView.postsBoundsChangedNotifications = true
@@ -784,6 +791,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     }
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {
+        splitScrollSynchronizer?.previewDidScroll()
         scheduleVisibleTopRangeReportAfterScroll()
     }
 

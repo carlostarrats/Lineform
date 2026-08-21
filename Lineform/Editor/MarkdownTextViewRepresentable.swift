@@ -21,6 +21,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     var liveTabIDs: Set<UUID> = []
     var onWritingToolsSessionChange: ((Bool) -> Void)?
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
+    var splitScrollSynchronizer: SplitScrollSynchronizer?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -51,6 +52,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.smoothsHorizontalInsetChanges = smoothsHorizontalInsetChanges
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
+        textView.splitScrollSynchronizer = splitScrollSynchronizer
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
         context.coordinator.performWithoutSelectionUpdates {
@@ -59,6 +61,8 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
 
         scrollView.documentView = textView
+        textView.updateScrollBoundsObservation()
+        splitScrollSynchronizer?.connect(editor: textView)
         return scrollView
     }
 
@@ -72,6 +76,8 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.imageInsertionDocumentDirectory = documentDirectory
         textView.applyTypography(profile)
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
+        textView.splitScrollSynchronizer = splitScrollSynchronizer
+        splitScrollSynchronizer?.connect(editor: textView)
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
         context.coordinator.configure(textView)
         // Point the text view at the active tab's undo manager. Because NSTextView asks the

@@ -5365,6 +5365,40 @@
         }
       }
     },
+    "Link split scrolling": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geteiltes Scrollen koppeln"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vincular desplazamiento dividido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lier le défilement en mode Scindé"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分割表示のスクロールを連動"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联动拆分视图滚动"
+          }
+        }
+      }
+    },
     "Link.": {
       "localizations": {
         "de": {
@@ -10157,6 +10191,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "信纸"
+          }
+        }
+      }
+    },
+    "Unlink split scrolling": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geteiltes Scrollen entkoppeln"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desvincular desplazamiento dividido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dissocier le défilement en mode Scindé"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分割表示のスクロール連動を解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消拆分视图滚动联动"
           }
         }
       }

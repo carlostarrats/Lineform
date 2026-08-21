@@ -1,6 +1,19 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct SplitScrollJumpPlan: Equatable {
+    let editorRange: NSRange
+    let previewRange: NSRange?
+
+    init(range: NSRange, isLinked: Bool) {
+        editorRange = range
+        // While linked, Write owns the jump and Preview follows its physical Y. Issuing a second,
+        // source-mapped Preview jump would move Write back again through the link; the two fresh
+        // representables would fight until the editor's deferred restore happened to win.
+        previewRange = isLinked ? nil : range
+    }
+}
+
 struct EditorContainerView: View {
     @Binding var document: LineformDocument
     @StateObject private var readingProfileStore: ReadingProfileStore
@@ -21,6 +34,13 @@ struct EditorContainerView: View {
     @State private var activeOutlineSourceRange: NSRange?
     @State private var requestedSelection: NSRange?
     @State private var requestedScrollToTopRange: NSRange?
+    /// Split owns one request channel per pane. Sharing the cross-mode channel lets whichever
+    /// representable updates first clear the request before its sibling sees it.
+    @State private var requestedSplitEditorScrollRange: NSRange?
+    @State private var requestedSplitPreviewScrollRange: NSRange?
+    @State private var areSplitScrollsLinked = true
+    @State private var isSplitScrollLinkHovered = false
+    @StateObject private var splitScrollSynchronizer = SplitScrollSynchronizer()
     @State private var searchQuery = ""
     @State private var searchScope: EditorSearchScope = .thisFile
     @StateObject private var crossFileSearchModel = CrossFileSearchModel()
@@ -365,7 +385,8 @@ struct EditorContainerView: View {
             // request applied now wouldn't stick — by the next tick it has a real viewport.
             if let target = activeOutlineSourceRange {
                 DispatchQueue.main.async {
-                    requestedScrollToTopRange = target
+                    guard displayMode == mode else { return }
+                    requestScrollToTop(target, in: mode)
                 }
             }
         }
@@ -1133,7 +1154,10 @@ struct EditorContainerView: View {
     private var editorContent: some View {
         switch displayMode {
         case .write:
-            markdownEditor
+            markdownEditor(
+                requestedScrollRange: $requestedScrollToTopRange,
+                onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
+            )
         case .read:
             HStack {
                 DebouncedMarkdownPreviewView(
@@ -1150,7 +1174,11 @@ struct EditorContainerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .split:
             HStack(spacing: 0) {
-                markdownEditor
+                markdownEditor(
+                    requestedScrollRange: $requestedSplitEditorScrollRange,
+                    onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
+                    splitScrollSynchronizer: splitScrollSynchronizer
+                )
                 Divider()
                 DebouncedMarkdownPreviewView(
                     text: document.text,
@@ -1158,21 +1186,30 @@ struct EditorContainerView: View {
                     onCheckboxToggle: toggleCheckbox,
                     onImageReconnect: reconnectImage,
                     onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
+                    splitScrollSynchronizer: splitScrollSynchronizer,
                     documentDirectory: currentFileURL?.deletingLastPathComponent(),
-                    requestedScrollToTopRange: $requestedScrollToTopRange
+                    requestedScrollToTopRange: $requestedSplitPreviewScrollRange
                 )
+            }
+            .overlay(alignment: .bottomTrailing) {
+                splitScrollLinkButton
+                    .padding(12)
             }
         }
     }
 
-    private var markdownEditor: some View {
+    private func markdownEditor(
+        requestedScrollRange: Binding<NSRange?>,
+        onVisibleTopRangeChanged: @escaping (NSRange) -> Void,
+        splitScrollSynchronizer: SplitScrollSynchronizer? = nil
+    ) -> some View {
         MarkdownTextViewRepresentable(
             text: $document.text,
             textFormat: $document.textFormat,
             plainTextConversion: $document.plainTextConversion,
             requestedSelection: $requestedSelection,
             requestedReplacement: $requestedReplacement,
-            requestedScrollToTopRange: $requestedScrollToTopRange,
+            requestedScrollToTopRange: requestedScrollRange,
             profile: readingProfileStore.activeProfile,
             documentDirectory: currentFileURL?.deletingLastPathComponent(),
             smoothsHorizontalInsetChanges: false,
@@ -1186,7 +1223,8 @@ struct EditorContainerView: View {
                 // the session ends (the controller reconciles once on resume).
                 reloadController.isWritingToolsSessionActive = active
             },
-            onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 }
+            onVisibleTopRangeChanged: onVisibleTopRangeChanged,
+            splitScrollSynchronizer: splitScrollSynchronizer
         )
         // No SwiftUI accessibility modifiers here, deliberately. `LineformTextView` sets its own
         // label, role, and help through AppKit, and it is a real `NSTextView`: VoiceOver reads it
@@ -1214,7 +1252,7 @@ struct EditorContainerView: View {
     }
 
     private func jumpToHeading(_ item: MarkdownOutlineItem) {
-        requestedScrollToTopRange = item.characterRange
+        requestScrollToTop(item.characterRange, in: displayMode)
         // Bold the clicked heading immediately rather than waiting for the post-scroll report —
         // the report then confirms the same heading (it now parks at the viewport top), so the
         // selection never flickers to a neighbor.
@@ -1222,6 +1260,82 @@ struct EditorContainerView: View {
         // No mode switch: the Read/Preview view honors the scroll request in place (it maps the
         // source heading range back to rendered position), so an outline click no longer kicks
         // the reader out of Read mode into Write.
+    }
+
+    private var splitScrollLinkButton: some View {
+        let actionTitle = String(localized: areSplitScrollsLinked
+            ? "Unlink split scrolling"
+            : "Link split scrolling")
+        let activeBlue = Color(nsColor: .systemBlue)
+        let iconColor = areSplitScrollsLinked || isSplitScrollLinkHovered
+            ? activeBlue
+            : Color(nsColor: currentTheme.textColor).opacity(0.62)
+
+        return Button {
+            areSplitScrollsLinked.toggle()
+            splitScrollSynchronizer.isLinked = areSplitScrollsLinked
+            guard areSplitScrollsLinked else { return }
+
+            // The source pane is the writing surface and the stable source-of-truth after edits.
+            // Re-linking therefore brings Preview back to wherever the writer currently is.
+            splitScrollSynchronizer.alignPreviewToEditor()
+        } label: {
+            ZStack {
+                Image(systemName: "link")
+                if !areSplitScrollsLinked {
+                    Capsule()
+                        .fill(iconColor)
+                        .frame(width: 1.7, height: 20)
+                        .rotationEffect(.degrees(-45))
+                }
+            }
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 38, height: 38)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .background {
+            ZStack {
+                Circle()
+                    .fill(areSplitScrollsLinked
+                        ? activeBlue.opacity(currentTheme.usesDarkChrome
+                            ? (isSplitScrollLinkHovered ? 0.28 : 0.20)
+                            : (isSplitScrollLinkHovered ? 0.17 : 0.11))
+                        : (isSplitScrollLinkHovered
+                            ? activeBlue.opacity(currentTheme.usesDarkChrome ? 0.16 : 0.08)
+                            : Color(nsColor: currentTheme.backgroundColor).opacity(0.92)))
+                CursorRectView(cursor: .arrow) { hovering in
+                    isSplitScrollLinkHovered = hovering
+                }
+            }
+        }
+        .overlay {
+            Circle()
+                .stroke(
+                    areSplitScrollsLinked
+                        ? activeBlue.opacity(isSplitScrollLinkHovered ? 0.95 : 0.72)
+                        : (isSplitScrollLinkHovered
+                            ? activeBlue.opacity(0.55)
+                            : Color(nsColor: currentTheme.textColor).opacity(0.18)),
+                    lineWidth: areSplitScrollsLinked || isSplitScrollLinkHovered ? 1.25 : 0.75
+                )
+        }
+        .help(actionTitle)
+        .accessibilityLabel(actionTitle)
+    }
+
+    private func requestScrollToTop(_ range: NSRange, in mode: EditorDisplayMode) {
+        if mode == .split {
+            requestedScrollToTopRange = nil
+            let plan = SplitScrollJumpPlan(range: range, isLinked: areSplitScrollsLinked)
+            requestedSplitEditorScrollRange = plan.editorRange
+            requestedSplitPreviewScrollRange = plan.previewRange
+        } else {
+            requestedSplitEditorScrollRange = nil
+            requestedSplitPreviewScrollRange = nil
+            requestedScrollToTopRange = range
+        }
     }
 
     /// `whenOpenedHere` runs only if the document ends up in THIS window, so a caller clearing
@@ -1864,6 +1978,8 @@ struct EditorContainerView: View {
         // the tab's displayMode, so the onChange restore sees a cleared anchor).
         activeOutlineSourceRange = nil
         requestedScrollToTopRange = nil
+        requestedSplitEditorScrollRange = nil
+        requestedSplitPreviewScrollRange = nil
     }
 
     /// Locked spec behavior: after opening a cross-file result (or backing out), NO search
