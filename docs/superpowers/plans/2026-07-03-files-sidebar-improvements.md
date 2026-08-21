@@ -1,5 +1,8 @@
 # Files Sidebar Improvements Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the Files sidebar reflect external file-system changes live, add per-section sort (Name / Date Created / Date Modified), add right-click Rename/Delete/Show-in-Finder (rename only for folders) with Muse-style native dialogs, add File-menu Rename…/Delete… commands, investigate the spurious save-prompt report, and wire accessibility for all of it.

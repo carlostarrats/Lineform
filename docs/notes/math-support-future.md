@@ -1,6 +1,10 @@
-# Future idea: math / LaTeX support
+# Math / LaTeX support — historical design note
 
-Status: **candidate, not scheduled.** Not V1 scope. Captured 2026-07-02.
+> **SHIPPED.** Inline and block math are part of the current app. Use
+> `docs/architecture/rendering.md` for shipping behavior and invariants. The material below records
+> the original evaluation and must not be treated as future work.
+
+Captured 2026-07-02.
 
 ## The idea
 

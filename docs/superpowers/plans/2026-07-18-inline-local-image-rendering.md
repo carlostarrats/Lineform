@@ -1,5 +1,8 @@
 # Inline Local Image Rendering + Reconnect Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Render `![alt](path)` that points at an existing **local image file** as an actual picture (block attachment) in Read/Preview modes — left-aligned, fit inside a (column-width × max-height) box, downscale-only, memory-cached, network-free. Missing-local / remote references stay a quiet `🖼 label` placeholder that (a) auto-heals on re-render when the file appears and (b) offers a **Reconnect** pill that repoints the link. Nothing is ever written into the `.md` except on an explicit Reconnect.

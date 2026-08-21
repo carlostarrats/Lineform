@@ -1,5 +1,8 @@
 # Lineform: Intel + macOS 14 Support (1.0.9)
 
+> **HISTORICAL.** Intel and macOS 14 support shipped. Any packaging or distribution discussion
+> below describes the retired pre-App-Store process.
+
 Date: 2026-06-16
 Status: Proposed — awaiting review
 

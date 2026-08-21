@@ -1,5 +1,8 @@
 # Rich PDF Export + Print (⌘P) — Design Spec
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 **Task 7** from `docs/audits/2026-07-04-audit-decisions.md`. Written 2026-07-04, branch
 `work-2026-07-04-10`. Depends on Task 6 (Read-mode rich rendering) which is DONE.
 

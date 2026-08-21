@@ -1,5 +1,8 @@
 # Remove AI Features Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** The removal shipped. Lineform has no in-app AI feature; use
+> `AGENTS.md` for the current product boundary.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove Lineform's selected-text AI editing features entirely — code, tests, build references, and every user-facing surface — after first archiving the working implementation to a recoverable git tag + note.

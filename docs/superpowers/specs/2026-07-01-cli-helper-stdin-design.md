@@ -1,5 +1,8 @@
 # Spec 3 — CLI Helper (`lineform`) + stdin Piping
 
+> **HISTORICAL.** This feature was retired before App Store distribution. The shipping app has no
+> CLI, bundled helper, installer, or stdin-piping path.
+
 Date: 2026-07-01
 Part of: [Agent-Reader decomposition](./2026-07-01-agent-reader-decomposition.md) (unit 3)
 Source features: F1 (CLI tool) + F2 (stdin), paired.

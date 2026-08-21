@@ -1,5 +1,8 @@
 # Save-State Status Communication Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the editor's bottom status bar clearly communicate save state — red "Not saved yet" for untitled docs, amber "Unsaved changes" for dirty established docs, and a green "Saved"/"Autosaved" confirmation flash after a write — without ever recoloring the grey metadata.

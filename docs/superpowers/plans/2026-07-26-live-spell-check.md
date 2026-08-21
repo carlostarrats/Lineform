@@ -1,5 +1,8 @@
 # Live Spell Check Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn on live (as-you-type) spell checking in the Markdown editor, suppressed inside non-prose Markdown regions, with autocorrect turned off and no typing-latency regression.

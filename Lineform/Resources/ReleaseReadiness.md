@@ -22,9 +22,11 @@
 - Confirm the About panel displays the intended release version. `AppMenuConfiguration.aboutVersionDisplay` is a hand-maintained literal that does NOT track `MARKETING_VERSION` — bump it and its assertion in `AppCommandNotificationTests` in the same change as the version bump. It shipped wrong once (`V1.2.0` on a 1.3.0 build).
 - Confirm the Dock, Cmd-Tab, Finder, and About panel use the bundled app icon at normal macOS visual size.
 - Confirm the app does not override `NSApplication.shared.applicationIconImage` at runtime; the asset catalog and bundle metadata should be the single icon source.
-- Confirm `README.md`, `CLAUDE.md`, app metadata, help, and font credits match the shipped version.
+- Confirm `README.md`, `AGENTS.md`, `Claude.md`, app metadata, help, and font credits match the
+  shipped version.
 - Confirm the website points at the App Store listing. (The README carries no download links by design — see `Claude.md` ▸ Documentation Expectations.)
-- Confirm the build ships no updater and no unsandboxed nested binary. `ReleaseResourceTests` asserts no `SU*` key survives in `Info.plist`; Organizer's Validate App is what catches a nested binary before upload.
+- Confirm the build ships no updater and no unsandboxed nested binary. `ReleaseResourceTests`
+  guards updater metadata; Organizer's Validate App is what catches a nested binary before upload.
 - Submission steps, signing, and TestFlight: `docs/release/app-store-release.md`.
 - Confirm bundled font license files are present in `Resources/Fonts`.
 - Run Instruments smoke profiling for launch or time profiling when available.

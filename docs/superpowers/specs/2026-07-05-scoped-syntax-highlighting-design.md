@@ -1,5 +1,8 @@
 # Scoped Write-mode syntax highlighting — design
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 **Task 2** from `docs/audits/2026-07-04-audit-decisions.md` (the WAIT-tier perf task; gate
 satisfied 2026-07-04). Own fresh session, own branch `work-2026-07-05-2-scope-highlighting`.
 

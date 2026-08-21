@@ -1,5 +1,8 @@
 # PDF Export Typographic Themes Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a small curated set of typographic export presets (Standard / Manuscript / Compact / Article) to Lineform's PDF export + Print, chosen from a "Style" popup in the PDF save-panel accessory, persisted, and reused by Print — with "Standard" a **provable no-op** that reproduces today's export exactly.

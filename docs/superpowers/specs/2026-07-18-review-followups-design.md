@@ -1,5 +1,8 @@
 # Review Follow-ups (2026-07-18)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Four items surfaced in a past code review. This spec addresses three with contained
 fixes and records the fourth as a documented known limitation. A fifth item from the
 review — the hovered inactive tab title's contrast (~3.8:1 in light mode) — is **already

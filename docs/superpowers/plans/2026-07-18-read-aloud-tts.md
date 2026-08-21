@@ -1,5 +1,8 @@
 # Read-Aloud / Text-to-Speech Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a native, offline read-aloud feature that speaks the *markdown-stripped* text of the current document (not the raw markup), started from the selection / caret / whole document, with an **Edit ▸ Speech** submenu (Start Speaking / Pause-Resume / Stop).

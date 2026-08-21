@@ -1,5 +1,8 @@
 # Spec 6 — Privacy + Terms Pages
 
+> **HISTORICAL.** Privacy and terms now live at `https://lineform.app/privacy` and
+> `https://lineform.app/terms`. Old deployment or updater references below are not current.
+
 Date: 2026-07-01
 Part of: [Agent-Reader decomposition](./2026-07-01-agent-reader-decomposition.md) (unit 6)
 Source feature: F8. **Gate for unit 5** (must be live before the diagram-report build ships).

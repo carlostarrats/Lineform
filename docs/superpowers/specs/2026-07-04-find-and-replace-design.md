@@ -1,5 +1,8 @@
 # Find & Replace — design spec (Task 8)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Status: spec-light, approved-intent (see `docs/audits/2026-07-04-audit-decisions.md` → Task 8).
 Date: 2026-07-04. Branch: `work-2026-07-04-11`.
 

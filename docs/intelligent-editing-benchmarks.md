@@ -1,5 +1,8 @@
 # Intelligent Editing Benchmarks
 
+> **HISTORICAL.** Lineform's selected-text AI editing was removed in 2026. This benchmark remains
+> only as an engineering record; it does not describe the shipping app.
+
 This document defines the benchmark surface for Lineform's Apple Intelligence-backed selected-text instruction flow. The gate is designed to make known failures reproducible, catch likely unknown failures through scenario coverage, and block outputs that would reduce trust in selected-text editing.
 
 ## Request Modes

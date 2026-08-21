@@ -1,5 +1,8 @@
 # Localization Phase 2 — Prose and CJK Fonts
 
+> **HISTORICAL.** The implemented localization work is documented in
+> `docs/architecture/app-integration.md`; this dated design is not a current task list.
+
 Date: 2026-08-05 (revised 2026-08-05 after Phase 1 shipped and was reviewed
 against the code)
 

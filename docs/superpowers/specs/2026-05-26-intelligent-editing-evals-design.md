@@ -1,5 +1,8 @@
 # Intelligent Editing Evals Design
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 ## Goal
 
 Lineform needs repeatable quality tests for Apple Intelligence-backed editing prompts so selected text does not produce placeholders, copied input, dummy text, leaked context, or structurally unsafe Markdown.

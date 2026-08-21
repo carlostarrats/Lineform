@@ -1,5 +1,8 @@
 # Spec 1 — Live Reload (watch)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Date: 2026-07-01
 Part of: [Agent-Reader decomposition](./2026-07-01-agent-reader-decomposition.md) (unit 1)
 Source feature: F3 in `lineform-agent-reader-spec.md`.

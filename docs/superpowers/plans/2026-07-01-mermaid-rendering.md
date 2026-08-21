@@ -1,5 +1,8 @@
 # Mermaid Rendering + Diagram Log Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** Mermaid rendering shipped. Package and release references in
+> this dated plan are not current instructions; use `docs/architecture/rendering.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Checkbox steps.
 
 **Goal:** Render ```mermaid blocks as native diagrams in Read/Preview via BeautifulMermaid, with a safe captioned-source fallback and a local deduped failure log; Export/Clear log menu items.

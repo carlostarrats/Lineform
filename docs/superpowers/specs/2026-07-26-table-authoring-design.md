@@ -1,5 +1,8 @@
 # Table Authoring Help — Design
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 **Date:** 2026-07-26
 **Status:** Design approved, not started.
 **Source:** Item 3 of `docs/research/2026-07-25-feature-backlog.md`.

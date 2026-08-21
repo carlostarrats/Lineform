@@ -1,5 +1,8 @@
 # Heading Levels 1–6 Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make heading level something set on a line — fixing the shipped ⌘1/⌘2 stacking and mid-line bugs — and expose levels 3–6 plus a return to body text.

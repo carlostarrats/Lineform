@@ -1,5 +1,8 @@
 # Write Mode AI Action Rail Design
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Lineform will replace the automatic selected-text intelligence context menu with an explicit Write-mode AI surface. The toolbar gets an `Intelligence` toggle before `Markdown Basics`. The toggle uses native button-toggle behavior so it has normal, hover, and pressed states.
 
 The toggle state persists across mode changes. In `Write`, an enabled toggle shows a floating vertical action rail over the left side of the editor. In `Read` and `Preview`, the toggle is hidden and the rail is visually gone, but the on/off state is not reset; returning to `Write` restores the rail when the toggle is still on.

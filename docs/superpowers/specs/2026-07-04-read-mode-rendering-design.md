@@ -1,5 +1,8 @@
 # Read-mode Markdown rendering — design spec (Task 6 umbrella)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Status: **designed, ready for implementation plan.** Captured 2026-07-04.
 Companion to `docs/audits/2026-07-04-audit-decisions.md` (Task 6). This spec is the
 umbrella for the whole Read-mode rendering feature; it is implemented in **waves**,

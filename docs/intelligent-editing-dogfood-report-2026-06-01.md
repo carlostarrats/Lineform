@@ -1,5 +1,8 @@
 # Intelligent Editing Dogfood Report - 2026-06-01
 
+> **HISTORICAL.** This report covers a removed selected-text AI feature. Lineform ships with no
+> in-app AI capability.
+
 This report used sanitized Lineform-like writing only. No private document content was added.
 
 ## Before

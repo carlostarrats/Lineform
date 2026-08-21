@@ -1,5 +1,8 @@
 # Info Sidebar Tab — Design
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 **Date:** 2026-07-05
 **Status:** Approved design, pending implementation plan
 

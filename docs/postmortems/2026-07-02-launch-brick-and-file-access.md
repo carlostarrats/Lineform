@@ -1,5 +1,10 @@
 # Postmortem: 1.1.0 launch brick + workspace file-access bug (2026-07-02/03)
 
+> **Historical incident record.** Incident 1 occurred under Lineform's retired direct-download
+> distribution model. Its Developer ID, disk-image, appcast, and self-update details describe what
+> happened in 2026; they are not release instructions. Lineform now ships only through the Mac App
+> Store. Use `docs/release/app-store-release.md` for every current release.
+
 Two production defects shipped and were fixed in one night. This document exists so no
 agent or human repeats either failure class. Read it before changing release signing,
 provisioning profiles, certificates, or sandbox/bookmark code.
@@ -33,18 +38,12 @@ looks identical (same subject, same team), so nothing flagged the swap.
 `automatic`, `-allowProvisioningUpdates` — no developer.apple.com visit needed),
 re-shipped as 1.1.0 **build 15**, pulled the broken DMG/appcast entry the same night.
 
-**Do not do again / gates added (do not remove):**
-- `packaging/build-release.sh` fails (exit 68) if the signing cert's SHA-1 is not in the
-  embedded profile's `DeveloperCertificates`.
-- `packaging/build-release.sh` launches the packaged app once after signing and fails
-  (exit 69) if launchd refuses to spawn it or it dies within 3s.
-- After ANY certificate change (renewal, dedupe, new machine), re-check the profile
-  embeds the surviving cert BEFORE the next release. Never *revoke* a Developer ID cert
-  on the Apple portal (OCSP can kill already-shipped builds); deleting from the local
-  keychain is safe for shipped apps but remember the profile may still reference it.
-- Bricked users cannot be rescued via Sparkle (the app can't run to check for updates).
-  Release-page instructions must say: re-download and **replace the app in place** —
-  never "delete and reinstall" (deleting can trigger the iCloud container purge).
+**Current lesson:** after any certificate, profile, entitlement, or capability change, verify that
+the archive uses the intended App Store profile and that the profile authorizes every restricted
+entitlement. Then validate in Organizer and launch the uploaded build through TestFlight. A passing
+compile or signature check does not prove that the executable can launch under the production
+sandbox. Avoid advising users to delete the app as a generic repair step because deletion can be
+interpreted as an uninstall for its iCloud container.
 
 ## Incident 2 — workspace file opens failed after relaunch ("you don't have permission")
 
@@ -79,19 +78,14 @@ exactly once on deinit).
 
 1. **"It launches" is not "it works", and "tests pass" is not "the user's flow works".**
    Build 14 passed every static check and was dead on arrival; the file-access bug
-   coexisted with a fully green suite for the app's entire life. Every release must
-   exercise the real flows: launch the packaged app, open a real document from a
-   workspace folder after a relaunch, run `packaging/verify-update.sh`.
-2. **The update path has its own failure modes** (EdDSA key mismatch ⇒ every update
-   rejected; bad delta ⇒ failed updates; signature computed before stapling ⇒ length/sig
-   mismatch). `packaging/verify-update.sh` gates all of these headlessly — run it after
-   appcast generation, before publishing. Regenerate the appcast **after**
-   `stapler staple` (stapling changes the DMG bytes).
-3. **`generate_appcast` rewrites every entry's enclosure URL with one prefix**, 404ing
-   old versions whose assets live on their own tags. Hand-merge only the new top item
-   into `docs/appcast.xml`; keep per-tag URLs for history.
-4. **Dev-machine noise can mask or mimic product bugs.** Launching many re-signed app
-   copies churns the shared sandbox container and TCC state; CLI test runs re-prompt for
+   coexisted with a fully green suite for the app's entire life. Every release must validate the
+   archive, launch the TestFlight build, and open a real document from a workspace folder after a
+   relaunch.
+2. **Profile authorization is distinct from code signing.** Verify restricted entitlements against
+   the embedded profile after certificate or capability changes; do not infer authorization from a
+   successful build.
+3. **Dev-machine noise can mask or mimic product bugs.** Launching many re-signed app
+   copies churns the shared sandbox container and TCC state; command-line XCTest runs re-prompt for
    Documents access (ad-hoc re-signing). Distinguish machine-local damage from shipped
    defects before concluding either way — in this incident the machine damage and a
    real shipped bug were *both* present.

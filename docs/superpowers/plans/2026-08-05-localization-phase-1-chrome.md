@@ -1,5 +1,8 @@
 # Localization Phase 1 — App Chrome Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** Localization shipped. Use
+> `docs/architecture/app-integration.md` for the current catalog and menu rules.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Localize Lineform's app chrome into Spanish, French, German, Japanese, and Simplified Chinese, and fix the date-format and CJK word-count behaviors that are wrong in any non-English locale.

@@ -1,5 +1,8 @@
 # Settings Window — Sidebar & iCloud Preferences
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Date: 2026-07-03
 
 > **SUPERSEDED (same day, after user QA).** The shipped implementation deliberately

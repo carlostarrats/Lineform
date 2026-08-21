@@ -1,5 +1,8 @@
 # Read-mode rendering — Wave 1 Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** Implement task-by-task. Steps use checkbox (`- [ ]`) syntax.
 > Spec: `docs/superpowers/specs/2026-07-04-read-mode-rendering-design.md`.
 > Waves 2 (interactive checkboxes) and 3 (tables) get their own plans after this ships.

@@ -1,5 +1,8 @@
 # Move "Show Hidden Folders" from the sidebar eyeball to the View menu
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Date: 2026-07-02
 Status: Approved, ready for implementation
 

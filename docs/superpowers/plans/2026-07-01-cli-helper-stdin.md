@@ -1,5 +1,8 @@
 # CLI Helper + stdin Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** The command-line helper was retired before App Store
+> distribution. Lineform has no CLI, helper executable, installer, or stdin-piping feature.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** Ship a bundled `lineform` command-line helper that opens files and stdin in the app, an installer menu item, and 7-day Piped-folder housekeeping — with all logic unit-tested and no new Xcode target.

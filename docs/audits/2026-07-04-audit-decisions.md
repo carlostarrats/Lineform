@@ -1,5 +1,9 @@
 # Audit Decisions — running do-list
 
+> **HISTORICAL — DO NOT EXECUTE AS A CURRENT PLAN.** This file records July 2026 decisions against
+> the code and distribution model of that date. Use `AGENTS.md`, `docs/architecture/`, and
+> `docs/release/app-store-release.md` for the shipping app.
+
 Companion to `2026-07-03-perf-and-feature-audit.md`. Records which audit items we
 decided to act on, in plain language, as we reviewed them together on 2026-07-04.
 Citations in the audit were re-verified against branch `work-2026-07-04-5` before

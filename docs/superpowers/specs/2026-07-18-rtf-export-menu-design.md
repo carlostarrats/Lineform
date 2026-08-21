@@ -1,5 +1,8 @@
 # RTF export + "Export As" menu grouping
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 **Date:** 2026-07-18
 **Status:** Approved (direction), pending implementation
 **Competitor-scan entry:** D

@@ -1,5 +1,8 @@
 # Plan — Files-sidebar scan debounce (Task 5)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Spec: `docs/superpowers/specs/2026-07-05-sidebar-scan-debounce-design.md`.
 One file of production change + focused tests. TDD.
 

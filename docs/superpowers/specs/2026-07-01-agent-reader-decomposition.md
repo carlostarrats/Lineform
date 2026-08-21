@@ -1,5 +1,8 @@
 # Agent-Reader Release — Decomposition Index
 
+> **HISTORICAL — DO NOT EXECUTE.** This 2026 release roadmap is complete. Several proposed paths
+> were later retired; use `AGENTS.md` and the architecture documents for the shipping product.
+
 Date: 2026-07-01
 
 This is the roadmap for the "Agent-Reader" body of work. The source spec

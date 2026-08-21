@@ -1,5 +1,8 @@
 # Code Block Syntax Highlighting + Copy Button Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This feature shipped. Use `docs/architecture/rendering.md` for
+> current behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give fenced code blocks calm, native, per-language syntax highlighting in Read/Preview modes plus a hover "Copy" pill, without adding a dependency, without touching Write mode, and without any bytes on disk or color in exported PDFs.

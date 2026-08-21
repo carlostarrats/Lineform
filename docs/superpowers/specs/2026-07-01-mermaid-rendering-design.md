@@ -1,5 +1,8 @@
 # Spec 4 — Mermaid Rendering + Local Diagram Log
 
+> **HISTORICAL.** Mermaid rendering shipped. Use `docs/architecture/rendering.md` for current
+> behavior; old dependency and release references below are not instructions.
+
 Date: 2026-07-01
 Part of: [Agent-Reader decomposition](./2026-07-01-agent-reader-decomposition.md) (unit 4)
 Source features: F5 + the local half of F7.

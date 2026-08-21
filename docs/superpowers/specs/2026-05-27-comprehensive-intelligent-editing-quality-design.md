@@ -1,5 +1,8 @@
 # Comprehensive Intelligent Editing Quality Design
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 ## Goal
 
 Make Lineform's Apple Intelligence editing actions reliable enough that selected-text workflows produce useful, trustworthy output across known failures, likely unknown failures, and realistic Markdown writing scenarios.

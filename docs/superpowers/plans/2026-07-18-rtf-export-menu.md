@@ -1,5 +1,8 @@
 # RTF Export + Export-As Menu Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a Rich Text (RTF) export path that reuses the existing document export renderer, and regroup the File menu so "Export as PDF…" and the new "Rich Text (RTF)…" live under a **File ▸ Export As** submenu (Print… ⌘P stays put). RTF exports styled text (headings, bold/italic/code/strike, lists, blockquotes, callouts, tables) that Word/Pages/Google Docs/TextEdit all open; math and mermaid degrade to caption/source text because plain `.rtf` can't portably embed images. DOCX is dropped.

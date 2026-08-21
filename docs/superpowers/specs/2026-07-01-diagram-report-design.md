@@ -1,5 +1,8 @@
 # Spec 5 — Diagram Failure Report (Worker + dialog)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Date: 2026-07-01
 Part of: [Agent-Reader decomposition](./2026-07-01-agent-reader-decomposition.md) (unit 5)
 Source feature: rest of F7. **Gated on unit 6** (Privacy/Terms) — now live.

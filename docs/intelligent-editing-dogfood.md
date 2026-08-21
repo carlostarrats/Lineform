@@ -1,5 +1,8 @@
 # Intelligent Editing Dogfood
 
+> **HISTORICAL — DO NOT EXECUTE.** This checklist covers a removed selected-text AI feature.
+> Lineform ships with no in-app AI capability.
+
 This checklist is for manual review after deterministic tests pass. It catches awkward-but-passing output that a rubric may not score as a failure.
 
 ## Scope

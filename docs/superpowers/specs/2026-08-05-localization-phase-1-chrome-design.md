@@ -1,5 +1,8 @@
 # Localization Phase 1 — App Chrome
 
+> **HISTORICAL.** App-chrome localization shipped. Use
+> `docs/architecture/app-integration.md` for current localization rules.
+
 Date: 2026-08-05
 Status: Approved for planning. Supersedes the single combined localization spec
 (same date), split after adversarial review showed cost and value distributed

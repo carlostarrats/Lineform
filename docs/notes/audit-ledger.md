@@ -2,6 +2,11 @@
 
 Tracks which areas of Lineform have been deliberately audited, when, and against which commit.
 
+This ledger records historical audit coverage, not the current release procedure. Lineform now
+ships only through the Mac App Store. Rows from before 2026-08-06 can name components that existed
+at the time; use the architecture documents and `docs/release/app-store-release.md` for current
+source ownership and release steps.
+
 **Why this file exists.** On 2026-07-27 the same open-ended prompt ("review the codebase and QA in
 detail… fix anything not right") was run four times back to back. Every run found real defects, which
 looks like thoroughness and is actually the opposite: all four entered through the same door. Between
@@ -48,8 +53,8 @@ Findings themselves live in commit messages and architecture docs. This file onl
 | Mermaid, math, code highlighting | `rendering.md` | `Preview/MermaidRendering`, `MermaidPieChart`, `MathRendering`, `CodeHighlighting`, `DiagramReportService` | 07-27 (this change) | 07-27 | 07-27 | 5: pie value crash; front-matter diagrams mis-routed to the bug-report path; copy pill truncated CRLF code; size guard bounded nothing; `inlineSpans` quadratic |
 | Reading profiles, presets, themes, fonts | `app-integration.md` | `ReadingExperience/ReadingProfileStore`, `ReadingPreset`, `Theme`, `FontOption`, `BundledFontRegistrar` | 07-27 (this change) | 07-27 | 07-27 | 2 confirmed: link/image ink and the diagram fallback caption were the two reader inks never under the contrast gate. 2 REFUTED — persisted-number bounds and unknown-`fontID` profile discard are both real mechanisms but unreachable |
 | Speech controller | `editor-behavior.md` | `ReadingExperience/SpeechController` | 07-27 (this change) | 07-27 | 07-27 | 4 confirmed: a stopped utterance reports `didFinish` (transport clobbered to `.idle` with audio playing); deferred pause overtakes a resume; speech range harvested from any focused `NSTextView`; speech outlived its document on tab/sidebar switch |
-| Menus, settings, updates, App Intents, CLI | `app-integration.md` | `App/AppCommands`, `AppUpdater`, `LineformSettings`, `LineformAppIntents`, `MainMenuIconDecorator`, `CommandLineToolInstaller`, `CommandLineTool/` | 07-27 (this change) | 07-27 | 07-27 | 4 confirmed: decorator stamps context menus; Spelling submenu bare; `lineform -` accepts non-UTF-8 the app rejects; App Intents filenames drop non-ASCII. 1 REFUTED — Privacy.md/Sparkle disclosure |
-| Packaging, signing, release gates | `app-integration.md`, `docs/release/` | `packaging/build-release.sh`, `verify-update.sh`, `docs/appcast.xml` | 07-27 (this change) | 07-27 | 07-27 | 4 confirmed, 2 release-blocking: the cert gate + re-sign list were behind a flag defaulting to NO; no clean of `$APP_PATH`; `generate-appcast.sh` clobbered the tracked appcast; runbook version drift. 3 REFUTED — CI publish path, `verify-update.sh`, smoke-test `rm -rf` |
+| Menus, settings, announcements, App Intents | `app-integration.md` | `App/AppCommands`, `Announcement*`, `LineformSettings`, `LineformAppIntents`, `MainMenuIconDecorator` | 08-21 | f4f2bb9 (08-21) | 08-21 | Split-scroll lifecycle hardened; duplicate Window/Dictation/Emoji menu entries removed; current menu structure live-verified. |
+| App Store packaging, signing, release gates | `app-integration.md`, `docs/release/` | `project.pbxproj`, app/appex entitlements, `ReleaseResourceTests`, `app-store-release.md` | 08-21 | f4f2bb9 (08-21) | 08-21 | Release artifact contains App Intents metadata, six locales, and only the expected app + Quick Look Mach-O executables; Organizer validation remains the signed-distribution gate. |
 
 ## Notes
 
@@ -111,6 +116,6 @@ Findings themselves live in commit messages and architecture docs. This file onl
   stage that never refutes anything is not verifying.
 - `Verified at` means a later, independent pass tried to BREAK the fix and failed. An area is not done
   when it is audited — a fix and its test written in one pass can be wrong in the same way.
-- `packaging/` has shipped broken twice (1.1.0 AMFI brick, 1.3.0 notarization rejection). Its gates are
-  scripts, not tests, so no suite run covers them — audit it before the next release, not after.
+- App Store signing and nested-bundle validation are not covered by the unit suite. Validate every
+  archive in Organizer and exercise the uploaded build through TestFlight before release.
 - Re-audit an area whose `Last changed` moves past its `Audited at`; leave the rest alone.

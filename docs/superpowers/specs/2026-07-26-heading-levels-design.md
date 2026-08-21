@@ -1,5 +1,8 @@
 # Heading Levels 1–6 — Design
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 **Date:** 2026-07-26
 **Backlog item:** `docs/research/2026-07-25-feature-backlog.md` §5 ("Heading shortcuts beyond two")
 **Status:** designed, not implemented

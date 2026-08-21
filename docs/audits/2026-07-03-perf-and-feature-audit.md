@@ -1,5 +1,8 @@
 # Lineform Performance & Feature Audit — Handoff Tasks
 
+> **HISTORICAL — DO NOT EXECUTE AS A CURRENT PLAN.** This audit reflects the July 2026 codebase.
+> Use `AGENTS.md`, `docs/architecture/`, and the current backlog for present-day work.
+
 **Date:** 2026-07-03. **Verified against:** branch `work-2026-07-03-4`, commit `e698bdc`.
 All file:line references were confirmed by code reading on this date; re-verify locations if the tree has moved on before acting.
 

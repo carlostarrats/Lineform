@@ -10,11 +10,9 @@ Public-facing links:
 
 - Product website: `https://lineform.app`
 - GitHub repo: `https://github.com/carlostarrats/Lineform`
-- Distribution: the **Mac App Store, and nothing else** (decided 2026-08-06). Sparkle, the
-  `lineform` CLI, and the whole Direct/DMG path — `packaging/build-release.sh`, `build-dmg.sh`,
-  `notarize-dmg.sh`, `generate-appcast.sh`, `verify-update.sh`, `docs/appcast.xml`,
-  `docs/release-notes/`, and the Release Build workflow — were deleted in that change. Do not
-  reintroduce any of them. Runbook: `docs/release/app-store-release.md`.
+- Distribution: the **Mac App Store, and nothing else**. The app has no self-updater, alternate
+  package, command-line helper, or helper installer. Do not add a second distribution path.
+  Runbook: `docs/release/app-store-release.md`.
 
 Core product principles:
 
@@ -157,8 +155,8 @@ file named after it carries the full story and the reasoning.
 
 **Build config and app shell** (`app-integration.md`)
 - `AppIntents.framework` must stay LINKED in the app target's Frameworks phase. `import AppIntents` alone is not enough: without the link no `Metadata.appintents` is emitted and the Shortcuts/Spotlight/Siri actions silently never register. **This already shipped broken once.** Verify `Contents/Resources/Metadata.appintents` exists after any build-config change.
-- No updater, and no unsandboxed nested executable, may come back. Sparkle's helpers and the `lineform` CLI both fail App Store upload validation outright, and a `com.apple.security.temporary-exception.*` entitlement is a review flag by itself. `ReleaseResourceTests` asserts the absence of every `SU*` `Info.plist` key and of the mach-lookup exception, and asserts `LSApplicationCategoryType` + `ITSAppUsesNonExemptEncryption` are present — submission is rejected without the first.
-- Every nested bundle must be signed correctly for the distribution channel, and the Quick Look appex keeps its OWN sandbox entitlements. Under Developer ID this was a hand-rolled re-sign list that failed notarization once for 1.3.0; under App Store distribution Xcode signs nested bundles from the archive, and **Organizer's Validate App is the gate that catches a wrong or unsandboxed one**. Adding an app extension or embedded binary means re-validating before upload.
+- No updater, external helper, or unsandboxed nested executable may be added. A `com.apple.security.temporary-exception.*` entitlement is a review flag by itself. `ReleaseResourceTests` asserts the absence of updater metadata and the mach-lookup exception, and asserts `LSApplicationCategoryType` + `ITSAppUsesNonExemptEncryption` are present — submission is rejected without the first.
+- Every nested bundle must be signed correctly, and the Quick Look appex keeps its OWN sandbox entitlements. Xcode signs nested bundles from the App Store archive, and **Organizer's Validate App is the gate that catches a wrong or unsandboxed one**. Adding an app extension or embedded binary means re-validating before upload.
 - `MainMenuIconDecorator` observes every `NSMenu` in the process (a detached SwiftUI `CommandMenu` has no supermenu to test), so any menu it must not touch carries `MainMenuIconDecorator.excludedMenuIdentifier`. Without it the editor's right-click menu came up wearing main-menu SF Symbols.
 - Main-menu icons must be applied to the menu that POSTS the notification, never by walking `NSApp.mainMenu` on a tracking hook. SwiftUI builds `CommandMenu` replacements DETACHED and swaps them in, so the walk decorates the outgoing menu while the bare one is drawn. `didAddItem` is not enough on its own: SwiftUI updates a `CommandMenu`'s EXISTING items in place when it opens, clearing `image` with no insertion to observe, which is why `didChangeItem` is observed too — the `isDecorating` guard is what keeps our own `image` writes from feeding back.
 
@@ -221,19 +219,15 @@ production iCloud account. TestFlight builds count as locally installed copies f
 
 ## Release Verification Gates (do not weaken)
 
-Two production incidents on 2026-07-02 shipped despite green tests, valid codesign,
-notarization, and Gatekeeper — see `docs/postmortems/2026-07-02-launch-brick-and-file-access.md`
-before touching signing, certificates, provisioning profiles, or sandbox/bookmark code.
-
-The Developer ID machinery those incidents ran through is gone (deleted 2026-08-06 with the
-Direct path), but the two rules below are about signing and about sandbox state, not about DMGs,
-and they carry over verbatim to App Store submission. The channel-specific steps live in
+A historical signing incident and a workspace-bookmark defect both shipped despite green tests.
+Read `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before touching signing,
+certificates, provisioning profiles, or sandbox/bookmark code. Current release steps live in
 `docs/release/app-store-release.md`.
 
 - The signing cert MUST be embedded in the app's provisioning profile. A mismatch passes
   every static check but AMFI SIGKILLs the app at launch on every machine (this shipped
-  as 1.1.0 build 14). This is NOT a Developer ID quirk — the same mismatch happened again on
-  2026-07-29 when Xcode reused a cached profile after a capability change. After any cert or
+  as 1.1.0 build 14). The same mismatch happened again on 2026-07-29 when Xcode reused a cached
+  profile after a capability change. After any cert or
   capability change, dump the profile's whole `Entitlements` dict and read it; do not trust a
   `plutil -extract` of a single dotted key, which silently returns nothing.
 - "It launches" is not "it works": before calling a release done, open a real document
@@ -312,10 +306,10 @@ Keep attribution accurate when changing fonts, bundled resources, README copy, a
 Update docs when behavior, workflows, or quality gates change:
 
 - Keep `README.md` user-facing: website, privacy, about, credits, and only a compact source-build section.
-- **The GitHub README carries NO download links — this is the owner's standing decision (2026-08-06), not an omission.** Commit `8c24231` deliberately removed the download section, badges, screenshot, and marketing copy. Do not re-add a download link, a DMG URL, or a release badge to `README.md`; the product website and the Mac App Store are where downloads live. A release version bump therefore does NOT touch the README.
+- **The GitHub README carries NO download links — this is the owner's standing decision, not an omission.** Do not add a package URL, download badge, or release badge to `README.md`; the product website and the Mac App Store are where downloads live. A release version bump therefore does NOT touch the README.
 - Use this file for AI coding agent context and repo operating rules — product context, invariants, verification, and policy. It is loaded in full every session, so keep it lean.
 - Use `docs/architecture/*.md` for per-area implementation detail. New feature narrative goes there, not here; add at most a one-line feature entry and, if the change creates a rule that can never be broken, one line under Load-Bearing Invariants.
-- Use `docs/release/app-store-release.md` for App Store submission, signing, and TestFlight. It is the only release doc; the Direct/DMG runbook was deleted with the machinery it described.
+- Use `docs/release/app-store-release.md` for App Store submission, signing, and TestFlight. It is the only release runbook.
 - Use `Lineform/Resources/*.md` for user-facing bundled app/help/release docs.
 
 ## PR / Marketing / Positioning Reference
@@ -323,6 +317,6 @@ Update docs when behavior, workflows, or quality gates change:
 For any PR, marketing, positioning, audience, or public-copy question ("how do I describe Lineform," "who is it for," "what's the one-liner," "is this claim safe to publish"), consult `POSITIONING_AND_MARKETING.md` at the repo root. It holds the verified positioning, target audience, plain-language feature list, differentiation vs. competitors, honesty constraints, launch-surface copy (Show HN / X / App Store / website), and a fact sheet (version, platform, license, privacy).
 
 - It is a **local, untracked** working doc (in `.gitignore`) — it does not get committed or auto-updated by release tooling, so treat its facts as a dated snapshot. Its verification stamp names the app version it was checked against; if a question turns on a specific capability and the build has moved on, re-verify against the current code before making any public claim. Never publish a capability the shipped build can't demonstrate.
-- Load-bearing rules from that doc: say "free" and "source-available" (never "open source" — PolyForm Shield 1.0.0); "No AI inside" is accurate and intentional; and only Atkinson Hyperlegible + OpenDyslexic are bundled fonts. **Its CLI claims are now stale** — the `lineform` helper was removed on 2026-08-06 and must not be described in any public copy.
+- Load-bearing rules from that doc: say "free" and "source-available" (never "open source" — PolyForm Shield 1.0.0); "No AI inside" is accurate and intentional; only Atkinson Hyperlegible + OpenDyslexic are bundled fonts; and distribution is Mac App Store-only.
 
 Keep this file current when major features, architecture, or verification gates change.

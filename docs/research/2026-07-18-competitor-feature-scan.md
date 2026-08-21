@@ -1,5 +1,9 @@
 # Competitor Feature Scan — macOS Markdown Editors
 
+> **HISTORICAL MARKET SNAPSHOT.** Competitor details and the Lineform inventory below reflect the
+> date of this scan. They are not current product copy. Use `POSITIONING_AND_MARKETING.md` and the
+> architecture documents for current Lineform capabilities.
+
 **Date:** 2026-07-18
 **Purpose:** Survey competing Markdown editors, note features worth adopting for Lineform (macOS), filtered against Lineform's positioning: calm, native, file-based, local-first, no AI, source-available (PolyForm Shield). Also captures the pricing landscape, since many of these charge and monetization is now on the table.
 **Status:** Research working doc. Not a commitment. Verify each idea against the current build before acting — this is a dated snapshot.
@@ -53,7 +57,7 @@
 
 Confirmed shipping per CLAUDE.md, so these came up in the scan but are **done**:
 
-Mermaid diagrams · inline + block LaTeX math (SwiftMath) · GFM tables · multi-document tabs · Find & Replace (single file) · cross-file search · Jump-to-File (⌘K) · Quick Look Finder extension · rich PDF export + Print · reader themes (Apple Books-style) · reading profiles (size/leading/spacing/margins/column/focus/ruler) · focus mode · outline navigation · live external-file reload · iCloud container · CLI/stdin helper · Write/Read/Split modes · task checkboxes · strikethrough/HR/blockquote/lists · syntax highlighting · save-state status bar.
+Mermaid diagrams · inline + block LaTeX math (SwiftMath) · GFM tables · multi-document tabs · Find & Replace (single file) · cross-file search · Jump-to-File (⌘K) · Quick Look Finder extension · rich PDF export + Print · reader themes (Apple Books-style) · reading profiles (size/leading/spacing/margins/column/focus/ruler) · focus mode · outline navigation · live external-file reload · iCloud container · Write/Read/Split modes · task checkboxes · strikethrough/HR/blockquote/lists · syntax highlighting · save-state status bar.
 
 Lineform is already **ahead of most of this list** on rendering (Mermaid + math + native tables beats Byword, iWriter, Markdown Peek, Mud, Markdown Studio, uFocus). The gaps are narrow and specific.
 

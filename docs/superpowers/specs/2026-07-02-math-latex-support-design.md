@@ -1,5 +1,8 @@
 # Math / LaTeX support — design spec
 
+> **HISTORICAL.** Math support shipped. Use `docs/architecture/rendering.md` for current behavior;
+> old packaging references below are not release instructions.
+
 Status: **designed, ready for implementation plan.** Captured 2026-07-02.
 Supersedes the exploratory note `docs/notes/math-support-future.md` (which remains
 as the origin/context record).

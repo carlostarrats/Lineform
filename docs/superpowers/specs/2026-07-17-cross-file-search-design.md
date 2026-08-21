@@ -1,5 +1,8 @@
 # Cross-File Search (All Files search scope) — design spec
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Status: brainstormed and approved via chat 2026-07-17, including live in-app demos of the
 three candidate entry points.
 Date: 2026-07-17. Branch: `work-2026-07-18-4`.

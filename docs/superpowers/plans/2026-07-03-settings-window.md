@@ -1,5 +1,8 @@
 # Settings Window Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a native macOS Settings… (⌘,) window with three preferences — show sidebar on launch, keep root folders expanded, and show iCloud in sidebar (hide-only) — persisted in `UserDefaults` and applied to the Files sidebar.

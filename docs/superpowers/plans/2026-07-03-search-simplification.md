@@ -1,5 +1,8 @@
 # Search Simplification Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove the custom search-highlight overlay so the toolbar search bar behaves like a normal native search — current match shown by the text view's own selection — and make Return in the search field jump to the next occurrence.

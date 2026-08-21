@@ -1,5 +1,8 @@
 # Hidden Folder Visibility Implementation Plan
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a persisted, default-off "Show hidden folders" toggle to the Files sidebar that reveals dot-directories and their `.md`/`.markdown`/`.txt` files (de-emphasized), while always excluding `node_modules`/`.git`.

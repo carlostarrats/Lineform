@@ -1,5 +1,8 @@
 # Competitor-scan features — batch execution order & shared seams
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 **Date:** 2026-07-18
 **Scope:** Coordination doc for the seven implementation plans drafted from the
 2026-07-18 competitor feature scan (entries G, C, B, E, D, F, A). Read this before

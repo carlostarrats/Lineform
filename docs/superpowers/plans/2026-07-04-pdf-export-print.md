@@ -1,5 +1,8 @@
 # Plan — Rich PDF Export + Print (Task 7)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Spec: `docs/superpowers/specs/2026-07-04-pdf-export-print-design.md`. Branch
 `work-2026-07-04-10`. Order below is the implementation sequence.
 

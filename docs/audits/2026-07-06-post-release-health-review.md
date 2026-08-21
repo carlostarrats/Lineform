@@ -1,5 +1,8 @@
 # Post-release health & security review — 2026-07-06
 
+> **HISTORICAL REVIEW RECORD.** Findings and scope reflect the codebase on the date above. Use
+> `AGENTS.md` and `docs/architecture/` for current behavior and invariants.
+
 Scope: everything merged since `v1.1.1` (96 commits; ~33 source files, ~4,300 new lines —
 Tasks 1–8: keystroke debounce, save-state status bar, read-mode rendering waves 1–3,
 PDF/print export, find & replace, scoped syntax highlighting, settings modal, files-sidebar

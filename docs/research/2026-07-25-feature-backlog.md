@@ -171,8 +171,8 @@ shown that the open file changed *n* times, with a look at a previous version. T
 - The sandbox problem is worse than "not straightforward": `/usr/bin/git` is a shim that triggers an
   Xcode Command Line Tools install prompt on a machine without them, from inside a sandboxed child
   process, in front of a writer who does not know what Xcode is. The alternative is bundling
-  libgit2 — a C dependency in the notarization and nested-bundle re-signing chain that has already
-  broken a release once.
+  libgit2, a large native dependency and an unnecessary security and maintenance surface for a
+  writing app.
 - Writers who keep drafts in Git already own a Git tool. It is the one item that made Lineform look
   like a developer tool.
 

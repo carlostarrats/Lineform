@@ -1,5 +1,8 @@
 # Files-sidebar scan debounce — design spec (Task 5)
 
+> **HISTORICAL — DO NOT EXECUTE.** This dated design or implementation record is not a current
+> task list. Use `AGENTS.md` and `docs/architecture/` for shipping behavior and invariants.
+
 Date: 2026-07-05. Branch: `worktree-task5-sidebar-scan` (fresh worktree, per the audit's
 DO-LAST process gate). Companion to `docs/audits/2026-07-04-audit-decisions.md` (Task 5).
 
