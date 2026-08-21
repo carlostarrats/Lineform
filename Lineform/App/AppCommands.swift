@@ -173,7 +173,6 @@ enum AppMenuConfiguration {
         "Show Hidden Folders",
         "Reading Experience",
         // Window menu
-        "Window",
         "New Window",
         // Help menu
         "Lineform Guide"
@@ -742,10 +741,11 @@ struct AppCommands: Commands {
             }
         }
 
-        // DocumentGroup does not guarantee a Window menu after the last document window closes.
-        // Keep a native, discoverable route back into the app instead of leaving the menu bar with
-        // no way to reopen Lineform other than quitting and relaunching.
-        CommandMenu(String(localized: "Window")) {
+        // Put New Window in AppKit's existing Window menu. Declaring a second CommandMenu named
+        // "Window" produces two top-level Window menus while a document is open. Anchoring the
+        // command before the system-maintained window list keeps the route available after the
+        // last document closes without duplicating the menu bar entry.
+        CommandGroup(before: .windowList) {
             Button(String(localized: "New Window")) {
                 NSDocumentController.shared.newDocument(nil)
             }

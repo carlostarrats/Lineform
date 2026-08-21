@@ -37,6 +37,11 @@ in this area.
   clear both request channels alongside the cross-mode anchor. A mode-switch restore verifies that
   its deferred target mode is still current before publishing, and every request clears the inactive
   mode's channel, so rapid mode changes cannot leave a stale jump waiting for a later view creation.
+  SwiftUI can briefly overlap a departing representable with its replacement during a mode switch.
+  Each bounds callback therefore carries the concrete source view and is accepted only when it is
+  still the synchronizer's connected editor/preview. Both representables also disconnect by identity
+  when their synchronizer changes or the view dismantles; a late teardown notification from an old
+  pane can never scroll a surviving or newly connected pane.
 
 - Read-aloud / text-to-speech (2026-07-18): **Edit ▸ Speech** submenu (Start Speaking / Pause·Resume / Stop, no default keyboard shortcut in v1) drives a native, offline `AVSpeechSynthesizer` — **no network, no new entitlement**, isolated behind `SpeechController` (`Lineform/ReadingExperience/SpeechController.swift`, an `ObservableObject` state machine — `.idle`/`.speaking`/`.paused` — wrapping a testable `SpeechSynthesizing` protocol) using the **system default voice and rate** (a Reading-Experience voice/rate picker is a deferred follow-up). Speech is never raw markdown: a pure `SpeechTextExtractor.spokenText` (`Lineform/ReadingExperience/SpeechTextExtractor.swift`) walks the same `MarkdownBlockGrouping.markdownBlocks(in:)` used by Read/Preview, strips inline markers (bold/italic/code/link syntax), reads headings/paragraphs/lists/blockquotes/callouts/table cells as plain text and images by their alt text, and **skips fenced code, math, and mermaid blocks** entirely (not readable prose). Start point: a selection speaks the selection; otherwise it speaks from the caret to the end in Write/Split, or the whole document in Read (no caret there). No spoken-word highlight-follow and no persisted playback position in v1. See `docs/superpowers/specs/2026-07-18-read-aloud-tts-design.md`.
 

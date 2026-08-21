@@ -55,6 +55,10 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onImageReconnect = onImageReconnect
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
+        if let previousSynchronizer = textView.splitScrollSynchronizer,
+           previousSynchronizer !== splitScrollSynchronizer {
+            previousSynchronizer.disconnect(preview: textView)
+        }
         textView.splitScrollSynchronizer = splitScrollSynchronizer
         splitScrollSynchronizer?.connect(preview: textView)
         textView.apply(text: text, profile: profile, documentDirectory: documentDirectory)
@@ -68,6 +72,12 @@ struct MarkdownPreviewViewRepresentable: NSViewRepresentable {
                 requestedScrollToTopRange = nil
             }
         }
+    }
+
+    static func dismantleNSView(_ nsView: NSScrollView, coordinator: ()) {
+        guard let textView = nsView.documentView as? MarkdownPreviewTextView else { return }
+        textView.splitScrollSynchronizer?.disconnect(preview: textView)
+        textView.splitScrollSynchronizer = nil
     }
 }
 
@@ -791,7 +801,7 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
     }
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {
-        splitScrollSynchronizer?.previewDidScroll()
+        splitScrollSynchronizer?.previewDidScroll(from: self)
         scheduleVisibleTopRangeReportAfterScroll()
     }
 

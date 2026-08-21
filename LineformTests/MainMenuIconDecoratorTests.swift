@@ -251,6 +251,35 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         XCTAssertNil(MainMenuIconDecorator.symbolName(for: .separator()))
     }
 
+    func testDuplicateFrameworkSingletonCommandsAreCollapsedBySelector() {
+        let menu = NSMenu()
+        let selectors = [
+            "startDictation:", "startDictation:",
+            "orderFrontCharacterPalette:", "orderFrontCharacterPalette:",
+            "orderFrontCharacterPalette:"
+        ]
+        for (index, selector) in selectors.enumerated() {
+            let item = NSMenuItem(
+                title: "framework item \(index)",
+                action: NSSelectorFromString(selector),
+                keyEquivalent: ""
+            )
+            item.tag = index
+            menu.addItem(item)
+        }
+        // A repeated title with another selector is legitimate and must not be collapsed.
+        let copyAction = NSSelectorFromString("copy:")
+        menu.addItem(NSMenuItem(title: "framework item 0", action: copyAction, keyEquivalent: ""))
+
+        MainMenuIconDecorator.removeDuplicateSystemSingletons(from: menu)
+
+        XCTAssertEqual(menu.items.filter { $0.action == NSSelectorFromString("startDictation:") }.count, 1)
+        XCTAssertEqual(menu.items.filter { $0.action == NSSelectorFromString("orderFrontCharacterPalette:") }.count, 1)
+        XCTAssertEqual(menu.items.first { $0.action == NSSelectorFromString("startDictation:") }?.tag, 0)
+        XCTAssertEqual(menu.items.first { $0.action == NSSelectorFromString("orderFrontCharacterPalette:") }?.tag, 2)
+        XCTAssertEqual(menu.items.filter { $0.action == copyAction }.count, 1)
+    }
+
     /// The Format menu drew bare on every row for weeks while its items provably resolved the
     /// right symbols. Cause: when a `CommandMenu` is about to open, SwiftUI updates its EXISTING
     /// items rather than inserting new ones, and that update clears `image`. No `didAddItem`

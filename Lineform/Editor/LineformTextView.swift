@@ -15,16 +15,28 @@ final class SplitScrollSynchronizer: ObservableObject {
         self.editor = editor
     }
 
+    func disconnect(editor: LineformTextView) {
+        guard self.editor === editor else { return }
+        self.editor = nil
+    }
+
     func connect(preview: MarkdownPreviewTextView) {
         self.preview = preview
     }
 
-    func editorDidScroll() {
-        synchronizeOrigin(from: editor, to: preview)
+    func disconnect(preview: MarkdownPreviewTextView) {
+        guard self.preview === preview else { return }
+        self.preview = nil
     }
 
-    func previewDidScroll() {
-        synchronizeOrigin(from: preview, to: editor)
+    func editorDidScroll(from source: LineformTextView) {
+        guard editor === source else { return }
+        synchronizeOrigin(from: source, to: preview)
+    }
+
+    func previewDidScroll(from source: MarkdownPreviewTextView) {
+        guard preview === source else { return }
+        synchronizeOrigin(from: source, to: editor)
     }
 
     func alignPreviewToEditor() {
@@ -456,7 +468,7 @@ final class LineformTextView: NSTextView {
     }
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {
-        splitScrollSynchronizer?.editorDidScroll()
+        splitScrollSynchronizer?.editorDidScroll(from: self)
         scheduleVisibleTokensRefreshAfterScroll()
         scheduleVisibleTopRangeReportAfterScroll()
     }

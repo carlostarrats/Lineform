@@ -109,6 +109,8 @@ enum MainMenuIconDecorator {
         let isMenuBar = menu === NSApp.mainMenu
         guard menu.identifier != excludedMenuIdentifier else { return }
 
+        removeDuplicateSystemSingletons(from: menu)
+
         for item in menu.items {
             if !isMenuBar, let symbol = symbolName(for: item) {
                 let icon = image(named: symbol)
@@ -122,6 +124,29 @@ enum MainMenuIconDecorator {
 
             if recursive, let submenu = item.submenu {
                 decorateItems(of: submenu, recursive: true)
+            }
+        }
+    }
+
+    /// SwiftUI can inject Dictation and the character palette more than once when a
+    /// `DocumentGroup`'s reactive custom command tree is rebuilt. They are process-wide actions,
+    /// so duplicates are never meaningful and leave visibly repeated rows at the foot of Edit.
+    /// Match the two public selectors, not localized titles, and preserve the first item so its
+    /// framework-owned target, key equivalent, state, and represented object remain untouched.
+    static func removeDuplicateSystemSingletons(from menu: NSMenu) {
+        let singletonActions = Set(["startDictation:", "orderFrontCharacterPalette:"])
+        var seen = Set<String>()
+
+        for item in menu.items {
+            guard let action = item.action.map(NSStringFromSelector),
+                  singletonActions.contains(action) else {
+                continue
+            }
+
+            if seen.contains(action) {
+                menu.removeItem(item)
+            } else {
+                seen.insert(action)
             }
         }
     }

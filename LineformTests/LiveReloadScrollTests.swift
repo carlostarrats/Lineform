@@ -192,4 +192,56 @@ final class LiveReloadScrollTests: XCTestCase {
             "scrolling Preview should synchronously assign the same physical Y to Write"
         )
     }
+
+    func testLinkedSplitScrollIgnoresNotificationsFromAReplacedPane() {
+        let synchronizer = SplitScrollSynchronizer()
+
+        let oldEditorScrollView = LineformEditorScrollView(
+            frame: NSRect(x: 0, y: 0, width: 400, height: 300)
+        )
+        oldEditorScrollView.contentView = LineformEditorClipView()
+        let oldEditor = LineformTextView()
+        oldEditorScrollView.documentView = oldEditor
+        oldEditor.setFrameSize(NSSize(width: 400, height: 1_200))
+        oldEditorScrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 500))
+
+        let currentEditorScrollView = LineformEditorScrollView(
+            frame: NSRect(x: 0, y: 0, width: 400, height: 300)
+        )
+        currentEditorScrollView.contentView = LineformEditorClipView()
+        let currentEditor = LineformTextView()
+        currentEditorScrollView.documentView = currentEditor
+        currentEditor.setFrameSize(NSSize(width: 400, height: 1_200))
+        currentEditorScrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 120))
+
+        let previewScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        let preview = MarkdownPreviewTextView()
+        previewScrollView.documentView = preview
+        preview.setFrameSize(NSSize(width: 400, height: 1_200))
+        previewScrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: 260))
+
+        synchronizer.connect(editor: oldEditor)
+        synchronizer.connect(preview: preview)
+        synchronizer.connect(editor: currentEditor)
+
+        synchronizer.editorDidScroll(from: oldEditor)
+        XCTAssertEqual(
+            previewScrollView.contentView.bounds.origin.y,
+            260,
+            accuracy: 0.01,
+            "a late notification from a replaced editor must not move the live preview"
+        )
+
+        synchronizer.editorDidScroll(from: currentEditor)
+        XCTAssertEqual(previewScrollView.contentView.bounds.origin.y, 120, accuracy: 0.01)
+
+        synchronizer.disconnect(editor: oldEditor)
+        synchronizer.previewDidScroll(from: preview)
+        XCTAssertEqual(
+            currentEditorScrollView.contentView.bounds.origin.y,
+            previewScrollView.contentView.bounds.origin.y,
+            accuracy: 0.01,
+            "disconnecting a stale editor must not detach the replacement"
+        )
+    }
 }

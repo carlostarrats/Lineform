@@ -76,6 +76,10 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.imageInsertionDocumentDirectory = documentDirectory
         textView.applyTypography(profile)
         textView.onVisibleTopRangeChanged = onVisibleTopRangeChanged
+        if let previousSynchronizer = textView.splitScrollSynchronizer,
+           previousSynchronizer !== splitScrollSynchronizer {
+            previousSynchronizer.disconnect(editor: textView)
+        }
         textView.splitScrollSynchronizer = splitScrollSynchronizer
         splitScrollSynchronizer?.connect(editor: textView)
         context.coordinator.writingToolsSessionChangeHandler = onWritingToolsSessionChange
@@ -146,6 +150,10 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+        if let textView = nsView.documentView as? LineformTextView {
+            textView.splitScrollSynchronizer?.disconnect(editor: textView)
+            textView.splitScrollSynchronizer = nil
+        }
         // AppKit doesn't guarantee textViewWritingToolsDidEnd if the view is torn down
         // mid-session (mode switch, document swap); end the session explicitly so observers
         // (the live-reload suspension) aren't left suspended forever.
