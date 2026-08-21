@@ -194,6 +194,18 @@ struct ReadingExperienceInspector: View {
             : LineformColors.inspectorLightBackground
     }
 
+    /// The same fixed system blue used by the app's selected-file chrome. Resolve the dynamic
+    /// color inside the drawer's explicit appearance so light and dark reader themes receive the
+    /// appropriate blue even when they differ from the system appearance.
+    static func selectedThemeStrokeColor(usesDarkChrome: Bool) -> NSColor {
+        var resolved = NSColor.systemBlue
+        let appearanceName: NSAppearance.Name = usesDarkChrome ? .darkAqua : .aqua
+        NSAppearance(named: appearanceName)?.performAsCurrentDrawingAppearance {
+            resolved = NSColor.systemBlue.usingColorSpace(.sRGB) ?? resolved
+        }
+        return resolved
+    }
+
     private var presetGrid: some View {
         let columns = Array(
             repeating: GridItem(.flexible(), spacing: 10),
@@ -210,7 +222,8 @@ struct ReadingExperienceInspector: View {
                 ForEach(ReadingPreset.builtIn) { preset in
                     ReadingPresetCard(
                         preset: preset,
-                        isSelected: selectedPresetID == preset.id
+                        isSelected: selectedPresetID == preset.id,
+                        usesDarkChrome: usesDarkChrome
                     ) {
                         store.applyPreset(preset)
                     }
@@ -326,6 +339,7 @@ private struct PickerRow<Content: View>: View {
 private struct ReadingPresetCard: View {
     var preset: ReadingPreset
     var isSelected: Bool
+    var usesDarkChrome: Bool
     var apply: () -> Void
     @State private var isHovered = false
 
@@ -372,9 +386,9 @@ private struct ReadingPresetCard: View {
     }
 
     private var selectedStrokeColor: Color {
-        let background = theme.backgroundColor.usingColorSpace(.deviceRGB)
-        let brightness = ((background?.redComponent ?? 1) + (background?.greenComponent ?? 1) + (background?.blueComponent ?? 1)) / 3
-        return brightness < 0.45 ? .white : .primary
+        Color(nsColor: ReadingExperienceInspector.selectedThemeStrokeColor(
+            usesDarkChrome: usesDarkChrome
+        ))
     }
 
     private func previewFont(size: CGFloat) -> Font {

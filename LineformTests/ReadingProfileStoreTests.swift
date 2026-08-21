@@ -172,6 +172,28 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertLessThan(darkBackground.redComponent, 0.3)
     }
 
+    func testSelectedThemeStrokeUsesAppearanceSpecificSystemBlue() throws {
+        for usesDarkChrome in [false, true] {
+            let stroke = try XCTUnwrap(
+                ReadingExperienceInspector.selectedThemeStrokeColor(usesDarkChrome: usesDarkChrome)
+                    .usingColorSpace(.sRGB)
+            )
+
+            var expected = NSColor.systemBlue
+            let appearanceName: NSAppearance.Name = usesDarkChrome ? .darkAqua : .aqua
+            NSAppearance(named: appearanceName)?.performAsCurrentDrawingAppearance {
+                expected = NSColor.systemBlue.usingColorSpace(.sRGB) ?? expected
+            }
+            let expectedRGB = try XCTUnwrap(expected.usingColorSpace(.sRGB))
+
+            XCTAssertEqual(stroke.redComponent, expectedRGB.redComponent, accuracy: 0.005)
+            XCTAssertEqual(stroke.greenComponent, expectedRGB.greenComponent, accuracy: 0.005)
+            XCTAssertEqual(stroke.blueComponent, expectedRGB.blueComponent, accuracy: 0.005)
+            XCTAssertGreaterThan(stroke.blueComponent, stroke.redComponent)
+            XCTAssertGreaterThan(stroke.blueComponent, stroke.greenComponent)
+        }
+    }
+
     func testDecimalTextFollowsLocale() {
         XCTAssertEqual(ReadingExperienceInspector.decimalText(1.5, maximumFractionDigits: 1,
                                                               locale: Locale(identifier: "de_DE")), "1,5")
