@@ -131,6 +131,15 @@ final class AppCommandNotificationTests: XCTestCase {
         )
     }
 
+    func testCloseTabOwnsStandardCommandWShortcut() {
+        XCTAssertEqual(AppMenuConfiguration.closeTabCommandKeyEquivalent, "w")
+        XCTAssertEqual(AppMenuConfiguration.closeTabCommandModifiers, .command)
+        XCTAssertEqual(
+            LineformAppNotification.closeTab.name.rawValue,
+            "Lineform.closeTab"
+        )
+    }
+
     func testLinkFormattingShortcutMovedToCommandL() {
         // Cmd+K now belongs to Jump to File; Format > Link (and its context-menu hint)
         // must claim Cmd+L instead.

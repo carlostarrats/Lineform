@@ -52,6 +52,8 @@ enum AppMenuConfiguration {
     static let deleteFileCommandTitle = String(localized: "Delete...")
     static let jumpToFileCommandTitle = String(localized: "Jump to File…")
     static let jumpToFileCommandKeyEquivalent = "k"
+    static let closeTabCommandKeyEquivalent = "w"
+    static let closeTabCommandModifiers: EventModifiers = .command
     /// Format > Link's shortcut letter. Was "k" until quick-open claimed Cmd+K
     /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
     static let linkCommandKeyEquivalent = "l"
@@ -690,7 +692,9 @@ struct AppCommands: Commands {
         }
 
         // Tab commands live in the File menu, alongside the standard document commands.
-        // Close Tab uses ⌘⇧W so it does not collide with the system Close Window (⌘W).
+        // Replacing `.saveItem` above also removes SwiftUI's implicit Close command, so this
+        // command must own the standard ⌘W shortcut. The existing close-tab path closes the
+        // selected tab when siblings remain and closes the window when it was the last tab.
         CommandGroup(after: .newItem) {
             Button(String(localized: "New Tab")) {
                 LineformAppNotification.newTab.post(object: LineformAppNotification.activeWindowPayload())
@@ -712,7 +716,10 @@ struct AppCommands: Commands {
             Button(String(localized: "Close Tab")) {
                 LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
             }
-            .keyboardShortcut("w", modifiers: [.command, .shift])
+            .keyboardShortcut(
+                KeyEquivalent(Character(AppMenuConfiguration.closeTabCommandKeyEquivalent)),
+                modifiers: AppMenuConfiguration.closeTabCommandModifiers
+            )
 
             Divider()
 
