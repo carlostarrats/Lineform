@@ -648,6 +648,21 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
     }
 
+    func testSonomaCoversInspectorSeparatorOnlyWhileInspectorIsOpen() {
+        XCTAssertTrue(EditorToolbarBackgroundPolicy.coversInspectorSeparator(
+            osMajorVersion: 14,
+            inspectorIsPresented: true
+        ))
+        XCTAssertFalse(EditorToolbarBackgroundPolicy.coversInspectorSeparator(
+            osMajorVersion: 14,
+            inspectorIsPresented: false
+        ))
+        XCTAssertFalse(EditorToolbarBackgroundPolicy.coversInspectorSeparator(
+            osMajorVersion: 15,
+            inspectorIsPresented: true
+        ))
+    }
+
     @MainActor
     func testWindowChromeReaderAppliesDarkAppearanceSynchronouslyOnWindowJoin() {
         // Regression: the appearance used to be applied inside a deferred Task (needed only

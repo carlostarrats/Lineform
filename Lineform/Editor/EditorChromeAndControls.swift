@@ -1,5 +1,35 @@
 import SwiftUI
 
+enum EditorToolbarBackgroundPolicy {
+    /// Sonoma draws the native inspector's leading separator through the titlebar. Because the
+    /// toolbar search field is translucent, that separator remains visible through the field.
+    /// Cover the titlebar only while the inspector is open on macOS 14; newer systems keep the
+    /// transparent toolbar path whose appearance has already been pixel-verified.
+    static func coversInspectorSeparator(osMajorVersion: Int, inspectorIsPresented: Bool) -> Bool {
+        osMajorVersion == 14 && inspectorIsPresented
+    }
+
+    static func coversInspectorSeparator(inspectorIsPresented: Bool) -> Bool {
+        coversInspectorSeparator(
+            osMajorVersion: ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+            inspectorIsPresented: inspectorIsPresented
+        )
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func lineformToolbarBackground(pageBackground: NSColor, inspectorIsPresented: Bool) -> some View {
+        if EditorToolbarBackgroundPolicy.coversInspectorSeparator(inspectorIsPresented: inspectorIsPresented) {
+            self
+                .toolbarBackground(Color(nsColor: pageBackground), for: .windowToolbar)
+                .toolbarBackground(Visibility.visible, for: .windowToolbar)
+        } else {
+            self.toolbarBackground(Visibility.hidden, for: .windowToolbar)
+        }
+    }
+}
+
 struct EditorAuxiliaryPresentation: Equatable {
     enum Kind: Equatable {
         case nativeInspector

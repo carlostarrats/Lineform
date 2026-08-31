@@ -39,6 +39,14 @@ final class DocumentExportRendererTests: XCTestCase {
         XCTAssertEqual(a4.height, 842 - margin * 2)
     }
 
+    func testSonomaClipsHorizontalPaginationWithoutChangingLaterSystems() {
+        XCTAssertEqual(DocumentExportRenderer.horizontalPaginationMode(osMajorVersion: 14), .clip,
+            "Horizontal tiling creates alternating blank pages on macOS 14.")
+        XCTAssertEqual(DocumentExportRenderer.horizontalPaginationMode(osMajorVersion: 15), .automatic)
+        XCTAssertEqual(DocumentExportRenderer.horizontalPaginationMode(osMajorVersion: 26), .automatic)
+        XCTAssertEqual(DocumentExportRenderer.makePrintInfo(for: .usLetter).verticalPagination, .automatic)
+    }
+
     // MARK: - White-page forcing via the export profile
 
     func testExportProfileForcesSystemThemeAndDropsHighContrast() {

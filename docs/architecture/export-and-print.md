@@ -78,3 +78,14 @@ for that whole line: `The glob is \*.md and the rate is $r$` printed a literal b
 mode, Split, Styled PDF, and Print — while HTML export of the same line emitted `*.md`, so the
 exported page and the printed page disagreed about one document. The lookbehind and the unescape are
 one feature; this loop had only the first half.
+
+## macOS 14 alternating blank PDF pages
+
+The export text view is laid out at exactly the printable content width before `NSPrintOperation`
+runs (and interactive Print reflows it again in `knowsPageRange` after a paper change). Horizontal
+pagination therefore has no useful work to do. On macOS 14, `.automatic` can round that exact-width
+view into a second empty horizontal tile, interleaving a blank page after every vertical page with
+content. On macOS 14, `makePrintInfo` uses `.clip` for horizontal pagination and keeps `.automatic`
+vertically. macOS 15+ retains the previous `.automatic` horizontal behavior. Do not remove the
+Sonoma branch unless the underlying AppKit pagination behavior can be proven fixed there; it is the
+boundary that prevents the blank-page regression without changing later systems.

@@ -224,9 +224,12 @@ enum DocumentExportRenderer {
     }
 
     /// `NSPrintInfo` configured for `paper` with `preset`'s margins (`.standard`'s are the same
-    /// flat 72pt as the old fixed `margin` on every edge, so the default is unchanged). Natural-
-    /// size pagination (`.automatic`) — never `.fit`, which would scale the type off the
-    /// inherited point size.
+    /// flat 72pt as the old fixed `margin` on every edge, so the default is unchanged). Natural-size
+    /// vertical pagination (`.automatic`) — never `.fit`, which would scale the type
+    /// off the inherited point size. Sonoma is the exception for horizontal pagination: although
+    /// the text view is already reflowed to the exact printable width, macOS 14's `.automatic` can
+    /// round it into a second empty horizontal tile and produce a blank page after every content
+    /// page. Later systems retain the established `.automatic` behavior.
     @MainActor
     static func makePrintInfo(for paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> NSPrintInfo {
         let info = NSPrintInfo()
@@ -236,12 +239,20 @@ enum DocumentExportRenderer {
         info.rightMargin = insets.right
         info.topMargin = insets.top
         info.bottomMargin = insets.bottom
-        info.horizontalPagination = .automatic
+        info.horizontalPagination = horizontalPaginationMode()
         info.verticalPagination = .automatic
         info.scalingFactor = 1
         info.isHorizontallyCentered = false
         info.isVerticallyCentered = false
         return info
+    }
+
+    static func horizontalPaginationMode(osMajorVersion: Int) -> NSPrintInfo.PaginationMode {
+        osMajorVersion == 14 ? .clip : .automatic
+    }
+
+    private static func horizontalPaginationMode() -> NSPrintInfo.PaginationMode {
+        horizontalPaginationMode(osMajorVersion: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
     }
 
     // MARK: - Running the operation

@@ -275,10 +275,15 @@ struct EditorContainerView: View {
         // dark material read visibly darker than the page on Quiet/Night; the light material
         // washed Paper's cream toward neutral). Visibility.hidden is spelled explicitly — the
         // bare `.hidden` overload is ambiguous against ShapeStyle and blows up type-checking.
-        // An OPAQUE painted band was also tried and rejected: it covers the sidebar/drawer
-        // divider hairlines at the toolbar edge. Do not reintroduce the material: with it, the
-        // band can never equal the page color in dark themes.
-        .toolbarBackground(Visibility.hidden, for: .windowToolbar)
+        // Sonoma is the exception: its inspector separator continues through the titlebar and is
+        // visible behind the translucent search field. While the inspector is open there, paint
+        // this exact page color over the toolbar region so the separator ends at the content edge.
+        // macOS 15+ keeps the pixel-verified transparent path. Do not reintroduce toolbar material:
+        // with it, the band can never equal the page color in dark themes.
+        .lineformToolbarBackground(
+            pageBackground: theme.backgroundColor,
+            inspectorIsPresented: isShowingReadingInspector
+        )
         .background(WindowChromeReader(
             windowNumber: $windowNumber,
             usesDarkChrome: theme.usesDarkChrome,

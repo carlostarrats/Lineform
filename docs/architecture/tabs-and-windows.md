@@ -76,3 +76,13 @@ panel instead left the tab permanently detached: title "Untitled", and every lat
 now takes a `didSaveTab` closure wired to `EditorTabStore.updateFileURL(_:forTabID:)` and records the
 URL before advancing. It affects every tab in the queue except the last, so it needs ≥2 dirty tabs
 with the untitled one not last.
+
+## macOS 14 inspector titlebar separator
+
+Sonoma's native SwiftUI inspector draws its leading separator through the window toolbar. The
+toolbar search field is translucent, so the separator is visible behind the field. While the
+Reading inspector is presented on macOS 14, `lineformToolbarBackground` paints the exact active
+page color in the toolbar region, making the separator end at the content edge. The workaround is
+strictly scoped to macOS 14 and to the open-inspector state: macOS 15+ keeps the established hidden,
+transparent toolbar background, and closing the inspector on Sonoma restores it too. Do not widen
+the workaround to later systems without a new visual regression.
