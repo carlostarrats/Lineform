@@ -6,6 +6,7 @@ import SwiftUI
 /// macOS settings window, so every modal in the app looks and behaves the same.
 struct SettingsModal: View {
     @ObservedObject var settings: LineformSettingsStore
+    @ObservedObject private var defaultMarkdownApp: DefaultMarkdownAppStore
     @StateObject private var iCloud: ICloudSettingViewModel
     /// THREADED from the theme, never read from `@Environment(\.colorScheme)` — see
     /// `MuseModalChrome.primaryTextColor(usesDarkChrome:)`.
@@ -32,6 +33,13 @@ struct SettingsModal: View {
     static let iCloudEnabledNote = String(localized: "Hides iCloud in Lineform's sidebar. Saving a new document starts outside Lineform iCloud; you can still choose iCloud.")
     static let announcementsTitle = String(localized: "In-app notifications")
     static let announcementsNote = String(localized: "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request.")
+    static let defaultMarkdownTitle = String(localized: "Default Markdown app")
+    static let defaultMarkdownNote = String(localized: "Double-clicking .md and .markdown files will open them in Lineform.")
+    static let defaultMarkdownActiveNote = String(localized: "Lineform opens Markdown files when you double-click them.")
+    static let defaultMarkdownFailureNote = String(localized: "Lineform couldn't change the default app. Try again.")
+    static let makeDefaultTitle = String(localized: "Make Default")
+    static let defaultStatusTitle = String(localized: "Default")
+    static let changingDefaultTitle = String(localized: "Changing…")
 
     /// Window width the presenting container offers (via GeometryReader).
     var availableWidth: CGFloat
@@ -40,12 +48,14 @@ struct SettingsModal: View {
         settings: LineformSettingsStore,
         usesDarkChrome: Bool = false,
         availableWidth: CGFloat = SettingsModal.contentWidth + 24,
+        defaultMarkdownApp: DefaultMarkdownAppStore = .shared,
         // Autoclosure so the default view-model is built at most once, inside
         // StateObject's own lazy storage — not on every SettingsModal init.
         iCloudViewModel: @autoclosure @escaping () -> ICloudSettingViewModel = ICloudSettingViewModel(),
         dismiss: @escaping () -> Void = {}
     ) {
         self.settings = settings
+        self.defaultMarkdownApp = defaultMarkdownApp
         self.usesDarkChrome = usesDarkChrome
         self.availableWidth = availableWidth
         _iCloud = StateObject(wrappedValue: iCloudViewModel())
@@ -85,6 +95,11 @@ struct SettingsModal: View {
                 Divider()
                     .padding(.vertical, 12)
 
+                defaultMarkdownRow
+
+                Divider()
+                    .padding(.vertical, 12)
+
                 settingRow(
                     title: Self.announcementsTitle,
                     note: Self.announcementsNote,
@@ -103,7 +118,10 @@ struct SettingsModal: View {
             accessibilityLabel: Self.title,
             usesDarkChrome: usesDarkChrome
         )
-        .task { await iCloud.refresh() }
+        .task {
+            defaultMarkdownApp.refresh(allowsPrompt: false)
+            await iCloud.refresh()
+        }
     }
 
     /// Reads the EFFECTIVE collapse behavior (the user's saved choice, or the
@@ -138,6 +156,58 @@ struct SettingsModal: View {
             return Self.iCloudUnavailableNote
         }
         return Self.iCloudEnabledNote
+    }
+
+    private var defaultMarkdownNote: String {
+        switch defaultMarkdownApp.status {
+        case .isDefault:
+            return Self.defaultMarkdownActiveNote
+        case .failed:
+            return Self.defaultMarkdownFailureNote
+        case .unknown, .notDefault, .requesting:
+            return Self.defaultMarkdownNote
+        }
+    }
+
+    private var defaultMarkdownRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(Self.defaultMarkdownTitle)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                Text(defaultMarkdownNote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            switch defaultMarkdownApp.status {
+            case .isDefault:
+                Label(Self.defaultStatusTitle, systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+            case .requesting:
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(Self.changingDefaultTitle)
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            case .unknown, .notDefault, .failed:
+                Button(Self.makeDefaultTitle) {
+                    Task { await defaultMarkdownApp.makeLineformDefault() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityHint(Self.defaultMarkdownNote)
+            }
+        }
+        // The AppKit-backed button/progress control can otherwise leave the editor's I-beam
+        // over this row while Settings is presented. Match the existing setting rows.
+        .background(CursorRectView(cursor: .arrow))
     }
 
     private func settingRow(title: String, note: String, isOn: Binding<Bool>, disabled: Bool = false) -> some View {

@@ -101,6 +101,14 @@ do not hardcode it into documentation or automation.
 - [ ] Install the build through TestFlight and launch it.
 - [ ] Choose a workspace, quit, relaunch, and open a file from that workspace. A same-session open
       panel grant can hide a broken security-scoped bookmark.
+- [ ] With no restored document, verify cold launch and Dock reopen show an untitled editor instead
+      of the generic Open browser. Verify the first-launch intro still owns a clean install.
+- [ ] Verify File ▸ Open replaces only a pristine untitled tab, opens beside edited/file-backed work
+      in the same window, and does not flash or leave a second window behind.
+- [ ] Close the opened file, then close an edited untitled final tab. Confirm Save, Cancel, and
+      Don't Save each take effect on the first attempt through both ⌘W and the window close button.
+- [ ] Open or save a Markdown file, relaunch, and verify the default-app invitation appears once on
+      that later launch. Confirm Not Now stays dismissed and Settings keeps the Make Default action.
 - [ ] Exercise the iCloud Files root, document autosave, Quick Look, export, and print.
 
 A TestFlight build uses the production bundle ID and iCloud container. Installing it can replace the

@@ -10,7 +10,7 @@ Markdown editor, real files
 
 ## Description
 
-Lineform is the free, native Markdown editor for Mac for people who want focused writing without giving up real files. Write, read, and preview ordinary .md and .txt documents wherever you keep them — Finder, iCloud Drive, Git, or any folder.
+Lineform is the free, native Markdown editor for Mac for people who want focused writing without giving up real files. Write, read, and preview ordinary .md and .txt documents wherever you keep them — Finder, iCloud Drive, Git, or any folder. Keep several documents together in tabs, and optionally make Lineform the default app for .md and .markdown files.
 
 Read and Preview render tables, task checkboxes, callouts, fenced code with syntax highlighting, Mermaid diagrams, LaTeX math, and images stored on your Mac — all drawn natively, with no web view. Images at a web address are never downloaded. Documents export to HTML, PDF, Styled PDF, and Rich Text, print natively, preview in Finder through Quick Look, and can be read aloud.
 

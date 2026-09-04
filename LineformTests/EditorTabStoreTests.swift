@@ -6,6 +6,15 @@ import SwiftUI
 @MainActor
 final class EditorTabStoreTests: XCTestCase {
 
+    private final class WindowCloseDelegateProbe: NSObject, NSWindowDelegate {
+        var wasInstalledWhenAsked = false
+
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            wasInstalledWhenAsked = sender.delegate === self
+            return false
+        }
+    }
+
     // MARK: - Helpers
 
     private func makeDocument(_ text: String = "") -> LineformDocument {
@@ -118,6 +127,24 @@ final class EditorTabStoreTests: XCTestCase {
         store.closeTab(id: store.tabs[0].id)
         XCTAssertTrue(store.tabs.isEmpty)
         XCTAssertNil(store.selectedTabID)
+    }
+
+    func testTabApprovedCloseRestoresOriginalDelegateForSceneDismissal() {
+        let store = makeStore()
+
+        let window = NSWindow()
+        let originalDelegate = WindowCloseDelegateProbe()
+        let controller = WindowCloseController()
+        controller.window = window
+        controller.originalDelegate = originalDelegate
+        controller.tabStore = store
+        controller.documentSaveStatus = .shared
+        window.delegate = controller
+
+        controller.prepareForTabApprovedClose(window)
+
+        XCTAssertFalse(originalDelegate.wasInstalledWhenAsked)
+        XCTAssertTrue(window.delegate === originalDelegate)
     }
 
     // MARK: - Next / previous wrap
@@ -312,7 +339,35 @@ final class EditorTabStoreTests: XCTestCase {
         XCTAssertNil(EditorTabStore.locate(url("/tmp/dup.md"), preferring: store, excluding: store))
     }
 
-    // MARK: - Duplicate-window handoff (⌘O / Finder / CLI opening a file already in a background tab)
+    // MARK: - File > Open tab placement
+
+    func testFileOpenReplacesAPristineUntitledTab() {
+        XCTAssertTrue(OpenDocumentTabPlacement.shouldReplaceActiveTab(
+            activeTabHasFile: false,
+            activeTabTextIsEmpty: true,
+            activeTabHasUnsavedWork: false
+        ))
+    }
+
+    func testFileOpenAddsATabBesideExistingOrEditedWork() {
+        XCTAssertFalse(OpenDocumentTabPlacement.shouldReplaceActiveTab(
+            activeTabHasFile: true,
+            activeTabTextIsEmpty: false,
+            activeTabHasUnsavedWork: false
+        ))
+        XCTAssertFalse(OpenDocumentTabPlacement.shouldReplaceActiveTab(
+            activeTabHasFile: false,
+            activeTabTextIsEmpty: false,
+            activeTabHasUnsavedWork: true
+        ))
+        XCTAssertFalse(OpenDocumentTabPlacement.shouldReplaceActiveTab(
+            activeTabHasFile: false,
+            activeTabTextIsEmpty: true,
+            activeTabHasUnsavedWork: true
+        ))
+    }
+
+    // MARK: - Duplicate-window handoff (Finder / CLI opening a file already in a background tab)
 
     func testHandsOffASingleTabUneditedDuplicateToTheOlderWindow() {
         XCTAssertTrue(DuplicateWindowMerge.shouldHandOff(

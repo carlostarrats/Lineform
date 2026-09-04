@@ -54,6 +54,18 @@ enum DuplicateWindowMerge {
     }
 }
 
+/// File > Open replaces only a truly disposable Untitled tab. Any tab with a file or in-memory
+/// work remains in the window and the opened file is added beside it.
+enum OpenDocumentTabPlacement {
+    static func shouldReplaceActiveTab(
+        activeTabHasFile: Bool,
+        activeTabTextIsEmpty: Bool,
+        activeTabHasUnsavedWork: Bool
+    ) -> Bool {
+        !activeTabHasFile && activeTabTextIsEmpty && !activeTabHasUnsavedWork
+    }
+}
+
 @MainActor
 final class EditorTabStore: ObservableObject {
     @Published var tabs: [DocumentTab]
@@ -268,4 +280,3 @@ final class EditorTabStore: ObservableObject {
         }
     }
 }
-

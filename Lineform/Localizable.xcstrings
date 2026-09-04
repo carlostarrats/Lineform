@@ -10671,6 +10671,380 @@
         }
       }
     },
+    "Changing…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird geändert …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiando…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modification…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在更改…"
+          }
+        }
+      }
+    },
+    "Choose a Lineform Workspace": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform-Arbeitsbereich auswählen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleccionar un espacio de trabajo de Lineform"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisir un espace de travail Lineform"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineformワークスペースを選択"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择 Lineform 工作区"
+          }
+        }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predeterminada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par défaut"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デフォルト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认"
+          }
+        }
+      }
+    },
+    "Default Markdown app": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard-App für Markdown"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App predeterminada de Markdown"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Markdown par défaut"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デフォルトのMarkdownアプリ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认 Markdown App"
+          }
+        }
+      }
+    },
+    "Double-clicking .md and .markdown files will open them in Lineform.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durch Doppelklicken auf .md- und .markdown-Dateien werden sie in Lineform geöffnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al hacer doble clic en archivos .md y .markdown, se abrirán en Lineform."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un double-clic sur les fichiers .md et .markdown les ouvrira dans Lineform."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".mdファイルと.markdownファイルをダブルクリックすると、Lineformで開きます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击 .md 和 .markdown 文件时，将使用 Lineform 打开它们。"
+          }
+        }
+      }
+    },
+    "Lineform couldn't change the default app. Try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform konnte die Standard-App nicht ändern. Versuche es erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform no pudo cambiar la app predeterminada. Inténtalo de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform n’a pas pu modifier l’app par défaut. Réessayez."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineformでデフォルトのアプリを変更できませんでした。もう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform 无法更改默认 App。请重试。"
+          }
+        }
+      }
+    },
+    "Lineform opens Markdown files when you double-click them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform öffnet Markdown-Dateien, wenn du darauf doppelklickst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform abre los archivos Markdown cuando haces doble clic en ellos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform ouvre les fichiers Markdown lorsque vous double-cliquez dessus."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdownファイルをダブルクリックすると、Lineformで開きます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击 Markdown 文件时，Lineform 会打开它们。"
+          }
+        }
+      }
+    },
+    "Make Default": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Standard festlegen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Establecer como predeterminada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Définir par défaut"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デフォルトに設定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设为默认"
+          }
+        }
+      }
+    },
+    "Make Lineform your default Markdown app?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform als Standard-App für Markdown festlegen?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Quieres que Lineform sea tu app predeterminada de Markdown?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faire de Lineform votre app Markdown par défaut ?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LineformをデフォルトのMarkdownアプリにしますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要将 Lineform 设为默认 Markdown App 吗？"
+          }
+        }
+      }
+    },
+    "Not Now": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht jetzt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora no"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas maintenant"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今はしない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂不"
+          }
+        }
+      }
+    },
+    "Select the folder you want to show in Lineform's Files sidebar. Your files stay where they are.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle den Ordner aus, der in der Dateien-Seitenleiste von Lineform angezeigt werden soll. Deine Dateien bleiben an ihrem Speicherort."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona la carpeta que quieres mostrar en la barra lateral Archivos de Lineform. Tus archivos permanecen donde están."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sélectionnez le dossier à afficher dans la barre latérale Fichiers de Lineform. Vos fichiers restent à leur emplacement."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineformの「ファイル」サイドバーに表示するフォルダを選択してください。ファイルは元の場所に残ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要在 Lineform 的“文件”边栏中显示的文件夹。文件将保留在原位置。"
+          }
+        }
+      }
+    },
     "“%@” is open in another tab, so saving over it would discard that tab’s contents. Close that tab first, or choose a different name.": {
       "localizations": {
         "de": {

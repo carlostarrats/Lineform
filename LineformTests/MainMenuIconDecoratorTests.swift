@@ -251,6 +251,27 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         XCTAssertNil(MainMenuIconDecorator.symbolName(for: .separator()))
     }
 
+    func testStandardOpenItemIsRetargetedWithoutLosingItsNativePresentation() {
+        let item = NSMenuItem(
+            title: "Open…",
+            action: NSSelectorFromString("openDocument:"),
+            keyEquivalent: "o"
+        )
+        let menu = NSMenu()
+        menu.addItem(item)
+
+        MainMenuIconDecorator.decorate(menu)
+
+        XCTAssertTrue(item.target === LineformOpenDocumentCommandTarget.shared)
+        XCTAssertEqual(
+            item.action.map(NSStringFromSelector),
+            "openDocumentInLineform:"
+        )
+        XCTAssertEqual(item.title, "Open…")
+        XCTAssertEqual(item.keyEquivalent, "o")
+        XCTAssertNotNil(item.image)
+    }
+
     func testDuplicateFrameworkSingletonCommandsAreCollapsedBySelector() {
         let menu = NSMenu()
         let selectors = [

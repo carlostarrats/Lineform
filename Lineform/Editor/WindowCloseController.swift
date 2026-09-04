@@ -13,7 +13,6 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
     /// Set by the container. Invoked with the ids of every unsaved tab when the user chooses
     /// "Save All"; the container saves them in turn and then closes the window.
     var saveTabsAndClose: (([UUID]) -> Void)?
-
     /// Returns true when the window is allowed to close.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard let tabStore, let documentSaveStatus else {
@@ -65,6 +64,14 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
             // Cancel — keep the window open.
             return false
         }
+    }
+
+    /// The tab-level alert has already made the save/discard decision for the final tab. Keep that
+    /// tab alive while SwiftUI closes its DocumentGroup window: removing it first tears down the
+    /// scene state that the original delegate needs, producing a stuck or replacement blank window.
+    func prepareForTabApprovedClose(_ sender: NSWindow) {
+        (sender.windowController?.document as? NSDocument)?.updateChangeCount(.changeCleared)
+        sender.delegate = originalDelegate
     }
 
     // MARK: - Delegate forwarding

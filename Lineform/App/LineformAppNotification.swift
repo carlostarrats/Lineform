@@ -23,6 +23,7 @@ enum LineformAppNotification {
     case closeTab
     case selectNextTab
     case selectPreviousTab
+    case openDocument
     case startSpeaking
     case pauseResumeSpeech
     case stopSpeech
@@ -71,6 +72,8 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.selectNextTab")
         case .selectPreviousTab:
             return Notification.Name("Lineform.selectPreviousTab")
+        case .openDocument:
+            return Notification.Name("Lineform.openDocument")
         case .startSpeaking:
             return Notification.Name("Lineform.startSpeaking")
         case .pauseResumeSpeech:

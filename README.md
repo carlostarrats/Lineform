@@ -6,6 +6,8 @@
 
 - Write Markdown and plain text in a native macOS document app.
 - Keep work saved with native macOS autosave for existing files.
+- Start in a normal untitled editor window when no document is open. File ▸ Open replaces that tab while it is still pristine, or adds the selected file as a tab beside work already in progress.
+- Optionally make Lineform the default app for `.md` and `.markdown` files from its one-time invitation or Settings.
 - See external edits automatically: an open document reloads when its file changes on disk, so what your tools (or agents) write shows up without reopening.
 - Browse your writing in the Files sidebar — your Lineform iCloud Drive folder and any workspace folder you choose — and switch files in the same window, Apple Notes-style.
 - Optionally show hidden folders in the Files sidebar (like `.claude` or `.github`) to reach Markdown that lives alongside your code.
@@ -64,7 +66,7 @@ self-update mechanism of its own.
 
 ## About
 
-Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version; the current release is 1.6.0.
+Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version; the current release is 1.6.1.
 
 ## Credits
 

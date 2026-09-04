@@ -4,7 +4,8 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 
 ## Core Tasks
 
-- Open and save `.md`, `.markdown`, and `.txt` files.
+- Open and save `.md`, `.markdown`, and `.txt` files. File ▸ Open replaces a pristine untitled tab; if the current tab contains work or belongs to a file, the selected document opens as another tab in the same window.
+- Make Lineform the default app for `.md` and `.markdown` files when the one-time invitation appears, or at any time from Settings. Choosing Not Now dismisses only the invitation; the Settings action remains available.
 - Switch between Write, Read, and Preview modes. Press ⌘E to toggle Write and Read.
 - Open several documents at once in tabs (⌘T for a new tab, ⌘[ and ⌘] to move between them).
 - Toggle the outline when headings are useful.

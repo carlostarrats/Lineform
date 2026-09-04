@@ -18,6 +18,9 @@
 - Run unit tests.
 - Run a standalone build.
 - Launch the built app.
+- With no restored document, confirm launch and Dock reopen show a normal untitled editor rather than a generic Open browser.
+- Confirm File ▸ Open replaces a pristine untitled tab without a transient window, adds a tab beside edited or file-backed work, and that closing an unsaved final tab completes on the first Save, Cancel, or Don't Save choice.
+- After a real Markdown open or save, relaunch and confirm the default-app invitation appears once; verify Not Now persists and Settings retains the Make Default action.
 - Run product-rule scans.
 - Confirm the About panel displays the intended release version. `AppMenuConfiguration.aboutVersionDisplay` is a hand-maintained literal that does NOT track `MARKETING_VERSION` — bump it and its assertion in `AppCommandNotificationTests` in the same change as the version bump. It shipped wrong once (`V1.2.0` on a 1.3.0 build).
 - Confirm the Dock, Cmd-Tab, Finder, and About panel use the bundled app icon at normal macOS visual size.

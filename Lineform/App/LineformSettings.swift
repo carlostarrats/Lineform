@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// App-wide user preferences surfaced in the Settings window. Mirrors the
 /// `HiddenFoldersMenuState` pattern: a shared `ObservableObject`, `UserDefaults`
@@ -97,6 +99,143 @@ final class LineformSettingsStore: ObservableObject {
         _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, true))
         _checksSpellingWhileTyping = Published(initialValue: boolOrDefault(Self.checksSpellingWhileTypingKey, true))
         _checksForAnnouncements = Published(initialValue: boolOrDefault(Self.checksForAnnouncementsKey, true))
+    }
+}
+
+enum DefaultMarkdownAppStatus: Equatable {
+    case unknown
+    case notDefault
+    case isDefault
+    case requesting
+    case failed
+}
+
+/// The Launch Services seam for Lineform's explicit "Make Default" action. The app declares
+/// Markdown as an editable document type in Info.plist; this is only the user's preferred-handler
+/// choice, made through AppKit's public API. No helper, installer, or extra entitlement is involved.
+@MainActor
+protocol MarkdownDefaultApplicationHandling {
+    func isLineformDefault() -> Bool
+    func makeLineformDefault() async throws
+}
+
+@MainActor
+struct SystemMarkdownDefaultApplicationHandler: MarkdownDefaultApplicationHandling {
+    static let markdownType = UTType(
+        importedAs: "net.daringfireball.markdown",
+        conformingTo: .plainText
+    )
+
+    private let workspace: NSWorkspace
+    private let applicationURL: URL
+    private let applicationBundleIdentifier: String?
+
+    init(
+        workspace: NSWorkspace = .shared,
+        applicationURL: URL = Bundle.main.bundleURL,
+        applicationBundleIdentifier: String? = Bundle.main.bundleIdentifier
+    ) {
+        self.workspace = workspace
+        self.applicationURL = applicationURL
+        self.applicationBundleIdentifier = applicationBundleIdentifier
+    }
+
+    func isLineformDefault() -> Bool {
+        guard let defaultURL = workspace.urlForApplication(toOpen: Self.markdownType) else {
+            return false
+        }
+
+        if defaultURL.standardizedFileURL == applicationURL.standardizedFileURL {
+            return true
+        }
+
+        guard let applicationBundleIdentifier else { return false }
+        return Bundle(url: defaultURL)?.bundleIdentifier == applicationBundleIdentifier
+    }
+
+    func makeLineformDefault() async throws {
+        try await workspace.setDefaultApplication(
+            at: applicationURL,
+            toOpen: Self.markdownType
+        )
+    }
+}
+
+/// Owns the one-time default-Markdown suggestion and the live status shown in Settings.
+///
+/// The first real Markdown open/save only records eligibility. `wasEligibleAtLaunch` is captured
+/// before that can happen, so the suggestion cannot pile onto the welcome screen or appear midway
+/// through someone's first document. It becomes eligible on the NEXT launch, is offered once, and
+/// remains available as an explicit Settings action after either choice.
+@MainActor
+final class DefaultMarkdownAppStore: ObservableObject {
+    static let shared = DefaultMarkdownAppStore()
+
+    static let hasUsedMarkdownDocumentKey = "Lineform.defaultMarkdown.hasUsedDocument"
+    static let hasResolvedPromptKey = "Lineform.defaultMarkdown.hasResolvedPrompt"
+    static let markdownExtensions: Set<String> = ["md", "markdown"]
+
+    @Published private(set) var status: DefaultMarkdownAppStatus = .unknown
+    @Published private(set) var isPromptVisible = false
+
+    private let defaults: UserDefaults
+    private let handler: any MarkdownDefaultApplicationHandling
+    private let wasEligibleAtLaunch: Bool
+
+    init(
+        defaults: UserDefaults = .standard,
+        handler: any MarkdownDefaultApplicationHandling = SystemMarkdownDefaultApplicationHandler()
+    ) {
+        self.defaults = defaults
+        self.handler = handler
+        self.wasEligibleAtLaunch = defaults.bool(forKey: Self.hasUsedMarkdownDocumentKey)
+    }
+
+    func recordMarkdownUse(fileURL: URL?) {
+        guard
+            let fileURL,
+            Self.markdownExtensions.contains(fileURL.pathExtension.lowercased())
+        else {
+            return
+        }
+        defaults.set(true, forKey: Self.hasUsedMarkdownDocumentKey)
+    }
+
+    /// Re-read Launch Services rather than persisting handler status: another app or Finder can
+    /// change the default while Lineform is not active. `allowsPrompt` lets Settings refresh its
+    /// status without causing the editor card to appear as a side effect.
+    func refresh(allowsPrompt: Bool = true) {
+        if handler.isLineformDefault() {
+            status = .isDefault
+            isPromptVisible = false
+            defaults.set(true, forKey: Self.hasResolvedPromptKey)
+            return
+        }
+
+        status = .notDefault
+        if allowsPrompt,
+           wasEligibleAtLaunch,
+           !defaults.bool(forKey: Self.hasResolvedPromptKey) {
+            isPromptVisible = true
+        }
+    }
+
+    func dismissPrompt() {
+        defaults.set(true, forKey: Self.hasResolvedPromptKey)
+        isPromptVisible = false
+    }
+
+    func makeLineformDefault() async {
+        guard status != .requesting else { return }
+        status = .requesting
+        do {
+            try await handler.makeLineformDefault()
+            status = .isDefault
+            isPromptVisible = false
+            defaults.set(true, forKey: Self.hasResolvedPromptKey)
+        } catch {
+            status = .failed
+        }
     }
 }
 

@@ -112,6 +112,9 @@ enum MainMenuIconDecorator {
         removeDuplicateSystemSingletons(from: menu)
 
         for item in menu.items {
+            if !isMenuBar {
+                retargetOpenDocumentCommand(item)
+            }
             if !isMenuBar, let symbol = symbolName(for: item) {
                 let icon = image(named: symbol)
                 // Identity check, not just nil: `didAddItem` fires once per inserted row, so a
@@ -126,6 +129,16 @@ enum MainMenuIconDecorator {
                 decorateItems(of: submenu, recursive: true)
             }
         }
+    }
+
+    /// SwiftUI's DocumentGroup owns the standard Open row and otherwise opens each selected file
+    /// into a new window. Preserve that native row, but route its action into Lineform's tab-aware
+    /// opener. SwiftUI can reset existing menu items in place as a menu opens, so this runs on the
+    /// same add/change/tracking passes that keep the icons attached.
+    static func retargetOpenDocumentCommand(_ item: NSMenuItem) {
+        guard item.action.map(NSStringFromSelector) == "openDocument:" else { return }
+        item.target = LineformOpenDocumentCommandTarget.shared
+        item.action = #selector(LineformOpenDocumentCommandTarget.openDocumentInLineform(_:))
     }
 
     /// SwiftUI can inject Dictation and the character palette more than once when a

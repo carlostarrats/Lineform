@@ -2,6 +2,21 @@ import XCTest
 @testable import Lineform
 
 final class AppCommandNotificationTests: XCTestCase {
+    func testOpenCommandRoutesIntoAnAvailableDocumentWindow() {
+        XCTAssertEqual(
+            OpenDocumentCommandRoute.route(mainWindowNumber: 42, mainWindowHasDocument: true),
+            .window(42)
+        )
+        XCTAssertEqual(
+            OpenDocumentCommandRoute.route(mainWindowNumber: nil, mainWindowHasDocument: false),
+            .system
+        )
+        XCTAssertEqual(
+            OpenDocumentCommandRoute.route(mainWindowNumber: 42, mainWindowHasDocument: false),
+            .system
+        )
+    }
+
     func testAboutMenuUsesLineformVersionDisplay() {
         XCTAssertEqual(AppMenuConfiguration.aboutCommandTitle, "About Lineform")
         XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.6.1")

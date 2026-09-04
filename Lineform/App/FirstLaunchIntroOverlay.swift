@@ -4,6 +4,12 @@ import WebKit
 
 @MainActor
 enum LineformLaunchDefaults {
+    enum DockReopenAction: Equatable {
+        case deferToSystem
+        case showFirstLaunchIntro
+        case openUntitledDocument
+    }
+
     static let firstPublicReleaseDefaultsInitializedKey = "LineformPublicReleaseDefaultsInitialized"
     static let firstLaunchIntroCompletedKey = "LineformFirstLaunchIntroCompleted.v1_0"
     static let legacyFirstLaunchIntroCompletedKey = "LineformFirstLaunchIntroCompleted"
@@ -59,6 +65,20 @@ enum LineformLaunchDefaults {
     static func markFirstLaunchIntroCompleted(defaults: UserDefaults = .standard) {
         defaults.set(true, forKey: firstLaunchIntroCompletedKey)
     }
+
+    static func dockReopenAction(
+        hasVisibleWindows: Bool,
+        hasOpenDocuments: Bool,
+        shouldShowIntro: Bool
+    ) -> DockReopenAction {
+        if shouldShowIntro {
+            return .showFirstLaunchIntro
+        }
+        if hasVisibleWindows || hasOpenDocuments {
+            return .deferToSystem
+        }
+        return .openUntitledDocument
+    }
 }
 
 @MainActor
@@ -73,6 +93,9 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         DispatchQueue.main.async { [firstLaunchIntroPresenter] in
             firstLaunchIntroPresenter.showIfNeeded()
+            if !AnnouncementStore.isRunningUnderTests {
+                firstLaunchIntroPresenter.openColdLaunchDocumentIfNeeded()
+            }
         }
         ManualSaveIntentMonitor.installIfNeeded()
         MainMenuIconDecorator.installIfNeeded()
@@ -104,6 +127,26 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
         LineformLaunchDefaults.shouldRestoreApplicationState()
+    }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        switch LineformLaunchDefaults.dockReopenAction(
+            hasVisibleWindows: flag,
+            hasOpenDocuments: !NSDocumentController.shared.documents.isEmpty,
+            shouldShowIntro: FirstLaunchIntroPresenter.shouldShowIntro
+        ) {
+        case .deferToSystem:
+            return true
+        case .showFirstLaunchIntro:
+            firstLaunchIntroPresenter.showIfNeeded()
+            return false
+        case .openUntitledDocument:
+            NSDocumentController.shared.newDocument(nil)
+            return false
+        }
     }
 }
 
@@ -139,6 +182,20 @@ final class FirstLaunchIntroPresenter {
         }
 
         show()
+    }
+
+    /// SwiftUI's macOS document launch fallback can present its generic Open browser when there is
+    /// no restoration state, even though the app delegate allows an untitled document. Reassert the
+    /// product's fresh-untitled launch after SwiftUI has installed its scenes. A file-open launch has
+    /// already registered its document by this point, and the first-launch intro owns its own New
+    /// transition, so neither path receives an extra window.
+    func openColdLaunchDocumentIfNeeded(
+        hasOpenDocuments: Bool = !NSDocumentController.shared.documents.isEmpty,
+        shouldShowIntro: Bool = FirstLaunchIntroPresenter.shouldShowIntro,
+        openDocument: () -> Void = { NSDocumentController.shared.newDocument(nil) }
+    ) {
+        guard !hasOpenDocuments, !shouldShowIntro else { return }
+        openDocument()
     }
 
     private func show() {

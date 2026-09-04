@@ -5,6 +5,39 @@ enum AppMenuCommandPlacement: Equatable {
     case view
 }
 
+enum OpenDocumentCommandRoute: Equatable {
+    case system
+    case window(Int)
+
+    static func route(mainWindowNumber: Int?, mainWindowHasDocument: Bool) -> OpenDocumentCommandRoute {
+        guard mainWindowHasDocument, let mainWindowNumber else { return .system }
+        return .window(mainWindowNumber)
+    }
+}
+
+/// Target installed on AppKit's existing File > Open item. Keeping the system menu item preserves
+/// its native title, shortcut, validation, and placement; only its destination changes while a
+/// Lineform document window is available.
+@MainActor
+final class LineformOpenDocumentCommandTarget: NSObject {
+    static let shared = LineformOpenDocumentCommandTarget()
+
+    @objc func openDocumentInLineform(_ sender: Any?) {
+        let mainWindow = NSApp.mainWindow
+        switch OpenDocumentCommandRoute.route(
+            mainWindowNumber: mainWindow?.windowNumber,
+            mainWindowHasDocument: mainWindow?.windowController?.document != nil
+        ) {
+        case .system:
+            NSDocumentController.shared.openDocument(sender)
+        case .window(let windowNumber):
+            LineformAppNotification.openDocument.post(
+                object: LineformAppNotification.Payload(windowNumber: windowNumber, value: nil)
+            )
+        }
+    }
+}
+
 enum ManualSaveIntentMonitor {
     @MainActor private static var installed = false
 

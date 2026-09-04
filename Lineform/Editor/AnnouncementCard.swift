@@ -173,3 +173,93 @@ struct AnnouncementCard: View {
         Color.accentColor
     }
 }
+
+/// A one-time, quiet invitation shown only after the user has already worked with a Markdown
+/// document in an earlier launch. It shares the announcement card's bottom-corner visual language,
+/// but the document glyph and explicit two-choice footer make this a local app preference rather
+/// than product news.
+struct DefaultMarkdownAppCard: View {
+    let status: DefaultMarkdownAppStatus
+    let usesDarkChrome: Bool
+    var onMakeDefault: () -> Void
+    var onNotNow: () -> Void
+
+    static let title = String(localized: "Make Lineform your default Markdown app?")
+    static let body = String(localized: "Double-clicking .md and .markdown files will open them in Lineform.")
+    static let failureBody = String(localized: "Lineform couldn't change the default app. Try again.")
+    static let makeDefaultTitle = String(localized: "Make Default")
+    static let notNowTitle = String(localized: "Not Now")
+    static let maximumWidth: CGFloat = 344
+    static let edgeInset = AnnouncementCard.edgeInset
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.accentColor.opacity(usesDarkChrome ? 0.17 : 0.10)))
+                .padding(.top, 1)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(Self.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(primaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(status == .failed ? Self.failureBody : Self.body)
+                    .font(.system(size: 11.5))
+                    .lineSpacing(2)
+                    .foregroundStyle(secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 10) {
+                    Button(Self.makeDefaultTitle, action: onMakeDefault)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(status == .requesting)
+
+                    if status == .requesting {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel(SettingsModal.changingDefaultTitle)
+                    }
+
+                    Button(Self.notNowTitle, action: onNotNow)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(secondaryInk)
+                        .disabled(status == .requesting)
+                }
+                .padding(.top, 5)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .frame(maxWidth: Self.maximumWidth, alignment: .leading)
+        .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
+        .background(
+            RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
+                .fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
+                .strokeBorder(usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous))
+        .shadow(color: .black.opacity(usesDarkChrome ? 0.45 : 0.16), radius: 18, y: 6)
+        .background(CursorRectView(cursor: .arrow))
+        .onExitCommand(perform: onNotNow)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Self.title)
+    }
+
+    private var primaryInk: Color {
+        MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome)
+    }
+
+    private var secondaryInk: Color {
+        MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome)
+    }
+}

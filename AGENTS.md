@@ -26,6 +26,8 @@ Core product principles:
 
 - Document-based macOS app for Markdown and plain text files.
 - Native macOS autosave for existing files, with Save/Save As still available and untitled files prompting for a destination when needed.
+- Opening Lineform with no document creates a normal untitled editor window. File ▸ Open replaces only a pristine untitled tab; otherwise it adds the selected file as a tab in the current window.
+- After a person has used a Markdown document, Lineform can make itself the default app for `.md` and `.markdown` files through a one-time invitation or the durable Settings action.
 - Files selected from the left Files sidebar switch the CURRENT TAB in place, Apple Notes-style — browsing a workspace does not accumulate tabs. ⌘-click, or the row's context menu, opens in a new tab or a new window instead. A tab holding unsaved work prompts (Save / Cancel / Don't Save) before it is replaced; in practice that is mostly untitled documents, since existing files are already autosaved by the document system — so do not describe the prompt as a guaranteed step before every navigation.
 - Write mode for editing source Markdown.
 - Read mode for rendered, calmer reading.
@@ -77,6 +79,8 @@ file named after it carries the full story and the reasoning.
 - `FileIdentity` is the single definition of "already open", shared by tab dedupe, `EditorTabStore.locate`, and the Save As guard. If they disagree, a file slips past dedupe and is then refused at save.
 - "Does this tab hold unsaved work" is `DocumentTab.hasUnsavedWork` and nothing else — the tab-bar dot included. `DocumentSaveStatus.isDirty` alone omits the `fileURL == nil && !text.isEmpty` branch, so an untitled tab with typed content and a tab whose file was trashed from the sidebar (which nils its `fileURL`) drew NO dot while holding the only copy of their content.
 - The Save-All-before-close chain must write each saved tab's new `fileURL` back to the store BEFORE activating the next tab, which clobbers `backingDocument.fileURL`. Without it a tab that was untitled at save time stays `fileURL == nil`: the close alert re-prompts, a second save panel writes a duplicate copy, and the tab is detached from its file for the rest of the session.
+- File ▸ Open must keep the system menu item and native `NSDocumentController.beginOpenPanel`, then route authorized URLs through `openSidebarFile`; sending ⌘O through `DocumentGroup` creates a transient second window instead of a tab-native open.
+- Closing the final tab must leave it in `EditorTabStore`, call `WindowCloseController.prepareForTabApprovedClose`, and dismiss the `DocumentGroup` scene. Removing the tab first destroys state needed by the native close and can leave an empty window that ignores ⌘W.
 - The toolbar material is hidden with an explicit `Visibility.hidden` — the bare `.hidden` is ambiguous against `ShapeStyle` and TIMES OUT type-checking (build-blocking, not cosmetic).
 
 **Editor motion** (`editor-behavior.md`)
@@ -93,6 +97,7 @@ file named after it carries the full story and the reasoning.
 - Never add an iCloud entitlement to Debug: it cannot be satisfied under ad-hoc signing and the test host stops launching (CI red).
 - `@Published` didSet observers DO fire for assignments in `OutlineFileBrowserStore.init`, so persisted prefs must load via `Published(initialValue:)` backing storage — a plain assignment runs the init-forbidden iCloud scan.
 - Sidebar rename/trash are deliberately UNCOORDINATED. A main-thread `NSFileCoordinator` write against the open document's own presenters can deadlock, and a presenter-observed trash makes `NSDocument` follow the file into the Trash where autosave resurrects it.
+- The workspace chooser stays a native, asynchronous `NSOpenPanel` sheet attached to the key Lineform document window, with Lineform-specific title/message copy. Do not return to detached `runModal()` presentation or perform a scan before the user accepts a folder.
 
 **Privacy** (`rendering.md`, `app-integration.md`)
 - Remote `http(s)`/`data:` image URLs are NEVER fetched — always a placeholder. The app's network-free invariant is a product promise, not an optimization.
@@ -159,6 +164,8 @@ file named after it carries the full story and the reasoning.
 - Every nested bundle must be signed correctly, and the Quick Look appex keeps its OWN sandbox entitlements. Xcode signs nested bundles from the App Store archive, and **Organizer's Validate App is the gate that catches a wrong or unsandboxed one**. Adding an app extension or embedded binary means re-validating before upload.
 - `MainMenuIconDecorator` observes every `NSMenu` in the process (a detached SwiftUI `CommandMenu` has no supermenu to test), so any menu it must not touch carries `MainMenuIconDecorator.excludedMenuIdentifier`. Without it the editor's right-click menu came up wearing main-menu SF Symbols.
 - Main-menu icons must be applied to the menu that POSTS the notification, never by walking `NSApp.mainMenu` on a tracking hook. SwiftUI builds `CommandMenu` replacements DETACHED and swaps them in, so the walk decorates the outgoing menu while the bare one is drawn. `didAddItem` is not enough on its own: SwiftUI updates a `CommandMenu`'s EXISTING items in place when it opens, clearing `image` with no insertion to observe, which is why `didChangeItem` is observed too — the `isDecorating` guard is what keeps our own `image` writes from feeding back.
+- Cold launch and Dock reopen create an untitled document only when there are no visible windows, no open documents, and no first-launch intro to present. Removing any guard can duplicate a file-open document or cover the intro.
+- Changing the default Markdown handler is always an explicit user action through `NSWorkspace.setDefaultApplication`; keep `LSHandlerRank` at `Alternate`, exclude `.txt`, and never add a helper, installer, entitlement, or Finder automation for it. The one-time invitation becomes eligible only on a launch after the first Markdown use; Settings remains the durable action.
 
 **Localization** (`app-integration.md`)
 - Text that renders DOCUMENT CONTENT (callout labels, Markdown syntax) is never localized — HTML export is one-to-one with the source and the Quick Look appex mirrors the renderers by hand. Only app chrome localizes.

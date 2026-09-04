@@ -32,8 +32,212 @@ final class LineformSettingsTests: XCTestCase {
         XCTAssertEqual(restored.allowRootFolderCollapseChoice, false)
         XCTAssertFalse(restored.showICloudInSidebar)
     }
+}
 
-    // MARK: - Announcements
+// MARK: - Default Markdown app
+
+@MainActor
+private final class StubMarkdownDefaultHandler: MarkdownDefaultApplicationHandling {
+    enum Failure: Error { case refused }
+
+    var isDefault: Bool
+    var shouldFail = false
+    private(set) var requestCount = 0
+
+    init(isDefault: Bool) {
+        self.isDefault = isDefault
+    }
+
+    func isLineformDefault() -> Bool { isDefault }
+
+    func makeLineformDefault() async throws {
+        requestCount += 1
+        if shouldFail { throw Failure.refused }
+        isDefault = true
+    }
+}
+
+extension LineformSettingsTests {
+    func testDefaultPromptWaitsUntilLaunchAfterFirstMarkdownUse() {
+        let defaults = freshDefaults("DefaultMarkdownNextLaunch")
+        let handler = StubMarkdownDefaultHandler(isDefault: false)
+        let firstLaunch = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+
+        firstLaunch.refresh()
+        XCTAssertFalse(firstLaunch.isPromptVisible)
+        firstLaunch.recordMarkdownUse(fileURL: URL(fileURLWithPath: "/tmp/Note.MD"))
+        firstLaunch.refresh()
+        XCTAssertFalse(firstLaunch.isPromptVisible, "first use must not interrupt the current session")
+
+        let nextLaunch = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+        nextLaunch.refresh()
+        XCTAssertTrue(nextLaunch.isPromptVisible)
+        XCTAssertEqual(nextLaunch.status, .notDefault)
+    }
+
+    func testPlainTextUseDoesNotQualifyForMarkdownPrompt() {
+        let defaults = freshDefaults("DefaultMarkdownIgnoresText")
+        let handler = StubMarkdownDefaultHandler(isDefault: false)
+        let firstLaunch = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+        firstLaunch.recordMarkdownUse(fileURL: URL(fileURLWithPath: "/tmp/Note.txt"))
+
+        let nextLaunch = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+        nextLaunch.refresh()
+        XCTAssertFalse(nextLaunch.isPromptVisible)
+    }
+
+    func testNotNowDismissesPromptPermanentlyButStatusStillRefreshes() {
+        let defaults = freshDefaults("DefaultMarkdownNotNow")
+        defaults.set(true, forKey: DefaultMarkdownAppStore.hasUsedMarkdownDocumentKey)
+        let handler = StubMarkdownDefaultHandler(isDefault: false)
+        let store = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+        store.refresh()
+        XCTAssertTrue(store.isPromptVisible)
+
+        store.dismissPrompt()
+        store.refresh()
+        XCTAssertFalse(store.isPromptVisible)
+        XCTAssertEqual(store.status, .notDefault)
+
+        let nextLaunch = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+        nextLaunch.refresh()
+        XCTAssertFalse(nextLaunch.isPromptVisible)
+    }
+
+    func testAlreadyDefaultNeverPromptsAndRecordsResolution() {
+        let defaults = freshDefaults("DefaultMarkdownAlreadyDefault")
+        defaults.set(true, forKey: DefaultMarkdownAppStore.hasUsedMarkdownDocumentKey)
+        let store = DefaultMarkdownAppStore(
+            defaults: defaults,
+            handler: StubMarkdownDefaultHandler(isDefault: true)
+        )
+
+        store.refresh()
+        XCTAssertEqual(store.status, .isDefault)
+        XCTAssertFalse(store.isPromptVisible)
+        XCTAssertTrue(defaults.bool(forKey: DefaultMarkdownAppStore.hasResolvedPromptKey))
+    }
+
+    func testSettingsRefreshDoesNotSummonPrompt() {
+        let defaults = freshDefaults("DefaultMarkdownSettingsRefresh")
+        defaults.set(true, forKey: DefaultMarkdownAppStore.hasUsedMarkdownDocumentKey)
+        let store = DefaultMarkdownAppStore(
+            defaults: defaults,
+            handler: StubMarkdownDefaultHandler(isDefault: false)
+        )
+
+        store.refresh(allowsPrompt: false)
+        XCTAssertEqual(store.status, .notDefault)
+        XCTAssertFalse(store.isPromptVisible)
+    }
+
+    func testMakeDefaultCompletesPromptAndPersistsResolution() async {
+        let defaults = freshDefaults("DefaultMarkdownSuccess")
+        defaults.set(true, forKey: DefaultMarkdownAppStore.hasUsedMarkdownDocumentKey)
+        let handler = StubMarkdownDefaultHandler(isDefault: false)
+        let store = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+        store.refresh()
+
+        await store.makeLineformDefault()
+
+        XCTAssertEqual(handler.requestCount, 1)
+        XCTAssertEqual(store.status, .isDefault)
+        XCTAssertFalse(store.isPromptVisible)
+        XCTAssertTrue(defaults.bool(forKey: DefaultMarkdownAppStore.hasResolvedPromptKey))
+    }
+
+    func testFailedDefaultRequestKeepsChoiceAvailable() async {
+        let defaults = freshDefaults("DefaultMarkdownFailure")
+        defaults.set(true, forKey: DefaultMarkdownAppStore.hasUsedMarkdownDocumentKey)
+        let handler = StubMarkdownDefaultHandler(isDefault: false)
+        handler.shouldFail = true
+        let store = DefaultMarkdownAppStore(defaults: defaults, handler: handler)
+        store.refresh()
+
+        await store.makeLineformDefault()
+
+        XCTAssertEqual(store.status, .failed)
+        XCTAssertTrue(store.isPromptVisible)
+        XCTAssertFalse(defaults.bool(forKey: DefaultMarkdownAppStore.hasResolvedPromptKey))
+    }
+
+    func testColdLaunchOpensAnUntitledDocumentWhenNothingElseOwnsLaunch() {
+        let presenter = FirstLaunchIntroPresenter()
+        var openCount = 0
+
+        presenter.openColdLaunchDocumentIfNeeded(
+            hasOpenDocuments: false,
+            shouldShowIntro: false,
+            openDocument: { openCount += 1 }
+        )
+
+        XCTAssertEqual(openCount, 1)
+    }
+
+    func testColdLaunchDoesNotAddAWindowToFileOrIntroLaunches() {
+        let presenter = FirstLaunchIntroPresenter()
+        var openCount = 0
+
+        presenter.openColdLaunchDocumentIfNeeded(
+            hasOpenDocuments: true,
+            shouldShowIntro: false,
+            openDocument: { openCount += 1 }
+        )
+        presenter.openColdLaunchDocumentIfNeeded(
+            hasOpenDocuments: false,
+            shouldShowIntro: true,
+            openDocument: { openCount += 1 }
+        )
+
+        XCTAssertEqual(openCount, 0)
+    }
+
+    func testDockReopenOpensUntitledDocumentAfterLastDocumentCloses() {
+        XCTAssertEqual(
+            LineformLaunchDefaults.dockReopenAction(
+                hasVisibleWindows: false,
+                hasOpenDocuments: false,
+                shouldShowIntro: false
+            ),
+            .openUntitledDocument
+        )
+    }
+
+    func testDockReopenDefersToExistingVisibleOrHiddenDocument() {
+        XCTAssertEqual(
+            LineformLaunchDefaults.dockReopenAction(
+                hasVisibleWindows: true,
+                hasOpenDocuments: false,
+                shouldShowIntro: false
+            ),
+            .deferToSystem
+        )
+        XCTAssertEqual(
+            LineformLaunchDefaults.dockReopenAction(
+                hasVisibleWindows: false,
+                hasOpenDocuments: true,
+                shouldShowIntro: false
+            ),
+            .deferToSystem,
+            "a minimized or hidden document should return instead of gaining an extra untitled window"
+        )
+    }
+
+    func testDockReopenLeavesFirstLaunchOwnedByIntro() {
+        XCTAssertEqual(
+            LineformLaunchDefaults.dockReopenAction(
+                hasVisibleWindows: false,
+                hasOpenDocuments: false,
+                shouldShowIntro: true
+            ),
+            .showFirstLaunchIntro
+        )
+    }
+}
+
+// MARK: - Announcements
+
+extension LineformSettingsTests {
 
     func testChecksForAnnouncementsDefaultsToTrue() {
         let store = LineformSettingsStore(defaults: freshDefaults("LineformAnnouncementsDefault"))
@@ -311,5 +515,17 @@ extension LineformSettingsTests {
         XCTAssertTrue(SettingsModal.iCloudEnabledNote.lowercased().contains("choose icloud"))
         XCTAssertEqual(SettingsModal.iCloudCheckingNote, "Checking…")
         XCTAssertEqual(SettingsModal.iCloudUnavailableNote, "iCloud is not available on this Mac.")
+        XCTAssertEqual(SettingsModal.defaultMarkdownTitle, "Default Markdown app")
+        XCTAssertTrue(SettingsModal.defaultMarkdownNote.contains(".md and .markdown"))
+        XCTAssertEqual(DefaultMarkdownAppCard.title, "Make Lineform your default Markdown app?")
+        XCTAssertEqual(DefaultMarkdownAppCard.makeDefaultTitle, "Make Default")
+        XCTAssertEqual(DefaultMarkdownAppCard.notNowTitle, "Not Now")
+    }
+
+    func testWorkspacePickerCopyNamesLineformAndExplainsTheFolderRelationship() {
+        XCTAssertEqual(OutlineFileBrowserStore.workspacePickerTitle, "Choose a Lineform Workspace")
+        XCTAssertTrue(OutlineFileBrowserStore.workspacePickerMessage.contains("Lineform's Files sidebar"))
+        XCTAssertTrue(OutlineFileBrowserStore.workspacePickerMessage.contains("stay where they are"))
+        XCTAssertEqual(OutlineFileBrowserStore.workspacePickerPrompt, "Choose")
     }
 }

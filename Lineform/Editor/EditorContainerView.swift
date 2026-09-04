@@ -21,7 +21,11 @@ struct EditorContainerView: View {
     /// Shared, so the same announcement is on screen in every window and dismissing it
     /// anywhere dismisses it everywhere — one announcement, one decision.
     @ObservedObject private var announcementStore = AnnouncementStore.shared
+    /// Shared for the same reason as announcements: this is one app-level choice, not a
+    /// per-document preference. The prompt is offered once; Settings remains the durable route.
+    @ObservedObject private var defaultMarkdownApp: DefaultMarkdownAppStore
     @StateObject private var tabStore: EditorTabStore
+    @Environment(\.dismiss) private var dismissWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
     @State private var isShowingSettings = false
@@ -114,7 +118,8 @@ struct EditorContainerView: View {
         document: Binding<LineformDocument>,
         readingProfileStore: ReadingProfileStore = ReadingProfileStore(),
         fileBrowserStore: OutlineFileBrowserStore? = nil,
-        settings: LineformSettingsStore = .shared
+        settings: LineformSettingsStore = .shared,
+        defaultMarkdownApp: DefaultMarkdownAppStore = .shared
     ) {
         _document = document
         _readingProfileStore = StateObject(wrappedValue: readingProfileStore)
@@ -123,6 +128,7 @@ struct EditorContainerView: View {
             wrappedValue: fileBrowserStore ?? OutlineFileBrowserStore(runsScanInBackground: true)
         )
         self.settings = settings
+        self.defaultMarkdownApp = defaultMarkdownApp
         // New windows open with the sidebar in the user's preferred launch state
         // (Settings › Show sidebar on launch, default on). Initial value only;
         // once open, the user's ⌥⌘0 toggle takes over.
@@ -239,7 +245,7 @@ struct EditorContainerView: View {
                 tabCloseDialog = nil
             }
             Button("Don't Save", role: .destructive) {
-                confirmCloseTab(id: dialog.tabID)
+                confirmCloseTab(id: dialog.tabID, owningWindow: dialog.owningWindow)
             }
         } message: { dialog in
             Text("Do you want to save changes to \u{201C}\(dialog.tabTitle)\u{201D} before closing?")
@@ -441,6 +447,10 @@ struct EditorContainerView: View {
             guard notificationMatchesActiveWindow(notification) else { return }
             createNewTab()
         }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.openDocument.name)) { notification in
+            guard notificationMatchesActiveWindow(notification) else { return }
+            presentOpenDocumentsPanel()
+        }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.closeTab.name)) { notification in
             guard notificationMatchesActiveWindow(notification) else { return }
             requestCloseTab()
@@ -456,7 +466,7 @@ struct EditorContainerView: View {
             activateSelectedTab()
         }
         // Bundled as a modifier (same rationale as ReissueCrossFileSearchOnRootChange below):
-        // three `.onReceive`s + one `.onChange` inline pushed this very large body expression's
+        // four `.onReceive`s + one `.onChange` inline pushed this very large body expression's
         // type-checker over budget.
         .modifier(SpeechNotificationHandlers(
             windowNumber: windowNumber,
@@ -487,9 +497,11 @@ struct EditorContainerView: View {
                 LineformCurrentFileMenuState.shared.setCurrentFileURL(newValue)
             }
             tabStore.updateActiveTabFileURL(newValue)
-            // A window opened by ⌘O/Finder/CLI/App Intents for a file another window already holds
+            defaultMarkdownApp.recordMarkdownUse(fileURL: newValue)
+            // A window opened by Finder/CLI/App Intents for a file another window already holds
             // hands it back and closes, instead of becoming a second live copy that autosaves over
-            // it. This is the edge that carries the URL — onAppear runs before it is known.
+            // it. File > Open is intercepted before window creation and routes straight to tabs.
+            // This edge still carries the URL for external opens — onAppear runs before it is known.
             handOffToExistingWindowIfDuplicate()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
@@ -498,6 +510,11 @@ struct EditorContainerView: View {
             }
             LineformCurrentFileMenuState.shared.setCurrentFileURL(currentFileURL)
             LineformSpeechMenuState.shared.setState(speechController.state)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // Finder or another editor can change the default while Lineform is inactive.
+            // Re-query Launch Services on return; this is metadata-only and never scans files.
+            defaultMarkdownApp.refresh()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
             guard
@@ -588,6 +605,10 @@ struct EditorContainerView: View {
             tabStore.windowNumber = windowNumber
             registerReloadWatcher()
             installWindowCloseControllerIfNeeded()
+            // Refresh BEFORE recording this window's URL: the first real Markdown use only makes
+            // the NEXT launch eligible, so the suggestion never appears midway through session one.
+            defaultMarkdownApp.refresh()
+            defaultMarkdownApp.recordMarkdownUse(fileURL: currentFileURL)
         }
         .onChange(of: document.textFormat) { _, newValue in
             LineformTextFormatMenuState.shared.setTextFormat(newValue)
@@ -882,7 +903,22 @@ struct EditorContainerView: View {
                     // than a laid-out row, so the top edge of the shell — what the
                     // translucent toolbar samples — is unchanged whether it is up or not.
                     .overlay(alignment: .bottomTrailing) {
-                        if let announcement = announcementStore.visible {
+                        if defaultMarkdownApp.isPromptVisible {
+                            DefaultMarkdownAppCard(
+                                status: defaultMarkdownApp.status,
+                                usesDarkChrome: currentTheme.usesDarkChrome,
+                                onMakeDefault: {
+                                    Task { await defaultMarkdownApp.makeLineformDefault() }
+                                },
+                                onNotNow: { defaultMarkdownApp.dismissPrompt() }
+                            )
+                            .padding(DefaultMarkdownAppCard.edgeInset)
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .opacity.combined(with: .offset(y: 8))
+                            )
+                        } else if let announcement = announcementStore.visible {
                             AnnouncementCard(
                                 announcement: announcement,
                                 usesDarkChrome: currentTheme.usesDarkChrome,
@@ -957,6 +993,13 @@ struct EditorContainerView: View {
                 reduceMotion: reduceMotion
             ),
             value: announcementStore.visible
+        )
+        .animation(
+            EditorMotionPolicy.animation(
+                .easeOut(duration: 0.24),
+                reduceMotion: reduceMotion
+            ),
+            value: defaultMarkdownApp.isPromptVisible
         )
     }
 
@@ -1488,7 +1531,7 @@ struct EditorContainerView: View {
     }
 
     /// Hands this window's file back to the window that already had it, then closes this one — the
-    /// after-the-fact half of open dedupe, covering ⌘O/Finder/CLI/App Intents, which build their
+    /// after-the-fact half of open dedupe, covering Finder/CLI/App Intents, which build their
     /// window through DocumentGroup before any of our code can intervene.
     ///
     /// Called from the `currentFileURL` change rather than `onAppear`: a freshly opened window runs
@@ -1617,13 +1660,35 @@ struct EditorContainerView: View {
         let isDirty = tab.hasUnsavedWork(documentSaveStatus: documentSaveStatus)
 
         if isDirty {
-            tabCloseDialog = TabCloseDialog(tabID: targetID, tabTitle: tab.title)
+            // Keep the exact owning window through the SwiftUI sheet lifecycle. The view can be
+            // rebuilt as the tab bar disappears, clearing both its cached controller and
+            // `windowNumber` before the destructive button's action finishes.
+            let owningWindow = windowCloseController?.window
+                ?? tabStore.window
+                ?? activeWindow
+                ?? NSApp.keyWindow?.sheetParent
+                ?? NSApp.mainWindow
+            tabCloseDialog = TabCloseDialog(
+                tabID: targetID,
+                tabTitle: tab.title,
+                owningWindow: owningWindow
+            )
         } else {
             performCloseTab(id: targetID)
         }
     }
 
-    private func performCloseTab(id: UUID) {
+    private func performCloseTab(id: UUID, owningWindow: NSWindow? = nil) {
+        // Capture this BEFORE mutating the published tab array. Removing the final tab can tear
+        // down this SwiftUI hierarchy immediately, clearing `windowNumber`; resolving
+        // `activeWindow` afterward then returns nil and leaves an empty, permanently uncloseable
+        // window on screen.
+        let windowBeforeTabRemoval = owningWindow
+            ?? windowCloseController?.window
+            ?? tabStore.window
+            ?? activeWindow
+            ?? NSApp.keyWindow?.sheetParent
+            ?? NSApp.mainWindow
         // Re-activate ONLY when the closed tab was the selected one (closeTab then moves the
         // selection to a sibling). Closing a BACKGROUND tab leaves selectedTabID unchanged, so
         // activating again would needlessly re-run activateSelectedTab against the still-active
@@ -1631,17 +1696,32 @@ struct EditorContainerView: View {
         // and wipes its undo stack (undoManager.removeAllActions). None of that should happen
         // just because the user closed a different tab.
         let wasSelected = (id == tabStore.selectedTabID)
+        if tabStore.tabs.count == 1 {
+            guard let windowBeforeTabRemoval else { return }
+            // Keep the final tab and its DocumentGroup scene state alive until SwiftUI's native
+            // window delegate completes the close. The tab-level alert (when needed) has already
+            // made the save/discard decision, so restore that delegate and ask it to close once.
+            if let controller = windowBeforeTabRemoval.delegate as? WindowCloseController {
+                controller.prepareForTabApprovedClose(windowBeforeTabRemoval)
+            } else {
+                (windowBeforeTabRemoval.windowController?.document as? NSDocument)?
+                    .updateChangeCount(.changeCleared)
+            }
+            // Dismiss the DocumentGroup scene itself. Closing its NSWindow/NSDocument directly
+            // causes SwiftUI to keep the scene alive by installing a replacement Untitled file.
+            DispatchQueue.main.async { dismissWindow() }
+            return
+        }
+
         tabStore.closeTab(id: id)
-        if tabStore.tabs.isEmpty {
-            activeWindow?.performClose(nil)
-        } else if wasSelected {
+        if wasSelected {
             activateSelectedTab()
         }
     }
 
-    private func confirmCloseTab(id: UUID) {
+    private func confirmCloseTab(id: UUID, owningWindow: NSWindow?) {
         tabCloseDialog = nil
-        performCloseTab(id: id)
+        performCloseTab(id: id, owningWindow: owningWindow)
     }
 
     private func saveAndCloseTab(id: UUID) {
@@ -1672,6 +1752,40 @@ struct EditorContainerView: View {
     private func createNewTab() {
         let newDocument = LineformDocument()
         tabStore.openTab(document: newDocument)
+    }
+
+    private func presentOpenDocumentsPanel() {
+        let shouldReplaceActiveTab: Bool
+        if let activeTab = tabStore.selectedTab {
+            shouldReplaceActiveTab = OpenDocumentTabPlacement.shouldReplaceActiveTab(
+                activeTabHasFile: activeTab.fileURL != nil,
+                activeTabTextIsEmpty: activeTab.document.text.isEmpty,
+                activeTabHasUnsavedWork: activeTab.hasUnsavedWork(
+                    documentSaveStatus: documentSaveStatus
+                )
+            )
+        } else {
+            shouldReplaceActiveTab = false
+        }
+
+        // Ask the document controller for its native, type-filtered Open panel and take only the
+        // authorized URLs. Calling `openDocument` would hand them back to DocumentGroup, which is
+        // exactly what creates a second window before Lineform can place the file in a tab.
+        NSDocumentController.shared.beginOpenPanel { urls in
+            guard let urls else { return }
+            for (index, url) in urls.enumerated() {
+                let intent: SidebarOpenIntent = shouldReplaceActiveTab && index == 0
+                    ? .replaceCurrent
+                    : .newTab
+                openSidebarFile(
+                    url,
+                    intent: intent,
+                    whenOpenedHere: {
+                        NSDocumentController.shared.noteNewRecentDocumentURL(url)
+                    }
+                )
+            }
+        }
     }
 
     private func renameSidebarItem(at url: URL, isDirectory: Bool) {
@@ -2453,6 +2567,7 @@ struct TabCloseDialog: Identifiable {
     let id = UUID()
     let tabID: UUID
     let tabTitle: String
+    let owningWindow: NSWindow?
 }
 
 /// Where a sidebar click should put the file. A plain click replaces the current tab's

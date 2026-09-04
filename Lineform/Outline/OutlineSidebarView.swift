@@ -1045,6 +1045,9 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// Directory names always hidden from the tree, even with "Show hidden folders" on —
     /// build/vcs noise that is never useful reading material.
     static let excludedDirectoryNames: Set<String> = ["node_modules", ".git"]
+    static let workspacePickerTitle = String(localized: "Choose a Lineform Workspace")
+    static let workspacePickerMessage = String(localized: "Select the folder you want to show in Lineform's Files sidebar. Your files stay where they are.")
+    static let workspacePickerPrompt = String(localized: "Choose")
 
     @Published var iCloudRoot = OutlineFileRoot(
         id: "icloud",
@@ -1351,13 +1354,23 @@ final class OutlineFileBrowserStore: ObservableObject {
 
     @MainActor
     func chooseWorkspaceFolder() {
-        let panel = folderSelectionPanel(prompt: String(localized: "Choose"))
-
-        guard panel.runModal() == .OK, let url = panel.url else {
-            return
+        let panel = folderSelectionPanel(prompt: Self.workspacePickerPrompt)
+        let presentingWindow = NSApp.keyWindow
+        let completion: (NSApplication.ModalResponse) -> Void = { [weak self, weak panel] response in
+            guard response == .OK, let url = panel?.url else { return }
+            self?.setWorkspaceURL(url)
         }
 
-        setWorkspaceURL(url)
+        // This folder augments the already-open editor window, so keep the native browser visibly
+        // attached to that window. The former application-modal `runModal()` floated on its own and
+        // could read as Finder rather than as the result of Lineform's Choose button.
+        if let presentingWindow {
+            panel.beginSheetModal(for: presentingWindow, completionHandler: completion)
+        } else {
+            // A defensive fallback for tests or an unusual responder-chain invocation with no key
+            // window. It remains asynchronous so selecting a folder never nests the app's run loop.
+            panel.begin(completionHandler: completion)
+        }
     }
 
     @MainActor
@@ -1367,6 +1380,8 @@ final class OutlineFileBrowserStore: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
+        panel.title = Self.workspacePickerTitle
+        panel.message = Self.workspacePickerMessage
         panel.prompt = prompt
         return panel
     }
