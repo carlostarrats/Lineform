@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Lineform s’ouvre désormais prêt à écrire : un lancement sans document crée un éditeur vierge et épuré, tandis que Fichier > Ouvrir ajoute les fichiers à la fenêtre active dans des onglets natifs. Vous pouvez aussi définir Lineform comme app par défaut pour Markdown depuis une invitation unique ou les Réglages. Cette version améliore l’enregistrement et la fermeture, affine le sélecteur d’espace de travail et corrige des problèmes liés à l’inspecteur sous Sonoma et à l’exportation PDF."
+}

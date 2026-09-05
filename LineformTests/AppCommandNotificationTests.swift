@@ -19,7 +19,7 @@ final class AppCommandNotificationTests: XCTestCase {
 
     func testAboutMenuUsesLineformVersionDisplay() {
         XCTAssertEqual(AppMenuConfiguration.aboutCommandTitle, "About Lineform")
-        XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.7")
+        XCTAssertEqual(AppMenuConfiguration.aboutVersionDisplay, "V1.7.1")
         XCTAssertEqual(AppMenuConfiguration.aboutCopyright, "Copyright © 2026 Carlos Tarrats. All rights reserved.")
         XCTAssertEqual(AppMenuConfiguration.privacyPolicyCommandTitle, "Privacy Policy")
         XCTAssertEqual(AppMenuConfiguration.termsOfUseCommandTitle, "Terms of Use")
@@ -30,7 +30,7 @@ final class AppCommandNotificationTests: XCTestCase {
         XCTAssertTrue(AppMenuConfiguration.suppressesDefaultHelpMenu)
         XCTAssertEqual(
             AppMenuConfiguration.aboutPanelOptions()[.applicationVersion] as? String,
-            "V1.7"
+            "V1.7.1"
         )
     }
 

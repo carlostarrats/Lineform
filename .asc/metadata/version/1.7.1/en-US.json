@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Lineform now opens ready to write: launching without a document creates a clean untitled editor, and File > Open brings files into the current window with native tabs. You can also make Lineform the default app for Markdown from a one-time invitation or Settings. This release improves saving and closing, polishes the workspace picker, and fixes Sonoma inspector and PDF export issues."
+}

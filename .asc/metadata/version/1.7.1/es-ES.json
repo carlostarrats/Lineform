@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Lineform ahora se abre listo para escribir: al iniciar sin un documento, crea un editor nuevo y limpio, y Archivo > Abrir incorpora los archivos a la ventana actual con pestañas nativas. También puedes convertir Lineform en la app predeterminada para Markdown desde una invitación única o Ajustes. Esta versión mejora el guardado y el cierre, perfecciona el selector de espacio de trabajo y corrige problemas del inspector en Sonoma y de la exportación a PDF."
+}
