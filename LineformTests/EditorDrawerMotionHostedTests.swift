@@ -54,6 +54,7 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         let window = CloseProbeWindow()
         window.isReleasedWhenClosed = false
         var closedInsideSaveCallback = false
+        var confirmedWrites = 0
         let closed = expectation(description: "The saved tab reaches the scene close path")
         window.onClose = { closedInsideSaveCallback = document.isDeliveringSaveCompletion }
         let coordinator = SaveAndCloseCoordinator(
@@ -65,7 +66,8 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
                 XCTAssertEqual(store.selectedTabID, tabID)
                 window.performClose(nil)
                 closed.fulfill()
-            }
+            },
+            didSaveSource: { confirmedWrites += 1 }
         )
 
         coordinator.start()
@@ -73,6 +75,7 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         XCTAssertFalse(closedInsideSaveCallback, "Closing here waits on NSDocument's still-active save serialization semaphore.")
         XCTAssertEqual(store.selectedTabID, tabID, "The final tab must stay alive until DocumentGroup dismisses its scene.")
         XCTAssertEqual(store.tabs.count, 1)
+        XCTAssertEqual(confirmedWrites, 1)
         await fulfillment(of: [closed], timeout: 2)
         XCTAssertFalse(closedInsideSaveCallback)
     }
@@ -89,6 +92,7 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
             tabStore: store,
             document: document,
             closeSavedTab: { _ in XCTFail("Cancelled saves must not close a tab") },
+            didSaveSource: { XCTFail("A cancelled save must not count as review engagement") },
             onFinish: { finished = true }
         )
         coordinator.start()
@@ -96,6 +100,28 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         XCTAssertEqual(store.selectedTabID, tabID)
         XCTAssertNil(store.selectedTab?.fileURL)
         XCTAssertEqual(store.selectedTab?.document.text, "Keep this draft")
+    }
+
+    @MainActor
+    func testSaveThenContinueCountsOnlyACompletedWrite() {
+        let successfulDocument = SaveCompletionDocument()
+        var successfulConfirmations = 0
+        var continued = false
+        SaveThenContinueCoordinator(
+            document: successfulDocument,
+            onSaved: { continued = true },
+            didSaveSource: { successfulConfirmations += 1 }
+        ).start()
+        XCTAssertTrue(continued)
+        XCTAssertEqual(successfulConfirmations, 1)
+
+        let failedDocument = SaveCompletionDocument()
+        failedDocument.saveSucceeded = false
+        SaveThenContinueCoordinator(
+            document: failedDocument,
+            onSaved: { XCTFail("A failed save must not continue") },
+            didSaveSource: { XCTFail("A failed save must not count as review engagement") }
+        ).start()
     }
 
     @MainActor
@@ -109,6 +135,7 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         var savedIDs: [UUID] = []
         var activatedInsideSave = false
         var closedInsideSave = false
+        var confirmedWrites = 0
         window.onClose = { closedInsideSave = document.isDeliveringSaveCompletion }
         let coordinator = SaveTabsBeforeCloseCoordinator(
             tabIDs: [firstID, secondID],
@@ -118,12 +145,14 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
                 return document
             },
             didSaveTab: { id, _ in savedIDs.append(id) },
+            didSaveSource: { confirmedWrites += 1 },
             window: window,
             onFinish: { finished.fulfill() }
         )
         coordinator.start()
         await fulfillment(of: [finished], timeout: 2)
         XCTAssertEqual(savedIDs, [firstID, secondID])
+        XCTAssertEqual(confirmedWrites, 2)
         XCTAssertFalse(activatedInsideSave, "The next tab must not repoint the NSDocument inside its previous save callback.")
         XCTAssertFalse(closedInsideSave, "Window closing must not re-enter NSDocument's save serialization activity.")
     }
@@ -164,6 +193,7 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
             tabIDs: [firstID, secondID],
             activateTab: { id in activated.append(id); return document },
             didSaveTab: { _, _ in XCTFail("A cancelled save must not retarget a tab") },
+            didSaveSource: { XCTFail("A cancelled save must not count as review engagement") },
             window: window,
             onFinish: { didFinish = true }
         )

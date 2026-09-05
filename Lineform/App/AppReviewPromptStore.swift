@@ -51,6 +51,20 @@ final class AppReviewPromptStore: ObservableObject {
         bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
+    nonisolated static func canPresent(
+        isApplicationActive: Bool,
+        isMainWindow: Bool,
+        hasAttachedSheet: Bool,
+        hasModalWindow: Bool,
+        hasInAppObstruction: Bool
+    ) -> Bool {
+        isApplicationActive
+            && isMainWindow
+            && !hasAttachedSheet
+            && !hasModalWindow
+            && !hasInAppObstruction
+    }
+
     /// Development-only inspection seam. Release builds cannot force eligibility.
     nonisolated static var debugForcePrompt: Bool {
         #if DEBUG
@@ -84,6 +98,14 @@ final class AppReviewPromptStore: ObservableObject {
             }
         }
 
+        activityRevision = activityRevision == Int.max ? 0 : activityRevision + 1
+    }
+
+    /// Recreate an eligible window's quiet-period task when the app returns to the foreground.
+    /// This is scheduling only: activation never counts as engagement and production eligibility
+    /// still requires a successful source write in this process.
+    func reconsiderPresentation() {
+        guard isEligible() else { return }
         activityRevision = activityRevision == Int.max ? 0 : activityRevision + 1
     }
 

@@ -10,6 +10,7 @@ final class SaveAndCloseCoordinator: NSObject {
     private let targetID: UUID
     private let tabStore: EditorTabStore
     private let closeSavedTab: (UUID) -> Void
+    private let didSaveSource: () -> Void
     private let document: NSDocument
     /// Cleared when the save chain ends, so the view can drop its reference. Without it this
     /// coordinator — and the `NSDocument` and `EditorTabStore` it holds STRONGLY — stayed alive
@@ -23,12 +24,14 @@ final class SaveAndCloseCoordinator: NSObject {
         tabStore: EditorTabStore,
         document: NSDocument,
         closeSavedTab: @escaping (UUID) -> Void,
+        didSaveSource: @escaping () -> Void = {},
         onFinish: (() -> Void)? = nil
     ) {
         self.targetID = targetID
         self.tabStore = tabStore
         self.document = document
         self.closeSavedTab = closeSavedTab
+        self.didSaveSource = didSaveSource
         self.onFinish = onFinish
         super.init()
     }
@@ -48,6 +51,7 @@ final class SaveAndCloseCoordinator: NSObject {
             finish()
             return
         }
+        didSaveSource()
         // AppKit still owns the save serialization activity while delivering this callback.
         // Closing synchronously waits on that same activity and deadlocks the main thread.
         // Let it unwind, then use the container's ordinary close path, which retains the final
@@ -87,6 +91,7 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
     /// tab still counts as unsaved (re-prompting the close alert and opening a second save panel
     /// that writes a duplicate copy) and stays detached from its file for the rest of the session.
     private let didSaveTab: (UUID, URL?) -> Void
+    private let didSaveSource: () -> Void
     private weak var window: NSWindow?
     /// Retains self for the async save chain; cleared when the chain finishes or aborts.
     private var onFinish: (() -> Void)?
@@ -95,12 +100,14 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
         tabIDs: [UUID],
         activateTab: @escaping (UUID) -> NSDocument?,
         didSaveTab: @escaping (UUID, URL?) -> Void,
+        didSaveSource: @escaping () -> Void = {},
         window: NSWindow?,
         onFinish: @escaping () -> Void
     ) {
         self.remaining = tabIDs
         self.activateTab = activateTab
         self.didSaveTab = didSaveTab
+        self.didSaveSource = didSaveSource
         self.window = window
         self.onFinish = onFinish
         super.init()
@@ -137,6 +144,7 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
             finish()
             return
         }
+        didSaveSource()
         // Before activating the next tab, which clobbers `backingDocument.fileURL`.
         if let savedID {
             didSaveTab(savedID, document.fileURL)
@@ -161,13 +169,20 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
 final class SaveThenContinueCoordinator: NSObject {
     private let document: NSDocument
     private let onSaved: () -> Void
+    private let didSaveSource: () -> Void
     /// Cleared when the chain ends so the view can drop its reference — this object holds the
     /// NSDocument strongly, the same leak `SaveAndCloseCoordinator` documents.
     private var onFinish: (() -> Void)?
 
-    init(document: NSDocument, onSaved: @escaping () -> Void, onFinish: (() -> Void)? = nil) {
+    init(
+        document: NSDocument,
+        onSaved: @escaping () -> Void,
+        didSaveSource: @escaping () -> Void = {},
+        onFinish: (() -> Void)? = nil
+    ) {
         self.document = document
         self.onSaved = onSaved
+        self.didSaveSource = didSaveSource
         self.onFinish = onFinish
         super.init()
     }
@@ -183,6 +198,7 @@ final class SaveThenContinueCoordinator: NSObject {
     @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
         defer { finish() }
         guard didSave else { return }
+        didSaveSource()
         onSaved()
     }
 

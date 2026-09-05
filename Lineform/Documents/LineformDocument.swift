@@ -216,9 +216,7 @@ struct LineformDocument: FileDocument, Equatable {
 
 @MainActor
 final class DocumentSaveStatus: ObservableObject {
-    static let shared = DocumentSaveStatus(
-        recordReviewEngagement: { AppReviewPromptStore.shared.recordSuccessfulWrite() }
-    )
+    static let shared = DocumentSaveStatus()
 
     enum SaveKind: Equatable { case manual, autosave }
 
@@ -247,11 +245,7 @@ final class DocumentSaveStatus: ObservableObject {
     /// untitled doc) without misclassifying the resulting write as an autosave.
     private var pendingManualSave = false
     private var writeSequence = 0
-    private let recordReviewEngagement: () -> Void
-
-    private init(recordReviewEngagement: @escaping () -> Void) {
-        self.recordReviewEngagement = recordReviewEngagement
-    }
+    private init() {}
 
     func savedAt(for documentID: UUID) -> Date? {
         savedAtByDocumentID[documentID]
@@ -293,7 +287,6 @@ final class DocumentSaveStatus: ObservableObject {
         markSaved(documentID: documentID, at: Date(), text: text)
         writeSequence += 1
         lastSaveEvent = SaveEvent(documentID: documentID, kind: manual ? .manual : .autosave, sequence: writeSequence)
-        recordReviewEngagement()
     }
 
     /// The exact text that was written by the save this `savedAt` describes. The live reload
@@ -331,8 +324,6 @@ final class DocumentSaveStatus: ObservableObject {
 #if DEBUG
 extension DocumentSaveStatus {
     /// Isolated instance for tests so they don't mutate the shared singleton.
-    static func testInstance() -> DocumentSaveStatus {
-        DocumentSaveStatus(recordReviewEngagement: {})
-    }
+    static func testInstance() -> DocumentSaveStatus { DocumentSaveStatus() }
 }
 #endif

@@ -56,6 +56,12 @@ final class DocumentReloadController: ObservableObject {
     /// framework's asynchronously-updated dirty flag.
     var lastSyncedText: String = ""
 
+    /// A `FileDocument` write callback only proves that AppKit obtained a serialized wrapper;
+    /// the later safe write can still fail. Keep the serialized bytes as a candidate and count
+    /// review engagement only when the file presenter reads those exact bytes back from disk.
+    var onConfirmedSourceWrite: (() -> Void)?
+    private var pendingSourceWrite: (text: String, expiresAt: Date)?
+
     /// True while a native Writing Tools session is rewriting the text view. Binding writes
     /// are deferred during a session, so the dirty gate can't see the in-progress edits; any
     /// external change is deferred until the session ends (then reconciled once).
@@ -120,8 +126,42 @@ final class DocumentReloadController: ObservableObject {
     /// snapshot — and the watcher re-points if the save created or changed the file URL
     /// (first save of an untitled document, Save As).
     func noteSaved(url newURL: URL?, savedText: String) {
+        // A serialization that reproduces the existing baseline is not meaningful engagement,
+        // and accepting it would let a failed no-op save "confirm" against unchanged disk bytes.
+        pendingSourceWrite = savedText == lastSyncedText
+            ? nil
+            : (text: savedText, expiresAt: Date().addingTimeInterval(30))
         lastSyncedText = savedText
         startWatching(newURL)
+        // A first Save can finish before its presenter is installed. Read back only for
+        // confirmation here — routing this through the reload policy could apply the OLD disk
+        // snapshot while AppKit's atomic safe write is still in flight.
+        confirmPendingSourceWriteFromDisk()
+    }
+
+    /// Explicit NSDocument completion callbacks already know the safe write succeeded. Cancel the
+    /// presenter fallback so one write does not advance the quiet-period token twice.
+    func discardPendingSourceWriteConfirmation() {
+        pendingSourceWrite = nil
+    }
+
+    private func confirmPendingSourceWriteFromDisk() {
+        guard pendingSourceWrite != nil, let url, watcher != nil else { return }
+        let reader = diskReader
+        readQueue.async { [weak self] in
+            let diskText = reader.readText(at: url)
+            DispatchQueue.main.async {
+                guard let self,
+                      self.url == url,
+                      let diskText,
+                      let pending = self.pendingSourceWrite,
+                      Date() <= pending.expiresAt,
+                      diskText == pending.text
+                else { return }
+                self.pendingSourceWrite = nil
+                self.onConfirmedSourceWrite?()
+            }
+        }
     }
 
     /// Ensure the presenter watches `newURL`. Baselines are left untouched; `force` re-adds
@@ -186,6 +226,14 @@ final class DocumentReloadController: ObservableObject {
     /// Main-actor and side-effect-scoped so it is unit-testable synchronously.
     func applyDiskSnapshot(url snapshotURL: URL, diskText: String?, modificationDate: Date?) {
         guard !isWritingToolsSessionActive, snapshotURL == url, let diskText else { return }
+        if let pendingSourceWrite {
+            if Date() > pendingSourceWrite.expiresAt {
+                self.pendingSourceWrite = nil
+            } else if diskText == pendingSourceWrite.text {
+                self.pendingSourceWrite = nil
+                onConfirmedSourceWrite?()
+            }
+        }
         switch DocumentReloadPolicy.decide(diskText: diskText, currentText: currentText, lastSyncedText: lastSyncedText) {
         case .reload:
             lastSeenModificationDate = modificationDate

@@ -127,6 +127,12 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "MermaidRendering.swift|Pie render produced no image": "Diagram-log diagnostic.",
         "MermaidRendering.swift|Mermaid orientation pass could not allocate": "Diagram-log diagnostic.",
         "MermaidRendering.swift|Mermaid render produced no image": "Diagram-log diagnostic.",
+
+        // DEBUG-only stderr diagnostics for the forced StoreKit review-prompt QA seam. These are
+        // never rendered in app UI and the entire call sites are compiled out of Release.
+        "AppReviewPromptStore.swift|eligibility forced for local QA": "DEBUG-only stderr QA diagnostic.",
+        "AppReviewPromptStore.swift|Lineform review prompt QA: %@\n": "DEBUG-only stderr QA diagnostic.",
+        "EditorContainerView.swift|requesting StoreKit system sheet": "DEBUG-only stderr QA diagnostic.",
     ]
 
     /// Positions where SwiftUI (or App Intents) reads a bare literal as a `LocalizedStringKey`.

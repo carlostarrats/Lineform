@@ -173,6 +173,47 @@ final class DocumentReloadControllerTests: XCTestCase {
         XCTAssertNil(controller.lastReload, "post-snapshot keystrokes were treated as synced")
     }
 
+    func testSerializedWriteDoesNotCountUntilMatchingBytesReachDisk() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        var confirmations = 0
+        controller.onConfirmedSourceWrite = { confirmations += 1 }
+        controller.update(url: url(), syncedText: "old")
+
+        controller.noteSaved(url: url(), savedText: "new")
+        controller.applyDiskSnapshot(url: url(), diskText: "old", modificationDate: Date())
+        XCTAssertEqual(confirmations, 0)
+
+        controller.applyDiskSnapshot(url: url(), diskText: "new", modificationDate: Date())
+        XCTAssertEqual(confirmations, 1)
+        controller.applyDiskSnapshot(url: url(), diskText: "new", modificationDate: Date())
+        XCTAssertEqual(confirmations, 1, "one real write must be confirmed only once")
+    }
+
+    func testUnchangedSerializationDoesNotCountAsEngagement() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "same"), debounceInterval: 0)
+        var confirmations = 0
+        controller.onConfirmedSourceWrite = { confirmations += 1 }
+        controller.update(url: url(), syncedText: "same")
+
+        controller.noteSaved(url: url(), savedText: "same")
+        controller.applyDiskSnapshot(url: url(), diskText: "same", modificationDate: Date())
+
+        XCTAssertEqual(confirmations, 0)
+    }
+
+    func testExplicitSaveCompletionCancelsPresenterFallback() {
+        let controller = DocumentReloadController(diskReader: FakeReader(text: "x"), debounceInterval: 0)
+        var confirmations = 0
+        controller.onConfirmedSourceWrite = { confirmations += 1 }
+        controller.update(url: url(), syncedText: "old")
+        controller.noteSaved(url: url(), savedText: "new")
+
+        controller.discardPendingSourceWriteConfirmation()
+        controller.applyDiskSnapshot(url: url(), diskText: "new", modificationDate: Date())
+
+        XCTAssertEqual(confirmations, 0)
+    }
+
     func testWritingToolsSessionDefersReloadThenReconciles() {
         let controller = DocumentReloadController(diskReader: FakeReader(text: "disk-new"), debounceInterval: 0)
         controller.update(url: url(), syncedText: "old")

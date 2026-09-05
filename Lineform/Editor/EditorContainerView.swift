@@ -517,6 +517,7 @@ struct EditorContainerView: View {
             // Finder or another editor can change the default while Lineform is inactive.
             // Re-query Launch Services on return; this is metadata-only and never scans files.
             defaultMarkdownApp.refresh()
+            appReviewPromptStore.reconsiderPresentation()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
             guard
@@ -560,6 +561,7 @@ struct EditorContainerView: View {
             // The reload watcher is re-pointed with noteMoved — NOT registerReloadWatcher/register,
             // whose new-URL path resets the synced baseline to the live text and would bless
             // unsaved edits as synced (letting a later external write clobber them).
+            reloadController.discardPendingSourceWriteConfirmation()
             backingDocument.fileURL = newURL
             backingDocument.fileModificationDate = LineformDocument.modificationDate(at: newURL)
             activeWindow?.representedURL = newURL
@@ -594,6 +596,9 @@ struct EditorContainerView: View {
             registerReloadWatcher()
         }
         .onAppear {
+            reloadController.onConfirmedSourceWrite = {
+                appReviewPromptStore.recordSuccessfulWrite()
+            }
             LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
             LineformDisplayModeMenuState.shared.setDisplayMode(displayMode)
             documentStatistics = DocumentStatistics(text: document.text)
@@ -668,6 +673,7 @@ struct EditorContainerView: View {
             await requestAppReviewAfterQuietPeriod()
         }
         .onDisappear {
+            reloadController.onConfirmedSourceWrite = nil
             reloadController.stop()
             // Drop any pending derived-refresh work for a window that's going away.
             pendingDerivedRefresh?.cancel()
@@ -1529,6 +1535,7 @@ struct EditorContainerView: View {
             onSaved: {
                 if replaceActiveTab(with: url) { whenOpenedHere() }
             },
+            didSaveSource: confirmExplicitSourceWrite,
             onFinish: { saveThenSwitchCoordinator = nil }
         )
         saveThenSwitchCoordinator = coordinator
@@ -1752,6 +1759,7 @@ struct EditorContainerView: View {
             tabStore: tabStore,
             document: backingDocument,
             closeSavedTab: { savedID in performCloseTab(id: savedID, owningWindow: owningWindow) },
+            didSaveSource: confirmExplicitSourceWrite,
             onFinish: { saveAndCloseCoordinator = nil }
         )
         saveAndCloseCoordinator = coordinator
@@ -1924,6 +1932,7 @@ struct EditorContainerView: View {
             tabIDs: ids,
             activateTab: { id in activateTabReturningDocument(id) },
             didSaveTab: { id, url in tabStore.updateFileURL(url, forTabID: id) },
+            didSaveSource: confirmExplicitSourceWrite,
             window: activeWindow,
             onFinish: { saveTabsBeforeCloseCoordinator = nil }
         )
@@ -1959,6 +1968,11 @@ struct EditorContainerView: View {
         }
     }
 
+    private func confirmExplicitSourceWrite() {
+        reloadController.discardPendingSourceWriteConfirmation()
+        appReviewPromptStore.recordSuccessfulWrite()
+    }
+
     /// Suppresses NSDocument autosave only until the writer has explicitly chosen a destination.
     /// Existing files retain the system's native autosave behavior.
     private func clearUntitledAutosaveStateIfNeeded() {
@@ -1970,6 +1984,8 @@ struct EditorContainerView: View {
     }
 
     private func applyReload(_ result: ReloadResult) {
+        // This disk change is external, not the completion of Lineform's pending serialization.
+        reloadController.discardPendingSourceWriteConfirmation()
         // Defensive identity re-check at APPLY time. applyDiskSnapshot guards snapshotURL==url at
         // PUBLISH time and sets lastSyncedText to exactly the published text, but a tab switch
         // interleaving between the @Published mutation and this onChange delivery resets
@@ -2106,28 +2122,35 @@ struct EditorContainerView: View {
     }
 
     private var canPresentAppReviewPrompt: Bool {
-        guard let window = activeWindow, window.isMainWindow, window.attachedSheet == nil else {
-            return false
-        }
-        guard NSApp.modalWindow == nil else { return false }
-        return !isShowingSettings
-            && !isShowingQuickOpen
-            && !isShowingFindReplace
-            && !isShowingReadingInspector
-            && !isSearchFocused
-            && sidebarDialog == nil
-            && pdfExportErrorFileName == nil
-            && rtfExportErrorFileName == nil
-            && htmlExportErrorFileName == nil
-            && markdownSaveErrorFileName == nil
-            && saveAsConflictTabTitle == nil
-            && tabCloseDialog == nil
-            && sidebarSwitchDialog == nil
-            && !defaultMarkdownApp.isPromptVisible
-            && announcementStore.visible == nil
+        guard let window = activeWindow else { return false }
+        let hasInAppObstruction = isShowingSettings
+            || isShowingQuickOpen
+            || isShowingFindReplace
+            || isShowingReadingInspector
+            || isSearchFocused
+            || sidebarDialog != nil
+            || pdfExportErrorFileName != nil
+            || rtfExportErrorFileName != nil
+            || htmlExportErrorFileName != nil
+            || markdownSaveErrorFileName != nil
+            || saveAsConflictTabTitle != nil
+            || tabCloseDialog != nil
+            || sidebarSwitchDialog != nil
+            || defaultMarkdownApp.isPromptVisible
+            || announcementStore.visible != nil
+        return AppReviewPromptStore.canPresent(
+            isApplicationActive: NSApp.isActive,
+            isMainWindow: window.isMainWindow,
+            hasAttachedSheet: window.attachedSheet != nil,
+            hasModalWindow: NSApp.modalWindow != nil,
+            hasInAppObstruction: hasInAppObstruction
+        )
     }
 
     private func resetTransientDocumentState() {
+        // A pending disk confirmation belongs to the outgoing document. Never let a later file
+        // event for the incoming tab turn an earlier failed serialization into engagement.
+        reloadController.discardPendingSourceWriteConfirmation()
         // Read-aloud belongs to the DOCUMENT, not the window. This is the single choke point every
         // document swap goes through (tab activate, tab close, sidebar open, cross-file open), and
         // `stop()` was wired only to `NSWindow.willCloseNotification` — so switching files kept
@@ -2419,11 +2442,16 @@ struct EditorContainerView: View {
             if let backingDocument = activeWindow?.windowController?.document as? NSDocument {
                 let fileType = LineformDocument.contentType(for: url).identifier
                 backingDocument.save(to: url, ofType: fileType, for: .saveAsOperation) { error in
-                    if error != nil { markdownSaveErrorFileName = url.lastPathComponent }
+                    if error != nil {
+                        markdownSaveErrorFileName = url.lastPathComponent
+                    } else {
+                        confirmExplicitSourceWrite()
+                    }
                 }
             } else {
                 do {
                     try Data(document.text.utf8).write(to: url, options: .atomic)
+                    confirmExplicitSourceWrite()
                 } catch {
                     markdownSaveErrorFileName = url.lastPathComponent
                 }
