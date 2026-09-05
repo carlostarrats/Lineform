@@ -9,7 +9,7 @@ import SwiftUI
 final class SaveAndCloseCoordinator: NSObject {
     private let targetID: UUID
     private let tabStore: EditorTabStore
-    private weak var activeWindow: NSWindow?
+    private let closeSavedTab: (UUID) -> Void
     private let document: NSDocument
     /// Cleared when the save chain ends, so the view can drop its reference. Without it this
     /// coordinator — and the `NSDocument` and `EditorTabStore` it holds STRONGLY — stayed alive
@@ -21,14 +21,14 @@ final class SaveAndCloseCoordinator: NSObject {
     init(
         targetID: UUID,
         tabStore: EditorTabStore,
-        activeWindow: NSWindow?,
         document: NSDocument,
+        closeSavedTab: @escaping (UUID) -> Void,
         onFinish: (() -> Void)? = nil
     ) {
         self.targetID = targetID
         self.tabStore = tabStore
-        self.activeWindow = activeWindow
         self.document = document
+        self.closeSavedTab = closeSavedTab
         self.onFinish = onFinish
         super.init()
     }
@@ -44,11 +44,19 @@ final class SaveAndCloseCoordinator: NSObject {
     @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
         // A cancelled save panel leaves the tab open — and still ends the chain, so the
         // coordinator is released rather than lingering for a callback that will never come.
-        defer { finish() }
-        guard didSave else { return }
-        tabStore.closeTab(id: targetID)
-        if tabStore.tabs.isEmpty {
-            activeWindow?.performClose(nil)
+        guard didSave else {
+            finish()
+            return
+        }
+        // AppKit still owns the save serialization activity while delivering this callback.
+        // Closing synchronously waits on that same activity and deadlocks the main thread.
+        // Let it unwind, then use the container's ordinary close path, which retains the final
+        // tab until DocumentGroup dismisses the scene and activates a sibling for other closes.
+        let savedURL = document.fileURL
+        DispatchQueue.main.async { [self] in
+            defer { finish() }
+            tabStore.updateFileURL(savedURL, forTabID: targetID)
+            closeSavedTab(targetID)
         }
     }
 
@@ -133,7 +141,9 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
         if let savedID {
             didSaveTab(savedID, document.fileURL)
         }
-        saveNext()
+        // Repointing/saving the same window document or closing its window from inside this
+        // callback re-enters AppKit's still-active save serialization activity and can deadlock.
+        DispatchQueue.main.async { [self] in saveNext() }
     }
 
     private func finish() {

@@ -23,6 +23,156 @@ import XCTest
 /// Do not weaken or delete these tests; see CLAUDE.md ("Verification Commands").
 final class EditorDrawerMotionHostedTests: XCTestCase {
     @MainActor
+    private final class SaveCompletionDocument: NSDocument {
+        var saveSucceeded = true
+        var isDeliveringSaveCompletion = false
+
+        override func save(withDelegate delegate: Any?, didSave didSaveSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+            guard let delegate = delegate as? NSObject, let didSaveSelector else { return }
+            typealias Callback = @convention(c) (AnyObject, Selector, NSDocument, Bool, UnsafeMutableRawPointer?) -> Void
+            let callback = unsafeBitCast(delegate.method(for: didSaveSelector), to: Callback.self)
+            isDeliveringSaveCompletion = true
+            callback(delegate, didSaveSelector, self, saveSucceeded, contextInfo)
+            isDeliveringSaveCompletion = false
+        }
+    }
+
+    @MainActor
+    private final class CloseProbeWindow: NSWindow {
+        var onClose: (() -> Void)?
+
+        override func performClose(_ sender: Any?) {
+            onClose?()
+        }
+    }
+
+    @MainActor
+    func testSaveAndCloseDoesNotRemoveTheFinalTabOrCloseInsideTheSaveCallback() async throws {
+        let store = EditorTabStore(initialDocument: LineformDocument(text: "Unsaved QA text"))
+        let tabID = try XCTUnwrap(store.selectedTabID)
+        let document = SaveCompletionDocument()
+        let window = CloseProbeWindow()
+        window.isReleasedWhenClosed = false
+        var closedInsideSaveCallback = false
+        let closed = expectation(description: "The saved tab reaches the scene close path")
+        window.onClose = { closedInsideSaveCallback = document.isDeliveringSaveCompletion }
+        let coordinator = SaveAndCloseCoordinator(
+            targetID: tabID,
+            tabStore: store,
+            document: document,
+            closeSavedTab: { id in
+                XCTAssertEqual(id, tabID)
+                XCTAssertEqual(store.selectedTabID, tabID)
+                window.performClose(nil)
+                closed.fulfill()
+            }
+        )
+
+        coordinator.start()
+
+        XCTAssertFalse(closedInsideSaveCallback, "Closing here waits on NSDocument's still-active save serialization semaphore.")
+        XCTAssertEqual(store.selectedTabID, tabID, "The final tab must stay alive until DocumentGroup dismisses its scene.")
+        XCTAssertEqual(store.tabs.count, 1)
+        await fulfillment(of: [closed], timeout: 2)
+        XCTAssertFalse(closedInsideSaveCallback)
+    }
+
+    @MainActor
+    func testCancelledSaveDoesNotCloseOrRetargetTheTab() {
+        let store = EditorTabStore(initialDocument: LineformDocument(text: "Keep this draft"))
+        let tabID = store.selectedTabID!
+        let document = SaveCompletionDocument()
+        document.saveSucceeded = false
+        var finished = false
+        let coordinator = SaveAndCloseCoordinator(
+            targetID: tabID,
+            tabStore: store,
+            document: document,
+            closeSavedTab: { _ in XCTFail("Cancelled saves must not close a tab") },
+            onFinish: { finished = true }
+        )
+        coordinator.start()
+        XCTAssertTrue(finished)
+        XCTAssertEqual(store.selectedTabID, tabID)
+        XCTAssertNil(store.selectedTab?.fileURL)
+        XCTAssertEqual(store.selectedTab?.document.text, "Keep this draft")
+    }
+
+    @MainActor
+    func testSaveAllUnwindsEachSaveBeforeActivatingAnotherTabOrClosing() async {
+        let firstID = UUID()
+        let secondID = UUID()
+        let document = SaveCompletionDocument()
+        let window = CloseProbeWindow()
+        window.isReleasedWhenClosed = false
+        let finished = expectation(description: "Save All finishes")
+        var savedIDs: [UUID] = []
+        var activatedInsideSave = false
+        var closedInsideSave = false
+        window.onClose = { closedInsideSave = document.isDeliveringSaveCompletion }
+        let coordinator = SaveTabsBeforeCloseCoordinator(
+            tabIDs: [firstID, secondID],
+            activateTab: { id in
+                activatedInsideSave = activatedInsideSave || document.isDeliveringSaveCompletion
+                if id == secondID { XCTAssertEqual(savedIDs, [firstID]) }
+                return document
+            },
+            didSaveTab: { id, _ in savedIDs.append(id) },
+            window: window,
+            onFinish: { finished.fulfill() }
+        )
+        coordinator.start()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertEqual(savedIDs, [firstID, secondID])
+        XCTAssertFalse(activatedInsideSave, "The next tab must not repoint the NSDocument inside its previous save callback.")
+        XCTAssertFalse(closedInsideSave, "Window closing must not re-enter NSDocument's save serialization activity.")
+    }
+
+    @MainActor
+    func testWindowSaveAllStartsOnlyAfterTheNativeCloseAttemptReturns() async {
+        let store = EditorTabStore(initialDocument: LineformDocument(text: "Unsaved draft"))
+        let window = CloseProbeWindow()
+        window.isReleasedWhenClosed = false
+        let controller = WindowCloseController()
+        controller.tabStore = store
+        controller.documentSaveStatus = DocumentSaveStatus.shared
+        controller.presentCloseAlert = { _ in .alertFirstButtonReturn }
+        let started = expectation(description: "Save All starts after close unwinds")
+        var closeAttemptReturned = false
+        controller.saveTabsAndClose = { ids in
+            XCTAssertTrue(closeAttemptReturned)
+            XCTAssertEqual(ids, store.tabs.map(\.id))
+            started.fulfill()
+        }
+        XCTAssertFalse(controller.windowShouldClose(window))
+        closeAttemptReturned = true
+        await fulfillment(of: [started], timeout: 2)
+    }
+
+    @MainActor
+    func testSaveAllCancellationKeepsRemainingTabsOpen() async {
+        let firstID = UUID()
+        let secondID = UUID()
+        let document = SaveCompletionDocument()
+        document.saveSucceeded = false
+        let window = CloseProbeWindow()
+        window.isReleasedWhenClosed = false
+        window.onClose = { XCTFail("Cancel must keep the window open") }
+        var activated: [UUID] = []
+        var didFinish = false
+        let coordinator = SaveTabsBeforeCloseCoordinator(
+            tabIDs: [firstID, secondID],
+            activateTab: { id in activated.append(id); return document },
+            didSaveTab: { _, _ in XCTFail("A cancelled save must not retarget a tab") },
+            window: window,
+            onFinish: { didFinish = true }
+        )
+        coordinator.start()
+        XCTAssertTrue(didFinish)
+        XCTAssertEqual(activated, [firstID])
+    }
+
+    @MainActor
     func testZEditorVisibleTextDoesNotJumpVerticallyWhenOutlineDrawerOpens() throws {
         let harness = try makeEditorDrawerHarness()
         let textView = try XCTUnwrap(harness.hostingView.descendants(ofType: LineformTextView.self).first)

@@ -69,7 +69,7 @@ tab is selected the status line still reads "Last save: <time>", affirmatively i
 is on disk while the file is in the Trash. The dot now reads `hasUnsavedWork`.
 
 **Save All orphaned an untitled tab from the file it had just saved.**
-`SaveTabsBeforeCloseCoordinator` drives the whole queue synchronously from its `didSave` callback,
+`SaveTabsBeforeCloseCoordinator` originally drove the whole queue synchronously from its `didSave` callback,
 and `activateTab` assigns `backingDocument.fileURL = tab.fileURL` — so activating the NEXT tab
 clobbered the URL AppKit had just minted for the untitled one before the view's async
 `currentFileURL` write-back could run. The store kept `fileURL == nil`, so `windowShouldClose`
@@ -80,6 +80,23 @@ panel instead left the tab permanently detached: title "Untitled", and every lat
 now takes a `didSaveTab` closure wired to `EditorTabStore.updateFileURL(_:forTabID:)` and records the
 URL before advancing. It affects every tab in the queue except the last, so it needs ≥2 dirty tabs
 with the untitled one not last.
+
+## Native save/close serialization (runtime QA, 2026-09-04)
+
+Do not start a save from inside `WindowCloseController.windowShouldClose`, or close a window
+from inside an `NSDocument` save delegate callback. Both paths deadlocked the real app on
+macOS 26.6.2: main-thread samples stopped in `_NSDocumentSerializationSemaphore` while the
+same thread still owned AppKit's can-close/save activity. Save All must return `false` from
+the close attempt before starting its queue on the next main-queue turn. Each successful save
+must likewise unwind before activating/saving the next tab or closing the window. Keep the
+synchronous saved-URL write-back **before** advancing the queue.
+
+`SaveAndCloseCoordinator` delegates successful closure to the container's `performCloseTab`
+on that later turn. It must not remove the last tab itself or call `NSWindow.performClose`
+directly: the existing DocumentGroup scene-dismissal path owns that operation. Capture the
+alert's owning window before dismissing the alert. Cancelled saves end the coordinator without
+retargeting or closing the tab. Hosted callback-order tests and real Save/Save All panel runs
+cover these boundaries; no OS-specific visual policy changed.
 
 ## macOS 14 inspector titlebar separator
 

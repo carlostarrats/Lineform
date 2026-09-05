@@ -1725,6 +1725,10 @@ struct EditorContainerView: View {
     }
 
     private func saveAndCloseTab(id: UUID) {
+        let owningWindow = tabCloseDialog?.owningWindow
+            ?? windowCloseController?.window
+            ?? tabStore.window
+            ?? activeWindow
         tabCloseDialog = nil
 
         // The document backing the window must be the one we save. Switch first, then
@@ -1734,15 +1738,15 @@ struct EditorContainerView: View {
             activateSelectedTab()
         }
 
-        guard let backingDocument = activeWindow?.windowController?.document as? NSDocument else {
+        guard let backingDocument = owningWindow?.windowController?.document as? NSDocument else {
             return
         }
 
         let coordinator = SaveAndCloseCoordinator(
             targetID: id,
             tabStore: tabStore,
-            activeWindow: activeWindow,
             document: backingDocument,
+            closeSavedTab: { savedID in performCloseTab(id: savedID, owningWindow: owningWindow) },
             onFinish: { saveAndCloseCoordinator = nil }
         )
         saveAndCloseCoordinator = coordinator

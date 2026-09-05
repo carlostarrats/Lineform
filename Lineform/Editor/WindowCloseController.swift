@@ -13,6 +13,8 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
     /// Set by the container. Invoked with the ids of every unsaved tab when the user chooses
     /// "Save All"; the container saves them in turn and then closes the window.
     var saveTabsAndClose: (([UUID]) -> Void)?
+    /// The production presenter stays modal; hosted tests inject only the chosen response.
+    var presentCloseAlert: (NSAlert) -> NSApplication.ModalResponse = { $0.runModal() }
     /// Returns true when the window is allowed to close.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard let tabStore, let documentSaveStatus else {
@@ -45,14 +47,19 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
         alert.buttons[2].keyEquivalent = ""
         alert.alertStyle = .warning
 
-        switch alert.runModal() {
+        switch presentCloseAlert(alert) {
         case .alertFirstButtonReturn:
             // Save every unsaved tab (active included) then close. Returning false keeps the
             // window open now; the coordinator calls performClose once the saves succeed.
             let allDirtyIDs = tabStore.tabs
                 .filter { $0.hasUnsavedWork(documentSaveStatus: documentSaveStatus) }
                 .map(\.id)
-            saveTabsAndClose?(allDirtyIDs)
+            // AppKit may ask this delegate from inside its serialized can-close activity.
+            // Starting a save here waits for that activity to finish, which cannot happen until
+            // we return false. Resume only after the native close attempt has unwound.
+            DispatchQueue.main.async { [weak self] in
+                self?.saveTabsAndClose?(allDirtyIDs)
+            }
             return false
         case .alertThirdButtonReturn:
             // Don't Save — discard and proceed with the normal close.
