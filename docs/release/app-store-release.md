@@ -101,8 +101,9 @@ do not hardcode it into documentation or automation.
 - [ ] Install the build through TestFlight and launch it.
 - [ ] Choose a workspace, quit, relaunch, and open a file from that workspace. A same-session open
       panel grant can hide a broken security-scoped bookmark.
-- [ ] With no restored document, verify cold launch and Dock reopen show an untitled editor instead
-      of the generic Open browser. Verify the first-launch intro still owns a clean install.
+- [ ] With no restored document, verify cold launch's first visible Lineform window is the untitled
+      editor — the generic Open browser must not flash first. Verify Dock reopen behaves the same
+      way without an edge/shadow pulse, and the first-launch intro still owns a clean install.
 - [ ] Verify File ▸ Open replaces only a pristine untitled tab, opens beside edited/file-backed work
       in the same window, and does not flash or leave a second window behind.
 - [ ] Close the opened file, then close an edited untitled final tab. Confirm Save, Cancel, and
@@ -110,6 +111,12 @@ do not hardcode it into documentation or automation.
 - [ ] Open or save a Markdown file, relaunch, and verify the default-app invitation appears once on
       that later launch. Confirm Not Now stays dismissed and Settings keeps the Make Default action.
 - [ ] Exercise the iCloud Files root, document autosave, Quick Look, export, and print.
+- [ ] Do not treat the absence of the App Store rating sheet as a TestFlight defect: StoreKit
+      suppresses review prompts in TestFlight. In a local Debug build, launch with
+      `LINEFORM_FORCE_REVIEW_PROMPT=1` and verify the QA trace reaches `requesting StoreKit system
+      sheet` over an unobstructed editor after the four-second quiet period, then does not request
+      again for that app version. Inspect the system sheet in an Xcode development run; StoreKit
+      can suppress the UI for a standalone ad-hoc launch. Never replace it with a custom pre-prompt.
 
 A TestFlight build uses the production bundle ID and iCloud container. Installing it can replace the
 store copy. Do not delete it casually while signed into the production iCloud account; deletion can

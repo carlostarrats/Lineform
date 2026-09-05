@@ -11,7 +11,7 @@ struct LineformApp: App {
     }
 
     var body: some Scene {
-        DocumentGroup(newDocument: LineformDocument()) { file in
+        let documentGroup = DocumentGroup(newDocument: LineformDocument()) { file in
             EditorContainerView(document: file.$document)
         }
         .defaultSize(
@@ -24,6 +24,12 @@ struct LineformApp: App {
         // Settings deliberately has NO `Settings { }` scene: it presents as a
         // Muse-style in-window modal (SettingsModal, same chrome as the Info
         // modal) via the Settings… item AppCommands adds to the app menu (⌘,).
+
+        if #available(macOS 15.0, *) {
+            return documentGroup.defaultLaunchBehavior(.suppressed)
+        } else {
+            return documentGroup
+        }
     }
 }
 

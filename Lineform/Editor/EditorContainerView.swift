@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import UniformTypeIdentifiers
 
 struct SplitScrollJumpPlan: Equatable {
@@ -18,6 +19,7 @@ struct EditorContainerView: View {
     @Binding var document: LineformDocument
     @StateObject private var readingProfileStore: ReadingProfileStore
     @ObservedObject private var documentSaveStatus = DocumentSaveStatus.shared
+    @ObservedObject private var appReviewPromptStore = AppReviewPromptStore.shared
     /// Shared, so the same announcement is on screen in every window and dismissing it
     /// anywhere dismisses it everywhere — one announcement, one decision.
     @ObservedObject private var announcementStore = AnnouncementStore.shared
@@ -661,6 +663,9 @@ struct EditorContainerView: View {
             // Flash a green save confirmation only for this document's real writes.
             guard let event, event.documentID == document.id else { return }
             flashStatus(event.kind == .manual ? .saved : .autosaved)
+        }
+        .task(id: appReviewPromptStore.activityRevision) {
+            await requestAppReviewAfterQuietPeriod()
         }
         .onDisappear {
             reloadController.stop()
@@ -2073,6 +2078,53 @@ struct EditorContainerView: View {
         }
 
         return NSApp.windows.first { $0.windowNumber == windowNumber }
+    }
+
+    /// Ask only from the active, unobstructed editor after saves have been quiet for a
+    /// few seconds. A new real write changes the task id and cancels/restarts this delay.
+    private func requestAppReviewAfterQuietPeriod() async {
+        guard appReviewPromptStore.isEligible() else { return }
+        do {
+            try await Task.sleep(for: AppReviewPromptStore.presentationDelay)
+        } catch {
+            return
+        }
+        #if DEBUG
+        if AppReviewPromptStore.debugForcePrompt {
+            AppReviewPromptStore.debugLog("quiet period ended; presentation ready = \(canPresentAppReviewPrompt)")
+        }
+        #endif
+        guard !Task.isCancelled, canPresentAppReviewPrompt else { return }
+        guard let viewController = activeWindow?.contentViewController else { return }
+        guard appReviewPromptStore.claimPromptIfEligible() else { return }
+        #if DEBUG
+        if AppReviewPromptStore.debugForcePrompt {
+            AppReviewPromptStore.debugLog("requesting StoreKit system sheet")
+        }
+        #endif
+        AppStore.requestReview(in: viewController)
+    }
+
+    private var canPresentAppReviewPrompt: Bool {
+        guard let window = activeWindow, window.isMainWindow, window.attachedSheet == nil else {
+            return false
+        }
+        guard NSApp.modalWindow == nil else { return false }
+        return !isShowingSettings
+            && !isShowingQuickOpen
+            && !isShowingFindReplace
+            && !isShowingReadingInspector
+            && !isSearchFocused
+            && sidebarDialog == nil
+            && pdfExportErrorFileName == nil
+            && rtfExportErrorFileName == nil
+            && htmlExportErrorFileName == nil
+            && markdownSaveErrorFileName == nil
+            && saveAsConflictTabTitle == nil
+            && tabCloseDialog == nil
+            && sidebarSwitchDialog == nil
+            && !defaultMarkdownApp.isPromptVisible
+            && announcementStore.visible == nil
     }
 
     private func resetTransientDocumentState() {

@@ -176,6 +176,8 @@
 		1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C6 /* AnnouncementFetcher.swift */; };
 		1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C7 /* AnnouncementStore.swift */; };
 		1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C8 /* AnnouncementCard.swift */; };
+		1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CB /* AppReviewPromptStore.swift */; };
+		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
 		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
 		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
@@ -391,6 +393,8 @@
 		1F00000200000000000004C6 /* AnnouncementFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFetcher.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C7 /* AnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementStore.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C8 /* AnnouncementCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementCard.swift; sourceTree = "<group>"; };
+		1F00000200000000000004CB /* AppReviewPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStore.swift; sourceTree = "<group>"; };
+		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A1 /* DocumentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTab.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A2 /* EditorTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStore.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
@@ -485,6 +489,7 @@
 				1F00000200000000000004C5 /* AnnouncementFeed.swift */,
 				1F00000200000000000004C6 /* AnnouncementFetcher.swift */,
 				1F00000200000000000004C7 /* AnnouncementStore.swift */,
+				1F00000200000000000004CB /* AppReviewPromptStore.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
 			);
 			path = App;
@@ -650,6 +655,7 @@
 				1F0000020000000000000044 /* ReadingProfileStoreTests.swift */,
 				1F0000020000000000000322 /* LineformSettingsTests.swift */,
 				1F00000200000000000004C9 /* AnnouncementTests.swift */,
+				1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */,
 				1F00000200000000000004CA /* TestDefaultsSupport.swift */,
 				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
@@ -929,6 +935,7 @@
 				1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */,
 				1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */,
 				1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */,
+				1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */,
 				1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
 				1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */,
@@ -1022,6 +1029,7 @@
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
+				1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */,
 				1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */,
 				1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */,
 				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,
@@ -1229,7 +1237,7 @@
 				CODE_SIGN_ENTITLEMENTS = Lineform/LineformDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
@@ -1237,7 +1245,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.1;
+				MARKETING_VERSION = 1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
@@ -1252,7 +1260,7 @@
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
@@ -1260,7 +1268,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.1;
+				MARKETING_VERSION = 1.7;
 				PROVISIONING_PROFILE_SPECIFIER = "Lineform Mac App Store";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1301,7 +1309,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 28;
  				DEVELOPMENT_TEAM = "";
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1313,7 +1321,7 @@
  					"@executable_path/../../../../Frameworks",
  				);
  				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
-				MARKETING_VERSION = 1.6.1;
+				MARKETING_VERSION = 1.7;
  				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.debug.quicklook;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				SKIP_INSTALL = YES;
@@ -1327,7 +1335,7 @@
 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1339,7 +1347,7 @@
  					"@executable_path/../../../../Frameworks",
  				);
  				MACOSX_DEPLOYMENT_TARGET = "$(MACOSX_DEPLOYMENT_TARGET)";
-				MARKETING_VERSION = 1.6.1;
+				MARKETING_VERSION = 1.7;
 				PROVISIONING_PROFILE_SPECIFIER = "Lineform Quick Look Mac App Store";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.quicklook;
  				PRODUCT_NAME = "$(TARGET_NAME)";

@@ -918,6 +918,8 @@ struct WindowChromeReader: NSViewRepresentable {
     /// NavigationSplitView sidebar-toggle glyph and NSColor.secondaryLabelColor in the
     /// empty-state placeholder — flashed dark-on-dark in the Quiet theme.
     final class ChromeView: NSView {
+        private static let initialWindowRevealDelay: TimeInterval = 0.5
+
         var usesDarkChrome = false
         var pageBackground: NSColor?
         var onWindowChanged: ((NSWindow?) -> Void)?
@@ -925,6 +927,26 @@ struct WindowChromeReader: NSViewRepresentable {
         private var appliedDarkChrome: Bool?
         private var appliedPageBackground: NSColor?
         private var appearanceObservation: NSKeyValueObservation?
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if #available(macOS 26.0, *),
+               let newWindow,
+               !newWindow.isVisible,
+               newWindow.alphaValue > 0 {
+                // macOS 26 applies a compositor-level spring to a fresh SwiftUI document window
+                // even when NSWindow's automatic animation is disabled. Keep that transient
+                // surface transparent; once it has settled, reveal the final window in one frame.
+                newWindow.animationBehavior = .none
+                newWindow.alphaValue = 0
+                let windowToReveal = newWindow
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + Self.initialWindowRevealDelay
+                ) { [weak windowToReveal] in
+                    windowToReveal?.alphaValue = 1
+                }
+            }
+            super.viewWillMove(toWindow: newWindow)
+        }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()

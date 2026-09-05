@@ -83,6 +83,7 @@ enum LineformLaunchDefaults {
 
 @MainActor
 final class LineformAppDelegate: NSObject, NSApplicationDelegate {
+    private static let coldLaunchDocumentDelay: TimeInterval = 0.25
     private let firstLaunchIntroPresenter = FirstLaunchIntroPresenter()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -91,7 +92,7 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        DispatchQueue.main.async { [firstLaunchIntroPresenter] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.coldLaunchDocumentDelay) { [firstLaunchIntroPresenter] in
             firstLaunchIntroPresenter.showIfNeeded()
             if !AnnouncementStore.isRunningUnderTests {
                 firstLaunchIntroPresenter.openColdLaunchDocumentIfNeeded()
@@ -184,11 +185,9 @@ final class FirstLaunchIntroPresenter {
         show()
     }
 
-    /// SwiftUI's macOS document launch fallback can present its generic Open browser when there is
-    /// no restoration state, even though the app delegate allows an untitled document. Reassert the
-    /// product's fresh-untitled launch after SwiftUI has installed its scenes. A file-open launch has
-    /// already registered its document by this point, and the first-launch intro owns its own New
-    /// transition, so neither path receives an extra window.
+    /// Create Lineform's ordinary untitled editor after SwiftUI has installed its scenes. A
+    /// file-open launch has registered its document by this point and the first-launch intro owns
+    /// its own New transition.
     func openColdLaunchDocumentIfNeeded(
         hasOpenDocuments: Bool = !NSDocumentController.shared.documents.isEmpty,
         shouldShowIntro: Bool = FirstLaunchIntroPresenter.shouldShowIntro,
