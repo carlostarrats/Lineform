@@ -100,6 +100,30 @@ alert's owning window before dismissing the alert. Cancelled saves end the coord
 retargeting or closing the tab. Hosted callback-order tests and real Save/Save All panel runs
 cover these boundaries; no OS-specific visual policy changed.
 
+**Intermittent final-tab and open identity races (2026-09-18):** the final-tab path must use
+SwiftUI's window-specific `dismissWindow` environment action. The generic `dismiss` action is
+presentation-relative; while the tab's save alert is unwinding it can consume that presentation
+instead of closing the DocumentGroup scene, which leaves the approved tab/window open. Keep the
+final tab in the store, prepare the native close delegate, and invoke `dismissWindow` on the next
+main-queue turn.
+
+SwiftUI can also deliver an outgoing document binding's text/format or file-URL observation after
+the selected tab has changed. Every text/format write-back must verify the document UUID still
+matches the selected tab before it touches the tab snapshot, reload baseline, dirty state, or
+derived UI. The DocumentGroup's late initial file URL is captured only once against that same
+document UUID. Later retargets come only from a successful save callback carrying the captured tab
+ID; a generic "update the active tab URL" observer can attach a cancelled Save panel or the outgoing
+file to the incoming tab. A save-then-sidebar-switch continuation must likewise wait one main-queue
+turn for AppKit's save callback to unwind before repointing the shared `NSDocument`.
+
+That shared `NSDocument` also means its implicit Save panel can retain the outgoing saved tab's
+suggested filename after an untitled tab is activated. Save-and-close, Save All, and
+save-then-sidebar-switch therefore route an untitled tab through one explicit native `NSSavePanel`
+named `Untitled.md`, keyed to the tab ID, and then call `NSDocument.save(to:ofType:for:)`. The same
+app-wide `SaveAsConflict` guard runs before the write. Saved tabs still use ordinary native Save.
+Without this override, saving a background untitled tab can suggest a sibling's real filename and
+put that file behind the panel's Replace action.
+
 ## macOS 14 inspector titlebar separator
 
 Sonoma's native SwiftUI inspector draws its leading separator through the window toolbar. The

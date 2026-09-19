@@ -176,6 +176,38 @@ final class EditorTabStoreTests: XCTestCase {
         XCTAssertEqual(store.selectedTab?.document.textFormat, .plainText)
     }
 
+    func testLateTextNotificationCannotReplaceNewlySelectedTabsDocument() {
+        let store = makeStore(text: "Alpha stays with alpha")
+        let oldDocument = store.selectedTab!.document
+        let second = store.openTab(document: makeDocument("Beta stays with beta"), fileURL: url("/tmp/beta.md"))
+
+        var lateEdit = oldDocument
+        lateEdit.text = "Delayed alpha notification"
+        store.updateActiveTab(document: lateEdit)
+
+        XCTAssertEqual(store.selectedTabID, second)
+        XCTAssertEqual(store.selectedTab?.document.text, "Beta stays with beta")
+        XCTAssertEqual(store.tabs[0].document.text, "Alpha stays with alpha")
+    }
+
+    func testInitialExternalOpenURLIsCapturedOnlyOnce() {
+        let initial = makeDocument("First")
+        let store = EditorTabStore(initialDocument: initial)
+        let firstURL = url("/tmp/first.md")
+        store.captureInitialFileURL(nil, forDocumentID: initial.id)
+        store.captureInitialFileURL(firstURL, forDocumentID: initial.id)
+        XCTAssertEqual(store.selectedTab?.fileURL, firstURL)
+
+        // A late URL notification from another document or a cancelled save panel must not
+        // replace the initial identity. A subsequent tab switch cannot capture it either.
+        store.captureInitialFileURL(url("/tmp/phantom.md"), forDocumentID: initial.id)
+        let second = store.openTab(document: makeDocument("Second"), fileURL: url("/tmp/second.md"))
+        store.captureInitialFileURL(firstURL, forDocumentID: initial.id)
+        XCTAssertEqual(store.selectedTabID, second)
+        XCTAssertEqual(store.selectedTab?.fileURL, url("/tmp/second.md"))
+        XCTAssertEqual(store.tabs[0].fileURL, firstURL)
+    }
+
     // MARK: - Rename retargeting
 
     func testRetargetFileURLUpdatesExactMatch() {

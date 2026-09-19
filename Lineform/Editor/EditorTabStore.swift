@@ -87,6 +87,10 @@ final class EditorTabStore: ObservableObject {
     /// by `EditorContainerView` (the view is what learns its window). Not weak — it's an Int
     /// identifier, resolved against `NSApp.windows` on use, so a closed window just resolves to nil.
     var windowNumber: Int?
+    /// DocumentGroup supplies its opened URL after the FileDocument binding is constructed.
+    /// Capture that initial URL only once; later URL notifications may belong to an outgoing
+    /// tab or to a cancelled Save panel and must never retarget whichever tab is now selected.
+    private var didCaptureInitialFileURL = false
 
     var window: NSWindow? {
         guard let windowNumber else { return nil }
@@ -232,17 +236,24 @@ final class EditorTabStore: ObservableObject {
 
     func updateActiveTab(document: LineformDocument) {
         guard let index = selectedTabIndex else { return }
+        guard tabs[index].document.id == document.id else { return }
         tabs[index].document = document
     }
 
-    func updateActiveTabFileURL(_ url: URL?) {
-        guard let index = selectedTabIndex else { return }
+    func captureInitialFileURL(_ url: URL?, forDocumentID documentID: UUID) {
+        guard let url,
+              !didCaptureInitialFileURL,
+              tabs.count == 1,
+              let index = selectedTabIndex,
+              tabs[index].document.id == documentID
+        else { return }
+        didCaptureInitialFileURL = true
         tabs[index].fileURL = url
     }
 
-    /// Sets a specific tab's file URL. Unlike `updateActiveTabFileURL`, this does not assume the
-    /// tab is selected: the Save-All-before-close chain saves each tab in turn and has already
-    /// activated the NEXT one by the time it can record where the previous one landed.
+    /// Sets a specific tab's file URL. It deliberately does not assume the tab is selected:
+    /// save completions are asynchronous, and the Save-All-before-close chain can activate the
+    /// NEXT tab before a later observer sees where the previous one landed.
     func updateFileURL(_ url: URL?, forTabID id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         tabs[index].fileURL = url

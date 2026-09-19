@@ -27,7 +27,10 @@ struct EditorContainerView: View {
     /// per-document preference. The prompt is offered once; Settings remains the durable route.
     @ObservedObject private var defaultMarkdownApp: DefaultMarkdownAppStore
     @StateObject private var tabStore: EditorTabStore
-    @Environment(\.dismiss) private var dismissWindow
+    // Use the window-specific action, not the generic presentation dismiss action. While a
+    // close/save alert is unwinding, `dismiss()` can target that modal presentation instead of
+    // the DocumentGroup scene — the sheet disappears but the intended final tab/window remains.
+    @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
     @State private var isShowingSettings = false
@@ -498,7 +501,10 @@ struct EditorContainerView: View {
             if activeWindow?.isKeyWindow == true {
                 LineformCurrentFileMenuState.shared.setCurrentFileURL(newValue)
             }
-            tabStore.updateActiveTabFileURL(newValue)
+            // URL changes during tab activation and a cancelled native Save panel are not
+            // evidence that the selected tab was saved at that URL. The initial external-open
+            // URL is captured once in registerReloadWatcher; successful saves retarget their
+            // specific tab in their NSDocument completion callback.
             defaultMarkdownApp.recordMarkdownUse(fileURL: newValue)
             // A window opened by Finder/CLI/App Intents for a file another window already holds
             // hands it back and closes, instead of becoming a second live copy that autosaves over
@@ -618,6 +624,9 @@ struct EditorContainerView: View {
             defaultMarkdownApp.recordMarkdownUse(fileURL: currentFileURL)
         }
         .onChange(of: document.textFormat) { _, newValue in
+            // SwiftUI may deliver an outgoing binding's change after a tab switch. Never let
+            // that stale callback mutate menu/store state for the newly selected document.
+            guard tabStore.selectedTab?.document.id == document.id else { return }
             LineformTextFormatMenuState.shared.setTextFormat(newValue)
             // The tab snapshot is otherwise only refreshed by the `document.text` observer below,
             // so a conversion that changes the FORMAT without changing the text — Convert to Plain
@@ -626,6 +635,9 @@ struct EditorContainerView: View {
             tabStore.updateActiveTab(document: document)
         }
         .onChange(of: document.text) { _, newValue in
+            // A delayed notification from the outgoing tab must not overwrite the incoming
+            // tab's reload baseline, dirty state, derived UI, or document snapshot.
+            guard tabStore.selectedTab?.document.id == document.id else { return }
             // Instant, cheap, must stay accurate on every keystroke: external-reload text
             // tracking and the dirty/unsaved flag. (The latter is load-bearing for autosave
             // and for future Read-mode checkbox edits — never debounce it.)
@@ -1527,11 +1539,22 @@ struct EditorContainerView: View {
     /// they were, with nothing written and nothing swapped.
     private func saveThenSwitch(to url: URL, whenOpenedHere: @escaping () -> Void) {
         sidebarSwitchDialog = nil
-        guard let backingDocument = activeWindow?.windowController?.document as? NSDocument else {
+        guard let savingTabID = tabStore.selectedTabID,
+              let owningWindow = activeWindow,
+              let backingDocument = owningWindow.windowController?.document as? NSDocument
+        else {
             return
         }
         let coordinator = SaveThenContinueCoordinator(
             document: backingDocument,
+            saveOverride: { document, completion in
+                saveUntitledTabIfNeeded(
+                    id: savingTabID,
+                    document: document,
+                    owningWindow: owningWindow,
+                    completion: completion
+                )
+            },
             onSaved: {
                 if replaceActiveTab(with: url) { whenOpenedHere() }
             },
@@ -1758,6 +1781,14 @@ struct EditorContainerView: View {
             targetID: id,
             tabStore: tabStore,
             document: backingDocument,
+            saveOverride: { document, completion in
+                saveUntitledTabIfNeeded(
+                    id: id,
+                    document: document,
+                    owningWindow: owningWindow,
+                    completion: completion
+                )
+            },
             closeSavedTab: { savedID in performCloseTab(id: savedID, owningWindow: owningWindow) },
             didSaveSource: confirmExplicitSourceWrite,
             onFinish: { saveAndCloseCoordinator = nil }
@@ -1901,11 +1932,13 @@ struct EditorContainerView: View {
         // Appear/open/sidebar-swap registration. `register` resets the baseline only for a
         // NEW url (a memory==disk moment); re-appearing at the same url preserves baselines
         // so unsaved edits are never blessed as synced. Saves go through noteSavedToReloadWatcher.
-        reloadController.register(url: reloadWatcherURL, syncedText: document.text)
+        let url = reloadWatcherURL
+        tabStore.captureInitialFileURL(url, forDocumentID: document.id)
+        reloadController.register(url: url, syncedText: document.text)
         // Same source of truth drives the Files-tab selection highlight; keep it in step with
         // every watcher retarget (appear, window bind, sidebar swap) so the blue row follows
         // the document actually on screen.
-        currentFileURL = reloadWatcherURL
+        currentFileURL = url
     }
 
     private func installWindowCloseControllerIfNeeded() {
@@ -1928,12 +1961,21 @@ struct EditorContainerView: View {
             activeWindow?.performClose(nil)
             return
         }
+        let owningWindow = activeWindow
         let coordinator = SaveTabsBeforeCloseCoordinator(
             tabIDs: ids,
             activateTab: { id in activateTabReturningDocument(id) },
             didSaveTab: { id, url in tabStore.updateFileURL(url, forTabID: id) },
             didSaveSource: confirmExplicitSourceWrite,
-            window: activeWindow,
+            saveOverride: { id, document, completion in
+                saveUntitledTabIfNeeded(
+                    id: id,
+                    document: document,
+                    owningWindow: owningWindow,
+                    completion: completion
+                )
+            },
+            window: owningWindow,
             onFinish: { saveTabsBeforeCloseCoordinator = nil }
         )
         saveTabsBeforeCloseCoordinator = coordinator
@@ -1971,6 +2013,65 @@ struct EditorContainerView: View {
     private func confirmExplicitSourceWrite() {
         reloadController.discardPendingSourceWriteConfirmation()
         appReviewPromptStore.recordSuccessfulWrite()
+    }
+
+    /// An untitled tab shares one backing NSDocument with every sibling tab in the window.
+    /// After another tab was active, AppKit's implicit save panel could inherit that outgoing
+    /// file's name (for example `beta.md`) even though `fileURL` had been cleared. Accepting the
+    /// suggestion could overwrite the sibling. Own the native panel for untitled tabs so its
+    /// identity and destination are explicit; saved tabs still use ordinary NSDocument saving.
+    @discardableResult
+    private func saveUntitledTabIfNeeded(
+        id: UUID,
+        document backingDocument: NSDocument,
+        owningWindow: NSWindow?,
+        completion: @escaping (Bool) -> Void
+    ) -> Bool {
+        guard let tab = tabStore.tabs.first(where: { $0.id == id }), tab.fileURL == nil else {
+            return false
+        }
+
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "\(String(localized: "Untitled")).md"
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.directoryURL = NewDocumentSaveLocation.preferredDirectory(
+            showICloudInSidebar: settings.showICloudInSidebar,
+            workspaceURL: fileBrowserStore.workspaceURL,
+            documentsDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        )
+
+        let save: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else {
+                completion(false)
+                return
+            }
+            if let conflictingTab = SaveAsConflict.conflictingTabTitle(
+                destination: url,
+                tabs: EditorTabStore.allOpenTabs,
+                activeTabID: id
+            ) {
+                saveAsConflictTabTitle = conflictingTab
+                completion(false)
+                return
+            }
+            let fileType = LineformDocument.contentType(for: url).identifier
+            backingDocument.save(to: url, ofType: fileType, for: .saveAsOperation) { error in
+                if error != nil {
+                    markdownSaveErrorFileName = url.lastPathComponent
+                    completion(false)
+                } else {
+                    completion(true)
+                }
+            }
+        }
+
+        if let owningWindow {
+            panel.beginSheetModal(for: owningWindow, completionHandler: save)
+        } else {
+            save(panel.runModal())
+        }
+        return true
     }
 
     /// Suppresses NSDocument autosave only until the writer has explicitly chosen a destination.
@@ -2405,6 +2506,7 @@ struct EditorContainerView: View {
     /// File ▸ Save As… — retargets the document's own .md file. Markdown only: every other
     /// format is File ▸ Export As, which writes a COPY and leaves this document alone.
     private func saveAsDocument() {
+        let savingTabID = tabStore.selectedTabID
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
         let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "Untitled")
@@ -2445,6 +2547,9 @@ struct EditorContainerView: View {
                     if error != nil {
                         markdownSaveErrorFileName = url.lastPathComponent
                     } else {
+                        if let savingTabID {
+                            tabStore.updateFileURL(url, forTabID: savingTabID)
+                        }
                         confirmExplicitSourceWrite()
                     }
                 }

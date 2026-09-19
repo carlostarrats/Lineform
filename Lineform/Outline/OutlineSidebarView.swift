@@ -2464,6 +2464,10 @@ private struct OutlineFileTreeNodeView: View {
         }
         .contextMenu {
             rowActionButtons(ellipsized: true)
+                // macOS 27 hides symbol images in most SwiftUI menus by default. These icons are
+                // part of the Files menu's object/destination vocabulary and every row is iconed
+                // by design, so opt this one menu back into title-and-icon presentation.
+                .labelStyle(.titleAndIcon)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(OutlineSidebarView.fileRowAccessibilityLabel(name: item.name, isDirectory: item.isDirectory, isHidden: item.isHidden))

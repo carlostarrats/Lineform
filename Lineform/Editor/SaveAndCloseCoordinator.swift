@@ -1,6 +1,19 @@
 import AppKit
 import SwiftUI
 
+/// Lets the editor own an untitled tab's save panel while the coordinators retain the native
+/// NSDocument save callback ordering. Returning false falls back to `NSDocument.save`.
+typealias DocumentSaveOverride = (
+    _ document: NSDocument,
+    _ completion: @escaping (_ didSave: Bool) -> Void
+) -> Bool
+
+typealias TabDocumentSaveOverride = (
+    _ tabID: UUID,
+    _ document: NSDocument,
+    _ completion: @escaping (_ didSave: Bool) -> Void
+) -> Bool
+
 /// Coordinates a single Save-and-Close-Tab operation. Created for a specific tab and
 /// window document, it triggers the save (or Save As for untitled documents) and closes
 /// the tab only after the save succeeds. If the user cancels the save panel, the tab
@@ -12,6 +25,7 @@ final class SaveAndCloseCoordinator: NSObject {
     private let closeSavedTab: (UUID) -> Void
     private let didSaveSource: () -> Void
     private let document: NSDocument
+    private let saveOverride: DocumentSaveOverride?
     /// Cleared when the save chain ends, so the view can drop its reference. Without it this
     /// coordinator — and the `NSDocument` and `EditorTabStore` it holds STRONGLY — stayed alive
     /// in the view's `@State` until the next Save-and-Close, keeping a closed tab's document
@@ -23,6 +37,7 @@ final class SaveAndCloseCoordinator: NSObject {
         targetID: UUID,
         tabStore: EditorTabStore,
         document: NSDocument,
+        saveOverride: DocumentSaveOverride? = nil,
         closeSavedTab: @escaping (UUID) -> Void,
         didSaveSource: @escaping () -> Void = {},
         onFinish: (() -> Void)? = nil
@@ -30,6 +45,7 @@ final class SaveAndCloseCoordinator: NSObject {
         self.targetID = targetID
         self.tabStore = tabStore
         self.document = document
+        self.saveOverride = saveOverride
         self.closeSavedTab = closeSavedTab
         self.didSaveSource = didSaveSource
         self.onFinish = onFinish
@@ -37,6 +53,13 @@ final class SaveAndCloseCoordinator: NSObject {
     }
 
     func start() {
+        if let saveOverride,
+           saveOverride(document, { [weak self, weak document] didSave in
+               guard let self, let document else { return }
+               handleSaveCompletion(for: document, didSave: didSave)
+           }) {
+            return
+        }
         document.save(
             withDelegate: self,
             didSave: #selector(document(_:didSave:contextInfo:)),
@@ -45,6 +68,10 @@ final class SaveAndCloseCoordinator: NSObject {
     }
 
     @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
+        handleSaveCompletion(for: document, didSave: didSave)
+    }
+
+    private func handleSaveCompletion(for document: NSDocument, didSave: Bool) {
         // A cancelled save panel leaves the tab open — and still ends the chain, so the
         // coordinator is released rather than lingering for a callback that will never come.
         guard didSave else {
@@ -92,6 +119,7 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
     /// that writes a duplicate copy) and stays detached from its file for the rest of the session.
     private let didSaveTab: (UUID, URL?) -> Void
     private let didSaveSource: () -> Void
+    private let saveOverride: TabDocumentSaveOverride?
     private weak var window: NSWindow?
     /// Retains self for the async save chain; cleared when the chain finishes or aborts.
     private var onFinish: (() -> Void)?
@@ -101,6 +129,7 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
         activateTab: @escaping (UUID) -> NSDocument?,
         didSaveTab: @escaping (UUID, URL?) -> Void,
         didSaveSource: @escaping () -> Void = {},
+        saveOverride: TabDocumentSaveOverride? = nil,
         window: NSWindow?,
         onFinish: @escaping () -> Void
     ) {
@@ -108,6 +137,7 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
         self.activateTab = activateTab
         self.didSaveTab = didSaveTab
         self.didSaveSource = didSaveSource
+        self.saveOverride = saveOverride
         self.window = window
         self.onFinish = onFinish
         super.init()
@@ -129,6 +159,13 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
             return
         }
         savingID = nextID
+        if let saveOverride,
+           saveOverride(nextID, document, { [weak self, weak document] didSave in
+               guard let self, let document else { return }
+               handleSaveCompletion(for: document, didSave: didSave)
+           }) {
+            return
+        }
         document.save(
             withDelegate: self,
             didSave: #selector(document(_:didSave:contextInfo:)),
@@ -137,6 +174,10 @@ final class SaveTabsBeforeCloseCoordinator: NSObject {
     }
 
     @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
+        handleSaveCompletion(for: document, didSave: didSave)
+    }
+
+    private func handleSaveCompletion(for document: NSDocument, didSave: Bool) {
         let savedID = savingID
         savingID = nil
         guard didSave else {
@@ -170,17 +211,20 @@ final class SaveThenContinueCoordinator: NSObject {
     private let document: NSDocument
     private let onSaved: () -> Void
     private let didSaveSource: () -> Void
+    private let saveOverride: DocumentSaveOverride?
     /// Cleared when the chain ends so the view can drop its reference — this object holds the
     /// NSDocument strongly, the same leak `SaveAndCloseCoordinator` documents.
     private var onFinish: (() -> Void)?
 
     init(
         document: NSDocument,
+        saveOverride: DocumentSaveOverride? = nil,
         onSaved: @escaping () -> Void,
         didSaveSource: @escaping () -> Void = {},
         onFinish: (() -> Void)? = nil
     ) {
         self.document = document
+        self.saveOverride = saveOverride
         self.onSaved = onSaved
         self.didSaveSource = didSaveSource
         self.onFinish = onFinish
@@ -188,6 +232,13 @@ final class SaveThenContinueCoordinator: NSObject {
     }
 
     func start() {
+        if let saveOverride,
+           saveOverride(document, { [weak self, weak document] didSave in
+               guard let self, let document else { return }
+               handleSaveCompletion(for: document, didSave: didSave)
+           }) {
+            return
+        }
         document.save(
             withDelegate: self,
             didSave: #selector(document(_:didSave:contextInfo:)),
@@ -196,10 +247,21 @@ final class SaveThenContinueCoordinator: NSObject {
     }
 
     @objc private func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) {
-        defer { finish() }
-        guard didSave else { return }
+        handleSaveCompletion(for: document, didSave: didSave)
+    }
+
+    private func handleSaveCompletion(for document: NSDocument, didSave: Bool) {
+        guard didSave else {
+            finish()
+            return
+        }
         didSaveSource()
-        onSaved()
+        // The continuation may repoint this same NSDocument to a different file. AppKit is
+        // still inside its serialized save activity while invoking didSave; unwind first.
+        DispatchQueue.main.async { [self] in
+            onSaved()
+            finish()
+        }
     }
 
     private func finish() {

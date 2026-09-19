@@ -26,8 +26,10 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
     private final class SaveCompletionDocument: NSDocument {
         var saveSucceeded = true
         var isDeliveringSaveCompletion = false
+        var nativeSaveCallCount = 0
 
         override func save(withDelegate delegate: Any?, didSave didSaveSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+            nativeSaveCallCount += 1
             guard let delegate = delegate as? NSObject, let didSaveSelector else { return }
             typealias Callback = @convention(c) (AnyObject, Selector, NSDocument, Bool, UnsafeMutableRawPointer?) -> Void
             let callback = unsafeBitCast(delegate.method(for: didSaveSelector), to: Callback.self)
@@ -103,17 +105,26 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
     }
 
     @MainActor
-    func testSaveThenContinueCountsOnlyACompletedWrite() {
+    func testSaveThenContinueCountsOnlyACompletedWrite() async {
         let successfulDocument = SaveCompletionDocument()
         var successfulConfirmations = 0
         var continued = false
+        var continuedInsideSaveCallback = false
+        let completion = expectation(description: "Continue after AppKit save callback unwinds")
         SaveThenContinueCoordinator(
             document: successfulDocument,
-            onSaved: { continued = true },
+            onSaved: {
+                continued = true
+                continuedInsideSaveCallback = successfulDocument.isDeliveringSaveCompletion
+                completion.fulfill()
+            },
             didSaveSource: { successfulConfirmations += 1 }
         ).start()
-        XCTAssertTrue(continued)
+        XCTAssertFalse(continued)
         XCTAssertEqual(successfulConfirmations, 1)
+        await fulfillment(of: [completion], timeout: 2)
+        XCTAssertTrue(continued)
+        XCTAssertFalse(continuedInsideSaveCallback, "Switching files inside didSave can re-enter NSDocument serialization.")
 
         let failedDocument = SaveCompletionDocument()
         failedDocument.saveSucceeded = false
@@ -155,6 +166,39 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         XCTAssertEqual(confirmedWrites, 2)
         XCTAssertFalse(activatedInsideSave, "The next tab must not repoint the NSDocument inside its previous save callback.")
         XCTAssertFalse(closedInsideSave, "Window closing must not re-enter NSDocument's save serialization activity.")
+    }
+
+    @MainActor
+    func testSaveAllUsesTheTabAwareOverrideForAnUntitledTab() async {
+        let untitledID = UUID()
+        let document = SaveCompletionDocument()
+        let window = CloseProbeWindow()
+        window.isReleasedWhenClosed = false
+        let savedURL = URL(fileURLWithPath: "/tmp/Untitled.md")
+        let finished = expectation(description: "Save All finishes through the explicit untitled save panel")
+        var overrideIDs: [UUID] = []
+        var recordedURLs: [URL?] = []
+        let coordinator = SaveTabsBeforeCloseCoordinator(
+            tabIDs: [untitledID],
+            activateTab: { _ in document },
+            didSaveTab: { _, url in recordedURLs.append(url) },
+            saveOverride: { id, overriddenDocument, completion in
+                overrideIDs.append(id)
+                XCTAssertTrue(overriddenDocument === document)
+                document.fileURL = savedURL
+                completion(true)
+                return true
+            },
+            window: window,
+            onFinish: { finished.fulfill() }
+        )
+
+        coordinator.start()
+        await fulfillment(of: [finished], timeout: 2)
+
+        XCTAssertEqual(overrideIDs, [untitledID])
+        XCTAssertEqual(recordedURLs, [savedURL])
+        XCTAssertEqual(document.nativeSaveCallCount, 0, "The inherited NSDocument panel could carry the outgoing tab's filename.")
     }
 
     @MainActor
