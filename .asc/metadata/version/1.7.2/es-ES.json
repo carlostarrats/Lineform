@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Guardar, cerrar y cambiar entre documentos es ahora más fiable. Esta actualización corrige casos límite al cerrar la última pestaña, usar Guardar todo, abrir archivos y gestionar borradores sin guardar. También restaura los iconos de los menús de la barra lateral Archivos en macOS 27."
+}

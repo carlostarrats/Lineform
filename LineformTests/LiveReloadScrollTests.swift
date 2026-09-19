@@ -70,6 +70,7 @@ final class LiveReloadScrollTests: XCTestCase {
             backing: .buffered,
             defer: false
         )
+        window.isReleasedWhenClosed = false
         window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
         // Pump past the mount-time vertical-bounds-origin lock (0.45s) so our scroll sticks.

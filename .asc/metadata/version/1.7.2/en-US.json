@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Saving, closing, and switching between documents are now more reliable. This update fixes edge cases around closing the final tab, Save All, opening files, and handling unsaved drafts. It also restores menu icons in the Files sidebar on macOS 27."
+}

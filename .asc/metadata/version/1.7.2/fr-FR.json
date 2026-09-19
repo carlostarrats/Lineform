@@ -1,0 +1,3 @@
+{
+  "whatsNew": "L’enregistrement, la fermeture et le passage d’un document à l’autre sont désormais plus fiables. Cette mise à jour corrige des cas limites lors de la fermeture du dernier onglet, de l’utilisation de Tout enregistrer, de l’ouverture de fichiers et de la gestion des brouillons non enregistrés. Elle rétablit aussi les icônes des menus de la barre latérale Fichiers sous macOS 27."
+}
