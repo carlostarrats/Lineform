@@ -1,0 +1,3 @@
+{
+  "whatsNew": "El cambio de tema vuelve a responder correctamente en macOS 27. Esta actualización corrige un bloqueo y un uso descontrolado de memoria al pasar entre temas de lectura claros y oscuros, incluido Quiet, y mantiene la apariencia correcta de las ventanas y la barra de herramientas en versiones anteriores de macOS."
+}

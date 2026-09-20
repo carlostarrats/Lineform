@@ -922,6 +922,7 @@ struct WindowChromeReader: NSViewRepresentable {
 
         var usesDarkChrome = false
         var pageBackground: NSColor?
+        var osMajorVersion = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         var onWindowChanged: ((NSWindow?) -> Void)?
         private weak var appliedWindow: NSWindow?
         private var appliedDarkChrome: Bool?
@@ -954,7 +955,10 @@ struct WindowChromeReader: NSViewRepresentable {
             applyChrome()
         }
 
-        // The DIRECT self-heal, and the only one that covers the sidebar collapse/expand reset.
+        // The DIRECT self-heal on macOS 14–26, and the only one that covers the sidebar
+        // collapse/expand reset there. macOS 27+ leaves appearance to SwiftUI and skips this
+        // observer: its NSHostingView now writes window appearance for the root color-scheme
+        // override, so writing back from KVO creates an unbounded main-thread feedback loop.
         //
         // viewDidChangeEffectiveAppearance below can NEVER fire for that drift: apply() pins
         // `window.contentView.appearance`, and this view is a descendant of the content view, so
@@ -972,6 +976,10 @@ struct WindowChromeReader: NSViewRepresentable {
         // Cannot loop: the observer re-applies only while drifted, and our own write re-enters
         // once with no drift left to correct.
         private func observeWindowAppearance() {
+            guard EditorWindowChrome.usesExplicitAppKitAppearance(osMajorVersion: osMajorVersion) else {
+                appearanceObservation = nil
+                return
+            }
             // `MainActor.assumeIsolated` would TRAP if AppKit ever delivered this off-main; a
             // chrome touch-up is never worth a crash, so hop instead of asserting.
             appearanceObservation = window?.observe(\.appearance, options: [.new]) { [weak self] _, _ in
@@ -999,24 +1007,27 @@ struct WindowChromeReader: NSViewRepresentable {
         }
 
         func applyChrome() {
-            // Apply synchronously when the window or theme changed — OR when the window's
-            // appearance has drifted from what the theme wants. The drift check is load-bearing
-            // for multi-tab: when the tab bar appears (1→2 tabs) the detail hierarchy rebuilds and
-            // AppKit can reset the window's explicit appearance back to the default (light) aqua,
-            // which on a dark theme leaves the toolbar/title bar light while the content stays
-            // dark. Re-asserting only on window/theme change missed that (neither changed), so the
-            // light header stuck. Re-applying on drift self-heals it and cannot loop: once applied,
-            // the appearance matches and the guard no longer fires.
+            // On macOS 14–26, apply synchronously when the window/theme changes OR when the
+            // explicit AppKit appearance drifts. On macOS 27+, SwiftUI owns appearance; this path
+            // updates only the page-colored window background when its inputs change.
             if let window {
                 let desiredName = EditorWindowChrome.appearanceName(usesDarkChrome: usesDarkChrome)
-                let appearanceDrifted = window.appearance?.name != desiredName
+                let appearanceDrifted = EditorWindowChrome.usesExplicitAppKitAppearance(
+                    osMajorVersion: osMajorVersion
+                )
+                    && window.appearance?.name != desiredName
                 if window !== appliedWindow || appliedDarkChrome != usesDarkChrome
                     || appliedPageBackground != pageBackground || appearanceDrifted {
                     appliedWindow = window
                     appliedDarkChrome = usesDarkChrome
                     appliedPageBackground = pageBackground
                     window.animationBehavior = .none
-                    EditorWindowChrome.apply(to: window, usesDarkChrome: usesDarkChrome, pageBackground: pageBackground)
+                    EditorWindowChrome.apply(
+                        to: window,
+                        usesDarkChrome: usesDarkChrome,
+                        pageBackground: pageBackground,
+                        osMajorVersion: osMajorVersion
+                    )
                 }
             }
             // Report the (possibly nil) window every time so the deferred reader converges
@@ -1027,6 +1038,12 @@ struct WindowChromeReader: NSViewRepresentable {
 }
 
 struct EditorWindowChrome {
+    static func usesExplicitAppKitAppearance(
+        osMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+    ) -> Bool {
+        osMajorVersion < 27
+    }
+
     static func appearanceName(usesDarkChrome: Bool) -> NSAppearance.Name {
         usesDarkChrome ? .darkAqua : .aqua
     }
@@ -1036,10 +1053,17 @@ struct EditorWindowChrome {
     }
 
     @MainActor
-    static func apply(to window: NSWindow?, usesDarkChrome: Bool, pageBackground: NSColor? = nil) {
-        let resolvedAppearance = appearance(usesDarkChrome: usesDarkChrome)
-        window?.appearance = resolvedAppearance
-        window?.contentView?.appearance = resolvedAppearance
+    static func apply(
+        to window: NSWindow?,
+        usesDarkChrome: Bool,
+        pageBackground: NSColor? = nil,
+        osMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+    ) {
+        if usesExplicitAppKitAppearance(osMajorVersion: osMajorVersion) {
+            let resolvedAppearance = appearance(usesDarkChrome: usesDarkChrome)
+            window?.appearance = resolvedAppearance
+            window?.contentView?.appearance = resolvedAppearance
+        }
         // The translucent toolbar shows the WINDOW background wherever no content extends
         // beneath it. Without tabs, AppKit extends the detail's root scroll view under the
         // titlebar and the nav samples the page; with the tab strip topmost, that extension

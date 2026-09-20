@@ -66,7 +66,7 @@ self-update mechanism of its own.
 
 ## About
 
-Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version; the current release is 1.7.2.
+Lineform is built as a native macOS document app with SwiftUI, AppKit, and TextKit. V1.0 was the first public version. Version 1.7.2 is currently live; version 1.7.3 (build 31) was submitted to App Review on September 20, 2026.
 
 ## Credits
 

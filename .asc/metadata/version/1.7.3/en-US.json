@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Theme switching is responsive again on macOS 27. This update fixes a freeze and runaway memory use when moving between light and dark reading themes, including Quiet, while preserving correct window and toolbar appearance on earlier macOS versions."
+}

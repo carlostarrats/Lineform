@@ -632,6 +632,8 @@ final class EditorDisplayModeTests: XCTestCase {
 
     @MainActor
     func testLightReaderThemesForceLightWindowChromeAfterDarkThemes() {
+        XCTAssertTrue(EditorWindowChrome.usesExplicitAppKitAppearance(osMajorVersion: 26))
+        XCTAssertFalse(EditorWindowChrome.usesExplicitAppKitAppearance(osMajorVersion: 27))
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: false), .aqua)
         XCTAssertEqual(EditorWindowChrome.appearanceName(usesDarkChrome: true), .darkAqua)
         XCTAssertNotNil(EditorWindowChrome.appearance(usesDarkChrome: false))
@@ -639,13 +641,32 @@ final class EditorDisplayModeTests: XCTestCase {
 
         let window = NSWindow()
         window.contentView = NSView(frame: .zero)
-        EditorWindowChrome.apply(to: window, usesDarkChrome: true)
+        EditorWindowChrome.apply(to: window, usesDarkChrome: true, osMajorVersion: 26)
         XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
         XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
 
-        EditorWindowChrome.apply(to: window, usesDarkChrome: false)
+        EditorWindowChrome.apply(to: window, usesDarkChrome: false, osMajorVersion: 26)
         XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
         XCTAssertEqual(window.contentView?.appearance?.bestMatch(from: [.darkAqua, .aqua]), .aqua)
+    }
+
+    @MainActor
+    func testMacOS27LeavesAppearanceToSwiftUIButStillSetsWindowBackground() {
+        let window = NSWindow()
+        window.contentView = NSView(frame: .zero)
+        let originalWindowAppearance = window.appearance
+        let originalContentAppearance = window.contentView?.appearance
+
+        EditorWindowChrome.apply(
+            to: window,
+            usesDarkChrome: true,
+            pageBackground: Theme.quiet.backgroundColor,
+            osMajorVersion: 27
+        )
+
+        XCTAssertIdentical(window.appearance, originalWindowAppearance)
+        XCTAssertIdentical(window.contentView?.appearance, originalContentAppearance)
+        XCTAssertEqual(window.backgroundColor, Theme.quiet.backgroundColor)
     }
 
     func testSonomaCoversInspectorSeparatorOnlyWhileInspectorIsOpen() {
@@ -678,6 +699,7 @@ final class EditorDisplayModeTests: XCTestCase {
 
         var reportedWindow: NSWindow?
         let view = WindowChromeReader.ChromeView()
+        view.osMajorVersion = 26
         view.usesDarkChrome = true
         // The reporter is handed the window (not a pre-read number) so it can read the
         // windowNumber a runloop later, once the window is ordered on-screen.
@@ -716,6 +738,7 @@ final class EditorDisplayModeTests: XCTestCase {
         window.contentView = NSView(frame: .zero)
 
         let view = WindowChromeReader.ChromeView()
+        view.osMajorVersion = 26
         view.usesDarkChrome = true
         window.contentView?.addSubview(view)
         XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
@@ -750,6 +773,7 @@ final class EditorDisplayModeTests: XCTestCase {
         window.contentView = NSView(frame: .zero)
 
         let view = WindowChromeReader.ChromeView()
+        view.osMajorVersion = 26
         view.usesDarkChrome = true
         window.contentView?.addSubview(view)
         XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)
@@ -784,6 +808,7 @@ final class EditorDisplayModeTests: XCTestCase {
         window.contentView = NSView(frame: .zero)
 
         let view = WindowChromeReader.ChromeView()
+        view.osMajorVersion = 26
         view.usesDarkChrome = true
         window.contentView?.addSubview(view)
         XCTAssertEqual(window.appearance?.bestMatch(from: [.darkAqua, .aqua]), .darkAqua)

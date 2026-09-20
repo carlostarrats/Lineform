@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Le changement de thème est à nouveau réactif sous macOS 27. Cette mise à jour corrige un blocage et une utilisation excessive de la mémoire lors du passage entre les thèmes de lecture clairs et sombres, notamment Quiet, tout en préservant l’apparence correcte des fenêtres et de la barre d’outils sur les versions antérieures de macOS."
+}

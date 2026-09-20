@@ -98,6 +98,10 @@ do not hardcode it into documentation or automation.
 - [ ] Assign every uploaded build to the intended internal group. Group membership is not inherited
       from the previous build.
 - [ ] Verify the association after assigning it.
+- [ ] On macOS 27 or later, switch repeatedly between every Reading Experience theme, including
+      several light ↔ Quiet transitions. Confirm the editor, toolbar, tabs, and Files sidebar stay
+      responsive, CPU returns to idle, and memory does not grow continuously. This catches the
+      `NSHostingView`/AppKit appearance-authority loop that shipped in 1.7.2.
 - [ ] Install the build through TestFlight and launch it.
 - [ ] Choose a workspace, quit, relaunch, and open a file from that workspace. A same-session open
       panel grant can hide a broken security-scoped bookmark.
