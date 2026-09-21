@@ -65,5 +65,23 @@ same source out of Documents produced the complete clean 1,366-test result.
 - Final version and submission state: `WAITING_FOR_REVIEW`, with exactly one submission item and
   automatic release after approval.
 
+## Post-submission regression gates
+
+After build 31 was submitted, repository-only tests and release instructions were strengthened;
+there was no product-source or submitted-binary change:
+
+- The default plan now repeats every theme 20 times against an injected macOS 27 chrome path and
+  proves `ChromeView` neither pins nor observes AppKit appearance there.
+- The hosted plan now opens the full editor with a tab bar, Files sidebar, and Reading inspector,
+  then performs 300 theme changes across Write, Read, and Split. It blocks on stalled progress,
+  more than 192 MiB of post-warmup resident-memory growth, or failure to return near idle.
+- The verified macOS 27 run completed 300 switches in 14.683 seconds, grew resident memory by
+  1,245,184 bytes after warm-up, and consumed 0.002 CPU-seconds during the final 0.5-second idle
+  window. The test preserves these measurements as an XCTest attachment.
+- The complete default plan passed 1,367 tests with zero failures. The complete hosted plan passed
+  26 tests with zero failures.
+- The release runbook now requires this hosted gate before archiving and still separately requires
+  installation and launch of the exact processed TestFlight build before App Review submission.
+
 `WAITING_FOR_REVIEW` is submission evidence, not approval or availability on the App Store. The
 current live version remains 1.7.2 until Apple approves and releases 1.7.3.

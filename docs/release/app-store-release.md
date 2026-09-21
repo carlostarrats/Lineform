@@ -102,6 +102,23 @@ do not hardcode it into documentation or automation.
       several light ↔ Quiet transitions. Confirm the editor, toolbar, tabs, and Files sidebar stay
       responsive, CPU returns to idle, and memory does not grow continuously. This catches the
       `NSHostingView`/AppKit appearance-authority loop that shipped in 1.7.2.
+- [ ] Run the automated macOS 27 real-window gate before archiving. It performs 300 theme changes
+      across Write, Read, and Split with the tab bar, Files sidebar, and Reading inspector active;
+      it fails on stalled progress, more than 192 MiB of post-warmup resident-memory growth, or a
+      process that does not return near idle. The test skips on older macOS versions because they
+      use the separate explicit-AppKit appearance path:
+
+      ```sh
+      xcodebuild test \
+        -project Lineform.xcodeproj \
+        -scheme Lineform \
+        -testPlan LineformHosted \
+        -destination 'platform=macOS' \
+        -parallel-testing-enabled NO \
+        -only-testing:LineformTests/EditorDrawerMotionHostedTests/testThemeSwitchStressAcrossEditorSurfacesStaysResponsiveAndResourceBoundedOnMacOS27
+      ```
+
+      Keep the resulting `Theme switch stress metrics` XCTest attachment with the release evidence.
 - [ ] Install the build through TestFlight and launch it.
 - [ ] Choose a workspace, quit, relaunch, and open a file from that workspace. A same-session open
       panel grant can hide a broken security-scoped bookmark.

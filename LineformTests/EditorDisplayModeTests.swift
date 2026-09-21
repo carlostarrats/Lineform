@@ -669,6 +669,47 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(window.backgroundColor, Theme.quiet.backgroundColor)
     }
 
+    @MainActor
+    func testMacOS27RepeatedThemeChangesNeverInstallAnAppKitAppearanceWriteBack() {
+        let window = NSWindow()
+        window.contentView = NSView(frame: .zero)
+        let sentinelWindowAppearance = NSAppearance(named: .vibrantDark)
+        let sentinelContentAppearance = NSAppearance(named: .vibrantLight)
+        window.appearance = sentinelWindowAppearance
+        window.contentView?.appearance = sentinelContentAppearance
+
+        let view = WindowChromeReader.ChromeView()
+        view.osMajorVersion = 27
+        window.contentView?.addSubview(view)
+
+        for _ in 0..<20 {
+            for theme in Theme.builtIn {
+                view.usesDarkChrome = theme.usesDarkChrome
+                view.pageBackground = theme.backgroundColor
+                view.applyChrome()
+
+                XCTAssertIdentical(
+                    window.appearance,
+                    sentinelWindowAppearance,
+                    "macOS 27+ must leave the window appearance to SwiftUI across repeated theme changes"
+                )
+                XCTAssertIdentical(
+                    window.contentView?.appearance,
+                    sentinelContentAppearance,
+                    "macOS 27+ must not pin the hosting content appearance"
+                )
+                XCTAssertEqual(window.backgroundColor, theme.backgroundColor)
+            }
+        }
+
+        // If ChromeView accidentally reinstalls the old KVO healer on the macOS 27 path,
+        // this external change is synchronously overwritten. Leaving it alone proves that
+        // SwiftUI can write the appearance without entering the shipped feedback loop.
+        let swiftUIOwnedAppearance = NSAppearance(named: .aqua)
+        window.appearance = swiftUIOwnedAppearance
+        XCTAssertIdentical(window.appearance, swiftUIOwnedAppearance)
+    }
+
     func testSonomaCoversInspectorSeparatorOnlyWhileInspectorIsOpen() {
         XCTAssertTrue(EditorToolbarBackgroundPolicy.coversInspectorSeparator(
             osMajorVersion: 14,

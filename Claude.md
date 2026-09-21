@@ -262,7 +262,8 @@ xcodebuild test \
 ```
 
 **Hosted plan — opt-in**, before releases touching editor motion, drawer/inspector presentation,
-reload scroll behavior, or PDF export/print. Add `-testPlan LineformHosted`. **Quit Xcode first**:
+theme or window appearance, reload scroll behavior, or PDF export/print. Add
+`-testPlan LineformHosted`. **Quit Xcode first**:
 these measure sub-second animations and fail spuriously under load.
 
 - Keep `-parallel-testing-enabled NO`: AppKit state contaminates across parallel runners.

@@ -589,6 +589,119 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         )
     }
 
+    /// Release-blocking regression for 1.7.2's macOS 27 appearance feedback loop.
+    ///
+    /// This must stay in the hosted plan: the defect existed only when SwiftUI's root
+    /// color-scheme override and a real AppKit window were attached. The ordinary chrome
+    /// unit tests all passed while the shipping app pegged a core and grew to gigabytes.
+    @MainActor
+    func testThemeSwitchStressAcrossEditorSurfacesStaysResponsiveAndResourceBoundedOnMacOS27() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else {
+            throw XCTSkip("The NSHostingView appearance-authority regression exists on macOS 27+.")
+        }
+
+        let harness = try makeEditorDrawerHarness()
+        defer {
+            harness.tearDown()
+            runMainLoop(for: 0.2)
+        }
+        let payload = LineformAppNotification.Payload(windowNumber: harness.window.windowNumber)
+
+        // Exercise the hierarchy shapes implicated by the incident: the tab bar, Files sidebar,
+        // and Reading inspector all rebuild or extend the editor's root hierarchy.
+        LineformAppNotification.newTab.post(object: payload)
+        LineformAppNotification.toggleOutline.post(object: payload)
+        LineformAppNotification.showReadingExperience.post(object: payload)
+        runMainLoop(for: 0.35)
+
+        // Prime each display mode and theme before taking the memory baseline so one-time TextKit,
+        // renderer, and SwiftUI caches cannot masquerade as a leak during the measured pass.
+        for mode in EditorDisplayMode.allCases {
+            LineformAppNotification.setDisplayMode.post(
+                object: LineformAppNotification.Payload(
+                    windowNumber: harness.window.windowNumber,
+                    value: mode.rawValue
+                )
+            )
+            for theme in Theme.builtIn {
+                harness.readingProfileStore.update { $0.themeID = theme.id }
+                runMainLoop(for: 0.025)
+            }
+        }
+
+        let memoryBefore = try currentResidentMemoryBytes()
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        var completedSwitches = 0
+
+        // Twenty full passes across every built-in theme in every editor mode. This includes
+        // sixty light -> Quiet and Quiet -> light boundaries, not merely repeated assignments
+        // within one appearance. The 1.7.2 loop never returned from the first such boundary.
+        for mode in EditorDisplayMode.allCases {
+            LineformAppNotification.setDisplayMode.post(
+                object: LineformAppNotification.Payload(
+                    windowNumber: harness.window.windowNumber,
+                    value: mode.rawValue
+                )
+            )
+            runMainLoop(for: 0.05)
+
+            for _ in 0..<20 {
+                for theme in Theme.builtIn {
+                    harness.readingProfileStore.update { $0.themeID = theme.id }
+                    runMainLoop(for: 0.015)
+                    completedSwitches += 1
+
+                    XCTAssertEqual(harness.window.backgroundColor, theme.backgroundColor)
+                    XCTAssertTrue(harness.window.isVisible)
+                }
+            }
+        }
+
+        let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+        let memoryAfter = try currentResidentMemoryBytes()
+        let memoryGrowth = memoryAfter > memoryBefore ? memoryAfter - memoryBefore : 0
+
+        XCTAssertEqual(completedSwitches, EditorDisplayMode.allCases.count * 20 * Theme.builtIn.count)
+        XCTAssertLessThan(
+            elapsed,
+            15,
+            "Theme switching stopped making forward progress; the 1.7.2 feedback loop hung here."
+        )
+        XCTAssertLessThan(
+            memoryGrowth,
+            192 * 1_024 * 1_024,
+            "Repeated theme switches grew resident memory by \(memoryGrowth) bytes; the 1.7.2 loop grew without bound."
+        )
+
+        // A completed switch is not enough: the released defect continued consuming a full core.
+        // Give pending animations time to settle, then require the hosted process to return near
+        // idle. This plan already runs serially on a quiet machine because its UI timing tests have
+        // the same requirement.
+        runMainLoop(for: 0.25)
+        let cpuBeforeIdleWindow = try processCPUSeconds()
+        runMainLoop(for: 0.5)
+        let idleCPUSeconds = try processCPUSeconds() - cpuBeforeIdleWindow
+        let metrics = String(
+            format: "switches=%d elapsed=%.3fs memoryBefore=%llu memoryAfter=%llu growth=%llu idleCPU=%.3fs/0.5s macOS=%d",
+            completedSwitches,
+            elapsed,
+            memoryBefore,
+            memoryAfter,
+            memoryGrowth,
+            idleCPUSeconds,
+            ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        )
+        let metricsAttachment = XCTAttachment(string: metrics)
+        metricsAttachment.name = "Theme switch stress metrics"
+        metricsAttachment.lifetime = .keepAlways
+        add(metricsAttachment)
+        XCTAssertLessThan(
+            idleCPUSeconds,
+            0.20,
+            "The editor did not return to idle after theme switching (\(idleCPUSeconds)s CPU in a 0.5s idle window)."
+        )
+    }
+
     /// The tracked character's vertical offset from the viewport top — window-size independent,
     /// unlike window coordinates, so it is stable across width AND height changes.
     @MainActor
@@ -681,7 +794,40 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         window.makeKeyAndOrderFront(nil)
         runMainLoop(for: 0.3)
         _ = try XCTUnwrap(hostingView.descendants(ofType: LineformTextView.self).first)
-        return EditorDrawerHarness(window: window, hostingView: hostingView)
+        return EditorDrawerHarness(
+            window: window,
+            hostingView: hostingView,
+            readingProfileStore: readingProfileStore
+        )
+    }
+
+    private func currentResidentMemoryBytes() throws -> UInt64 {
+        var info = mach_task_basic_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<mach_task_basic_info_data_t>.size / MemoryLayout<natural_t>.size
+        )
+        let status = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), rebound, &count)
+            }
+        }
+        guard status == KERN_SUCCESS else {
+            XCTFail("task_info failed with status \(status)")
+            throw CocoaError(.coderReadCorrupt)
+        }
+        return UInt64(info.resident_size)
+    }
+
+    private func processCPUSeconds() throws -> TimeInterval {
+        var usage = rusage()
+        guard getrusage(RUSAGE_SELF, &usage) == 0 else {
+            XCTFail("getrusage failed with errno \(errno)")
+            throw CocoaError(.coderReadCorrupt)
+        }
+        func seconds(_ value: timeval) -> TimeInterval {
+            TimeInterval(value.tv_sec) + TimeInterval(value.tv_usec) / 1_000_000
+        }
+        return seconds(usage.ru_utime) + seconds(usage.ru_stime)
     }
 
     private static let shortDrawerTestDocument = """
@@ -823,11 +969,17 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
 private final class EditorDrawerHarness {
     let window: NSWindow
     let hostingView: NSHostingView<AnyView>
+    let readingProfileStore: ReadingProfileStore
     private var didTearDown = false
 
-    init(window: NSWindow, hostingView: NSHostingView<AnyView>) {
+    init(
+        window: NSWindow,
+        hostingView: NSHostingView<AnyView>,
+        readingProfileStore: ReadingProfileStore
+    ) {
         self.window = window
         self.hostingView = hostingView
+        self.readingProfileStore = readingProfileStore
     }
 
     func tearDown() {
