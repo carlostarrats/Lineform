@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Corrige un problème sous macOS 27 : la fermeture d’un document Sans titre modifié pouvait laisser un brouillon, afficher une seconde demande à la fermeture d’un autre onglet ou rouvrir un ancien fichier Markdown. Commande-W et Ne pas enregistrer ferment désormais le brouillon correctement."
+}

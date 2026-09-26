@@ -27,9 +27,7 @@ struct EditorContainerView: View {
     /// per-document preference. The prompt is offered once; Settings remains the durable route.
     @ObservedObject private var defaultMarkdownApp: DefaultMarkdownAppStore
     @StateObject private var tabStore: EditorTabStore
-    // Use the window-specific action, not the generic presentation dismiss action. While a
-    // close/save alert is unwinding, `dismiss()` can target that modal presentation instead of
-    // the DocumentGroup scene — the sheet disappears but the intended final tab/window remains.
+    // Final-tab closure is an approved scene dismissal after any close alert has ended.
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
@@ -1519,6 +1517,14 @@ struct EditorContainerView: View {
         guard let activeID = tabStore.selectedTabID else { return false }
         do {
             let loadedDocument = try LineformDocument(contentsOf: url)
+            let discardedDraftURLs = DiscardedDraftAutosave.urls(
+                for: tabStore.selectedTab,
+                backingDocument: activeWindow?.windowController?.document as? NSDocument
+            )
+            if !discardedDraftURLs.isEmpty,
+               let backingDocument = activeWindow?.windowController?.document as? NSDocument {
+                DiscardedDraftAutosave.detachNativeDraft(from: backingDocument)
+            }
             DocumentSaveStatus.shared.markSaved(
                 documentID: loadedDocument.id,
                 at: LineformDocument.modificationDate(at: url) ?? Date(),
@@ -1526,6 +1532,11 @@ struct EditorContainerView: View {
             )
             tabStore.replaceTab(id: activeID, document: loadedDocument, fileURL: url)
             activateSelectedTab()
+            if !discardedDraftURLs.isEmpty {
+                DispatchQueue.main.async {
+                    DiscardedDraftAutosave.removeIfUnowned(discardedDraftURLs)
+                }
+            }
             NSDocumentController.shared.noteNewRecentDocumentURL(url)
             return true
         } catch {
@@ -1630,10 +1641,26 @@ struct EditorContainerView: View {
             return
         }
 
+        // A shared NSDocument loses its current draft URL when repointed to the next tab.
+        // Capture that URL on the outgoing Untitled tab before the fileURL assignment below.
+        if let outgoing = tabStore.tabs.first(where: { $0.document.id == document.id }),
+           outgoing.id != tab.id, outgoing.fileURL == nil {
+            for draftURL in DiscardedDraftAutosave.currentURLs(
+                for: outgoing,
+                backingDocument: backingDocument
+            ) {
+                tabStore.recordDraftAutosaveURL(draftURL, forTabID: outgoing.id)
+            }
+            DiscardedDraftAutosave.detachNativeDraft(from: backingDocument)
+        }
+
         // Repoint the NSDocument to the incoming tab's file FIRST, before mutating the
         // binding's document text, so any autosave/Versions operation that fires in this
         // window cannot write the new tab's text to the outgoing tab's file.
         backingDocument.fileURL = tab.fileURL
+        // NSDocument is shared by all custom tabs. `fileURL` alone does not clear its draft bit;
+        // without this a clean real file inherits the outgoing Untitled draft's native Save panel.
+        backingDocument.isDraft = false
         backingDocument.fileType = tab.fileURL.map { LineformDocument.contentType(for: $0).identifier }
         backingDocument.fileModificationDate = tab.fileURL.flatMap { LineformDocument.modificationDate(at: $0) }
 
@@ -1713,7 +1740,11 @@ struct EditorContainerView: View {
         }
     }
 
-    private func performCloseTab(id: UUID, owningWindow: NSWindow? = nil) {
+    private func performCloseTab(
+        id: UUID,
+        owningWindow: NSWindow? = nil,
+        didApproveDiscard: Bool = false
+    ) {
         // Capture this BEFORE mutating the published tab array. Removing the final tab can tear
         // down this SwiftUI hierarchy immediately, clearing `windowNumber`; resolving
         // `activeWindow` afterward then returns nil and leaves an empty, permanently uncloseable
@@ -1731,6 +1762,16 @@ struct EditorContainerView: View {
         // and wipes its undo stack (undoManager.removeAllActions). None of that should happen
         // just because the user closed a different tab.
         let wasSelected = (id == tabStore.selectedTabID)
+        let discardedDraftURLs = didApproveDiscard
+            ? DiscardedDraftAutosave.urls(
+                for: tabStore.tabs.first { $0.id == id },
+                backingDocument: windowBeforeTabRemoval?.windowController?.document as? NSDocument
+            )
+            : []
+        if didApproveDiscard, wasSelected,
+           let backingDocument = windowBeforeTabRemoval?.windowController?.document as? NSDocument {
+            DiscardedDraftAutosave.detachNativeDraft(from: backingDocument)
+        }
         if tabStore.tabs.count == 1 {
             guard let windowBeforeTabRemoval else { return }
             // Keep the final tab and its DocumentGroup scene state alive until SwiftUI's native
@@ -1742,9 +1783,25 @@ struct EditorContainerView: View {
                 (windowBeforeTabRemoval.windowController?.document as? NSDocument)?
                     .updateChangeCount(.changeCleared)
             }
-            // Dismiss the DocumentGroup scene itself. Closing its NSWindow/NSDocument directly
-            // causes SwiftUI to keep the scene alive by installing a replacement Untitled file.
-            DispatchQueue.main.async { dismissWindow() }
+            // Closing NSWindow/NSDocument directly makes SwiftUI install a replacement Untitled
+            // file. After an explicit Don't Save choice, SwiftUI's interactive dismissal can
+            // show a second native save panel for the same untitled document. Only that approved
+            // discard uses destructive dismissal; a clean or newly saved tab stays interactive.
+            DispatchQueue.main.async {
+                if didApproveDiscard {
+                    if !discardedDraftURLs.isEmpty {
+                        DiscardedDraftAutosave.removeAfterWindowCloses(
+                            discardedDraftURLs,
+                            window: windowBeforeTabRemoval
+                        )
+                    }
+                    withTransaction(\.dismissBehavior, .destructive) {
+                        dismissWindow()
+                    }
+                } else {
+                    dismissWindow()
+                }
+            }
             return
         }
 
@@ -1752,11 +1809,33 @@ struct EditorContainerView: View {
         if wasSelected {
             activateSelectedTab()
         }
+        if !discardedDraftURLs.isEmpty {
+            // A nonfinal tab reuses the same NSDocument for its successor. Wait until it has
+            // been repointed so AppKit cannot write the discarded draft back after deletion.
+            DispatchQueue.main.async {
+                DiscardedDraftAutosave.removeIfUnowned(discardedDraftURLs)
+            }
+        }
     }
 
     private func confirmCloseTab(id: UUID, owningWindow: NSWindow?) {
         tabCloseDialog = nil
-        performCloseTab(id: id, owningWindow: owningWindow)
+        guard let owningWindow else {
+            DispatchQueue.main.async {
+                performCloseTab(id: id, didApproveDiscard: true)
+            }
+            return
+        }
+        // The alert button runs before AppKit has ended its sheet. Even one main-queue hop can
+        // reach dismissWindow while the sheet is still attached, when interactive dismissal may
+        // refuse the close. Continue after AppKit reports that the owning sheet has ended.
+        WindowSheetDismissalGate(window: owningWindow) {
+            performCloseTab(
+                id: id,
+                owningWindow: owningWindow,
+                didApproveDiscard: true
+            )
+        }.start()
     }
 
     private func saveAndCloseTab(id: UUID) {

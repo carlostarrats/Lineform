@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Fixes a macOS 27 issue where closing an edited Untitled document could leave its draft behind, prompt again when closing another tab, or reopen an older Markdown file. Command-W and Don't Save now close the draft cleanly."
+}

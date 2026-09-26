@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Behebt ein Problem unter macOS 27: Beim Schließen eines bearbeiteten unbenannten Dokuments konnte ein Entwurf zurückbleiben, beim Schließen eines weiteren Tabs erneut eine Nachfrage erscheinen oder eine ältere Markdown-Datei wieder geöffnet werden. Befehl-W und Nicht sichern verwerfen den Entwurf jetzt zuverlässig."
+}

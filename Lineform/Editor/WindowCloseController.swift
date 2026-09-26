@@ -139,3 +139,115 @@ final class WindowCloseController: NSObject, NSWindowDelegate {
         originalDelegate?.windowDidExitFullScreen?(notification)
     }
 }
+
+/// Runs an already-approved tab close after its SwiftUI alert has actually left the document
+/// window. A button action runs while the sheet is still attached; a runloop delay alone does not
+/// establish that it is gone on macOS 27. The observer is installed before checking the current
+/// sheet state, so an end event cannot be missed between the check and subscription.
+@MainActor
+final class WindowSheetDismissalGate {
+    private weak var window: NSWindow?
+    private var completion: (() -> Void)?
+    private var observer: NSObjectProtocol?
+
+    init(window: NSWindow, completion: @escaping () -> Void) {
+        self.window = window
+        self.completion = completion
+    }
+
+    func start() {
+        guard let window else { return }
+        observer = NotificationCenter.default.addObserver(
+            forName: NSWindow.didEndSheetNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.finishIfReady() }
+        }
+        // The sheet can have ended before this gate was created (for example, when a hosted
+        // test invokes the action directly). Always re-check after the alert action unwinds.
+        DispatchQueue.main.async { [self] in finishIfReady() }
+        // Never retain a view/document forever if AppKit never posts the sheet-end event.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in cancel() }
+    }
+
+    private func finishIfReady() {
+        guard let window, window.isVisible,
+              window.attachedSheet == nil, window.sheets.isEmpty else { return }
+        let action = completion
+        cancel()
+        action?()
+    }
+
+    private func cancel() {
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+            self.observer = nil
+        }
+        completion = nil
+    }
+}
+
+/// DocumentGroup may autosave an Untitled document as a draft in Lineform's iCloud Documents
+/// folder. Destructive scene dismissal skips AppKit's ordinary Don't Save cleanup, and closing a
+/// nonfinal tab reuses its NSDocument. In either case an explicit discard must remove only the
+/// system-created draft, after AppKit has stopped owning that URL. A user-chosen file is never
+/// eligible: its tab already has a fileURL, and the backing NSDocument is not a draft.
+@MainActor
+enum DiscardedDraftAutosave {
+    private static var pendingWindowCloses: [ObjectIdentifier: (NSObjectProtocol, Set<URL>)] = [:]
+
+    static func currentURLs(for tab: DocumentTab?, backingDocument: NSDocument?) -> Set<URL> {
+        guard let tab, tab.fileURL == nil,
+              let backingDocument, backingDocument.isDraft
+        else { return [] }
+        return Set([backingDocument.fileURL, backingDocument.autosavedContentsFileURL]
+            .compactMap { $0?.isFileURL == true ? $0?.standardizedFileURL : nil })
+    }
+
+    static func urls(for tab: DocumentTab?, backingDocument: NSDocument?) -> Set<URL> {
+        guard let tab, tab.fileURL == nil else { return [] }
+        var urls = tab.draftAutosaveURLs
+        urls.formUnion(currentURLs(for: tab, backingDocument: backingDocument))
+        return urls
+    }
+
+    /// The next tab shares this NSDocument. Leave its native draft and recovery markers behind
+    /// with the outgoing tab; otherwise a clean saved sibling inherits a draft save panel.
+    static func detachNativeDraft(from document: NSDocument) {
+        guard document.isDraft else { return }
+        document.autosavedContentsFileURL = nil
+        document.isDraft = false
+    }
+
+    static func removeAfterWindowCloses(_ urls: Set<URL>, window: NSWindow) {
+        let key = ObjectIdentifier(window)
+        let observer = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                guard let (observer, urls) = pendingWindowCloses.removeValue(forKey: key) else { return }
+                NotificationCenter.default.removeObserver(observer)
+                DispatchQueue.main.async { removeIfUnowned(urls) }
+            }
+        }
+        pendingWindowCloses[key] = (observer, urls)
+    }
+
+    static func removeIfUnowned(_ urls: Set<URL>) {
+        for url in urls {
+            guard !NSDocumentController.shared.documents.contains(where: {
+                $0.fileURL?.standardizedFileURL == url
+            }) else { continue }
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch CocoaError.fileNoSuchFile {
+                // AppKit may have removed the draft itself when the scene closed.
+            } catch {
+                NSLog(String(localized: "Lineform could not remove discarded draft at %@: %@"), url.path, error.localizedDescription)
+            }
+        }
+    }
+}

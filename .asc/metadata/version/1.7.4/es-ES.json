@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Se corrige un problema de macOS 27 por el que, al cerrar un documento Sin título editado, podía quedar un borrador, aparecer otra solicitud al cerrar una pestaña o volver a abrirse un archivo Markdown anterior. Comando-W y No guardar ahora descartan el borrador correctamente."
+}

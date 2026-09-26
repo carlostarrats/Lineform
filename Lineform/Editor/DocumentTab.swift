@@ -4,6 +4,10 @@ struct DocumentTab: Identifiable, Equatable {
     let id: UUID
     var document: LineformDocument
     var fileURL: URL?
+    /// System-created autosave URLs for an Untitled draft. The window shares one NSDocument;
+    /// switching tabs repoints it, so the draft's URL must travel with its tab until Save or
+    /// Don't Save resolves that draft.
+    var draftAutosaveURLs: Set<URL> = []
     var displayMode: EditorDisplayMode
 
     init(document: LineformDocument, fileURL: URL? = nil, displayMode: EditorDisplayMode = .write) {
@@ -22,6 +26,7 @@ struct DocumentTab: Identifiable, Equatable {
         lhs.id == rhs.id
             && lhs.document == rhs.document
             && lhs.fileURL == rhs.fileURL
+            && lhs.draftAutosaveURLs == rhs.draftAutosaveURLs
             && lhs.displayMode == rhs.displayMode
     }
 

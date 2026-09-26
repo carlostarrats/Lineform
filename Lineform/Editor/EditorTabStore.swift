@@ -200,6 +200,7 @@ final class EditorTabStore: ObservableObject {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         tabs[index].document = document
         tabs[index].fileURL = fileURL
+        tabs[index].draftAutosaveURLs.removeAll()
     }
 
     func selectTab(id: UUID) {
@@ -257,6 +258,12 @@ final class EditorTabStore: ObservableObject {
     func updateFileURL(_ url: URL?, forTabID id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         tabs[index].fileURL = url
+        if url != nil { tabs[index].draftAutosaveURLs.removeAll() }
+    }
+
+    func recordDraftAutosaveURL(_ url: URL, forTabID id: UUID) {
+        guard let index = tabs.firstIndex(where: { $0.id == id }), tabs[index].fileURL == nil else { return }
+        tabs[index].draftAutosaveURLs.insert(url.standardizedFileURL)
     }
 
     func updateActiveTabDisplayMode(_ mode: EditorDisplayMode) {

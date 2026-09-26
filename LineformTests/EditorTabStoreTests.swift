@@ -15,6 +15,8 @@ final class EditorTabStoreTests: XCTestCase {
         }
     }
 
+    private final class DraftProbeDocument: NSDocument {}
+
     // MARK: - Helpers
 
     private func makeDocument(_ text: String = "") -> LineformDocument {
@@ -145,6 +147,56 @@ final class EditorTabStoreTests: XCTestCase {
 
         XCTAssertFalse(originalDelegate.wasInstalledWhenAsked)
         XCTAssertTrue(window.delegate === originalDelegate)
+    }
+
+    func testDiscardedUntitledDraftIsEligibleForAutosaveCleanupButChosenFileIsNot() {
+        let draftURL = url("/tmp/Lineform discarded draft.md")
+        let backing = DraftProbeDocument()
+        backing.fileURL = draftURL
+        backing.autosavedContentsFileURL = draftURL
+        backing.isDraft = true
+        let untitled = DocumentTab(document: makeDocument("unsaved"))
+
+        XCTAssertEqual(DiscardedDraftAutosave.urls(for: untitled, backingDocument: backing), [draftURL])
+
+        let chosenFile = DocumentTab(document: makeDocument("saved"), fileURL: draftURL)
+        XCTAssertTrue(DiscardedDraftAutosave.urls(for: chosenFile, backingDocument: backing).isEmpty)
+
+        backing.isDraft = false
+        XCTAssertTrue(DiscardedDraftAutosave.urls(for: untitled, backingDocument: backing).isEmpty)
+    }
+
+    func testLeavingUntitledDraftClearsNativeDraftStateForTheNextTab() {
+        let backing = DraftProbeDocument()
+        let draftURL = url("/tmp/Lineform native draft.md")
+        backing.fileURL = draftURL
+        backing.autosavedContentsFileURL = draftURL
+        backing.isDraft = true
+
+        XCTAssertEqual(DiscardedDraftAutosave.currentURLs(
+            for: DocumentTab(document: makeDocument("draft")), backingDocument: backing
+        ), [draftURL])
+        DiscardedDraftAutosave.detachNativeDraft(from: backing)
+
+        XCTAssertFalse(backing.isDraft)
+        XCTAssertNil(backing.autosavedContentsFileURL)
+    }
+
+    func testUntitledTabRetainsDraftURLAcrossTabSwitchUntilItIsSavedOrReplaced() {
+        let store = makeStore(text: "unsaved draft")
+        let draftID = store.selectedTabID!
+        let draftURL = url("/tmp/Lineform draft autosave.md")
+        store.recordDraftAutosaveURL(draftURL, forTabID: draftID)
+        store.openTab(document: makeDocument("clean"), fileURL: url("/tmp/clean.md"))
+        store.selectTab(id: draftID)
+        XCTAssertEqual(store.selectedTab?.draftAutosaveURLs, [draftURL])
+        XCTAssertEqual(DiscardedDraftAutosave.urls(for: store.selectedTab, backingDocument: nil), [draftURL])
+
+        store.updateFileURL(url("/tmp/chosen.md"), forTabID: draftID)
+        XCTAssertTrue(store.selectedTab?.draftAutosaveURLs.isEmpty == true)
+
+        store.recordDraftAutosaveURL(draftURL, forTabID: draftID)
+        XCTAssertTrue(store.selectedTab?.draftAutosaveURLs.isEmpty == true)
     }
 
     // MARK: - Next / previous wrap
