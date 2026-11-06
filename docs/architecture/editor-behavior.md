@@ -633,3 +633,30 @@ case is end of file — which is also where a writer drafting a long document ac
 at 0.0114 ms per KB of prefix, exactly 2.00x from midpoint to EOF. The gate could not see a
 regression confined to the second half of a file, and the headroom above its 4x floor was half what
 the commit message claimed. The fixture now measures the last line.
+
+## Open bug: "Edited" stays in the title bar after a live reload (found 2026-11-06, not fixed)
+
+**Seen on:** installed 1.7.5 (build 37, TestFlight), macOS 27.0.1.
+
+**Steps:** open a file and leave its window open. Permanently delete the file (no Trash), create a
+new file with the same name and different text, then open it from outside Lineform. AppKit re-shows
+the existing document, and the window reconciles with disk when the app becomes active.
+
+**Expected:** new text, the "Updated" flash, and no "Edited" in the title bar.
+
+**Actual:** the new text and "Updated" flash appear, but the title bar still shows "Edited" under the
+file name, and it was still there about eight seconds later. The file on disk stayed correct, and
+closing the window showed no save prompt, so this looks cosmetic. Nothing was lost in the one run.
+
+**Not verified:** whether any other external rewrite shows it. It was seen only in this one flow, and
+ordinary live reload was not rechecked.
+
+**Likely cause (untested):** `applyReload` writes `document.text` through the `FileDocument` binding
+and then clears the change count synchronously. SwiftUI registers that binding write with the
+`NSDocument` asynchronously, so it can mark the document edited after the clear. The comment in
+`LineformSidebarFileOpener.replaceCurrentDocument` describes this same ordering, and that path adds a
+deferred re-clear on the next main-queue turn. `applyReload` has no such re-clear.
+
+**To fix:** reproduce on the steps above, confirm the cause, and add a test if the ordering can be
+asserted. If the deferred re-clear is the fix, make sure it cannot wipe an edit typed in that same
+turn: a real edit must keep its dirty state and autosave.
