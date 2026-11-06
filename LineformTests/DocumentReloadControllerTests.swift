@@ -32,6 +32,24 @@ final class DocumentReloadControllerTests: XCTestCase {
         wait(for: [expectation], timeout: timeout + 0.5)
     }
 
+    func testAnExternalMoveReportsTheOldAndNewLocations() {
+        // The tab store only learns about a Finder rename/trash through this report. Missing it
+        // leaves a tab claiming the old path, where a different file can later appear.
+        let oldURL = URL(fileURLWithPath: "/tmp/external-move-old.md")
+        let newURL = URL(fileURLWithPath: "/tmp/external-move-new.md")
+        let controller = DocumentReloadController(diskReader: FakeReader(text: nil), debounceInterval: 0)
+        controller.update(url: oldURL, syncedText: "text")
+        defer { controller.stop() }
+        var reported: [(URL, URL)] = []
+        controller.onExternalMove = { reported.append(($0, $1)) }
+
+        controller.fileMovedExternally(to: newURL)
+
+        XCTAssertEqual(reported.map(\.0), [oldURL])
+        XCTAssertEqual(reported.map(\.1), [newURL])
+        XCTAssertEqual(controller.lastSyncedText, "text", "A move is not a memory==disk moment.")
+    }
+
     func testNoteMovedRepointsWatcherWithoutBlessingUnsavedEditsAsSynced() {
         // An in-app rename retargets the watcher via noteMoved. Unlike register/update,
         // it must preserve the synced baseline: unsaved edits at rename time are still

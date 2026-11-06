@@ -522,12 +522,20 @@ struct EditorContainerView: View {
             // Re-query Launch Services on return; this is metadata-only and never scans files.
             defaultMarkdownApp.refresh()
             appReviewPromptStore.reconsiderPresentation()
+            // A permanently deleted file reports no move, and AppKit answers an open of a new file at
+            // that path with this existing document. Reconcile with disk on return so the window
+            // shows the new file. Stat-only when nothing changed; unsaved edits are never replaced.
+            reloadController.fileDidChange()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
-            guard
-                let closingWindow = notification.object as? NSWindow,
-                closingWindow.windowNumber == windowNumber
-            else {
+            guard let closingWindow = notification.object as? NSWindow else {
+                return
+            }
+            // Compared against the store's own number, ahead of the view's guard: a hierarchy
+            // rebuild can clear the view's `windowNumber`, and a missed retirement leaves this dead
+            // window able to claim a file that is opened later.
+            tabStore.retireIfOwned(byWindowNumber: closingWindow.windowNumber)
+            guard closingWindow.windowNumber == windowNumber else {
                 return
             }
             // Audio must never outlive the window it was started from.
@@ -602,6 +610,10 @@ struct EditorContainerView: View {
         .onAppear {
             reloadController.onConfirmedSourceWrite = {
                 appReviewPromptStore.recordSuccessfulWrite()
+            }
+            reloadController.onExternalMove = { from, to in
+                tabStore.retargetFileURL(from: from, to: to, isDirectory: false)
+                currentFileURL = to
             }
             LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
             LineformDisplayModeMenuState.shared.setDisplayMode(displayMode)
@@ -684,6 +696,7 @@ struct EditorContainerView: View {
         }
         .onDisappear {
             reloadController.onConfirmedSourceWrite = nil
+            reloadController.onExternalMove = nil
             reloadController.stop()
             // Drop any pending derived-refresh work for a window that's going away.
             pendingDerivedRefresh?.cancel()

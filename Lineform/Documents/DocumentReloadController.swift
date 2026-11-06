@@ -61,6 +61,10 @@ final class DocumentReloadController: ObservableObject {
     /// review engagement only when the file presenter reads those exact bytes back from disk.
     var onConfirmedSourceWrite: (() -> Void)?
     private var pendingSourceWrite: (text: String, expiresAt: Date)?
+    /// Finder renamed or trashed the watched file: (old location, new location). NSDocument follows
+    /// on its own, but tab records do not, and a tab left claiming the old path gets mistaken for any
+    /// new file that later appears there.
+    var onExternalMove: ((URL, URL) -> Void)?
 
     /// True while a native Writing Tools session is rewriting the text view. Binding writes
     /// are deferred during a session, so the dirty gate can't see the in-progress edits; any
@@ -188,11 +192,19 @@ final class DocumentReloadController: ObservableObject {
             // watching the old path and could reload an unrelated file created there.
             Task { @MainActor in
                 guard let self, let watcher, self.watcher === watcher else { return }
-                self.startWatching(movedURL)
+                self.fileMovedExternally(to: movedURL)
             }
         }
         self.watcher = watcher
         NSFileCoordinator.addFilePresenter(watcher)
+    }
+
+    func fileMovedExternally(to movedURL: URL) {
+        let oldURL = url
+        startWatching(movedURL)
+        if let oldURL, oldURL != movedURL {
+            onExternalMove?(oldURL, movedURL)
+        }
     }
 
     /// Presenter entry point: schedule a trailing-debounced reload.

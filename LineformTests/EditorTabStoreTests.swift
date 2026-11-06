@@ -403,6 +403,56 @@ final class EditorTabStoreTests: XCTestCase {
         // repo quarantines window-hosting tests to LineformHosted. Verified by hand instead.
     }
 
+    func testAClosedWindowsStoreNoLongerCountsAsHoldingItsFile() {
+        // SwiftUI keeps a closed scene's state objects alive, so the weak registry alone left closed
+        // windows "holding" their files. Opening that path again then handed the NEW window's file
+        // off to a dead one: the old contents came back and the new window closed.
+        EditorTabStore.resetRegistryForTesting()
+        let closed = makeStore()
+        closed.windowNumber = 41
+        closed.openTab(document: makeDocument(), fileURL: url("/tmp/reused-name.md"))
+
+        closed.retireIfOwned(byWindowNumber: 41)
+
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/reused-name.md")))
+        XCTAssertFalse(EditorTabStore.allOpenTabs.contains { $0.fileURL == url("/tmp/reused-name.md") })
+        XCTAssertEqual(closed.tabCount, 2, "Scene teardown still needs the final tab in the store.")
+    }
+
+    func testAnotherWindowClosingLeavesThisStoreRegistered() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        store.windowNumber = 41
+        let tab = store.openTab(document: makeDocument(), fileURL: url("/tmp/still-open.md"))
+
+        store.retireIfOwned(byWindowNumber: 42)
+
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/still-open.md"))?.tabID, tab)
+    }
+
+    func testAStoreWithNoKnownWindowIsNotRetiredByAWindowClosing() {
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        let tab = store.openTab(document: makeDocument(), fileURL: url("/tmp/not-yet-bound.md"))
+
+        store.retireIfOwned(byWindowNumber: 41)
+
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/not-yet-bound.md"))?.tabID, tab)
+    }
+
+    func testAFileMovedAwayFreesItsOldPathForADifferentFile() {
+        // Finder trash/rename while the file is open. A new file then created at the old path is
+        // not the file this tab holds, so it must not be treated as already open here.
+        EditorTabStore.resetRegistryForTesting()
+        let store = makeStore()
+        let tab = store.openTab(document: makeDocument(), fileURL: url("/tmp/moved-away.md"))
+
+        store.retargetFileURL(from: url("/tmp/moved-away.md"), to: url("/tmp/.Trash/moved-away.md"), isDirectory: false)
+
+        XCTAssertNil(EditorTabStore.locate(url("/tmp/moved-away.md")))
+        XCTAssertEqual(EditorTabStore.locate(url("/tmp/.Trash/moved-away.md"))?.tabID, tab)
+    }
+
     func testLocateCanExcludeTheAskingStore() {
         // The duplicate-window handoff asks "does ANOTHER window have this?", so it must be able to
         // exclude itself — otherwise a window would always find its own tab and hand off to itself.

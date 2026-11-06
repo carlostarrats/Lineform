@@ -73,8 +73,10 @@ final class EditorTabStore: ObservableObject {
 
     /// Every live store, so a Save As in one window can see the tabs open in the OTHER windows and
     /// refuse to overwrite one of them (`SaveAsConflict`) — the hazard is identical across windows,
-    /// and the window that owns the file has no idea another window just wrote over it. Weak, so a
-    /// closed window's store drops out on dealloc with no unregister bookkeeping.
+    /// and the window that owns the file has no idea another window just wrote over it. Weak only as
+    /// a backstop: SwiftUI keeps a closed scene's state objects alive, so dealloc does not mean
+    /// "closed". `retireIfOwned` is what removes a closed window. Without it, reopening a path handed
+    /// the new window's file off to the dead window and showed its old contents.
     private static let liveStores = NSHashTable<EditorTabStore>.weakObjects()
 
     /// The tabs open across every window, in no particular order. Callers identify their own active
@@ -146,6 +148,13 @@ final class EditorTabStore: ObservableObject {
         tabs = [tab]
         selectedTabID = tab.id
         Self.liveStores.add(self)
+    }
+
+    /// Takes this store out of the "what is open" registry once its window closes. The tabs stay:
+    /// scene teardown still needs the final tab (see `performCloseTab`).
+    func retireIfOwned(byWindowNumber closingWindowNumber: Int) {
+        guard windowNumber == closingWindowNumber else { return }
+        Self.liveStores.remove(self)
     }
 
     var selectedTabIndex: Int? {
