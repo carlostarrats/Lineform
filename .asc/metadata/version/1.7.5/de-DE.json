@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Behebt ein Problem, bei dem beim Öffnen einer Markdown-Datei bis zum Neustart von Lineform eine zuvor geöffnete Datei angezeigt werden konnte. Dies konnte passieren, wenn eine Datei gelöscht oder umbenannt und ihr Name erneut verwendet wurde."
+}

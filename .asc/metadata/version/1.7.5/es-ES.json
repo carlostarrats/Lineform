@@ -1,0 +1,3 @@
+{
+  "whatsNew": "Corrige un problema por el que, al abrir un archivo Markdown, podía aparecer un archivo abierto anteriormente hasta volver a iniciar Lineform. Podía ocurrir tras eliminar o renombrar un archivo y volver a usar su nombre."
+}
