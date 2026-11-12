@@ -146,4 +146,73 @@ final class PassageHistoryStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path),
                        "nothing is stored until a version is kept — not even an empty index")
     }
+
+    // MARK: - Folder moves
+
+    /// Real files in a real folder, so keys and bookmarks behave as in the app.
+    private func makeDocs() throws -> URL {
+        let docs = directory.deletingLastPathComponent()
+            .appendingPathComponent("PassageHistoryStoreDocs-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: docs.appendingPathComponent("b/deep", isDirectory: true), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: docs.appendingPathComponent("bc", isDirectory: true), withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: docs) }
+        return docs
+    }
+
+    private func touch(_ url: URL) throws {
+        try "x".write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    func testRetargetDirectoryMovesAllNestedEntries() throws {
+        let docs = try makeDocs()
+        let one = docs.appendingPathComponent("b/one.md"), two = docs.appendingPathComponent("b/deep/two.md")
+        try touch(one); try touch(two)
+        let store = makeStore()
+        let h1 = history(), h2 = history(touched: Date(timeIntervalSince1970: 2_000_000))
+        store.save(h1, for: one)
+        store.save(h2, for: two)
+
+        let renamed = docs.appendingPathComponent("renamed", isDirectory: true)
+        try FileManager.default.moveItem(at: docs.appendingPathComponent("b"), to: renamed)
+        store.retargetDirectory(from: docs.appendingPathComponent("b", isDirectory: true), to: renamed)
+
+        XCTAssertEqual(store.load(for: renamed.appendingPathComponent("one.md")), h1)
+        XCTAssertEqual(store.load(for: renamed.appendingPathComponent("deep/two.md")), h2)
+        XCTAssertTrue(store.load(for: one).isEmpty)
+        XCTAssertTrue(store.load(for: two).isEmpty)
+    }
+
+    func testRetargetDirectoryDoesNotMatchSiblingPrefix() throws {
+        let docs = try makeDocs()
+        let sibling = docs.appendingPathComponent("bc/note.md")
+        try touch(sibling)
+        let store = makeStore()
+        let saved = history()
+        store.save(saved, for: sibling)
+
+        store.retargetDirectory(from: docs.appendingPathComponent("b", isDirectory: true),
+                                to: docs.appendingPathComponent("z", isDirectory: true))
+
+        XCTAssertEqual(store.load(for: sibling), saved, "/a/b must not match /a/bc")
+    }
+
+    func testPruneClashKeepsNewerHistory() throws {
+        let docs = try makeDocs()
+        let old = docs.appendingPathComponent("b/old.md"), new = docs.appendingPathComponent("b/new.md")
+        try touch(old)
+        let store = makeStore()
+        // Whole seconds: the store's date encoding does not round-trip sub-second precision.
+        let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        let stale = history(touched: now.addingTimeInterval(-2 * 24 * 60 * 60))
+        store.save(stale, for: old)
+        // The file moves without a retarget, then the writer keeps a version at the new path.
+        try FileManager.default.moveItem(at: old, to: new)
+        let fresh = history(touched: now.addingTimeInterval(-60))
+        store.save(fresh, for: new)
+
+        store.prune(now: Date())
+
+        XCTAssertEqual(store.load(for: new), fresh, "the newly kept versions survive the clash")
+        XCTAssertEqual(storedFiles().filter { $0 != "index.json" }.count, 1, "the stale entry is deleted")
+    }
 }

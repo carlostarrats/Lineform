@@ -6,6 +6,9 @@ protocol PassageHistoryPersisting: AnyObject {
     func load(for url: URL) -> DocumentHistory
     func save(_ history: DocumentHistory, for url: URL)
     func retarget(from old: URL, to new: URL)
+    /// A folder was renamed or moved: every stored document under `oldDir` (at any depth) follows,
+    /// to the same relative path under `newDir`.
+    func retargetDirectory(from oldDir: URL, to newDir: URL)
     func prune(now: Date)
     func clearAll()
 }
@@ -15,6 +18,7 @@ final class NullPassageHistoryStore: PassageHistoryPersisting {
     func load(for url: URL) -> DocumentHistory { DocumentHistory(passages: []) }
     func save(_ history: DocumentHistory, for url: URL) {}
     func retarget(from old: URL, to new: URL) {}
+    func retargetDirectory(from oldDir: URL, to newDir: URL) {}
     func prune(now: Date) {}
     func clearAll() {}
 }
@@ -103,6 +107,31 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         writeIndex(index)
     }
 
+    func retargetDirectory(from oldDir: URL, to newDir: URL) {
+        lock.lock(); defer { lock.unlock() }
+        let oldPrefix = FileIdentity.key(for: oldDir) + "/"
+        guard FileIdentity.key(for: newDir) + "/" != oldPrefix else { return }
+        var index = readIndex()
+        // Path-COMPONENT prefix: "/a/b/" never matches "/a/bc/x.md".
+        let moving = index.indices.filter { index[$0].pathKey.hasPrefix(oldPrefix) }
+        guard !moving.isEmpty else { return }
+        var doomed = Set<UUID>()
+        for i in moving {
+            let relative = String(index[i].pathKey.dropFirst(oldPrefix.count))
+            let newURL = newDir.appendingPathComponent(relative)
+            let newKey = FileIdentity.key(for: newURL)
+            // The destination's own history (if any) is replaced by the moved file's.
+            for j in index.indices where j != i && index[j].pathKey == newKey && !moving.contains(j) {
+                doomed.insert(index[j].id)
+            }
+            index[i].pathKey = newKey
+            index[i].bookmark = Self.bookmark(for: newURL)
+        }
+        for id in doomed { removeHistoryFile(id) }
+        index.removeAll { doomed.contains($0.id) }
+        writeIndex(index)
+    }
+
     func prune(now: Date) {
         lock.lock(); defer { lock.unlock() }
         // Nothing stored yet: write nothing either (not even an empty index).
@@ -125,16 +154,23 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
                 removeHistoryFile(entry.id)
                 continue
             }
-            if kept.contains(where: { $0.pathKey == entry.pathKey }) {
-                // A move landed on a path that already has history: keep the first, drop this.
-                removeHistoryFile(entry.id)
-                continue
-            }
             var history = readHistory(entry.id)
             let fresh = history.passages.filter { $0.lastTouched >= cutoff }
             if fresh.isEmpty {
                 removeHistoryFile(entry.id)
                 continue
+            }
+            if let clash = kept.firstIndex(where: { $0.pathKey == entry.pathKey }) {
+                // Two entries now resolve to one file (a move followed by a save at the new path):
+                // keep whichever was touched more recently, never the stale one.
+                let keptNewest = Self.newestTouch(readHistory(kept[clash].id))
+                if Self.newestTouch(DocumentHistory(passages: fresh)) > keptNewest {
+                    removeHistoryFile(kept[clash].id)
+                    kept.remove(at: clash)
+                } else {
+                    removeHistoryFile(entry.id)
+                    continue
+                }
             }
             if fresh.count != history.passages.count {
                 history.passages = fresh
@@ -158,6 +194,10 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
     // MARK: - Disk
 
     private static let empty = DocumentHistory(passages: [])
+
+    private static func newestTouch(_ history: DocumentHistory) -> Date {
+        history.passages.map(\.lastTouched).max() ?? .distantPast
+    }
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()

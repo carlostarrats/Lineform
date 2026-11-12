@@ -505,4 +505,51 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertEqual(controller.sidebarModel.versions.map(\.text), ["Alpha beta gamma delta.", "Alpha BETA gamma delta."])
         XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [true, false])
     }
+
+    // MARK: - Review fixes
+
+    func testEnteringReportsWhetherHistoryModeStarted() {
+        let controller = makeController()
+        controller.open(url: nil, text: text)
+        XCTAssertFalse(controller.enterHistoryMode(text: text))
+        let (withHistory, edited) = controllerWithEditedPassage()
+        XCTAssertTrue(withHistory.enterHistoryMode(text: edited))
+    }
+
+    func testDeclinedHistoryTabReturnsToThePreviousTab() {
+        XCTAssertEqual(OutlineSidebarTab.tabAfterSelecting(.history, accepted: false, previous: .files), .files)
+        XCTAssertEqual(OutlineSidebarTab.tabAfterSelecting(.history, accepted: false, previous: nil), .outline)
+        XCTAssertEqual(OutlineSidebarTab.tabAfterSelecting(.history, accepted: true, previous: .files), .history)
+        XCTAssertEqual(OutlineSidebarTab.tabAfterSelecting(.files, accepted: true, previous: nil), .files)
+    }
+
+    /// Read-mode checkbox toggles and image reconnects write the binding, not the text view.
+    func testUnreportedBindingWriteIsReFoundAfterInvalidation() throws {
+        let doc = "- [ ] task\n\n" + text
+        let controller = makeController()
+        controller.open(url: nil, text: doc)
+        _ = controller.handle(.add(range(of: sentence, in: doc)), text: doc)
+        let toggled = "- [x] task done\n\n" + text
+        controller.noteWholeTextReplacement()
+        XCTAssertTrue(controller.enterHistoryMode(text: toggled))
+        XCTAssertEqual(controller.display?.passages.first?.range, range(of: sentence, in: toggled))
+    }
+
+    func testDirectoryMoveFollowsTheOpenFile() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let folder = directory.appendingPathComponent("folder", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("a.md")
+        try text.write(to: file, atomically: true, encoding: .utf8)
+        let (controller, _) = controllerWithEditedPassage(store: store, url: file)
+
+        let renamed = directory.appendingPathComponent("renamed", isDirectory: true)
+        try FileManager.default.moveItem(at: folder, to: renamed)
+        controller.directoryMoved(from: folder, to: renamed)
+        let moved = renamed.appendingPathComponent("a.md")
+        XCTAssertEqual(controller.url.map(FileIdentity.key(for:)), FileIdentity.key(for: moved))
+        let reopened = makeController(store: store)
+        reopened.open(url: moved, text: text)
+        XCTAssertTrue(reopened.hasHistory)
+    }
 }

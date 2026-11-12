@@ -206,6 +206,18 @@ final class DocumentHistoryController: ObservableObject {
         }
     }
 
+    /// A folder was renamed or moved: every stored document under it follows, and so does this
+    /// one when it lives there.
+    func directoryMoved(from oldDir: URL, to newDir: URL) {
+        store.retargetDirectory(from: oldDir, to: newDir)
+        guard let current = url else { return }
+        let oldPrefix = FileIdentity.key(for: oldDir) + "/"
+        let key = FileIdentity.key(for: current)
+        if key.hasPrefix(oldPrefix) {
+            url = newDir.appendingPathComponent(String(key.dropFirst(oldPrefix.count)))
+        }
+    }
+
     /// An untitled document was saved for the first time: its in-memory history is stored now.
     func documentGotFile(_ newURL: URL, text: String) {
         guard url == nil else { return }
@@ -244,15 +256,18 @@ final class DocumentHistoryController: ObservableObject {
 
     // MARK: - History mode
 
-    func enterHistoryMode(text: String) {
-        guard !isHistoryModeActive else { return }
+    /// Returns whether History mode is active afterwards: false when nothing could be shown, so
+    /// the sidebar never sits on an inert History tab.
+    @discardableResult
+    func enterHistoryMode(text: String) -> Bool {
+        guard !isHistoryModeActive else { return true }
         guard !engine.history.isEmpty else {
             refreshHasHistory()
-            return
+            return false
         }
         located = engine.locateAll(in: text)
         refreshHasHistory()
-        guard !located.isEmpty else { return }
+        guard !located.isEmpty else { return false }
         entryText = text
         modeText = text
         entryVersions = currentVersions()
@@ -260,6 +275,7 @@ final class DocumentHistoryController: ObservableObject {
         selectedID = nil
         isHistoryModeActive = true
         publishMode()
+        return true
     }
 
     /// Leaves History mode and returns the collapsed edit (entry text → exit text, in entry

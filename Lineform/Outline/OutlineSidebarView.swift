@@ -36,6 +36,13 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         return previous
     }
 
+    /// Where a tab click leaves the sidebar: on the tab, unless History mode declined to start
+    /// (nothing locatable) — then back to the tab the user came from, never an inert History tab.
+    static func tabAfterSelecting(_ tab: OutlineSidebarTab, accepted: Bool, previous: OutlineSidebarTab?) -> OutlineSidebarTab {
+        guard tab == .history, !accepted else { return tab }
+        return tabAfterHistoryDisappears(selected: .history, previous: previous)
+    }
+
     static func visibleTabs(hasHistory: Bool) -> [OutlineSidebarTab] {
         hasHistory ? allCases : allCases.filter { $0 != .history }
     }
@@ -381,8 +388,9 @@ struct OutlineSidebarView: View {
     /// Whether the editor is in History mode. Leaving it (Esc, typing, a document swap) returns
     /// the sidebar to the tab the user came from; entering it from elsewhere shows History.
     var isHistoryModeActive: Bool = false
-    /// Every tab click. The editor enters History mode for `.history` and leaves it otherwise.
-    var onSelectTab: (OutlineSidebarTab) -> Void = { _ in }
+    /// Every tab click. The editor enters History mode for `.history` and leaves it otherwise;
+    /// returning false (History mode declined) sends the sidebar back where it came from.
+    var onSelectTab: (OutlineSidebarTab) -> Bool = { _ in true }
     /// Context-menu actions on Files-tab rows. The sidebar stays dumb: the window's
     /// editor container supplies these (it presents the dialogs, performs the file
     /// operation, and broadcasts the app-wide refresh/retarget notifications).
@@ -417,7 +425,7 @@ struct OutlineSidebarView: View {
         onSelectHistoryVersion: @escaping (Int) -> Void = { _ in },
         onDeleteHistoryVersion: @escaping (Int) -> Void = { _ in },
         isHistoryModeActive: Bool = false,
-        onSelectTab: @escaping (OutlineSidebarTab) -> Void = { _ in },
+        onSelectTab: @escaping (OutlineSidebarTab) -> Bool = { _ in true },
         fileBrowserStore: OutlineFileBrowserStore? = nil,
         settings: LineformSettingsStore = .shared,
         renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
@@ -629,7 +637,9 @@ struct OutlineSidebarView: View {
                         action: {
                             if tab == .history, selectedTab != .history { tabBeforeHistory = selectedTab }
                             selectedTab = tab
-                            onSelectTab(tab)
+                            let accepted = onSelectTab(tab)
+                            selectedTab = OutlineSidebarTab.tabAfterSelecting(tab, accepted: accepted, previous: tabBeforeHistory)
+                            if selectedTab != .history { tabBeforeHistory = nil }
                         }
                     )
                 }

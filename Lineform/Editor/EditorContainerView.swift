@@ -576,13 +576,13 @@ struct EditorContainerView: View {
             // tab was never retargeted. Switching to that tab later pointed the window's NSDocument
             // at a path that no longer exists — exactly what the comment above promises it prevents.
             tabStore.retargetFileURL(from: payload.from, to: payload.to, isDirectory: payload.isDirectory)
-            // History follows the file, also unconditionally (the store retarget is idempotent, so
-            // every window running this is harmless). A folder rename moves this window's file
-            // only; other files under it are followed by their bookmarks at the next prune.
-            if !payload.isDirectory {
+            // History follows the file — and for a folder, every stored file under it, open or
+            // not. Unconditional: the store retarget is idempotent, so every window running this
+            // is harmless.
+            if payload.isDirectory {
+                historyController.directoryMoved(from: payload.from, to: payload.to)
+            } else {
                 historyController.fileMoved(from: payload.from, to: payload.to)
-            } else if let oldURL = currentFileURL, let movedURL = payload.rebased(oldURL) {
-                historyController.fileMoved(from: oldURL, to: movedURL)
             }
 
             guard
@@ -1090,6 +1090,8 @@ struct EditorContainerView: View {
     private func toggleCheckbox(at range: NSRange) {
         guard let newText = CheckboxToggle.toggledText(in: document.text, at: range) else { return }
         document.text = newText
+        // Written through the binding, not the text view: History re-finds its passages.
+        historyController.noteWholeTextReplacement()
     }
 
     /// Reconnect a broken/unresolved image placeholder: present an image-restricted `NSOpenPanel`,
@@ -1109,6 +1111,7 @@ struct EditorContainerView: View {
         let newPath = ImageLinkRewrite.linkPath(for: picked, documentDirectory: dir)
         guard let newText = ImageLinkRewrite.rewritten(in: document.text, at: range, newPath: newPath) else { return }
         document.text = newText
+        historyController.noteWholeTextReplacement()
     }
 
     // The Find & Replace panel. The FIND term stays in the existing native toolbar search
@@ -2404,15 +2407,16 @@ struct EditorContainerView: View {
 
     /// Sidebar tab clicks. History runs in Write mode, so entering it from Read or Split switches
     /// to Write first; any other tab leaves History mode.
-    private func selectSidebarTab(_ tab: OutlineSidebarTab) {
+    /// Returns whether the sidebar may stay on `tab`.
+    private func selectSidebarTab(_ tab: OutlineSidebarTab) -> Bool {
         guard tab == .history else {
             historyController.exitHistoryMode()
-            return
+            return true
         }
         if displayMode != .write {
             displayMode = .write
         }
-        historyController.enterHistoryMode(text: historyEditorText)
+        return historyController.enterHistoryMode(text: historyEditorText)
     }
 
     private func selectHistoryVersion(_ index: Int) {
