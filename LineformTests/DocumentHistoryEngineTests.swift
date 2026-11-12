@@ -26,7 +26,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     /// A user text change: applies it to `text` AND reports it to the engine, as the editor must.
     private func edit(_ engine: inout DocumentHistoryEngine, _ text: String, replacing r: NSRange, with new: String) -> String {
-        engine.applyEdit(r, replacementLength: (new as NSString).length)
+        engine.applyEdit(r, replacement: new)
         return (text as NSString).replacingCharacters(in: r, with: new)
     }
 
@@ -433,5 +433,121 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(engine.liveRanges[id], typedRange)
         XCTAssertEqual(engine.liveRanges[wordID], range(of: "Omega", in: forward))
         XCTAssertEqual(engine.locateAll(in: forward).map(\.range), [typedRange, range(of: "Omega", in: forward)])
+    }
+
+    // MARK: - Round 5
+
+    /// Types `characters` one key at a time starting at `location`, reporting each key.
+    private func typeKeys(_ engine: inout DocumentHistoryEngine, _ characters: String, at location: Int, in text: String) -> String {
+        var result = text
+        var cursor = location
+        for character in characters {
+            let key = String(character)
+            result = edit(&engine, result, replacing: NSRange(location: cursor, length: 0), with: key)
+            cursor += (key as NSString).length
+        }
+        return result
+    }
+
+    func testOverTypingTrackedWordKeepsWholeWord() throws {
+        let text = "The cat sat on the mat."
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "cat", in: text), author: .you, in: text))
+        let cat = range(of: "cat", in: text)
+        var typed = edit(&engine, text, replacing: cat, with: "d")  // selection replaced by the first key
+        typed = typeKeys(&engine, "og", at: cat.location + 1, in: typed)
+        XCTAssertEqual(typed, "The dog sat on the mat.")
+        XCTAssertEqual(engine.liveRanges[id], range(of: "dog", in: typed))
+        let back = try XCTUnwrap(engine.step(id, by: -1, in: typed))
+        XCTAssertEqual(apply(back, to: typed), "The cat sat on the mat.")
+    }
+
+    func testAppendingToTrackedWordGrowsIt() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "brave", in: sentenceText), author: .you, in: sentenceText))
+        let bold = typing(&engine, "brave", with: "bold", in: sentenceText)
+        XCTAssertEqual(engine.recordAccepted(range: range(of: "bold", in: bold), original: "brave", accepted: "bold", in: bold), id)
+        let shown = apply(try XCTUnwrap(engine.step(id, by: -1, in: bold)), to: bold)
+        XCTAssertEqual(shown, sentenceText)
+        let typed = typeKeys(&engine, "er", at: range(of: "brave", in: shown).upperBound, in: shown)
+        XCTAssertEqual(engine.liveRanges[id], range(of: "braveer", in: typed))
+        let forward = apply(try XCTUnwrap(engine.step(id, by: 1, in: typed)), to: typed)
+        XCTAssertEqual(forward, bold)
+        let back = apply(try XCTUnwrap(engine.step(id, by: -1, in: forward)), to: forward)
+        XCTAssertEqual(back, replacing("brave", with: "braveer", in: sentenceText))
+    }
+
+    func testPrependingToTrackedWordGrowsIt() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "brave", in: sentenceText), author: .you, in: sentenceText))
+        let typed = typeKeys(&engine, "un", at: range(of: "brave", in: sentenceText).location, in: sentenceText)
+        XCTAssertEqual(engine.liveRanges[id], range(of: "unbrave", in: typed))
+        let back = apply(try XCTUnwrap(engine.step(id, by: -1, in: typed)), to: typed)
+        XCTAssertEqual(back, sentenceText)
+    }
+
+    func testSpaceAtBoundaryStaysOutside() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "brave", in: sentenceText), author: .you, in: sentenceText))
+        var text = typeKeys(&engine, " x", at: range(of: "brave", in: sentenceText).upperBound, in: sentenceText)
+        text = typeKeys(&engine, " ", at: range(of: "brave", in: text).location, in: text)
+        XCTAssertEqual(text, "Alpha one goes first. Hello there  brave x new world. Omega two ends it.")
+        XCTAssertEqual(engine.liveRanges[id], range(of: "brave", in: text))
+
+        // Punctuation at a sentence's edge does not continue a word either.
+        var other = makeEngine()
+        let sid = try XCTUnwrap(other.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let after = typeKeys(&other, "X", at: range(of: sentence, in: sentenceText).upperBound, in: sentenceText)
+        XCTAssertEqual(other.liveRanges[sid], range(of: sentence, in: after))
+    }
+
+    func testRecordAcceptedWithTrailingWhitespaceKeepsDraft() throws {
+        let text = "One two. Three four. Five six."
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "Three four.", in: text), author: .you, in: text))
+        let drafted = typing(&engine, "Three four.", with: "Drafted words.", in: text)
+        let ai = "AI rewrite. "
+        let accepted = edit(&engine, drafted, replacing: try XCTUnwrap(engine.liveRanges[id]), with: ai)
+        XCTAssertEqual(engine.recordAccepted(range: range(of: ai, in: accepted), original: "Drafted words.",
+                                             accepted: ai, in: accepted), id)
+        let passage = try XCTUnwrap(engine.history.passages.first { $0.id == id })
+        XCTAssertEqual(passage.versions.map(\.text), ["Three four.", "Drafted words.", ai])
+        XCTAssertEqual(passage.versions.map(\.author), [.you, .you, .ai])
+        let back = apply(try XCTUnwrap(engine.step(id, by: -1, in: accepted)), to: accepted)
+        XCTAssertEqual(back, drafted)
+    }
+
+    func testUnreportedSameLengthChangeNeverOverwrites() throws {
+        let text = "AAA one. Tracked here. BBB."
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "Tracked here.", in: text), author: .you, in: text))
+        let typed = typing(&engine, "here", with: "now!", in: text)
+        XCTAssertEqual(typed, "AAA one. Tracked now!. BBB.")
+        let changed = "one. Tracked now!. AAA BBB."  // unreported, same length
+        XCTAssertEqual((changed as NSString).length, (typed as NSString).length)
+        if let edit = engine.step(id, by: -1, in: changed) {
+            XCTAssertEqual(edit.range, range(of: "Tracked now!.", in: changed))
+            XCTAssertEqual(apply(edit, to: changed), "one. Tracked here. AAA BBB.")
+        } else {
+            XCTAssertTrue(engine.history.isEmpty)
+        }
+    }
+
+    func testInvalidateLiveRangesReFindsLiterally() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let typed = typing(&engine, "brave", with: "very brave", in: sentenceText)
+        engine.invalidateLiveRanges()
+        XCTAssertTrue(engine.liveRanges.isEmpty)
+        let reloaded = "A new opening line arrives.\n\n" + typed
+        let typedSentence = "Hello there very brave new world."
+        XCTAssertEqual(engine.locateAll(in: reloaded).map(\.range), [range(of: typedSentence, in: reloaded)])
+        XCTAssertEqual(engine.liveRanges[id], range(of: typedSentence, in: reloaded))
+        let back = apply(try XCTUnwrap(engine.step(id, by: -1, in: reloaded)), to: reloaded)
+        XCTAssertEqual(back, "A new opening line arrives.\n\n" + sentenceText)
+
+        engine.invalidateLiveRanges()
+        XCTAssertEqual(engine.locateAll(in: "Nothing of it remains in this reloaded file."), [])
+        XCTAssertTrue(engine.history.isEmpty)
     }
 }
