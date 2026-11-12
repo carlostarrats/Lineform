@@ -88,6 +88,31 @@ struct DocumentHistoryEngine {
     /// `max(2 × needle, needle + anchoredSlack)` UTF-16 units.
     static let anchoredSlack = 80
 
+    /// A passage the writer typed into keeps most of its text, so an anchored span must share at
+    /// least this much with the stored text: `2 × LCS / (span + needle)`, over Characters.
+    /// 0.6 was not enough: an unrelated same-level sentence ("Untouched sentence kept." against
+    /// "Old tracked sentence.") scores 0.622 on shared letters alone and would be overwritten.
+    /// At 0.7 a short passage still survives a few typed words ("It works." → "It really works."
+    /// scores 0.72).
+    static let anchoredMinimumSimilarity = 0.7
+
+    /// `2 × LCS / (a + b)` over grapheme clusters; 1 for two empty strings. O(a·b) time, O(b)
+    /// space — callers bound the span's length first.
+    static func similarity(_ a: String, _ b: String) -> Double {
+        let x = Array(a), y = Array(b)
+        guard !x.isEmpty || !y.isEmpty else { return 1 }
+        guard !x.isEmpty, !y.isEmpty else { return 0 }
+        var previous = [Int](repeating: 0, count: y.count + 1)
+        var current = previous
+        for ch in x {
+            for j in 0..<y.count {
+                current[j + 1] = ch == y[j] ? previous[j] + 1 : max(previous[j + 1], current[j])
+            }
+            swap(&previous, &current)
+        }
+        return 2 * Double(previous[y.count]) / Double(x.count + y.count)
+    }
+
     /// An anchored span is only trusted when it still looks like the passage the writer typed into:
     /// already trimmed and composed-aligned, the same level, no blank-line paragraph break (checked
     /// for `.paragraph` too — `classify` reports multi-paragraph ranges as `.paragraph`), and not
@@ -100,6 +125,7 @@ struct DocumentHistoryEngine {
               PassageHistoryText.classify(span, in: text) == passage.level else { return false }
         let body = (text as NSString).substring(with: span)
         return body.range(of: "\n[ \t\r\u{FEFF}]*\n", options: .regularExpression) == nil
+            && similarity(body, needle) >= anchoredMinimumSimilarity
     }
 
     /// The text between an occurrence of `before` and the next occurrence of `after`, inside
@@ -190,14 +216,18 @@ struct DocumentHistoryEngine {
     /// accepted text now sits in `text`.
     @discardableResult
     mutating func recordAccepted(range: NSRange, original: String, accepted: String, in text: String) -> UUID? {
+        let stored = history  // before locateAll refreshes the current version to the accepted text
         guard let placement = placement(for: range, in: text) else { return nil }
         let date = now()
         switch placement {
         case .existing(let id):
             guard let index = index(of: id) else { return nil }
             let current = history.passages[index].currentIndex
+            // The version being replaced keeps its author when it IS the original (accepting AI
+            // text twice in a row); text that differs from what was stored is the writer's.
+            let previous = stored.passages.first { $0.id == id }.map { $0.versions[$0.currentIndex].text }
+            if previous != original { history.passages[index].versions[current].author = .you }
             history.passages[index].versions[current].text = original
-            history.passages[index].versions[current].author = .you
             appendLive(HistoryVersion(text: accepted, author: .ai, createdAt: date), toPassageAt: index)
             return id
         case let .new(level, r, parent, contained):

@@ -176,6 +176,33 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(extended.versions.map(\.text), [sentence, accepted])
         XCTAssertEqual(extended.versions.map(\.author), [.you, .ai])
         XCTAssertEqual(extended.currentIndex, 1)
+
+        // Accepting AI text twice in a row keeps the first AI version's authorship.
+        let second = "Hello there bold and new world."
+        let afterSecond = replacing(accepted, with: second, in: afterAccept)
+        XCTAssertEqual(existing.recordAccepted(range: range(of: second, in: afterSecond),
+                                               original: accepted, accepted: second, in: afterSecond), existingID)
+        let chained = try XCTUnwrap(existing.history.passages.first { $0.id == existingID })
+        XCTAssertEqual(chained.versions.map(\.text), [sentence, accepted, second])
+        XCTAssertEqual(chained.versions.map(\.author), [.you, .ai, .ai])
+        XCTAssertEqual(chained.currentIndex, 2)
+    }
+
+    func testAnchoredSpanRejectsUnrelatedSameLevelSentence() throws {
+        let text = "Lead words. Old tracked sentence. Rule X applies here now always. Untouched sentence kept. Rule X applies here now always. End."
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "Old tracked sentence.", in: text), author: .you, in: text))
+        let deleted = replacing("Old tracked sentence. Rule X applies here now always. ", with: "", in: text)
+        XCTAssertEqual(deleted, "Lead words. Untouched sentence kept. Rule X applies here now always. End.")
+        assertDroppedWithoutEdits(&engine, id: id, in: deleted)
+    }
+
+    func testTypingAFewCharactersInsideTrackedSentenceKeepsIt() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let typed = replacing("brave", with: "very brave", in: sentenceText)
+        XCTAssertEqual(engine.locateAll(in: typed).first { $0.id == id }?.range,
+                       range(of: "Hello there very brave new world.", in: typed))
     }
 
     func testDeletedPassageWithRecurringContextIsDropped() throws {
