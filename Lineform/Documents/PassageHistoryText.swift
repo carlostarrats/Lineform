@@ -17,8 +17,8 @@ enum PassageHistoryText {
     static func aligned(_ range: NSRange, in text: String) -> NSRange {
         let ns = text as NSString
         let length = ns.length
-        let location = min(max(range.location, 0), length)
-        let end = min(max(range.location + range.length, location), length)
+        let location = (range.location == NSNotFound || range.location < 0) ? length : min(range.location, length)
+        let end = location + min(max(range.length, 0), length - location)
         guard end > location else { return NSRange(location: location, length: 0) }
 
         let widened = ns.rangeOfComposedCharacterSequences(for: NSRange(location: location, length: end - location))
@@ -96,12 +96,23 @@ enum PassageHistoryText {
         return (before, after)
     }
 
+    /// Finds `needle` inside `scope`, choosing the occurrence whose surrounding text best matches
+    /// `before`/`after` (longest common suffix plus prefix). Returns nil rather than guess: no
+    /// occurrence, a best score of 0 (even for a single occurrence), or only occurrences that split
+    /// a composed character or start/end mid-word. Ties above 0 resolve to the first.
     static func locate(_ needle: String, before: String, after: String, in text: String, within scope: NSRange) -> NSRange? {
         let ns = text as NSString
         let needleLength = (needle as NSString).length
         guard needleLength > 0 else { return nil }
-        let scopeStart = min(max(scope.location, 0), ns.length)
-        let scopeEnd = min(max(scope.location + scope.length, scopeStart), ns.length)
+        let scopeStart = (scope.location == NSNotFound || scope.location < 0) ? ns.length : min(scope.location, ns.length)
+        let scopeEnd = scopeStart + min(max(scope.length, 0), ns.length - scopeStart)
+        let alnum = CharacterSet.alphanumerics
+        func isWordUnit(_ unit: unichar) -> Bool {
+            Unicode.Scalar(unit).map { alnum.contains($0) } ?? false
+        }
+        let needleNS = needle as NSString
+        let startsWord = isWordUnit(needleNS.character(at: 0))
+        let endsWord = isWordUnit(needleNS.character(at: needleNS.length - 1))
 
         let beforeNS = before as NSString
         let afterNS = after as NSString
@@ -112,6 +123,13 @@ enum PassageHistoryText {
             let found = ns.range(of: needle, options: .literal,
                                  range: NSRange(location: cursor, length: scopeEnd - cursor))
             if found.location == NSNotFound { break }
+            cursor = found.location + 1
+            // A code-unit match can land inside a composed character ("cafe" in "cafe\u{301}",
+            // "👍" in "👍🏽") or mid-word ("he" in "the"). Replacing there corrupts text; skip it.
+            if ns.rangeOfComposedCharacterSequences(for: found) != found { continue }
+            if startsWord, found.location > 0, isWordUnit(ns.character(at: found.location - 1)) { continue }
+            if endsWord, found.location + found.length < ns.length,
+               isWordUnit(ns.character(at: found.location + found.length)) { continue }
 
             var suffix = 0
             while suffix < beforeNS.length, found.location - 1 - suffix >= 0,
@@ -125,12 +143,10 @@ enum PassageHistoryText {
                 prefix += 1
             }
             candidates.append((found, suffix + prefix))
-            cursor = found.location + 1
         }
 
-        guard let best = candidates.map(\.score).max() else { return nil }
-        let top = candidates.filter { $0.score == best }
-        if top.count > 1 && best == 0 { return nil }
-        return top[0].range
+        // Never guess: no context agreement at all means the passage is treated as gone.
+        guard let best = candidates.map(\.score).max(), best > 0 else { return nil }
+        return candidates.first { $0.score == best }?.range
     }
 }

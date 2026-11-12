@@ -80,4 +80,35 @@ final class PassageHistoryTextTests: XCTestCase {
         XCTAssertLessThanOrEqual((ctx.after as NSString).length, PassageHistoryText.contextLength)
         XCTAssertTrue(ctx.before.hasSuffix("👍🏽"))
     }
+
+    func testLocateReturnsNilForContextlessSingleOccurrence() {
+        XCTAssertNil(PassageHistoryText.locate("works", before: "zzz", after: "qqq", in: "It works fine.",
+                                               within: NSRange(location: 0, length: 14)))
+    }
+
+    func testLocateRejectsMidWordMatch() {
+        let text = "the other"
+        XCTAssertNil(PassageHistoryText.locate("he", before: "t", after: " other", in: text,
+                                               within: NSRange(location: 0, length: 9)))
+    }
+
+    func testLocateRejectsComposedCharacterSplit() {
+        let decomposed = "a cafe\u{301} b"
+        XCTAssertNil(PassageHistoryText.locate("cafe", before: "a ", after: "\u{301} b", in: decomposed,
+                                               within: NSRange(location: 0, length: (decomposed as NSString).length)))
+        let skin = "ok 👍🏽 ok"
+        XCTAssertNil(PassageHistoryText.locate("👍", before: "ok ", after: "🏽 ok", in: skin,
+                                               within: NSRange(location: 0, length: (skin as NSString).length)))
+        let whole = PassageHistoryText.locate("👍🏽", before: "ok ", after: " ok", in: skin,
+                                              within: NSRange(location: 0, length: (skin as NSString).length))
+        XCTAssertEqual(whole, (skin as NSString).range(of: "👍🏽"))
+    }
+
+    func testAlignedClampsInvalidRanges() {
+        let text = "hello"
+        XCTAssertEqual(PassageHistoryText.aligned(NSRange(location: NSNotFound, length: 3), in: text).length, 0)
+        XCTAssertEqual(PassageHistoryText.aligned(NSRange(location: 2, length: Int.max), in: text), NSRange(location: 2, length: 3))
+        XCTAssertEqual(PassageHistoryText.aligned(NSRange(location: 99, length: 1), in: text), NSRange(location: 5, length: 0))
+        XCTAssertEqual(PassageHistoryText.aligned(NSRange(location: Int.max - 1, length: 5), in: text), NSRange(location: 5, length: 0))
+    }
 }
