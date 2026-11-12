@@ -77,29 +77,53 @@ struct DocumentHistoryEngine {
         let literal = PassageHistoryText.locate(needle, before: passage.contextBefore, after: passage.contextAfter,
                                                 in: text, within: scope)
         guard let anchored = anchoredSpan(before: passage.contextBefore, after: passage.contextAfter,
-                                          in: text, within: scope) else { return literal }
+                                          in: text, within: scope),
+              isPlausibleEdit(anchored, of: passage, needle: needle, in: text) else { return literal }
         if let literal, NSIntersectionRange(literal, anchored) == literal { return literal }
         return anchored
     }
 
+    /// Extra length an edited passage may gain beyond its stored text before the anchored span
+    /// stops counting as "the same passage, typed into". The bound is
+    /// `max(2 × needle, needle + anchoredSlack)` UTF-16 units.
+    static let anchoredSlack = 80
+
+    /// An anchored span is only trusted when it still looks like the passage the writer typed into:
+    /// already trimmed and composed-aligned, the same level, no blank-line paragraph break (checked
+    /// for `.paragraph` too — `classify` reports multi-paragraph ranges as `.paragraph`), and not
+    /// much longer than the stored text. Otherwise a deleted passage whose context recurs later
+    /// would claim the untouched text in between, and stepping would overwrite it.
+    private static func isPlausibleEdit(_ span: NSRange, of passage: HistoryPassage, needle: String, in text: String) -> Bool {
+        let needleLength = (needle as NSString).length
+        guard PassageHistoryText.aligned(span, in: text) == span,
+              span.length <= max(2 * needleLength, needleLength + anchoredSlack),
+              PassageHistoryText.classify(span, in: text) == passage.level else { return false }
+        let body = (text as NSString).substring(with: span)
+        return body.range(of: "\n[ \t\r\u{FEFF}]*\n", options: .regularExpression) == nil
+    }
+
     /// The text between an occurrence of `before` and the next occurrence of `after`, inside
     /// `scope`. Nil unless both contexts are non-empty and exactly one non-blank, composed-safe
-    /// span exists — an empty context gives no edge to anchor to, so it never guesses.
+    /// span exists — an empty context gives no edge to anchor to, so it never guesses. Searches
+    /// stay within the scope widened by the context lengths, never the whole document.
     private static func anchoredSpan(before: String, after: String, in text: String, within scope: NSRange) -> NSRange? {
         guard !before.isEmpty, !after.isEmpty else { return nil }
         let ns = text as NSString
         let scopeStart = min(max(scope.location, 0), ns.length)
         let scopeEnd = scopeStart + min(max(scope.length, 0), ns.length - scopeStart)
+        let beforeLength = (before as NSString).length
+        let afterLength = (after as NSString).length
+        let searchEnd = min(ns.length, scopeEnd + afterLength)
         let blank = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}"))
         var spans = Set<NSRange>()
-        var cursor = 0
-        while cursor < ns.length {
-            let b = ns.range(of: before, options: .literal, range: NSRange(location: cursor, length: ns.length - cursor))
+        var cursor = max(0, scopeStart - beforeLength)
+        while cursor < scopeEnd {
+            let b = ns.range(of: before, options: .literal, range: NSRange(location: cursor, length: scopeEnd - cursor))
             if b.location == NSNotFound { break }
             cursor = b.location + 1
             let start = b.location + b.length
             guard start >= scopeStart, start < scopeEnd else { continue }
-            let a = ns.range(of: after, options: .literal, range: NSRange(location: start, length: ns.length - start))
+            let a = ns.range(of: after, options: .literal, range: NSRange(location: start, length: searchEnd - start))
             guard a.location != NSNotFound, a.location <= scopeEnd, a.location > start else { continue }
             let span = NSRange(location: start, length: a.location - start)
             guard ns.rangeOfComposedCharacterSequences(for: span) == span,
@@ -173,6 +197,7 @@ struct DocumentHistoryEngine {
             guard let index = index(of: id) else { return nil }
             let current = history.passages[index].currentIndex
             history.passages[index].versions[current].text = original
+            history.passages[index].versions[current].author = .you
             appendLive(HistoryVersion(text: accepted, author: .ai, createdAt: date), toPassageAt: index)
             return id
         case let .new(level, r, parent, contained):

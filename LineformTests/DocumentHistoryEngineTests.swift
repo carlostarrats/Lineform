@@ -163,6 +163,50 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(passage.currentIndex, 1)
         let edit = try XCTUnwrap(engine.step(id, by: 1, in: sentenceText))
         XCTAssertEqual(edit.replacement, original)
+
+        // Accepting over an existing passage's range: the replaced text is the writer's, the
+        // accepted text is the AI's.
+        var existing = makeEngine()
+        let existingID = try XCTUnwrap(existing.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let accepted = "Hello there bold new world."
+        let afterAccept = replacing(sentence, with: accepted, in: sentenceText)
+        XCTAssertEqual(existing.recordAccepted(range: range(of: accepted, in: afterAccept),
+                                               original: sentence, accepted: accepted, in: afterAccept), existingID)
+        let extended = try XCTUnwrap(existing.history.passages.first { $0.id == existingID })
+        XCTAssertEqual(extended.versions.map(\.text), [sentence, accepted])
+        XCTAssertEqual(extended.versions.map(\.author), [.you, .ai])
+        XCTAssertEqual(extended.currentIndex, 1)
+    }
+
+    func testDeletedPassageWithRecurringContextIsDropped() throws {
+        // The after-context recurs at the end of the third paragraph.
+        let text = "Intro paragraph kept unchanged here. Old sentence to track. That rule applies to every room in the house."
+            + "\n\nSecond paragraph the user never touched at all."
+            + "\n\nThird paragraph with its own words. That rule applies to every room in the house."
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "Old sentence to track.", in: text), author: .you, in: text))
+        let deleted = replacing("Old sentence to track. That rule applies to every room in the house.", with: "", in: text)
+        assertDroppedWithoutEdits(&engine, id: id, in: deleted)
+
+        // Only the before-context recurs: it also opens the first paragraph.
+        let lead = "Shared lead-in words go right here. Early sentence follows."
+            + "\n\nShared lead-in words go right here. Old sentence to track. Closing words of paragraph two."
+        var other = makeEngine()
+        let otherID = try XCTUnwrap(other.add(range(of: "Old sentence to track.", in: lead), author: .you, in: lead))
+        let trimmed = replacing("Shared lead-in words go right here. Old sentence to track.", with: "", in: lead)
+        assertDroppedWithoutEdits(&other, id: otherID, in: trimmed)
+    }
+
+    private func assertDroppedWithoutEdits(_ engine: inout DocumentHistoryEngine, id: UUID, in text: String,
+                                           file: StaticString = #filePath, line: UInt = #line) {
+        var probe = engine
+        XCTAssertNil(probe.step(id, by: -1, in: text), file: file, line: line)
+        probe = engine
+        XCTAssertNil(probe.select(id, version: 0, in: text), file: file, line: line)
+        probe = engine
+        XCTAssertNil(probe.deleteVersion(id, at: 1, in: text), file: file, line: line)
+        XCTAssertEqual(engine.locateAll(in: text), [], file: file, line: line)
+        XCTAssertTrue(engine.history.isEmpty, file: file, line: line)
     }
 
     func testTextTypedNextToPassageIsNotSwallowed() throws {
