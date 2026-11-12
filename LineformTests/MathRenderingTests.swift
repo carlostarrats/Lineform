@@ -373,29 +373,30 @@ final class BackslashMathDelimiterTests: XCTestCase {
 
     // MARK: Quick Look appex hand-mirror
 
-    private func appBackslashRanges(_ line: String) -> [NSRange] {
-        let ns = line as NSString
-        return MathDelimiters.inlineSpans(in: line).map(\.range).filter { ns.character(at: $0.location) == 0x5C }
+    private func appSpans(_ line: String) -> [QuickLookMarkdownRenderer.MathRange] {
+        MathDelimiters.inlineSpans(in: line).map { .init(range: $0.range, isDisplay: $0.style == .display) }
     }
 
     func testAppexMirrorAgreesOnCorpus() {
-        for entry in corpus where !entry.line.contains("$") {
-            XCTAssertEqual(QuickLookMarkdownRenderer.backslashMathRanges(in: entry.line), appBackslashRanges(entry.line), entry.line)
+        let extra = [#"costs $5 to $10"#, #"$$x$$ and $$y$$"#, #"$x$ \$y$ $$z$$"#, #"$ x$ and $x $"#, "$$", "$$$$"]
+        for line in corpus.map(\.line) + extra {
+            XCTAssertEqual(QuickLookMarkdownRenderer.mathRanges(in: line), appSpans(line), line)
         }
     }
 
-    /// Seeded fuzz over the characters that matter. `$` is excluded: the appex has never
-    /// detected `$` math, so a `$…$` span consuming a backslash pair is a known, separate gap.
+    /// Seeded fuzz over every character the two detectors branch on, `$` included.
     func testAppexMirrorAgreesUnderFuzz() {
-        let alphabet = ["\\", "\\", "(", ")", "[", "]", "x", "note", " ", "^", "é", "👍🏽", "ab"]
+        let alphabet = ["\\", "\\", "$", "$", "(", ")", "[", "]", "x", "note", " ", "^", "5", "é", "👍🏽", "ab"]
         var state: UInt64 = 0x2026_1112
         func next() -> Int {
             state = state &* 6364136223846793005 &+ 1442695040888963407
             return Int(state >> 33)
         }
-        for _ in 0..<3000 {
+        for _ in 0..<5000 {
             let line = (0..<(next() % 24)).map { _ in alphabet[next() % alphabet.count] }.joined()
-            XCTAssertEqual(QuickLookMarkdownRenderer.backslashMathRanges(in: line), appBackslashRanges(line), line)
+            XCTAssertEqual(QuickLookMarkdownRenderer.mathRanges(in: line), appSpans(line), line)
+            XCTAssertEqual(QuickLookMarkdownRenderer.isSingleLineMathBlock(line.trimmingCharacters(in: .whitespaces)),
+                           MathBlockFence.singleLineBlock(line) != nil, line)
         }
     }
 
@@ -404,6 +405,29 @@ final class BackslashMathDelimiterTests: XCTestCase {
         XCTAssertTrue(plain.contains(#"where \(a*b*c\) and (note)"#), plain)
         XCTAssertTrue(plain.contains("\\[\nx_1 *y*\n\\]"), plain)
         XCTAssertTrue(plain.contains("tail"), plain)
+    }
+
+    func testAppexShowsDollarMathVerbatim() {
+        let plain = QuickLookMarkdownRenderer.render("so $a*b*c$ and $x_1$ cost $5\n\n$$\nE = *mc*^2\n```\n$$\n# After").string
+        XCTAssertTrue(plain.contains("so $a*b*c$ and $x_1$ cost $5"), "no emphasis inside `$…$`: \(plain)")
+        XCTAssertTrue(plain.contains("$$\nE = *mc*^2\n```\n$$"), "a `$$` block stays its own lines, fence inside is body: \(plain)")
+        XCTAssertTrue(plain.contains("After"), plain)
+    }
+
+    func testAppexBlockDelimitersOnlyCloseTheirOwnKind() {
+        let plain = QuickLookMarkdownRenderer.render("$$\nx\n\\]\n**still math**\n$$\n**bold**").string
+        XCTAssertTrue(plain.contains("\\]\n**still math**\n$$"), plain)
+        XCTAssertTrue(plain.contains("bold") && !plain.contains("**bold**"), plain)
+    }
+
+    func testAppexSingleLineDisplayMathIsItsOwnBlock() {
+        let plain = QuickLookMarkdownRenderer.render("intro line\n$$a*b*c$$\noutro line").string
+        XCTAssertTrue(plain.contains("intro line\n$$a*b*c$$\noutro line"), "not merged into the paragraph: \(plain)")
+    }
+
+    func testAppexInlinePassIsLineLocalLikeTheApp() {
+        let plain = QuickLookMarkdownRenderer.render("a $x\ny$ b and **one\ntwo**").string
+        XCTAssertTrue(plain.contains("a $x y$ b and **one two**"), "a span split across lines stays literal: \(plain)")
     }
 
     private func merged(_ ranges: [NSRange]) -> [NSRange] {

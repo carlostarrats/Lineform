@@ -195,11 +195,18 @@ delimiters included — the strips and the unescape would otherwise rewrite LaTe
 (`\[` → `[`, `a*b*c` → `abc`). Code spans still beat math by position everywhere.
 
 **The Quick Look appex** cannot import `MathDelimiters` (that file links SwiftMath), so
-`QuickLookMarkdownRenderer.backslashMathRanges` hand-mirrors the backslash half and the prose rule,
-and shows math SOURCE verbatim (no typesetter in the appex), including `\[`…`\]` fenced blocks. It
-still does not detect `$` math — a pre-existing gap, left as is. Agreement across the renderer, HTML
+`QuickLookMarkdownRenderer.mathRanges` hand-mirrors the WHOLE detector — the `$` rules, the
+backslash prose rule, and the memoization — and the block rules (`$$`/`\[` fenced blocks checked
+before code fences, own-kind closing, unclosed-runs-to-end, one-line display blocks). It has no
+typesetter, so it shows math SOURCE verbatim: no emphasis inside `$a*b*c$`, no unescape inside
+`\(…\)`, and a block stays its own lines instead of being merged into the paragraph. Before this,
+the appex had never recognised `$` at all, so Finder italicised the middle of `$a*b*c$` and folded
+`$$` blocks into the surrounding paragraph. The appex also used to join a paragraph's lines BEFORE its inline
+pass, so a `$…$` (or `**…**`, or a link) broken across two source lines formatted in Finder and stayed
+literal in the app, which is line-local; it now formats each source line and then joins them. Agreement across the renderer, HTML
 export, read-aloud, Convert to Plain Text, Writing Tools / spell check, the editor highlighter and
-the appex (corpus + seeded fuzz) is asserted by `BackslashMathDelimiterTests` in
+the appex (corpus + a 5,000-line seeded fuzz over ranges, style, and the one-line block test) is
+asserted by `BackslashMathDelimiterTests` in
 `LineformTests/MathRenderingTests.swift`.
 
 ## What adversarial verification found in the same-day fixes (2026-07-27)
