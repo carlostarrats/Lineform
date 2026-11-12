@@ -97,7 +97,8 @@ enum PassageHistoryText {
     }
 
     /// Finds `needle` inside `scope`, choosing the occurrence whose surrounding text best matches
-    /// `before`/`after` (longest common suffix plus prefix). Returns nil rather than guess: no
+    /// `before`/`after` (longest common suffix plus prefix, plus one per empty context whose
+    /// candidate sits on the matching scope edge). Returns nil rather than guess: no
     /// occurrence, a best score of 0 (even for a single occurrence), or only occurrences that split
     /// a composed character or start/end mid-word. Ties above 0 resolve to the first.
     static func locate(_ needle: String, before: String, after: String, in text: String, within scope: NSRange) -> NSRange? {
@@ -142,7 +143,13 @@ enum PassageHistoryText {
                   ns.character(at: foundEnd + prefix) == afterNS.character(at: prefix) {
                 prefix += 1
             }
-            candidates.append((found, suffix + prefix))
+            // An empty context means the passage touched the document edge when it was stored;
+            // still touching the scope edge is agreement, or a passage at the start/end (or the
+            // whole document) could never be found again.
+            var edges = 0
+            if beforeNS.length == 0, found.location == scopeStart { edges += 1 }
+            if afterNS.length == 0, foundEnd == scopeEnd { edges += 1 }
+            candidates.append((found, suffix + prefix + edges))
         }
 
         // Never guess: no context agreement at all means the passage is treated as gone.

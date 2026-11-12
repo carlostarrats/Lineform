@@ -183,6 +183,8 @@
 		1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CF /* PassageHistoryStoreTests.swift */; };
 		1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D0 /* PassageHistoryText.swift */; };
 		1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D1 /* PassageHistoryTextTests.swift */; };
+		1F00000100000000000004D2 /* DocumentHistoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D2 /* DocumentHistoryEngine.swift */; };
+		1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
 		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
 		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
@@ -405,6 +407,8 @@
 		1F00000200000000000004CF /* PassageHistoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStoreTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D0 /* PassageHistoryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryText.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D1 /* PassageHistoryTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryTextTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004D2 /* DocumentHistoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentHistoryEngine.swift; sourceTree = "<group>"; };
+		1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentHistoryEngineTests.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A1 /* DocumentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTab.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A2 /* EditorTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStore.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
@@ -514,6 +518,7 @@
 				1F00000200000000000004CD /* PassageHistoryModel.swift */,
 				1F00000200000000000004CE /* PassageHistoryStore.swift */,
 				1F00000200000000000004D0 /* PassageHistoryText.swift */,
+				1F00000200000000000004D2 /* DocumentHistoryEngine.swift */,
 			);
 			path = Documents;
 			sourceTree = "<group>";
@@ -671,6 +676,7 @@
 				1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */,
 				1F00000200000000000004CF /* PassageHistoryStoreTests.swift */,
 				1F00000200000000000004D1 /* PassageHistoryTextTests.swift */,
+				1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */,
 				1F00000200000000000004CA /* TestDefaultsSupport.swift */,
 				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
@@ -954,6 +960,7 @@
 				1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */,
 				1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */,
 				1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */,
+				1F00000100000000000004D2 /* DocumentHistoryEngine.swift in Sources */,
 				1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
 				1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */,
@@ -1050,6 +1057,7 @@
 				1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */,
 				1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */,
 				1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */,
+				1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */,
 				1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */,
 				1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */,
 				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,

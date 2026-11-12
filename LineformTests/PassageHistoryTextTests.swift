@@ -53,8 +53,24 @@ final class PassageHistoryTextTests: XCTestCase {
     }
 
     func testLocateNilOnZeroScoreTie() {
-        let text = "x y x"
-        XCTAssertNil(PassageHistoryText.locate("x", before: "", after: "", in: text, within: NSRange(location: 0, length: 5)))
+        // Neither occurrence touches a scope edge, so the empty contexts earn no boundary credit.
+        let text = "a x y x b"
+        XCTAssertNil(PassageHistoryText.locate("x", before: "", after: "", in: text, within: NSRange(location: 0, length: 9)))
+    }
+
+    func testLocateMatchesPassageAtDocumentStart() {
+        // Empty `before` = the passage opened the document; the following text has since changed.
+        let text = "Hello there, friend."
+        XCTAssertEqual(PassageHistoryText.locate("Hello", before: "", after: "! Old tail.", in: text,
+                                                 within: NSRange(location: 0, length: (text as NSString).length)),
+                       NSRange(location: 0, length: 5))
+    }
+
+    func testLocateMatchesWholeDocumentPassage() {
+        let text = "Only this."
+        XCTAssertEqual(PassageHistoryText.locate(text, before: "", after: "", in: text,
+                                                 within: NSRange(location: 0, length: 10)),
+                       NSRange(location: 0, length: 10))
     }
 
     func testLocateInCRLFAndBOMText() {
