@@ -47,6 +47,7 @@
 		1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */; };
 		1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */; };
 		1F00000100000000000004D7 /* HistoryPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D7 /* HistoryPaletteTests.swift */; };
+		1F00000100000000000004D9 /* HistorySidebarPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */; };
 		1F00000100000000000004D6 /* LineformTextViewHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F00000100000000000004AF /* LineformAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AF /* LineformAppIntents.swift */; };
@@ -130,6 +131,7 @@
 		1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */; };
 		1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */; };
 		1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000078 /* OutlineSidebarView.swift */; };
+		1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D8 /* HistorySidebarView.swift */; };
 		1F000001000000000000032A /* MarkdownReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032A /* MarkdownReference.swift */; };
 		1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032B /* MarkdownReferenceTests.swift */; };
 		1F000001000000000000032C /* OutlineSidebarTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032C /* OutlineSidebarTabTests.swift */; };
@@ -367,6 +369,8 @@
 		1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRenderer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000078 /* OutlineSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarView.swift; sourceTree = "<group>"; };
+		1F00000200000000000004D8 /* HistorySidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarView.swift; sourceTree = "<group>"; };
+		1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarPresentationTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032A /* MarkdownReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReference.swift; sourceTree = "<group>"; };
 		1F000002000000000000032B /* MarkdownReferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReferenceTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032C /* OutlineSidebarTabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarTabTests.swift; sourceTree = "<group>"; };
@@ -627,6 +631,7 @@
 				1F0000020000000000000075 /* MarkdownOutlineParser.swift */,
 				1F0000020000000000000301 /* OutlineFileSortOrder.swift */,
 				1F0000020000000000000078 /* OutlineSidebarView.swift */,
+				1F00000200000000000004D8 /* HistorySidebarView.swift */,
 				1F000002000000000000032A /* MarkdownReference.swift */,
 				1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */,
 				1F0000020000000000000303 /* SidebarFileActions.swift */,
@@ -706,6 +711,7 @@
 				1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */,
 				1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */,
 				1F00000200000000000004D7 /* HistoryPaletteTests.swift */,
+				1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */,
 				1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
@@ -1027,6 +1033,7 @@
 				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
 				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
+				1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */,
 				1F000001000000000000032A /* MarkdownReference.swift in Sources */,
 				1F000001000000000000032D /* OutlineMarkdownBasicsTabView.swift in Sources */,
 				1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */,
@@ -1090,6 +1097,7 @@
 				1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */,
 				1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */,
 				1F00000100000000000004D7 /* HistoryPaletteTests.swift in Sources */,
+				1F00000100000000000004D9 /* HistorySidebarPresentationTests.swift in Sources */,
 				1F00000100000000000004D6 /* LineformTextViewHistoryTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,

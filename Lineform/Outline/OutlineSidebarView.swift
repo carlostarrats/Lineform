@@ -5,6 +5,7 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
     case outline = "Outline"
     case files = "Files"
     case markdownBasics = "Markdown Basics"
+    case history = "History"
 
     var id: Self { self }
 
@@ -13,6 +14,7 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         case .outline: return "list.bullet"
         case .files: return "folder"
         case .markdownBasics: return "curlybraces"
+        case .history: return "clock.arrow.circlepath"
         }
     }
 
@@ -22,7 +24,13 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         case .outline: return String(localized: "Outline")
         case .files: return String(localized: "Files")
         case .markdownBasics: return String(localized: "Markdown Basics")
+        case .history: return String(localized: "History")
         }
+    }
+
+    /// The tabs the picker shows. History appears only while the document has any.
+    static func visibleTabs(hasHistory: Bool) -> [OutlineSidebarTab] {
+        hasHistory ? allCases : allCases.filter { $0 != .history }
     }
 }
 
@@ -264,6 +272,10 @@ struct OutlineSidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedNodeIDs: Set<String> = []
     @State private var selectedTab = OutlineSidebarTab.outline
+    /// History vanishes with its last passage; fall back rather than strand the user on a hidden tab.
+    private var effectiveTab: OutlineSidebarTab {
+        selectedTab == .history && !hasHistory ? .outline : selectedTab
+    }
     @State private var isSettingsHovered = false
     @StateObject private var fileBrowserStore: OutlineFileBrowserStore
 
@@ -351,6 +363,13 @@ struct OutlineSidebarView: View {
     /// The file currently shown in this window, so its Files-tab row can render the native
     /// selection highlight. `nil` for untitled documents (no on-disk URL to match).
     var currentFileURL: URL?
+    /// History tab: shown only when `hasHistory`. Defaults render the empty state; the editor
+    /// container supplies the live model and callbacks.
+    var hasHistory: Bool = false
+    var historyModel: HistorySidebarModel = HistorySidebarModel()
+    var onSelectHistoryLevel: (HistoryLevel) -> Void = { _ in }
+    var onSelectHistoryVersion: (Int) -> Void = { _ in }
+    var onDeleteHistoryVersion: (Int) -> Void = { _ in }
     /// Context-menu actions on Files-tab rows. The sidebar stays dumb: the window's
     /// editor container supplies these (it presents the dialogs, performs the file
     /// operation, and broadcasts the app-wide refresh/retarget notifications).
@@ -379,6 +398,11 @@ struct OutlineSidebarView: View {
             LineformSidebarFileOpener.open(url, replacing: nil)
         },
         currentFileURL: URL? = nil,
+        hasHistory: Bool = false,
+        historyModel: HistorySidebarModel = HistorySidebarModel(),
+        onSelectHistoryLevel: @escaping (HistoryLevel) -> Void = { _ in },
+        onSelectHistoryVersion: @escaping (Int) -> Void = { _ in },
+        onDeleteHistoryVersion: @escaping (Int) -> Void = { _ in },
         fileBrowserStore: OutlineFileBrowserStore? = nil,
         settings: LineformSettingsStore = .shared,
         renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
@@ -396,6 +420,11 @@ struct OutlineSidebarView: View {
         self.jumpToHeading = jumpToHeading
         self.openFile = openFile
         self.currentFileURL = currentFileURL
+        self.hasHistory = hasHistory
+        self.historyModel = historyModel
+        self.onSelectHistoryLevel = onSelectHistoryLevel
+        self.onSelectHistoryVersion = onSelectHistoryVersion
+        self.onDeleteHistoryVersion = onDeleteHistoryVersion
         self.settings = settings
         self.renameItem = renameItem
         self.deleteItem = deleteItem
@@ -435,13 +464,21 @@ struct OutlineSidebarView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        switch selectedTab {
+        switch effectiveTab {
         case .outline:
             outlineContent
         case .files:
             filesContent
         case .markdownBasics:
             OutlineMarkdownBasicsTabView(usesDarkChrome: usesDarkChrome)
+        case .history:
+            HistorySidebarView(
+                model: historyModel,
+                usesDarkChrome: usesDarkChrome,
+                onSelectLevel: onSelectHistoryLevel,
+                onSelectVersion: onSelectHistoryVersion,
+                onDeleteVersion: onDeleteHistoryVersion
+            )
         }
     }
 
@@ -552,10 +589,10 @@ struct OutlineSidebarView: View {
     private var tabPicker: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(OutlineSidebarTab.allCases) { tab in
+                ForEach(OutlineSidebarTab.visibleTabs(hasHistory: hasHistory)) { tab in
                     SidebarTabButton(
                         tab: tab,
-                        isSelected: selectedTab == tab,
+                        isSelected: effectiveTab == tab,
                         usesDarkChrome: usesDarkChrome,
                         action: { selectedTab = tab }
                     )

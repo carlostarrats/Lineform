@@ -24,7 +24,7 @@ final class OutlineSidebarViewTests: XCTestCase {
 
     @MainActor
     func testOutlineDrawerAddsOutlineFilesAndMarkdownBasicsTabs() {
-        XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files", "Markdown Basics"])
+        XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files", "Markdown Basics", "History"])
         XCTAssertTrue(OutlineSidebarView.tabsFillAvailableWidth)
         XCTAssertTrue(OutlineSidebarView.tabsUseNativeEqualWidthSegments)
         XCTAssertTrue(OutlineSidebarView.tabsUseExplicitThemeAppearance)
