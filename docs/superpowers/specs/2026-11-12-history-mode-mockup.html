@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>History mode</title>
+<style>
+  :root { --page:#F6F3ED; --ink:#1F1F1F; --side:#EFEBE4; --sel:#DCD9D3; --blue:#0A66D9; --mut:#6B6B6B; }
+  body.quiet { --page:#303030; --ink:#DBDBDB; --side:#262626; --sel:#3A3A3A; --blue:#4DA3FF; --mut:#9A9A9A; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--ink); font:13px/1.4 -apple-system, system-ui, sans-serif; }
+  .opts { position:fixed; right:12px; top:10px; z-index:9; display:flex; gap:6px; font-size:12px; color:var(--mut); align-items:center; }
+  .opts button { font:inherit; color:inherit; background:color-mix(in srgb,var(--page) 85%,transparent); border:1px solid color-mix(in srgb,var(--mut) 40%,transparent); border-radius:6px; padding:4px 8px; cursor:pointer; }
+  .opts button.on { color:var(--ink); background:var(--sel); }
+  .win { display:flex; height:100vh; }
+
+  /* sidebar — stacked rows like Lineform's */
+  .side { width:236px; flex:none; background:var(--side); padding:12px 10px; display:flex; flex-direction:column; }
+  .tabs { display:flex; flex-direction:column; gap:2px; padding-bottom:10px; border-bottom:.5px solid color-mix(in srgb,var(--ink) 10%,transparent); }
+  .tab { display:flex; gap:8px; align-items:center; padding:5px 10px; border-radius:6px; color:var(--mut); font-size:13px; font-weight:500; cursor:pointer; }
+  .tab svg { width:14px; height:14px; }
+  .tab.on { background:var(--sel); color:var(--blue); }
+  .tab:hover:not(.on) { color:var(--ink); }
+  .content { padding:12px 4px 0; overflow:auto; flex:1; }
+  .outline-item { padding:4px 10px; color:var(--mut); }
+  .hint { margin-top:auto; padding:8px 10px 0; font-size:11px; color:var(--mut); }
+
+  .levels { display:flex; justify-content:center; gap:14px; padding:0 10px 8px; font-size:12px; }
+  .levels span { color:var(--mut); cursor:pointer; }
+  .levels span.on { color:var(--ink); font-weight:600; }
+  .levels span.off { opacity:.35; cursor:default; }
+  .ver { display:flex; align-items:center; gap:8px; padding:5px 10px; border-radius:6px; cursor:pointer; border:1px solid transparent; }
+  .ver svg { width:12px; height:12px; flex:none; color:var(--mut); }
+  .ver .t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ver.cur { background:var(--sel); color:var(--blue); }
+  .ver.cur svg { color:var(--blue); }
+  .ver:hover:not(.cur) { border-color:color-mix(in srgb,var(--ink) 14%,transparent); }
+  .empty { padding:4px 10px; color:var(--mut); }
+
+  /* document */
+  .docwrap { flex:1; overflow:auto; }
+  .doc { max-width:620px; margin:40px auto 80px; padding:0 24px; font:17px/1.8 -apple-system,"SF Pro Text",system-ui; outline:none; }
+  .doc p { margin:0 0 1.1em; position:relative; }
+  .doc h1 { font-size:26px; line-height:1.25; margin:0 0 18px; font-weight:650; }
+  .h { border-radius:3px; transition:background .12s, color .12s; }
+
+  /* HISTORY MODE */
+  .doc { transition:color .15s; }
+  body.hm .doc { color:color-mix(in srgb,var(--ink) 45%,transparent); cursor:default; }      /* unchanged text recedes */
+  body.hm .h { color:var(--ink); background:color-mix(in srgb,var(--ink) 6%,transparent); }   /* changed text: full ink + light tint */
+  body.hm .h .h { background:color-mix(in srgb,var(--ink) 6%,transparent); }
+  body.hm .h { cursor:pointer; }
+  body.hm .h.peek { background:color-mix(in srgb,var(--ink) 11%,transparent); }
+  body.hm .h.sel, body.hm .h.sel.peek { background:color-mix(in srgb,var(--blue) 24%,transparent); }               /* the one you're on */
+  body.hm.nodim .doc { color:var(--ink); }
+  /* paragraph-level: a margin line instead of tinting the whole block (option) */
+  body.hm.pline .h.paragraph { background:none; }
+  body.hm.pline .h.paragraph.sel { background:none; }
+  body.hm.pline p.has-para::before { content:""; position:absolute; left:-14px; top:.35em; bottom:.35em; width:2px; border-radius:1px; background:color-mix(in srgb,var(--ink) 22%,transparent); }
+  body.hm.pline p.has-para.psel::before { background:var(--blue); }
+
+  /* dots under the selected passage's first word */
+  .a0 { position:relative; display:inline-block; width:0; height:1em; }
+  .a0 .dots { position:absolute; left:0; top:1.32em; display:none; gap:3px; }
+  body.hm .h.sel > .head > .a0 .dots { display:inline-flex; }
+  .dot { width:5px; height:5px; border-radius:50%; border:.75px solid color-mix(in srgb,var(--ink) 42%,transparent); }
+  .dot.cur { background:color-mix(in srgb,var(--ink) 55%,transparent); border-color:transparent; }
+  .head { white-space:nowrap; }
+</style>
+</head>
+<body>
+<div class="opts">
+  <span>Compare:</span>
+  <button id="o-pline">Paragraphs: margin line</button>
+  <button id="o-dim" class="on">Dim unchanged text</button>
+  <span style="width:6px"></span>
+  <button data-theme="paper" class="on">Paper</button>
+  <button data-theme="quiet">Quiet</button>
+</div>
+
+<div class="win">
+  <aside class="side">
+    <div class="tabs" id="tabs"></div>
+    <div class="content" id="content"></div>
+    <div class="hint" id="hint"></div>
+  </aside>
+  <div class="docwrap"><div class="doc" id="doc" contenteditable="true" spellcheck="false"></div></div>
+</div>
+
+<script>
+const ICON = {
+  outline:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.5" cy="4" r=".6" fill="currentColor"/><circle cx="2.5" cy="8" r=".6" fill="currentColor"/><circle cx="2.5" cy="12" r=".6" fill="currentColor"/></svg>',
+  files:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.5H13c.7 0 1.2.5 1.2 1.2v6.6c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg>',
+  basics:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5.5 2.5c-1.5 0-2 .6-2 1.8v1.6c0 .9-.5 1.6-1.5 2.1 1 .5 1.5 1.2 1.5 2.1v1.6c0 1.2.5 1.8 2 1.8M10.5 2.5c1.5 0 2 .6 2 1.8v1.6c0 .9.5 1.6 1.5 2.1-1 .5-1.5 1.2-1.5 2.1v1.6c0 1.2-.5 1.8-2 1.8"/></svg>',
+  history:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 105.5-5.5A5.6 5.6 0 004 4.3"/><path d="M2.6 2.2v2.6h2.6"/><path d="M8 5v3.2l2 1.3"/></svg>',
+  you:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2.5l2.5 2.5L5 13.5H2.5V11z"/></svg>',
+  ai:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.3 3.6 3.6 1.3-3.6 1.3L8 11.3 6.7 7.7 3.1 6.4l3.6-1.3zM12.5 10l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/></svg>'
+};
+// passages: kind, versions [{t, by}], current
+const N = {
+  p2: { k:'paragraph', c:1, v:[
+    {by:'you', t:"Shouldn't everything be obvious? Unless you're making a product that just does one thing, like a thumbtack, {s2} You have to make tough calls about what needs to be obvious and what should be easy."},
+    {by:'ai',  t:"Shouldn't everything be obvious? Only if your product does one thing. {s2} You'll make tough calls about what's obvious and what's easy."},
+    {by:'ai',  t:"Not everything can be obvious. Your product probably does more than one thing. {s2} The calls about what's obvious and what's easy are yours."}]},
+  s2: { k:'sentence', c:0, v:[
+    {by:'you', t:"Everything else won't be {w2}."},
+    {by:'ai',  t:"Most things can't be {w2}."},
+    {by:'you', t:"The rest won't all be {w2}."}]},
+  w2: { k:'word', c:0, v:[{by:'you',t:"obvious"},{by:'ai',t:"clear"},{by:'ai',t:"self-evident"}]},
+  s3: { k:'sentence', c:1, v:[
+    {by:'you', t:"It all depends on your product and your {w3}, but the pattern holds."},
+    {by:'ai',  t:"It depends on the product and the {w3}, but the pattern holds."}]},
+  w3: { k:'word', c:0, v:[{by:'you',t:"customer"},{by:'ai',t:"audience"},{by:'you',t:"people"}]},
+  w1: { k:'word', c:1, v:[{by:'you',t:"work"},{by:'ai',t:"tension"},{by:'ai',t:"struggle"},{by:'you',t:"friction"}]},
+  p4: { k:'paragraph', c:2, v:[
+    {by:'you', t:"This is where the hard calls live. Everything has a cost, and every choice to make one thing obvious makes something else less so. The work is choosing on purpose instead of by accident."},
+    {by:'ai',  t:"This is where the hard calls live. Every choice to make one thing obvious makes something else less so, so choose on purpose."},
+    {by:'ai',  t:"Hard calls live here: making one thing obvious makes another less so. Choose on purpose."}]},
+};
+let mode = false, chain = [], level = null; // chain = ids from outermost to innermost under the pointer
+const LEVELS = ['paragraph','sentence','word'];
+
+function dots(id){ const n=N[id]; let s='<span class="dots">'; n.v.forEach((_,i)=> s+=`<span class="dot${i===n.c?' cur':''}"></span>`); return s+'</span>'; }
+function node(id){
+  const n=N[id]; const text=n.v[n.c].t.replace(/\{(\w+)\}/g,(_,k)=>node(k));
+  const m=text.match(/^(\S+)([\s\S]*)$/); const head=m?m[1]:text, rest=m?m[2]:'';
+  return `<span class="h ${n.k}" data-id="${id}"><span class="head"><span class="a0">${dots(id)}</span>${head}</span>${rest}</span>`;
+}
+function renderDoc(){
+  document.getElementById('doc').innerHTML =
+    `<h1>The obvious, the easy, and the possible</h1>
+     <p>Much of the ${node('w1')} in product design comes from trying to balance three things: the obvious, the easy, and the possible. Figuring out which things go in which position is critical to understanding how to make something useful.</p>
+     <p class="has-para">${node('p2')}</p>
+     <p>Beyond obvious, you'll find easy. The things that should be easy are the things people do often, but not always. ${node('s3')} When you build a product you should know the difference between the things people do all the time and the things they do now and then.</p>
+     <p class="has-para">${node('p4')}</p>
+     <p>Then there's the possible: the things people rarely do but must still be able to do. They can be a few clicks deep, as long as they're there when someone goes looking.</p>`;
+  markSel();
+}
+function selId(){ if(!chain.length) return null; const hit = chain.find(id=>N[id].k===level); return hit || chain[chain.length-1]; }
+function markSel(){
+  document.querySelectorAll('.h.sel').forEach(x=>x.classList.remove('sel'));
+  document.querySelectorAll('p.psel').forEach(x=>x.classList.remove('psel'));
+  const id = mode && selId(); if(!id) return;
+  const el = document.querySelector(`.h[data-id="${id}"]`); if(el){ el.classList.add('sel'); if(N[id].k==='paragraph') el.closest('p').classList.add('psel'); }
+}
+function renderSide(){
+  const tabs=[['outline','Outline'],['files','Files'],['basics','Markdown Basics'],['history','History']];
+  document.getElementById('tabs').innerHTML = tabs.map(([k,l])=>`<div class="tab${(mode?k==='history':k==='outline')?' on':''}" data-tab="${k}">${ICON[k]}<span>${l}</span></div>`).join('');
+  const c=document.getElementById('content'), hint=document.getElementById('hint');
+  if(!mode){
+    c.innerHTML = ['The obvious, the easy…'].map(t=>`<div class="outline-item">${t}</div>`).join('') + '<div class="empty" style="margin-top:14px;font-size:12px">Normal writing. No history marks anywhere. Click <b>History</b> to review changes.</div>';
+    hint.textContent=''; return;
+  }
+  hint.textContent = 'Click to select · ← → switch version · Esc closes';
+  const id = selId();
+  if(!id){ c.innerHTML='<div class="empty">Click a highlighted passage to see its versions.</div>'; return; }
+  const have = chain.map(i=>N[i].k);
+  const lv = N[id].k;
+  const group = [];
+  (function walk(i){ group.push(N[i].k); (N[i].v[N[i].c].t.match(/\{(\w+)\}/g)||[]).forEach(m=>walk(m.slice(1,-1))); })(chain[0]);
+  const shown = LEVELS.filter(L=>group.includes(L));
+  c.innerHTML = (shown.length>1 ? `<div class="levels">${shown.map(L=>`<span class="${L===lv?'on':''}" data-level="${L}">${L[0].toUpperCase()+L.slice(1)}</span>`).join('')}</div>` : '') +
+    N[id].v.map((v,i)=>`<div class="ver${i===N[id].c?' cur':''}" data-i="${i}">${ICON[v.by]}<span class="t">${v.t.replace(/\{\w+\}/g,'…')}</span></div>`).join('');
+}
+function render(){ renderDoc(); renderSide(); }
+
+function setMode(on){
+  mode=on; document.body.classList.toggle('hm',on);
+  document.getElementById('doc').contentEditable = on ? 'false' : 'true';
+  chain=[]; level=null; render();
+}
+document.getElementById('tabs').addEventListener('click',e=>{ const t=e.target.closest('.tab'); if(!t) return; setMode(t.dataset.tab==='history'); });
+document.getElementById('content').addEventListener('click',e=>{
+  const v=e.target.closest('.ver'), L=e.target.closest('[data-level]');
+  if(v){ N[selId()].c=+v.dataset.i; render(); }
+  if(L){
+    const want=L.dataset.level;
+    if(!chain.some(i=>N[i].k===want)){
+      // descend from the current selection to the first nested passage of that level
+      let cur=selId(), path=chain.slice(0, chain.indexOf(cur)+1);
+      while(cur && N[cur].k!==want){ const m=(N[cur].v[N[cur].c].t.match(/\{(\w+)\}/)); cur=m?m[1]:null; if(cur) path.push(cur); }
+      if(cur) chain=path;
+    }
+    level=want; markSel(); renderSide();
+  }
+});
+// hover = preview tint only; CLICK selects, and the selection stays until you click another passage
+document.getElementById('doc').addEventListener('mouseover',e=>{
+  if(!mode) return;
+  document.querySelectorAll('.h.peek').forEach(x=>x.classList.remove('peek'));
+  const inner=e.target.closest('.h'); if(inner) inner.classList.add('peek');
+});
+document.getElementById('doc').addEventListener('mouseleave',()=>document.querySelectorAll('.h.peek').forEach(x=>x.classList.remove('peek')));
+document.getElementById('doc').addEventListener('click',e=>{
+  if(!mode) return;
+  const inner=e.target.closest('.h'); if(!inner) return;   // clicking plain text keeps the current selection
+  const ids=[]; let el=inner; while(el){ ids.unshift(el.dataset.id); el=el.parentElement && el.parentElement.closest('.h'); }
+  chain=ids; level=N[ids[ids.length-1]].k; markSel(); renderSide();
+});
+document.addEventListener('keydown',e=>{
+  if(!mode) return;
+  if(e.key==='Escape'){ setMode(false); return; }
+  const id=selId(); if(!id) return; const n=N[id];
+  if(e.key==='ArrowRight'){ n.c=(n.c+1)%n.v.length; render(); e.preventDefault(); }
+  if(e.key==='ArrowLeft'){ n.c=(n.c-1+n.v.length)%n.v.length; render(); e.preventDefault(); }
+});
+document.getElementById('o-pline').onclick=e=>{ document.body.classList.toggle('pline'); e.target.classList.toggle('on'); };
+document.getElementById('o-dim').onclick=e=>{ document.body.classList.toggle('nodim'); e.target.classList.toggle('on'); };
+document.querySelectorAll('[data-theme]').forEach(b=>b.onclick=()=>{ document.body.classList.toggle('quiet',b.dataset.theme==='quiet'); document.querySelectorAll('[data-theme]').forEach(x=>x.classList.toggle('on',x===b)); });
+render();
+</script>
+</body>
+</html>
