@@ -33,4 +33,17 @@ final class HistorySidebarPresentationTests: XCTestCase {
         let you = HistorySidebarRow(id: 0, text: "Hi", author: .you, isCurrent: false)
         XCTAssertEqual(you.accessibilityLabel(position: 1, of: 3), "Hi, by you, version 1 of 3")
     }
+
+    @MainActor
+    func testRowLayoutReusesFilesConstants() {
+        let l = HistorySidebarPresentation.rowLayout
+        XCTAssertEqual(l.containerPadding, OutlineSidebarView.filesContentHorizontalPadding)
+        XCTAssertEqual(l.chevronSlotWidth, OutlineSidebarView.filesChevronSlotWidth)
+        XCTAssertEqual(l.backgroundInset, OutlineSidebarView.filesRowBackgroundHorizontalInset)
+        XCTAssertEqual(l.height, OutlineSidebarView.filesChildRowHeight)
+        // Icon lands at x = 6 + 6 + 12 + 2 = 26 and text at 26 + 18 + 4 = 48, as in Files.
+        let iconX = l.containerPadding + l.rowLeading + l.chevronSlotWidth + l.iconLeading
+        XCTAssertEqual(iconX, 26)
+        XCTAssertEqual(iconX + l.iconWidth + l.textLeading, 48)
+    }
 }

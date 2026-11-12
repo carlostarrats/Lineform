@@ -15,7 +15,7 @@ struct HistorySidebarRow: Equatable, Identifiable {
     let author: HistoryAuthor
     let isCurrent: Bool
 
-    /// First non-empty line with every whitespace run collapsed to one space.
+    /// First NON-empty line (blank leading lines are skipped) with every whitespace run collapsed to one space.
     static func displayText(for version: String) -> String {
         let firstLine = version
             .split(whereSeparator: \.isNewline)
@@ -38,6 +38,21 @@ enum HistorySidebarPresentation {
     static func showsLevelSwitcher(_ levels: [HistoryLevel]) -> Bool {
         levels.count > 1
     }
+
+    /// History rows are Files rows: every number here is the Files constant, so the two lists
+    /// cannot drift apart.
+    @MainActor struct RowLayout: Equatable {
+        var containerPadding: CGFloat = OutlineSidebarView.filesContentHorizontalPadding
+        var chevronSlotWidth: CGFloat = OutlineSidebarView.filesChevronSlotWidth
+        var iconWidth: CGFloat = 18
+        var iconLeading: CGFloat = 2
+        var textLeading: CGFloat = 4
+        var rowLeading: CGFloat = 6
+        var rowTrailing: CGFloat = 6
+        var backgroundInset: CGFloat = OutlineSidebarView.filesRowBackgroundHorizontalInset
+        var height: CGFloat = OutlineSidebarView.filesChildRowHeight
+    }
+    @MainActor static let rowLayout = RowLayout()
 
     static let emptySelectionText = String(localized: "Click a highlighted passage to see its versions.")
     static let hintText = String(localized: "Click to select · ← → switch version · Esc closes")
@@ -70,7 +85,7 @@ struct HistorySidebarView: View {
                             )
                         }
                     }
-                    .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
+                    .padding(.horizontal, HistorySidebarPresentation.rowLayout.containerPadding)
                     .padding(.top, 8)
                 }
             } else {
@@ -163,23 +178,29 @@ private struct HistoryVersionRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        let layout = HistorySidebarPresentation.rowLayout
+        HStack(spacing: 0) {
+            Color.clear.frame(width: layout.chevronSlotWidth)
             Image(systemName: row.author == .you ? "pencil" : "sparkles")
-                .font(.system(size: 11))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(foreground)
-                .frame(width: 16)
+                .frame(width: layout.iconWidth)
+                .padding(.leading, layout.iconLeading)
             Text(row.text)
                 .font(.system(size: 13, weight: row.isCurrent ? .semibold : .regular))
                 .foregroundStyle(foreground)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .padding(.leading, layout.textLeading)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 6)
-        .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesChildRowHeight, maxHeight: OutlineSidebarView.filesChildRowHeight, alignment: .leading)
+        .padding(.leading, layout.rowLeading)
+        .padding(.trailing, layout.rowTrailing)
+        .frame(maxWidth: .infinity, minHeight: layout.height, maxHeight: layout.height, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(background)
+                .padding(.horizontal, layout.backgroundInset)
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)

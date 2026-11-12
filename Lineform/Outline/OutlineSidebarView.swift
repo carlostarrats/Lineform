@@ -29,6 +29,13 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
     }
 
     /// The tabs the picker shows. History appears only while the document has any.
+    /// Where the sidebar goes when History vanishes: back to the tab the user came from.
+    static func tabAfterHistoryDisappears(selected: OutlineSidebarTab, previous: OutlineSidebarTab?) -> OutlineSidebarTab {
+        guard selected == .history else { return selected }
+        guard let previous, previous != .history else { return .outline }
+        return previous
+    }
+
     static func visibleTabs(hasHistory: Bool) -> [OutlineSidebarTab] {
         hasHistory ? allCases : allCases.filter { $0 != .history }
     }
@@ -142,7 +149,7 @@ struct OutlineSidebarView: View {
     // takes the system unemphasized grey (see `rowSelectionFillColor`). Retained for the ⌘K
     // quick-open palette, which is a transient accent-tinted list, not a source list.
     static let rowSelectionFillOpacity = 0.15
-    static let tabTitles = OutlineSidebarTab.allCases.map(\.title)
+    static let tabTitles = OutlineSidebarTab.visibleTabs(hasHistory: false).map(\.title)
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
     static let tabsUseExplicitThemeAppearance = true
@@ -272,6 +279,7 @@ struct OutlineSidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedNodeIDs: Set<String> = []
     @State private var selectedTab = OutlineSidebarTab.outline
+    @State private var tabBeforeHistory: OutlineSidebarTab?
     /// History vanishes with its last passage; fall back rather than strand the user on a hidden tab.
     private var effectiveTab: OutlineSidebarTab {
         selectedTab == .history && !hasHistory ? .outline : selectedTab
@@ -460,6 +468,11 @@ struct OutlineSidebarView: View {
         }
         .frame(minWidth: Self.minimumColumnWidth, idealWidth: Self.idealColumnWidth, maxWidth: Self.maximumColumnWidth)
         .accessibilityLabel(String(localized: "Document outline"))
+        .onChange(of: hasHistory) { _, nowHasHistory in
+            guard !nowHasHistory else { return }
+            selectedTab = OutlineSidebarTab.tabAfterHistoryDisappears(selected: selectedTab, previous: tabBeforeHistory)
+            tabBeforeHistory = nil
+        }
     }
 
     @ViewBuilder
@@ -594,7 +607,10 @@ struct OutlineSidebarView: View {
                         tab: tab,
                         isSelected: effectiveTab == tab,
                         usesDarkChrome: usesDarkChrome,
-                        action: { selectedTab = tab }
+                        action: {
+                            if tab == .history, selectedTab != .history { tabBeforeHistory = selectedTab }
+                            selectedTab = tab
+                        }
                     )
                 }
             }
