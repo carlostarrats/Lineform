@@ -9,8 +9,9 @@ struct LocatedPassage: Equatable {
     let rootID: UUID
 }
 
-/// One replacement the editor applies to show another version. `range` always comes from a fresh
-/// locate against the text the engine was handed, never from stored offsets.
+/// One replacement the editor applies to show another version. `range` is the passage's live range
+/// in the text the engine was handed. The caller applies it verbatim and does not report it back
+/// through `applyEdit`.
 struct HistoryEdit: Equatable {
     let range: NSRange
     let replacement: String
@@ -18,27 +19,102 @@ struct HistoryEdit: Equatable {
 
 /// Pure History logic over plain strings: no UI, no AppKit, no persistence.
 ///
-/// The current version of every passage IS the live text (spec §5.0): each call that takes `text`
-/// first re-locates every passage and refreshes the current version's text and its context from
-/// it. A passage that cannot be located with certainty is dropped together with its descendants
+/// The current version of every passage IS the live text (spec §5.0). During a session the engine
+/// tracks where each located passage sits through `liveRanges`, moved by `applyEdit` as the writer
+/// types; it never re-finds a passage by resemblance. A passage an edit cannot be mapped through
+/// (it straddles the passage's edge or deletes it) is dropped together with its descendants
 /// (spec §5.1 rule 2) — history quietly disappears rather than replacing the wrong text.
+///
+/// Caller contract:
+/// - Report EVERY user text change through `applyEdit(_:replacementLength:)`, in the coordinates of
+///   the text before that change. That includes the replacement made when an AI rewrite is
+///   accepted (before `recordAccepted`).
+/// - Do NOT call `applyEdit` for a `HistoryEdit` the engine itself returned from `step`, `select`
+///   or `deleteVersion`: the engine has already moved its live ranges for it. Apply it verbatim.
+/// - Never call `locateAll` per keystroke. `applyEdit` is the per-keystroke path: O(passages),
+///   and it never reads the text.
+///
+/// Without live ranges (the first locate after loading stored history) a passage is found only by
+/// a LITERAL match of its stored current text plus context; anything else drops it.
 struct DocumentHistoryEngine {
     var history: DocumentHistory
     let now: () -> Date
+
+    /// Where each located, visible passage sits in the live text (UTF-16).
+    private(set) var liveRanges: [UUID: NSRange] = [:]
+
+    /// The UTF-16 length the live ranges were last synced against, moved by every edit. A text of
+    /// any other length means a change was not reported, so the live ranges are discarded and every
+    /// passage falls back to the literal search.
+    private var syncedLength: Int?
 
     init(history: DocumentHistory, now: @escaping () -> Date) {
         self.history = history
         self.now = now
     }
 
+    // MARK: - Live ranges
+
+    /// Maps one user text change through every live range. `edited` is the range replaced, in the
+    /// text before the change; `replacementLength` is the UTF-16 length inserted. O(passages).
+    mutating func applyEdit(_ edited: NSRange, replacementLength: Int) {
+        var lost = Set<UUID>()
+        for (id, range) in liveRanges {
+            if let moved = Self.map(range, through: edited, replacementLength: replacementLength) {
+                liveRanges[id] = moved
+            } else {
+                lost.insert(id)
+            }
+        }
+        removeWithDescendants(lost)
+        if let length = syncedLength { syncedLength = length + replacementLength - edited.length }
+    }
+
+    /// Before (an insertion AT the start counts as before) shifts; after (an insertion AT the end
+    /// counts as after) is unchanged; inside resizes; anything that straddles an edge or leaves the
+    /// passage empty is nil.
+    static func map(_ passage: NSRange, through edited: NSRange, replacementLength: Int) -> NSRange? {
+        let delta = replacementLength - edited.length
+        if edited.location + edited.length <= passage.location {
+            return NSRange(location: passage.location + delta, length: passage.length)
+        }
+        if edited.location >= passage.location + passage.length { return passage }
+        guard edited.location >= passage.location,
+              edited.location + edited.length <= passage.location + passage.length,
+              passage.length + delta > 0 else { return nil }
+        return NSRange(location: passage.location, length: passage.length + delta)
+    }
+
+    /// Keeps live ranges consistent with an edit the engine produced for passage `id`: the passage
+    /// takes the replacement's range, its descendants are hidden (re-found literally if their
+    /// version is shown again), and every other passage moves by the ordinary rules.
+    private mutating func didProduce(_ edit: HistoryEdit, for id: UUID) {
+        let replacementLength = (edit.replacement as NSString).length
+        let hidden = descendants(of: id)
+        for child in hidden { liveRanges[child] = nil }
+        var lost = Set<UUID>()
+        for (other, range) in liveRanges where other != id {
+            if let moved = Self.map(range, through: edit.range, replacementLength: replacementLength) {
+                liveRanges[other] = moved
+            } else {
+                lost.insert(other)
+            }
+        }
+        liveRanges[id] = NSRange(location: edit.range.location, length: replacementLength)
+        removeWithDescendants(lost)
+        if let length = syncedLength { syncedLength = length + replacementLength - edit.range.length }
+    }
+
     // MARK: - Locating
 
     mutating func locateAll(in text: String) -> [LocatedPassage] {
         let ns = text as NSString
+        if syncedLength != ns.length { liveRanges.removeAll() }
         dropUnreachable()
 
         var located: [LocatedPassage] = []
         var lost: [UUID] = []
+        var found: [UUID: NSRange] = [:]
         // Breadth-first from the roots; children are searched only inside a located parent whose
         // CURRENT version is the one they were made in.
         var queue: [(id: UUID, scope: NSRange, rootID: UUID?)] =
@@ -49,10 +125,11 @@ struct DocumentHistoryEngine {
             head += 1
             guard let index = history.passages.firstIndex(where: { $0.id == id }) else { continue }
             let passage = history.passages[index]
-            guard let range = Self.find(passage, in: text, within: scope) else {
+            guard let range = find(passage, in: text, within: scope) else {
                 lost.append(id)
                 continue
             }
+            found[id] = range
             let context = PassageHistoryText.context(around: range, in: text)
             history.passages[index].versions[passage.currentIndex].text = ns.substring(with: range)
             history.passages[index].contextBefore = context.before
@@ -63,109 +140,25 @@ struct DocumentHistoryEngine {
                 queue.append((child.id, range, root))
             }
         }
+        liveRanges = found
+        syncedLength = ns.length
         removeWithDescendants(Set(lost))
         return located.sorted {
             $0.range.location != $1.range.location ? $0.range.location < $1.range.location : $0.range.length > $1.range.length
         }
     }
 
-    /// Literal locate by text + context, with one fallback for a current version the writer typed
-    /// into: the unique span between the two stored context strings. A literal match that lies
-    /// inside that span wins (text typed NEXT to an intact passage is not swallowed into it).
-    private static func find(_ passage: HistoryPassage, in text: String, within scope: NSRange) -> NSRange? {
-        let needle = passage.versions[passage.currentIndex].text
-        let literal = PassageHistoryText.locate(needle, before: passage.contextBefore, after: passage.contextAfter,
-                                                in: text, within: scope)
-        guard let anchored = anchoredSpan(before: passage.contextBefore, after: passage.contextAfter,
-                                          in: text, within: scope),
-              isPlausibleEdit(anchored, of: passage, needle: needle, in: text) else { return literal }
-        if let literal, NSIntersectionRange(literal, anchored) == literal { return literal }
-        return anchored
-    }
-
-    /// Extra length an edited passage may gain beyond its stored text before the anchored span
-    /// stops counting as "the same passage, typed into". The bound is
-    /// `max(2 × needle, needle + anchoredSlack)` UTF-16 units.
-    static let anchoredSlack = 80
-
-    /// A passage the writer typed into keeps most of its words, so an anchored span must share at
-    /// least this much with the stored text (see `similarity`). Measured on WORDS, not letters:
-    /// letter-level LCS scored an unrelated same-level sentence ("Untouched sentence kept." vs
-    /// "Old tracked sentence.") at 0.62 on shared letters alone; by words it is 0.33, while a few
-    /// typed words keep a short passage well above the bar ("It works." → "It really works." = 0.8).
-    static let anchoredMinimumSimilarity = 0.6
-
-    /// `2 × LCS(words) / (words(a) + words(b))`, tokenized with `enumerateSubstrings(.byWords)` and
-    /// compared case-insensitively. 0 when either string has no words, so a wordless span is never
-    /// trusted. O(a·b) in words — callers bound the span's length first.
-    static func similarity(_ a: String, _ b: String) -> Double {
-        let x = words(in: a), y = words(in: b)
-        guard !x.isEmpty, !y.isEmpty else { return 0 }
-        var previous = [Int](repeating: 0, count: y.count + 1)
-        var current = previous
-        for word in x {
-            for j in 0..<y.count {
-                current[j + 1] = word == y[j] ? previous[j] + 1 : max(previous[j + 1], current[j])
-            }
-            swap(&previous, &current)
+    /// The live range when there is one (it must still lie inside `scope`); otherwise a LITERAL
+    /// match of the stored current text, scored by context. Never a resemblance search.
+    private func find(_ passage: HistoryPassage, in text: String, within scope: NSRange) -> NSRange? {
+        if let live = liveRanges[passage.id] {
+            guard live.length > 0, live.location >= scope.location,
+                  live.location + live.length <= scope.location + scope.length else { return nil }
+            return live
         }
-        return 2 * Double(previous[y.count]) / Double(x.count + y.count)
-    }
-
-    private static func words(in text: String) -> [String] {
-        let ns = text as NSString
-        var result: [String] = []
-        ns.enumerateSubstrings(in: NSRange(location: 0, length: ns.length), options: .byWords) { word, _, _, _ in
-            if let word { result.append(word.lowercased()) }
-        }
-        return result
-    }
-
-    /// An anchored span is only trusted when it still looks like the passage the writer typed into:
-    /// already trimmed and composed-aligned, the same level, no blank-line paragraph break (checked
-    /// for `.paragraph` too — `classify` reports multi-paragraph ranges as `.paragraph`), and not
-    /// much longer than the stored text. Otherwise a deleted passage whose context recurs later
-    /// would claim the untouched text in between, and stepping would overwrite it.
-    private static func isPlausibleEdit(_ span: NSRange, of passage: HistoryPassage, needle: String, in text: String) -> Bool {
-        let needleLength = (needle as NSString).length
-        guard PassageHistoryText.aligned(span, in: text) == span,
-              span.length <= max(2 * needleLength, needleLength + anchoredSlack),
-              PassageHistoryText.classify(span, in: text) == passage.level else { return false }
-        let body = (text as NSString).substring(with: span)
-        return body.range(of: "\n[ \t\r\u{FEFF}]*\n", options: .regularExpression) == nil
-            && similarity(body, needle) >= anchoredMinimumSimilarity
-    }
-
-    /// The text between an occurrence of `before` and the next occurrence of `after`, inside
-    /// `scope`. Nil unless both contexts are non-empty and exactly one non-blank, composed-safe
-    /// span exists — an empty context gives no edge to anchor to, so it never guesses. Searches
-    /// stay within the scope widened by the context lengths, never the whole document.
-    private static func anchoredSpan(before: String, after: String, in text: String, within scope: NSRange) -> NSRange? {
-        guard !before.isEmpty, !after.isEmpty else { return nil }
-        let ns = text as NSString
-        let scopeStart = min(max(scope.location, 0), ns.length)
-        let scopeEnd = scopeStart + min(max(scope.length, 0), ns.length - scopeStart)
-        let beforeLength = (before as NSString).length
-        let afterLength = (after as NSString).length
-        let searchEnd = min(ns.length, scopeEnd + afterLength)
-        let blank = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}"))
-        var spans = Set<NSRange>()
-        var cursor = max(0, scopeStart - beforeLength)
-        while cursor < scopeEnd {
-            let b = ns.range(of: before, options: .literal, range: NSRange(location: cursor, length: scopeEnd - cursor))
-            if b.location == NSNotFound { break }
-            cursor = b.location + 1
-            let start = b.location + b.length
-            guard start >= scopeStart, start < scopeEnd else { continue }
-            let a = ns.range(of: after, options: .literal, range: NSRange(location: start, length: searchEnd - start))
-            guard a.location != NSNotFound, a.location <= scopeEnd, a.location > start else { continue }
-            let span = NSRange(location: start, length: a.location - start)
-            guard ns.rangeOfComposedCharacterSequences(for: span) == span,
-                  !ns.substring(with: span).trimmingCharacters(in: blank).isEmpty else { continue }
-            spans.insert(span)
-            if spans.count > 1 { return nil }
-        }
-        return spans.first
+        return PassageHistoryText.locate(passage.versions[passage.currentIndex].text,
+                                         before: passage.contextBefore, after: passage.contextAfter,
+                                         in: text, within: scope)
     }
 
     // MARK: - Adding
@@ -220,8 +213,12 @@ struct DocumentHistoryEngine {
         }
     }
 
-    /// One accepted AI action = one passage: `[original(you), accepted(ai)]`. `range` is where the
-    /// accepted text now sits in `text`.
+    /// One accepted AI action = one passage: `[original(you), accepted(ai)]`. `text` is the text
+    /// after the accept (already reported through `applyEdit`) and `range` is where the accepted
+    /// text sits in it. A passage whose live range equals `range` gains a version — matched by
+    /// position, never by comparing the accepted text with stored text, so a dissimilar rewrite
+    /// keeps its history. The replaced version is the writer's only when `original` differs from
+    /// the stored text of that version; otherwise (accepting AI text twice) it keeps its author.
     @discardableResult
     mutating func recordAccepted(range: NSRange, original: String, accepted: String, in text: String) -> UUID? {
         let stored = history  // before locateAll refreshes the current version to the accepted text
@@ -255,6 +252,7 @@ struct DocumentHistoryEngine {
             id: id, level: level, versions: versions, currentIndex: versions.count - 1,
             parentID: parent?.id, parentVersionIndex: parentVersion,
             contextBefore: context.before, contextAfter: context.after, lastTouched: now()))
+        liveRanges[id] = range
         // Passages already inside the new one now live in its live version, so stepping the new
         // passage hides and restores them instead of overwriting them.
         let containedIDs = Set(contained.map(\.id))
@@ -293,6 +291,9 @@ struct DocumentHistoryEngine {
     }
 
     // MARK: - Switching versions
+    //
+    // The returned `HistoryEdit` is applied by the caller verbatim and NOT reported back through
+    // `applyEdit`: the engine has already moved its live ranges for it.
 
     mutating func step(_ id: UUID, by delta: Int, in text: String) -> HistoryEdit? {
         guard let passage = history.passages.first(where: { $0.id == id }) else { return nil }
@@ -311,7 +312,9 @@ struct DocumentHistoryEngine {
               index != passage.currentIndex else { return nil }
         history.passages[p].currentIndex = index
         history.passages[p].lastTouched = now()
-        return HistoryEdit(range: located.range, replacement: passage.versions[index].text)
+        let edit = HistoryEdit(range: located.range, replacement: passage.versions[index].text)
+        didProduce(edit, for: id)
+        return edit
     }
 
     /// Deleting the current version first switches to its neighbour and returns that edit. A
@@ -324,8 +327,10 @@ struct DocumentHistoryEngine {
         var edit: HistoryEdit?
         if index == history.passages[p].currentIndex {
             let neighbour = index > 0 ? index - 1 : index + 1
-            edit = HistoryEdit(range: located.range, replacement: history.passages[p].versions[neighbour].text)
+            let switched = HistoryEdit(range: located.range, replacement: history.passages[p].versions[neighbour].text)
             history.passages[p].currentIndex = neighbour
+            didProduce(switched, for: id)
+            edit = switched
         }
         removeVersion(at: index, ofPassageAt: p, reparentingTo: nil)
         if let q = self.index(of: id) {
@@ -423,6 +428,20 @@ struct DocumentHistoryEngine {
             }
         }
         history.passages.removeAll { doomed.contains($0.id) }
+        for id in doomed { liveRanges[id] = nil }
+    }
+
+    /// Every passage below `id`, through all versions.
+    private func descendants(of id: UUID) -> Set<UUID> {
+        var result = Set<UUID>()
+        var frontier: Set<UUID> = [id]
+        while !frontier.isEmpty {
+            let next = Set(history.passages.filter { $0.parentID.map(frontier.contains) ?? false }.map(\.id))
+                .subtracting(result).subtracting([id])
+            result.formUnion(next)
+            frontier = next
+        }
+        return result
     }
 
     /// Drops passages that cannot belong to any tree: corrupt version indices, a parent that no
@@ -444,6 +463,7 @@ struct DocumentHistoryEngine {
             frontier = next
         }
         history.passages.removeAll { !reachable.contains($0.id) }
+        for id in liveRanges.keys where !reachable.contains(id) { liveRanges[id] = nil }
     }
 
     private static func isWellFormed(_ passage: HistoryPassage) -> Bool {
