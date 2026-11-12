@@ -197,6 +197,19 @@ final class DocumentHistoryEngineTests: XCTestCase {
         assertDroppedWithoutEdits(&engine, id: id, in: deleted)
     }
 
+    func testAnchoredSimilarityIsWordLevel() {
+        XCTAssertEqual(DocumentHistoryEngine.similarity("Untouched sentence kept.", "Old tracked sentence."),
+                       1.0 / 3.0, accuracy: 0.0001)
+        XCTAssertLessThan(DocumentHistoryEngine.similarity("Untouched sentence kept.", "Old tracked sentence."),
+                          DocumentHistoryEngine.anchoredMinimumSimilarity)
+        XCTAssertEqual(DocumentHistoryEngine.similarity("It works.", "It really works."), 0.8, accuracy: 0.0001)
+        XCTAssertGreaterThanOrEqual(DocumentHistoryEngine.similarity("It works.", "It really works."),
+                                    DocumentHistoryEngine.anchoredMinimumSimilarity)
+        XCTAssertEqual(DocumentHistoryEngine.similarity("HELLO world", "hello World"), 1, accuracy: 0.0001)
+        XCTAssertEqual(DocumentHistoryEngine.similarity("...", "!!"), 0)
+        XCTAssertEqual(DocumentHistoryEngine.similarity("", "words here"), 0)
+    }
+
     func testTypingAFewCharactersInsideTrackedSentenceKeepsIt() throws {
         var engine = makeEngine()
         let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))

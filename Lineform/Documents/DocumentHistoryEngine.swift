@@ -88,29 +88,37 @@ struct DocumentHistoryEngine {
     /// `max(2 × needle, needle + anchoredSlack)` UTF-16 units.
     static let anchoredSlack = 80
 
-    /// A passage the writer typed into keeps most of its text, so an anchored span must share at
-    /// least this much with the stored text: `2 × LCS / (span + needle)`, over Characters.
-    /// 0.6 was not enough: an unrelated same-level sentence ("Untouched sentence kept." against
-    /// "Old tracked sentence.") scores 0.622 on shared letters alone and would be overwritten.
-    /// At 0.7 a short passage still survives a few typed words ("It works." → "It really works."
-    /// scores 0.72).
-    static let anchoredMinimumSimilarity = 0.7
+    /// A passage the writer typed into keeps most of its words, so an anchored span must share at
+    /// least this much with the stored text (see `similarity`). Measured on WORDS, not letters:
+    /// letter-level LCS scored an unrelated same-level sentence ("Untouched sentence kept." vs
+    /// "Old tracked sentence.") at 0.62 on shared letters alone; by words it is 0.33, while a few
+    /// typed words keep a short passage well above the bar ("It works." → "It really works." = 0.8).
+    static let anchoredMinimumSimilarity = 0.6
 
-    /// `2 × LCS / (a + b)` over grapheme clusters; 1 for two empty strings. O(a·b) time, O(b)
-    /// space — callers bound the span's length first.
+    /// `2 × LCS(words) / (words(a) + words(b))`, tokenized with `enumerateSubstrings(.byWords)` and
+    /// compared case-insensitively. 0 when either string has no words, so a wordless span is never
+    /// trusted. O(a·b) in words — callers bound the span's length first.
     static func similarity(_ a: String, _ b: String) -> Double {
-        let x = Array(a), y = Array(b)
-        guard !x.isEmpty || !y.isEmpty else { return 1 }
+        let x = words(in: a), y = words(in: b)
         guard !x.isEmpty, !y.isEmpty else { return 0 }
         var previous = [Int](repeating: 0, count: y.count + 1)
         var current = previous
-        for ch in x {
+        for word in x {
             for j in 0..<y.count {
-                current[j + 1] = ch == y[j] ? previous[j] + 1 : max(previous[j + 1], current[j])
+                current[j + 1] = word == y[j] ? previous[j] + 1 : max(previous[j + 1], current[j])
             }
             swap(&previous, &current)
         }
         return 2 * Double(previous[y.count]) / Double(x.count + y.count)
+    }
+
+    private static func words(in text: String) -> [String] {
+        let ns = text as NSString
+        var result: [String] = []
+        ns.enumerateSubstrings(in: NSRange(location: 0, length: ns.length), options: .byWords) { word, _, _, _ in
+            if let word { result.append(word.lowercased()) }
+        }
+        return result
     }
 
     /// An anchored span is only trusted when it still looks like the passage the writer typed into:
