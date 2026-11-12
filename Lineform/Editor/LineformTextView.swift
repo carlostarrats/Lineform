@@ -109,6 +109,22 @@ final class LineformTextView: NSTextView {
     private var hasAppliedTextContainerLayout = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var searchHighlightRanges: [NSRange] = []
+    /// History mode. `nil` = normal writing, which draws no history markers. Setting an equal
+    /// value is a no-op (like `setSearchHighlights`). See `LineformTextView+History.swift`.
+    var historyDisplay: HistoryModeDisplay? {
+        get { historyDisplayStorage }
+        set { applyHistoryDisplay(newValue) }
+    }
+    /// Whether "Add to History" may be offered for a selection. Backed by an O(document) engine
+    /// call: asked only when the context menu is built.
+    var historyCanAddHandler: ((NSRange) -> Bool)?
+    var historyCommandHandler: ((HistoryTextCommand) -> Void)?
+    // Storage for `LineformTextView+History.swift` (extensions cannot hold stored properties).
+    // Not for use elsewhere.
+    var historyDisplayStorage: HistoryModeDisplay?
+    var historyRecededInkRange: NSRange?
+    var historyTrackingArea: NSTrackingArea?
+    var isApplyingHistoryEdit = false
     private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
     private var pendingDeferredVisualLayoutAnchor: VisualLayoutAnchor?
@@ -237,6 +253,28 @@ final class LineformTextView: NSTextView {
         }
 
         super.mouseMoved(with: event)
+        handleHistoryMouseMoved(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        setHistoryHoveredID(nil)
+    }
+
+    /// History mode's arrow keys and Esc. Hooked HERE, never in `keyDown` — `keyDown` runs before
+    /// input-method handling and would swallow keys mid-composition.
+    override func doCommand(by selector: Selector) {
+        if handleHistoryCommand(selector) {
+            return
+        }
+        super.doCommand(by: selector)
+    }
+
+    /// In History mode the first edit tells the controller (which leaves History mode
+    /// synchronously), then proceeds normally — the keystroke types rather than silently failing.
+    override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        noteHistoryTypingIfNeeded()
+        return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
     }
 
     override func cursorUpdate(with event: NSEvent) {
@@ -281,6 +319,10 @@ final class LineformTextView: NSTextView {
         updateTextContainerLayout(for: profile)
         typingAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         refreshMarkdownHighlighting()
+        if historyDisplay != nil {
+            // The receded ink is baked into temporary attributes; a theme change re-derives it.
+            refreshHistoryRecededInk()
+        }
         refreshReadingAssists()
     }
 
@@ -469,6 +511,7 @@ final class LineformTextView: NSTextView {
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {
         splitScrollSynchronizer?.editorDidScroll(from: self)
+        refreshHistoryRecededInkAfterScrollIfNeeded()
         scheduleVisibleTokensRefreshAfterScroll()
         scheduleVisibleTopRangeReportAfterScroll()
     }
@@ -480,7 +523,7 @@ final class LineformTextView: NSTextView {
         // typing — no ruler, no search) skips it and leaves AppKit's minimal edited-line
         // invalidation in place; the saved per-keystroke repaint of a dense Retina viewport
         // is what keeps the caret from momentarily trailing fast typing (perf, 2026-07-05).
-        if activeReadingProfile.readingRulerEnabled || !searchHighlightRanges.isEmpty || string.isEmpty {
+        if activeReadingProfile.readingRulerEnabled || !searchHighlightRanges.isEmpty || historyDisplay != nil || string.isEmpty {
             needsDisplay = true
         }
         centerSelectionForTypewriterModeIfNeeded()
@@ -759,6 +802,7 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.cutTitle, action: #selector(cut(_:)), keyEquivalent: "x"))
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.copyTitle, action: #selector(copy(_:)), keyEquivalent: "c"))
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.pasteTitle, action: #selector(paste(_:)), keyEquivalent: "v"))
+        addHistoryItemIfAllowed(to: menu)
         if contextMenuTextFormat == .markdown {
             menu.addItem(.separator())
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.titleTitle, action: #selector(toggleTitleMarkdown(_:)), keyEquivalent: "1"))
@@ -956,6 +1000,9 @@ final class LineformTextView: NSTextView {
         }
 
         window?.makeFirstResponder(self)
+        if handleHistoryMouseDown(event) {
+            return
+        }
         super.mouseDown(with: event)
     }
 
@@ -984,6 +1031,8 @@ final class LineformTextView: NSTextView {
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
         drawEmptyStatePlaceholderIfNeeded()
+        // History first: its hover/selection fills are opaque, so search matches stay on top.
+        drawHistoryIfNeeded()
         drawSearchHighlightsIfNeeded()
         drawReadingRulerIfNeeded()
     }
@@ -1386,7 +1435,7 @@ final class LineformTextView: NSTextView {
         rectsForCharacterRange(characterRange).first
     }
 
-    private func rectsForCharacterRange(_ characterRange: NSRange?) -> [NSRect] {
+    func rectsForCharacterRange(_ characterRange: NSRange?) -> [NSRect] {
         guard
             let characterRange,
             characterRange.length > 0,
@@ -1921,6 +1970,9 @@ enum LineformTextContextMenuPresentation {
     static let learnSpellingTitle = String(localized: "Learn Spelling")
     static let ignoreSpellingTitle = String(localized: "Ignore Spelling")
     static let noGuessesTitle = String(localized: "No Guesses Found")
+    /// Conditional: offered only for a non-empty selection the History controller accepts, so it
+    /// is not part of `commandTitles(for:)` (the rows every menu carries).
+    static let addToHistoryTitle = String(localized: "Add to History")
 
     /// The single suggestion to offer for a misspelling, or none.
     ///

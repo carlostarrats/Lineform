@@ -46,6 +46,8 @@
 		1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000073 /* EditorDisplayModeTests.swift */; };
 		1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */; };
 		1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */; };
+		1F00000100000000000004D7 /* HistoryPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D7 /* HistoryPaletteTests.swift */; };
+		1F00000100000000000004D6 /* LineformTextViewHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F00000100000000000004AF /* LineformAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AF /* LineformAppIntents.swift */; };
 		1F00000100000000000004B0 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B0 /* AppIntents.framework */; };
@@ -96,6 +98,8 @@
 		1F0000010000000000000014 /* EditorContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000014 /* EditorContainerView.swift */; };
 		1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */; };
 		1F0000010000000000000016 /* LineformTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000016 /* LineformTextView.swift */; };
+		1F00000100000000000004D5 /* LineformTextView+History.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D5 /* LineformTextView+History.swift */; };
+		1F00000100000000000004D4 /* HistoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D4 /* HistoryPalette.swift */; };
 		1F0000270000000000000001 /* LineformTextView+ImageInsertion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */; };
 		1F0000280000000000000001 /* SaveAsExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000280000000000000002 /* SaveAsExport.swift */; };
 		1F0000010000000000000017 /* ReadingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000017 /* ReadingProfile.swift */; };
@@ -267,6 +271,8 @@
 		1F0000020000000000000073 /* EditorDisplayModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDisplayModeTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtectionTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewWritingToolsTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004D7 /* HistoryPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPaletteTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewHistoryTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -326,6 +332,8 @@
 		1F0000020000000000000014 /* EditorContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorContainerView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTextViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000016 /* LineformTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextView.swift; sourceTree = "<group>"; };
+		1F00000200000000000004D5 /* LineformTextView+History.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+History.swift"; sourceTree = "<group>"; };
+		1F00000200000000000004D4 /* HistoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPalette.swift; sourceTree = "<group>"; };
 		1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+ImageInsertion.swift"; sourceTree = "<group>"; };
 		1F0000280000000000000002 /* SaveAsExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAsExport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000017 /* ReadingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfile.swift; sourceTree = "<group>"; };
@@ -545,6 +553,8 @@
 				1F0000020000000000000141 /* EditorStatusPresentation.swift */,
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
 				1F0000020000000000000016 /* LineformTextView.swift */,
+				1F00000200000000000004D5 /* LineformTextView+History.swift */,
+				1F00000200000000000004D4 /* HistoryPalette.swift */,
 				1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */,
 				1F00002C0000000000000002 /* ImageInsertionText.swift */,
 				1F0000280000000000000002 /* SaveAsExport.swift */,
@@ -695,6 +705,8 @@
 				1F0000020000000000000073 /* EditorDisplayModeTests.swift */,
 				1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */,
 				1F0000020000000000000082 /* LineformTextViewWritingToolsTests.swift */,
+				1F00000200000000000004D7 /* HistoryPaletteTests.swift */,
+				1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
 				1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */,
@@ -935,6 +947,8 @@
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
 				1F0000010000000000000016 /* LineformTextView.swift in Sources */,
+				1F00000100000000000004D5 /* LineformTextView+History.swift in Sources */,
+				1F00000100000000000004D4 /* HistoryPalette.swift in Sources */,
 				1F0000270000000000000001 /* LineformTextView+ImageInsertion.swift in Sources */,
 				1F00002C0000000000000001 /* ImageInsertionText.swift in Sources */,
 				1F0000280000000000000001 /* SaveAsExport.swift in Sources */,
@@ -1075,6 +1089,8 @@
 				1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */,
 				1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */,
 				1F0000010000000000000082 /* LineformTextViewWritingToolsTests.swift in Sources */,
+				1F00000100000000000004D7 /* HistoryPaletteTests.swift in Sources */,
+				1F00000100000000000004D6 /* LineformTextViewHistoryTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
 				1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */,
