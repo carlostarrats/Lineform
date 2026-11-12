@@ -69,9 +69,22 @@ struct DocumentHistoryEngine {
     /// text before the change; `replacement` is the text inserted there. O(passages), plus a splice
     /// of the remembered text of each passage the edit falls inside. Never reads the document.
     mutating func applyEdit(_ edited: NSRange, replacement: String) {
+        mapLiveRanges(through: edited, replacement: replacement, except: nil)
+        if let length = syncedLength { syncedLength = length + (replacement as NSString).length - edited.length }
+    }
+
+    /// Moves every live range (but `except`) through one edit and drops what it cannot map. An
+    /// insertion point grows at most one passage chain: when it is both a passage's end and another
+    /// passage's start, the passage ENDING there grows (with any ancestors sharing that end) and
+    /// the one starting there is shifted, so adjacent passages can never overlap.
+    private mutating func mapLiveRanges(through edited: NSRange, replacement: String, except: UUID?) {
+        let endGrows = edited.length > 0 ? false : liveRanges.contains { id, range in
+            id != except && range.location + range.length == edited.location
+                && Self.continuesWord(liveTexts[id]?.last, replacement.first)
+        }
         var lost = Set<UUID>()
-        for (id, range) in liveRanges {
-            switch Self.map(range, text: liveTexts[id], through: edited, replacement: replacement) {
+        for (id, range) in liveRanges where id != except {
+            switch Self.map(range, text: liveTexts[id], through: edited, replacement: replacement, allowStartGrowth: !endGrows) {
             case .moved(let moved):
                 liveRanges[id] = moved
             case let .resized(resized, local):
@@ -82,7 +95,6 @@ struct DocumentHistoryEngine {
             }
         }
         removeWithDescendants(lost)
-        if let length = syncedLength { syncedLength = length + (replacement as NSString).length - edited.length }
     }
 
     /// Forget every live range; the next `locateAll` re-finds every passage LITERALLY (by its last
@@ -106,7 +118,8 @@ struct DocumentHistoryEngine {
     /// (letters/digits on both sides of the edge) is inside, so typing over a selected word key by
     /// key, or appending/prepending letters, grows the passage instead of splicing it on a step.
     /// `text` is the passage's live text; without it edge insertions stay outside.
-    static func map(_ passage: NSRange, text: String?, through edited: NSRange, replacement: String) -> Mapping {
+    static func map(_ passage: NSRange, text: String?, through edited: NSRange, replacement: String,
+                    allowStartGrowth: Bool = true) -> Mapping {
         let inserted = (replacement as NSString).length
         let delta = inserted - edited.length
         let end = passage.location + passage.length
@@ -115,7 +128,7 @@ struct DocumentHistoryEngine {
                 return .resized(NSRange(location: passage.location, length: passage.length + inserted),
                                 local: NSRange(location: passage.length, length: 0))
             }
-            if edited.location == passage.location, continuesWord(replacement.last, text.first) {
+            if allowStartGrowth, edited.location == passage.location, continuesWord(replacement.last, text.first) {
                 return .resized(NSRange(location: passage.location, length: passage.length + inserted),
                                 local: NSRange(location: 0, length: 0))
             }
@@ -156,21 +169,9 @@ struct DocumentHistoryEngine {
             liveRanges[child] = nil
             liveTexts[child] = nil
         }
-        var lost = Set<UUID>()
-        for (other, range) in liveRanges where other != id {
-            switch Self.map(range, text: liveTexts[other], through: edit.range, replacement: edit.replacement) {
-            case .moved(let moved):
-                liveRanges[other] = moved
-            case let .resized(resized, local):
-                liveRanges[other] = resized
-                splice(other, at: local, oldLength: range.length, with: edit.replacement)
-            case .dropped:
-                lost.insert(other)
-            }
-        }
+        mapLiveRanges(through: edit.range, replacement: edit.replacement, except: id)
         liveRanges[id] = NSRange(location: edit.range.location, length: replacementLength)
         liveTexts[id] = edit.replacement
-        removeWithDescendants(lost)
         if let length = syncedLength { syncedLength = length + replacementLength - edit.range.length }
     }
 
@@ -186,15 +187,25 @@ struct DocumentHistoryEngine {
         var found: [UUID: NSRange] = [:]
         // Breadth-first from the roots; children are searched only inside a located parent whose
         // CURRENT version is the one they were made in.
-        var queue: [(id: UUID, scope: NSRange, rootID: UUID?)] =
-            history.passages.filter { $0.parentID == nil }.map { ($0.id, NSRange(location: 0, length: ns.length), nil) }
+        // Passages whose live range still verifies go first, so a literal re-find can never claim
+        // a range a verified passage holds (see the overlap check below).
+        func verifiedFirst(_ passages: [HistoryPassage]) -> [HistoryPassage] {
+            let verified = passages.filter { isVerified($0.id, in: ns) }
+            return verified + passages.filter { !isVerified($0.id, in: ns) }
+        }
+        var queue: [(id: UUID, scope: NSRange, rootID: UUID?, ancestors: Set<UUID>)] =
+            verifiedFirst(history.passages.filter { $0.parentID == nil })
+                .map { ($0.id, NSRange(location: 0, length: ns.length), nil, []) }
         var head = 0
         while head < queue.count {
-            let (id, scope, rootID) = queue[head]
+            let (id, scope, rootID, ancestors) = queue[head]
             head += 1
             guard let index = history.passages.firstIndex(where: { $0.id == id }) else { continue }
             let passage = history.passages[index]
-            guard let range = find(passage, in: text, within: scope) else {
+            // Two passages that are not nested never share text: a range overlapping one already
+            // located (other than an ancestor) is another passage's text, so this one is gone.
+            guard let range = find(passage, in: text, within: scope),
+                  !located.contains(where: { !ancestors.contains($0.id) && NSIntersectionRange($0.range, range).length > 0 }) else {
                 lost.append(id)
                 continue
             }
@@ -205,8 +216,9 @@ struct DocumentHistoryEngine {
             history.passages[index].contextAfter = context.after
             let root = rootID ?? id
             located.append(LocatedPassage(id: id, level: passage.level, range: range, rootID: root))
-            for child in history.passages where child.parentID == id && child.parentVersionIndex == passage.currentIndex {
-                queue.append((child.id, range, root))
+            let children = history.passages.filter { $0.parentID == id && $0.parentVersionIndex == passage.currentIndex }
+            for child in verifiedFirst(children) {
+                queue.append((child.id, range, root, ancestors.union([id])))
             }
         }
         liveRanges = found
@@ -216,6 +228,13 @@ struct DocumentHistoryEngine {
         return located.sorted {
             $0.range.location != $1.range.location ? $0.range.location < $1.range.location : $0.range.length > $1.range.length
         }
+    }
+
+    /// The live range exists, is in bounds, and the text there reads what `applyEdit` predicted.
+    private func isVerified(_ id: UUID, in ns: NSString) -> Bool {
+        guard let live = liveRanges[id], let expected = liveTexts[id], live.length > 0,
+              live.location + live.length <= ns.length else { return false }
+        return ns.substring(with: live) == expected
     }
 
     /// The live range when there is one, it lies inside `scope`, and the text there still reads
@@ -298,7 +317,9 @@ struct DocumentHistoryEngine {
         // The live range covers exactly what was inserted, edge whitespace included, so compare it
         // with both `range` and its trimmed form.
         let trimmed = PassageHistoryText.aligned(range, in: text)
-        if let id = liveRanges.first(where: { $0.value == range || $0.value == trimmed })?.key,
+        // Parent and child can share a range; the innermost (deepest) passage is the one rewritten.
+        if let id = liveRanges.filter({ $0.value == range || $0.value == trimmed }).map(\.key)
+            .max(by: { (chain(to: $0).count, $0.uuidString) < (chain(to: $1).count, $1.uuidString) }),
            let before = index(of: id) {
             let stored = history.passages[before].versions[history.passages[before].currentIndex]
             guard locateAll(in: text).contains(where: { $0.id == id }), let index = index(of: id) else { return nil }
@@ -397,6 +418,7 @@ struct DocumentHistoryEngine {
               index != passage.currentIndex else { return nil }
         history.passages[p].currentIndex = index
         history.passages[p].lastTouched = now()
+        // `p` is not used past didProduce, which can remove passages.
         let edit = HistoryEdit(range: located.range, replacement: passage.versions[index].text)
         didProduce(edit, for: id)
         return edit
@@ -417,7 +439,9 @@ struct DocumentHistoryEngine {
             didProduce(switched, for: id)
             edit = switched
         }
-        removeVersion(at: index, ofPassageAt: p, reparentingTo: nil)
+        // didProduce can remove passages; never reuse an index captured before it.
+        guard let q = self.index(of: id) else { return edit }
+        removeVersion(at: index, ofPassageAt: q, reparentingTo: nil)
         if let q = self.index(of: id) {
             if history.passages[q].versions.count < 2 {
                 removeWithDescendants([id])

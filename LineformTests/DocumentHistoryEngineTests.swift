@@ -550,4 +550,93 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(engine.locateAll(in: "Nothing of it remains in this reloaded file."), [])
         XCTAssertTrue(engine.history.isEmpty)
     }
+
+    // MARK: - Task 3a
+
+    private func assertNoOverlappingSiblings(_ engine: DocumentHistoryEngine, file: StaticString = #filePath, line: UInt = #line) {
+        let live = engine.liveRanges.sorted { $0.value.location < $1.value.location }
+        for (i, a) in live.enumerated() {
+            for b in live[(i + 1)...] {
+                let nested = engine.chain(to: a.key).contains(b.key) || engine.chain(to: b.key).contains(a.key)
+                XCTAssertTrue(nested || NSIntersectionRange(a.value, b.value).length == 0,
+                              "overlap \(a.value) \(b.value)", file: file, line: line)
+            }
+        }
+    }
+
+    func testInsertionAtJoinOfAdjacentPassagesGrowsOnlyOne() throws {
+        let text = "Hello brave new world. Tail word here."
+        var engine = makeEngine()
+        let braveID = try XCTUnwrap(engine.add(range(of: "brave", in: text), author: .you, in: text))
+        let newID = try XCTUnwrap(engine.add(range(of: "new", in: text), author: .you, in: text))
+        let tailID = try XCTUnwrap(engine.add(range(of: "Tail", in: text), author: .you, in: text))
+        var typed = typing(&engine, "Tail", with: "Head", in: text)
+        typed = edit(&engine, typed, replacing: NSRange(location: range(of: "brave", in: typed).upperBound, length: 1), with: "")
+        typed = typeKeys(&engine, "x", at: range(of: "bravenew", in: typed).location + 5, in: typed)
+        XCTAssertEqual(typed, "Hello bravexnew world. Head word here.")
+        XCTAssertEqual(engine.liveRanges[braveID], range(of: "bravex", in: typed))
+        XCTAssertEqual(engine.liveRanges[newID], NSRange(location: range(of: "bravex", in: typed).upperBound, length: 3))
+        assertNoOverlappingSiblings(engine)
+
+        let edit = try XCTUnwrap(engine.deleteVersion(newID, at: 1, in: typed))
+        XCTAssertEqual(edit, HistoryEdit(range: NSRange(location: 12, length: 3), replacement: "new"))
+        XCTAssertNil(engine.history.passages.first { $0.id == newID }, "left with one version, removed")
+        let tail = try XCTUnwrap(engine.history.passages.first { $0.id == tailID })
+        XCTAssertEqual(tail.versions.map(\.text), ["Tail", "Head"])
+        XCTAssertEqual(tail.currentIndex, 1)
+        let brave = try XCTUnwrap(engine.history.passages.first { $0.id == braveID })
+        XCTAssertEqual(brave.versions.count, 2)
+        XCTAssertEqual(apply(edit, to: typed), typed)
+        assertNoOverlappingSiblings(engine)
+    }
+
+    func testDeleteVersionAfterDropUsesCorrectPassage() throws {
+        // The two-passage form of the join repro: it trapped on a stale passage index.
+        let text = "Hello brave new world."
+        var engine = makeEngine()
+        let braveID = try XCTUnwrap(engine.add(range(of: "brave", in: text), author: .you, in: text))
+        let newID = try XCTUnwrap(engine.add(range(of: "new", in: text), author: .you, in: text))
+        var typed = typing(&engine, "new", with: "old", in: text)
+        typed = edit(&engine, typed, replacing: NSRange(location: range(of: "brave", in: typed).upperBound, length: 1), with: "")
+        typed = typeKeys(&engine, "x", at: range(of: "braveold", in: typed).location + 5, in: typed)
+        XCTAssertEqual(typed, "Hello bravexold world.")
+        let edit = try XCTUnwrap(engine.deleteVersion(newID, at: 1, in: typed))
+        XCTAssertEqual(edit, HistoryEdit(range: range(of: "old", in: typed), replacement: "new"))
+        XCTAssertEqual(apply(edit, to: typed), "Hello bravexnew world.")
+        XCTAssertEqual(engine.history.passages.map(\.id), [braveID])
+        XCTAssertEqual(engine.history.passages.first?.versions.map(\.text), ["brave", "bravex"])
+    }
+
+    func testLocateAllNeverReturnsOverlappingSiblings() throws {
+        let text = "Here is my dog. Look, a dog."
+        let second = (text as NSString).range(of: "dog", options: .backwards)
+        var engine = makeEngine()
+        let firstID = try XCTUnwrap(engine.add(range(of: "dog", in: text), author: .you, in: text))
+        let secondID = try XCTUnwrap(engine.add(second, author: .you, in: text))
+        // Unreported, same length: the first dog becomes mid-word.
+        let changed = "Here is mydogs. Look, a dog."
+        XCTAssertEqual((changed as NSString).length, (text as NSString).length)
+        let located = engine.locateAll(in: changed)
+        XCTAssertEqual(located.map(\.id), [secondID])
+        XCTAssertEqual(located.first?.range, second)
+        XCTAssertNil(engine.history.passages.first { $0.id == firstID })
+        XCTAssertNil(engine.step(firstID, by: 1, in: changed))
+    }
+
+    func testRecordAcceptedPrefersInnermostPassageOnSharedRange() throws {
+        let text = "Intro paragraph sits here.\n\nFirst one is here. Second one is here.\n\nOutro paragraph."
+        var engine = makeEngine()
+        let paragraphID = try XCTUnwrap(engine.add(range(of: "First one is here. Second one is here.", in: text), author: .you, in: text))
+        let sentenceID = try XCTUnwrap(engine.add(range(of: "Second one is here.", in: text), author: .you, in: text))
+        // Deleting the first sentence leaves parent and child on the same range.
+        let shared = typing(&engine, "First one is here. ", with: "", in: text)
+        XCTAssertEqual(engine.liveRanges[paragraphID], engine.liveRanges[sentenceID])
+        let ai = "A rewritten second line."
+        let accepted = typing(&engine, "Second one is here.", with: ai, in: shared)
+        for _ in 0..<20 {  // dictionary order must not matter
+            var probe = engine
+            XCTAssertEqual(probe.recordAccepted(range: range(of: ai, in: accepted), original: "Second one is here.",
+                                                accepted: ai, in: accepted), sentenceID)
+        }
+    }
 }
