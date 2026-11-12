@@ -109,6 +109,11 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         var kept: [IndexEntry] = []
         for var entry in readIndex() {
             if let resolved = Self.resolve(entry.bookmark) {
+                // A bookmark follows a file into the Trash; a trashed file is a deleted file.
+                if Self.isTrashed(resolved) {
+                    removeHistoryFile(entry.id)
+                    continue
+                }
                 let key = FileIdentity.key(for: resolved)
                 if key != entry.pathKey {
                     entry.pathKey = key
@@ -193,6 +198,15 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
 
     private static func bookmark(for url: URL) -> Data? {
         try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+    }
+
+    private static func isTrashed(_ url: URL) -> Bool {
+        var relationship = FileManager.URLRelationship.other
+        if (try? FileManager.default.getRelationship(&relationship, of: .trashDirectory, in: .allDomainsMask, toItemAt: url)) != nil,
+           relationship == .contains {
+            return true
+        }
+        return url.pathComponents.contains(".Trash")
     }
 
     private static func resolve(_ bookmark: Data?) -> URL? {

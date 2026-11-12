@@ -99,4 +99,44 @@ final class PassageHistoryStoreTests: XCTestCase {
         try Data("{".utf8).write(to: directory.appendingPathComponent(file))
         XCTAssertTrue(store.load(for: url("a.md")).isEmpty)
     }
+
+    private func realFile(_ name: String, in dir: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent(name)
+        try Data("x".utf8).write(to: file)
+        return file
+    }
+
+    func testPruneDropsHistoryOfTrashedFile() throws {
+        let work = directory.appendingPathComponent("work", isDirectory: true)
+        let file = try realFile("t.md", in: work)
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store"))
+        store.save(history(touched: Date()), for: file)
+        var trashed: NSURL?
+        do {
+            try FileManager.default.trashItem(at: file, resultingItemURL: &trashed)
+        } catch {
+            // Fallback: a directory named .Trash exercises the path-component check.
+            let trash = work.appendingPathComponent(".Trash", isDirectory: true)
+            try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+            try FileManager.default.moveItem(at: file, to: trash.appendingPathComponent("t.md"))
+        }
+        defer { if let trashed { try? FileManager.default.removeItem(at: trashed as URL) } }
+        store.prune(now: Date())
+        XCTAssertTrue(store.load(for: file).isEmpty)
+        if let trashed { XCTAssertTrue(store.load(for: trashed as URL).isEmpty) }
+    }
+
+    func testPruneFollowsAMovedFileThroughItsBookmark() throws {
+        let work = directory.appendingPathComponent("work", isDirectory: true)
+        let file = try realFile("a.md", in: work)
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store"))
+        let saved = history(touched: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded()))
+        store.save(saved, for: file)
+        let moved = work.appendingPathComponent("b.md")
+        try FileManager.default.moveItem(at: file, to: moved)
+        store.prune(now: Date())
+        XCTAssertEqual(store.load(for: moved), saved)
+        XCTAssertTrue(store.load(for: file).isEmpty)
+    }
 }
