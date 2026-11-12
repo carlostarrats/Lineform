@@ -1,0 +1,505 @@
+import Foundation
+
+/// The smallest edit that turns `entry` into `exit`: the common UTF-16 prefix and suffix are left
+/// out, then the changed span is widened to Character boundaries in BOTH strings, so it
+/// never splits a CRLF pair, a surrogate pair, or a combining mark from its base. A leading BOM
+/// and any line endings outside the change are therefore never rewritten. `nil` when equal.
+enum HistoryUndoCollapse {
+    static func minimalEdit(from entry: String, to exit: String) -> HistoryEdit? {
+        let a = entry as NSString
+        let b = exit as NSString
+        guard !a.isEqual(to: exit) else { return nil }
+        let shorter = min(a.length, b.length)
+
+        var prefix = 0
+        while prefix < shorter, a.character(at: prefix) == b.character(at: prefix) {
+            prefix += 1
+        }
+        var suffix = 0
+        while suffix < shorter - prefix,
+              a.character(at: a.length - 1 - suffix) == b.character(at: b.length - 1 - suffix) {
+            suffix += 1
+        }
+
+        // Widen until the start and both ends sit on composed-character boundaries. Each pass
+        // only moves outward, and the shared prefix/suffix are identical in both strings, so the
+        // loop ends.
+        var start = prefix
+        var endA = a.length - suffix
+        var endB = b.length - suffix
+        while true {
+            let newStart = min(clusterStart(a, at: start), clusterStart(b, at: start))
+            let growA = clusterEnd(a, at: endA) - endA
+            let growB = clusterEnd(b, at: endB) - endB
+            let grow = max(growA, growB)
+            if newStart == start, grow == 0 { break }
+            start = newStart
+            endA += grow
+            endB += grow
+        }
+        return HistoryEdit(
+            range: NSRange(location: start, length: endA - start),
+            replacement: b.substring(with: NSRange(location: start, length: endB - start))
+        )
+    }
+
+    /// The start of the Character (extended grapheme cluster) `index` falls inside — `index`
+    /// itself on a boundary. Swift's Characters, not NSString's composed sequences: only the
+    /// former keep a CRLF pair together.
+    private static func clusterStart(_ s: NSString, at index: Int) -> Int {
+        guard index > 0, index < s.length else { return index }
+        let string = s as String
+        let end = string.index(after: String.Index(utf16Offset: index, in: string))
+        return string.index(before: end).utf16Offset(in: string)
+    }
+
+    /// The end of the Character `index` cuts through — `index` itself on a boundary.
+    private static func clusterEnd(_ s: NSString, at index: Int) -> Int {
+        guard index > 0, index < s.length else { return index }
+        let string = s as String
+        let end = string.index(after: String.Index(utf16Offset: index, in: string))
+        let start = string.index(before: end).utf16Offset(in: string)
+        return start < index ? end.utf16Offset(in: string) : index
+    }
+}
+
+/// History for the document shown in one editor: owns the engine and the store access, publishes
+/// what the sidebar and the text view draw, and is the ONLY thing that applies History's edits to
+/// the text (through `editor`). Callers never apply a returned `HistoryEdit` themselves; the
+/// returns exist so the logic can be tested without a text view.
+///
+/// Lifecycle: `open(url:text:)` on every document the editor shows (the first store access —
+/// nothing is read or pruned at launch), `close(text:)` before a document swap. Untitled documents
+/// keep their history in memory only, until `documentGotFile`.
+@MainActor
+final class DocumentHistoryController: ObservableObject {
+    @Published private(set) var hasHistory = false
+    @Published private(set) var isHistoryModeActive = false
+    @Published private(set) var display: HistoryModeDisplay?
+    @Published private(set) var sidebarModel = HistorySidebarModel()
+
+    /// The text view History edits. Weak: the editor's representable attaches the live one.
+    private(set) weak var editor: HistoryEditorSurface?
+    private(set) var url: URL?
+
+    private let store: PassageHistoryPersisting
+    private let now: () -> Date
+    private var engine: DocumentHistoryEngine
+    private var documentID: UUID?
+    /// Whether the store holds (or may hold) an entry for `url`. Without one, an empty history is
+    /// never written — nothing is stored until a version is kept.
+    private var hasStoreEntry = false
+    private var located: [LocatedPassage] = []
+    private var selectedID: UUID?
+    /// The text when History mode was entered, and the text as History mode has left it.
+    private var entryText: String?
+    private var modeText: String?
+    /// Each passage's current version when History mode was entered, for the session's undo.
+    private var entryVersions: [UUID: Int] = [:]
+    /// A version was deleted this session: indices no longer line up with `entryVersions`.
+    private var sessionDeletedVersions = false
+
+    /// Stores already pruned this app session (one entry in production: the shared store).
+    private static var prunedStores = Set<ObjectIdentifier>()
+
+    /// The app's one store, under the (sandboxed) home's Application Support. Creating it touches
+    /// nothing on disk.
+    static let sharedStore: PassageHistoryPersisting = FilePassageHistoryStore(
+        directory: FilePassageHistoryStore.defaultDirectory(home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
+    )
+
+    init(store: PassageHistoryPersisting, now: @escaping () -> Date = Date.init) {
+        self.store = store
+        self.now = now
+        engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: now)
+    }
+
+    // MARK: - Editor
+
+    /// Idempotent: called from every `updateNSView`, so it does nothing for the attached view.
+    func attach(_ textView: LineformTextView) {
+        guard editor !== textView else { return }
+        editor = textView
+        textView.historyCommandHandler = { [weak self, weak textView] command in
+            guard let self, let textView else { return }
+            _ = self.handle(command, text: textView.string)
+        }
+        textView.historyCanAddHandler = { [weak self, weak textView] range in
+            guard let self, let textView else { return false }
+            return self.canAdd(range, text: textView.string)
+        }
+        textView.historyUserEditHandler = { [weak self] range, replacement in
+            self?.noteUserEdit(range, replacement: replacement)
+        }
+        textView.historyWholeTextReplacementHandler = { [weak self] in
+            self?.noteWholeTextReplacement()
+        }
+    }
+
+    func detach(_ textView: LineformTextView) {
+        guard editor === textView else { return }
+        editor = nil
+        textView.historyCommandHandler = nil
+        textView.historyCanAddHandler = nil
+        textView.historyUserEditHandler = nil
+        textView.historyWholeTextReplacementHandler = nil
+        textView.historyDisplay = nil
+    }
+
+    // MARK: - Documents
+
+    /// Loads history for the document now shown. A no-op when it is the document already open
+    /// (same `documentID` and file), so re-registration on appear or window bind keeps live state.
+    func open(url: URL?, text: String, documentID: UUID? = nil) {
+        if let documentID, documentID == self.documentID, Self.sameFile(url, self.url) {
+            return
+        }
+        endHistoryModeWithoutEdit()
+        self.url = url
+        self.documentID = documentID
+        selectedID = nil
+        var history = DocumentHistory(passages: [])
+        if let url {
+            pruneOnce()
+            history = store.load(for: url)
+        }
+        hasStoreEntry = !history.isEmpty
+        engine = DocumentHistoryEngine(history: history, now: now)
+        located = history.isEmpty ? [] : engine.locateAll(in: text)
+        refreshHasHistory()
+    }
+
+    /// Before a document swap: leaves History mode (the collapse lands on the outgoing text, which
+    /// the editor still shows), persists, and forgets the document.
+    func close(text: String) {
+        if isHistoryModeActive { _ = exitHistoryMode() }
+        persist(text: text)
+        url = nil
+        documentID = nil
+        hasStoreEntry = false
+        engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: now)
+        located = []
+        refreshHasHistory()
+    }
+
+    /// The document was written. Typing inside a passage edits its current version in place, so
+    /// store that version now — otherwise the next launch searches for stale text and drops it.
+    func documentSaved(text: String) {
+        guard !isHistoryModeActive else { return }
+        persist(text: text)
+    }
+
+    /// Live reload from disk: reload wins. History mode closes WITHOUT the collapse (the disk text
+    /// replaces everything) and passages are re-found literally.
+    func documentReloaded(text: String) {
+        endHistoryModeWithoutEdit()
+        engine.invalidateLiveRanges()
+        located = engine.history.isEmpty ? [] : engine.locateAll(in: text)
+        refreshHasHistory()
+    }
+
+    /// Rename, Finder/iCloud move, or Save As: the history follows the file.
+    func fileMoved(from old: URL, to new: URL) {
+        store.retarget(from: old, to: new)
+        if Self.sameFile(url, old) {
+            url = new
+        }
+    }
+
+    /// An untitled document was saved for the first time: its in-memory history is stored now.
+    func documentGotFile(_ newURL: URL, text: String) {
+        guard url == nil else { return }
+        url = newURL
+        persist(text: text)
+    }
+
+    /// Re-reads the store for the current document (Settings ▸ Clear History).
+    func reloadFromStore() {
+        if isHistoryModeActive { _ = exitHistoryMode() }
+        let history = url.map(store.load(for:)) ?? DocumentHistory(passages: [])
+        hasStoreEntry = !history.isEmpty
+        engine = DocumentHistoryEngine(history: history, now: now)
+        located = []
+        refreshHasHistory()
+    }
+
+    // MARK: - User edits
+
+    /// Every user text change, in pre-change coordinates (the text view's `shouldChangeText`).
+    /// O(passages); never reads the text.
+    func noteUserEdit(_ range: NSRange, replacement: String) {
+        guard !engine.history.isEmpty else { return }
+        let before = engine.history.passages.count
+        engine.applyEdit(range, replacement: replacement)
+        if engine.history.passages.count != before {
+            // An edit across a passage's edge dropped it (spec §5.1 rule 2).
+            save()
+            refreshHasHistory()
+        }
+    }
+
+    func noteWholeTextReplacement() {
+        engine.invalidateLiveRanges()
+    }
+
+    // MARK: - History mode
+
+    func enterHistoryMode(text: String) {
+        guard !isHistoryModeActive else { return }
+        guard !engine.history.isEmpty else {
+            refreshHasHistory()
+            return
+        }
+        located = engine.locateAll(in: text)
+        refreshHasHistory()
+        guard !located.isEmpty else { return }
+        entryText = text
+        modeText = text
+        entryVersions = currentVersions()
+        sessionDeletedVersions = false
+        selectedID = nil
+        isHistoryModeActive = true
+        publishMode()
+    }
+
+    /// Leaves History mode and returns the collapsed edit (entry text → exit text, in entry
+    /// coordinates), which the editor applies as the session's single undo step.
+    @discardableResult
+    func exitHistoryMode() -> HistoryEdit? {
+        guard isHistoryModeActive, let entry = entryText, let current = modeText else { return nil }
+        let collapse = HistoryUndoCollapse.minimalEdit(from: entry, to: current)
+        let restoring = sessionDeletedVersions ? nil : entryVersions
+        let exitVersions = currentVersions()
+        resetModeState()
+        save()
+        if let editor, editor.applyHistoryExit(restoring: entry, collapse: collapse, expecting: current),
+           let restoring, let manager = editor.undoManager {
+            registerVersionUndo(on: manager, making: restoring, redoMaking: exitVersions,
+                                documentID: documentID, url: url)
+        }
+        return collapse
+    }
+
+    /// History lives in Write mode; Read or Split leaves it.
+    func displayModeDidChange(to mode: EditorDisplayMode) {
+        guard mode != .write, isHistoryModeActive else { return }
+        exitHistoryMode()
+    }
+
+    @discardableResult
+    func handle(_ command: HistoryTextCommand, text: String) -> HistoryEdit? {
+        switch command {
+        case .add(let range):
+            guard engine.add(range, author: .you, in: text) != nil else { return nil }
+            save()
+            if isHistoryModeActive {
+                located = engine.locateAll(in: text)
+                publishMode()
+            }
+            refreshHasHistory()
+            return nil
+        case .select(let id):
+            guard isHistoryModeActive, located.contains(where: { $0.id == id }) else { return nil }
+            selectedID = id
+            publishMode()
+            return nil
+        case .step(let delta):
+            guard isHistoryModeActive, let id = selectedID else { return nil }
+            return didProduce(engine.step(id, by: delta, in: text), in: text)
+        case .moveSelection(let delta):
+            moveSelection(by: delta)
+            return nil
+        case .exit, .typedWhileInHistoryMode:
+            return exitHistoryMode()
+        }
+    }
+
+    func selectLevel(_ level: HistoryLevel) {
+        guard isHistoryModeActive, let id = selectedID else { return }
+        let visible = Set(located.map(\.id))
+        let levels = Dictionary(engine.history.passages.map { ($0.id, $0.level) }, uniquingKeysWith: { first, _ in first })
+        if let up = engine.chain(to: id).first(where: { levels[$0] == level && visible.contains($0) }) {
+            selectedID = up
+        } else if let down = engine.descend(from: id, to: level), visible.contains(down) {
+            selectedID = down
+        }
+        publishMode()
+    }
+
+    @discardableResult
+    func selectVersion(_ index: Int, text: String) -> HistoryEdit? {
+        guard isHistoryModeActive, let id = selectedID else { return nil }
+        return didProduce(engine.select(id, version: index, in: text), in: text)
+    }
+
+    @discardableResult
+    func deleteVersion(_ index: Int, text: String) -> HistoryEdit? {
+        guard isHistoryModeActive, let id = selectedID else { return nil }
+        let before = engine.history
+        let edit = engine.deleteVersion(id, at: index, in: text)
+        guard edit != nil || engine.history != before else { return nil }
+        sessionDeletedVersions = true
+        return didProduce(edit, in: text, alwaysRefresh: true)
+    }
+
+    func canAdd(_ range: NSRange, text: String) -> Bool {
+        engine.canAdd(range, in: text)
+    }
+
+    /// An accepted AI change (plan 3). `text` is the text after the accept, already reported
+    /// through `noteUserEdit`.
+    func recordAccepted(range: NSRange, original: String, accepted: String, text: String) {
+        guard engine.recordAccepted(range: range, original: original, accepted: accepted, in: text) != nil else { return }
+        save()
+        refreshHasHistory()
+    }
+
+    // MARK: - Private
+
+    /// Applies an engine edit to the editor (undo-disabled), then re-locates and saves. Leaves
+    /// History mode when the last passage went away.
+    private func didProduce(_ edit: HistoryEdit?, in text: String, alwaysRefresh: Bool = false) -> HistoryEdit? {
+        guard edit != nil || alwaysRefresh else { return nil }
+        var newText = text
+        if let edit {
+            newText = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+            modeText = newText
+            editor?.applyHistoryEdit(edit)
+        }
+        located = engine.locateAll(in: newText)
+        if let id = selectedID, !located.contains(where: { $0.id == id }) {
+            selectedID = nil
+        }
+        save()
+        refreshHasHistory()
+        if located.isEmpty {
+            exitHistoryMode()
+        } else {
+            publishMode()
+        }
+        return edit
+    }
+
+    private func moveSelection(by delta: Int) {
+        guard isHistoryModeActive, !located.isEmpty, delta != 0 else { return }
+        let target: Int
+        if let id = selectedID, let index = located.firstIndex(where: { $0.id == id }) {
+            target = min(max(index + delta, 0), located.count - 1)
+        } else {
+            target = delta > 0 ? 0 : located.count - 1
+        }
+        selectedID = located[target].id
+        publishMode()
+    }
+
+    private func endHistoryModeWithoutEdit() {
+        guard isHistoryModeActive else { return }
+        resetModeState()
+        save()
+        editor?.historyDisplay = nil
+    }
+
+    private func resetModeState() {
+        isHistoryModeActive = false
+        entryText = nil
+        modeText = nil
+        entryVersions = [:]
+        selectedID = nil
+        publishMode()
+    }
+
+    private func currentVersions() -> [UUID: Int] {
+        Dictionary(engine.history.passages.map { ($0.id, $0.currentIndex) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Registered in the SAME undo group as the exit collapse, so undoing it puts the entry
+    /// versions back as current (and redo the exit ones). It runs before the text is reverted
+    /// (LIFO) and clears the live ranges, so the revert cannot drop a passage it straddles.
+    /// Skipped after a version deletion this session (indices shifted): the passages are then
+    /// re-found by their stored text or quietly dropped — never overwritten.
+    private func registerVersionUndo(on manager: UndoManager, making indices: [UUID: Int],
+                                     redoMaking other: [UUID: Int], documentID: UUID?, url: URL?) {
+        manager.registerUndo(withTarget: self) { controller in
+            MainActor.assumeIsolated {
+                // Undo stacks are per tab; act only on the document this session belonged to.
+                guard controller.documentID == documentID, Self.sameFile(controller.url, url) else { return }
+                controller.engine.restoreCurrentVersions(indices)
+                controller.located = []
+                controller.save()
+                controller.registerVersionUndo(on: manager, making: other, redoMaking: indices,
+                                               documentID: documentID, url: url)
+            }
+        }
+    }
+
+    private func persist(text: String) {
+        guard url != nil, !engine.history.isEmpty || hasStoreEntry else { return }
+        if !engine.history.isEmpty {
+            located = engine.locateAll(in: text)
+        }
+        save()
+        refreshHasHistory()
+    }
+
+    private func save() {
+        guard let url, !engine.history.isEmpty || hasStoreEntry else { return }
+        store.save(engine.history, for: url)
+        hasStoreEntry = !engine.history.isEmpty
+    }
+
+    private func pruneOnce() {
+        let key = ObjectIdentifier(store)
+        guard !Self.prunedStores.contains(key) else { return }
+        Self.prunedStores.insert(key)
+        store.prune(now: now())
+    }
+
+    private func refreshHasHistory() {
+        let value = !engine.history.isEmpty
+        if hasHistory != value { hasHistory = value }
+    }
+
+    /// Publishes the display and the sidebar model; pushes the display straight to the editor so
+    /// the ink and the next keystroke see it before SwiftUI's next update.
+    private func publishMode() {
+        let newDisplay: HistoryModeDisplay?
+        let newModel: HistorySidebarModel
+        if isHistoryModeActive {
+            let passage = selectedID.flatMap { id in engine.history.passages.first { $0.id == id } }
+            let dots = passage.map { HistoryDots(count: $0.versions.count, current: $0.currentIndex) }
+            newDisplay = HistoryModeDisplay(passages: located, selectedID: selectedID, hoveredID: nil, dots: dots)
+            if let passage {
+                let levels = engine.group(containing: passage.id)
+                newModel = HistorySidebarModel(
+                    levels: levels,
+                    currentLevel: passage.level,
+                    versions: passage.versions.enumerated().map { index, version in
+                        HistorySidebarRow(
+                            id: index,
+                            text: HistorySidebarRow.displayText(for: version.text),
+                            author: version.author,
+                            isCurrent: index == passage.currentIndex
+                        )
+                    },
+                    hasSelection: true
+                )
+            } else {
+                newModel = HistorySidebarModel()
+            }
+        } else {
+            newDisplay = nil
+            newModel = HistorySidebarModel()
+        }
+        if display != newDisplay { display = newDisplay }
+        if sidebarModel != newModel { sidebarModel = newModel }
+        editor?.historyDisplay = newDisplay
+    }
+
+    private static func sameFile(_ lhs: URL?, _ rhs: URL?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): return true
+        case let (l?, r?): return FileIdentity.key(for: l) == FileIdentity.key(for: r)
+        default: return false
+        }
+    }
+}

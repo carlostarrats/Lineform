@@ -164,6 +164,121 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertEqual(commands, [])
     }
 
+    func testAttributeOnlyChangeDoesNotExitHistoryMode() {
+        let textView = makeTextView()
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 5))])
+        var commands: [HistoryTextCommand] = []
+        textView.historyCommandHandler = { commands.append($0) }
+        var reported: [NSRange] = []
+        textView.historyUserEditHandler = { range, _ in reported.append(range) }
+
+        XCTAssertTrue(textView.shouldChangeText(in: NSRange(location: 0, length: 5), replacementString: nil))
+
+        XCTAssertEqual(commands, [])
+        XCTAssertEqual(reported, [], "an attribute change is not a text edit")
+        XCTAssertNotNil(textView.historyDisplay)
+    }
+
+    func testShiftArrowDoesNothingInHistoryMode() {
+        let textView = makeTextView()
+        let first = passage(NSRange(location: 0, length: 17))
+        textView.historyDisplay = display([first], selected: first.id)
+        var commands: [HistoryTextCommand] = []
+        textView.historyCommandHandler = { commands.append($0) }
+        textView.setSelectedRange(NSRange(location: 2, length: 0))
+
+        for selector in [
+            #selector(NSResponder.moveRightAndModifySelection(_:)),
+            #selector(NSResponder.moveLeftAndModifySelection(_:)),
+            #selector(NSResponder.moveDownAndModifySelection(_:)),
+            #selector(NSResponder.moveWordRight(_:)),
+            #selector(NSResponder.moveWordLeftAndModifySelection(_:)),
+            #selector(NSResponder.moveToEndOfLine(_:)),
+            #selector(NSResponder.moveToBeginningOfDocument(_:)),
+            #selector(NSResponder.moveToEndOfDocumentAndModifySelection(_:)),
+            #selector(NSResponder.pageDown(_:)),
+        ] {
+            textView.doCommand(by: selector)
+        }
+
+        XCTAssertEqual(commands, [])
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 2, length: 0), "History mode never moves the caret")
+    }
+
+    // MARK: - Reporting user edits
+
+    func testUserTypingIsReportedToEngine() {
+        let textView = makeTextView()
+        var reported: [(NSRange, String)] = []
+        textView.historyUserEditHandler = { reported.append(($0, $1)) }
+
+        textView.setSelectedRange(NSRange(location: 6, length: 4))
+        textView.insertText("BETA", replacementRange: NSRange(location: NSNotFound, length: 0))
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        textView.insertText("x", replacementRange: NSRange(location: NSNotFound, length: 0))
+        textView.deleteBackward(nil)
+        textView.setSelectedRange(NSRange(location: 1, length: 0))
+        textView.deleteBackward(nil)
+
+        XCTAssertEqual(reported.map(\.0), [
+            NSRange(location: 6, length: 4),
+            NSRange(location: 0, length: 0),
+            NSRange(location: 0, length: 1),
+            NSRange(location: 0, length: 1),
+        ])
+        XCTAssertEqual(reported.map(\.1), ["BETA", "x", "", ""])
+        XCTAssertEqual(textView.string, "lpha BETA gamma. Delta epsilon.")
+    }
+
+    func testUndoIsReportedAsAUserEdit() {
+        final class Vendor: NSObject, NSTextViewDelegate {
+            let manager: UndoManager
+            override init() { manager = UndoManager(); super.init() }
+            func undoManager(for view: NSTextView) -> UndoManager? { manager }
+        }
+        let vendor = Vendor()
+        let textView = makeTextView()
+        textView.delegate = vendor
+        var reported: [(NSRange, String)] = []
+        textView.historyUserEditHandler = { reported.append(($0, $1)) }
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        textView.insertText("x", replacementRange: NSRange(location: NSNotFound, length: 0))
+        vendor.manager.undo()
+
+        XCTAssertEqual(textView.string, sample)
+        XCTAssertEqual(reported.map(\.0), [NSRange(location: 0, length: 0), NSRange(location: 0, length: 1)])
+        XCTAssertEqual(reported.map(\.1), ["x", ""])
+    }
+
+    func testEngineEditsAreNotReportedTwice() {
+        let textView = makeTextView()
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 5))])
+        var reported: [NSRange] = []
+        textView.historyUserEditHandler = { range, _ in reported.append(range) }
+        var commands: [HistoryTextCommand] = []
+        textView.historyCommandHandler = { commands.append($0) }
+
+        textView.applyHistoryEdit(HistoryEdit(range: NSRange(location: 0, length: 5), replacement: "Omega"))
+
+        XCTAssertEqual(reported, [], "the engine already moved its live ranges for its own edit")
+        XCTAssertEqual(commands, [])
+        XCTAssertTrue(textView.string.hasPrefix("Omega beta"))
+    }
+
+    func testWholeTextReplacementInvalidatesInsteadOfReporting() {
+        let textView = makeTextView()
+        var reported: [NSRange] = []
+        var invalidations = 0
+        textView.historyUserEditHandler = { range, _ in reported.append(range) }
+        textView.historyWholeTextReplacementHandler = { invalidations += 1 }
+
+        textView.applyExternalReplacement(MarkdownEdit(text: "Replaced all.", selectedRange: NSRange(location: 0, length: 0)))
+
+        XCTAssertEqual(reported, [])
+        XCTAssertEqual(invalidations, 1)
+        XCTAssertEqual(textView.string, "Replaced all.")
+    }
+
     // MARK: - Drawing state
 
     func testUnchangedTextRecedesAndPassagesKeepFullInk() throws {

@@ -139,4 +139,11 @@ final class PassageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.load(for: moved), saved)
         XCTAssertTrue(store.load(for: file).isEmpty)
     }
+
+    func testPruneOnAStoreThatHoldsNothingWritesNothing() {
+        let store = makeStore()
+        store.prune(now: Date())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path),
+                       "nothing is stored until a version is kept — not even an empty index")
+    }
 }

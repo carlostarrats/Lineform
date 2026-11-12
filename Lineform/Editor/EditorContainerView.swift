@@ -71,6 +71,10 @@ struct EditorContainerView: View {
     @State private var windowNumber: Int?
     @State private var currentFileURL: URL?
     @StateObject private var reloadController = DocumentReloadController()
+    /// Per-passage History for the document on screen. Opened with the document's file on every
+    /// swap (`registerReloadWatcher`), closed in `resetTransientDocumentState`. Nothing touches
+    /// the store until a document is opened — never at launch.
+    @StateObject private var historyController = DocumentHistoryController(store: DocumentHistoryController.sharedStore)
     @StateObject private var speechController = SpeechController()
     @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
@@ -153,6 +157,13 @@ struct EditorContainerView: View {
                 // out this body's type-checker.
                 openFile: { url in openSidebarFile(url) },
                 currentFileURL: currentFileURL,
+                hasHistory: historyController.hasHistory,
+                historyModel: historyController.sidebarModel,
+                onSelectHistoryLevel: { level in historyController.selectLevel(level) },
+                onSelectHistoryVersion: { index in selectHistoryVersion(index) },
+                onDeleteHistoryVersion: { index in deleteHistoryVersion(index) },
+                isHistoryModeActive: historyController.isHistoryModeActive,
+                onSelectTab: { tab in selectSidebarTab(tab) },
                 fileBrowserStore: fileBrowserStore,
                 settings: settings,
                 renameItem: { renameSidebarItem(at: $0.url, isDirectory: $0.isDirectory) },
@@ -387,6 +398,8 @@ struct EditorContainerView: View {
             convertDocumentTextFormat(to: format, selectedRange: notificationPayloadSelectedRange(notification))
         }
         .onChange(of: displayMode) { _, mode in
+            // History mode lives in Write; Read or Split leaves it.
+            historyController.displayModeDidChange(to: mode)
             LineformDisplayModeMenuState.shared.setDisplayMode(mode)
             tabStore.updateActiveTabDisplayMode(mode)
             // Settle any pending debounced work so the outline/count are correct the
@@ -563,6 +576,14 @@ struct EditorContainerView: View {
             // tab was never retargeted. Switching to that tab later pointed the window's NSDocument
             // at a path that no longer exists — exactly what the comment above promises it prevents.
             tabStore.retargetFileURL(from: payload.from, to: payload.to, isDirectory: payload.isDirectory)
+            // History follows the file, also unconditionally (the store retarget is idempotent, so
+            // every window running this is harmless). A folder rename moves this window's file
+            // only; other files under it are followed by their bookmarks at the next prune.
+            if !payload.isDirectory {
+                historyController.fileMoved(from: payload.from, to: payload.to)
+            } else if let oldURL = currentFileURL, let movedURL = payload.rebased(oldURL) {
+                historyController.fileMoved(from: oldURL, to: movedURL)
+            }
 
             guard
                 let newURL = payload.rebased(currentFileURL),
@@ -615,6 +636,7 @@ struct EditorContainerView: View {
             }
             reloadController.onExternalMove = { from, to in
                 tabStore.retargetFileURL(from: from, to: to, isDirectory: false)
+                historyController.fileMoved(from: from, to: to)
                 currentFileURL = to
             }
             LineformTextFormatMenuState.shared.setTextFormat(document.textFormat)
@@ -684,6 +706,12 @@ struct EditorContainerView: View {
             // A first save on an untitled doc (or any save) can create/replace the file URL;
             // re-point the watcher and refresh the synced baseline with the saved text.
             noteSavedToReloadWatcher()
+            // Typing inside a passage edits its current version: store it with the file. Not
+            // mid-Writing-Tools: the binding lags the text view then, and History would search
+            // for its passages in stale text.
+            if !reloadController.isWritingToolsSessionActive {
+                historyController.documentSaved(text: document.text)
+            }
             // Guarantee the displayed count/outline match the just-saved file rather than
             // lagging by a debounce interval.
             flushDerivedRefresh()
@@ -697,6 +725,8 @@ struct EditorContainerView: View {
             await requestAppReviewAfterQuietPeriod()
         }
         .onDisappear {
+            // Not `close`: a hierarchy rebuild also runs onDisappear/onAppear on a live window.
+            historyController.documentSaved(text: document.text)
             reloadController.onConfirmedSourceWrite = nil
             reloadController.onExternalMove = nil
             reloadController.stop()
@@ -1318,7 +1348,8 @@ struct EditorContainerView: View {
                 reloadController.isWritingToolsSessionActive = active
             },
             onVisibleTopRangeChanged: onVisibleTopRangeChanged,
-            splitScrollSynchronizer: splitScrollSynchronizer
+            splitScrollSynchronizer: splitScrollSynchronizer,
+            historyController: historyController
         )
         // No SwiftUI accessibility modifiers here, deliberately. `LineformTextView` sets its own
         // label, role, and help through AppKit, and it is a real `NSTextView`: VoiceOver reads it
@@ -2039,6 +2070,8 @@ struct EditorContainerView: View {
         let url = reloadWatcherURL
         tabStore.captureInitialFileURL(url, forDocumentID: document.id)
         reloadController.register(url: url, syncedText: document.text)
+        // A no-op for the document already open (appear, window bind).
+        historyController.open(url: url, text: document.text, documentID: document.id)
         // Same source of truth drives the Files-tab selection highlight; keep it in step with
         // every watcher retarget (appear, window bind, sidebar swap) so the blue row follows
         // the document actually on screen.
@@ -2111,6 +2144,11 @@ struct EditorContainerView: View {
             // A first save on an untitled doc (or Save As) mints/retargets the file URL — refresh
             // the highlight so the newly-real file shows as selected in the Files tab.
             currentFileURL = reloadWatcherURL
+            // A first save of an untitled document by a path that did not report it (e.g. the
+            // native panel): its in-memory history is stored with the new file.
+            if historyController.url == nil, let url = reloadWatcherURL {
+                historyController.documentGotFile(url, text: document.text)
+            }
         }
     }
 
@@ -2165,6 +2203,9 @@ struct EditorContainerView: View {
                     markdownSaveErrorFileName = url.lastPathComponent
                     completion(false)
                 } else {
+                    if id == tabStore.selectedTabID {
+                        historyController.documentGotFile(url, text: document.text)
+                    }
                     completion(true)
                 }
             }
@@ -2208,6 +2249,8 @@ struct EditorContainerView: View {
         document.plainTextConversion = nil
         document.text = result.text
         reloadController.currentText = result.text
+        // Reload wins: History mode closes without its collapse, and passages are re-found.
+        historyController.documentReloaded(text: result.text)
         // Live reload is a discrete, non-typing change — refresh outline/count/search now so
         // they match the reloaded text immediately (they did before the debounce), rather than
         // lagging the "Updated" flash by the debounce interval.
@@ -2352,7 +2395,38 @@ struct EditorContainerView: View {
         )
     }
 
+    // MARK: - History
+
+    /// What History edits: the live text view when there is one, else the document.
+    private var historyEditorText: String {
+        historyController.editor?.string ?? document.text
+    }
+
+    /// Sidebar tab clicks. History runs in Write mode, so entering it from Read or Split switches
+    /// to Write first; any other tab leaves History mode.
+    private func selectSidebarTab(_ tab: OutlineSidebarTab) {
+        guard tab == .history else {
+            historyController.exitHistoryMode()
+            return
+        }
+        if displayMode != .write {
+            displayMode = .write
+        }
+        historyController.enterHistoryMode(text: historyEditorText)
+    }
+
+    private func selectHistoryVersion(_ index: Int) {
+        historyController.selectVersion(index, text: historyEditorText)
+    }
+
+    private func deleteHistoryVersion(_ index: Int) {
+        historyController.deleteVersion(index, text: historyEditorText)
+    }
+
     private func resetTransientDocumentState() {
+        // The outgoing document is still on screen here: History mode leaves (its collapse lands
+        // on the outgoing text and undo stack) and the outgoing history is stored.
+        historyController.close(text: document.text)
         // A pending disk confirmation belongs to the outgoing document. Never let a later file
         // event for the incoming tab turn an earlier failed serialization into engagement.
         reloadController.discardPendingSourceWriteConfirmation()
@@ -2611,6 +2685,7 @@ struct EditorContainerView: View {
     /// format is File ▸ Export As, which writes a COPY and leaves this document alone.
     private func saveAsDocument() {
         let savingTabID = tabStore.selectedTabID
+        let previousURL = currentFileURL
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
         let base = currentFileURL?.deletingPathExtension().lastPathComponent ?? String(localized: "Untitled")
@@ -2653,6 +2728,14 @@ struct EditorContainerView: View {
                     } else {
                         if let savingTabID {
                             tabStore.updateFileURL(url, forTabID: savingTabID)
+                        }
+                        // History follows a Save As to the file the document now lives in.
+                        if savingTabID == tabStore.selectedTabID {
+                            if let previousURL {
+                                historyController.fileMoved(from: previousURL, to: url)
+                            } else {
+                                historyController.documentGotFile(url, text: document.text)
+                            }
                         }
                         confirmExplicitSourceWrite()
                     }
@@ -2772,6 +2855,11 @@ struct EditorContainerView: View {
     }
 
     private func convertDocumentTextFormat(to format: LineformTextFormat, selectedRange: NSRange?) {
+        historyController.exitHistoryMode()
+        defer {
+            // A wholesale rewrite of the text that is not reported edit by edit.
+            historyController.noteWholeTextReplacement()
+        }
         switch format {
         case .markdown:
             requestedSelection = document.restoreConvertedMarkdown()

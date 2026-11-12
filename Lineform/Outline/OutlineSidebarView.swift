@@ -378,6 +378,11 @@ struct OutlineSidebarView: View {
     var onSelectHistoryLevel: (HistoryLevel) -> Void = { _ in }
     var onSelectHistoryVersion: (Int) -> Void = { _ in }
     var onDeleteHistoryVersion: (Int) -> Void = { _ in }
+    /// Whether the editor is in History mode. Leaving it (Esc, typing, a document swap) returns
+    /// the sidebar to the tab the user came from; entering it from elsewhere shows History.
+    var isHistoryModeActive: Bool = false
+    /// Every tab click. The editor enters History mode for `.history` and leaves it otherwise.
+    var onSelectTab: (OutlineSidebarTab) -> Void = { _ in }
     /// Context-menu actions on Files-tab rows. The sidebar stays dumb: the window's
     /// editor container supplies these (it presents the dialogs, performs the file
     /// operation, and broadcasts the app-wide refresh/retarget notifications).
@@ -411,6 +416,8 @@ struct OutlineSidebarView: View {
         onSelectHistoryLevel: @escaping (HistoryLevel) -> Void = { _ in },
         onSelectHistoryVersion: @escaping (Int) -> Void = { _ in },
         onDeleteHistoryVersion: @escaping (Int) -> Void = { _ in },
+        isHistoryModeActive: Bool = false,
+        onSelectTab: @escaping (OutlineSidebarTab) -> Void = { _ in },
         fileBrowserStore: OutlineFileBrowserStore? = nil,
         settings: LineformSettingsStore = .shared,
         renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
@@ -433,6 +440,8 @@ struct OutlineSidebarView: View {
         self.onSelectHistoryLevel = onSelectHistoryLevel
         self.onSelectHistoryVersion = onSelectHistoryVersion
         self.onDeleteHistoryVersion = onDeleteHistoryVersion
+        self.isHistoryModeActive = isHistoryModeActive
+        self.onSelectTab = onSelectTab
         self.settings = settings
         self.renameItem = renameItem
         self.deleteItem = deleteItem
@@ -472,6 +481,16 @@ struct OutlineSidebarView: View {
             guard !nowHasHistory else { return }
             selectedTab = OutlineSidebarTab.tabAfterHistoryDisappears(selected: selectedTab, previous: tabBeforeHistory)
             tabBeforeHistory = nil
+        }
+        .onChange(of: isHistoryModeActive) { _, isActive in
+            if isActive {
+                guard selectedTab != .history else { return }
+                tabBeforeHistory = selectedTab
+                selectedTab = .history
+            } else {
+                selectedTab = OutlineSidebarTab.tabAfterHistoryDisappears(selected: selectedTab, previous: tabBeforeHistory)
+                tabBeforeHistory = nil
+            }
         }
     }
 
@@ -610,6 +629,7 @@ struct OutlineSidebarView: View {
                         action: {
                             if tab == .history, selectedTab != .history { tabBeforeHistory = selectedTab }
                             selectedTab = tab
+                            onSelectTab(tab)
                         }
                     )
                 }

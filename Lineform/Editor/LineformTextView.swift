@@ -119,6 +119,14 @@ final class LineformTextView: NSTextView {
     /// call: asked only when the context menu is built.
     var historyCanAddHandler: ((NSRange) -> Bool)?
     var historyCommandHandler: ((HistoryTextCommand) -> Void)?
+    /// Every USER text change, before it lands: the replaced range (pre-change coordinates) and the
+    /// inserted string. Not called for History's own edits (`performHistoryEdit`), attribute-only
+    /// changes, or whole-text replacements (those call `historyWholeTextReplacementHandler`).
+    var historyUserEditHandler: ((NSRange, String) -> Void)?
+    /// A whole-document replacement (formatting command, Find & Replace) that is not reported edit
+    /// by edit: History forgets its live ranges and re-finds passages literally.
+    var historyWholeTextReplacementHandler: (() -> Void)?
+    var isApplyingWholeTextReplacement = false
     // Storage for `LineformTextView+History.swift` (extensions cannot hold stored properties).
     // Not for use elsewhere.
     var historyDisplayStorage: HistoryModeDisplay?
@@ -272,9 +280,19 @@ final class LineformTextView: NSTextView {
 
     /// In History mode the first edit tells the controller (which leaves History mode
     /// synchronously), then proceeds normally — the keystroke types rather than silently failing.
+    ///
+    /// It is also the ONE source of user edits for History's live ranges: an edit is reported here,
+    /// after AppKit allowed it and before it lands, in the coordinates of the text before it.
+    /// Attribute-only changes (`replacementString == nil`) are neither typing nor edits.
     override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
-        noteHistoryTypingIfNeeded()
-        return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+        if replacementString != nil {
+            noteHistoryTypingIfNeeded()
+        }
+        let allowed = super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+        if allowed, let replacementString {
+            noteHistoryUserEditIfNeeded(affectedCharRange, replacement: replacementString)
+        }
+        return allowed
     }
 
     override func cursorUpdate(with event: NSEvent) {
@@ -1942,7 +1960,10 @@ final class LineformTextView: NSTextView {
     private func applyWholeTextReplacement(_ edit: MarkdownEdit) {
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
 
-        guard shouldChangeText(in: fullRange, replacementString: edit.text) else {
+        isApplyingWholeTextReplacement = true
+        let allowed = shouldChangeText(in: fullRange, replacementString: edit.text)
+        isApplyingWholeTextReplacement = false
+        guard allowed else {
             return
         }
 

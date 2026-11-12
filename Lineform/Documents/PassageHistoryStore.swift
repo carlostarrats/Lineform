@@ -105,6 +105,8 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
 
     func prune(now: Date) {
         lock.lock(); defer { lock.unlock() }
+        // Nothing stored yet: write nothing either (not even an empty index).
+        guard fileManager.fileExists(atPath: indexURL.path) else { return }
         let cutoff = now.addingTimeInterval(-Self.staleInterval)
         var kept: [IndexEntry] = []
         for var entry in readIndex() {

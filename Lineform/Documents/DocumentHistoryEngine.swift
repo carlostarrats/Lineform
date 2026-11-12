@@ -105,6 +105,21 @@ struct DocumentHistoryEngine {
         syncedLength = nil
     }
 
+    /// Undo/redo of a History-mode session put the text back to another set of versions: make
+    /// those versions current again (by passage id; unknown ids and out-of-range indices are
+    /// skipped) and forget ALL live state, so the next `locateAll` re-finds each passage literally
+    /// by its stored current text. Without this, the next locate would write the restored text
+    /// over the version that was current when the session ended.
+    mutating func restoreCurrentVersions(_ indices: [UUID: Int]) {
+        for (id, version) in indices {
+            guard let p = index(of: id), history.passages[p].versions.indices.contains(version) else { continue }
+            history.passages[p].currentIndex = version
+        }
+        liveRanges.removeAll()
+        liveTexts.removeAll()
+        syncedLength = nil
+    }
+
     enum Mapping: Equatable {
         case moved(NSRange)
         /// The edit fell inside; `local` is the replaced range relative to the passage start.

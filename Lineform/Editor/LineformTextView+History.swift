@@ -65,6 +65,20 @@ enum HistoryModeAnnouncement {
     }
 }
 
+/// What the History controller drives in the editor. Implemented by `LineformTextView`.
+@MainActor
+protocol HistoryEditorSurface: AnyObject {
+    var string: String { get }
+    var historyDisplay: HistoryModeDisplay? { get set }
+    var undoManager: UndoManager? { get }
+    func applyHistoryEdit(_ edit: HistoryEdit)
+    /// True when `collapse` was applied as an undoable edit.
+    @discardableResult
+    func applyHistoryExit(restoring entry: String, collapse: HistoryEdit?, expecting current: String) -> Bool
+}
+
+extension LineformTextView: HistoryEditorSurface {}
+
 extension LineformTextView {
     static let historyDotDiameter: CGFloat = 5
     static let historyDotGap: CGFloat = 3
@@ -316,16 +330,78 @@ extension LineformTextView {
         case #selector(NSResponder.cancelOperation(_:)):
             command = .exit
         default:
-            return false
+            // Every other caret or selection move (shift/option/command arrows, Home/End, page
+            // keys) is swallowed: History mode never moves the caret.
+            let name = NSStringFromSelector(selector)
+            return name.hasPrefix("move") || name.hasPrefix("page")
         }
         historyCommandHandler?(command)
         return true
     }
 
-    /// Sent from `shouldChangeText` before an edit lands while in History mode.
+    /// Sent from `shouldChangeText` before a TEXT edit lands while in History mode.
     func noteHistoryTypingIfNeeded() {
         guard historyDisplayStorage != nil, !isApplyingHistoryEdit else { return }
         historyCommandHandler?(.typedWhileInHistoryMode)
+    }
+
+    /// Sent from `shouldChangeText` once AppKit allowed a text edit. History's own edits are
+    /// skipped (the engine already moved its live ranges for them); a whole-text replacement is
+    /// reported as an invalidation, never as one edit spanning the document (which would drop
+    /// every passage).
+    func noteHistoryUserEditIfNeeded(_ range: NSRange, replacement: String) {
+        guard !isApplyingHistoryEdit else { return }
+        if isApplyingWholeTextReplacement {
+            historyWholeTextReplacementHandler?()
+        } else {
+            historyUserEditHandler?(range, replacement)
+        }
+    }
+
+    // MARK: - Applying History's edits
+
+    /// Shows another version: one localized replace with undo registration DISABLED — the whole
+    /// History-mode session becomes one undo step on exit (`applyHistoryExit`).
+    func applyHistoryEdit(_ edit: HistoryEdit) {
+        performHistoryEdit {
+            let manager = undoManager
+            manager?.disableUndoRegistration()
+            defer { manager?.enableUndoRegistration() }
+            replaceForHistory(edit.range, with: edit.replacement)
+        }
+    }
+
+    /// Leaves History mode. When `collapse` is non-nil the session changed the text: restore the
+    /// entry text with registration disabled, then apply `collapse` (entry → exit) through the
+    /// normal undoable path, so one ⌘Z after leaving restores the entry text exactly. Skipped
+    /// when this view no longer shows the text History mode left (`expecting`) — it then belongs
+    /// to another document and must not be touched.
+    @discardableResult
+    func applyHistoryExit(restoring entry: String, collapse: HistoryEdit?, expecting current: String) -> Bool {
+        historyDisplay = nil
+        guard let collapse, string == current else { return false }
+        performHistoryEdit {
+            if let restore = HistoryUndoCollapse.minimalEdit(from: current, to: entry) {
+                let manager = undoManager
+                manager?.disableUndoRegistration()
+                replaceForHistory(restore.range, with: restore.replacement)
+                manager?.enableUndoRegistration()
+            }
+            breakUndoCoalescing()
+            replaceForHistory(collapse.range, with: collapse.replacement)
+            breakUndoCoalescing()
+        }
+        return true
+    }
+
+    /// The localized `shouldChangeText → replaceCharacters → didChangeText` path — never
+    /// `applyWholeTextReplacement`. Line endings and a BOM outside `range` are untouched.
+    private func replaceForHistory(_ range: NSRange, with replacement: String) {
+        let length = (string as NSString).length
+        guard range.location != NSNotFound, range.location >= 0, NSMaxRange(range) <= length,
+              shouldChangeText(in: range, replacementString: replacement) else { return }
+        textStorage?.replaceCharacters(in: range, with: replacement)
+        didChangeText()
     }
 
     /// The character under the pointer, or nil when the pointer is not over a glyph (past a

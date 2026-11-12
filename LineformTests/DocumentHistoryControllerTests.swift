@@ -1,0 +1,508 @@
+import XCTest
+import AppKit
+@testable import Lineform
+
+/// The editor's History controller, without a window (default test plan: no NSWindow). The
+/// integration tests attach a bare `LineformTextView`, which is what production edits go through.
+@MainActor
+final class DocumentHistoryControllerTests: XCTestCase {
+    private let fixedDate = Date(timeIntervalSince1970: 1_800_000_000)
+    private let text = "Alpha beta gamma delta. Epsilon zeta eta theta."
+    private let sentence = "Alpha beta gamma delta."
+    private var directory: URL!
+
+    override func setUpWithError() throws {
+        directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DocumentHistoryControllerTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    // MARK: - Helpers
+
+    private func makeController(store: PassageHistoryPersisting = NullPassageHistoryStore()) -> DocumentHistoryController {
+        let date = fixedDate
+        return DocumentHistoryController(store: store, now: { date })
+    }
+
+    private func range(of needle: String, in haystack: String) -> NSRange {
+        let found = (haystack as NSString).range(of: needle)
+        XCTAssertNotEqual(found.location, NSNotFound, "missing \(needle)")
+        return found
+    }
+
+    private func apply(_ edit: HistoryEdit?, to string: String) -> String {
+        guard let edit else { return string }
+        return (string as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+    }
+
+    /// A user edit: applied to `string` and reported, as the text view does.
+    private func type(_ controller: DocumentHistoryController, _ old: String, with new: String, in string: String) -> String {
+        let r = range(of: old, in: string)
+        controller.noteUserEdit(r, replacement: new)
+        return (string as NSString).replacingCharacters(in: r, with: new)
+    }
+
+    /// Open + Add to History on `sentence`, then a user edit inside it: two distinct versions.
+    private func controllerWithEditedPassage(store: PassageHistoryPersisting = NullPassageHistoryStore(),
+                                             url: URL? = nil) -> (DocumentHistoryController, String) {
+        let controller = makeController(store: store)
+        controller.open(url: url, text: text)
+        _ = controller.handle(.add(range(of: sentence, in: text)), text: text)
+        let edited = type(controller, "beta", with: "BETA", in: text)
+        return (controller, edited)
+    }
+
+    private func makeFile(_ name: String, contents: String) throws -> URL {
+        let url = directory.appendingPathComponent(name)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    private final class UndoManagerVendor: NSObject, NSTextViewDelegate {
+        let manager: UndoManager
+        override init() { manager = UndoManager(); super.init() }
+        func undoManager(for view: NSTextView) -> UndoManager? { manager }
+    }
+
+    private func makeTextView(_ string: String) -> LineformTextView {
+        let textView = LineformTextView()
+        textView.string = string
+        return textView
+    }
+
+    // MARK: - Undo collapse (pure)
+
+    func testCollapsedExitEditUndoesToEntryText() throws {
+        let entry = "One two three. Four five six."
+        let exit = "One TWO three. Four five six seven."
+        let edit = try XCTUnwrap(HistoryUndoCollapse.minimalEdit(from: entry, to: exit))
+        XCTAssertEqual(apply(edit, to: entry), exit)
+        let inverse = HistoryEdit(
+            range: NSRange(location: edit.range.location, length: (edit.replacement as NSString).length),
+            replacement: (entry as NSString).substring(with: edit.range)
+        )
+        XCTAssertEqual(apply(inverse, to: exit), entry)
+        XCTAssertEqual(edit.range.location, 4, "the shared prefix is not rewritten")
+    }
+
+    func testExitEditPreservesCRLFAndBOM() throws {
+        let entry = "\u{FEFF}Alpha\r\nbeta\r\ngamma\r\n"
+        let exit = "\u{FEFF}Alpha\r\nBETA\r\ngamma\r\n"
+        let edit = try XCTUnwrap(HistoryUndoCollapse.minimalEdit(from: entry, to: exit))
+        XCTAssertEqual(apply(edit, to: entry), exit)
+        XCTAssertEqual(edit.range, NSRange(location: 8, length: 4), "BOM and CRLFs stay outside the edit")
+        XCTAssertEqual(edit.replacement, "BETA")
+
+        // A change next to a CRLF never splits the pair, and a change next to an emoji never
+        // splits its surrogates or a combining mark.
+        let crlf = try XCTUnwrap(HistoryUndoCollapse.minimalEdit(from: "a\r\nb", to: "a\nb"))
+        XCTAssertEqual(apply(crlf, to: "a\r\nb"), "a\nb")
+        XCTAssertEqual(crlf.range, NSRange(location: 1, length: 2))
+        let emoji = try XCTUnwrap(HistoryUndoCollapse.minimalEdit(from: "x👍🏽y", to: "x👍🏿y"))
+        XCTAssertEqual(apply(emoji, to: "x👍🏽y"), "x👍🏿y")
+        XCTAssertEqual(emoji.range, NSRange(location: 1, length: 4))
+        let accent = try XCTUnwrap(HistoryUndoCollapse.minimalEdit(from: "cafe", to: "cafe\u{301}"))
+        XCTAssertEqual(apply(accent, to: "cafe"), "cafe\u{301}")
+        XCTAssertEqual(accent.range.location, 3, "the combining mark takes its base letter with it")
+    }
+
+    func testMinimalEditIsNilWhenUnchanged() {
+        XCTAssertNil(HistoryUndoCollapse.minimalEdit(from: "same\r\n", to: "same\r\n"))
+        XCTAssertNil(HistoryUndoCollapse.minimalEdit(from: "", to: ""))
+        XCTAssertEqual(HistoryUndoCollapse.minimalEdit(from: "", to: "new"),
+                       HistoryEdit(range: NSRange(location: 0, length: 0), replacement: "new"))
+    }
+
+    // MARK: - Mode
+
+    func testEnteringHistoryModeRequiresHistory() {
+        let controller = makeController()
+        controller.open(url: nil, text: text)
+        XCTAssertFalse(controller.hasHistory)
+        controller.enterHistoryMode(text: text)
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertNil(controller.display)
+    }
+
+    func testEnteringShowsPassagesWithNothingSelected() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        XCTAssertTrue(controller.hasHistory)
+        controller.enterHistoryMode(text: edited)
+        XCTAssertTrue(controller.isHistoryModeActive)
+        let display = try XCTUnwrap(controller.display)
+        XCTAssertEqual(display.passages.map(\.range), [range(of: "Alpha BETA gamma delta.", in: edited)])
+        XCTAssertNil(display.selectedID)
+        XCTAssertFalse(controller.sidebarModel.hasSelection)
+    }
+
+    func testSelectStepAndSidebarModel() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        controller.enterHistoryMode(text: edited)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        XCTAssertNil(controller.handle(.select(id), text: edited))
+        XCTAssertEqual(controller.display?.selectedID, id)
+        XCTAssertEqual(controller.display?.dots, HistoryDots(count: 2, current: 1))
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), ["Alpha beta gamma delta.", "Alpha BETA gamma delta."])
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [false, true])
+        XCTAssertEqual(controller.sidebarModel.currentLevel, .sentence)
+        XCTAssertEqual(controller.sidebarModel.levels, [.sentence])
+
+        let edit = try XCTUnwrap(controller.handle(.step(-1), text: edited))
+        let stepped = apply(edit, to: edited)
+        XCTAssertEqual(stepped, text)
+        XCTAssertEqual(controller.display?.dots, HistoryDots(count: 2, current: 0))
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [true, false])
+
+        let back = try XCTUnwrap(controller.selectVersion(1, text: stepped))
+        XCTAssertEqual(apply(back, to: stepped), edited)
+    }
+
+    func testMoveSelectionWalksPassagesInOrder() throws {
+        let controller = makeController()
+        controller.open(url: nil, text: text)
+        _ = controller.handle(.add(range(of: sentence, in: text)), text: text)
+        _ = controller.handle(.add(range(of: "Epsilon zeta eta theta.", in: text)), text: text)
+        controller.enterHistoryMode(text: text)
+        let ids = try XCTUnwrap(controller.display?.passages.map(\.id))
+        XCTAssertEqual(ids.count, 2)
+        _ = controller.handle(.moveSelection(1), text: text)
+        XCTAssertEqual(controller.display?.selectedID, ids[0])
+        _ = controller.handle(.moveSelection(1), text: text)
+        XCTAssertEqual(controller.display?.selectedID, ids[1])
+        _ = controller.handle(.moveSelection(1), text: text)
+        XCTAssertEqual(controller.display?.selectedID, ids[1], "stops at the last passage")
+        _ = controller.handle(.moveSelection(-1), text: text)
+        XCTAssertEqual(controller.display?.selectedID, ids[0])
+    }
+
+    func testDeletingLastVersionLeavesHistoryMode() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        controller.enterHistoryMode(text: edited)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: edited)
+        // Deleting a non-current version leaves one: the passage loses its history record.
+        XCTAssertNil(controller.deleteVersion(0, text: edited))
+        XCTAssertFalse(controller.hasHistory)
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertNil(controller.display)
+    }
+
+    func testTypingCommandExitsHistoryMode() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        controller.enterHistoryMode(text: edited)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: edited)
+        let stepped = apply(controller.handle(.step(-1), text: edited), to: edited)
+
+        let collapse = controller.handle(.typedWhileInHistoryMode, text: stepped)
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertNil(controller.display)
+        XCTAssertEqual(apply(collapse, to: edited), stepped, "the collapse goes from entry text to exit text")
+        XCTAssertTrue(controller.hasHistory)
+    }
+
+    func testEscapeWithNoStepsExitsWithNoEdit() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        controller.enterHistoryMode(text: edited)
+        XCTAssertNil(controller.handle(.exit, text: edited))
+        XCTAssertFalse(controller.isHistoryModeActive)
+    }
+
+    func testSwitchingToReadModeExitsHistoryMode() {
+        let (controller, edited) = controllerWithEditedPassage()
+        controller.enterHistoryMode(text: edited)
+        controller.displayModeDidChange(to: .write)
+        XCTAssertTrue(controller.isHistoryModeActive, "Write is where History mode runs")
+        controller.displayModeDidChange(to: .read)
+        XCTAssertFalse(controller.isHistoryModeActive)
+        controller.enterHistoryMode(text: edited)
+        controller.displayModeDidChange(to: .split)
+        XCTAssertFalse(controller.isHistoryModeActive)
+    }
+
+    func testReloadExitsWithoutCollapseAndRelocates() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        let textView = makeTextView(edited)
+        controller.attach(textView)
+        controller.enterHistoryMode(text: edited)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+        let stepped = textView.string
+
+        let disk = "Intro. " + stepped
+        controller.documentReloaded(text: disk)
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertNil(textView.historyDisplay)
+        XCTAssertEqual(textView.string, stepped, "reload replaces the text; the controller writes nothing")
+        XCTAssertTrue(controller.hasHistory, "the passage is re-found literally in the reloaded text")
+        controller.enterHistoryMode(text: disk)
+        XCTAssertEqual(controller.display?.passages.first?.range, range(of: sentence, in: disk))
+    }
+
+    func testSwitchingDocumentsResetsState() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        controller.enterHistoryMode(text: edited)
+        controller.close(text: edited)
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertFalse(controller.hasHistory)
+        controller.open(url: nil, text: "Other document.")
+        XCTAssertFalse(controller.hasHistory)
+    }
+
+    // MARK: - Store
+
+    func testFileMovedKeepsHistory() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let (controller, _) = controllerWithEditedPassage(store: store, url: a)
+        XCTAssertTrue(controller.hasHistory)
+
+        let b = directory.appendingPathComponent("b.md")
+        try FileManager.default.moveItem(at: a, to: b)
+        controller.fileMoved(from: a, to: b)
+        XCTAssertEqual(controller.url.map(FileIdentity.key(for:)), FileIdentity.key(for: b))
+
+        let reopened = makeController(store: store)
+        reopened.open(url: b, text: text)
+        XCTAssertTrue(reopened.hasHistory)
+        let stale = makeController(store: store)
+        stale.open(url: a, text: text)
+        XCTAssertFalse(stale.hasHistory)
+    }
+
+    func testTypedChangesPersistWhenTheDocumentSaves() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let (controller, edited) = controllerWithEditedPassage(store: store, url: a)
+        let typedMore = type(controller, "gamma", with: "GAMMA", in: edited)
+        controller.documentSaved(text: typedMore)
+
+        let reopened = makeController(store: store)
+        reopened.open(url: a, text: typedMore)
+        XCTAssertTrue(reopened.hasHistory, "the current version follows what was typed into it")
+    }
+
+    func testNothingStoredUntilAVersionIsKept() throws {
+        let storeDirectory = directory.appendingPathComponent("store", isDirectory: true)
+        let store = FilePassageHistoryStore(directory: storeDirectory)
+        let a = try makeFile("a.md", contents: text)
+        let controller = makeController(store: store)
+        controller.open(url: a, text: text)
+        controller.enterHistoryMode(text: text)
+        _ = controller.exitHistoryMode()
+        controller.documentSaved(text: text)
+        controller.close(text: text)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storeDirectory.path),
+                       "no directory, no index: nothing is written for a document without history")
+
+        let kept = makeController(store: store)
+        kept.open(url: a, text: text)
+        _ = kept.handle(.add(range(of: sentence, in: text)), text: text)
+        XCTAssertFalse(((try? FileManager.default.contentsOfDirectory(atPath: storeDirectory.path)) ?? []).isEmpty)
+    }
+
+    func testUntitledHistoryIsStoredOnceTheDocumentGetsAFile() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let (controller, edited) = controllerWithEditedPassage(store: store, url: nil)
+        let a = try makeFile("a.md", contents: edited)
+        controller.documentGotFile(a, text: edited)
+        let reopened = makeController(store: store)
+        reopened.open(url: a, text: edited)
+        XCTAssertTrue(reopened.hasHistory)
+    }
+
+    // MARK: - With the text view
+
+    func testOneUndoAfterLeavingRestoresTheEntryText() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        let vendor = UndoManagerVendor()
+        let textView = makeTextView(edited)
+        textView.delegate = vendor
+        controller.attach(textView)
+
+        controller.enterHistoryMode(text: textView.string)
+        XCTAssertNotNil(textView.historyDisplay)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+        XCTAssertEqual(textView.string, text, "a step updates the document immediately")
+        XCTAssertFalse(vendor.manager.canUndo, "steps are not undoable one by one")
+        XCTAssertTrue(controller.isHistoryModeActive, "the controller's own edit is not typing")
+
+        _ = controller.handle(.exit, text: textView.string)
+        XCTAssertNil(textView.historyDisplay)
+        XCTAssertEqual(textView.string, text, "the text showing when you leave is the document text")
+        XCTAssertTrue(vendor.manager.canUndo)
+        vendor.manager.undo()
+        XCTAssertEqual(textView.string, edited, "one ⌘Z restores the entry text")
+        XCTAssertFalse(vendor.manager.canUndo)
+    }
+
+    func testTypingInHistoryModeLeavesAndTypesInTheTextView() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        let vendor = UndoManagerVendor()
+        let textView = makeTextView(edited)
+        textView.delegate = vendor
+        controller.attach(textView)
+        controller.enterHistoryMode(text: textView.string)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+
+        textView.setSelectedRange(NSRange(location: (textView.string as NSString).length, length: 0))
+        textView.insertText("!", replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertEqual(textView.string, text + "!")
+        XCTAssertTrue(controller.hasHistory, "typing after the passage keeps its history")
+    }
+
+    func testUserEditsFromTheTextViewMoveLivePassages() throws {
+        let controller = makeController()
+        let textView = makeTextView(text)
+        controller.attach(textView)
+        controller.open(url: nil, text: text)
+        _ = controller.handle(.add(range(of: sentence, in: text)), text: text)
+
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        textView.insertText("Intro. ", replacementRange: NSRange(location: NSNotFound, length: 0))
+        controller.enterHistoryMode(text: textView.string)
+        XCTAssertEqual(controller.display?.passages.first?.range, range(of: sentence, in: textView.string))
+    }
+
+    // MARK: - QA script, headless
+
+    /// The level switcher lists every level of the nested group, whichever member is selected,
+    /// and clicking a level moves the selection up or down.
+    func testLevelSwitcherListsTheWholeNestedGroup() throws {
+        let doc = "The first sentence sits here quietly. The second sentence has a bold word inside it.\n\nA lone sentence with a single word worth keeping. Nothing else here changes.\n\nJust one lone sentence stands alone here. Another sentence follows it."
+        let paragraph = "The first sentence sits here quietly. The second sentence has a bold word inside it."
+        let controller = makeController()
+        controller.open(url: nil, text: doc)
+        _ = controller.handle(.add(range(of: paragraph, in: doc)), text: doc)
+        _ = controller.handle(.add(range(of: "The second sentence has a bold word inside it.", in: doc)), text: doc)
+        _ = controller.handle(.add(range(of: "bold", in: doc)), text: doc)
+        _ = controller.handle(.add(range(of: "A lone sentence with a single word worth keeping.", in: doc)), text: doc)
+        _ = controller.handle(.add(range(of: "single", in: doc)), text: doc)
+        _ = controller.handle(.add(range(of: "Just one lone sentence stands alone here.", in: doc)), text: doc)
+
+        controller.enterHistoryMode(text: doc)
+        let passages = try XCTUnwrap(controller.display?.passages)
+        XCTAssertEqual(passages.count, 6)
+        func select(_ needle: String) throws {
+            let r = range(of: needle, in: doc)
+            let id = try XCTUnwrap(passages.first { $0.range == r }?.id, needle)
+            _ = controller.handle(.select(id), text: doc)
+        }
+
+        try select("bold")
+        XCTAssertEqual(controller.sidebarModel.levels, [.paragraph, .sentence, .word])
+        XCTAssertEqual(controller.sidebarModel.currentLevel, .word)
+        controller.selectLevel(.paragraph)
+        XCTAssertEqual(controller.sidebarModel.currentLevel, .paragraph)
+        controller.selectLevel(.sentence)
+        XCTAssertEqual(controller.sidebarModel.currentLevel, .sentence)
+        XCTAssertEqual(controller.display?.selectedPassage?.range, range(of: "The second sentence has a bold word inside it.", in: doc))
+
+        try select("single")
+        XCTAssertEqual(controller.sidebarModel.levels, [.sentence, .word])
+        try select("Just one lone sentence stands alone here.")
+        XCTAssertEqual(controller.sidebarModel.levels, [.sentence])
+        XCTAssertFalse(HistorySidebarPresentation.showsLevelSwitcher(controller.sidebarModel.levels))
+    }
+
+    func testCRLFDocumentStepsExitsAndUndoes() throws {
+        let doc = "# CRLF\r\n\r\nLine endings are Windows style in this short file.\r\n"
+        let sentenceCRLF = "Line endings are Windows style in this short file."
+        let controller = makeController()
+        let vendor = UndoManagerVendor()
+        let textView = makeTextView(doc)
+        textView.delegate = vendor
+        controller.attach(textView)
+        controller.open(url: nil, text: doc)
+        _ = controller.handle(.add(range(of: sentenceCRLF, in: doc)), text: doc)
+        textView.setSelectedRange(range(of: "Windows", in: doc))
+        textView.insertText("DOS", replacementRange: NSRange(location: NSNotFound, length: 0))
+        let edited = textView.string
+        vendor.manager.removeAllActions()
+
+        controller.enterHistoryMode(text: edited)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: textView.string)
+        _ = controller.handle(.step(1), text: textView.string)
+        XCTAssertEqual(textView.string, doc)
+        _ = controller.handle(.exit, text: textView.string)
+        XCTAssertEqual(textView.string, doc)
+        XCTAssertEqual(textView.string.components(separatedBy: "\r\n").count, 4, "every CRLF survives")
+        vendor.manager.undo()
+        XCTAssertEqual(textView.string, edited)
+    }
+
+    func testUndoIsUnavailableInHistoryModeAndCollapsesOnExit() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        let coordinator = Coordinator(text: .constant(""), textFormat: .constant(.markdown), plainTextConversion: .constant(nil))
+        coordinator.currentTabID = UUID()
+        let textView = makeTextView(text)
+        textView.delegate = coordinator
+        let real = try XCTUnwrap(coordinator.undoManager(for: textView))
+        // A pre-session edit, in entry coordinates, sits on the real stack.
+        textView.setSelectedRange(range(of: "beta", in: text))
+        textView.insertText("BETA", replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertEqual(textView.string, edited)
+        // The run loop would close this event's undo group; there is none here.
+        if real.groupingLevel > 0 { real.endUndoGrouping() }
+        XCTAssertTrue(real.canUndo)
+        controller.attach(textView)
+
+        controller.enterHistoryMode(text: textView.string)
+        let standIn = try XCTUnwrap(coordinator.undoManager(for: textView))
+        XCTAssertFalse(standIn === real)
+        XCTAssertFalse(standIn.canUndo, "⌘Z is unavailable while History mode shows other versions")
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+        XCTAssertFalse(standIn.canUndo)
+
+        real.beginUndoGrouping()  // the Esc key's event group
+        _ = controller.handle(.exit, text: textView.string)
+        real.endUndoGrouping()
+        XCTAssertTrue(coordinator.undoManager(for: textView) === real)
+        real.undo()
+        XCTAssertEqual(textView.string, edited, "the session is one step")
+        real.undo()
+        XCTAssertEqual(textView.string, text, "and the pre-session edit is still undoable")
+    }
+
+    func testUndoAfterLeavingKeepsEveryVersionsText() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        let vendor = UndoManagerVendor()
+        let textView = makeTextView(edited)
+        textView.delegate = vendor
+        controller.attach(textView)
+        controller.enterHistoryMode(text: textView.string)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+        _ = controller.handle(.exit, text: textView.string)
+
+        vendor.manager.undo()
+        XCTAssertEqual(textView.string, edited)
+        controller.enterHistoryMode(text: textView.string)
+        _ = controller.handle(.select(try XCTUnwrap(controller.display?.passages.first?.id)), text: textView.string)
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), ["Alpha beta gamma delta.", "Alpha BETA gamma delta."],
+                       "undo must not write the restored text over the version that was current at exit")
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [false, true])
+        _ = controller.handle(.exit, text: textView.string)
+
+        vendor.manager.redo()
+        XCTAssertEqual(textView.string, text)
+        controller.enterHistoryMode(text: textView.string)
+        _ = controller.handle(.select(try XCTUnwrap(controller.display?.passages.first?.id)), text: textView.string)
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), ["Alpha beta gamma delta.", "Alpha BETA gamma delta."])
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [true, false])
+    }
+}

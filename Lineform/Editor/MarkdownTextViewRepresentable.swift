@@ -22,6 +22,9 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     var onWritingToolsSessionChange: ((Bool) -> Void)?
     var onVisibleTopRangeChanged: ((NSRange) -> Void)?
     var splitScrollSynchronizer: SplitScrollSynchronizer?
+    /// History for the document shown. The text view reports user edits to it and History mode
+    /// draws its `display`; the controller applies History's own edits through the text view.
+    var historyController: DocumentHistoryController?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -59,6 +62,9 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             textView.applyTypography(profile)
             textView.refreshMarkdownHighlighting()
         }
+        context.coordinator.historyController = historyController
+        historyController?.attach(textView)
+        textView.historyDisplay = historyController?.display
 
         scrollView.documentView = textView
         textView.updateScrollBoundsObservation()
@@ -121,6 +127,14 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             }
         }
 
+        // After the text sync above, so the passages' ranges describe the text on screen.
+        if context.coordinator.historyController !== historyController {
+            if let previous = context.coordinator.historyController { previous.detach(textView) }
+            context.coordinator.historyController = historyController
+        }
+        historyController?.attach(textView)
+        textView.historyDisplay = historyController?.display
+
         textView.setSearchHighlights(searchRanges, activeRange: activeSearchRange)
 
         if let range = requestedSelection {
@@ -153,6 +167,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         if let textView = nsView.documentView as? LineformTextView {
             textView.splitScrollSynchronizer?.disconnect(editor: textView)
             textView.splitScrollSynchronizer = nil
+            coordinator.historyController?.detach(textView)
         }
         // AppKit doesn't guarantee textViewWritingToolsDidEnd if the view is torn down
         // mid-session (mode switch, document swap); end the session explicitly so observers
@@ -284,6 +299,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var textFormat: Binding<LineformTextFormat>
     private var plainTextConversion: Binding<MarkdownPlainTextConversion?>
     private var scrollToTopRange: Binding<NSRange?>
+    weak var historyController: DocumentHistoryController?
     private var writingToolsSessionActive = false
     private var pendingWritingToolsText: String?
     private var suppressSelectionUpdates = false
@@ -308,10 +324,19 @@ final class Coordinator: NSObject, NSTextViewDelegate {
     private var undoManagersByTab: [UUID: UndoManager] = [:]
     /// The tab whose undo manager the text view should currently use. Set from `updateNSView`.
     var currentTabID: UUID?
+    /// Vended while History mode is active: never holds anything (see `undoManager(for:)`).
+    private let historyModeUndoManager: UndoManager
 
     /// The undo manager for the active tab, created on first use. Returning a per-tab manager
     /// here overrides the responder-chain (document) manager the text view would otherwise use.
     func undoManager(for textView: NSTextView) -> UndoManager? {
+        // History mode: the document is read-only and its steps are undo-disabled, while the
+        // tab's real stack still holds edits in ENTRY-text coordinates. ⌘Z there would replay one
+        // against the stepped text. An empty stand-in keeps Undo/Redo disabled until History mode
+        // ends; the exit's collapse then lands on the real stack as one step.
+        if (textView as? LineformTextView)?.historyDisplay != nil {
+            return historyModeUndoManager
+        }
         guard let currentTabID else { return nil }
         if let existing = undoManagersByTab[currentTabID] {
             return existing
@@ -342,6 +367,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         self.textFormat = textFormat
         self.plainTextConversion = plainTextConversion
         self.scrollToTopRange = scrollToTopRange
+        historyModeUndoManager = UndoManager()
     }
 
     var writingToolsSessionChangeHandler: ((Bool) -> Void)?
