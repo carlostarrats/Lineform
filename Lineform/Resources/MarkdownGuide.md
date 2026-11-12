@@ -53,7 +53,7 @@ switched off under Edit ▸ Spelling and Grammar.
 
   The types are `NOTE`, `TIP`, `IMPORTANT`, `WARNING`, and `CAUTION`. In any other editor they degrade to an ordinary quote.
 
-- **Math**, inline with `$E = mc^2$` and as a block between `$$` lines.
+- **Math**, inline with `$E = mc^2$` and as a block between `$$` lines. The `\(E = mc^2\)` and `\[ … \]` spellings that ChatGPT and other AI tools write work too; an escaped `\(note\)` with only words inside stays text.
 
 - **Diagrams**, in a fenced block marked `mermaid`.
 

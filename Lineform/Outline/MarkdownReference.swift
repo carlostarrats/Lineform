@@ -124,6 +124,7 @@ struct MarkdownReference {
         Section(id: "math", title: String(localized: "Math", bundle: bundle), rows: [
             Row(syntax: "$x^2 + y^2$", explanation: String(localized: "Inline math.", bundle: bundle)),
             Row(syntax: "$$…$$", explanation: String(localized: "Centered equation block.", bundle: bundle)),
+            Row(syntax: "\\(x^2\\)  \\[…\\]", explanation: String(localized: "Also math, in the form AI tools use. \\(note\\) stays text.", bundle: bundle)),
             Row(syntax: "\\frac{a}{b}", explanation: String(localized: "LaTeX supported: fractions, roots, Greek, sums, integrals.", bundle: bundle)),
             Row(syntax: "it costs $5", explanation: String(localized: "Plain dollar amounts stay as text.", bundle: bundle)),
         ]),

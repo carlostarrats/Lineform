@@ -191,9 +191,13 @@ enum MarkdownWritingToolsProtection {
         var openFenceStart: Int?
         var openFenceMarker: FenceMarker?
         var mathBlockStart: Int?
+        var mathBlockDelimiter: MathBlockFence.Delimiter?
         var mathOpenFenceMarker: FenceMarker?
 
         let dollar = UInt16(UnicodeScalar("$").value)
+        let backslash = UInt16(UnicodeScalar("\\").value)
+        let openBracket = UInt16(UnicodeScalar("[").value)
+        let closeBracket = UInt16(UnicodeScalar("]").value)
         let newlineUnit = UInt16(UnicodeScalar("\n").value)
         let length = text.length
         var offset = 0
@@ -229,15 +233,28 @@ enum MarkdownWritingToolsProtection {
 
             let fence = fenceRun(from: lower, to: contentsEnd, unit: unit)
 
-            // Trailing trim is only needed to recognise a `$$`-only line, so pay for it only
-            // when the line actually starts with `$`. Ordinary prose exits on one comparison.
-            var isBlockDelimiterOnly = false
-            if lower < contentsEnd, unit(lower) == dollar {
+            // Trailing trim is only needed to recognise a delimiter-only line (`$$`, `\[`, `\]`),
+            // so pay for it only when the line actually starts with `$` or `\`. Ordinary prose
+            // exits on two comparisons. Must classify exactly as `MathBlockFence.opening` /
+            // `isClosing` do on the trimmed line.
+            var opensBlock: MathBlockFence.Delimiter?
+            var closesBlock: MathBlockFence.Delimiter?
+            if lower < contentsEnd, unit(lower) == dollar || unit(lower) == backslash {
                 var upper = contentsEnd
                 while upper > lower, isWhitespace(unit(upper - 1)) {
                     upper -= 1
                 }
-                isBlockDelimiterOnly = upper - lower == 2 && unit(lower + 1) == dollar
+                if upper - lower == 2 {
+                    let first = unit(lower), second = unit(lower + 1)
+                    if first == dollar, second == dollar {
+                        opensBlock = .dollars
+                        closesBlock = .dollars
+                    } else if first == backslash, second == openBracket {
+                        opensBlock = .brackets
+                    } else if first == backslash, second == closeBracket {
+                        closesBlock = .brackets
+                    }
+                }
             }
 
             // --- fencedCodeRanges ---
@@ -266,12 +283,14 @@ enum MarkdownWritingToolsProtection {
             } else if mathOpenFenceMarker != nil {
                 // Inside a fence: `$`/`$$` are not math.
             } else if let start = mathBlockStart {
-                if isBlockDelimiterOnly {
+                if closesBlock != nil, closesBlock == mathBlockDelimiter {
                     ranges.append(NSRange(location: start, length: offset + storedLength - start))
                     mathBlockStart = nil
+                    mathBlockDelimiter = nil
                 }
-            } else if isBlockDelimiterOnly {
+            } else if let opensBlock {
                 mathBlockStart = offset
+                mathBlockDelimiter = opensBlock
             } else if contentsEnd > scopeStart {
                 // The ONLY allocating branch, and only for lines that can produce output.
                 let line = text.substring(with: NSRange(location: offset, length: contentLength))
@@ -331,7 +350,7 @@ enum MarkdownWritingToolsProtection {
         return lineTrimCharacters.contains(scalar)
     }
 
-    /// Ranges of LaTeX math regions — inline `$…$` and display `$$…$$` blocks — so Writing Tools
+    /// Ranges of LaTeX math regions — inline `$…$` / `\(…\)` and display `$$…$$` / `\[…\]` — so Writing Tools
     /// does not rewrite the source, exactly as it leaves fenced code alone. Uses the same `$`
     /// rules as the renderer, so prose dollar signs ("$5") are never protected.
     private static func mathRanges(in text: String) -> [NSRange] {
@@ -339,6 +358,7 @@ enum MarkdownWritingToolsProtection {
         var ranges: [NSRange] = []
         var offset = 0
         var blockStart: Int?
+        var blockDelimiter: MathBlockFence.Delimiter?
         var openFenceMarker: (character: Character, length: Int)?
 
         for (index, line) in lines.enumerated() {
@@ -366,15 +386,17 @@ enum MarkdownWritingToolsProtection {
                 continue
             }
 
-            if let start = blockStart {
-                if MathBlockFence.blockDelimiterOnly(trimmed) {
-                    // Closing `$$`: protect from the opening delimiter through this line.
+            if let start = blockStart, let delimiter = blockDelimiter {
+                if MathBlockFence.isClosing(trimmed, of: delimiter) {
+                    // Closing `$$` / `\]`: protect from the opening delimiter through this line.
                     ranges.append(NSRange(location: start, length: offset + storedLineLength - start))
                     blockStart = nil
+                    blockDelimiter = nil
                 }
                 // Body lines inside a block are already covered by the enclosing range.
-            } else if MathBlockFence.blockDelimiterOnly(trimmed) {
+            } else if let delimiter = MathBlockFence.opening(trimmed) {
                 blockStart = offset
+                blockDelimiter = delimiter
             } else if MathBlockFence.singleLineBlock(trimmed) != nil {
                 ranges.append(NSRange(location: offset, length: (line as NSString).length))
             } else {

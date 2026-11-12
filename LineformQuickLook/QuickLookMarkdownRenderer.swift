@@ -50,6 +50,13 @@ enum QuickLookMarkdownRenderer {
         var inTable = false
         var tableRows: [[String]] = []
         var paragraphBuffer: [String] = []
+        var openBracketMath = false
+        var bracketMathLines: [String] = []
+
+        func appendVerbatimMath(_ source: [String]) {
+            let attrs = bodyAttributes()
+            output.append(NSAttributedString(string: source.joined(separator: "\n") + "\n", attributes: attrs))
+        }
 
         func flushParagraph() {
             if !paragraphBuffer.isEmpty {
@@ -137,6 +144,28 @@ enum QuickLookMarkdownRenderer {
 
             if inCodeBlock {
                 codeBlockLines.append(line)
+                continue
+            }
+
+            // A display-math block fenced by `\[` / `\]` on their own lines, mirroring
+            // `MathBlockFence` in the app. The appex has no math typesetter, so it shows the LaTeX
+            // SOURCE verbatim, delimiters included — never unescaped (that would print `[` and
+            // `]`) and never run through emphasis (`a*b*c`). An unclosed opener runs to the end of
+            // the document, as `markdownBlocks` does.
+            if openBracketMath {
+                bracketMathLines.append(line)
+                if trimmed == "\\]" {
+                    appendVerbatimMath(bracketMathLines)
+                    openBracketMath = false
+                    bracketMathLines = []
+                }
+                continue
+            }
+            if trimmed == "\\[" {
+                flushParagraph()
+                closeAllLists()
+                openBracketMath = true
+                bracketMathLines = [line]
                 continue
             }
 
@@ -313,6 +342,10 @@ enum QuickLookMarkdownRenderer {
             output.append(NSAttributedString(string: codeBlockLines.joined(separator: "\n") + "\n", attributes: attrs))
         }
 
+        if openBracketMath {
+            appendVerbatimMath(bracketMathLines)
+        }
+
         flushParagraph()
         closeAllLists()
         if inTable {
@@ -324,7 +357,60 @@ enum QuickLookMarkdownRenderer {
 
     // MARK: - Inline formatting
 
-    private enum InlineStyle { case code, image, link, bold, italic, strikethrough }
+    private enum InlineStyle { case code, image, link, bold, italic, strikethrough, math }
+
+    /// UTF-16 ranges (delimiters included) of `\(…\)` and `\[…\]` math in one line. A
+    /// HAND-MIRROR of the backslash half of `MathDelimiters.inlineSpans` and of
+    /// `MathDelimiters.backslashContentIsMath` — this target cannot import the app's file (it
+    /// links SwiftMath). Agreement is asserted by `BackslashMathDelimiterTests`, not believed.
+    /// `$` math is not mirrored: the appex has never treated `$` specially.
+    static func backslashMathRanges(in line: String) -> [NSRange] {
+        let chars = Array(line)
+        var utf16At: [Int] = [0]
+        for c in chars { utf16At.append(utf16At.last! + c.utf16.count) }
+        var ranges: [NSRange] = []
+        var i = 0
+        while i < chars.count {
+            if chars[i] == "\\", i + 1 < chars.count {
+                let opener = chars[i + 1]
+                if opener == "(" || opener == "[" {
+                    let closing: Character = opener == "(" ? ")" : "]"
+                    var j = i + 2
+                    var close: Int?
+                    while j + 1 < chars.count {
+                        if chars[j] == "\\" {
+                            if chars[j + 1] == closing { close = j; break }
+                            j += 2
+                            continue
+                        }
+                        j += 1
+                    }
+                    if let close, contentIsMath(chars[(i + 2)..<close]) {
+                        ranges.append(NSRange(location: utf16At[i], length: utf16At[close + 2] - utf16At[i]))
+                        i = close + 2
+                        continue
+                    }
+                }
+                i += 2
+                continue
+            }
+            i += 1
+        }
+        return ranges
+    }
+
+    /// Mirror of `MathDelimiters.backslashContentIsMath`: math unless the content reads as prose.
+    private static func contentIsMath(_ content: ArraySlice<Character>) -> Bool {
+        let trimmed = String(content).trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+        if trimmed.contains(where: { "\\^_{}=".contains($0) }) { return true }
+        var run = 0
+        for c in trimmed {
+            run = c.isLetter ? run + 1 : 0
+            if run >= 3 { return false }
+        }
+        return true
+    }
 
     private struct InlineMatch {
         let range: NSRange           // full token incl. markers, in the source string
@@ -376,9 +462,16 @@ enum QuickLookMarkdownRenderer {
         let ns = plain as NSString
         let result = NSMutableAttributedString()
         var cursor = 0
+        let mathRanges = backslashMathRanges(in: plain)
 
         while cursor < ns.length {
-            guard let match = earliestInlineMatch(in: ns, from: cursor) else { break }
+            var found = earliestInlineMatch(in: ns, from: cursor)
+            // Backslash math competes by position, as in the app's `inlineWithMath`: earlier wins.
+            if let math = mathRanges.first(where: { $0.location >= cursor }),
+               found.map({ math.location < $0.range.location }) ?? true {
+                found = InlineMatch(range: math, style: .math, inner: ns.substring(with: math), url: nil)
+            }
+            guard let match = found else { break }
             if match.range.location > cursor {
                 let pre = ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
                 result.append(NSAttributedString(string: unescapeInline(pre), attributes: baseAttributes))
@@ -437,6 +530,8 @@ enum QuickLookMarkdownRenderer {
             let filename = imageFilename(from: match.url ?? "")
             let label = match.inner.isEmpty ? (filename.isEmpty ? "Image" : filename) : match.inner
             return NSAttributedString(string: "🖼 \(label)", attributes: baseAttributes)
+        case .math:
+            return NSAttributedString(string: match.inner, attributes: baseAttributes)   // source, verbatim
         case .code:
             var attrs = baseAttributes
             let size = (baseAttributes[.font] as? NSFont)?.pointSize ?? bodyFontSize

@@ -64,8 +64,19 @@ enum SpeechTextExtractor {
         guard nsLine.length > 0 else { return "" }
         var result = ""
         var location = 0
+        // Inline math (`$…$`, `\(…\)`, and their display forms) is skipped, like block math: it is
+        // LaTeX source, not prose, and spoken it is "backslash frac…". It competes with the regex
+        // tokens by position, as in `MarkdownPreviewRenderer.inlineWithMath`, and comes from the
+        // renderer's own detector — so `see \(note\)`, which the screen draws as "see (note)",
+        // is read as exactly that.
+        let mathSpans = MathDelimiters.inlineSpans(in: line)
         while location < nsLine.length {
-            guard let token = nextToken(in: line, nsLine: nsLine, from: location) else {
+            var next = nextToken(in: line, nsLine: nsLine, from: location)
+            if let span = mathSpans.first(where: { $0.range.location >= location }),
+               next.map({ span.range.location < $0.range.location }) ?? true {
+                next = Token(range: span.range, replacement: "")
+            }
+            guard let token = next else {
                 // Plain runs are unescaped, as on screen — read-aloud must not say "backslash".
                 result += MarkdownInlineSyntax.unescape(nsLine.substring(from: location))
                 break
@@ -161,6 +172,9 @@ enum SpeechTextExtractor {
             let searchRange = NSRange(location: location, length: nsLine.length - location)
             guard let match = regex.firstMatch(in: line, range: searchRange) else { return nil }
             let inner = nsLine.substring(with: match.range(at: 1))
+            // A code span's contents are literal — never stripped, unescaped, or math-detected —
+            // so `\(x\)` or `\*` inside backticks is spoken exactly as the screen draws it.
+            if regex === codeRegex { return Token(range: match.range, replacement: inner) }
             return Token(range: match.range, replacement: stripInlineMarkers(inner))
         }
 

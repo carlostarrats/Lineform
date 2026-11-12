@@ -50,14 +50,25 @@ enum MarkdownPlainTextConverter {
         // was then run through the inline strips and the whole-document unescape — so a Python
         // regex `r"\\d+\\.\\d"` came out as `r"\d+\.\d"` and `printf("a\\tb")` became a real tab
         // escape. That is silent corruption of the user's code, written straight back to the file.
+        //
+        // Display math (`$$ … $$`, `\[ … \]`) is emitted VERBATIM, delimiters included, for the
+        // same reason: it is LaTeX source, and the strips and unescape would rewrite it — `\[`
+        // unescaped to `[`, `a*b*c` lost its asterisks. It is checked BEFORE the code fence,
+        // in the order `markdownBlocks` uses, so a fence-shaped line inside math stays math.
         var inFence = false
         var fenceMarker: (character: Character, length: Int)?
+        var openMath: MathBlockFence.Delimiter?
         let converted = markdown
             .components(separatedBy: "\n")
             .compactMap { raw -> String? in
                 let carriageReturn = raw.hasSuffix("\r") ? "\r" : ""
                 let line = carriageReturn.isEmpty ? raw : String(raw.dropLast())
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+                if let delimiter = openMath {
+                    if MathBlockFence.isClosing(trimmed, of: delimiter) { openMath = nil }
+                    return line + carriageReturn   // math: verbatim, delimiters included
+                }
 
                 if inFence {
                     if let marker = fenceMarker, MermaidFence.isClosingFence(trimmed, matching: marker) {
@@ -66,6 +77,11 @@ enum MarkdownPlainTextConverter {
                         return nil          // drop the closing fence line
                     }
                     return line + carriageReturn   // body: verbatim, no strips, no unescape
+                }
+
+                if let delimiter = MathBlockFence.opening(trimmed) {
+                    openMath = delimiter
+                    return line + carriageReturn
                 }
 
                 if let marker = MermaidFence.openingMarker(trimmed) {
@@ -81,7 +97,14 @@ enum MarkdownPlainTextConverter {
         return converted
     }
 
-    /// One line's inline markup removed, with a code span's CONTENTS left literal.
+    /// One line's inline markup removed, with a code span's CONTENTS left literal and every math
+    /// span (`$…$`, `$$…$$`, `\(…\)`, `\[…\]`) left VERBATIM, delimiters included.
+    ///
+    /// Code spans and math spans compete by position exactly as they do in the renderer
+    /// (`inlineWithMath`): whichever starts first wins, so `` `$x$` `` is code and `$`a`$` is math.
+    /// Math spans come from `MathDelimiters.inlineSpans`, the renderer's own detector, so
+    /// `see \(note\)` — prose under the explicit rule — is unescaped to "see (note)" here exactly
+    /// as it is drawn.
     ///
     /// The strips and the unescape run only on the runs BETWEEN code spans. `unescape`'s own
     /// contract is that it applies to plain runs only — a code span's contents are literal — and
@@ -93,14 +116,27 @@ enum MarkdownPlainTextConverter {
             return stripInline(line)
         }
 
+        // (range, verbatim replacement), earliest start wins, overlaps dropped.
+        var literals: [(range: NSRange, text: String)] = []
+        let candidates: [(range: NSRange, text: String)] =
+            spans.matches(in: line, range: NSRange(location: 0, length: ns.length)).map {
+                ($0.range, ns.substring(with: $0.range(at: 1)))   // code: contents, verbatim
+            } + MathDelimiters.inlineSpans(in: line).map {
+                ($0.range, ns.substring(with: $0.range))           // math: whole span, verbatim
+            }
+        for candidate in candidates.sorted(by: { $0.range.location < $1.range.location }) {
+            if let last = literals.last, candidate.range.location < NSMaxRange(last.range) { continue }
+            literals.append(candidate)
+        }
+
         var out = ""
         var location = 0
-        for match in spans.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
-            if match.range.location > location {
-                out += stripInline(ns.substring(with: NSRange(location: location, length: match.range.location - location)))
+        for literal in literals {
+            if literal.range.location > location {
+                out += stripInline(ns.substring(with: NSRange(location: location, length: literal.range.location - location)))
             }
-            out += ns.substring(with: match.range(at: 1))   // span contents, verbatim
-            location = NSMaxRange(match.range)
+            out += literal.text
+            location = NSMaxRange(literal.range)
         }
         if location < ns.length {
             out += stripInline(ns.substring(from: location))

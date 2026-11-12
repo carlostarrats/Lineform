@@ -441,13 +441,13 @@ func markdownBlocks(in lines: [String], lineRanges: [NSRange]? = nil) -> [Markdo
             continue
         }
 
-        if MathBlockFence.blockDelimiterOnly(trimmed) {
+        if let delimiter = MathBlockFence.opening(trimmed) {
             flushLines(upTo: index)
             var body: [String] = []
             var cursor = index + 1
             var closing: Int?
             while cursor < lines.count {
-                if MathBlockFence.blockDelimiterOnly(lines[cursor].trimmingCharacters(in: .whitespaces)) {
+                if MathBlockFence.isClosing(lines[cursor].trimmingCharacters(in: .whitespaces), of: delimiter) {
                     closing = cursor
                     break
                 }
