@@ -23,6 +23,8 @@ struct SettingsModal: View {
     static let animationDuration = MuseModalChrome.animationDuration
     static let entranceYOffset = MuseModalChrome.entranceYOffset
 
+    static let automaticDarkModeTitle = String(localized: "Automatic Dark Mode")
+    static let automaticDarkModeNote = String(localized: "Goes dark when your Mac is in Dark Mode, including at night if your Mac's appearance is set to Auto.")
     static let showSidebarOnLaunchTitle = String(localized: "Show sidebar on launch")
     static let showSidebarOnLaunchNote = String(localized: "New windows open with the sidebar visible.")
     static let allowCollapseTitle = String(localized: "Allow root folders to expand and collapse")
@@ -67,6 +69,15 @@ struct SettingsModal: View {
             MuseModalHeader(title: Self.title, usesDarkChrome: usesDarkChrome, dismiss: dismiss)
 
             VStack(alignment: .leading, spacing: 0) {
+                settingRow(
+                    title: Self.automaticDarkModeTitle,
+                    note: Self.automaticDarkModeNote,
+                    isOn: $settings.automaticDarkMode
+                )
+
+                Divider()
+                    .padding(.vertical, 12)
+
                 settingRow(
                     title: Self.showSidebarOnLaunchTitle,
                     note: Self.showSidebarOnLaunchNote,

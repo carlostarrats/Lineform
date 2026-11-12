@@ -44,6 +44,7 @@ Core product principles:
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
+- Automatic Dark Mode (Settings, default on): while the Mac is in Dark Mode every preset draws with Quiet's page and ink but keeps its own font and layout. Display only — export and print keep the chosen theme.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - In-app announcements: a once-a-day read of a small static JSON file on the marketing site surfaces at most one dismissible card in the editor. No account, no identifier, no server. The Settings toggle (default on) gates the network request itself, not just the display.
@@ -82,6 +83,7 @@ file named after it carries the full story and the reasoning.
 - The Save-All-before-close chain must write each saved tab's new `fileURL` back to the store BEFORE activating the next tab, which clobbers `backingDocument.fileURL`. Without it a tab that was untitled at save time stays `fileURL == nil`: the close alert re-prompts, a second save panel writes a duplicate copy, and the tab is detached from its file for the rest of the session.
 - File ▸ Open must keep the system menu item and native `NSDocumentController.beginOpenPanel`, then route authorized URLs through `openSidebarFile`; sending ⌘O through `DocumentGroup` creates a transient second window instead of a tab-native open.
 - Closing the final tab must leave it in `EditorTabStore`, call `WindowCloseController.prepareForTabApprovedClose`, and dismiss the `DocumentGroup` scene. Removing the tab first destroys state needed by the native close and can leave an empty window that ignores ⌘W.
+- Never set `NSApp.appearance`. Automatic Dark Mode reads the SYSTEM appearance from `NSApp.effectiveAppearance` (`SystemAppearanceMonitor`); windows are forced to their theme, so only the app-level value still reports the Mac's Light/Dark setting.
 - The toolbar material is hidden with an explicit `Visibility.hidden` — the bare `.hidden` is ambiguous against `ShapeStyle` and TIMES OUT type-checking (build-blocking, not cosmetic).
 
 **Editor motion** (`editor-behavior.md`)

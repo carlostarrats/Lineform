@@ -115,7 +115,9 @@ struct EditorContainerView: View {
     @StateObject private var fileBrowserStore: OutlineFileBrowserStore
     /// Held so the sidebar (Files tab) observes the SAME store this window was built
     /// with — tests inject an isolated store and it governs the whole view tree.
-    private let settings: LineformSettingsStore
+    /// Observed (not a plain `let`) so Automatic Dark Mode toggles apply to an open window live.
+    @ObservedObject private var settings: LineformSettingsStore
+    @ObservedObject private var systemAppearance = SystemAppearanceMonitor.shared
 
     init(
         document: Binding<LineformDocument>,
@@ -130,7 +132,7 @@ struct EditorContainerView: View {
         _fileBrowserStore = StateObject(
             wrappedValue: fileBrowserStore ?? OutlineFileBrowserStore(runsScanInBackground: true)
         )
-        self.settings = settings
+        _settings = ObservedObject(wrappedValue: settings)
         self.defaultMarkdownApp = defaultMarkdownApp
         // New windows open with the sidebar in the user's preferred launch state
         // (Settings › Show sidebar on launch, default on). Initial value only;
@@ -1038,7 +1040,17 @@ struct EditorContainerView: View {
     }
 
     private var currentTheme: Theme {
-        Theme.theme(for: readingProfileStore.activeProfile)
+        Theme.theme(for: displayProfile)
+    }
+
+    /// What the editor and preview draw with: the stored profile, with Automatic Dark Mode
+    /// applied. Export and print use `readingProfileStore.activeProfile` directly — a PDF
+    /// should not come out dark because the Mac happened to be in Dark Mode.
+    private var displayProfile: ReadingProfile {
+        readingProfileStore.activeProfile.displayProfile(
+            automaticDarkMode: settings.automaticDarkMode,
+            systemIsDark: systemAppearance.isDark
+        )
     }
 
     /// Toggle a Read-mode task checkbox as a normal document edit: swap `[ ]`↔`[x]` at the clicked
@@ -1244,7 +1256,7 @@ struct EditorContainerView: View {
             HStack {
                 DebouncedMarkdownPreviewView(
                     text: document.text,
-                    profile: readingProfileStore.activeProfile,
+                    profile: displayProfile,
                     onCheckboxToggle: toggleCheckbox,
                     onImageReconnect: reconnectImage,
                     onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
@@ -1264,7 +1276,7 @@ struct EditorContainerView: View {
                 Divider()
                 DebouncedMarkdownPreviewView(
                     text: document.text,
-                    profile: readingProfileStore.activeProfile,
+                    profile: displayProfile,
                     onCheckboxToggle: toggleCheckbox,
                     onImageReconnect: reconnectImage,
                     onVisibleTopRangeChanged: { activeOutlineSourceRange = $0 },
@@ -1292,7 +1304,7 @@ struct EditorContainerView: View {
             requestedSelection: $requestedSelection,
             requestedReplacement: $requestedReplacement,
             requestedScrollToTopRange: requestedScrollRange,
-            profile: readingProfileStore.activeProfile,
+            profile: displayProfile,
             documentDirectory: currentFileURL?.deletingLastPathComponent(),
             smoothsHorizontalInsetChanges: false,
             searchRanges: searchMatches,

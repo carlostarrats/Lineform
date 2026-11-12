@@ -1413,6 +1413,40 @@
         }
       }
     },
+    "Automatic Dark Mode": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatischer Dunkelmodus"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modo oscuro automático"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode sombre automatique"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動ダークモード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动深色模式"
+          }
+        }
+      }
+    },
     "Autosaved": {
       "localizations": {
         "de": {
@@ -4069,6 +4103,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "开始使用"
+          }
+        }
+      }
+    },
+    "Goes dark when your Mac is in Dark Mode, including at night if your Mac's appearance is set to Auto.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird dunkel, wenn der Mac den Dunkelmodus verwendet – auch nachts, wenn das Erscheinungsbild auf „Automatisch“ eingestellt ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se oscurece cuando el Mac está en modo oscuro, también de noche si su aspecto está en Automático."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passe au sombre lorsque le Mac est en mode sombre, y compris la nuit si son apparence est réglée sur Automatique."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Macがダークモードのときに暗くなります。外観が「自動」に設定されている場合は夜間も含みます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当 Mac 处于深色模式时变暗，包括外观设为“自动”时的夜间。"
           }
         }
       }

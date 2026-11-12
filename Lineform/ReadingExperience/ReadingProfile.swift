@@ -54,6 +54,26 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
         self.themeID = themeID
     }
 
+    // MARK: - Automatic Dark Mode
+
+    /// Themes that are already dark keep their own colors under Automatic Dark Mode.
+    static let automaticDarkModeExemptThemes: Set<ThemeID> = [.quiet, .night]
+
+    /// The profile the editor and preview DRAW with. With Automatic Dark Mode on and the Mac in
+    /// Dark Mode, any light theme is swapped for Quiet — font, size, spacing and every other
+    /// field stay the preset's own. This is a display-time copy: the stored profile keeps the
+    /// user's theme (so the picker still shows their selection and Light Mode restores it), and
+    /// export/print deliberately use the stored profile, never this one.
+    func displayProfile(automaticDarkMode: Bool, systemIsDark: Bool) -> ReadingProfile {
+        guard automaticDarkMode, systemIsDark,
+              !Self.automaticDarkModeExemptThemes.contains(themeID) else {
+            return self
+        }
+        var profile = self
+        profile.themeID = .quiet
+        return profile
+    }
+
     // MARK: - Column width range
 
     /// Narrowest reading column the slider allows.

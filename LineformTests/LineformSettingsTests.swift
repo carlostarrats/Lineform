@@ -18,6 +18,13 @@ final class LineformSettingsTests: XCTestCase {
         // to root visibility until the user touches the toggle.
         XCTAssertNil(store.allowRootFolderCollapseChoice)
         XCTAssertTrue(store.showICloudInSidebar)
+        XCTAssertTrue(store.automaticDarkMode, "Automatic Dark Mode ships on; users opt out")
+    }
+
+    func testAutomaticDarkModePersistsWhenTurnedOff() {
+        let defaults = freshDefaults("LineformSettingsAutomaticDarkMode")
+        LineformSettingsStore(defaults: defaults).automaticDarkMode = false
+        XCTAssertFalse(LineformSettingsStore(defaults: defaults).automaticDarkMode)
     }
 
     func testEachSettingPersistsAcrossStoreInstances() {

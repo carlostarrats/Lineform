@@ -15,6 +15,7 @@ final class LineformSettingsStore: ObservableObject {
     static let showICloudInSidebarKey = "Lineform.settings.showICloudInSidebar"
     static let checksSpellingWhileTypingKey = "Lineform.settings.checksSpellingWhileTyping"
     static let checksForAnnouncementsKey = "Lineform.settings.checksForAnnouncements"
+    static let automaticDarkModeKey = "Lineform.settings.automaticDarkMode"
 
     @Published var showSidebarOnLaunch: Bool {
         didSet {
@@ -81,6 +82,17 @@ final class LineformSettingsStore: ObservableObject {
         }
     }
 
+    /// Automatic Dark Mode (default on). While the Mac is in Dark Mode, every reading profile
+    /// wears the Quiet theme's page and ink but keeps its own font and layout. Display only:
+    /// the stored profile is never rewritten, and export/print keep the chosen theme. See
+    /// `ReadingProfile.displayProfile(automaticDarkMode:systemIsDark:)`.
+    @Published var automaticDarkMode: Bool {
+        didSet {
+            guard oldValue != automaticDarkMode else { return }
+            defaults.set(automaticDarkMode, forKey: Self.automaticDarkModeKey)
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -99,6 +111,7 @@ final class LineformSettingsStore: ObservableObject {
         _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, true))
         _checksSpellingWhileTyping = Published(initialValue: boolOrDefault(Self.checksSpellingWhileTypingKey, true))
         _checksForAnnouncements = Published(initialValue: boolOrDefault(Self.checksForAnnouncementsKey, true))
+        _automaticDarkMode = Published(initialValue: boolOrDefault(Self.automaticDarkModeKey, true))
     }
 }
 

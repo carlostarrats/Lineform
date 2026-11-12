@@ -206,4 +206,41 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(Theme.contrastRatio(.white, .white), 1, accuracy: 0.01)
     }
 
+    // MARK: - Automatic Dark Mode
+
+    /// Every light preset keeps its own font and layout and only trades its page/ink for Quiet's.
+    func testAutomaticDarkModeSwapsOnlyTheThemeOfLightPresets() {
+        for preset in ReadingPreset.builtIn where preset.profile.themeID != .quiet {
+            let stored = preset.profile
+            let shown = stored.displayProfile(automaticDarkMode: true, systemIsDark: true)
+            XCTAssertEqual(shown.themeID, .quiet, preset.profile.name)
+            var expected = stored
+            expected.themeID = .quiet
+            XCTAssertEqual(shown, expected, "only the theme may change for \(preset.profile.name)")
+            XCTAssertEqual(Theme.theme(for: shown).backgroundColor, Theme.quiet.backgroundColor)
+            XCTAssertEqual(Theme.theme(for: shown).textColor, Theme.quiet.textColor)
+        }
+    }
+
+    func testAutomaticDarkModeLeavesProfileAloneInLightModeOrWhenOff() {
+        let code = ReadingPreset.code.profile
+        XCTAssertEqual(code.displayProfile(automaticDarkMode: true, systemIsDark: false), code)
+        XCTAssertEqual(code.displayProfile(automaticDarkMode: false, systemIsDark: true), code)
+    }
+
+    func testAutomaticDarkModeKeepsAlreadyDarkThemes() {
+        var night = ReadingPreset.lowLight.profile
+        XCTAssertEqual(night.displayProfile(automaticDarkMode: true, systemIsDark: true).themeID, .night)
+        night.themeID = .quiet
+        XCTAssertEqual(night.displayProfile(automaticDarkMode: true, systemIsDark: true), night)
+    }
+
+    /// High contrast already uses system ink and page; the swap must not tint it.
+    func testAutomaticDarkModeLeavesHighContrastOnSystemColors() {
+        let profile = ReadingPreset.highContrast.profile
+            .displayProfile(automaticDarkMode: true, systemIsDark: true)
+        let theme = Theme.theme(for: profile)
+        XCTAssertEqual(theme.backgroundColor, .textBackgroundColor)
+        XCTAssertFalse(theme.usesThemeTintedChrome)
+    }
 }
