@@ -22,7 +22,7 @@ enum ReadingAssistRangeResolver {
         }
     }
 
-    private static func paragraphRange(in text: String, containing location: Int) -> NSRange {
+    static func paragraphRange(in text: String, containing location: Int) -> NSRange {
         let nsText = text as NSString
         let beforeRange = NSRange(location: 0, length: location)
         let afterRange = NSRange(location: location, length: nsText.length - location)
@@ -36,7 +36,7 @@ enum ReadingAssistRangeResolver {
         return NSRange(location: start, length: max(0, end - start))
     }
 
-    private static func sentenceRange(in text: String, containing location: Int) -> NSRange {
+    static func sentenceRange(in text: String, containing location: Int) -> NSRange {
         let nsText = text as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)
         var match = nsText.lineRange(for: NSRange(location: location, length: 0))
