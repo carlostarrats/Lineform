@@ -117,6 +117,31 @@ final class DocumentHistoryControllerTests: XCTestCase {
                        HistoryEdit(range: NSRange(location: 0, length: 0), replacement: "new"))
     }
 
+    /// Repeated text lets a change sit at several offsets: the union of the prefix-first and
+    /// suffix-first placements is reported, and the result text is unchanged. One placement
+    /// (ordinary edits) reports exactly the minimal edit.
+    func testUnambiguousEditReportsUnionOfAmbiguousPlacements() throws {
+        let entry = "Keep this. Keep this. Keep this. End."
+        let exit = String(entry.dropFirst(11))
+        let union = try XCTUnwrap(HistoryUndoCollapse.unambiguousEdit(from: entry, to: exit))
+        XCTAssertEqual(union.range, NSRange(location: 0, length: 33))
+        XCTAssertEqual(apply(union, to: entry), exit)
+
+        let inserted = try XCTUnwrap(HistoryUndoCollapse.unambiguousEdit(from: "hello", to: "helllo"))
+        XCTAssertEqual(inserted.range, NSRange(location: 2, length: 2))
+        XCTAssertEqual(apply(inserted, to: "hello"), "helllo")
+
+        let plainEntry = "One two three. Four five six."
+        let plainExit = "One TWO three. Four five six seven."
+        XCTAssertEqual(HistoryUndoCollapse.unambiguousEdit(from: plainEntry, to: plainExit),
+                       HistoryUndoCollapse.minimalEdit(from: plainEntry, to: plainExit))
+        XCTAssertEqual(HistoryUndoCollapse.unambiguousEdit(from: "", to: "x"),
+                       HistoryEdit(range: NSRange(location: 0, length: 0), replacement: "x"))
+        XCTAssertNil(HistoryUndoCollapse.unambiguousEdit(from: "same", to: "same"))
+        let crlf = try XCTUnwrap(HistoryUndoCollapse.unambiguousEdit(from: "a\r\nb", to: "a\nb"))
+        XCTAssertEqual(apply(crlf, to: "a\r\nb"), "a\nb")
+    }
+
     // MARK: - Mode
 
     func testEnteringHistoryModeRequiresHistory() {

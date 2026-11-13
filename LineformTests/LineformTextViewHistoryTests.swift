@@ -307,6 +307,46 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(span.location, 6)
     }
 
+    /// Reports a whole-text replacement through the text view into a real engine and returns
+    /// where the passage is located afterwards (nil when it was dropped).
+    private func locateAfterWholeTextReplacement(from text: String, passage target: NSRange,
+                                                 to newText: String) throws -> NSRange? {
+        let textView = LineformTextView()
+        textView.string = text
+        var engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: Date.init)
+        let id = try XCTUnwrap(engine.add(target, author: .you, in: text))
+        _ = engine.locateAll(in: text)
+        textView.historyUserEditHandler = { engine.applyEdit($0, replacement: $1) }
+
+        textView.applyExternalReplacement(MarkdownEdit(text: newText, selectedRange: NSRange(location: 0, length: 0)))
+        XCTAssertEqual(textView.string, newText)
+        return engine.locateAll(in: newText).first { $0.id == id }?.range
+    }
+
+    /// Deleting one copy of repeated text can sit at several offsets. The prefix-first placement
+    /// ({22,11}) would leave the passage on {11,10} — now the ORIGINAL THIRD sentence, identical
+    /// text, so verification passed and step rewrote the wrong sentence. Dropped is fine;
+    /// retargeted never is.
+    func testAmbiguousDeletionInRepeatedTextNeverRetargetsPassage() throws {
+        let text = "Keep this. Keep this. Keep this. End."
+        let located = try locateAfterWholeTextReplacement(
+            from: text, passage: NSRange(location: 11, length: 10), to: String(text.dropFirst(11)))
+        if let located {
+            XCTAssertEqual(located, NSRange(location: 0, length: 10), "the passage may only stay on its own sentence")
+        }
+    }
+
+    /// The insertion mirror: a copy inserted in front trims prefix-first to {16,0}, which left the
+    /// passage on the newly inserted copy.
+    func testAmbiguousInsertionInRepeatedTextNeverRetargetsPassage() throws {
+        let located = try locateAfterWholeTextReplacement(
+            from: "Go now. Go now. Fin.", passage: NSRange(location: 0, length: 7),
+            to: "Go now. Go now. Go now. Fin.")
+        if let located {
+            XCTAssertEqual(located, NSRange(location: 8, length: 7), "the passage may only stay on its own sentence")
+        }
+    }
+
     func testNoOpReplacementReportsNothing() {
         let textView = makeTextView()
         var reported: [NSRange] = []

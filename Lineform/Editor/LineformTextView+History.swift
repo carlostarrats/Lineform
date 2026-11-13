@@ -377,12 +377,15 @@ extension LineformTextView {
     /// Sent from `shouldChangeText` once AppKit allowed a text edit. History's own edits are
     /// skipped (the engine already moved its live ranges for them).
     ///
-    /// Every edit is TRIMMED to its minimal changed span first (`HistoryUndoCollapse.minimalEdit`
+    /// Every edit is TRIMMED to its minimal changed span first (`HistoryUndoCollapse.unambiguousEdit`
     /// of the replaced text against the replacement). Formatting commands and Find & Replace
     /// replace the whole text, and NSTextView undoes and redoes those as one document-spanning
     /// `shouldChangeText` — reported untrimmed it straddled every passage and dropped them all.
-    /// Trimmed, passages outside the change keep their live ranges. Reads only the replaced range
-    /// (empty while typing), never the document.
+    /// Trimmed, passages outside the change keep their live ranges. When repeated text lets the
+    /// change sit at more than one offset, the trim reports the union of the placements
+    /// (`HistoryUndoCollapse.unambiguousEdit`), so passages in that region are dropped rather
+    /// than left reading a different, identical occurrence. Reads only the replaced range (empty
+    /// while typing), never the document.
     func noteHistoryUserEditIfNeeded(_ range: NSRange, replacement: String) {
         guard !isApplyingHistoryEdit, let handler = historyUserEditHandler else { return }
         let length = (string as NSString).length
@@ -391,7 +394,7 @@ extension LineformTextView {
             return
         }
         let replaced = range.length == 0 ? "" : (string as NSString).substring(with: range)
-        guard let minimal = HistoryUndoCollapse.minimalEdit(from: replaced, to: replacement) else { return }
+        guard let minimal = HistoryUndoCollapse.unambiguousEdit(from: replaced, to: replacement) else { return }
         handler(NSRange(location: range.location + minimal.range.location, length: minimal.range.length),
                 minimal.replacement)
     }

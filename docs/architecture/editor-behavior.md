@@ -670,13 +670,24 @@ shows passages with history and steps their versions. Spec:
   edits). History's own edits run inside `performHistoryEdit {}` so they are not reported back as
   typing (which would leave History mode) nor as edits (the engine already moved its ranges).
   **Every reported edit is trimmed to its minimal changed span first**
-  (`noteHistoryUserEditIfNeeded` → `HistoryUndoCollapse.minimalEdit` of the replaced text against
-  the replacement; it reads only the replaced range). That is what makes the text view's
+  (`noteHistoryUserEditIfNeeded` → `HistoryUndoCollapse.unambiguousEdit` of the replaced text
+  against the replacement; it reads only the replaced range). That is what makes the text view's
   whole-text path safe: formatting commands, heading keys, list toggles, Insert/Reformat Table and
   Find & Replace replace the whole text, and NSTextView UNDOES and REDOES those as one
   document-spanning `shouldChangeText`. Reported untrimmed (the 2026-11-12 final review), that
   straddled every passage: after any save (which re-locates) one ⌘Z on a ⌘B dropped all history.
-  Trimmed, passages outside the change keep their live ranges. Writes that bypass the text view
+  Trimmed, passages outside the change keep their live ranges. **The trim never guesses a
+  placement.** When inserted or deleted text repeats next to itself the change can sit at several
+  offsets: deleting the first of `Keep this. Keep this. Keep this. End.` trims prefix-first to
+  {22,11} but suffix-first to {0,11}. Reporting the greedy prefix-first one left a passage on the
+  second sentence at {11,10} — now the original THIRD sentence, identical text, so verification
+  passed and ← / → rewrote the wrong sentence (the insertion mirror left a passage on a newly
+  inserted copy). `unambiguousEdit` computes both placements; when they differ it reports their
+  UNION (earliest start to latest end, replacement rebuilt so the result text is identical), so
+  every passage overlapping the ambiguous region straddles the edit and is dropped — history may
+  disappear, wrong text may not. Ordinary typing has one placement and is reported exactly as
+  before. The exit collapse still uses `minimalEdit`: it is History's own edit, not a range map.
+  Writes that bypass the text view
   (they set the binding) still call `noteWholeTextReplacement()` / `engine.invalidateLiveRanges()`
   and passages are re-found literally: live reload, Convert to Plain Text / Restore Markdown, the
   Read-mode checkbox toggle, and image Reconnect. A new binding writer must do the same.
