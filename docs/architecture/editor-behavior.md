@@ -705,7 +705,14 @@ shows passages with history and steps their versions. Spec:
   `addReplacement(_:)` (the controller trims, and ignores empty or unchanged text), Esc
   (`onExitCommand`) or focus loss closes it unsaved. While the field is first responder it owns the
   keys — ← → edit the text, Esc closes the FIELD, not History — and on close
-  `focusEditorForHistory()` makes the text view first responder again, so ← → step versions. Both
+  `focusEditorForHistory()` makes the text view first responder again, so ← → step versions.
+  The field's focus is written a runloop turn AFTER it is inserted
+  (`HistorySidebarPresentation.requestReplacementFieldFocus`): a `@FocusState` write in the same
+  pass (a bare `.onAppear`) is routinely dropped on macOS. Backstop: while the field is open the
+  text view's `historyReplacementFieldIsOpen` is set, and any key that still reaches it — text
+  (`refusesEditForHistoryReplacementField`, in `shouldChangeText`) or a caret move — types nothing,
+  never leaves History, and asks the field for focus (`HistoryReplacementFieldSignal`); Esc there
+  closes the field. History's own edits pass (`isApplyingHistoryEdit`); ending History clears it. Both
   capsules and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
   the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
   inset (`HistorySidebarPresentation.textInset`).

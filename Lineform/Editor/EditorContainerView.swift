@@ -76,6 +76,8 @@ struct EditorContainerView: View {
     /// swap (`registerReloadWatcher`), closed in `resetTransientDocumentState`. Nothing touches
     /// the store until a document is opened — never at launch.
     @StateObject private var historyController = DocumentHistoryController(store: DocumentHistoryController.sharedStore)
+    /// The editor's requests to History's open replacement field (refocus it, or close it).
+    @State private var historyReplacementFieldSignal = HistoryReplacementFieldSignal()
     /// AI actions and their review for the document on screen — one per editor. The connection
     /// store is the app's one connection; building this reads UserDefaults only (no Keychain, no
     /// network — those happen only when the writer chooses an action).
@@ -171,7 +173,9 @@ struct EditorContainerView: View {
                 onDeleteHistoryVersion: { index in deleteHistoryVersion(index) },
                 onExitHistory: { historyController.exitHistoryMode() },
                 onAddHistoryReplacement: { replacement in historyController.addReplacement(replacement) },
-                onHistoryReplacementFieldEnded: { focusEditorForHistory() },
+                onHistoryReplacementFieldEnded: { historyReplacementFieldEnded() },
+                onHistoryReplacementFieldBegan: { historyReplacementFieldBegan() },
+                historyReplacementFieldSignal: historyReplacementFieldSignal,
                 isHistoryModeActive: historyController.isHistoryModeActive,
                 onSelectTab: { tab in selectSidebarTab(tab) },
                 fileBrowserStore: fileBrowserStore,
@@ -2627,6 +2631,21 @@ struct EditorContainerView: View {
     private func showSidebarIfHidden() {
         guard !isShowingOutline else { return }
         NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+    }
+
+    /// The sidebar's replacement field opened: until it closes, keys that reach the text view
+    /// type nothing and leave nothing — they ask the field for focus (Esc closes it).
+    private func historyReplacementFieldBegan() {
+        guard let textView = historyController.editor as? LineformTextView else { return }
+        textView.historyReplacementFieldIsOpen = true
+        textView.historyReplacementFieldHandler = { request in
+            historyReplacementFieldSignal.send(request)
+        }
+    }
+
+    private func historyReplacementFieldEnded() {
+        (historyController.editor as? LineformTextView)?.historyReplacementFieldIsOpen = false
+        focusEditorForHistory()
     }
 
     /// History's keys (← → ↑ ↓ Esc) are the text view's: after the sidebar's replacement field

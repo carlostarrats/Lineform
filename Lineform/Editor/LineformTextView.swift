@@ -119,6 +119,12 @@ final class LineformTextView: NSTextView {
     /// call: asked only when the context menu is built.
     var historyCanAddHandler: ((NSRange) -> Bool)?
     var historyCommandHandler: ((HistoryTextCommand) -> Void)?
+    /// History's sidebar replacement field is open. Its keys belong to the field: one that reaches
+    /// this view instead (focus did not land, or was clicked away) types nothing and leaves
+    /// nothing — it asks for the field's focus back (`.focus`), or Esc closes the field
+    /// (`.cancel`). Cleared whenever History mode ends.
+    var historyReplacementFieldIsOpen = false
+    var historyReplacementFieldHandler: ((HistoryReplacementFieldRequest) -> Void)?
     /// Every USER text change, before it lands, trimmed to its minimal changed span: the replaced
     /// range (pre-change coordinates) and the inserted string. Whole-text replacements (formatting,
     /// Find & Replace) and their undo/redo arrive here trimmed too. Not called for History's own
@@ -298,6 +304,9 @@ final class LineformTextView: NSTextView {
     /// Attribute-only changes (`replacementString == nil`) are neither typing nor edits.
     override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
         if refusesEditForAI(replacement: replacementString) {
+            return false
+        }
+        if refusesEditForHistoryReplacementField(replacement: replacementString) {
             return false
         }
         if refusesHistoryModeReplacement(affectedCharRange, replacement: replacementString) {

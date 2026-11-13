@@ -130,6 +130,7 @@ extension LineformTextView {
         historyDisplayStorage = incoming
 
         guard let incoming else {
+            historyReplacementFieldIsOpen = false
             removeHistoryRecededInk()
             updateHistoryCounterSpacing(for: nil, anchoringAt: previous?.selectedPassage?.range.location)
             removeHistoryTrackingArea()
@@ -430,6 +431,21 @@ extension LineformTextView {
     /// (repo invariant: `keyDown` runs before input-method handling).
     func handleHistoryCommand(_ selector: Selector) -> Bool {
         guard historyDisplayStorage != nil else { return false }
+        if historyReplacementFieldIsOpen {
+            // The sidebar field owns the keys. Esc closes it (History stays on); a caret or
+            // selection move asks for its focus back. Text commands (Return, Delete) fall
+            // through to `shouldChangeText`, which refuses them the same way.
+            if selector == #selector(NSResponder.cancelOperation(_:)) {
+                historyReplacementFieldHandler?(.cancel)
+                return true
+            }
+            let name = NSStringFromSelector(selector)
+            if name.hasPrefix("move") || name.hasPrefix("page") {
+                historyReplacementFieldHandler?(.focus)
+                return true
+            }
+            return false
+        }
         let command: HistoryTextCommand
         switch selector {
         case #selector(NSResponder.moveLeft(_:)):
@@ -476,6 +492,16 @@ extension LineformTextView {
         historyCommandHandler?(.typedWhileInHistoryMode)
         let end = min(NSMaxRange(range), (string as NSString).length)
         setSelectedRange(NSRange(location: end, length: 0))
+        return true
+    }
+
+    /// A user text edit while History's replacement field is open: refused (the document is not
+    /// typed into and History mode stays on), and the field is asked to take focus. History's own
+    /// edits — the committed replacement lands while the flag is still set — pass.
+    func refusesEditForHistoryReplacementField(replacement: String?) -> Bool {
+        guard historyReplacementFieldIsOpen, historyDisplayStorage != nil, !isApplyingHistoryEdit,
+              replacement != nil else { return false }
+        historyReplacementFieldHandler?(.focus)
         return true
     }
 

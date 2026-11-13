@@ -401,6 +401,9 @@ struct OutlineSidebarView: View {
     var onAddHistoryReplacement: (String) -> Void = { _ in }
     /// The replacement field closed (committed or cancelled): the editor takes the keys back.
     var onHistoryReplacementFieldEnded: () -> Void = {}
+    var onHistoryReplacementFieldBegan: () -> Void = {}
+    /// The editor's requests to an open replacement field (see `HistoryReplacementFieldSignal`).
+    var historyReplacementFieldSignal = HistoryReplacementFieldSignal()
     /// Whether the editor is in History mode. Leaving it (Esc, typing, a document swap) returns
     /// the sidebar to the tab the user came from; entering it from elsewhere shows History.
     var isHistoryModeActive: Bool = false
@@ -443,6 +446,8 @@ struct OutlineSidebarView: View {
         onExitHistory: @escaping () -> Void = {},
         onAddHistoryReplacement: @escaping (String) -> Void = { _ in },
         onHistoryReplacementFieldEnded: @escaping () -> Void = {},
+        onHistoryReplacementFieldBegan: @escaping () -> Void = {},
+        historyReplacementFieldSignal: HistoryReplacementFieldSignal = HistoryReplacementFieldSignal(),
         isHistoryModeActive: Bool = false,
         onSelectTab: @escaping (OutlineSidebarTab) -> Bool = { _ in true },
         fileBrowserStore: OutlineFileBrowserStore? = nil,
@@ -470,6 +475,8 @@ struct OutlineSidebarView: View {
         self.onExitHistory = onExitHistory
         self.onAddHistoryReplacement = onAddHistoryReplacement
         self.onHistoryReplacementFieldEnded = onHistoryReplacementFieldEnded
+        self.onHistoryReplacementFieldBegan = onHistoryReplacementFieldBegan
+        self.historyReplacementFieldSignal = historyReplacementFieldSignal
         self.isHistoryModeActive = isHistoryModeActive
         self.onSelectTab = onSelectTab
         self.settings = settings
@@ -537,7 +544,9 @@ struct OutlineSidebarView: View {
                 onDeleteVersion: onDeleteHistoryVersion,
                 onExit: onExitHistory,
                 onAddReplacement: onAddHistoryReplacement,
-                onReplacementFieldEnded: onHistoryReplacementFieldEnded
+                onReplacementFieldEnded: onHistoryReplacementFieldEnded,
+                onReplacementFieldBegan: onHistoryReplacementFieldBegan,
+                replacementFieldSignal: historyReplacementFieldSignal
             )
         }
     }

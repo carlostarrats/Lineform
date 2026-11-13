@@ -63,6 +63,17 @@ enum HistorySidebarPresentation {
     /// The leading inset every line of History prose sits on: the empty-state text and the hint.
     static let textInset: CGFloat = 14
 
+    /// Focuses the replacement field one runloop turn after it was inserted. A `@FocusState`
+    /// write in the same pass as the insertion (a bare `.onAppear`) is routinely dropped on
+    /// macOS — the editor keeps first responder and the keystrokes meant for the field would
+    /// reach the document.
+    static func requestReplacementFieldFocus(
+        schedule: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) },
+        _ focus: @escaping () -> Void
+    ) {
+        schedule(focus)
+    }
+
     /// A version row's actions: its context menu AND its accessibility actions are built from
     /// this one list, so the two cannot drift apart.
     enum RowAction: CaseIterable {
@@ -74,6 +85,25 @@ enum HistorySidebarPresentation {
         }
     }
     static let rowActions = RowAction.allCases
+}
+
+/// What the editor asks of an open replacement field when a key reached the editor instead.
+enum HistoryReplacementFieldRequest: Equatable {
+    case focus
+    case cancel
+}
+
+/// Counters the sidebar watches; the editor bumps one per request.
+struct HistoryReplacementFieldSignal: Equatable {
+    var focus = 0
+    var cancel = 0
+
+    mutating func send(_ request: HistoryReplacementFieldRequest) {
+        switch request {
+        case .focus: focus += 1
+        case .cancel: cancel += 1
+        }
+    }
 }
 
 struct HistorySidebarView: View {
@@ -89,6 +119,11 @@ struct HistorySidebarView: View {
     /// The field closed (committed or cancelled): the editor takes the keys back, so ← → step
     /// versions again.
     var onReplacementFieldEnded: () -> Void = {}
+    /// The field opened: the editor refuses keys while it is open (they belong to the field).
+    var onReplacementFieldBegan: () -> Void = {}
+    /// Bumped by the editor when a key reached it while the field is open: refocus the field
+    /// (`focus`) or close it (`cancel`, Esc).
+    var replacementFieldSignal = HistoryReplacementFieldSignal()
 
     @State private var isEditingReplacement = false
     @State private var replacementDraft = ""
@@ -144,6 +179,11 @@ struct HistorySidebarView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Another passage (or none) is selected: an open field belonged to the old one.
         .onChange(of: model.hasSelection) { _, _ in closeReplacementField() }
+        .onChange(of: replacementFieldSignal.focus) { _, _ in
+            guard isEditingReplacement else { return }
+            HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
+        }
+        .onChange(of: replacementFieldSignal.cancel) { _, _ in closeReplacementField() }
     }
 
     /// "History" with Exit on the right — the Files root row's geometry: 28pt tall, the capsule
@@ -200,11 +240,14 @@ struct HistorySidebarView: View {
                 // Clicking away (into the text, another passage) closes the field unsaved.
                 if !focused, isEditingReplacement { closeReplacementField() }
             }
-            .onAppear { replacementFieldFocused = true }
+            .onAppear {
+                HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
+            }
         } else {
             Button(HistorySidebarPresentation.addReplacementTitle) {
                 replacementDraft = ""
                 isEditingReplacement = true
+                onReplacementFieldBegan()
             }
             .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
             .frame(maxWidth: .infinity, alignment: .center)

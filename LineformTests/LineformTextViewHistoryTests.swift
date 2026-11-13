@@ -454,6 +454,40 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertEqual(ink(7), HistoryPalette.recededInk(for: theme), "a hovered passage reads as clickable")
     }
 
+    /// History's replacement field is open but focus did not land in it (or was clicked away):
+    /// a keystroke reaching the editor must never type into the document or leave History —
+    /// it asks for the field's focus back. Esc closes the field, not History.
+    func testKeysWhileReplacementFieldIsOpenGoToTheField() {
+        let textView = makeTextView()
+        let first = passage(NSRange(location: 0, length: 17))
+        textView.historyDisplay = display([first], selected: first.id, counter: HistoryCounter(count: 2, current: 0))
+        var commands: [HistoryTextCommand] = []
+        var requests: [HistoryReplacementFieldRequest] = []
+        textView.historyCommandHandler = { commands.append($0) }
+        textView.historyReplacementFieldHandler = { requests.append($0) }
+        textView.historyReplacementFieldIsOpen = true
+        textView.setSelectedRange(NSRange(location: 2, length: 0))
+
+        textView.insertText("x", replacementRange: NSRange(location: NSNotFound, length: 0))
+        textView.doCommand(by: #selector(NSResponder.deleteBackward(_:)))
+        textView.doCommand(by: #selector(NSResponder.moveLeft(_:)))
+        textView.doCommand(by: #selector(NSResponder.moveDown(_:)))
+        textView.doCommand(by: #selector(NSResponder.cancelOperation(_:)))
+
+        XCTAssertEqual(textView.string, sample, "nothing typed into the document")
+        XCTAssertEqual(commands, [], "History neither left nor stepped")
+        XCTAssertEqual(requests, [.focus, .focus, .focus, .focus, .cancel])
+        XCTAssertNotNil(textView.historyDisplay)
+
+        // History's own edit (the committed replacement lands while the flag is still set) passes.
+        textView.performHistoryEdit {
+            XCTAssertTrue(textView.shouldChangeText(in: NSRange(location: 0, length: 5), replacementString: "Omega"))
+        }
+        // Leaving History mode clears the flag: normal writing types as usual.
+        textView.historyDisplay = nil
+        XCTAssertFalse(textView.historyReplacementFieldIsOpen)
+    }
+
     func testHistoryEditsAreNotMistakenForTyping() {
         let textView = makeTextView()
         textView.historyDisplay = display([passage(NSRange(location: 0, length: 5))])

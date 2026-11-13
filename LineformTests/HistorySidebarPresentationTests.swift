@@ -108,4 +108,16 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(S.horizontalPadding, 10)
         XCTAssertEqual(S.height, 22)
     }
+
+    /// The field's focus is requested a runloop turn AFTER it is inserted: a focus write in the
+    /// same pass as the insertion is dropped on macOS, and keystrokes then reach the editor.
+    func testReplacementFieldFocusIsRequestedAfterInsertion() {
+        var scheduled: [() -> Void] = []
+        var focused = false
+        HistorySidebarPresentation.requestReplacementFieldFocus(schedule: { scheduled.append($0) }) { focused = true }
+        XCTAssertFalse(focused, "not in the insertion pass")
+        XCTAssertEqual(scheduled.count, 1)
+        scheduled.forEach { $0() }
+        XCTAssertTrue(focused)
+    }
 }
