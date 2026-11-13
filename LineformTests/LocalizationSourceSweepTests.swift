@@ -70,6 +70,11 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "SpeechVoiceResolver.swift|Hant":
             "ISO 15924 script subtag compared against BCP-47 voice tags, never displayed.",
 
+        // Brand names. Never translated (plan Global Constraints).
+        "AIProvider.swift|Claude": "Brand name.",
+        "AIProvider.swift|Google": "Brand name.",
+        "AIProvider.swift|Anthropic": "Brand name.",
+
         // Typeface names. Never translated (plan Global Constraints); only the descriptive
         // "Monospaced" label is, and it is String(localized:) in the same array.
         "FontOption.swift|SF Pro": "Typeface name.",

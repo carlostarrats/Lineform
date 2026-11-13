@@ -11900,6 +11900,206 @@
           }
         }
       }
+    },
+    "Enter an address that starts with http:// or https://.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Enter an address that starts with http:// or https://."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduce una dirección que empiece por http:// o https://."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez une adresse commençant par http:// ou https://."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib eine Adresse ein, die mit http:// oder https:// beginnt."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "http:// または https:// で始まるアドレスを入力してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入以 http:// 或 https:// 开头的地址。"
+          }
+        }
+      }
+    },
+    "Lineform couldn't save the key in your Keychain.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Lineform couldn't save the key in your Keychain."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform no pudo guardar la clave en tu Llavero."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform n’a pas pu enregistrer la clé dans votre trousseau."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform konnte den Schlüssel nicht in deinem Schlüsselbund sichern."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform はキーをキーチェーンに保存できませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform 无法将密钥存入你的钥匙串。"
+          }
+        }
+      }
+    },
+    "Other": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Other"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otro"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autre"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他"
+          }
+        }
+      }
+    },
+    "Paste your API key first.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Paste your API key first."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero pega tu clave de API."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collez d’abord votre clé API."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge zuerst deinen API-Schlüssel ein."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先にAPIキーをペーストしてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先粘贴你的 API 密钥。"
+          }
+        }
+      }
+    },
+    "Plain http:// is only allowed for a server on this Mac. Use https:// for other addresses.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Plain http:// is only allowed for a server on this Mac. Use https:// for other addresses."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "http:// sin cifrar solo se permite para un servidor en este Mac. Usa https:// para otras direcciones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le http:// simple n’est autorisé que pour un serveur sur ce Mac. Utilisez https:// pour les autres adresses."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unverschlüsseltes http:// ist nur für einen Server auf diesem Mac erlaubt. Verwende für andere Adressen https://."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暗号化されない http:// は、この Mac 上のサーバにのみ使用できます。それ以外のアドレスには https:// を使用してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "纯 http:// 仅允许用于这台 Mac 上的服务器。其他地址请使用 https://。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
