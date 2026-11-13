@@ -119,14 +119,11 @@ final class LineformTextView: NSTextView {
     /// call: asked only when the context menu is built.
     var historyCanAddHandler: ((NSRange) -> Bool)?
     var historyCommandHandler: ((HistoryTextCommand) -> Void)?
-    /// Every USER text change, before it lands: the replaced range (pre-change coordinates) and the
-    /// inserted string. Not called for History's own edits (`performHistoryEdit`), attribute-only
-    /// changes, or whole-text replacements (those call `historyWholeTextReplacementHandler`).
+    /// Every USER text change, before it lands, trimmed to its minimal changed span: the replaced
+    /// range (pre-change coordinates) and the inserted string. Whole-text replacements (formatting,
+    /// Find & Replace) and their undo/redo arrive here trimmed too. Not called for History's own
+    /// edits (`performHistoryEdit`), attribute-only changes, or edits that change nothing.
     var historyUserEditHandler: ((NSRange, String) -> Void)?
-    /// A whole-document replacement (formatting command, Find & Replace) that is not reported edit
-    /// by edit: History forgets its live ranges and re-finds passages literally.
-    var historyWholeTextReplacementHandler: (() -> Void)?
-    var isApplyingWholeTextReplacement = false
     // Storage for `LineformTextView+History.swift` (extensions cannot hold stored properties).
     // Not for use elsewhere.
     var historyDisplayStorage: HistoryModeDisplay?
@@ -293,6 +290,15 @@ final class LineformTextView: NSTextView {
             noteHistoryUserEditIfNeeded(affectedCharRange, replacement: replacementString)
         }
         return allowed
+    }
+
+    /// History mode's commands for VoiceOver, keyboard-only and Switch Control users — the mirror
+    /// of its hit-tested click and arrow-key paths. Present only while History mode is on; the
+    /// text view's own AX value and label are never touched.
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        let inherited = super.accessibilityCustomActions()
+        guard historyDisplay != nil else { return inherited }
+        return (inherited ?? []) + historyAccessibilityCustomActions()
     }
 
     override func cursorUpdate(with event: NSEvent) {
@@ -1960,10 +1966,7 @@ final class LineformTextView: NSTextView {
     private func applyWholeTextReplacement(_ edit: MarkdownEdit) {
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
 
-        isApplyingWholeTextReplacement = true
-        let allowed = shouldChangeText(in: fullRange, replacementString: edit.text)
-        isApplyingWholeTextReplacement = false
-        guard allowed else {
+        guard shouldChangeText(in: fullRange, replacementString: edit.text) else {
             return
         }
 

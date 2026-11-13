@@ -552,4 +552,192 @@ final class DocumentHistoryControllerTests: XCTestCase {
         reopened.open(url: moved, text: text)
         XCTAssertTrue(reopened.hasHistory)
     }
+    // MARK: - Final review fixes
+
+    private func grouped(_ manager: UndoManager, _ body: () -> Void) {
+        manager.beginUndoGrouping()
+        body()
+        manager.endUndoGrouping()
+    }
+
+    /// A text view on its own undo stack, explicit groups (no run loop to close them), with
+    /// `sentence` added to History and given a second version by typing.
+    private func attachedEditedPassage(store: PassageHistoryPersisting, url: URL?, doc: String? = nil,
+                                       passages: [String]? = nil) -> (DocumentHistoryController, LineformTextView, UndoManager) {
+        let doc = doc ?? text
+        let controller = makeController(store: store)
+        let vendor = UndoManagerVendor()
+        vendor.manager.groupsByEvent = false
+        let textView = makeTextView(doc)
+        textView.delegate = vendor
+        objc_setAssociatedObject(textView, "vendor", vendor, .OBJC_ASSOCIATION_RETAIN)
+        controller.attach(textView)
+        controller.open(url: url, text: doc)
+        for needle in passages ?? [sentence] {
+            _ = controller.handle(.add(range(of: needle, in: textView.string)), text: textView.string)
+        }
+        return (controller, textView, vendor.manager)
+    }
+
+    private func typeInView(_ textView: LineformTextView, _ manager: UndoManager, replacing old: String, with new: String) {
+        textView.setSelectedRange(range(of: old, in: textView.string))
+        grouped(manager) { textView.insertText(new, replacementRange: NSRange(location: NSNotFound, length: 0)) }
+        textView.breakUndoCoalescing()
+    }
+
+    private func versionTexts(_ controller: DocumentHistoryController, at needle: String, in string: String) throws -> [String] {
+        XCTAssertTrue(controller.enterHistoryMode(text: string), "History mode needs a passage")
+        let r = range(of: needle, in: string)
+        let id = try XCTUnwrap(controller.display?.passages.first { $0.range == r }?.id, needle)
+        _ = controller.handle(.select(id), text: string)
+        let texts = controller.sidebarModel.versions.map(\.text)
+        _ = controller.handle(.exit, text: string)
+        return texts
+    }
+
+    /// C1: ⌘B, then a save (persist re-locates), then ⌘Z. NSTextView undoes the formatting as one
+    /// document-spanning edit; reported as such it straddled every passage and dropped them all.
+    func testFormattingThenSaveThenUndoKeepsUnrelatedPassages() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let (controller, textView, manager) = attachedEditedPassage(store: store, url: a)
+        typeInView(textView, manager, replacing: "beta", with: "BETA")
+
+        textView.setSelectedRange(range(of: "theta", in: textView.string))
+        grouped(manager) { textView.toggleBoldMarkdown(nil) }
+        XCTAssertTrue(textView.string.contains("**theta**"))
+        controller.documentSaved(text: textView.string)
+        manager.undo()
+        XCTAssertFalse(textView.string.contains("**"))
+        controller.documentSaved(text: textView.string)
+
+        XCTAssertTrue(controller.hasHistory, "undoing formatting elsewhere must not drop the passage")
+        XCTAssertEqual(try versionTexts(controller, at: "Alpha BETA gamma delta.", in: textView.string),
+                       ["Alpha beta gamma delta.", "Alpha BETA gamma delta."])
+    }
+
+    /// C1: Find & Replace (one Replace) → save → undo.
+    func testFindReplaceThenSaveThenUndoKeepsUnrelatedPassages() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let (controller, textView, manager) = attachedEditedPassage(store: store, url: a)
+        typeInView(textView, manager, replacing: "beta", with: "BETA")
+
+        let replaced = textView.string.replacingOccurrences(of: "zeta", with: "ZETA")
+        grouped(manager) {
+            textView.applyExternalReplacement(MarkdownEdit(text: replaced, selectedRange: range(of: "ZETA", in: replaced)))
+        }
+        controller.documentSaved(text: textView.string)
+        manager.undo()
+        XCTAssertTrue(textView.string.contains("zeta"))
+        controller.documentSaved(text: textView.string)
+
+        XCTAssertTrue(controller.hasHistory)
+        XCTAssertEqual(try versionTexts(controller, at: "Alpha BETA gamma delta.", in: textView.string),
+                       ["Alpha beta gamma delta.", "Alpha BETA gamma delta."])
+    }
+
+    /// C1: leave History mode having stepped two passages (the collapse spans both), undo, save,
+    /// redo. Redo replayed the text before the versions; the collapse straddled both passages.
+    func testExitUndoSaveRedoKeepsHistoryAndTheExitVersions() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let second = "Epsilon zeta eta theta."
+        let (controller, textView, manager) = attachedEditedPassage(store: store, url: a, passages: [sentence, second])
+        typeInView(textView, manager, replacing: "beta", with: "BETA")
+        typeInView(textView, manager, replacing: "zeta", with: "ZETA")
+        let edited = textView.string
+
+        XCTAssertTrue(controller.enterHistoryMode(text: textView.string))
+        _ = controller.handle(.moveSelection(1), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+        _ = controller.handle(.moveSelection(1), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+        XCTAssertEqual(textView.string, text)
+        grouped(manager) { _ = controller.handle(.exit, text: textView.string) }
+
+        manager.undo()
+        XCTAssertEqual(textView.string, edited)
+        controller.documentSaved(text: textView.string)
+        manager.redo()
+        XCTAssertEqual(textView.string, text)
+        controller.documentSaved(text: textView.string)
+
+        XCTAssertTrue(controller.hasHistory, "redo must not drop the passages the collapse spans")
+        XCTAssertTrue(controller.enterHistoryMode(text: textView.string))
+        XCTAssertEqual(controller.display?.passages.count, 2)
+        for needle in [sentence, second] {
+            let r = range(of: needle, in: textView.string)
+            let id = try XCTUnwrap(controller.display?.passages.first { $0.range == r }?.id, needle)
+            _ = controller.handle(.select(id), text: textView.string)
+            XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [true, false],
+                           "the version current at exit is current again after redo")
+        }
+    }
+
+    /// I2: quitting persists what was typed into a passage since the last save.
+    func testWillTerminatePersistsTypedPassageText() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let center = NotificationCenter()
+        let controller = DocumentHistoryController(store: store, now: { [fixedDate] in fixedDate }, notificationCenter: center)
+        let textView = makeTextView(text)
+        controller.attach(textView)
+        controller.open(url: a, text: text)
+        _ = controller.handle(.add(range(of: sentence, in: text)), text: text)
+        textView.setSelectedRange(range(of: "beta", in: textView.string))
+        textView.insertText("BETA", replacementRange: NSRange(location: NSNotFound, length: 0))
+
+        center.post(name: NSApplication.willTerminateNotification, object: NSApp)
+
+        let reopened = makeController(store: store)
+        reopened.open(url: a, text: textView.string)
+        XCTAssertTrue(reopened.hasHistory, "the typed current version reached the store before quit")
+    }
+
+    /// I1: pruning walks every stored document's bookmark (network volumes, unplugged drives);
+    /// it runs off the main thread and opening a document never waits for it.
+    func testPruneRunsOffTheMainThreadAndOpenDoesNotWait() throws {
+        final class SlowPruneStore: PassageHistoryPersisting {
+            let started = XCTestExpectation(description: "prune ran")
+            let release = DispatchSemaphore(value: 0)
+            var prunedOnMain: Bool?
+            func load(for url: URL) -> DocumentHistory { DocumentHistory(passages: []) }
+            func save(_ history: DocumentHistory, for url: URL) {}
+            func retarget(from old: URL, to new: URL) {}
+            func retargetDirectory(from oldDir: URL, to newDir: URL) {}
+            func prune(now: Date) {
+                prunedOnMain = Thread.isMainThread
+                started.fulfill()
+                _ = release.wait(timeout: .now() + 5)
+            }
+            func clearAll() {}
+        }
+        let store = SlowPruneStore()
+        let controller = makeController(store: store)
+        let opened = Date()
+        controller.open(url: directory.appendingPathComponent("a.md"), text: text)
+        XCTAssertLessThan(Date().timeIntervalSince(opened), 1, "open must not wait for prune")
+        store.release.signal()
+        wait(for: [store.started], timeout: 5)
+        XCTAssertEqual(store.prunedOnMain, false)
+    }
+    /// Prune is asynchronous now, so a document opened before it gets there applies the 30-day
+    /// rule itself — otherwise its next save writes the stale passages back.
+    func testOpenDropsPassagesUntouchedFor30Days() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let old = fixedDate.addingTimeInterval(-FilePassageHistoryStore.staleInterval - 60)
+        let staleHistory = DocumentHistory(passages: [HistoryPassage(
+            id: UUID(), level: .sentence,
+            versions: [HistoryVersion(text: sentence, author: .you, createdAt: old),
+                       HistoryVersion(text: sentence, author: .you, createdAt: old)],
+            currentIndex: 1, parentID: nil, parentVersionIndex: nil,
+            contextBefore: "", contextAfter: " Epsilon zeta eta theta.", lastTouched: old)])
+        store.save(staleHistory, for: a)
+
+        let controller = makeController(store: store)
+        controller.open(url: a, text: text)
+        XCTAssertFalse(controller.hasHistory, "a passage untouched for 30 days is gone at open")
+    }
 }

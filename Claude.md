@@ -138,7 +138,9 @@ file named after it carries the full story and the reasoning.
 - History never writes into the document file. The store lives under Application Support in the app container; nothing is stored until a version is kept.
 - Normal writing draws NO history markers. History mode is the only place history is drawn, and its receded ink is a layout-manager temporary attribute, never a text-storage change.
 - History-mode steps are undo-DISABLED (the coordinator vends an empty stand-in `UndoManager` while the mode is up) and collapse into ONE undoable edit on exit, plus a version-restore undo action — one ⌘Z after leaving restores text and current versions.
-- User edits reach History only through `LineformTextView.shouldChangeText(in:replacementString:)`; History's own edits run in `performHistoryEdit {}`; every wholesale text replacement calls `noteWholeTextReplacement()`. Reported as one edit, a whole-document replacement drops every passage.
+- User edits reach History only through `LineformTextView.shouldChangeText(in:replacementString:)`, TRIMMED to their minimal changed span (`HistoryUndoCollapse.minimalEdit`) before the engine sees them; History's own edits run in `performHistoryEdit {}`; a write that bypasses the text view (binding) calls `noteWholeTextReplacement()`. NSTextView undoes/redoes formatting and Find & Replace as ONE document-spanning edit — untrimmed, one ⌘Z after a save dropped every passage.
+- `PassageHistoryText.locate` returns nil rather than choose between identical occurrences without a clear margin (`max(4, 25%)`); a tie went to the first and rewrote text the writer never selected. History may disappear; wrong text is never replaced.
+- Prune deletes a file's history only on POSITIVE evidence (bookmark in the Trash, or folder listable and file absent) and runs off the main thread; an unplugged drive or network volume is not evidence.
 - `DocumentHistoryController.reloadFromStore()` (Clear History) replaces the engine BEFORE leaving History mode — leaving saves, and the other order writes the cleared history straight back.
 
 **Rendering** (`rendering.md`)

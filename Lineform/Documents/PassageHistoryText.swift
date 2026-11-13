@@ -96,18 +96,26 @@ enum PassageHistoryText {
         return (before, after)
     }
 
+    /// The least lead the best of several identical occurrences must have over the runner-up:
+    /// `max(minimumMargin, best × marginShare)`. Anything closer is a guess (spec §5.1).
+    static let minimumMargin = 4
+    static let marginShare = 0.25
+
     /// Finds `needle` inside `scope`, choosing the occurrence whose surrounding text best matches
     /// `before`/`after` (longest common suffix plus prefix, plus one per empty context whose
     /// candidate sits on the matching scope edge). Returns nil rather than guess: no
-    /// occurrence, a best score of 0 (even for a single occurrence), or only occurrences that split
-    /// a composed character or start/end mid-word. Ties above 0 resolve to the first.
+    /// occurrence, a best score of 0 (even for a single occurrence), only occurrences that split
+    /// a composed character or start/end mid-word (`_` is a word character: `foo` is not in
+    /// `foo_bar`), or — when several occurrences qualify — a best score that does not lead the
+    /// runner-up by `max(4, 25% of best)`. A tie never resolves to the first: replacing the wrong
+    /// occurrence rewrites text the writer never selected, while dropping only loses history.
     static func locate(_ needle: String, before: String, after: String, in text: String, within scope: NSRange) -> NSRange? {
         let ns = text as NSString
         let needleLength = (needle as NSString).length
         guard needleLength > 0 else { return nil }
         let scopeStart = (scope.location == NSNotFound || scope.location < 0) ? ns.length : min(scope.location, ns.length)
         let scopeEnd = scopeStart + min(max(scope.length, 0), ns.length - scopeStart)
-        let alnum = CharacterSet.alphanumerics
+        let alnum = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
         func isWordUnit(_ unit: unichar) -> Bool {
             Unicode.Scalar(unit).map { alnum.contains($0) } ?? false
         }
@@ -153,7 +161,13 @@ enum PassageHistoryText {
         }
 
         // Never guess: no context agreement at all means the passage is treated as gone.
-        guard let best = candidates.map(\.score).max(), best > 0 else { return nil }
-        return candidates.first { $0.score == best }?.range
+        let ranked = candidates.sorted { $0.score > $1.score }
+        guard let winner = ranked.first, winner.score > 0 else { return nil }
+        if ranked.count > 1 {
+            let runnerUp = ranked[1].score
+            let margin = max(Self.minimumMargin, Int((Double(winner.score) * Self.marginShare).rounded(.up)))
+            guard winner.score >= runnerUp + margin else { return nil }
+        }
+        return winner.range
     }
 }

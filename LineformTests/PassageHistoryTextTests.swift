@@ -127,4 +127,33 @@ final class PassageHistoryTextTests: XCTestCase {
         XCTAssertEqual(PassageHistoryText.aligned(NSRange(location: 99, length: 1), in: text), NSRange(location: 5, length: 0))
         XCTAssertEqual(PassageHistoryText.aligned(NSRange(location: Int.max - 1, length: 5), in: text), NSRange(location: 5, length: 0))
     }
+    // MARK: - Final review: never guess between identical occurrences
+
+    /// The reviewer's probe: the target is the SECOND "quick", but after the writer retyped the
+    /// text around it both occurrences agree with the stored context equally well. A tie (or a
+    /// near tie) is a guess, and a guess can rewrite text the writer never selected.
+    func testLocateRefusesNearTieBetweenIdenticalOccurrences() {
+        let text = "A quick note. Later, two quick note"
+        let all = NSRange(location: 0, length: (text as NSString).length)
+        XCTAssertNil(PassageHistoryText.locate("quick", before: "Later, one ", after: " note", in: text, within: all),
+                     "an exact tie between two occurrences must not resolve to the first")
+        // A margin of a couple of characters is still a guess.
+        let near = "x quick note. y, two quick notes"
+        XCTAssertNil(PassageHistoryText.locate("quick", before: " two ", after: " note.", in: near,
+                                               within: NSRange(location: 0, length: (near as NSString).length)))
+        // A clear winner is still found.
+        let clear = "A quick note. Then a long line of words, a quick brown fox. End."
+        let second = (clear as NSString).range(of: "quick", options: .backwards)
+        let ctx = PassageHistoryText.context(around: second, in: clear)
+        XCTAssertEqual(PassageHistoryText.locate("quick", before: ctx.before, after: ctx.after, in: clear,
+                                                 within: NSRange(location: 0, length: (clear as NSString).length)), second)
+    }
+
+    func testLocateTreatsUnderscoreAsWordCharacter() {
+        let text = "call foo_bar now"
+        let all = NSRange(location: 0, length: (text as NSString).length)
+        XCTAssertNil(PassageHistoryText.locate("foo", before: "call ", after: "_bar now", in: text, within: all),
+                     "foo must not match inside foo_bar")
+        XCTAssertNil(PassageHistoryText.locate("bar", before: "call foo_", after: " now", in: text, within: all))
+    }
 }

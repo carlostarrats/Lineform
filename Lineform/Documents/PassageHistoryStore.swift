@@ -1,7 +1,8 @@
 import Foundation
 
 /// Persistence for per-document passage history. Failure-tolerant by contract: a missing or
-/// corrupt file loads as empty and no method throws to the caller.
+/// corrupt file loads as empty and no method throws to the caller. Thread-safe by contract:
+/// `prune` runs on a background queue while the main thread loads and saves.
 protocol PassageHistoryPersisting: AnyObject {
     func load(for url: URL) -> DocumentHistory
     func save(_ history: DocumentHistory, for url: URL)
@@ -38,13 +39,15 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
     }
 
     private let directory: URL
-    private let fileExists: (URL) -> Bool
+    private let isConfirmedMissing: (URL) -> Bool
     private let fileManager = FileManager.default
     private let lock = NSLock()
 
-    init(directory: URL, fileExists: @escaping (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }) {
+    /// `isConfirmedMissing` must return true ONLY on positive evidence the file is gone; the
+    /// default is `confirmedMissing(_:)`.
+    init(directory: URL, isConfirmedMissing: @escaping (URL) -> Bool = FilePassageHistoryStore.confirmedMissing) {
         self.directory = directory
-        self.fileExists = fileExists
+        self.isConfirmedMissing = isConfirmedMissing
     }
 
     static func defaultDirectory(home: URL) -> URL {
@@ -132,27 +135,60 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         writeIndex(index)
     }
 
+    /// Drops history for files KNOWN to be deleted and passages untouched for 30 days.
+    ///
+    /// Deletion needs positive evidence: the bookmark resolves into the Trash, or the file's
+    /// folder can be listed and the file is not in it (`isConfirmedMissing`). An unplugged drive,
+    /// an unmounted network volume or a folder the sandbox cannot read is not evidence — that
+    /// history stays and the 30-day rule cleans it up. Bookmarks resolve without mounting or UI.
+    ///
+    /// The slow part (resolving each bookmark, checking each folder) runs WITHOUT the lock, so a
+    /// `load` or `save` on the main thread never waits behind it; the decisions are then applied
+    /// under the lock to the index as it is at that moment, skipping entries changed meanwhile.
     func prune(now: Date) {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
         // Nothing stored yet: write nothing either (not even an empty index).
-        guard fileManager.fileExists(atPath: indexURL.path) else { return }
+        guard fileManager.fileExists(atPath: indexURL.path) else { lock.unlock(); return }
+        let snapshot = readIndex()
+        lock.unlock()
+
+        enum Fate { case deleted, moved(pathKey: String, bookmark: Data?), unchanged }
+        var fates: [UUID: (pathKey: String, fate: Fate)] = [:]
+        for entry in snapshot {
+            let fate: Fate
+            if let resolved = Self.resolve(entry.bookmark) {
+                if Self.isTrashed(resolved) {
+                    // A bookmark follows a file into the Trash; a trashed file is a deleted file.
+                    fate = .deleted
+                } else {
+                    let key = FileIdentity.key(for: resolved)
+                    fate = key == entry.pathKey ? .unchanged : .moved(pathKey: key, bookmark: Self.bookmark(for: resolved))
+                }
+            } else if isConfirmedMissing(URL(fileURLWithPath: entry.pathKey)) {
+                fate = .deleted
+            } else {
+                fate = .unchanged
+            }
+            fates[entry.id] = (entry.pathKey, fate)
+        }
+
+        lock.lock(); defer { lock.unlock() }
+        guard fileManager.fileExists(atPath: indexURL.path) else { return }  // cleared meanwhile
         let cutoff = now.addingTimeInterval(-Self.staleInterval)
         var kept: [IndexEntry] = []
         for var entry in readIndex() {
-            if let resolved = Self.resolve(entry.bookmark) {
-                // A bookmark follows a file into the Trash; a trashed file is a deleted file.
-                if Self.isTrashed(resolved) {
+            // Only an entry still exactly as it was checked takes the decision.
+            if let decided = fates[entry.id], decided.pathKey == entry.pathKey {
+                switch decided.fate {
+                case .deleted:
                     removeHistoryFile(entry.id)
                     continue
+                case let .moved(pathKey, bookmark):
+                    entry.pathKey = pathKey
+                    entry.bookmark = bookmark
+                case .unchanged:
+                    break
                 }
-                let key = FileIdentity.key(for: resolved)
-                if key != entry.pathKey {
-                    entry.pathKey = key
-                    entry.bookmark = Self.bookmark(for: resolved)
-                }
-            } else if !fileExists(URL(fileURLWithPath: entry.pathKey)) {
-                removeHistoryFile(entry.id)
-                continue
             }
             var history = readHistory(entry.id)
             let fresh = history.passages.filter { $0.lastTouched >= cutoff }
@@ -251,9 +287,23 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         return url.pathComponents.contains(".Trash")
     }
 
+    /// Never mounts a volume or shows UI: an unreachable drive simply fails to resolve.
     private static func resolve(_ bookmark: Data?) -> URL? {
         guard let bookmark else { return nil }
         var stale = false
-        return try? URL(resolvingBookmarkData: bookmark, options: [.withoutUI], relativeTo: nil, bookmarkDataIsStale: &stale)
+        return try? URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withoutMounting],
+                        relativeTo: nil, bookmarkDataIsStale: &stale)
+    }
+
+    /// Positive evidence that `url` is gone: its folder can be LISTED (so its volume is mounted
+    /// and readable) and the file is neither in that listing nor present. A folder that cannot be
+    /// listed — unplugged drive, unmounted network volume, outside the sandbox — proves nothing.
+    static func confirmedMissing(_ url: URL) -> Bool {
+        let fileManager = FileManager.default
+        let folder = url.deletingLastPathComponent()
+        guard let names = try? fileManager.contentsOfDirectory(atPath: folder.path) else { return false }
+        let name = url.lastPathComponent
+        if names.contains(where: { $0.compare(name, options: [.caseInsensitive]) == .orderedSame }) { return false }
+        return !fileManager.fileExists(atPath: url.path)
     }
 }

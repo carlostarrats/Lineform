@@ -65,6 +65,32 @@ enum HistoryModeAnnouncement {
     }
 }
 
+/// History mode's commands as accessibility custom actions on the text view, in rotor order. The
+/// click and arrow-key paths are hit-tested; this is their mirror for assistive tech.
+enum HistoryModeAccessibilityAction: CaseIterable {
+    case nextPassage, previousPassage, previousVersion, nextVersion, exit
+
+    var name: String {
+        switch self {
+        case .nextPassage: return String(localized: "Select Next Passage")
+        case .previousPassage: return String(localized: "Select Previous Passage")
+        case .previousVersion: return String(localized: "Previous Version")
+        case .nextVersion: return String(localized: "Next Version")
+        case .exit: return String(localized: "Exit History")
+        }
+    }
+
+    var command: HistoryTextCommand {
+        switch self {
+        case .nextPassage: return .moveSelection(1)
+        case .previousPassage: return .moveSelection(-1)
+        case .previousVersion: return .step(-1)
+        case .nextVersion: return .step(1)
+        case .exit: return .exit
+        }
+    }
+}
+
 /// What the History controller drives in the editor. Implemented by `LineformTextView`.
 @MainActor
 protocol HistoryEditorSurface: AnyObject {
@@ -72,9 +98,12 @@ protocol HistoryEditorSurface: AnyObject {
     var historyDisplay: HistoryModeDisplay? { get set }
     var undoManager: UndoManager? { get }
     func applyHistoryEdit(_ edit: HistoryEdit)
-    /// True when `collapse` was applied as an undoable edit.
+    /// True when `collapse` was applied as an undoable edit. `beforeCollapse` runs, with undo
+    /// registration enabled, immediately before the collapse is applied — in the same undo group,
+    /// so whatever it registers is undone AFTER the collapse and redone BEFORE it.
     @discardableResult
-    func applyHistoryExit(restoring entry: String, collapse: HistoryEdit?, expecting current: String) -> Bool
+    func applyHistoryExit(restoring entry: String, collapse: HistoryEdit?, expecting current: String,
+                          beforeCollapse: () -> Void) -> Bool
 }
 
 extension LineformTextView: HistoryEditorSurface {}
@@ -346,16 +375,25 @@ extension LineformTextView {
     }
 
     /// Sent from `shouldChangeText` once AppKit allowed a text edit. History's own edits are
-    /// skipped (the engine already moved its live ranges for them); a whole-text replacement is
-    /// reported as an invalidation, never as one edit spanning the document (which would drop
-    /// every passage).
+    /// skipped (the engine already moved its live ranges for them).
+    ///
+    /// Every edit is TRIMMED to its minimal changed span first (`HistoryUndoCollapse.minimalEdit`
+    /// of the replaced text against the replacement). Formatting commands and Find & Replace
+    /// replace the whole text, and NSTextView undoes and redoes those as one document-spanning
+    /// `shouldChangeText` — reported untrimmed it straddled every passage and dropped them all.
+    /// Trimmed, passages outside the change keep their live ranges. Reads only the replaced range
+    /// (empty while typing), never the document.
     func noteHistoryUserEditIfNeeded(_ range: NSRange, replacement: String) {
-        guard !isApplyingHistoryEdit else { return }
-        if isApplyingWholeTextReplacement {
-            historyWholeTextReplacementHandler?()
-        } else {
-            historyUserEditHandler?(range, replacement)
+        guard !isApplyingHistoryEdit, let handler = historyUserEditHandler else { return }
+        let length = (string as NSString).length
+        guard range.location != NSNotFound, range.location >= 0, NSMaxRange(range) <= length else {
+            handler(range, replacement)
+            return
         }
+        let replaced = range.length == 0 ? "" : (string as NSString).substring(with: range)
+        guard let minimal = HistoryUndoCollapse.minimalEdit(from: replaced, to: replacement) else { return }
+        handler(NSRange(location: range.location + minimal.range.location, length: minimal.range.length),
+                minimal.replacement)
     }
 
     // MARK: - Applying History's edits
@@ -377,7 +415,8 @@ extension LineformTextView {
     /// when this view no longer shows the text History mode left (`expecting`) — it then belongs
     /// to another document and must not be touched.
     @discardableResult
-    func applyHistoryExit(restoring entry: String, collapse: HistoryEdit?, expecting current: String) -> Bool {
+    func applyHistoryExit(restoring entry: String, collapse: HistoryEdit?, expecting current: String,
+                          beforeCollapse: () -> Void = {}) -> Bool {
         historyDisplay = nil
         guard let collapse, string == current else { return false }
         performHistoryEdit {
@@ -388,6 +427,7 @@ extension LineformTextView {
                 manager?.enableUndoRegistration()
             }
             breakUndoCoalescing()
+            beforeCollapse()
             replaceForHistory(collapse.range, with: collapse.replacement)
             breakUndoCoalescing()
         }
@@ -477,6 +517,16 @@ extension LineformTextView {
     }
 
     // MARK: - Accessibility
+
+    func historyAccessibilityCustomActions() -> [NSAccessibilityCustomAction] {
+        HistoryModeAccessibilityAction.allCases.map { action in
+            NSAccessibilityCustomAction(name: action.name) { [weak self] in
+                guard let self, self.historyDisplayStorage != nil, let handler = self.historyCommandHandler else { return false }
+                handler(action.command)
+                return true
+            }
+        }
+    }
 
     private func announceHistorySelection(_ display: HistoryModeDisplay) {
         guard let passage = display.selectedPassage else { return }

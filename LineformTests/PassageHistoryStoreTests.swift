@@ -16,8 +16,8 @@ final class PassageHistoryStoreTests: XCTestCase {
     }
 
     private func makeStore() -> FilePassageHistoryStore {
-        FilePassageHistoryStore(directory: directory, fileExists: { [unowned self] url in
-            !self.missing.contains(url.path)
+        FilePassageHistoryStore(directory: directory, isConfirmedMissing: { [unowned self] url in
+            self.missing.contains(url.path)
         })
     }
 
@@ -214,5 +214,27 @@ final class PassageHistoryStoreTests: XCTestCase {
 
         XCTAssertEqual(store.load(for: new), fresh, "the newly kept versions survive the clash")
         XCTAssertEqual(storedFiles().filter { $0 != "index.json" }.count, 1, "the stale entry is deleted")
+    }
+    // MARK: - Final review I1: delete only on positive evidence
+
+    /// An unplugged external drive, an unmounted network volume, or a folder the sandbox cannot
+    /// see: the file is not KNOWN to be gone, so its history stays (the 30-day rule cleans up).
+    func testPruneKeepsHistoryWhenTheFilesFolderIsUnreachable() {
+        let store = FilePassageHistoryStore(directory: directory)
+        let offline = URL(fileURLWithPath: "/Volumes/LineformUnpluggedDrive-\(UUID().uuidString)/notes/a.md")
+        let saved = history(touched: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down)))
+        store.save(saved, for: offline)
+        store.prune(now: Date())
+        XCTAssertEqual(store.load(for: offline), saved)
+    }
+
+    func testPruneDropsHistoryWhenTheFolderIsReachableAndTheFileIsGone() throws {
+        let work = directory.appendingPathComponent("work", isDirectory: true)
+        let file = try realFile("deleted.md", in: work)
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store"))
+        store.save(history(touched: Date()), for: file)
+        try FileManager.default.removeItem(at: file)
+        store.prune(now: Date())
+        XCTAssertTrue(store.load(for: file).isEmpty)
     }
 }

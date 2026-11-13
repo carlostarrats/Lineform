@@ -639,4 +639,29 @@ final class DocumentHistoryEngineTests: XCTestCase {
                                                 accepted: ai, in: accepted), sentenceID)
         }
     }
+    // MARK: - Final review: a literal re-find never picks the other occurrence
+
+    /// The reviewer's probe end to end: a word passage on the second of two identical words, the
+    /// text around it retyped (tracked correctly), then a wholesale change forces a literal
+    /// re-find. A step may drop the passage; it must never aim at the first "quick".
+    func testStepAfterInvalidateNeverTargetsTheOtherIdenticalOccurrence() throws {
+        var text = "A quick note. Then a long line of words, a quick brown fox. End."
+        var engine = makeEngine()
+        let second = (text as NSString).range(of: "quick", options: .backwards)
+        let id = try XCTUnwrap(engine.add(second, author: .you, in: text))
+        _ = engine.locateAll(in: text)
+        text = typing(&engine, "Then a long line of words, a ", with: "Later, one ", in: text)
+        text = typing(&engine, " brown fox. End.", with: " note", in: text)
+        XCTAssertEqual(engine.locateAll(in: text).first?.range, (text as NSString).range(of: "quick", options: .backwards))
+        text = typing(&engine, "Later, one ", with: "Later, two ", in: text)
+        engine.invalidateLiveRanges()
+
+        let truth = (text as NSString).range(of: "quick", options: .backwards)
+        let located = engine.locateAll(in: text)
+        XCTAssertFalse(located.contains { $0.range == (text as NSString).range(of: "quick") },
+                       "the first quick is not the passage")
+        if let edit = engine.step(id, by: -1, in: text) {
+            XCTAssertEqual(edit.range, truth, "a step may only ever rewrite the passage's own text")
+        }
+    }
 }

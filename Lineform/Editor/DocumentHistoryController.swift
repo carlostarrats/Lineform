@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -100,8 +101,14 @@ final class DocumentHistoryController: ObservableObject {
     /// A version was deleted this session: indices no longer line up with `entryVersions`.
     private var sessionDeletedVersions = false
 
-    /// Stores already pruned this app session (one entry in production: the shared store).
-    private static var prunedStores = Set<ObjectIdentifier>()
+    /// Stores already pruned this app session (one entry in production: the shared store). Held
+    /// weakly: an `ObjectIdentifier` of a freed store can be reused by a new one, which would then
+    /// never be pruned.
+    private static var prunedStores: [WeakStore] = []
+    private struct WeakStore { weak var store: PassageHistoryPersisting? }
+    /// Pruning resolves a bookmark per stored document (network volumes, unplugged drives): never
+    /// on the main thread, and opening a document never waits for it.
+    private static let pruneQueue = DispatchQueue(label: "com.lineform.history.prune", qos: .utility)
 
     /// The app's one store, under the (sandboxed) home's Application Support. Creating it touches
     /// nothing on disk.
@@ -113,6 +120,9 @@ final class DocumentHistoryController: ObservableObject {
     /// on that store re-reads it, so no open editor keeps — or later writes back — cleared history.
     static let didClearAllNotification = Notification.Name("Lineform.historyDidClearAll")
     private var clearAllObservation: AnyCancellable?
+    /// Quit and window close persist what was typed into passages since the last save. Observed
+    /// here — never wired in `applicationDidFinishLaunching` (the test host is the app).
+    private var lifecycleObservations: [AnyCancellable] = []
 
     init(store: PassageHistoryPersisting, now: @escaping () -> Date = Date.init,
          notificationCenter: NotificationCenter = .default) {
@@ -124,6 +134,27 @@ final class DocumentHistoryController: ObservableObject {
             .sink { [weak self] _ in
                 MainActor.assumeIsolated { self?.reloadFromStore() }
             }
+        lifecycleObservations = [
+            notificationCenter.publisher(for: NSApplication.willTerminateNotification)
+                .sink { [weak self] _ in
+                    MainActor.assumeIsolated { self?.persistEditorText() }
+                },
+            notificationCenter.publisher(for: NSWindow.willCloseNotification)
+                .sink { [weak self] notification in
+                    MainActor.assumeIsolated {
+                        guard let self, let window = notification.object as? NSWindow,
+                              let editorWindow = (self.editor as? NSView)?.window, window === editorWindow else { return }
+                        self.persistEditorText()
+                    }
+                },
+        ]
+    }
+
+    /// Quit / window close: store the current versions as the editor shows them. In History mode
+    /// every step already saved; only typing (which leaves History mode) is unsaved.
+    func persistEditorText() {
+        guard let text = editor?.string else { return }
+        documentSaved(text: text)
     }
 
     /// Settings ▸ Clear History: removes every document's history from `store` and refreshes
@@ -151,9 +182,6 @@ final class DocumentHistoryController: ObservableObject {
         textView.historyUserEditHandler = { [weak self] range, replacement in
             self?.noteUserEdit(range, replacement: replacement)
         }
-        textView.historyWholeTextReplacementHandler = { [weak self] in
-            self?.noteWholeTextReplacement()
-        }
     }
 
     func detach(_ textView: LineformTextView) {
@@ -162,7 +190,6 @@ final class DocumentHistoryController: ObservableObject {
         textView.historyCommandHandler = nil
         textView.historyCanAddHandler = nil
         textView.historyUserEditHandler = nil
-        textView.historyWholeTextReplacementHandler = nil
         textView.historyDisplay = nil
     }
 
@@ -182,6 +209,10 @@ final class DocumentHistoryController: ObservableObject {
         if let url {
             pruneOnce()
             history = store.load(for: url)
+            // Prune runs in the background and may not have reached this document yet: apply its
+            // 30-day rule here too, or the next save would write the stale passages back.
+            let cutoff = now().addingTimeInterval(-FilePassageHistoryStore.staleInterval)
+            history.passages.removeAll { $0.lastTouched < cutoff }
         }
         hasStoreEntry = !history.isEmpty
         engine = DocumentHistoryEngine(history: history, now: now)
@@ -313,8 +344,15 @@ final class DocumentHistoryController: ObservableObject {
         let exitVersions = currentVersions()
         resetModeState()
         save()
-        if let editor, editor.applyHistoryExit(restoring: entry, collapse: collapse, expecting: current),
-           let restoring, let manager = editor.undoManager {
+        guard let editor else { return collapse }
+        // The text view's manager is the tab's real stack again once the display is cleared.
+        var bracketed: UndoManager?
+        let applied = editor.applyHistoryExit(restoring: entry, collapse: collapse, expecting: current) { [self] in
+            guard restoring != nil, let manager = editor.undoManager else { return }
+            registerRedoBracket(on: manager, making: exitVersions, documentID: documentID, url: url)
+            bracketed = manager
+        }
+        if applied, let restoring, let manager = bracketed {
             registerVersionUndo(on: manager, making: restoring, redoMaking: exitVersions,
                                 documentID: documentID, url: url)
         }
@@ -473,6 +511,31 @@ final class DocumentHistoryController: ObservableObject {
         }
     }
 
+    /// Registered in the exit's undo group BEFORE the collapse, so it is undone last and REDONE
+    /// FIRST. Undo does nothing here; redo makes the exit versions current and clears the live
+    /// ranges before the collapse's text redo runs. Without it the text redo ran first, reported
+    /// against live ranges a save had re-found for the entry text — a collapse spanning several
+    /// passages straddled them all and dropped them.
+    private func registerRedoBracket(on manager: UndoManager, making exitIndices: [UUID: Int],
+                                     documentID: UUID?, url: URL?) {
+        manager.registerUndo(withTarget: self) { controller in
+            MainActor.assumeIsolated {
+                // Undoing: nothing to change; arm the redo half.
+                manager.registerUndo(withTarget: controller) { controller in
+                    MainActor.assumeIsolated {
+                        if controller.documentID == documentID, Self.sameFile(controller.url, url) {
+                            controller.engine.restoreCurrentVersions(exitIndices)
+                            controller.located = []
+                            controller.save()
+                        }
+                        controller.registerRedoBracket(on: manager, making: exitIndices,
+                                                       documentID: documentID, url: url)
+                    }
+                }
+            }
+        }
+    }
+
     private func persist(text: String) {
         guard url != nil, !engine.history.isEmpty || hasStoreEntry else { return }
         if !engine.history.isEmpty {
@@ -489,11 +552,16 @@ final class DocumentHistoryController: ObservableObject {
     }
 
     private func pruneOnce() {
-        let key = ObjectIdentifier(store)
-        guard !Self.prunedStores.contains(key) else { return }
-        Self.prunedStores.insert(key)
-        store.prune(now: now())
+        Self.prunedStores.removeAll { $0.store == nil }
+        guard !Self.prunedStores.contains(where: { $0.store === store }) else { return }
+        Self.prunedStores.append(WeakStore(store: store))
+        // Stores are thread-safe by contract (the file store serializes on its lock).
+        let box = UncheckedStore(store: store)
+        let date = now()
+        Self.pruneQueue.async { box.store.prune(now: date) }
     }
+
+    private struct UncheckedStore: @unchecked Sendable { let store: PassageHistoryPersisting }
 
     private func refreshHasHistory() {
         let value = !engine.history.isEmpty

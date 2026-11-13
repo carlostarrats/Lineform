@@ -265,18 +265,56 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertTrue(textView.string.hasPrefix("Omega beta"))
     }
 
-    func testWholeTextReplacementInvalidatesInsteadOfReporting() {
+    /// Formatting and Find & Replace replace the whole text. History must hear the edit as its
+    /// minimal changed span — never as one edit across the document (which drops every passage)
+    /// and never as "forget everything" (which forces a literal re-find).
+    func testWholeTextReplacementReportsItsMinimalSpan() {
+        let textView = makeTextView()
+        var reported: [(NSRange, String)] = []
+        textView.historyUserEditHandler = { reported.append(($0, $1)) }
+
+        textView.applyExternalReplacement(MarkdownEdit(text: "Alpha beta gamma. Delta EPSILON.", selectedRange: NSRange(location: 0, length: 0)))
+
+        XCTAssertEqual(reported.map(\.0), [NSRange(location: 24, length: 7)])
+        XCTAssertEqual(reported.map(\.1), ["EPSILON"])
+        XCTAssertEqual(textView.string, "Alpha beta gamma. Delta EPSILON.")
+    }
+
+    /// NSTextView undoes a whole-text replacement as ONE document-spanning `shouldChangeText`.
+    func testUndoOfWholeTextReplacementReportsItsMinimalSpan() {
+        final class Vendor: NSObject, NSTextViewDelegate {
+            let manager: UndoManager
+            override init() { manager = UndoManager(); manager.groupsByEvent = false; super.init() }
+            func undoManager(for view: NSTextView) -> UndoManager? { manager }
+        }
+        let vendor = Vendor()
+        let textView = makeTextView()
+        textView.delegate = vendor
+        textView.setSelectedRange(NSRange(location: 6, length: 4))
+        vendor.manager.beginUndoGrouping()
+        textView.toggleBoldMarkdown(nil)
+        vendor.manager.endUndoGrouping()
+        XCTAssertEqual(textView.string, "Alpha **beta** gamma. Delta epsilon.")
+
+        var reported: [(NSRange, String)] = []
+        textView.historyUserEditHandler = { reported.append(($0, $1)) }
+        vendor.manager.undo()
+
+        XCTAssertEqual(textView.string, sample)
+        XCTAssertEqual(reported.count, 1)
+        let span = reported.first?.0 ?? NSRange(location: 0, length: 0)
+        XCTAssertLessThanOrEqual(span.length, "**beta**".count, "only the changed span, never the whole document")
+        XCTAssertGreaterThanOrEqual(span.location, 6)
+    }
+
+    func testNoOpReplacementReportsNothing() {
         let textView = makeTextView()
         var reported: [NSRange] = []
-        var invalidations = 0
         textView.historyUserEditHandler = { range, _ in reported.append(range) }
-        textView.historyWholeTextReplacementHandler = { invalidations += 1 }
-
-        textView.applyExternalReplacement(MarkdownEdit(text: "Replaced all.", selectedRange: NSRange(location: 0, length: 0)))
-
+        textView.setSelectedRange(NSRange(location: 6, length: 4))
+        textView.insertText("beta", replacementRange: NSRange(location: NSNotFound, length: 0))
         XCTAssertEqual(reported, [])
-        XCTAssertEqual(invalidations, 1)
-        XCTAssertEqual(textView.string, "Replaced all.")
+        XCTAssertEqual(textView.string, sample)
     }
 
     // MARK: - Drawing state
@@ -354,5 +392,35 @@ final class LineformTextViewHistoryTests: XCTestCase {
             String(localized: "\(HistoryLevel.sentence.title), version \(2) of \(4)")
         )
         XCTAssertEqual(HistoryModeAnnouncement.text(level: .word, dots: nil), HistoryLevel.word.title)
+    }
+    // MARK: - Accessibility actions (final review I3)
+
+    /// Clicking a passage and the arrow keys are the only ways to work History mode; VoiceOver,
+    /// keyboard-only and Switch Control users get the same commands from the actions rotor.
+    func testHistoryModeOffersAccessibilityCustomActionsOnlyWhileActive() throws {
+        let textView = makeTextView()
+        var commands: [HistoryTextCommand] = []
+        textView.historyCommandHandler = { commands.append($0) }
+        let names = HistoryModeAccessibilityAction.allCases.map(\.name)
+
+        let normal = (textView.accessibilityCustomActions() ?? []).map(\.name)
+        XCTAssertTrue(Set(normal).isDisjoint(with: names), "normal writing offers no History actions")
+
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 17))])
+        let actions = textView.accessibilityCustomActions() ?? []
+        XCTAssertEqual(actions.map(\.name).filter(names.contains), [
+            String(localized: "Select Next Passage"),
+            String(localized: "Select Previous Passage"),
+            String(localized: "Previous Version"),
+            String(localized: "Next Version"),
+            String(localized: "Exit History"),
+        ])
+        for action in actions where names.contains(action.name) {
+            XCTAssertTrue(try XCTUnwrap(action.handler)())
+        }
+        XCTAssertEqual(commands, [.moveSelection(1), .moveSelection(-1), .step(-1), .step(1), .exit])
+
+        textView.historyDisplay = nil
+        XCTAssertTrue(Set((textView.accessibilityCustomActions() ?? []).map(\.name)).isDisjoint(with: names))
     }
 }

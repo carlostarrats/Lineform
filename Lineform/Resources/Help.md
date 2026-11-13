@@ -19,7 +19,7 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 - Save As keeps your Markdown file; Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf). Print with ⌘P.
 - Exported HTML keeps your image and link paths exactly as you wrote them, so a page saved beside your Markdown file still finds its images.
 - Use Reading Experience to adjust type, spacing, themes, reading ruler, and typewriter mode.
-- Keep versions of a passage: select it, right-click, and choose Add to History. When a document has history, a History tab appears in the sidebar; click it, or choose View ▸ History (⌘Y), to see the passages with history. Click one, then use ← and → or the sidebar to switch versions — the text you leave showing is your document, and one ⌘Z afterwards puts it back. Press Esc to return to writing. History is kept on your Mac, never inside the file; versions untouched for 30 days are removed, and Settings ▸ Clear History removes everything.
+- Keep versions of a passage: select it, right-click, and choose Add to History. When a document has history, a History tab appears in the sidebar; click it, or choose View ▸ History (⌘Y), to see the passages with history. Click one, then use ← and → or the sidebar to switch versions — the text you leave showing is your document, and one ⌘Z afterwards puts it back. Press Esc to return to writing. History is kept on your Mac, never inside the file; versions untouched for 30 days are removed, and Settings ▸ Clear History removes everything. An untitled document keeps its history only while it stays the document you are working in; save it to keep its history.
 - Have a document read aloud from Edit ▸ Speech.
 - Use native macOS Writing Tools on selected text where the system provides them.
 - Preview Markdown files straight from Finder with Quick Look.
@@ -35,7 +35,7 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 
 ## Local-First Privacy
 
-Documents stay wherever the user saves them. Lineform does not add accounts, analytics, or document upload. History is stored in Lineform's own folder on your Mac (`~/Library/Application Support/Lineform/History`), never in your files.
+Documents stay wherever the user saves them. Lineform does not add accounts, analytics, or document upload. History is stored in Lineform's own folder on your Mac (`~/Library/Application Support/Lineform/History`, inside Lineform's app container), never in your files.
 
 ## Credits
 

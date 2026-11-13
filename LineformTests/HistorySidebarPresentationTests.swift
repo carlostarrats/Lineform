@@ -46,4 +46,16 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(iconX, 26)
         XCTAssertEqual(iconX + l.iconWidth + l.textLeading, 48)
     }
+    /// A version row's delete lives in a right-click menu; it must also be an accessibility
+    /// action (repo invariant: hit-tested affordances carry an `.accessibilityActions` mirror).
+    /// Both are built from `rowActions`, so they cannot drift apart.
+    func testVersionRowDeleteIsAlsoAnAccessibilityAction() throws {
+        XCTAssertEqual(HistorySidebarPresentation.rowActions.map(\.title), [String(localized: "Delete from History")])
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Lineform/Outline/HistorySidebarView.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains(".accessibilityActions {\n            rowActionButtons()"),
+                      "the version row mirrors its context menu in the actions rotor")
+        XCTAssertTrue(source.contains(".contextMenu {\n            rowActionButtons()"))
+    }
 }

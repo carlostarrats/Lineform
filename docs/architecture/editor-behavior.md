@@ -649,7 +649,14 @@ shows passages with history and steps their versions. Spec:
   maps `FileIdentity.key` plus a bookmark to a `<uuid>.json` per document. Nothing is written until a
   version is actually kept. Cleanup: a deleted (or Trashed) file's entry goes, a passage no longer
   found is dropped, a passage untouched for 30 days (`FilePassageHistoryStore.staleInterval`) is
-  dropped — `prune` runs once per app session, at the first document open, never at launch.
+  dropped — `prune` runs once per app session, at the first document open, never at launch, on a
+  background queue (opening never waits for it; the bookmark/folder checks run outside the store's
+  lock). A file counts as deleted only on POSITIVE evidence: its bookmark resolves into the Trash,
+  or its folder can be listed and the file is not in it (`FilePassageHistoryStore.confirmedMissing`).
+  An unplugged drive, an unmounted network volume or a folder the sandbox cannot read proves
+  nothing — that history stays until the 30-day rule. Bookmarks resolve `.withoutUI` and
+  `.withoutMounting`. The store also persists on quit (`NSApplication.willTerminateNotification`)
+  and window close, observed by the controller itself (not `applicationDidFinishLaunching`).
   **Settings ▸ Clear History** calls `DocumentHistoryController.clearAllHistory(in:)`: the store's
   `clearAll()`, then `didClearAllNotification` (object: the store), on which every controller on
   that store runs `reloadFromStore()`. `reloadFromStore` replaces the engine BEFORE leaving
@@ -662,17 +669,25 @@ shows passages with history and steps their versions. Spec:
   coordinates of the text before it (attribute-only changes, `replacementString == nil`, are not
   edits). History's own edits run inside `performHistoryEdit {}` so they are not reported back as
   typing (which would leave History mode) nor as edits (the engine already moved its ranges).
-  Wholesale replacements cannot be described as one edit — reported as one, a document-wide range
-  would drop every passage — so they call `noteWholeTextReplacement()` /
-  `engine.invalidateLiveRanges()` and passages are re-found: live reload, Convert to Plain Text,
-  formatting commands and Find & Replace through the whole-text path
-  (`isApplyingWholeTextReplacement`), the Read-mode checkbox toggle, and image Reconnect. A new
-  wholesale writer must do the same.
+  **Every reported edit is trimmed to its minimal changed span first**
+  (`noteHistoryUserEditIfNeeded` → `HistoryUndoCollapse.minimalEdit` of the replaced text against
+  the replacement; it reads only the replaced range). That is what makes the text view's
+  whole-text path safe: formatting commands, heading keys, list toggles, Insert/Reformat Table and
+  Find & Replace replace the whole text, and NSTextView UNDOES and REDOES those as one
+  document-spanning `shouldChangeText`. Reported untrimmed (the 2026-11-12 final review), that
+  straddled every passage: after any save (which re-locates) one ⌘Z on a ⌘B dropped all history.
+  Trimmed, passages outside the change keep their live ranges. Writes that bypass the text view
+  (they set the binding) still call `noteWholeTextReplacement()` / `engine.invalidateLiveRanges()`
+  and passages are re-found literally: live reload, Convert to Plain Text / Restore Markdown, the
+  Read-mode checkbox toggle, and image Reconnect. A new binding writer must do the same.
 - **Tracking is by live ranges.** Passages carry live ranges moved by every reported edit. Text is
   searched only when a document opens, after a reload, or after an invalidation, and only
   LITERALLY (the current version's exact text). Any doubt drops the passage: the failure mode is
   "history quietly disappears", never "the wrong text is replaced". Overlapping non-nested passages
-  are rejected at locate time.
+  are rejected at locate time. `PassageHistoryText.locate` REFUSES to choose between identical
+  occurrences unless the best context score leads the runner-up by `max(4, 25% of best)` — a tie
+  went to the first occurrence until the final review, so a step could rewrite a "quick" the writer
+  never selected. `_` is a word character there (`foo` never matches inside `foo_bar`).
 - **Undo.** History-mode steps are applied with undo registration disabled, and while History mode
   is up the representable's coordinator vends a stand-in EMPTY `UndoManager` (`undoManager(for:)`),
   because the tab's real stack holds edits in entry-text coordinates and ⌘Z would replay one against
@@ -680,8 +695,13 @@ shows passages with history and steps their versions. Spec:
   then one collapsed, minimal edit (entry → exit, `HistoryUndoCollapse.minimalEdit`, widened to
   Character boundaries so CRLF and a BOM outside the change are never rewritten) is applied through
   the normal undoable path, and a version-restore undo action is registered in the same group. One
-  ⌘Z after leaving restores both the entry text and each passage's current version. The
-  version-restore action is skipped after a version was deleted in the session (indices shifted).
+  ⌘Z after leaving restores both the entry text and each passage's current version. A REDO bracket
+  is registered in that group just BEFORE the collapse (`applyHistoryExit(beforeCollapse:)`), so on
+  redo it runs first: it makes the exit versions current and clears the live ranges before the
+  collapse's text redo. Without it the text redo ran first against ranges a save had re-found for
+  the entry text, and a collapse spanning several passages dropped them all (undo → save → redo).
+  The version-restore action and the bracket are skipped after a version was deleted in the session
+  (indices shifted).
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
   `didChangeText` — never `applyWholeTextReplacement`.
 - **Leaving.** Esc, another sidebar tab, Read or Split mode, typing (the first keystroke leaves and
@@ -698,6 +718,11 @@ shows passages with history and steps their versions. Spec:
   the session; the store re-finds it by bookmark at the next launch's prune.
 - **Untitled documents** keep history in memory only, and only while they stay the active
   document: a tab or sidebar swap, or closing, discards it — there is no file to key it to.
+- **Accessibility.** History mode's click and arrow-key paths are hit-tested, so the text view
+  offers them as `accessibilityCustomActions` while (and only while) History mode is on: Select
+  Next/Previous Passage, Previous/Next Version, Exit History (`HistoryModeAccessibilityAction`).
+  A sidebar version row's Delete from History is in its context menu AND its `.accessibilityActions`,
+  both built from `HistorySidebarPresentation.rowActions`.
 - Shortcut: ⌘Y (Safari's Show History). Checked against every main-menu row with
   `LINEFORM_DUMP_MAIN_MENU=1`, whose dump now prints each row's shortcut; 48 rows carry one and no
   two collide.

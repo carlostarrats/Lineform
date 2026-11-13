@@ -57,6 +57,18 @@ enum HistorySidebarPresentation {
     static let emptySelectionText = String(localized: "Click a highlighted passage to see its versions.")
     static let hintText = String(localized: "Click to select · ← → switch version · Esc closes")
     static let deleteVersionTitle = String(localized: "Delete from History")
+
+    /// A version row's actions: its context menu AND its accessibility actions are built from
+    /// this one list, so the two cannot drift apart.
+    enum RowAction: CaseIterable {
+        case delete
+        var title: String {
+            switch self {
+            case .delete: return HistorySidebarPresentation.deleteVersionTitle
+            }
+        }
+    }
+    static let rowActions = RowAction.allCases
 }
 
 struct HistorySidebarView: View {
@@ -208,13 +220,29 @@ private struct HistoryVersionRowView: View {
             withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
         }
         .contextMenu {
-            Button(role: .destructive, action: onDelete) {
-                Text(HistorySidebarPresentation.deleteVersionTitle)
-            }
+            rowActionButtons()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(row.accessibilityLabel(position: position, of: count))
         .accessibilityAddTraits(row.isCurrent ? [.isButton, .isSelected] : [.isButton])
         .accessibilityAction { onSelect() }
+        // Right-click must not be the only path to Delete: the actions rotor offers the same set.
+        .accessibilityActions {
+            rowActionButtons()
+        }
+    }
+
+    /// The single source of truth for a row's actions — the context menu and the VoiceOver
+    /// actions rotor both build from it, so they cannot drift apart.
+    @ViewBuilder
+    private func rowActionButtons() -> some View {
+        ForEach(HistorySidebarPresentation.rowActions, id: \.self) { action in
+            switch action {
+            case .delete:
+                Button(role: .destructive, action: onDelete) {
+                    Text(action.title)
+                }
+            }
+        }
     }
 }
