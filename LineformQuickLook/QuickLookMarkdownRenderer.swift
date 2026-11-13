@@ -50,12 +50,25 @@ enum QuickLookMarkdownRenderer {
         var inTable = false
         var tableRows: [[String]] = []
         var paragraphBuffer: [String] = []
+        var openMathClosing: String?
+        var mathBlockLines: [String] = []
+
+        func appendVerbatimMath(_ source: [String]) {
+            let attrs = bodyAttributes()
+            output.append(NSAttributedString(string: source.joined(separator: "\n") + "\n", attributes: attrs))
+        }
 
         func flushParagraph() {
             if !paragraphBuffer.isEmpty {
-                let content = paragraphBuffer.joined(separator: " ")
+                // Inline formatting runs PER SOURCE LINE, then the lines are joined with a space:
+                // the app's inline pass is line-local, so joining first let a `$…$`, `**…**`, or
+                // link split across two source lines format in Finder while the app drew it
+                // literally.
                 let attrs = bodyAttributes()
-                output.append(applyInlineFormatting(to: content, baseAttributes: attrs))
+                for (offset, bufferedLine) in paragraphBuffer.enumerated() {
+                    if offset > 0 { output.append(NSAttributedString(string: " ", attributes: attrs)) }
+                    output.append(applyInlineFormatting(to: bufferedLine, baseAttributes: attrs))
+                }
                 output.append(NSAttributedString(string: "\n", attributes: attrs))
                 paragraphBuffer = []
             }
@@ -112,6 +125,37 @@ enum QuickLookMarkdownRenderer {
                 guard fence.character == open.character, fence.length >= open.length else { return false }
                 return trimmed.dropFirst(fence.length).allSatisfy { $0 == " " || $0 == "\t" }
             }()
+
+            // Display math, mirroring `markdownBlocks`, which checks math BEFORE code fences:
+            // a fence-shaped line inside `$$`/`\[` is math body, not a code block. A block is
+            // `$$ … $$` or `\[ … \]` on their own lines (a `\]` never closes `$$`, nor the reverse;
+            // an unclosed opener runs to the end of the document), or one line that is exactly one
+            // display span. The appex has no math typesetter, so it shows the LaTeX SOURCE
+            // verbatim, delimiters included — never unescaped and never run through emphasis.
+            if !inCodeBlock {
+                if let closing = openMathClosing {
+                    mathBlockLines.append(line)
+                    if trimmed == closing {
+                        appendVerbatimMath(mathBlockLines)
+                        openMathClosing = nil
+                        mathBlockLines = []
+                    }
+                    continue
+                }
+                if trimmed == "$$" || trimmed == "\\[" {
+                    flushParagraph()
+                    closeAllLists()
+                    openMathClosing = trimmed == "$$" ? "$$" : "\\]"
+                    mathBlockLines = [line]
+                    continue
+                }
+                if isSingleLineMathBlock(trimmed) {
+                    flushParagraph()
+                    closeAllLists()
+                    appendVerbatimMath([trimmed])
+                    continue
+                }
+            }
 
             if let fence, !inCodeBlock || closesOpenFence {
                 if inCodeBlock {
@@ -313,6 +357,10 @@ enum QuickLookMarkdownRenderer {
             output.append(NSAttributedString(string: codeBlockLines.joined(separator: "\n") + "\n", attributes: attrs))
         }
 
+        if openMathClosing != nil {
+            appendVerbatimMath(mathBlockLines)
+        }
+
         flushParagraph()
         closeAllLists()
         if inTable {
@@ -324,7 +372,136 @@ enum QuickLookMarkdownRenderer {
 
     // MARK: - Inline formatting
 
-    private enum InlineStyle { case code, image, link, bold, italic, strikethrough }
+    private enum InlineStyle { case code, image, link, bold, italic, strikethrough, math }
+
+    /// One math span: UTF-16 range (delimiters included) and whether it is display-style.
+    struct MathRange: Equatable {
+        let range: NSRange
+        let isDisplay: Bool
+    }
+
+    /// Math spans in one line — `$…$`, `$$…$$`, `\(…\)`, `\[…\]`. A HAND-MIRROR of
+    /// `MathDelimiters.inlineSpans` (pandoc `$` rules, escape-pair stepping, the backslash prose
+    /// rule, and the "no closer remains" memoization that keeps a `$`-dense line linear) — this
+    /// target cannot import the app's file, which links SwiftMath. Agreement on ranges AND style is
+    /// asserted by `BackslashMathDelimiterTests` over a corpus and a seeded fuzz, not believed.
+    static func mathRanges(in line: String) -> [MathRange] {
+        let chars = Array(line)
+        let n = chars.count
+        var utf16At: [Int] = [0]
+        for c in chars { utf16At.append(utf16At.last! + c.utf16.count) }
+        func range(_ start: Int, _ endExclusive: Int) -> NSRange {
+            NSRange(location: utf16At[start], length: utf16At[endExclusive] - utf16At[start])
+        }
+
+        var spans: [MathRange] = []
+        var noInlineCloser = false, noDisplayCloser = false, noParenCloser = false, noBracketCloser = false
+        var i = 0
+        while i < n {
+            let c = chars[i]
+            if c == "\\", i + 1 < n {
+                let next = chars[i + 1]
+                if next == "(" || next == "[" {
+                    let isParen = next == "("
+                    if !(isParen ? noParenCloser : noBracketCloser) {
+                        if let close = backslashClose(chars, from: i + 2, closing: isParen ? ")" : "]") {
+                            if contentIsMath(chars[(i + 2)..<close]) {
+                                spans.append(MathRange(range: range(i, close + 2), isDisplay: !isParen))
+                                i = close + 2
+                                continue
+                            }
+                        } else if isParen {
+                            noParenCloser = true
+                        } else {
+                            noBracketCloser = true
+                        }
+                    }
+                }
+                i += 2
+                continue
+            }
+            if c == "$" {
+                if i + 1 < n, chars[i + 1] == "$" {
+                    if !noDisplayCloser, let close = displayClose(chars, from: i + 2) {
+                        spans.append(MathRange(range: range(i, close + 2), isDisplay: true))
+                        i = close + 2
+                        continue
+                    }
+                    noDisplayCloser = true
+                    i += 2
+                    continue
+                } else if !noInlineCloser, let close = inlineClose(chars, openAt: i) {
+                    spans.append(MathRange(range: range(i, close + 1), isDisplay: false))
+                    i = close + 1
+                    continue
+                } else if !noInlineCloser, i + 1 < n, !chars[i + 1].isWhitespace {
+                    noInlineCloser = true
+                }
+            }
+            i += 1
+        }
+        return spans
+    }
+
+    private static func inlineClose(_ chars: [Character], openAt open: Int) -> Int? {
+        let next = open + 1
+        guard next < chars.count, !chars[next].isWhitespace else { return nil }
+        var j = next
+        while j < chars.count {
+            if chars[j] == "\\", j + 1 < chars.count { j += 2; continue }
+            if chars[j] == "$" {
+                let followedByDigit = j + 1 < chars.count && chars[j + 1].isNumber
+                if !chars[j - 1].isWhitespace && !followedByDigit { return j }
+            }
+            j += 1
+        }
+        return nil
+    }
+
+    private static func displayClose(_ chars: [Character], from start: Int) -> Int? {
+        var j = start
+        while j + 1 < chars.count {
+            if chars[j] == "\\" { j += 2; continue }
+            if chars[j] == "$", chars[j + 1] == "$" { return j > start ? j : nil }
+            j += 1
+        }
+        return nil
+    }
+
+    private static func backslashClose(_ chars: [Character], from start: Int, closing: Character) -> Int? {
+        var j = start
+        while j + 1 < chars.count {
+            if chars[j] == "\\" {
+                if chars[j + 1] == closing { return j }
+                j += 2
+                continue
+            }
+            j += 1
+        }
+        return nil
+    }
+
+    /// Mirror of `MathBlockFence.singleLineBlock`: the trimmed line is exactly one display span.
+    /// `$$a$$ and $$b$$`-style lines are excluded by the same "one span covering the line" test,
+    /// which for `$$` agrees with the app's `!inner.contains("$$")` guard.
+    static func isSingleLineMathBlock(_ trimmed: String) -> Bool {
+        let spans = mathRanges(in: trimmed)
+        return spans.count == 1 && spans[0].isDisplay
+            && spans[0].range == NSRange(location: 0, length: (trimmed as NSString).length)
+    }
+
+    /// Mirror of `MathDelimiters.backslashContentIsMath`: math unless the content reads as prose.
+    private static func contentIsMath(_ content: ArraySlice<Character>) -> Bool {
+        let trimmed = String(content).trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+        if trimmed.contains(where: { "\\^_{}=".contains($0) }) { return true }
+        var run = 0
+        for c in trimmed {
+            run = c.isLetter ? run + 1 : 0
+            if run >= 3 { return false }
+        }
+        return true
+    }
 
     private struct InlineMatch {
         let range: NSRange           // full token incl. markers, in the source string
@@ -376,9 +553,16 @@ enum QuickLookMarkdownRenderer {
         let ns = plain as NSString
         let result = NSMutableAttributedString()
         var cursor = 0
+        let mathRanges = Self.mathRanges(in: plain).map(\.range)
 
         while cursor < ns.length {
-            guard let match = earliestInlineMatch(in: ns, from: cursor) else { break }
+            var found = earliestInlineMatch(in: ns, from: cursor)
+            // Math competes by position, as in the app's `inlineWithMath`: earlier wins.
+            if let math = mathRanges.first(where: { $0.location >= cursor }),
+               found.map({ math.location < $0.range.location }) ?? true {
+                found = InlineMatch(range: math, style: .math, inner: ns.substring(with: math), url: nil)
+            }
+            guard let match = found else { break }
             if match.range.location > cursor {
                 let pre = ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
                 result.append(NSAttributedString(string: unescapeInline(pre), attributes: baseAttributes))
@@ -437,6 +621,8 @@ enum QuickLookMarkdownRenderer {
             let filename = imageFilename(from: match.url ?? "")
             let label = match.inner.isEmpty ? (filename.isEmpty ? "Image" : filename) : match.inner
             return NSAttributedString(string: "🖼 \(label)", attributes: baseAttributes)
+        case .math:
+            return NSAttributedString(string: match.inner, attributes: baseAttributes)   // source, verbatim
         case .code:
             var attrs = baseAttributes
             let size = (baseAttributes[.font] as? NSFont)?.pointSize ?? bodyFontSize

@@ -12,7 +12,7 @@
 - Browse your writing in the Files sidebar — your Lineform iCloud Drive folder and any workspace folder you choose — and switch files in the same window, Apple Notes-style.
 - Optionally show hidden folders in the Files sidebar (like `.claude` or `.github`) to reach Markdown that lives alongside your code.
 - See Mermaid diagrams rendered natively in Read and Preview modes (Write mode shows the source); a malformed or very large diagram falls back to a labeled source block rather than blocking the window.
-- Write LaTeX math inline with `$…$` and as centered blocks with `$$…$$`, rendered natively in Read and Preview modes (Write mode shows the source); invalid math falls back to its source. Ordinary dollar amounts like "$5" are left untouched.
+- Write LaTeX math inline with `$…$` or `\(…\)` and as centered blocks with `$$…$$` or `\[…\]`, rendered natively in Read and Preview modes (Write mode shows the source); invalid math falls back to its source. Ordinary dollar amounts like "$5" are left untouched.
 - Switch between Write, Read, and Preview modes.
 - Preview Markdown beside the source in split view.
 - Navigate documents from their headings.

@@ -32,7 +32,7 @@ struct MarkdownOutlineParser {
         var items: [MarkdownOutlineItem] = []
         let source = markdownSourceLines(in: text)
         var openMarker: (character: Character, length: Int)?
-        var inDisplayMath = false
+        var openDisplayMath: MathBlockFence.Delimiter?
 
         for (index, line) in source.lines.enumerated() {
             // `.whitespaces`, matching `markdownBlocks` — NOT `markdownLineTrimCharacters`.
@@ -47,8 +47,8 @@ struct MarkdownOutlineParser {
             // fence-shaped line inside `$$…$$` is math body to the renderer. Without this state the
             // outline opened a fence on it, never found a closer, and swallowed every heading in
             // the rest of the document.
-            if inDisplayMath {
-                if MathBlockFence.blockDelimiterOnly(trimmed) { inDisplayMath = false }
+            if let delimiter = openDisplayMath {
+                if MathBlockFence.isClosing(trimmed, of: delimiter) { openDisplayMath = nil }
                 continue
             }
 
@@ -61,8 +61,8 @@ struct MarkdownOutlineParser {
             if MathBlockFence.singleLineBlock(trimmed) != nil {
                 continue
             }
-            if MathBlockFence.blockDelimiterOnly(trimmed) {
-                inDisplayMath = true
+            if let delimiter = MathBlockFence.opening(trimmed) {
+                openDisplayMath = delimiter
                 continue
             }
             if let marker = MermaidFence.openingMarker(trimmed) {

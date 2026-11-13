@@ -1345,6 +1345,40 @@
         }
       }
     },
+    "Also math, in the form AI tools use. \\(note\\) stays text.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auch Formeln, wie KI-Tools sie schreiben. \\(note\\) bleibt Text."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "También fórmulas como las escriben las IA. \\(note\\) queda como texto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aussi des formules, comme les écrivent les outils d’IA. \\(note\\) reste du texte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AIツールが書く形式の数式も表示。\\(note\\) は文字のまま。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "也支持 AI 工具写出的公式。\\(note\\) 保持为文本。"
+          }
+        }
+      }
+    },
     "Also sequence, class, ER, state, xy, and pie. Other types show their source.": {
       "localizations": {
         "de": {

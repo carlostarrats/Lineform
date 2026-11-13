@@ -60,6 +60,8 @@ was chosen over running the panel first and building the view afterwards, which 
 panel's own "Save as PDF", and over removing the panel's paper controls, which would have removed
 paper choice at print time. Export As was never affected: there the paper is chosen before layout.
 
+**Backslash delimiters (2026-11-12).** `\(…\)` and `\[…\]` reach HTML export, Styled PDF, and Print through the same `MathDelimiters.inlineSpans` / `markdownBlocks` path as `$…$` and `$$…$$`, so a ChatGPT-style answer exports its equations as embedded PNGs like any other math; a declined span (`see \(note\)`, prose under the rule in `rendering.md`) exports as the escaped text "see (note)".
+
 **Inline `$…$` was absent from HTML export.** Only `.singleLineMath` / `.fencedMath` BLOCKS reached
 `generatedHTML`; every ordinary line went through `inlineHTML`, which scanned six
 `MarkdownInlineSyntax` regexes and had no math token. So `$E=mc^2$` in a paragraph, list item, table
