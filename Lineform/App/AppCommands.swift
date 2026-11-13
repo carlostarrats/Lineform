@@ -66,6 +66,7 @@ enum ManualSaveIntentMonitor {
 enum AppMenuConfiguration {
     static let aboutCommandTitle = String(localized: "About Lineform")
     static let settingsCommandTitle = String(localized: "Settings…")
+    static let connectAICommandTitle = String(localized: "Connect Your AI…")
     /// MUST match `MARKETING_VERSION` in the project. This is a hand-maintained string, so it
     /// drifts silently on a version bump — it shipped as V1.2.0 while the app was 1.3.0. The
     /// release checklist in `Lineform/Resources/ReleaseReadiness.md` now calls it out explicitly.
@@ -146,6 +147,7 @@ enum AppMenuConfiguration {
         // Application menu
         "About Lineform",
         "Settings…",
+        "Connect Your AI…",
         "Privacy Policy",
         "Terms of Use",
         // File menu
@@ -440,6 +442,12 @@ struct AppCommands: Commands {
                 }
             }
             .keyboardShortcut(",", modifiers: .command)
+
+            // Its own window, not the Settings modal: it works with no document open, and
+            // opening it makes no network request and reads no key.
+            Button(AppMenuConfiguration.connectAICommandTitle) {
+                ConnectAIWindowController.shared.show()
+            }
 
             Divider()
 

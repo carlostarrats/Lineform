@@ -4,6 +4,9 @@ import Security
 /// Storage for API keys. Production uses the Keychain; tests use an in-memory double.
 protocol AIKeychain: AnyObject {
     func readKey(for provider: AIProvider) -> String?
+    /// Whether an item exists, without reading the secret. Used by Connect Your AI to show a
+    /// provider whose key went missing as needing to reconnect.
+    func hasKey(for provider: AIProvider) -> Bool
     @discardableResult func writeKey(_ key: String, for provider: AIProvider) -> Bool
     func deleteKey(for provider: AIProvider)
 }
@@ -34,6 +37,14 @@ final class SystemAIKeychain: AIKeychain {
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    func hasKey(for provider: AIProvider) -> Bool {
+        // No kSecReturnData / kSecReturnAttributes: the query asks only whether the item
+        // exists, so the key never leaves the Keychain and no access prompt is raised.
+        var query = baseQuery(for: provider)
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
     }
 
     @discardableResult

@@ -12,6 +12,11 @@ final class InMemoryAIKeychain: AIKeychain {
         return keys[provider]
     }
 
+    /// A presence check, not a read: it never counts toward `readCount`.
+    func hasKey(for provider: AIProvider) -> Bool {
+        keys[provider] != nil
+    }
+
     @discardableResult
     func writeKey(_ key: String, for provider: AIProvider) -> Bool {
         guard !failWrites else { return false }

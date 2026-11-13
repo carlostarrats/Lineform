@@ -146,6 +146,14 @@ final class AIConnectionStore: ObservableObject {
         return AIConnection(provider: provider, endpoint: endpoint, model: model, apiKey: key)
     }
 
+    /// True when the store says a big-three provider is connected but its key is gone from
+    /// the Keychain (deleted in Keychain Access, or a restored defaults file). Checks the
+    /// item's presence only — the key itself is never read here.
+    func connectedKeyIsMissing() -> Bool {
+        guard let provider = connectedProvider, provider != .other else { return false }
+        return !keychain.hasKey(for: provider)
+    }
+
     private func deleteKeys(except keep: AIProvider?) {
         for provider in AIProvider.allCases where provider != keep {
             keychain.deleteKey(for: provider)
