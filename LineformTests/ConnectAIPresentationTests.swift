@@ -79,13 +79,35 @@ final class ConnectAIPresentationTests: XCTestCase {
     func testEveryProviderHasEndpointModelAndKeyPage() {
         for provider in [AIProvider.claude, .chatGPT, .google] {
             XCTAssertNotNil(provider.endpoint, "\(provider)")
-            XCTAssertNotNil(provider.defaultModel, "\(provider)")
+            for tier in AIModelTier.allCases {
+                XCTAssertNotNil(provider.model(for: tier), "\(provider) \(tier)")
+            }
             XCTAssertNotNil(provider.createKeyURL, "\(provider)")
             XCTAssertNotNil(provider.companyName, "\(provider)")
         }
         XCTAssertNil(AIProvider.other.endpoint)
-        XCTAssertNil(AIProvider.other.defaultModel)
+        XCTAssertNil(AIProvider.other.model(for: .standard))
         XCTAssertNil(AIProvider.other.createKeyURL)
+    }
+
+    func testKeyGuidanceCopy() {
+        XCTAssertEqual(ConnectAIPresentation.keyGuidance(for: .chatGPT),
+                       "Choose Restricted, set Model capabilities to Request, and leave everything else off.")
+        XCTAssertEqual(ConnectAIPresentation.keyGuidance(for: .claude),
+                       "Make a key just for Lineform, and set a monthly spend limit.")
+        XCTAssertEqual(ConnectAIPresentation.keyGuidance(for: .google),
+                       "Make a key just for Lineform, and set a monthly spend limit.")
+        XCTAssertNil(ConnectAIPresentation.keyGuidance(for: .other))
+    }
+
+    func testTierTitlesAndUnauthorizedCopy() {
+        XCTAssertEqual(AIModelTier.standard.title, "Standard")
+        XCTAssertEqual(AIModelTier.higherQuality.title, "Higher quality")
+        XCTAssertEqual(AIModelTier.standard.rawValue, "standard")
+        XCTAssertEqual(AIModelTier.higherQuality.rawValue, "higherQuality")
+        XCTAssertEqual(AIClientError.unauthorized.message,
+                       "The key wasn't accepted. It may have expired. Check it in Connect Your AI.")
+        XCTAssertTrue(AIClientError.unauthorized.message.contains(ConnectAIPresentation.title))
     }
 
     func testOtherHostComesFromTheTypedAddress() {

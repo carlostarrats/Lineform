@@ -23,10 +23,20 @@ enum AIConnectError: Error, Equatable {
 enum AIEndpointValidation {
     private static let suffix = "/chat/completions"
 
+    /// Plain http only for a server on this Mac. A `.local` name is another machine on the
+    /// network, where a key and the writer's text would travel unencrypted, so it needs https.
     static func allowsPlainHTTP(host: String) -> Bool {
         // URLComponents reports an IPv6 literal with its brackets on some systems.
         let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-        return host == "localhost" || host == "127.0.0.1" || host == "::1" || host.hasSuffix(".local")
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
+    /// True when a stored endpoint still meets the rule above. An address saved before the
+    /// rule tightened (`http://box.local`) is not used.
+    static func isPermitted(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), let host = url.host, !host.isEmpty else { return false }
+        if scheme == "https" { return true }
+        return scheme == "http" && allowsPlainHTTP(host: host)
     }
 
     /// Turns what the writer typed into a chat-completions URL.
@@ -61,6 +71,9 @@ final class AIConnectionStore: ObservableObject {
     static let providerKey = "Lineform.ai.provider"
     static let otherEndpointKey = "Lineform.ai.otherEndpoint"
     static let otherModelKey = "Lineform.ai.otherModel"
+    /// Per provider: `Lineform.ai.tier.<provider.rawValue>`, holding an `AIModelTier` raw value.
+    static let tierKeyPrefix = "Lineform.ai.tier"
+    static func tierKey(for provider: AIProvider) -> String { [tierKeyPrefix, provider.rawValue].joined(separator: ".") }
 
     @Published private(set) var connectedProvider: AIProvider?
     private(set) var otherEndpoint: URL?
@@ -75,6 +88,7 @@ final class AIConnectionStore: ObservableObject {
         self.defaults = defaults
         self.keychain = keychain
         let endpoint = defaults.string(forKey: Self.otherEndpointKey).flatMap(URL.init(string:))
+            .flatMap { AIEndpointValidation.isPermitted($0) ? $0 : nil }
         let provider = defaults.string(forKey: Self.providerKey).flatMap(AIProvider.init(rawValue:))
         if provider == .other, endpoint == nil {
             connectedProvider = nil
@@ -83,6 +97,18 @@ final class AIConnectionStore: ObservableObject {
         }
         otherEndpoint = endpoint
         otherModel = defaults.string(forKey: Self.otherModelKey)
+    }
+
+    /// The writer's model tier for a provider; `.standard` until they choose otherwise.
+    func tier(for provider: AIProvider) -> AIModelTier {
+        defaults.string(forKey: Self.tierKey(for: provider)).flatMap(AIModelTier.init(rawValue:)) ?? .standard
+    }
+
+    /// Takes effect at the next action; the key is untouched.
+    func setTier(_ tier: AIModelTier, for provider: AIProvider) {
+        guard tier != self.tier(for: provider) else { return }
+        objectWillChange.send()
+        defaults.set(tier.rawValue, forKey: Self.tierKey(for: provider))
     }
 
     func connect(_ provider: AIProvider, key: String) -> AIConnectError? {
@@ -137,11 +163,11 @@ final class AIConnectionStore: ObservableObject {
         guard let provider = connectedProvider else { return nil }
         let key = keychain.readKey(for: provider)
         if provider == .other {
-            guard let endpoint = otherEndpoint else { return nil }
+            guard let endpoint = otherEndpoint, AIEndpointValidation.isPermitted(endpoint) else { return nil }
             return AIConnection(provider: provider, endpoint: endpoint,
                                 model: otherModel ?? "default", apiKey: key)
         }
-        guard let endpoint = provider.endpoint, let model = provider.defaultModel,
+        guard let endpoint = provider.endpoint, let model = provider.model(for: tier(for: provider)),
               let key else { return nil }
         return AIConnection(provider: provider, endpoint: endpoint, model: model, apiKey: key)
     }

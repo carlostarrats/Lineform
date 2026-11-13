@@ -50,6 +50,20 @@ enum ConnectAIPresentation {
         }
     }
 
+    /// One line under "Create an API key": how to make a key that can do as little as possible.
+    static func keyGuidance(for provider: AIProvider, bundle: Bundle = .main) -> String? {
+        switch provider {
+        case .chatGPT:
+            return String(localized: "Choose Restricted, set Model capabilities to Request, and leave everything else off.", bundle: bundle)
+        case .claude, .google:
+            return String(localized: "Make a key just for Lineform, and set a monthly spend limit.", bundle: bundle)
+        case .other:
+            return nil
+        }
+    }
+
+    static var modelTierLabel: String { String(localized: "Model") }
+
     /// The consent step: the button names what is sent and to whom.
     static func connectButtonTitle(for provider: AIProvider, otherHost: String?) -> String {
         let host = otherHost?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

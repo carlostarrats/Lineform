@@ -57,17 +57,39 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    var defaultModel: String? {
-        switch self {
-        case .claude: return "claude-sonnet-5-5"
-        case .chatGPT: return "gpt-5-mini"
-        case .google: return "gemini-2.5-flash"
-        case .other: return nil
+    /// The model each tier sends. Verified 2026-11-13 against the providers' own model lists:
+    /// both OpenAI models support `v1/chat/completions`, and the Gemini IDs are the stable
+    /// codes on Google's model page (used through its OpenAI-compatible endpoint).
+    func model(for tier: AIModelTier) -> String? {
+        switch (self, tier) {
+        case (.claude, .standard): return "claude-haiku-5-5"
+        case (.claude, .higherQuality): return "claude-sonnet-5-5"
+        case (.chatGPT, .standard): return "gpt-6-luna"
+        case (.chatGPT, .higherQuality): return "gpt-6.1-terra"
+        case (.google, .standard): return "gemini-3.5-flash-lite"
+        case (.google, .higherQuality): return "gemini-3.8-flash"
+        case (.other, _): return nil
         }
     }
 
     var wireProtocol: AIWireProtocol {
         self == .claude ? .anthropicMessages : .openAIChatCompletions
+    }
+}
+
+/// Which of a provider's two models a writer chose. The raw values are persisted identity
+/// (UserDefaults) and are never localized; `title` is the chrome.
+enum AIModelTier: String, CaseIterable, Identifiable {
+    case standard
+    case higherQuality
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard: return String(localized: "Standard")
+        case .higherQuality: return String(localized: "Higher quality")
+        }
     }
 }
 

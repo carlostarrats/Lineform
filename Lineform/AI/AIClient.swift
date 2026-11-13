@@ -33,7 +33,7 @@ enum AIClientError: Error, Equatable {
     var message: String {
         switch self {
         case .unauthorized:
-            return String(localized: "The key wasn't accepted. Check it in Connect Your AI.")
+            return String(localized: "The key wasn't accepted. It may have expired. Check it in Connect Your AI.")
         case .modelNotFound:
             return String(localized: "The server didn't recognise the model. Enter a model name in Connect Your AI.")
         case .refused:

@@ -1855,6 +1855,166 @@
         }
       }
     },
+    "Choose Restricted, set Model capabilities to Request, and leave everything else off.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Choose Restricted, set Model capabilities to Request, and leave everything else off."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige Restricted, pon Model capabilities en Request y deja todo lo demás desactivado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez Restricted, réglez Model capabilities sur Request et laissez tout le reste désactivé."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle Restricted, setze Model capabilities auf Request und lass alles andere aus."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restricted を選び、Model capabilities を Request に設定し、ほかはすべてオフのままにしてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择 Restricted，将 Model capabilities 设为 Request，其他全部保持关闭。"
+          }
+        }
+      }
+    },
+    "Higher quality": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Higher quality"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mayor calidad"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qualité supérieure"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Höhere Qualität"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高品質"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更高质量"
+          }
+        }
+      }
+    },
+    "Make a key just for Lineform, and set a monthly spend limit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Make a key just for Lineform, and set a monthly spend limit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea una clave solo para Lineform y fija un límite de gasto mensual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créez une clé réservée à Lineform et fixez une limite de dépenses mensuelle."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstelle einen Schlüssel nur für Lineform und lege ein monatliches Ausgabenlimit fest."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform 専用のキーを作成し、月ごとの利用上限を設定してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为 Lineform 单独创建一个密钥，并设置每月支出上限。"
+          }
+        }
+      }
+    },
+    "Model": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Model"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modèle"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modell"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モデル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型"
+          }
+        }
+      }
+    },
     "Paragraph": {
       "localizations": {
         "de": {
@@ -1919,6 +2079,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "句子"
+          }
+        }
+      }
+    },
+    "Standard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Standard"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estándar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標準"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标准"
           }
         }
       }
@@ -12067,42 +12267,42 @@
         }
       }
     },
-    "The key wasn't accepted. Check it in Connect Your AI.": {
+    "The key wasn't accepted. It may have expired. Check it in Connect Your AI.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "The key wasn't accepted. Check it in Connect Your AI."
+            "value": "The key wasn't accepted. It may have expired. Check it in Connect Your AI."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La clave no fue aceptada. Compruébala en Conectar tu IA."
+            "value": "La clave no fue aceptada. Puede que haya caducado. Compruébala en Conectar tu IA."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La clé n’a pas été acceptée. Vérifiez-la dans Connecter votre IA."
+            "value": "La clé n’a pas été acceptée. Elle a peut-être expiré. Vérifiez-la dans Connecter votre IA."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Schlüssel wurde nicht akzeptiert. Prüfe ihn unter „KI verbinden“."
+            "value": "Der Schlüssel wurde nicht akzeptiert. Möglicherweise ist er abgelaufen. Prüfe ihn unter „KI verbinden“."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "キーが受け付けられませんでした。「AI を接続」で確認してください。"
+            "value": "キーが受け付けられませんでした。有効期限が切れている可能性があります。「AI を接続」で確認してください。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "密钥未被接受。请在“连接你的 AI”中检查。"
+            "value": "密钥未被接受。它可能已过期。请在“连接你的 AI”中检查。"
           }
         }
       }
