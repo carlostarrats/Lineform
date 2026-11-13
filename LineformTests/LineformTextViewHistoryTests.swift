@@ -180,15 +180,51 @@ final class LineformTextViewHistoryTests: XCTestCase {
     /// Defence in depth: even if a selection reached History mode, typing never replaces it.
     func testTypingInHistoryModeNeverReplacesASelection() {
         let textView = makeTextView()
-        textView.historyDisplay = display([passage(NSRange(location: 0, length: 17))])
-        var commands: [HistoryTextCommand] = []
+        let all = NSRange(location: 0, length: (sample as NSString).length)
+        textView.setSelectedRange(all)
+        // Bypass the entry collapse to model a selection that survived anyway.
+        textView.historyDisplayStorage = display([passage(NSRange(location: 0, length: 17))])
         textView.historyCommandHandler = { command in
-            commands.append(command)
             if command == .typedWhileInHistoryMode { textView.historyDisplay = nil }
         }
-        let all = NSRange(location: 0, length: (sample as NSString).length)
-        XCTAssertFalse(textView.shouldChangeText(in: all, replacementString: "X"))
-        XCTAssertEqual(textView.string, sample)
+        XCTAssertEqual(textView.selectedRange(), all)
+
+        textView.insertText("X", replacementRange: NSRange(location: NSNotFound, length: 0))
+
+        XCTAssertEqual(textView.string, sample, "a stale selection is never replaced")
+        XCTAssertNil(textView.historyDisplay)
+    }
+
+    /// Commands that replace a range on their own (formatting, Find & Replace, spelling) leave
+    /// History mode AND apply — only a stale selection is refused.
+    func testBoldInHistoryModeLeavesModeAndApplies() {
+        let textView = makeTextView()
+        let first = passage(NSRange(location: 0, length: 17))
+        textView.historyCommandHandler = { command in
+            if command == .typedWhileInHistoryMode { textView.historyDisplay = nil }
+        }
+        textView.historyDisplay = display([first], selected: first.id)
+
+        textView.toggleBoldMarkdown(nil)
+
+        XCTAssertNil(textView.historyDisplay)
+        XCTAssertNotEqual(textView.string, sample, "the command applied")
+        XCTAssertTrue(textView.string.contains("**"))
+        XCTAssertTrue(textView.string.hasPrefix("Alpha beta gamma."), "nothing before the caret was replaced")
+    }
+
+    func testReplaceInHistoryModeLeavesModeAndApplies() {
+        let textView = makeTextView()
+        textView.historyCommandHandler = { command in
+            if command == .typedWhileInHistoryMode { textView.historyDisplay = nil }
+        }
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 17))])
+        let replaced = "Alpha beta gamma. Delta EPSILON."
+
+        textView.applyExternalReplacement(MarkdownEdit(text: replaced, selectedRange: NSRange(location: 0, length: 0)))
+
+        XCTAssertNil(textView.historyDisplay)
+        XCTAssertEqual(textView.string, replaced)
     }
 
     func testHistoryModeHidesTheInsertionPoint() {
@@ -240,6 +276,20 @@ final class LineformTextViewHistoryTests: XCTestCase {
             + layoutManager.location(forGlyphAt: nextGlyph).y
         XCTAssertGreaterThanOrEqual(placement.origin.y - (baseline - font.descender), 2 - 0.001)
         XCTAssertGreaterThanOrEqual((nextBaseline - font.ascender) - (placement.origin.y + LineformTextView.historyDotDiameter), 2 - 0.001)
+    }
+
+    /// Trailing dots only where they cannot cover text: the passage's last glyph must end its
+    /// line and the row must fit before the container edge. Otherwise below, best effort.
+    func testTrailingDotsNeverOverlapFollowingTextOrTheEdge() {
+        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: 104, lastGlyphEndsLine: false, trailingRowMaxX: 50, containerMaxX: 100), .below)
+        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: nil, lastGlyphEndsLine: true, trailingRowMaxX: 99, containerMaxX: 100), .trailing)
+        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: nil, lastGlyphEndsLine: false, trailingRowMaxX: 50, containerMaxX: 100), .below,
+                       "a passage ending mid-line has text after it")
+        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: nil, lastGlyphEndsLine: true, trailingRowMaxX: 101, containerMaxX: 100), .below,
+                       "never past the container edge")
+        // Best-effort below: centred in whatever gap exists, never above the descender.
+        XCTAssertEqual(HistoryDotPlacement.bestEffortBelowTop(baselineY: 100, descender: 4, nextLineTopY: 111, diameter: 5), 105, accuracy: 0.001)
+        XCTAssertEqual(HistoryDotPlacement.bestEffortBelowTop(baselineY: 100, descender: 4, nextLineTopY: 106, diameter: 5), 104, accuracy: 0.001)
     }
 
     func testTightLineHeightMovesDotsToTheLineEnd() {

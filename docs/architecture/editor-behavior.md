@@ -726,12 +726,17 @@ shows passages with history and steps their versions. Spec:
   ⌘Z leaves the WHOLE document selected; History-mode clicks never reach `super.mouseDown`, so the
   selection survived and the first keystroke (leave, then type) replaced the entire document.
   `refusesHistoryModeReplacement` is the backstop: a user edit in History mode that would replace
-  a non-empty range with text is refused (mode left, caret moved to its end).
+  a surviving non-empty SELECTION (`range == selectedRange()`) with text is refused (mode left,
+  caret moved to its end). Only that: a first version refused every range-replacing edit and so
+  silently threw away ⌘B/⌘I, ⌘0–⌘6, Insert/Reformat Table, Find & Replace and spelling
+  corrections issued in History mode — those leave the mode and apply.
 - **Version dots** (`HistoryDotPlacement`, pure and tested): centred in the gap between the first
   line's descender and the next line's ascender top (font metrics; the next line's real layout
   when it exists), at least 2pt from each and at most 6pt below the descender. When that gap is
   under dot + 4pt (tight line heights) they go after the passage's last glyph instead, centred on
-  the x-height. At the default profile (17pt SF Pro, 1.5) the gap is ~10pt, so the clearance is
+  the x-height — but only when that glyph ends its line fragment and the row fits before the
+  container edge (`HistoryDotPlacement.choose`); otherwise they stay below with whatever
+  clearance exists (`bestEffortBelowTop`), never over text on the same line. At the default profile (17pt SF Pro, 1.5) the gap is ~10pt, so the clearance is
   ~2.5pt each side by metrics (glyph tops of ascender letters sit several points lower).
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
   `didChangeText` — never `applyWholeTextReplacement`.
