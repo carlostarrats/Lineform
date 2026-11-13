@@ -6,22 +6,28 @@ import AppKit
 /// the palette with it. Values follow the History-mode mockup
 /// (`docs/superpowers/specs/2026-11-12-history-mode-mockup.html`).
 ///
-/// The three tints are TRANSLUCENT fills drawn behind full-ink text; `HistoryPaletteTests` asserts
+/// The two tints are TRANSLUCENT fills drawn behind full-ink text; `HistoryPaletteTests` asserts
 /// the ink keeps ≥ 4.5:1 against each tint flattened onto the page, on every built-in theme.
+///
+/// Focus (a passage clicked) carries no fill: the focused passage and its counter keep the full
+/// ink (≥ 4.5:1), other passages fall to `focusOtherInk`, unchanged text to `deepRecededInk`.
+/// The receded inks are de-emphasis, not body text; each keeps a documented floor.
 enum HistoryPalette {
     /// A passage that has history: a light wash of the theme's own ink.
     static let tintAlpha: CGFloat = 0.06
     /// The passage under the pointer: a slightly stronger wash. Preview only.
     static let hoverTintAlpha: CGFloat = 0.11
-    /// The selected passage: the system blue, resolved for the theme's light/dark appearance.
-    static let selectionTintAlpha: CGFloat = 0.24
     /// Unchanged text recedes to this share of the ink before the readability floor is applied.
     static let recededInkAlpha: CGFloat = 0.45
     /// Receded text is de-emphasised, not hidden: it keeps at least this ratio against the page.
     static let recededInkMinimumRatio: CGFloat = 3.0
-    /// Version dots, a graphical affordance: WCAG's 3:1 non-text floor.
-    static let dotInkAlpha: CGFloat = 0.55
-    static let dotInkMinimumRatio: CGFloat = 3.0
+    /// While a passage is focused: the OTHER passages (the hovered one uses `recededInk`, so it
+    /// still reads as clickable).
+    static let focusOtherInkAlpha: CGFloat = 0.38
+    static let focusOtherInkMinimumRatio: CGFloat = 2.5
+    /// While a passage is focused: unchanged text, receded further.
+    static let deepRecededInkAlpha: CGFloat = 0.22
+    static let deepRecededInkMinimumRatio: CGFloat = 2.0
 
     static func tint(for theme: Theme) -> NSColor {
         ink(of: theme).withAlphaComponent(tintAlpha)
@@ -31,10 +37,6 @@ enum HistoryPalette {
         ink(of: theme).withAlphaComponent(hoverTintAlpha)
     }
 
-    static func selectionTint(for theme: Theme) -> NSColor {
-        systemBlue(for: theme).withAlphaComponent(selectionTintAlpha)
-    }
-
     static func recededInk(for theme: Theme) -> NSColor {
         theme.readableInk(
             ink(of: theme).withAlphaComponent(recededInkAlpha),
@@ -42,18 +44,29 @@ enum HistoryPalette {
         )
     }
 
-    static func dotInk(for theme: Theme) -> NSColor {
+    static func focusOtherInk(for theme: Theme) -> NSColor {
         theme.readableInk(
-            ink(of: theme).withAlphaComponent(dotInkAlpha),
-            minimumRatio: dotInkMinimumRatio
+            ink(of: theme).withAlphaComponent(focusOtherInkAlpha),
+            minimumRatio: focusOtherInkMinimumRatio
         )
     }
 
-    /// `tint` composited onto the theme's page, as an OPAQUE colour. The hover and selection
-    /// fills are drawn this way, last, so they REPLACE whatever nested washes lie beneath rather
-    /// than stacking on them: three nested 6% washes under a translucent blue fell to 4.19:1 on
-    /// Quiet. The selected passage therefore always sits on exactly page + blue — the pair the
-    /// 4.5:1 test measures.
+    static func deepRecededInk(for theme: Theme) -> NSColor {
+        theme.readableInk(
+            ink(of: theme).withAlphaComponent(deepRecededInkAlpha),
+            minimumRatio: deepRecededInkMinimumRatio
+        )
+    }
+
+    /// The focused passage's counter: the theme's full ink, like the passage it labels.
+    static func counterInk(for theme: Theme) -> NSColor {
+        theme.readableInk(ink(of: theme), minimumRatio: 4.5)
+    }
+
+    /// `tint` composited onto the theme's page, as an OPAQUE colour. The hover fill is drawn this
+    /// way, last, so it REPLACES whatever nested washes lie beneath rather than stacking on them
+    /// (stacked translucent fills once fell to 4.19:1 on Quiet). The hovered passage therefore
+    /// always sits on exactly page + hover — the pair the 4.5:1 test measures.
     static func opaqueFill(_ tint: NSColor, for theme: Theme) -> NSColor {
         let top = tint.usingColorSpace(.sRGB) ?? tint
         let page = resolved(theme.backgroundColor, for: theme)
@@ -71,11 +84,7 @@ enum HistoryPalette {
         resolved(theme.textColor, for: theme)
     }
 
-    private static func systemBlue(for theme: Theme) -> NSColor {
-        resolved(.systemBlue, for: theme)
-    }
-
-    /// A dynamic colour (the high-contrast theme's `.textColor`, `.systemBlue`) resolved for the
+    /// A dynamic colour (the high-contrast theme's `.textColor`) resolved for the
     /// THEME's appearance — never the system's, which is not what the window is drawn in.
     private static func resolved(_ color: NSColor, for theme: Theme) -> NSColor {
         let appearance = NSAppearance(named: theme.usesDarkChrome ? .darkAqua : .aqua)

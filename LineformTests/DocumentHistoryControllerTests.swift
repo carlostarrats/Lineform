@@ -170,7 +170,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let id = try XCTUnwrap(controller.display?.passages.first?.id)
         XCTAssertNil(controller.handle(.select(id), text: edited))
         XCTAssertEqual(controller.display?.selectedID, id)
-        XCTAssertEqual(controller.display?.dots, HistoryDots(count: 2, current: 1))
+        XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 2, current: 1))
         XCTAssertEqual(controller.sidebarModel.versions.map(\.text), ["Alpha beta gamma delta.", "Alpha BETA gamma delta."])
         XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [false, true])
         XCTAssertEqual(controller.sidebarModel.currentLevel, .sentence)
@@ -179,7 +179,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let edit = try XCTUnwrap(controller.handle(.step(-1), text: edited))
         let stepped = apply(edit, to: edited)
         XCTAssertEqual(stepped, text)
-        XCTAssertEqual(controller.display?.dots, HistoryDots(count: 2, current: 0))
+        XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 2, current: 0))
         XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [true, false])
 
         let back = try XCTUnwrap(controller.selectVersion(1, text: stepped))
@@ -618,6 +618,52 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let texts = controller.sidebarModel.versions.map(\.text)
         _ = controller.handle(.exit, text: string)
         return texts
+    }
+
+    /// The focused passage's counter reserves layout space through storage ATTRIBUTES only:
+    /// enter → focus → exit leaves the text, the file, the dirty state (no text-change
+    /// notifications reach the document binding) and the undo stack exactly as they were.
+    func testEnterFocusExitNeverChangesTheDocument() throws {
+        final class Delegate: NSObject, NSTextViewDelegate {
+            let manager: UndoManager
+            var textChanges = 0
+            override init() { manager = UndoManager(); manager.groupsByEvent = false; super.init() }
+            func undoManager(for view: NSTextView) -> UndoManager? { manager }
+            func textDidChange(_ notification: Notification) { textChanges += 1 }
+        }
+        let a = try makeFile("a.md", contents: text)
+        let bytes = try Data(contentsOf: a)
+        let controller = makeController(store: NullPassageHistoryStore())
+        let delegate = Delegate()
+        let textView = makeTextView(text)
+        textView.delegate = delegate
+        controller.attach(textView)
+        controller.open(url: a, text: text)
+        _ = controller.handle(.add(range(of: sentence, in: textView.string)), text: textView.string)
+        textView.setSelectedRange(range(of: "beta", in: textView.string))
+        delegate.manager.beginUndoGrouping()
+        textView.insertText("BETA", replacementRange: NSRange(location: NSNotFound, length: 0))
+        delegate.manager.endUndoGrouping()
+        delegate.manager.removeAllActions()
+        delegate.textChanges = 0
+        let string = textView.string
+        let storage = try XCTUnwrap(textView.textStorage)
+        let kerns = (0..<storage.length).map { storage.attribute(.kern, at: $0, effectiveRange: nil) as? NSNumber }
+
+        XCTAssertTrue(controller.enterHistoryMode(text: textView.string))
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: textView.string)
+        XCTAssertNotNil(controller.display?.counter)
+        XCTAssertFalse(HistoryCounterSpacing.spacedCharacters(in: storage).isEmpty, "focus reserved the counter's room")
+        _ = controller.handle(.exit, text: textView.string)
+
+        XCTAssertEqual(textView.string, string)
+        XCTAssertEqual(try Data(contentsOf: a), bytes)
+        XCTAssertEqual(delegate.textChanges, 0, "no text change reached the document")
+        XCTAssertFalse(delegate.manager.canUndo, "History mode registered no undo")
+        XCTAssertTrue(HistoryCounterSpacing.spacedCharacters(in: storage).isEmpty)
+        XCTAssertEqual((0..<storage.length).map { storage.attribute(.kern, at: $0, effectiveRange: nil) as? NSNumber }, kerns,
+                       "the reserved space is removed exactly")
     }
 
     /// A session that deleted a version registers no version undo, so live ranges survive into

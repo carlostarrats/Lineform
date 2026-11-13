@@ -662,7 +662,7 @@ shows passages with history and steps their versions. Spec:
   that store runs `reloadFromStore()`. `reloadFromStore` replaces the engine BEFORE leaving
   History mode, because leaving saves — the other order wrote the cleared history straight back
   (`SettingsClearHistoryTests.testClearHistoryCallsClearAll` catches it).
-- **Normal writing draws nothing.** No dots, tints, or underlines outside History mode. The receded
+- **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the
   only place user edits reach History: after AppKit allowed the edit, before it lands, in the
@@ -730,13 +730,28 @@ shows passages with history and steps their versions. Spec:
   caret moved to its end). Only that: a first version refused every range-replacing edit and so
   silently threw away ⌘B/⌘I, ⌘0–⌘6, Insert/Reformat Table, Find & Replace and spelling
   corrections issued in History mode — those leave the mode and apply.
-- **Version dots** (`HistoryDotPlacement`, pure and tested) always sit under the passage's FIRST
-  glyph, as in the approved mockup: top edge at baseline + 0.32 × font size (5pt dots, 3pt gap,
-  0.75pt stroke), hugging the first line just under its descenders and leaving the rest of the
-  line gap open. If that would bring them within 1pt of the next line's ascender (very tight line
-  heights) they shrink to 4pt and stay in place. Tried and rejected on 2026-11-12, do not retry:
-  centring them in the inter-line gap (still read as crowded at default size) and moving them
-  after the passage's last glyph (the owner found trailing dots confusing).
+- **History-mode visuals (2026-11-12, owner-approved "C + A").** Entering: unchanged text
+  receded (`recededInk`, ≥ 3.0:1), passages with history full ink on a gray wash (`tint`, hover
+  `hoverTint` drawn opaque); no counters, so NOTHING reflows on entry. Focus (a passage clicked):
+  no fills and no blue — the focused passage keeps the full ink, every other passage drops to
+  `focusOtherInk` (0.38, ≥ 2.5:1; the hovered one to `recededInk`, so it reads as clickable), and
+  unchanged text to `deepRecededInk` (0.22, ≥ 2.0:1). `HistoryPaletteTests` asserts the floors,
+  their order, and AA for the focused text and counter on every theme. All inks are temporary
+  layout-manager attributes.
+- **The counter** ("current/total", `HistoryCounter.text`) appears ONLY on the focused passage,
+  after its last non-whitespace glyph: 10pt medium tabular numerals (`HistoryCounterLayout`),
+  3pt after the glyph, cap-aligned with the text, full ink. Its room is RESERVED so it can never
+  overlap text: extra `.kern` on that one character (`HistoryCounterSpacing`), written straight to
+  the text storage the way the highlighter writes attributes — never through `shouldChangeText`,
+  with undo registration disabled — and tagged with a marker holding the kern it replaced, so it
+  is removed exactly when focus moves or History mode ends. The highlighter's `setAttributes`
+  wipes it, so every highlighter pass calls `reapplyHistoryCounterSpacingIfNeeded()`. The reflow
+  runs inside `preserveVisibleLayoutAnchorDuring(anchoringCharacterAt:)` on the focused passage's
+  first character, so its first line stays where it was on screen. Enter → focus → exit leaves the
+  string, the file, the undo stack and every kern value unchanged, and posts no text change
+  (`testEnterFocusExitNeverChangesTheDocument`). Nested passages: only the focused one shows a
+  counter. Rejected 2026-11-12, do not retry: version dots under the first word (in every
+  position tried: hugging the line, centred in the gap, trailing) and the blue selection fill.
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
   `didChangeText` — never `applyWholeTextReplacement`.
 - **Leaving.** Esc, another sidebar tab, Read or Split mode, typing (the first keystroke leaves and

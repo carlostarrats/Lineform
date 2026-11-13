@@ -368,6 +368,7 @@ final class LineformTextView: NSTextView {
         let scope = currentVisibleTokenScope()
         markdownHighlighter.highlight(textView: self, profile: activeReadingProfile, tokenScope: scope)
         lastHighlightedTokenRange = scope ?? NSRange(location: 0, length: (string as NSString).length)
+        reapplyHistoryCounterSpacingIfNeeded()
     }
 
     /// Typing-pause pass: re-tokenize only the visible window. Base is already whole-document
@@ -379,6 +380,7 @@ final class LineformTextView: NSTextView {
         }
         markdownHighlighter.refreshTokens(textView: self, profile: activeReadingProfile, scope: scope)
         lastHighlightedTokenRange = scope
+        reapplyHistoryCounterSpacingIfNeeded()
     }
 
     /// The visible character range expanded by `highlightMargin` and snapped to line
@@ -475,6 +477,7 @@ final class LineformTextView: NSTextView {
         }
         markdownHighlighter.refreshTokens(textView: self, profile: activeReadingProfile, scope: scope)
         lastHighlightedTokenRange = scope
+        reapplyHistoryCounterSpacingIfNeeded()
     }
 
     private func scheduleVisibleTokensRefreshAfterScroll() {
@@ -1226,10 +1229,13 @@ final class LineformTextView: NSTextView {
         }
     }
 
+    /// `anchoringCharacterAt` anchors on that character instead of the first visible one (History
+    /// mode's counter keeps the focused passage's first line in place).
     func preserveVisibleLayoutAnchorDuring(
         preservesVisualAnchor: Bool = true,
         restoresAfterDeferredLayout: Bool = false,
         verticalScrollOrigin: CGFloat? = nil,
+        anchoringCharacterAt anchorCharacter: Int? = nil,
         _ updates: () -> Void
     ) {
         // Re-entrancy guard (crash fix, 2026-07-05): AppKit resizes the text view from INSIDE
@@ -1268,7 +1274,7 @@ final class LineformTextView: NSTextView {
         let verticalScrollOriginToRestore = preservesVisualAnchor
             ? nil
             : verticalScrollOrigin ?? enclosingScrollView?.contentView.bounds.origin.y
-        let visualAnchor = preservesVisualAnchor ? visualLayoutAnchorForPreservation() : nil
+        let visualAnchor = preservesVisualAnchor ? visualLayoutAnchorForPreservation(anchorCharacter: anchorCharacter) : nil
         updates()
         if let visualAnchor {
             restoreVisualLayoutAnchor(visualAnchor)
@@ -1818,7 +1824,7 @@ final class LineformTextView: NSTextView {
         let capturedAtTop: Bool
     }
 
-    private func visualLayoutAnchorForPreservation() -> VisualLayoutAnchor? {
+    private func visualLayoutAnchorForPreservation(anchorCharacter: Int? = nil) -> VisualLayoutAnchor? {
         guard
             let visibleRange = visibleCharacterRangeForLayoutPreservation(),
             visibleRange.location < (string as NSString).length,
@@ -1827,7 +1833,8 @@ final class LineformTextView: NSTextView {
             return nil
         }
 
-        let characterRange = NSRange(location: visibleRange.location, length: 1)
+        let location = anchorCharacter.map { min(max(0, $0), (string as NSString).length - 1) } ?? visibleRange.location
+        let characterRange = NSRange(location: location, length: 1)
         guard let yInWindow = yPositionInWindow(for: characterRange) else {
             return nil
         }
@@ -1835,7 +1842,8 @@ final class LineformTextView: NSTextView {
         return VisualLayoutAnchor(
             characterRange: characterRange,
             yInWindow: yInWindow,
-            capturedAtTop: scrollView.contentView.bounds.origin.y <= 1
+            // An explicit anchor is held in place even at the top of the document.
+            capturedAtTop: anchorCharacter == nil && scrollView.contentView.bounds.origin.y <= 1
         )
     }
 

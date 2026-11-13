@@ -1,10 +1,13 @@
 import AppKit
 
-/// The version dots drawn under the selected passage's first glyph: `count` circles, `current`
-/// (zero-based) filled.
-struct HistoryDots: Equatable {
+/// The focused passage's version counter, drawn after its last glyph: "current/total", e.g.
+/// "2/3". `current` is zero-based.
+struct HistoryCounter: Equatable {
     let count: Int
     let current: Int
+
+    /// Numerals and a slash only — nothing to localize.
+    var text: String { "\(current + 1)/\(count)" }
 }
 
 /// What History mode shows in the text view. `nil` on the view means normal writing, which draws
@@ -16,7 +19,7 @@ struct HistoryModeDisplay: Equatable {
     var passages: [LocatedPassage]
     var selectedID: UUID?
     var hoveredID: UUID?
-    var dots: HistoryDots?
+    var counter: HistoryCounter?
 
     /// The innermost passage containing `characterIndex`: the shortest range, ties broken by the
     /// deeper level. This is what a click selects, so a word inside a changed sentence selects
@@ -57,10 +60,10 @@ enum HistoryTextCommand: Equatable {
 
 /// VoiceOver text for the selected passage — announced, never set as the text view's AX value.
 enum HistoryModeAnnouncement {
-    static func text(level: HistoryLevel, dots: HistoryDots?) -> String {
-        guard let dots else { return level.title }
-        let position = dots.current + 1
-        let count = dots.count
+    static func text(level: HistoryLevel, counter: HistoryCounter?) -> String {
+        guard let counter else { return level.title }
+        let position = counter.current + 1
+        let count = counter.count
         return String(localized: "\(level.title), version \(position) of \(count)")
     }
 }
@@ -109,9 +112,6 @@ protocol HistoryEditorSurface: AnyObject {
 extension LineformTextView: HistoryEditorSurface {}
 
 extension LineformTextView {
-    static let historyDotGap: CGFloat = 3
-    static let historyDotStrokeWidth: CGFloat = 0.75
-
     // MARK: - Display state
 
     func applyHistoryDisplay(_ newValue: HistoryModeDisplay?) {
@@ -131,6 +131,7 @@ extension LineformTextView {
 
         guard let incoming else {
             removeHistoryRecededInk()
+            updateHistoryCounterSpacing(for: nil, anchoringAt: previous?.selectedPassage?.range.location)
             removeHistoryTrackingArea()
             updateInsertionPointStateAndRestartTimer(true)
             needsDisplay = true
@@ -151,23 +152,31 @@ extension LineformTextView {
             setSelectedRange(NSRange(location: end, length: 0))
         }
 
-        if previous?.passages != incoming.passages || previous == nil {
+        if previous?.passages != incoming.passages || previous == nil
+            || previous?.selectedID != incoming.selectedID || previous?.hoveredID != incoming.hoveredID {
             refreshHistoryRecededInk()
+        }
+        if previous?.selectedPassage != incoming.selectedPassage || previous?.counter != incoming.counter {
+            // Only the FOCUSED passage shows a counter, so entering History mode reflows nothing.
+            updateHistoryCounterSpacing(for: incoming.counter == nil ? nil : incoming.selectedPassage,
+                                        anchoringAt: incoming.selectedPassage?.range.location)
         }
         installHistoryTrackingAreaIfNeeded()
 
         if incoming.selectedID != nil,
-           previous?.selectedID != incoming.selectedID || previous?.dots != incoming.dots {
+           previous?.selectedID != incoming.selectedID || previous?.counter != incoming.counter {
             announceHistorySelection(incoming)
         }
         needsDisplay = true
     }
 
-    /// Hover is a redraw, not a command: no handler call, no ink refresh, no announcement.
+    /// Hover is a redraw, not a command: no handler call, no announcement. While a passage is
+    /// focused, hover lifts another passage to the receded ink, so the ink is refreshed then.
     func setHistoryHoveredID(_ id: UUID?) {
         guard var display = historyDisplayStorage, display.hoveredID != id else { return }
         display.hoveredID = id
         historyDisplayStorage = display
+        if display.selectedID != nil { refreshHistoryRecededInk() }
         needsDisplay = true
     }
 
@@ -182,10 +191,14 @@ extension LineformTextView {
 
     // MARK: - Receded ink
 
-    /// Unchanged text is drawn with the receded ink through a layout-manager TEMPORARY
-    /// `.foregroundColor` — the text storage (and so the file, the undo stack and the syntax
-    /// highlighting) is never touched. Applied over the visible window (with the highlighter's
-    /// margin) minus the passages, and re-applied when a scroll leaves that window.
+    /// History mode's inks, as layout-manager TEMPORARY `.foregroundColor` — the text storage
+    /// (and so the file, the undo stack and the syntax highlighting) is never touched. Applied over
+    /// the visible window (with the highlighter's margin) and re-applied when a scroll leaves it.
+    ///
+    /// Nothing focused: unchanged text receded, every passage full ink (on its tint).
+    /// A passage focused: unchanged text DEEP receded; every other passage at the focus-other
+    /// ink (the hovered one at the receded ink, so it reads as clickable); the focused passage
+    /// — with anything nested inside it — full ink.
     func refreshHistoryRecededInk() {
         guard let layoutManager, let display = historyDisplayStorage else { return }
         let length = (string as NSString).length
@@ -195,9 +208,27 @@ extension LineformTextView {
         guard length > 0 else { return }
 
         let target = historyInkWindow() ?? fullRange
-        let ink = HistoryPalette.recededInk(for: Theme.theme(for: appliedReadingProfile))
+        let theme = Theme.theme(for: appliedReadingProfile)
+        let focused = display.selectedPassage
+        let gapInk = focused == nil ? HistoryPalette.recededInk(for: theme) : HistoryPalette.deepRecededInk(for: theme)
         for gap in Self.historyGaps(in: target, excluding: display.passages.map(\.range)) {
-            layoutManager.addTemporaryAttribute(.foregroundColor, value: ink, forCharacterRange: gap)
+            layoutManager.addTemporaryAttribute(.foregroundColor, value: gapInk, forCharacterRange: gap)
+        }
+        if let focused {
+            let otherInk = HistoryPalette.focusOtherInk(for: theme)
+            let hoverInk = HistoryPalette.recededInk(for: theme)
+            // Outer first, so a nested passage's own ink wins over its parent's.
+            for other in display.passages.sorted(by: { $0.range.length > $1.range.length }) where other.id != focused.id {
+                let range = NSIntersectionRange(other.range, target)
+                guard range.length > 0 else { continue }
+                layoutManager.addTemporaryAttribute(.foregroundColor,
+                                                    value: other.id == display.hoveredID ? hoverInk : otherInk,
+                                                    forCharacterRange: range)
+            }
+            let range = NSIntersectionRange(focused.range, target)
+            if range.length > 0 {
+                layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: range)
+            }
         }
         historyRecededInkRange = target
     }
@@ -251,17 +282,20 @@ extension LineformTextView {
 
     // MARK: - Drawing
 
-    /// Tints behind every visible passage, then the version dots under the selected one.
-    ///
-    /// Plain passages get a translucent wash, outer first, so a nested passage reads as a deeper
-    /// wash. The hovered and then the selected passage are drawn LAST and OPAQUE
-    /// (`HistoryPalette.opaqueFill`), replacing the washes beneath — stacking a translucent blue
-    /// on nested washes fell below 4.5:1 on Quiet. Selected wins over hovered.
+    /// Nothing focused: a translucent wash behind every visible passage, outer first (a nested
+    /// passage reads as a deeper wash), and the hovered one drawn LAST and OPAQUE
+    /// (`HistoryPalette.opaqueFill`) so it replaces the washes beneath. A passage focused: no
+    /// fills at all — focus is carried by the inks — and the focused passage's counter.
     func drawHistoryIfNeeded() {
         guard let display = historyDisplayStorage else { return }
         let theme = Theme.theme(for: appliedReadingProfile)
-        let visible = visibleCharacterRangeForLayoutPreservation()
 
+        if let focused = display.selectedPassage {
+            if let counter = display.counter { drawHistoryCounter(counter, after: focused.range, theme: theme) }
+            return
+        }
+
+        let visible = visibleCharacterRangeForLayoutPreservation()
         func fill(_ passage: LocatedPassage, with color: NSColor) {
             let range = visible.map { NSIntersectionRange(passage.range, $0) } ?? passage.range
             guard range.length > 0 else { return }
@@ -270,85 +304,97 @@ extension LineformTextView {
                 rect.fill(using: .sourceOver)
             }
         }
-
         let wash = HistoryPalette.tint(for: theme)
-        let plain = display.passages
-            .filter { $0.id != display.selectedID && $0.id != display.hoveredID }
-            .sorted { $0.range.length > $1.range.length }
-        for passage in plain {
+        for passage in display.passages
+            .filter({ $0.id != display.hoveredID })
+            .sorted(by: { $0.range.length > $1.range.length }) {
             fill(passage, with: wash)
         }
-        if let hoveredID = display.hoveredID, hoveredID != display.selectedID,
+        if let hoveredID = display.hoveredID,
            let hovered = display.passages.first(where: { $0.id == hoveredID }) {
             fill(hovered, with: HistoryPalette.opaqueFill(HistoryPalette.hoverTint(for: theme), for: theme))
         }
-        if let selected = display.selectedPassage {
-            fill(selected, with: HistoryPalette.opaqueFill(HistoryPalette.selectionTint(for: theme), for: theme))
-        }
-
-        if let selected = display.selectedPassage, let dots = display.dots, dots.count > 0 {
-            drawHistoryDots(dots, at: selected.range, theme: theme)
-        }
     }
 
-    private func drawHistoryDots(_ dots: HistoryDots, at range: NSRange, theme: Theme) {
-        guard let placement = historyDotsPlacement(for: range) else { return }
-        let diameter = placement.diameter
-        let ink = HistoryPalette.dotInk(for: theme)
-        for index in 0..<dots.count {
-            let rect = NSRect(
-                x: placement.origin.x + CGFloat(index) * (diameter + Self.historyDotGap),
-                y: placement.origin.y,
-                width: diameter,
-                height: diameter
-            )
-            if index == dots.current {
-                ink.setFill()
-                NSBezierPath(ovalIn: rect).fill()
-            } else {
-                let inset = Self.historyDotStrokeWidth / 2
-                let path = NSBezierPath(ovalIn: rect.insetBy(dx: inset, dy: inset))
-                path.lineWidth = Self.historyDotStrokeWidth
-                ink.setStroke()
-                path.stroke()
-            }
-        }
+    private func drawHistoryCounter(_ counter: HistoryCounter, after range: NSRange, theme: Theme) {
+        guard let frame = historyCounterFrame(for: range, counter: counter) else { return }
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: HistoryCounterLayout.font,
+            .foregroundColor: HistoryPalette.counterInk(for: theme),
+        ]
+        (counter.text as NSString).draw(with: frame, options: [.usesLineFragmentOrigin], attributes: attributes)
     }
 
-    /// The dots under the passage's FIRST glyph: the first dot's top-left corner and the dot
-    /// diameter (`HistoryDotPlacement.place`). Nil when the passage has no laid-out glyph.
-    func historyDotsPlacement(for range: NSRange) -> (origin: NSPoint, diameter: CGFloat)? {
+    // MARK: - Counter
+
+    /// The passage's last non-whitespace character: the counter goes after it.
+    private func historyCounterAnchorCharacter(in range: NSRange) -> Int? {
         let ns = string as NSString
-        guard let layoutManager, range.length > 0, range.location < ns.length else { return nil }
-        func fontAt(_ index: Int) -> NSFont {
-            (textStorage?.attribute(.font, at: index, effectiveRange: nil) as? NSFont)
-                ?? font ?? .systemFont(ofSize: CGFloat(appliedReadingProfile.fontSize))
+        guard range.length > 0, NSMaxRange(range) <= ns.length else { return nil }
+        var last = NSMaxRange(range) - 1
+        while last > range.location,
+              let scalar = Unicode.Scalar(ns.character(at: last)),
+              CharacterSet.whitespacesAndNewlines.contains(scalar) {
+            last -= 1
         }
+        return last
+    }
 
-        let glyphIndex = layoutManager.glyphIndexForCharacter(at: range.location)
-        guard glyphIndex < layoutManager.numberOfGlyphs else { return nil }
-        var lineGlyphs = NSRange(location: 0, length: 0)
-        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: &lineGlyphs)
-        let glyphLocation = layoutManager.location(forGlyphAt: glyphIndex)
-        let firstFont = fontAt(range.location)
-        let baselineY = textContainerOrigin.y + lineRect.minY + glyphLocation.y
+    /// Where the counter is drawn (view coordinates; the rect's top is the counter line's top):
+    /// `HistoryCounterLayout.leadingGap` after the last glyph's NATURAL advance (its own kern
+    /// included, the reserved space not), cap-aligned with the text. Nil when not laid out.
+    func historyCounterFrame(for range: NSRange, counter: HistoryCounter) -> NSRect? {
+        guard let layoutManager, let textStorage,
+              let last = historyCounterAnchorCharacter(in: range) else { return nil }
+        let glyphs = layoutManager.glyphRange(forCharacterRange: NSRange(location: last, length: 1), actualCharacterRange: nil)
+        guard glyphs.length > 0, NSMaxRange(glyphs) <= layoutManager.numberOfGlyphs else { return nil }
+        let glyph = NSMaxRange(glyphs) - 1
+        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let location = layoutManager.location(forGlyphAt: glyph)
+        let textFont = (textStorage.attribute(.font, at: last, effectiveRange: nil) as? NSFont)
+            ?? font ?? .systemFont(ofSize: CGFloat(appliedReadingProfile.fontSize))
+        let advance = textFont.advancement(forCGGlyph: layoutManager.cgGlyph(at: glyph)).width
+        let ownKern = HistoryCounterSpacing.originalKern(at: last, in: textStorage)
+        let glyphEndX = textContainerOrigin.x + lineRect.minX + location.x + advance + ownKern
+        let baselineY = textContainerOrigin.y + lineRect.minY + location.y
+        let width = HistoryCounterLayout.width(of: counter.text)
+        return NSRect(
+            x: HistoryCounterLayout.originX(afterGlyphEndingAt: glyphEndX),
+            y: HistoryCounterLayout.top(baselineY: baselineY, textCapHeight: textFont.capHeight),
+            width: width,
+            height: HistoryCounterLayout.font.ascender - HistoryCounterLayout.font.descender
+        )
+    }
 
-        // The next line's ascender top, from its real layout when there is one.
-        let nextLineTopY: CGFloat
-        let nextGlyph = NSMaxRange(lineGlyphs)
-        if nextGlyph < layoutManager.numberOfGlyphs {
-            let nextRect = layoutManager.lineFragmentRect(forGlyphAt: nextGlyph, effectiveRange: nil)
-            let nextLocation = layoutManager.location(forGlyphAt: nextGlyph)
-            let nextFont = fontAt(min(layoutManager.characterIndexForGlyph(at: nextGlyph), ns.length - 1))
-            nextLineTopY = textContainerOrigin.y + nextRect.minY + nextLocation.y - nextFont.ascender
-        } else {
-            nextLineTopY = textContainerOrigin.y + lineRect.maxY + glyphLocation.y - firstFont.ascender
+    /// Reserves room for the focused passage's counter as extra KERN on its last character —
+    /// layout only: attribute writes straight to the text storage (as the highlighter makes),
+    /// never through `shouldChangeText`, with undo registration disabled. The string, the file,
+    /// the dirty state and the undo stack are untouched, and the extra kern is removed exactly
+    /// (`HistoryCounterSpacing`) when focus moves or History mode ends. The reflow keeps the
+    /// focused passage's first line where it was on screen.
+    func updateHistoryCounterSpacing(for passage: LocatedPassage?, anchoringAt anchor: Int?) {
+        guard let textStorage else { return }
+        let target: (index: Int, width: CGFloat)? = {
+            guard let passage, let counter = historyDisplayStorage?.counter,
+                  let last = historyCounterAnchorCharacter(in: passage.range) else { return nil }
+            return (last, HistoryCounterLayout.reservedWidth(for: counter.text))
+        }()
+        guard HistoryCounterSpacing.needsUpdate(in: textStorage, target: target) else { return }
+        let manager = undoManager
+        manager?.disableUndoRegistration()
+        defer { manager?.enableUndoRegistration() }
+        preserveVisibleLayoutAnchorDuring(anchoringCharacterAt: anchor) {
+            HistoryCounterSpacing.apply(target, in: textStorage)
         }
+        needsDisplay = true
+    }
 
-        let placed = HistoryDotPlacement.place(baselineY: baselineY, fontSize: firstFont.pointSize,
-                                               nextLineTopY: nextLineTopY)
-        let left = textContainerOrigin.x + lineRect.minX + glyphLocation.x
-        return (NSPoint(x: left, y: placed.top), placed.diameter)
+    /// The highlighter resets attributes with `setAttributes`, which wipes the reserved space; it
+    /// calls this after every pass so the focused passage's counter keeps its room.
+    func reapplyHistoryCounterSpacingIfNeeded() {
+        guard let display = historyDisplayStorage else { return }
+        updateHistoryCounterSpacing(for: display.counter == nil ? nil : display.selectedPassage,
+                                    anchoringAt: display.selectedPassage?.range.location)
     }
 
     // MARK: - Input
@@ -590,7 +636,7 @@ extension LineformTextView {
 
     private func announceHistorySelection(_ display: HistoryModeDisplay) {
         guard let passage = display.selectedPassage else { return }
-        let text = HistoryModeAnnouncement.text(level: passage.level, dots: display.dots)
+        let text = HistoryModeAnnouncement.text(level: passage.level, counter: display.counter)
         NSAccessibility.post(
             element: self,
             notification: .announcementRequested,
@@ -603,23 +649,104 @@ extension LineformTextView {
 }
 
 
-/// Where the version dots go, in flipped view coordinates (y grows down). Pure, so the geometry is
-/// pinned by tests rather than eyeballed. Always under the passage's FIRST glyph — never at the
-/// passage's end (tried and rejected by the owner, 2026-11-12: confusing).
-enum HistoryDotPlacement {
-    /// As in the approved mockup (`top: 1.32em` on the first word): the dots' top edge sits this
-    /// share of the font size below the baseline, hugging the first line just under its
-    /// descenders and leaving the rest of the line gap open above the next line.
-    static let baselineOffsetRatio: CGFloat = 0.32
-    static let diameter: CGFloat = 5
-    /// Used when the regular dots would come within `minimumNextLineClearance` of the next
-    /// line's ascender (very tight line heights). They still hug the first line.
-    static let compactDiameter: CGFloat = 4
-    static let minimumNextLineClearance: CGFloat = 1
+/// The counter's geometry, pure so it is pinned by tests: 10pt medium, tabular numerals, top-
+/// aligned to the text's cap height, `leadingGap` after the last glyph, `trailingGap` before
+/// whatever follows on the line.
+enum HistoryCounterLayout {
+    static var font: NSFont { NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium) }
+    static let leadingGap: CGFloat = 3
+    static let trailingGap: CGFloat = 2
 
-    static func place(baselineY: CGFloat, fontSize: CGFloat, nextLineTopY: CGFloat) -> (top: CGFloat, diameter: CGFloat) {
-        let top = baselineY + baselineOffsetRatio * fontSize
-        let fits = top + diameter <= nextLineTopY - minimumNextLineClearance
-        return (top, fits ? diameter : compactDiameter)
+    static func width(of text: String) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    /// The extra advance reserved after the last glyph: the counter can never reach the next glyph.
+    static func reservedWidth(for text: String) -> CGFloat {
+        leadingGap + width(of: text) + trailingGap
+    }
+
+    static func originX(afterGlyphEndingAt glyphEndX: CGFloat) -> CGFloat {
+        glyphEndX + leadingGap
+    }
+
+    /// The top of the counter's line box (flipped) so its cap height starts where the text's does.
+    static func top(baselineY: CGFloat, textCapHeight: CGFloat) -> CGFloat {
+        baselineY - textCapHeight - (font.ascender - font.capHeight)
+    }
+}
+
+/// The reserved counter space as storage attributes: extra `.kern` on one character, marked with
+/// `marker` holding the kern it replaced and the kern written, so it is removed EXACTLY — and so a
+/// highlighter pass that rewrote the attributes (marker gone, or kern no longer ours) is detected.
+enum HistoryCounterSpacing {
+    static let marker = NSAttributedString.Key("LineformHistoryCounterSpacing")
+
+    private struct Record {
+        let original: CGFloat?
+        let applied: CGFloat
+    }
+
+    private static func record(at index: Int, in storage: NSTextStorage) -> Record? {
+        guard let value = storage.attribute(marker, at: index, effectiveRange: nil) as? [String: Any],
+              let applied = value["applied"] as? CGFloat else { return nil }
+        return Record(original: value["original"] as? CGFloat, applied: applied)
+    }
+
+    private static func kern(at index: Int, in storage: NSTextStorage) -> CGFloat? {
+        (storage.attribute(.kern, at: index, effectiveRange: nil) as? NSNumber).map { CGFloat($0.doubleValue) }
+    }
+
+    /// The character's kern without any reserved space.
+    static func originalKern(at index: Int, in storage: NSTextStorage) -> CGFloat {
+        guard index < storage.length else { return 0 }
+        if let record = record(at: index, in: storage), kern(at: index, in: storage) == record.applied {
+            return record.original ?? 0
+        }
+        return kern(at: index, in: storage) ?? 0
+    }
+
+    /// Every character that carries live reserved space (marker present and the kern still ours).
+    static func spacedCharacters(in storage: NSTextStorage) -> [Int] {
+        var found: [Int] = []
+        storage.enumerateAttribute(marker, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard value != nil else { return }
+            for index in range.location..<NSMaxRange(range) { found.append(index) }
+        }
+        return found
+    }
+
+    static func needsUpdate(in storage: NSTextStorage, target: (index: Int, width: CGFloat)?) -> Bool {
+        let spaced = spacedCharacters(in: storage)
+        guard let target else { return !spaced.isEmpty }
+        guard spaced == [target.index], let record = record(at: target.index, in: storage) else { return true }
+        return kern(at: target.index, in: storage) != record.applied
+            || record.applied != (record.original ?? 0) + target.width
+    }
+
+    /// Removes every reserved space, then reserves `target`'s. One editing batch.
+    static func apply(_ target: (index: Int, width: CGFloat)?, in storage: NSTextStorage) {
+        storage.beginEditing()
+        defer { storage.endEditing() }
+        for index in spacedCharacters(in: storage) {
+            let range = NSRange(location: index, length: 1)
+            if let record = record(at: index, in: storage), kern(at: index, in: storage) == record.applied {
+                if let original = record.original {
+                    storage.addAttribute(.kern, value: original, range: range)
+                } else {
+                    storage.removeAttribute(.kern, range: range)
+                }
+            }
+            // Kern no longer ours (a highlighter pass rewrote it): leave it, drop the marker.
+            storage.removeAttribute(marker, range: range)
+        }
+        guard let target, target.index < storage.length else { return }
+        let range = NSRange(location: target.index, length: 1)
+        let original = kern(at: target.index, in: storage)
+        let applied = (original ?? 0) + target.width
+        storage.addAttribute(.kern, value: applied, range: range)
+        var value: [String: Any] = ["applied": applied]
+        if let original { value["original"] = original }
+        storage.addAttribute(marker, value: value, range: range)
     }
 }

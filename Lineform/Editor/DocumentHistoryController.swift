@@ -640,8 +640,8 @@ final class DocumentHistoryController: ObservableObject {
         let newModel: HistorySidebarModel
         if isHistoryModeActive {
             let passage = selectedID.flatMap { id in engine.history.passages.first { $0.id == id } }
-            let dots = passage.map { HistoryDots(count: $0.versions.count, current: $0.currentIndex) }
-            newDisplay = HistoryModeDisplay(passages: located, selectedID: selectedID, hoveredID: nil, dots: dots)
+            let counter = passage.map { HistoryCounter(count: $0.versions.count, current: $0.currentIndex) }
+            newDisplay = HistoryModeDisplay(passages: located, selectedID: selectedID, hoveredID: nil, counter: counter)
             if let passage {
                 let levels = engine.group(containing: passage.id)
                 newModel = HistorySidebarModel(

@@ -17,8 +17,8 @@ final class LineformTextViewHistoryTests: XCTestCase {
         LocatedPassage(id: UUID(), level: level, range: range, rootID: UUID())
     }
 
-    private func display(_ passages: [LocatedPassage], selected: UUID? = nil, dots: HistoryDots? = nil) -> HistoryModeDisplay {
-        HistoryModeDisplay(passages: passages, selectedID: selected, hoveredID: nil, dots: dots)
+    private func display(_ passages: [LocatedPassage], selected: UUID? = nil, counter: HistoryCounter? = nil) -> HistoryModeDisplay {
+        HistoryModeDisplay(passages: passages, selectedID: selected, hoveredID: nil, counter: counter)
     }
 
     private static func contextMenuEvent() throws -> NSEvent {
@@ -82,7 +82,7 @@ final class LineformTextViewHistoryTests: XCTestCase {
     func testArrowKeysStepVersionsInHistoryMode() {
         let textView = makeTextView()
         let first = passage(NSRange(location: 0, length: 17))
-        textView.historyDisplay = display([first], selected: first.id, dots: HistoryDots(count: 3, current: 0))
+        textView.historyDisplay = display([first], selected: first.id, counter: HistoryCounter(count: 3, current: 0))
         var commands: [HistoryTextCommand] = []
         textView.historyCommandHandler = { commands.append($0) }
         textView.setSelectedRange(NSRange(location: 2, length: 0))
@@ -239,45 +239,131 @@ final class LineformTextViewHistoryTests: XCTestCase {
 
     // MARK: - Dot placement (pure)
 
-    /// As in the approved mockup: the dots' top edge at baseline + 0.32 × font size, 5pt dots.
-    func testDotsHugTheFirstLine() {
-        let placed = HistoryDotPlacement.place(baselineY: 100, fontSize: 17, nextLineTopY: 120)
-        XCTAssertEqual(placed.top, 100 + 0.32 * 17, accuracy: 0.001)
-        XCTAssertEqual(placed.diameter, 5)
+    // MARK: - Counter
+
+    func testCounterTextIsCurrentOverTotal() {
+        XCTAssertEqual(HistoryCounter(count: 3, current: 1).text, "2/3")
+        XCTAssertEqual(HistoryCounter(count: 12, current: 9).text, "10/12")
     }
 
-    /// Very tight line heights shrink the dots to 4pt; they stay hugging the first line.
-    func testTightLineHeightShrinksDotsButKeepsThemUnderTheLine() {
-        let top = 100 + 0.32 * 17
-        let roomy = HistoryDotPlacement.place(baselineY: 100, fontSize: 17, nextLineTopY: top + 5 + 1)
-        XCTAssertEqual(roomy.diameter, 5, "exactly 1pt from the next line still fits")
-        let tight = HistoryDotPlacement.place(baselineY: 100, fontSize: 17, nextLineTopY: top + 5 + 0.9)
-        XCTAssertEqual(tight.diameter, 4)
-        XCTAssertEqual(tight.top, top, accuracy: 0.001, "never moved away from the first line")
+    /// The counter starts `leadingGap` after the last glyph and ends `trailingGap` before the
+    /// reserved space runs out, so it can never reach the next glyph.
+    func testCounterFitsInsideItsReservedSpace() {
+        for text in ["1/2", "10/12", "99/99"] {
+            let x = HistoryCounterLayout.originX(afterGlyphEndingAt: 100)
+            XCTAssertEqual(x, 100 + HistoryCounterLayout.leadingGap)
+            XCTAssertLessThanOrEqual(x + HistoryCounterLayout.width(of: text),
+                                     100 + HistoryCounterLayout.reservedWidth(for: text) - HistoryCounterLayout.trailingGap)
+        }
+        // Cap-aligned: the counter's cap top sits at the text's cap top.
+        let top = HistoryCounterLayout.top(baselineY: 100, textCapHeight: 12)
+        let font = HistoryCounterLayout.font
+        XCTAssertEqual(top + font.ascender - font.capHeight, 100 - 12, accuracy: 0.001)
     }
 
-    /// Real layout at the default profile (17pt SF Pro, 1.5): under the passage's FIRST glyph,
-    /// top = baseline + 0.32 × 17pt — also for a passage that ends its line (no trailing dots).
-    func testDefaultProfileDotsSitUnderTheFirstGlyph() throws {
+    private func laidOutTextView(_ text: String) throws -> LineformTextView {
         let textView = LineformTextView()
         textView.frame = NSRect(x: 0, y: 0, width: 700, height: 400)
         textView.applyDefaultTypography()
-        // A line separator: a second line in the SAME paragraph (no paragraph spacing).
-        textView.string = "Hello world again.\u{2028}Bold lines below."
-        let font = try XCTUnwrap(textView.font)
-        XCTAssertEqual(font.pointSize, 17)
+        textView.string = text
         let layoutManager = try XCTUnwrap(textView.layoutManager)
         layoutManager.ensureLayout(for: try XCTUnwrap(textView.textContainer))
-        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil)
-        let baseline = textView.textContainerOrigin.y + lineRect.minY + layoutManager.location(forGlyphAt: 0).y
-        let firstX = textView.textContainerOrigin.x + lineRect.minX + layoutManager.location(forGlyphAt: 0).x
+        return textView
+    }
 
-        for passage in [NSRange(location: 0, length: 18), NSRange(location: 0, length: 5)] {
-            let placement = try XCTUnwrap(textView.historyDotsPlacement(for: passage))
-            XCTAssertEqual(placement.origin.y, baseline + 0.32 * 17, accuracy: 0.001)
-            XCTAssertEqual(placement.origin.x, firstX, accuracy: 0.001)
-            XCTAssertEqual(placement.diameter, 5)
+    private func kern(_ textView: LineformTextView, at index: Int) -> NSNumber? {
+        textView.textStorage?.attribute(.kern, at: index, effectiveRange: nil) as? NSNumber
+    }
+
+    /// Entering History mode shows no counters and reserves no space: nothing reflows.
+    func testEnteringHistoryModeShowsNoCounterAndReflowsNothing() throws {
+        let textView = try laidOutTextView(sample)
+        let before = (0..<(sample as NSString).length).map { kern(textView, at: $0) }
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 17)), passage(NSRange(location: 18, length: 14))])
+        let after = (0..<(sample as NSString).length).map { kern(textView, at: $0) }
+        XCTAssertEqual(before, after)
+        XCTAssertTrue(HistoryCounterSpacing.spacedCharacters(in: try XCTUnwrap(textView.textStorage)).isEmpty)
+    }
+
+    /// Only the focused passage reserves counter space, and moving focus moves it.
+    func testCounterAppearsOnlyForTheFocusedPassage() throws {
+        let textView = try laidOutTextView(sample)
+        let storage = try XCTUnwrap(textView.textStorage)
+        let first = passage(NSRange(location: 0, length: 17))
+        let second = passage(NSRange(location: 18, length: 14))
+        textView.historyDisplay = display([first, second])
+        textView.historyDisplay = display([first, second], selected: first.id, counter: HistoryCounter(count: 3, current: 1))
+        XCTAssertEqual(HistoryCounterSpacing.spacedCharacters(in: storage), [16], "after the first passage's last glyph only")
+        textView.historyDisplay = display([first, second], selected: second.id, counter: HistoryCounter(count: 2, current: 0))
+        XCTAssertEqual(HistoryCounterSpacing.spacedCharacters(in: storage), [31])
+        textView.historyDisplay = nil
+        XCTAssertTrue(HistoryCounterSpacing.spacedCharacters(in: storage).isEmpty)
+    }
+
+    /// The highlighter resets attributes with `setAttributes`; the counter's room is re-reserved
+    /// after every pass while focused, and never after History mode ends.
+    func testHighlighterPassKeepsTheCounterRoomOnlyWhileFocused() throws {
+        let textView = try laidOutTextView(sample)
+        let storage = try XCTUnwrap(textView.textStorage)
+        let first = passage(NSRange(location: 0, length: 17))
+        textView.historyDisplay = display([first])
+        textView.historyDisplay = display([first], selected: first.id, counter: HistoryCounter(count: 2, current: 0))
+        textView.refreshMarkdownHighlighting()
+        XCTAssertEqual(HistoryCounterSpacing.spacedCharacters(in: storage), [16])
+        textView.historyDisplay = nil
+        textView.refreshMarkdownHighlighting()
+        XCTAssertTrue(HistoryCounterSpacing.spacedCharacters(in: storage).isEmpty)
+    }
+
+    /// A word passage mid-line, followed by text on the same line: the counter ends before the
+    /// next glyph starts, and the passage's first line does not move.
+    func testCounterNeverOverlapsFollowingText() throws {
+        let textView = try laidOutTextView(sample)
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let word = passage(NSRange(location: 6, length: 4), level: .word)  // "beta"
+        let lineY = layoutManager.lineFragmentRect(forGlyphAt: 6, effectiveRange: nil).minY
+        let counter = HistoryCounter(count: 3, current: 1)
+        textView.historyDisplay = display([word])
+        textView.historyDisplay = display([word], selected: word.id, counter: counter)
+        layoutManager.ensureLayout(for: try XCTUnwrap(textView.textContainer))
+
+        let frame = try XCTUnwrap(textView.historyCounterFrame(for: word.range, counter: counter))
+        let nextGlyph = layoutManager.glyphIndexForCharacter(at: 11)  // "gamma"
+        let nextRect = layoutManager.lineFragmentRect(forGlyphAt: nextGlyph, effectiveRange: nil)
+        XCTAssertEqual(nextRect.minY, lineY, "still on the same line")
+        let nextX = textView.textContainerOrigin.x + nextRect.minX + layoutManager.location(forGlyphAt: nextGlyph).x
+        XCTAssertLessThanOrEqual(frame.maxX, nextX, "the counter never reaches the following text")
+        let endOfBeta = textView.textContainerOrigin.x
+            + layoutManager.boundingRect(forGlyphRange: NSRange(location: layoutManager.glyphIndexForCharacter(at: 9), length: 1),
+                                         in: try XCTUnwrap(textView.textContainer)).minX
+        XCTAssertGreaterThan(frame.minX, endOfBeta, "after the passage's last glyph")
+        XCTAssertEqual(layoutManager.lineFragmentRect(forGlyphAt: 6, effectiveRange: nil).minY, lineY,
+                       "the focused passage's first line stays put")
+    }
+
+    /// Focus: the focused passage full ink, others at the focus-other ink (hovered: receded),
+    /// unchanged text deep receded. Unfocused: unchanged receded, passages full ink.
+    func testFocusInks() throws {
+        let textView = makeTextView()
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let theme = Theme.theme(for: textView.appliedReadingProfile)
+        func ink(_ index: Int) -> NSColor? {
+            layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
         }
+        let first = passage(NSRange(location: 0, length: 5))
+        let second = passage(NSRange(location: 6, length: 4))
+        textView.historyDisplay = display([first, second])
+        XCTAssertEqual(ink(12), HistoryPalette.recededInk(for: theme))
+        XCTAssertNil(ink(0))
+        XCTAssertNil(ink(7))
+
+        textView.historyDisplay = display([first, second], selected: first.id, counter: HistoryCounter(count: 2, current: 1))
+        XCTAssertNil(ink(0), "the focused passage keeps the full ink")
+        XCTAssertEqual(ink(7), HistoryPalette.focusOtherInk(for: theme))
+        XCTAssertEqual(ink(12), HistoryPalette.deepRecededInk(for: theme))
+
+        textView.setHistoryHoveredID(second.id)
+        XCTAssertEqual(ink(7), HistoryPalette.recededInk(for: theme), "a hovered passage reads as clickable")
     }
 
     func testHistoryEditsAreNotMistakenForTyping() {
@@ -569,10 +655,10 @@ final class LineformTextViewHistoryTests: XCTestCase {
 
     func testAnnouncementNamesLevelAndVersion() {
         XCTAssertEqual(
-            HistoryModeAnnouncement.text(level: .sentence, dots: HistoryDots(count: 4, current: 1)),
+            HistoryModeAnnouncement.text(level: .sentence, counter: HistoryCounter(count: 4, current: 1)),
             String(localized: "\(HistoryLevel.sentence.title), version \(2) of \(4)")
         )
-        XCTAssertEqual(HistoryModeAnnouncement.text(level: .word, dots: nil), HistoryLevel.word.title)
+        XCTAssertEqual(HistoryModeAnnouncement.text(level: .word, counter: nil), HistoryLevel.word.title)
     }
     // MARK: - Accessibility actions (final review I3)
 

@@ -22,9 +22,10 @@ final class HistoryPaletteTests: XCTestCase {
         [
             HistoryPalette.tint(for: theme),
             HistoryPalette.hoverTint(for: theme),
-            HistoryPalette.selectionTint(for: theme),
             HistoryPalette.recededInk(for: theme),
-            HistoryPalette.dotInk(for: theme),
+            HistoryPalette.focusOtherInk(for: theme),
+            HistoryPalette.deepRecededInk(for: theme),
+            HistoryPalette.counterInk(for: theme),
         ]
     }
 
@@ -33,7 +34,6 @@ final class HistoryPaletteTests: XCTestCase {
             let tints = [
                 ("tint", HistoryPalette.tint(for: theme)),
                 ("hover", HistoryPalette.hoverTint(for: theme)),
-                ("selection", HistoryPalette.selectionTint(for: theme)),
             ]
             for (name, tint) in tints {
                 let flattened = Self.flattened(tint, over: theme.backgroundColor)
@@ -44,7 +44,7 @@ final class HistoryPaletteTests: XCTestCase {
     }
 
     /// Plain passages stack their washes (a word in a changed sentence in a changed paragraph sits
-    /// on three). Hover and selection are drawn OPAQUE over them, so they are exactly the
+    /// on three). Hover is drawn OPAQUE over them, so they are exactly the
     /// page-flattened tint whatever is nested beneath — the pair the AA test above measures.
     func testNestedWashesMeetAAAndHoverSelectionFillsAreOpaque() {
         for theme in Theme.builtIn {
@@ -54,7 +54,7 @@ final class HistoryPaletteTests: XCTestCase {
             }
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, page), 4.5, theme.name)
 
-            for tint in [HistoryPalette.hoverTint(for: theme), HistoryPalette.selectionTint(for: theme)] {
+            for tint in [HistoryPalette.hoverTint(for: theme)] {
                 let fill = HistoryPalette.opaqueFill(tint, for: theme)
                 XCTAssertEqual(fill.alphaComponent, 1, theme.name)
                 XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, fill), 4.5, theme.name)
@@ -79,17 +79,20 @@ final class HistoryPaletteTests: XCTestCase {
         }
     }
 
-    func testDotInkMeetsNonTextContrastOnEveryTheme() {
+    /// Focus: the focused passage and its counter are full ink (AA); the other inks keep their
+    /// documented floors and step down in order: receded > focus-other > deep receded.
+    func testFocusInksKeepTheirFloorsAndOrderOnEveryTheme() {
         for theme in Theme.builtIn {
-            let ratio = Theme.contrastRatio(HistoryPalette.dotInk(for: theme), theme.backgroundColor)
-            XCTAssertGreaterThanOrEqual(ratio, 3.0, "\(theme.name) was \(ratio)")
-        }
-    }
-
-    func testSelectionIsBlueNotGrey() {
-        for theme in Theme.builtIn {
-            let blue = HistoryPalette.selectionTint(for: theme).usingColorSpace(.sRGB)!
-            XCTAssertGreaterThan(blue.blueComponent, blue.redComponent + 0.3, theme.name)
+            let page = theme.backgroundColor
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, page), 4.5, theme.name)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(HistoryPalette.counterInk(for: theme), page), 4.5, theme.name)
+            let receded = Theme.contrastRatio(HistoryPalette.recededInk(for: theme), page)
+            let other = Theme.contrastRatio(HistoryPalette.focusOtherInk(for: theme), page)
+            let deep = Theme.contrastRatio(HistoryPalette.deepRecededInk(for: theme), page)
+            XCTAssertGreaterThanOrEqual(other, 2.5, "\(theme.name) focus-other was \(other)")
+            XCTAssertGreaterThanOrEqual(deep, 2.0, "\(theme.name) deep receded was \(deep)")
+            XCTAssertGreaterThanOrEqual(receded + 0.001, other, theme.name)
+            XCTAssertGreaterThanOrEqual(other + 0.001, deep, theme.name)
         }
     }
 
