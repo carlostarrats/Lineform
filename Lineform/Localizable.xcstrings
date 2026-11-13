@@ -12100,6 +12100,366 @@
           }
         }
       }
+    },
+    "The key wasn't accepted. Check it in Connect Your AI.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The key wasn't accepted. Check it in Connect Your AI."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La clave no fue aceptada. Compruébala en Conectar tu IA."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La clé n’a pas été acceptée. Vérifiez-la dans Connecter votre IA."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Schlüssel wurde nicht akzeptiert. Prüfe ihn unter „KI verbinden“."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キーが受け付けられませんでした。「AI を接続」で確認してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密钥未被接受。请在“连接你的 AI”中检查。"
+          }
+        }
+      }
+    },
+    "The server didn't recognise the model. Enter a model name in Connect Your AI.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The server didn't recognise the model. Enter a model name in Connect Your AI."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor no reconoció el modelo. Introduce un nombre de modelo en Conectar tu IA."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur n’a pas reconnu le modèle. Saisissez un nom de modèle dans Connecter votre IA."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server kennt das Modell nicht. Gib unter „KI verbinden“ einen Modellnamen ein."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーがモデルを認識できませんでした。「AI を接続」でモデル名を入力してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器无法识别该模型。请在“连接你的 AI”中输入模型名称。"
+          }
+        }
+      }
+    },
+    "The AI declined this request.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The AI declined this request."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La IA rechazó esta solicitud."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’IA a refusé cette demande."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die KI hat diese Anfrage abgelehnt."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI がこのリクエストを拒否しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 拒绝了此请求。"
+          }
+        }
+      }
+    },
+    "The AI's reply couldn't be used. Nothing was changed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The AI's reply couldn't be used. Nothing was changed."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo usar la respuesta de la IA. No se cambió nada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La réponse de l’IA n’a pas pu être utilisée. Rien n’a été modifié."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Antwort der KI konnte nicht verwendet werden. Es wurde nichts geändert."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI の返答を使用できませんでした。何も変更されていません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法使用 AI 的回复。未做任何更改。"
+          }
+        }
+      }
+    },
+    "Couldn't reach the AI. Check your connection.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Couldn't reach the AI. Check your connection."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo conectar con la IA. Comprueba tu conexión."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de joindre l’IA. Vérifiez votre connexion."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die KI ist nicht erreichbar. Prüfe deine Verbindung."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI に接続できませんでした。接続を確認してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接到 AI。请检查网络连接。"
+          }
+        }
+      }
+    },
+    "The AI took too long to answer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The AI took too long to answer."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La IA tardó demasiado en responder."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’IA a mis trop de temps à répondre."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die KI hat zu lange für die Antwort gebraucht."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI の応答に時間がかかりすぎました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 响应时间过长。"
+          }
+        }
+      }
+    },
+    "The AI is busy or your usage limit was reached. Try again later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The AI is busy or your usage limit was reached. Try again later."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La IA está ocupada o se alcanzó tu límite de uso. Inténtalo más tarde."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’IA est occupée ou votre limite d’utilisation est atteinte. Réessayez plus tard."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die KI ist ausgelastet oder dein Nutzungslimit ist erreicht. Versuche es später erneut."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI が混み合っているか、使用上限に達しました。後でもう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 繁忙或已达到使用上限。请稍后再试。"
+          }
+        }
+      }
+    },
+    "The AI service returned an error (%lld).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The AI service returned an error (%lld)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio de IA devolvió un error (%lld)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le service d’IA a renvoyé une erreur (%lld)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der KI-Dienst hat einen Fehler gemeldet (%lld)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI サービスがエラーを返しました（%lld）。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 服务返回了错误（%lld）。"
+          }
+        }
+      }
+    },
+    "The AI's reply was too large to use.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The AI's reply was too large to use."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta de la IA era demasiado grande para usarla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La réponse de l’IA était trop volumineuse pour être utilisée."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Antwort der KI war zu groß, um sie zu verwenden."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI の返答が大きすぎて使用できません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 的回复过大，无法使用。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

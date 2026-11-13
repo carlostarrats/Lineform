@@ -191,6 +191,11 @@
 		1F00000100000000000004E0 /* AIKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E0 /* AIKeychain.swift */; };
 		1F00000100000000000004E1 /* AITestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AITestDoubles.swift */; };
 		1F00000100000000000004E2 /* AIConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E2 /* AIConnectionStoreTests.swift */; };
+		1F00000100000000000004E3 /* AIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E3 /* AIClient.swift */; };
+		1F00000100000000000004E4 /* AIHTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E4 /* AIHTTPTransport.swift */; };
+		1F00000100000000000004E5 /* AnthropicMessagesClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E5 /* AnthropicMessagesClient.swift */; };
+		1F00000100000000000004E6 /* OpenAICompatibleClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E6 /* OpenAICompatibleClient.swift */; };
+		1F00000100000000000004E7 /* AIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E7 /* AIClientTests.swift */; };
 		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
 		1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CD /* PassageHistoryModel.swift */; };
 		1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CE /* PassageHistoryStore.swift */; };
@@ -429,6 +434,11 @@
 		1F00000200000000000004E0 /* AIKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIKeychain.swift; sourceTree = "<group>"; };
 		1F00000200000000000004E1 /* AITestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITestDoubles.swift; sourceTree = "<group>"; };
 		1F00000200000000000004E2 /* AIConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConnectionStoreTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004E3 /* AIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClient.swift; sourceTree = "<group>"; };
+		1F00000200000000000004E4 /* AIHTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIHTTPTransport.swift; sourceTree = "<group>"; };
+		1F00000200000000000004E5 /* AnthropicMessagesClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicMessagesClient.swift; sourceTree = "<group>"; };
+		1F00000200000000000004E6 /* OpenAICompatibleClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleClient.swift; sourceTree = "<group>"; };
+		1F00000200000000000004E7 /* AIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CD /* PassageHistoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryModel.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CE /* PassageHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStore.swift; sourceTree = "<group>"; };
@@ -524,6 +534,10 @@
 				1F00000200000000000004DE /* AIProvider.swift */,
 				1F00000200000000000004DF /* AIConnectionStore.swift */,
 				1F00000200000000000004E0 /* AIKeychain.swift */,
+				1F00000200000000000004E3 /* AIClient.swift */,
+				1F00000200000000000004E4 /* AIHTTPTransport.swift */,
+				1F00000200000000000004E5 /* AnthropicMessagesClient.swift */,
+				1F00000200000000000004E6 /* OpenAICompatibleClient.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -719,6 +733,7 @@
 				1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */,
 				1F00000200000000000004E1 /* AITestDoubles.swift */,
 				1F00000200000000000004E2 /* AIConnectionStoreTests.swift */,
+				1F00000200000000000004E7 /* AIClientTests.swift */,
 				1F00000200000000000004CF /* PassageHistoryStoreTests.swift */,
 				1F00000200000000000004D1 /* PassageHistoryTextTests.swift */,
 				1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */,
@@ -1013,6 +1028,10 @@
 				1F00000100000000000004DE /* AIProvider.swift in Sources */,
 				1F00000100000000000004DF /* AIConnectionStore.swift in Sources */,
 				1F00000100000000000004E0 /* AIKeychain.swift in Sources */,
+				1F00000100000000000004E3 /* AIClient.swift in Sources */,
+				1F00000100000000000004E4 /* AIHTTPTransport.swift in Sources */,
+				1F00000100000000000004E5 /* AnthropicMessagesClient.swift in Sources */,
+				1F00000100000000000004E6 /* OpenAICompatibleClient.swift in Sources */,
 				1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */,
 				1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */,
 				1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */,
@@ -1114,6 +1133,7 @@
 				1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */,
 				1F00000100000000000004E1 /* AITestDoubles.swift in Sources */,
 				1F00000100000000000004E2 /* AIConnectionStoreTests.swift in Sources */,
+				1F00000100000000000004E7 /* AIClientTests.swift in Sources */,
 				1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */,
 				1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */,
 				1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */,

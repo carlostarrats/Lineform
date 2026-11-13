@@ -74,6 +74,12 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AIProvider.swift|Claude": "Brand name.",
         "AIProvider.swift|Google": "Brand name.",
         "AIProvider.swift|Anthropic": "Brand name.",
+        "AIProvider.swift|AIConnection(provider: %@, endpoint: %@, ":
+            "Debug description, never displayed; deliberately redacts the key.",
+        "AIProvider.swift|model: %@, apiKey: %@)":
+            "Debug description, never displayed; deliberately redacts the key.",
+        "OpenAICompatibleClient.swift|Authorization": "HTTP header name.",
+        "OpenAICompatibleClient.swift|Bearer %@": "HTTP header value.",
 
         // Typeface names. Never translated (plan Global Constraints); only the descriptive
         // "Monospaced" label is, and it is String(localized:) in the same array.

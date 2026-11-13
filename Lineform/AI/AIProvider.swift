@@ -78,3 +78,13 @@ struct AIConnection: Equatable {
     let model: String
     let apiKey: String?
 }
+
+extension AIConnection: CustomStringConvertible, CustomDebugStringConvertible {
+    /// Never includes the key, so logging or string-interpolating a connection cannot leak it.
+    var description: String {
+        "AIConnection(provider: \(provider.rawValue), endpoint: \(endpoint.absoluteString), "
+            + "model: \(model), apiKey: \(apiKey == nil ? "none" : "<redacted>"))"
+    }
+
+    var debugDescription: String { description }
+}

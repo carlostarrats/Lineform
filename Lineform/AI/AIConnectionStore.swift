@@ -24,7 +24,8 @@ enum AIEndpointValidation {
     private static let suffix = "/chat/completions"
 
     static func allowsPlainHTTP(host: String) -> Bool {
-        let host = host.lowercased()
+        // URLComponents reports an IPv6 literal with its brackets on some systems.
+        let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
         return host == "localhost" || host == "127.0.0.1" || host == "::1" || host.hasSuffix(".local")
     }
 

@@ -60,6 +60,12 @@ final class AIConnectionStoreTests: XCTestCase {
         XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "https://example.com/v1/chat/completions").get().absoluteString,
                        "https://example.com/v1/chat/completions")
         XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "http://192.168.1.5:1234/v1"), .failure(.insecureAddress))
+        XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "http://[::1]:8080/v1").get().absoluteString,
+                       "http://[::1]:8080/v1/chat/completions")
+        XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "http://printer.local:1234/v1").get().absoluteString,
+                       "http://printer.local:1234/v1/chat/completions")
+        XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "http://[2001:db8::1]:8080/v1"), .failure(.insecureAddress))
+        XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "http://notlocal.example:80/v1"), .failure(.insecureAddress))
         XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "ftp://x"), .failure(.invalidAddress))
     }
 
@@ -88,5 +94,26 @@ final class AIConnectionStoreTests: XCTestCase {
         XCTAssertEqual(resolved?.endpoint.absoluteString, "https://api.anthropic.com/v1/messages")
         XCTAssertEqual(resolved?.model, "claude-sonnet-5-5")
         XCTAssertEqual(resolved?.apiKey, "k")
+    }
+
+    func testFailedKeychainWriteLeavesTheExistingConnectionIntact() {
+        let keychain = InMemoryAIKeychain()
+        let store = AIConnectionStore(defaults: freshDefaults("failwrite"), keychain: keychain)
+        XCTAssertNil(store.connect(.claude, key: "claude-key"))
+        keychain.failWrites = true
+        XCTAssertEqual(store.connect(.google, key: "google-key"), .keychainFailed)
+        XCTAssertEqual(store.connectedProvider, .claude)
+        XCTAssertEqual(keychain.readKey(for: .claude), "claude-key")
+        XCTAssertNil(keychain.readKey(for: .google))
+    }
+
+    func testConnectionDescriptionsRedactTheKey() {
+        let connection = AIConnection(provider: .claude, endpoint: AIProvider.claude.endpoint!,
+                                      model: "m", apiKey: "sk-secret-123")
+        XCTAssertFalse(connection.description.contains("sk-secret-123"))
+        XCTAssertFalse(connection.debugDescription.contains("sk-secret-123"))
+        XCTAssertFalse("\(connection)".contains("sk-secret-123"))
+        XCTAssertFalse(String(reflecting: connection).contains("sk-secret-123"))
+        XCTAssertTrue(connection.description.contains("<redacted>"))
     }
 }

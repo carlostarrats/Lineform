@@ -23,3 +23,54 @@ final class InMemoryAIKeychain: AIKeychain {
         keys[provider] = nil
     }
 }
+
+/// Scripted transport for client tests. Records every request it is handed.
+final class FakeAITransport: AIHTTPTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [URLRequest] = []
+    private let status: Int
+    private let body: Data
+    private let error: Error?
+
+    init(status: Int = 200, body: String = "{}", error: Error? = nil) {
+        self.status = status
+        self.body = Data(body.utf8)
+        self.error = error
+    }
+
+    var requests: [URLRequest] {
+        lock.lock(); defer { lock.unlock() }
+        return recorded
+    }
+
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        lock.withLock { recorded.append(request) }
+        if let error { throw error }
+        let response = HTTPURLResponse(url: request.url ?? URL(string: "http://127.0.0.1")!,
+                                       statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!
+        return (body, response)
+    }
+}
+
+/// Serves a scripted body to a URLSession built with `protocolClasses = [StubURLProtocol.self]`.
+/// Tests run serially (`-parallel-testing-enabled NO`), so the static script is safe.
+final class StubURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var status = 200
+    nonisolated(unsafe) static var body = Data()
+    nonisolated(unsafe) static var declaredLength: Int?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        var headers = ["Content-Type": "application/json"]
+        if let declared = Self.declaredLength { headers["Content-Length"] = String(declared) }
+        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status,
+                                       httpVersion: "HTTP/1.1", headerFields: headers)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
