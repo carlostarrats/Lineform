@@ -43,11 +43,11 @@ Core product principles:
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
 - History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
-- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); right-click Rewrite ▸ Trim/Cut in half/Rewrite, Proofread, Mark ▸ Weakest/Long sentences, reviewed as a read-only overlay. Write mode only; absent (not disabled) when nothing is connected.
+- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a Standard (default) or Higher quality model tier per provider; right-click Rewrite ▸ Trim/Cut in half/Rewrite, Proofread, Mark ▸ Weakest/Long sentences, each result reviewed as ONE change (struck original + highlighted replacement) on a bottom-right card, as a read-only overlay. Write mode only; absent (not disabled) when nothing is connected.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Automatic Dark Mode (Settings, default on): while the Mac is in Dark Mode every preset draws with Quiet's page and ink but keeps its own font and layout. Display only — export and print keep the chosen theme.
-- Apple Books-style reader themes plus accessibility-oriented font and contrast options.
+- Apple Books-style reader themes plus accessibility-oriented font and contrast options. Each reading preset keeps its own edits; Reset to Default resets only the current preset.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
 - In-app announcements: a once-a-day read of a small static JSON file on the marketing site surfaces at most one dismissible card in the editor. No account, no identifier, no server. The Settings toggle (default on) gates the network request itself, not just the display.
 - Local release/help resources bundled in the app.

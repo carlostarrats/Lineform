@@ -3,6 +3,19 @@
 Notes from a hands-on pass. These are findings to go over together later, not decisions yet.
 More may be added after the AI features pass.
 
+## Status (branch qa-1-8-followups, 2026-11-13)
+
+- ✅ 1 Exit button (2222a17) · ✅ 2 History opens after Add to History / first accepted AI change (2222a17, 7041da9)
+- ✅ 3 Add to History stores only the original; Add Replacement field; unrevised passages discarded (7041da9, 7b3491d, 2222a17, b7d72a6, 7025d7a)
+- ✅ 4 Hint left-aligned (2222a17) · ✅ 4b pointing hand (e8a6eb4) · ✅ 4d other passages stay visible (e8a6eb4)
+- 4c unchanged on purpose: the History context menu already hid formatting in build 38 (Cut/Copy/Paste only).
+- ✅ 5 Quiet card edge in dark chrome (b3dbfdc) · ✅ 6 per-preset edits kept, Reset resets current preset (abefebc)
+- ✅ 7 Monospaced moved into the System group, no "Writing" group (602535d)
+- 8 unchanged on purpose: API keys only; Sign in with ChatGPT deferred.
+- ✅ 9 plain http only for loopback (f670799) · ✅ 10 per-provider key guidance, expired-key hint (f670799)
+- ✅ 11, 12 model tiers Standard / Higher quality (f670799)
+- ✅ 13 AI review is one change, struck original + highlighted replacement (63b9f2e, 8ab8c03, 17cdb7a); progress and review cards bottom-right matching the default-app card (598ed54, 679e85e)
+
 ## History mode
 
 1. **No obvious way out of History.** When a version is selected in History, the only way back to
