@@ -18,7 +18,6 @@ final class AIReviewTextView: NSTextView {
 
     private(set) var composition = AIReviewComposition.empty
     private(set) var currentID: Int?
-    private(set) var hasDecided = false
     private let emptyUndoManager = UndoManager()
     private let highlighter = MarkdownSyntaxHighlighter()
 
@@ -70,7 +69,8 @@ final class AIReviewTextView: NSTextView {
 
     /// Draws `composition`: Markdown highlighting as the editor has it, the removed originals in
     /// History's receded ink with a single strikethrough, and the replacements on
-    /// `HistoryPalette.reviewInsertTint`. All three are layout-manager TEMPORARY attributes: the
+    /// `HistoryPalette.reviewInsertTint` (their inks re-measured against it,
+    /// `reviewReplacementInk`). All are layout-manager TEMPORARY attributes: the
     /// storage keeps only the highlighter's attributes, so a span pass and a whole pass agree.
     ///
     /// A decision re-presents with the SAME profile, and its composition differs from the last
@@ -79,11 +79,10 @@ final class AIReviewTextView: NSTextView {
     /// identical to a whole pass). Measured on a 700 KB document: the whole pass cost ~80 ms of
     /// highlighting plus ~500 ms of re-layout per decision; the span pass keeps the layout of
     /// everything it does not touch. The first present (and a profile change) is a whole pass.
-    func present(_ composition: AIReviewComposition, currentID: Int?, profile: ReadingProfile, hasDecided: Bool = false) {
+    func present(_ composition: AIReviewComposition, currentID: Int?, profile: ReadingProfile) {
         let previous = self.composition
         self.composition = composition
         self.currentID = currentID
-        self.hasDecided = hasDecided
         let theme = Theme.theme(for: profile)
         let receded = HistoryPalette.recededInk(for: theme)
         let base = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
@@ -125,6 +124,14 @@ final class AIReviewTextView: NSTextView {
             let clamped = NSIntersectionRange(range, whole)
             guard clamped.length > 0 else { continue }
             layoutManager.addTemporaryAttribute(.backgroundColor, value: insertTint, forCharacterRange: clamped)
+            // The highlighter's inks are set against the page; on the tint a link (and, on Quiet,
+            // code) falls under AA. Re-ink just the runs that need it; body text keeps its ink.
+            textStorage.enumerateAttribute(.foregroundColor, in: clamped) { value, run, _ in
+                guard let ink = value as? NSColor else { return }
+                let onTint = HistoryPalette.reviewReplacementInk(ink, for: theme)
+                guard onTint !== ink else { return }
+                layoutManager.addTemporaryAttribute(.foregroundColor, value: onTint, forCharacterRange: run)
+            }
         }
         // A whole pass sizes the view now (the scroll hand-over reads line positions at once). A
         // span pass leaves it to the layout manager: `sizeToFit` would lay out the WHOLE

@@ -203,13 +203,13 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(textView.string, "\u{FEFF}Z👍🏽b\r\nc")
     }
 
-    /// Accept → ⌘Z, and Accept Remaining → ⌘Z, through the real controller and the real text view.
+    /// Accept → ⌘Z, by id and by Return, through the real controller and the real text view.
     /// The selection spans two paragraphs, so its one change is applied as one edit per paragraph:
     /// the real text view refuses any AI edit that touches a line ending, and none does.
-    func testAcceptAndAcceptRemainingAreOneUndoEachThroughTheController() async throws {
+    func testAcceptIsOneUndoThroughTheController() async throws {
         let text = "The big dog ran.\r\n\r\nIt went far away from home."
         let accepted = "The large dog ran.\r\n\r\nIt went near away from here."
-        for command in [AIReviewCommand.accept(0), .acceptRemaining] {
+        for command in [AIReviewCommand.accept(0), .acceptCurrent] {
             let vendor = UndoManagerVendor(groupsByEvent: false)
             let textView = makeTextView(text)
             textView.delegate = vendor
@@ -246,7 +246,7 @@ final class LineformTextViewAITests: XCTestCase {
         controller.history = history
         controller.run(.rewrite, range: range(of: "The big dog ran far away from home.", in: text), text: text)
         await controller.runTask?.value
-        controller.handle(.acceptRemaining)
+        controller.handle(.acceptCurrent)
         XCTAssertEqual(textView.string, "The enormous dog ran near away from home.\n\n\(later)")
 
         XCTAssertTrue(history.enterHistoryMode(text: textView.string))
@@ -342,12 +342,12 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(textView.selectedRange(), NSRange(location: (text as NSString).length + 1, length: 0))
     }
 
-    /// Critical: Esc, Accept All and the last pill leave the caret at the passage's end — never the
-    /// passage selected, which the next keystroke would replace.
+    /// Critical: Esc, Accept and Reject leave the caret at the passage's end — never the passage
+    /// selected, which the next keystroke would replace.
     func testEndingAReviewCollapsesTheEditorSelection() async throws {
         let text = "Intro.\n\nThe big dog ran far away from home.\n\nOutro."
         let passage = range(of: "The big dog ran far away from home.", in: text)
-        for ending in ["esc", "acceptAll", "lastPill"] {
+        for ending in ["esc", "accept", "reject"] {
             let textView = makeTextView(text)
             let controller = makeController(replacing: ["big": "large", "far": "near"])
             controller.editor = textView
@@ -356,13 +356,11 @@ final class LineformTextViewAITests: XCTestCase {
             textView.setSelectedRange(passage)
             switch ending {
             case "esc": controller.handle(.end)
-            case "acceptAll": controller.handle(.acceptRemaining)
-            default:
-                controller.handle(.accept(0))
-                controller.handle(.reject(1))
+            case "accept": controller.handle(.acceptCurrent)
+            default: controller.handle(.reject(0))
             }
             XCTAssertEqual(controller.state, .idle, ending)
-            let end = NSMaxRange(range(of: ending == "esc" ? "from home." : "home.", in: textView.string))
+            let end = NSMaxRange(range(of: "from home.", in: textView.string))
             XCTAssertEqual(textView.selectedRange(), NSRange(location: end, length: 0), ending)
         }
     }

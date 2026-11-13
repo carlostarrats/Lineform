@@ -14187,46 +14187,6 @@
         }
       }
     },
-    "Accept Suggestions": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Accept Suggestions"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceptar sugerencias"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accepter les suggestions"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vorschläge annehmen"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "提案を承認"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受建议"
-          }
-        }
-      }
-    },
     "1 change suggested": {
       "localizations": {
         "en": {
@@ -14303,46 +14263,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "建议了 %lld 处更改"
-          }
-        }
-      }
-    },
-    "Change %lld of %lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Change %lld of %lld"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cambio %1$lld de %2$lld"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modification %1$lld sur %2$lld"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Änderung %1$lld von %2$lld"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "変更 %1$lld / %2$lld"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "第 %1$lld 处更改，共 %2$lld 处"
           }
         }
       }
@@ -14427,202 +14347,282 @@
         }
       }
     },
-    "Accept All": {
+    "Trim ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Accept All"
+            "value": "Trim ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aceptar todo"
+            "value": "Recorte listo"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout accepter"
+            "value": "Élagage prêt"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle annehmen"
+            "value": "Kürzung bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべて承認"
+            "value": "削った案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部接受"
+            "value": "精简已就绪"
           }
         }
       }
     },
-    "Reject All": {
+    "Cut ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Reject All"
+            "value": "Cut ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rechazar todo"
+            "value": "Reducción lista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout refuser"
+            "value": "Réduction prête"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle ablehnen"
+            "value": "Halbierung bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべて却下"
+            "value": "半分にした案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部拒绝"
+            "value": "缩减已就绪"
           }
         }
       }
     },
-    "Accept Remaining": {
+    "Rewrite ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Accept Remaining"
+            "value": "Rewrite ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aceptar el resto"
+            "value": "Reescritura lista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accepter le reste"
+            "value": "Réécriture prête"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rest annehmen"
+            "value": "Umschreibung bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "残りを承認"
+            "value": "書き直し案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "接受其余"
+            "value": "改写已就绪"
           }
         }
       }
     },
-    "Reject Remaining": {
+    "Proofread ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Reject Remaining"
+            "value": "Proofread ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rechazar el resto"
+            "value": "Corrección lista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Refuser le reste"
+            "value": "Relecture prête"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rest ablehnen"
+            "value": "Korrektur bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "残りを却下"
+            "value": "校正案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "拒绝其余"
+            "value": "校对已就绪"
           }
         }
       }
     },
-    "%lld of %lld": {
+    "Reject": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "%lld of %lld"
+            "value": "Reject"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld de %2$lld"
+            "value": "Rechazar"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld sur %2$lld"
+            "value": "Refuser"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld von %2$lld"
+            "value": "Ablehnen"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld / %2$lld"
+            "value": "却下"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "第 %1$lld 处，共 %2$lld 处"
+            "value": "拒绝"
+          }
+        }
+      }
+    },
+    "Accept": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Accept"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceptar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annehmen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "承認"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受"
+          }
+        }
+      }
+    },
+    "Return to accept · Esc to reject": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Return to accept · Esc to reject"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return para aceptar · Esc para rechazar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return pour accepter · Échap pour refuser"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return zum Annehmen · Esc zum Ablehnen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Returnで適用 · Escで却下"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按 Return 接受 · 按 Esc 拒绝"
           }
         }
       }
@@ -15103,46 +15103,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "按 Esc 清除标记"
-          }
-        }
-      }
-    },
-    "Return to accept · Esc to dismiss": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Return to accept · Esc to dismiss"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Return para aceptar · Esc para descartar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Return pour accepter · Échap pour ignorer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Return zum Annehmen · Esc zum Verwerfen"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Returnで適用 · Escで閉じる"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按 Return 接受 · 按 Esc 关闭"
           }
         }
       }

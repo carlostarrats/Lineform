@@ -22,8 +22,6 @@ struct AIReviewSession: Equatable {
     let originalSelection: String
     private(set) var changes: [AIChange]
     private(set) var decisions: [Int: AIDecision] = [:]
-    /// Changes whose dimmed (removed) text the writer clicked to keep.
-    private(set) var keptOriginals: Set<Int> = []
     private(set) var currentID: Int?
     private(set) var selectionRange: NSRange
 
@@ -36,26 +34,18 @@ struct AIReviewSession: Equatable {
     }
 
     var pending: [AIChange] { changes.filter { decisions[$0.id] == nil } }
-    var hasDecided: Bool { !decisions.isEmpty }
     var isFinished: Bool { pending.isEmpty }
     var acceptedAny: Bool { decisions.values.contains(.accepted) }
-
-    /// 1-based position of the current change among ALL changes; 0 when none is current.
-    var position: (current: Int, total: Int) {
-        let index = currentID.flatMap { id in changes.firstIndex { $0.id == id } }
-        return (index.map { $0 + 1 } ?? 0, changes.count)
-    }
 
     // MARK: - Decisions
 
     /// Accepts `id`: the edits to apply, in DESCENDING location order in the current text (one
-    /// per changed segment of the change). Empty when it was already decided, or when it is a
-    /// kept pure deletion (decided, nothing to write).
+    /// per changed segment of the change). Empty when it was already decided.
     mutating func accept(_ id: Int) -> [AIReviewEdit] {
         guard let index = changes.firstIndex(where: { $0.id == id }), decisions[id] == nil else { return [] }
         decisions[id] = .accepted
         defer { advance(after: id) }
-        let edits = changes[index].edits(keepingOriginal: keptOriginals.contains(id))
+        let edits = changes[index].edits()
         let delta = Self.lengthDelta(of: edits)
         for later in changes.indices where later > index {
             changes[later].range.location += delta
@@ -69,62 +59,6 @@ struct AIReviewSession: Equatable {
         guard changes.contains(where: { $0.id == id }), decisions[id] == nil else { return }
         decisions[id] = .rejected
         advance(after: id)
-    }
-
-    /// Keep (or stop keeping) a pending change's removed text. A pure insertion has none.
-    mutating func toggleKeep(_ id: Int) {
-        guard let change = changes.first(where: { $0.id == id }), decisions[id] == nil,
-              !change.original.isEmpty else { return }
-        if keptOriginals.contains(id) {
-            keptOriginals.remove(id)
-        } else {
-            keptOriginals.insert(id)
-        }
-    }
-
-    /// Accepts every pending change. The edits are in DESCENDING location order, each in the
-    /// coordinates of the document before any of them, so applying them in order is exact.
-    mutating func acceptRemaining() -> [AIReviewEdit] {
-        var edits: [AIReviewEdit] = []
-        var shift = 0
-        for index in changes.indices {
-            let before = changes[index]
-            changes[index].range.location += shift
-            let id = changes[index].id
-            guard decisions[id] == nil else { continue }
-            decisions[id] = .accepted
-            // In pre-batch coordinates: the change as it was before this batch shifted it.
-            let changeEdits = before.edits(keepingOriginal: keptOriginals.contains(id))
-            edits += changeEdits
-            let delta = Self.lengthDelta(of: changeEdits)
-            shift += delta
-            changes[index].range.length += delta
-        }
-        selectionRange.length += shift
-        currentID = nil
-        return edits.sorted { $0.range.location > $1.range.location }
-    }
-
-    mutating func rejectRemaining() {
-        for change in changes where decisions[change.id] == nil {
-            decisions[change.id] = .rejected
-        }
-        currentID = nil
-    }
-
-    /// Moves the current change among PENDING changes, wrapping at either end.
-    mutating func move(by delta: Int) {
-        let ids = pending.map(\.id)
-        guard !ids.isEmpty else {
-            currentID = nil
-            return
-        }
-        guard let current = currentID, let position = ids.firstIndex(of: current) else {
-            currentID = delta >= 0 ? ids.first : ids.last
-            return
-        }
-        let count = ids.count
-        currentID = ids[((position + delta) % count + count) % count]
     }
 
     // MARK: - Private

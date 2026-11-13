@@ -55,6 +55,22 @@ final class AIReviewCompositionTests: XCTestCase {
         }
     }
 
+    /// A leading BOM belongs to the file, not to the first line's marker: the first item still
+    /// stacks with its marker repeated, and the BOM is never copied into the overlay twice.
+    func testFirstLineMarkerSkipsALeadingBOM() {
+        let original = "Old first item."
+        let replacement = "New first item."
+        for prefix in ["- ", "> ", ""] {
+            let text = "\u{FEFF}\(prefix)\(original)\nAfter"
+            let ns = text as NSString
+            let range = ns.range(of: original)
+            XCTAssertEqual(AIReviewComposition.wholeLineMarker(range, in: ns), prefix, "\(prefix.debugDescription)")
+            let composition = AIReviewComposition.build(text: text, session: session(text, [change(0, original, in: text, replacement)]))
+            XCTAssertEqual(composition.string, "\u{FEFF}\(prefix)\(original)\n\(prefix)\(replacement)\nAfter", prefix)
+            XCTAssertEqual(composition.string.unicodeScalars.filter { $0 == "\u{FEFF}" }.count, 1)
+        }
+    }
+
     /// Prose before the change on the same line is not a marker: inline.
     func testPartOfAnItemStaysInline() {
         let text = "- Keep this. Old part.\nAfter"
@@ -155,17 +171,6 @@ final class AIReviewCompositionTests: XCTestCase {
         XCTAssertTrue(composition.string.hasSuffix(" day was had.\r\nEnd."), "text after the last change is identical too")
     }
 
-    func testKeptOriginalIsNotStruck() {
-        let text = "a big day"
-        var review = session(text, [change(0, "big", in: text, "large")])
-        review.toggleKeep(0)
-        let composition = AIReviewComposition.build(text: text, session: review)
-        XCTAssertNil(composition.removedRanges[0])
-        // What a kept accept writes: the original, the session's separator, the replacement.
-        XCTAssertEqual(composition.string, "a big large day")
-        XCTAssertEqual(substrings(composition.string, composition.replacementRanges[0]), ["large"])
-    }
-
     func testDecidedChangesContributeNothing() {
         var text = "a big day and a good night"
         var review = session(text, [change(0, "big", in: text, "large"), change(1, "good", in: text, "fine"),
@@ -208,15 +213,13 @@ final class AIReviewCompositionTests: XCTestCase {
 
     func testIndexMappingRoundTripsEveryDocumentCharacter() {
         let text = "a big day and a good night, one two three\nA whole line.\nEnd."
-        var review = session(text, [
+        let review = session(text, [
             change(0, "big", in: text, "considerably larger"),
             change(1, "good", in: text, "fine"),
             AIChange(id: 2, range: NSRange(location: 30, length: 0), original: "", replacement: " (inserted)"),
             change(3, " three", in: text, ""),
             change(4, "A whole line.", in: text, "A rewritten line."),
         ])
-        assertRoundTrip(text, review)
-        review.toggleKeep(1)
         assertRoundTrip(text, review)
     }
 
@@ -239,7 +242,7 @@ final class AIReviewCompositionTests: XCTestCase {
         let first = cache.composition(text: text, session: review)
         _ = cache.composition(text: text, session: review)
         XCTAssertEqual(cache.buildCount, 1)
-        review.move(by: 1)
+        review.reject(0)
         XCTAssertNotEqual(cache.composition(text: text, session: review), AIReviewComposition.empty)
         XCTAssertEqual(cache.buildCount, 2, "a new session state rebuilds")
         _ = cache.composition(text: text + " ", session: review)

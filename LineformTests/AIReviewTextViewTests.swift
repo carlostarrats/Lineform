@@ -20,12 +20,12 @@ final class AIReviewTextViewTests: XCTestCase {
         return (AIReviewComposition.build(text: text, session: session), session)
     }
 
-    private func presented(currentID: Int? = 0, hasDecided: Bool = false) -> (AIReviewTextView, AIReviewComposition, [AIReviewCommand]) {
+    private func presented(currentID: Int? = 0) -> (AIReviewTextView, AIReviewComposition, [AIReviewCommand]) {
         let view = AIReviewTextView.make()
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
         view.textContainer?.containerSize = NSSize(width: 560, height: CGFloat.greatestFiniteMagnitude)
         let (composition, _) = composition()
-        view.present(composition, currentID: currentID, profile: profile, hasDecided: hasDecided)
+        view.present(composition, currentID: currentID, profile: profile)
         return (view, composition, [])
     }
 
@@ -116,6 +116,39 @@ final class AIReviewTextViewTests: XCTestCase {
         XCTAssertNil(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: plain.location, effectiveRange: nil))
         XCTAssertNil(layoutManager.temporaryAttribute(.strikethroughStyle, atCharacterIndex: plain.location, effectiveRange: nil))
         XCTAssertNil(layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: plain.location, effectiveRange: nil))
+    }
+
+    /// A replacement's link and code are drawn readable ON the tint (≥ 4.5:1), on every theme —
+    /// not at the page's ratio, which the tint takes them under.
+    func testReplacementLinkAndCodeInksReadOnTheTint() throws {
+        let doc = "Old line here.\nAfter."
+        let ns = doc as NSString
+        let change = AIChange(id: 0, range: ns.range(of: "Old line here."), original: "Old line here.",
+                              replacement: "See [the guide](guide.md) and `make test` now.")
+        let session = AIReviewSession(action: .rewrite, changes: [change],
+                                      selectionRange: NSRange(location: 0, length: ns.length), originalSelection: doc)
+        let composition = AIReviewComposition.build(text: doc, session: session)
+        let shown = composition.string as NSString
+        for preset in ReadingPreset.builtIn {
+            let profile = preset.profile
+            let theme = Theme.theme(for: profile)
+            let tint = HistoryPalette.reviewInsertTint(for: theme)
+            let view = AIReviewTextView.make()
+            view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
+            view.present(composition, currentID: 0, profile: profile)
+            let layoutManager = try XCTUnwrap(view.layoutManager)
+            let storage = try XCTUnwrap(view.textStorage)
+            for needle in ["the guide", "make test"] {
+                let index = shown.range(of: needle).location
+                let drawn = (layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor)
+                    ?? (storage.attribute(.foregroundColor, at: index, effectiveRange: nil) as? NSColor)
+                let ratio = Theme.contrastRatio(try XCTUnwrap(drawn), tint)
+                XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(theme.name) \(needle) on the tint was \(ratio)")
+            }
+            let plain = shown.range(of: " now.").location
+            XCTAssertNil(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: plain, effectiveRange: nil),
+                         "\(theme.name): body text keeps the normal ink")
+        }
     }
 
     /// Clicks decide nothing: there are no pills, and the original is no longer a keep toggle.
@@ -315,19 +348,19 @@ final class AIReviewTextViewTests: XCTestCase {
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
         view.present(AIReviewComposition.build(text: doc, session: session), currentID: session.currentID, profile: profile)
         var text = doc
-        for step in ["reject", "keep", "accept"] {
+        for step in ["reject", "accept", "rejectLast"] {
             switch step {
             case "reject": session.reject(0)
-            case "keep": session.toggleKeep(2)
+            case "rejectLast": session.reject(2)
             default:
                 let edit = try XCTUnwrap(session.accept(1).first)
                 text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
             }
             let composition = AIReviewComposition.build(text: text, session: session)
-            view.present(composition, currentID: session.currentID, profile: profile, hasDecided: true)
+            view.present(composition, currentID: session.currentID, profile: profile)
             let fresh = AIReviewTextView.make()
             fresh.frame = view.frame
-            fresh.present(composition, currentID: session.currentID, profile: profile, hasDecided: true)
+            fresh.present(composition, currentID: session.currentID, profile: profile)
             try assertSameDrawing(view, fresh, step)
         }
     }
@@ -369,7 +402,7 @@ final class AIReviewTextViewTests: XCTestCase {
         session.reject(0)
         let decided = AIReviewComposition.build(text: big, session: session)
         let second = CFAbsoluteTimeGetCurrent()
-        view.present(decided, currentID: session.currentID, profile: profile, hasDecided: true)
+        view.present(decided, currentID: session.currentID, profile: profile)
         let decision = CFAbsoluteTimeGetCurrent() - second
         XCTAssertEqual(view.string, decided.string)
         XCTAssertLessThan(decision, whole / 5, "decision \(decision)s vs whole \(whole)s")

@@ -7,14 +7,13 @@ import SwiftUI
 /// On make it takes the editor's scroll position and the keyboard; on dismantle it hands both
 /// back — the editor scrolls to where the reader was in the overlay and becomes first responder
 /// again. The position is handed over by CHARACTER, never by pixel y: past the first change the
-/// overlay is taller than the document (it also shows the removed text and the pills), so the
+/// overlay is taller than the document (it also shows the struck originals), so the
 /// same y shows different text. The top line's first character is mapped through the
 /// composition (`documentIndex` / `overlayIndex`) and that character's line is put at the top. No SwiftUI accessibility modifiers: the overlay text view carries its own label, role
 /// and custom actions through AppKit.
 struct AIReviewSurfaceRepresentable: NSViewRepresentable {
     let composition: AIReviewComposition
     let currentID: Int?
-    let hasDecided: Bool
     let profile: ReadingProfile
     /// The editor underneath. Weakly held by the coordinator; nil only in a transient state.
     let editor: NSTextView?
@@ -22,7 +21,7 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
 
     final class Coordinator {
         weak var editor: NSTextView?
-        var presented: (AIReviewComposition, Int?, Bool, ReadingProfile)?
+        var presented: (AIReviewComposition, Int?, ReadingProfile)?
         var onCommand: ((AIReviewCommand) -> Void)?
     }
 
@@ -87,10 +86,10 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
             coordinator?.onCommand?(command)
         }
         if let editor { textView.matchGeometry(of: editor) }
-        let key = (composition, currentID, hasDecided, profile)
+        let key = (composition, currentID, profile)
         if let presented = context.coordinator.presented, presented == key { return }
         context.coordinator.presented = key
-        textView.present(composition, currentID: currentID, profile: profile, hasDecided: hasDecided)
+        textView.present(composition, currentID: currentID, profile: profile)
         if let editor { textView.matchGeometry(of: editor) }
     }
 

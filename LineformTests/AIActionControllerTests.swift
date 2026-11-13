@@ -141,11 +141,11 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .idle)
     }
 
-    func testAcceptRemainingIsOneEditCall() async throws {
+    func testAcceptIsOneEditCall() async throws {
         let text = "The big dog ran far away from home."
         let (controller, surface, _) = make(text, replace(["big": "large", "far": "near", "home": "here"]))
         await runToCompletion(controller, .rewrite, range: whole(text), text: text)
-        controller.handle(.acceptRemaining)
+        controller.handle(.acceptCurrent)
         XCTAssertEqual(surface.editCalls.count, 1)
         XCTAssertEqual(surface.editCalls.first?.edits.count, 1)
         XCTAssertEqual(surface.editCalls.first?.actionName, "Accept Suggestion", "named by decisions, not edits")
@@ -166,6 +166,24 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(surface.announcements.last, "Review ended")
     }
 
+    /// Esc is an explicit reject-and-end: the pending change is marked rejected (nothing applied),
+    /// and History records nothing because nothing was accepted.
+    func testEscapeRejectsThePendingChangeAndRecordsNoHistory() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: historyDoc)
+        let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
+        await runToCompletion(controller, .rewrite, range: range(of: "The big dog", in: historyDoc), text: historyDoc)
+        let open = try session(controller)
+        XCTAssertEqual(open.pending.count, 1)
+        let ended = try XCTUnwrap(controller.endReview())
+        XCTAssertEqual(ended.decisions, [0: .rejected], "Esc rejects the change explicitly")
+        XCTAssertFalse(ended.acceptedAny)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertEqual(surface.string, historyDoc)
+        XCTAssertTrue(surface.editCalls.isEmpty)
+        XCTAssertFalse(history.hasHistory)
+    }
+
     func testTypingEndsReviewThenTypes() async throws {
         let text = "The big dog ran far away from home."
         let (controller, surface, _) = make(text, replace(["big": "large"]))
@@ -174,18 +192,6 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .idle)
         XCTAssertEqual(surface.typed, ["x"])
         XCTAssertTrue(surface.editCalls.isEmpty)
-    }
-
-    func testNavigationAndAcceptCurrent() async throws {
-        let text = "The big dog ran far away from home."
-        let (controller, surface, _) = make(text, replace(["big": "large", "far": "near", "home": "here"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
-        controller.handle(.next)
-        XCTAssertEqual(surface.announcements.last, "Change 1 of 1", "one decision: moving stays on it")
-        XCTAssertEqual(try session(controller).currentID, 0)
-        controller.handle(.acceptCurrent)
-        XCTAssertEqual(surface.string, "The large dog ran near away from here.")
-        XCTAssertEqual(controller.state, .idle)
     }
 
     // MARK: - History
@@ -230,7 +236,7 @@ final class AIActionControllerTests: XCTestCase {
         let end = NSMaxRange(range(of: "far away.", in: doc))
         await runToCompletion(controller, .rewrite, range: NSRange(location: start, length: end - start), text: doc)
         XCTAssertEqual(try session(controller).changes.count, 1, "one decision across paragraphs")
-        controller.handle(.acceptRemaining)
+        controller.handle(.acceptCurrent)
         XCTAssertEqual(controller.state, .idle)
         let text = surface.string
         XCTAssertEqual(text, "Intro stays put.\n\nThe large dog ran.\n\nNothing here moves.\n\nA cat sat near away.\n\nOutro stays too.")
@@ -302,7 +308,7 @@ final class AIActionControllerTests: XCTestCase {
         history.open(url: nil, text: historyDoc)
         let (controller, surface, _) = make(historyDoc, replace(["big": "large", "far": "near"]), history: history)
         await runToCompletion(controller, .rewrite, range: range(of: "The big dog", in: historyDoc), text: historyDoc)
-        controller.handle(.rejectRemaining)
+        controller.handle(.reject(0))
         XCTAssertEqual(controller.state, .idle)
         XCTAssertFalse(history.hasHistory)
         XCTAssertEqual(surface.string, historyDoc)
@@ -392,7 +398,7 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .idle)
         XCTAssertTrue(surface.editCalls.isEmpty, "abandon applies nothing")
         XCTAssertFalse(history.hasHistory, "reload wins: nothing is recorded")
-        controller.handle(.acceptRemaining)
+        controller.handle(.acceptCurrent)
         XCTAssertTrue(surface.editCalls.isEmpty)
 
         // Abandon while running cancels the request.
@@ -518,7 +524,7 @@ final class AIActionControllerTests: XCTestCase {
         await runToCompletion(controller, .rewrite, range: whole(text), text: text)
         XCTAssertGreaterThan(FakeAIClient.segments(in: try XCTUnwrap(fake.prompts.first)).count, 10)
         XCTAssertEqual(controller.state, .message("No changes suggested."))
-        controller.handle(.acceptRemaining)
+        controller.handle(.acceptCurrent)
         XCTAssertTrue(surface.editCalls.isEmpty)
         XCTAssertEqual(surface.string, text)
         assertStructureSurvives(surface.string)
@@ -535,7 +541,7 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertTrue(parts.allSatisfy { part in
             !Self.mangles.contains { part.replacement.contains($0) }
         }, "\(parts)")
-        mixed.handle(.acceptRemaining)
+        mixed.handle(.acceptCurrent)
         XCTAssertEqual(mixedSurface.editCalls.count, 1)
         XCTAssertNotEqual(mixedSurface.string, text)
         assertStructureSurvives(mixedSurface.string)
@@ -548,7 +554,7 @@ final class AIActionControllerTests: XCTestCase {
         let review = try session(controller)
         XCTAssertEqual(review.changes.count, 1, "the whole selection is one decision")
         XCTAssertGreaterThan(review.changes[0].parts.count, 5)
-        controller.handle(.acceptRemaining)
+        controller.handle(.acceptCurrent)
         XCTAssertNotEqual(surface.string, text)
         XCTAssertTrue(surface.string.contains("Final paragraph of plain writing."))
         XCTAssertTrue(surface.string.contains("let x = 1"), "code is never sent")
@@ -570,10 +576,9 @@ final class AIActionControllerTests: XCTestCase {
     }
 
     /// The accept-time verify still runs against the CURRENT text. A refusal must be SEEN, not
-    /// only announced: a refused accept is the last decision, so it becomes the controller's
-    /// message; a refused Accept Remaining leaves the change pending with the review's notice.
-    /// (The review is read-only, so the text cannot really change under it; the fake surface's
-    /// text is changed here to reach the guard.)
+    /// only announced: a refused accept is the only decision, so it becomes the controller's
+    /// message. (The review is read-only, so the text cannot really change under it; the fake
+    /// surface's text is changed here to reach the guard.)
     func testRefusedDecisionLeavesAVisibleNotice() async throws {
         let text = "Price 55 or more today."
         let shifted = "Price *5 or more today.*"   // the change's range now covers one `*` of a pair
@@ -585,19 +590,6 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertTrue(singleSurface.editCalls.isEmpty)
         XCTAssertEqual(single.state, .message(AIActionController.structureRefusedMessage))
         XCTAssertNil(single.reviewNotice)
-
-        let (batch, batchSurface, _) = make(text, replace(["more": "less"]))
-        await runToCompletion(batch, .proofread, range: whole(text), text: text)
-        batchSurface.string = shifted
-        batch.handle(.acceptRemaining)
-        XCTAssertTrue(batchSurface.editCalls.isEmpty)
-        XCTAssertEqual(batch.reviewNotice, AIActionController.structureRefusedMessage)
-        _ = try session(batch)
-        batch.dismissReviewNotice()
-        XCTAssertNil(batch.reviewNotice)
-        batch.handle(.acceptRemaining)
-        batch.abandon()
-        XCTAssertNil(batch.reviewNotice, "abandon clears it")
     }
 
     // MARK: - Final-review fixes
@@ -616,13 +608,6 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(escSurface.collapsedSelections, [], "nothing collapses while the review is up")
         esc.handle(.end)
         XCTAssertEqual(escSurface.collapsedSelections, [NSMaxRange(passage)])
-
-        // Accept All: the end moves by every accepted change's delta.
-        let (all, allSurface, _) = make(doc, replace(words))
-        await runToCompletion(all, .rewrite, range: passage, text: doc)
-        all.handle(.acceptRemaining)
-        let accepted = range(of: "The large dog ran near away from here.", in: allSurface.string)
-        XCTAssertEqual(allSurface.collapsedSelections, [NSMaxRange(accepted)])
 
         // The one decision: accepting it ends the review at the accepted text's end; rejecting
         // it at the passage's.
@@ -680,7 +665,7 @@ final class AIActionControllerTests: XCTestCase {
         // the first's is skipped.
         let start = passage.location
         let selection = NSRange(location: start, length: NSMaxRange(range(of: "Outro stays too.", in: historyDoc)) - start)
-        for command in [AIReviewCommand.accept(0), .acceptRemaining] {
+        for command in [AIReviewCommand.accept(0), .acceptCurrent] {
             let (multi, multiSurface, _) = make(historyDoc, replace(["big": "large", "too": "also"]), history: history)
             await runToCompletion(multi, .rewrite, range: selection, text: historyDoc)
             multiSurface.skippedEditIndices = [1]

@@ -72,6 +72,19 @@ enum HistoryPalette {
         return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
     }
 
+    /// `ink` as the review overlay draws it inside a replacement: it keeps on the tint the
+    /// contrast it had on the page, up to AA. `readableInk` sets the link ink at 4.5:1 against
+    /// the PAGE, so any visible tint takes it (and, on Quiet, inline code) under AA — and no tint
+    /// light enough to fix that is still visible. Body text already reads on the tint and comes
+    /// back as the same object; deliberately muted inks (Markdown markers) stay as muted as they
+    /// were rather than being raised to AA.
+    static func reviewReplacementInk(_ ink: NSColor, for theme: Theme) -> NSColor {
+        let tint = reviewInsertTint(for: theme)
+        let target = min(4.5, Theme.contrastRatio(ink, theme.backgroundColor))
+        guard Theme.contrastRatio(ink, tint) < target else { return ink }
+        return theme.readableInk(ink, minimumRatio: target, on: tint)
+    }
+
     /// The focused passage's counter: the theme's full ink, like the passage it labels.
     static func counterInk(for theme: Theme) -> NSColor {
         theme.readableInk(ink(of: theme), minimumRatio: 4.5)

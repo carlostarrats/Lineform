@@ -18,7 +18,7 @@ import Foundation
 struct AIReviewComposition: Equatable {
     let string: String
     /// Change id → the struck originals, in `string` coordinates, in order. Absent for a pure
-    /// insertion and for an original the writer kept.
+    /// insertion.
     let removedRanges: [Int: [NSRange]]
     /// Change id → the highlighted replacements, in `string` coordinates, in order. Absent for a
     /// pure deletion.
@@ -67,7 +67,6 @@ struct AIReviewComposition: Equatable {
             // skipped rather than drawn wrong.
             guard range.location >= cursor, NSMaxRange(range) <= source.length,
                   change.parts.allSatisfy({ $0.offset >= 0 && $0.length >= 0 && $0.offset + $0.length <= range.length }) else { continue }
-            let kept = session.keptOriginals.contains(change.id)
             var start: Int?
             for part in change.parts.sorted(by: { $0.offset < $1.offset }) {
                 let partRange = NSRange(location: range.location + part.offset, length: part.length)
@@ -76,13 +75,6 @@ struct AIReviewComposition: Equatable {
                 if start == nil { start = result.length }
                 // The document's own text, never `change.original`: what is struck is what is there.
                 let original = source.substring(with: partRange)
-                if kept {
-                    // What a kept accept writes: the whole original, a separator, the replacement.
-                    copyDocument(upTo: NSMaxRange(partRange))
-                    insert(AIReviewSession.separator(between: original, and: part.replacement), isReplacement: false, id: change.id)
-                    insert(part.replacement, isReplacement: true, id: change.id)
-                    continue
-                }
                 let differing = differingSpan(original: original, replacement: part.replacement)
                 let removedRange = NSRange(location: partRange.location + differing.original.location, length: differing.original.length)
                 let added = (part.replacement as NSString).substring(with: differing.replacement)
@@ -164,7 +156,8 @@ struct AIReviewComposition: Equatable {
         return zip(bounds, bounds.dropFirst()).map { NSRange(location: $0, length: $1 - $0) }
     }
 
-    /// When `range` is ALL of a line's prose — from the line start, or from just after the line's
+    /// When `range` is ALL of a line's prose — from the line start (past a leading BOM on the
+    /// document's first line), or from just after the line's
     /// Markdown marker prefix (`- `, `1. `, `> `, `- [ ] `, nested `> - `, with indentation), to
     /// where the line's text ends (before its terminator, or at the end of the document) — that
     /// prefix ("" for a plain line). Nil when the range is only part of the line.
@@ -176,6 +169,9 @@ struct AIReviewComposition: Equatable {
         guard endsLine else { return nil }
         var lineStart = range.location
         while lineStart > 0, text.character(at: lineStart - 1) != newline { lineStart -= 1 }
+        // A leading BOM belongs to the file, not to the first line's marker: skipped for matching
+        // and never copied into the repeated marker (`markdownSourceLines` skips it the same way).
+        if lineStart == 0, text.length > 0, text.character(at: 0) == 0xFEFF, range.location > 0 { lineStart = 1 }
         let prefix = text.substring(with: NSRange(location: lineStart, length: range.location - lineStart))
         let whole = NSRange(location: 0, length: (prefix as NSString).length)
         guard markerPrefix.firstMatch(in: prefix, range: whole)?.range == whole else { return nil }

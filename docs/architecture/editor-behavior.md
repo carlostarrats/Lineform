@@ -848,11 +848,14 @@ action does to the document. The two sections after it cover the text-view and o
   diffed into a deletion and an insertion; accepting only the insertion gave `$5$`, which is
   math) — verifying the whole change removes that class. A refused accept is marked rejected and,
   as the only decision, ends the review with "That change would alter the Markdown, so it wasn't
-  applied." as the status message; a refused Accept Remaining leaves it pending with that notice
-  on the card.
-- **Undo shape.** One decision = one `applyAIEdits` call = one undo group = one ⌘Z, however many
-  segment edits it carries. Accept Remaining is ONE call, named by the number of DECISIONS it
-  takes ("Accept Suggestion" for one), its edits in descending order in pre-batch coordinates.
+  applied." as the status message.
+- **Undo shape.** One decision = one `applyAIEdits` call = one undo group ("Accept Suggestion") =
+  one ⌘Z, however many segment edits it carries (descending order).
+- **Esc is reject-and-end.** `.end` (Esc, the card's Reject and ✕, a hand-off key) calls
+  `endReview()`, which explicitly marks every pending change rejected before ending: nothing pending
+  is applied, and History records nothing unless something was accepted. `endReview()` returns the
+  ended session so this is asserted. The multi-change APIs (move, keep-original, Accept/Reject
+  Remaining, position counter) were removed with option A — a review only ever holds one change.
 - **History.** Recorded once, when the review ends (last decision, End/Esc, or typing), and only if
   something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
   records nothing.
@@ -928,10 +931,17 @@ the app's one `AIConnectionStore.shared`).
   `AIReviewSurfaceRepresentable` (an `NSScrollView` + `AIReviewTextView`, a TextKit 1 stack like the
   editor's) lies exactly over the editor. It shows `AIReviewComposition`: for each PENDING change, the
   document's own original struck through and dimmed (TEMPORARY `.foregroundColor`
-  `HistoryPalette.recededInk` + `.strikethroughStyle` single, unless kept), then the replacement on a
+  `HistoryPalette.recededInk` + `.strikethroughStyle` single), then the replacement on a
   TEMPORARY `.backgroundColor` `HistoryPalette.reviewInsertTint` (the mockup's accent wash, returned
   opaque; ≥ 1.15:1 off the page with AA text on it, pinned in `HistoryPaletteTests`). Decided changes
   contribute nothing.
+- **Inks inside a replacement are measured against the TINT.** `readableInk` puts the link ink at
+  exactly 4.5:1 against the PAGE, so any visible tint takes it under AA (3.25:1 on Night; Quiet's
+  inline code also fell to 4.497:1). No tint light enough to fix that is still visible, so the tint
+  was NOT changed: `present` re-inks each storage foreground run in a replacement through
+  `HistoryPalette.reviewReplacementInk` (a temporary attribute), which keeps on the tint the
+  contrast the ink had on the page, up to AA (`Theme.readableInk(_:minimumRatio:on:)`). Body text
+  already passes and is left alone; muted Markdown markers stay as muted as they were.
 - **Option A, no pills (QA 1.8).** Build 38 put a ✓|✕ pill (a U+FFFC attachment) after every change
   and made the struck original a click-to-keep toggle. Both are gone, with the pill's hit-testing,
   ← / → navigation and the Keep / Next / Previous VoiceOver actions: one action is one change, decided
@@ -951,8 +961,9 @@ the app's one `AIConnectionStore.shared`).
   `AIReviewSession.separator`. "Whole line" also covers ALL of a line's prose after its Markdown
   marker prefix (`- `, `1. `, `> `, `- [ ] `, nested `> - `, indented): the replacement line then
   repeats that prefix so it reads as the same list/quote item (`wholeLineMarker`; overlay only, the
-  document edit is unchanged). Prose before the change on the same line keeps it inline. A kept original (session API; no UI sets it now) shows whole, unstruck,
-  separator, replacement — what a kept accept writes. Everything before the first change is byte-identical to the
+  document edit is unchanged). A leading U+FEFF on the document's first line is skipped before
+  matching and never copied into the repeated marker. Prose before the change on the same line keeps
+  it inline. Everything before the first change is byte-identical to the
   document and `matchGeometry(of:)` copies the editor's inset, padding, container width, frame width
   and paragraph style, so its lines sit on the editor's.
 - **Scroll hand-over is by CHARACTER, never pixel y.** Past the first change the overlay is taller
@@ -997,21 +1008,26 @@ the app's one `AIConnectionStore.shared`).
 - **VoiceOver.** The overlay carries `accessibilityCustomActions` — exactly Accept Change, Reject
   Change (while a change is current) and End Review; its AX value is the composition as drawn.
   Progress is announced by the controller, never written into an AX value.
-- **Cards.** One floating card at the BOTTOM of `editorContent` (an overlay, never a laid-out bar):
-  `AIStatusCard` for a running request (progress, "Esc to cancel", ✕ cancels), a message (steps aside
-  after 8 s) or Mark's count ("Esc clears marks"); `AIReviewCard` ("3 of 7", Accept All / Reject All
-  → Remaining after a decision) while a review has more than one change. A one-change review gets a
-  quiet `AIStatusCard` ("1 change suggested", "Return to accept · Esc to dismiss", ✕ ends the
-  review), so its modal keys are discoverable. While an AI card is up the
+- **Cards (QA 1.8).** One floating card in the BOTTOM-TRAILING corner of `editorContent` (an
+  overlay, never a laid-out bar), at the default-app card's inset (16), corner (12), padding (h14
+  v13), type (title 13 semibold, body 11.5) and ✕ (18×18, 9pt bold, −2 offsets, top-trailing).
+  `AIStatusCard`: a running request (spinner in the default-app card's 26pt icon slot, "Rewriting
+  with ChatGPT…", "Esc to cancel", ✕ cancels), a message (steps aside after 8 s) or Mark's count
+  ("Esc clears marks"). `AIReviewCard`: "Rewrite ready" / "Trim ready" / "Cut ready" / "Proofread
+  ready", "Return to accept · Esc to reject", Reject (bordered) + Accept (prominent); Reject and ✕
+  send `.end`. Both HUG their content up to `AnnouncementCard.maximumWidth` through `AICardWidthCap`
+  — `.frame(maxWidth:)` grows to the cap whenever the overlay offers more, which was the old review
+  card's dead space. Checked offscreen (NSHostingView + cacheDisplay) in Light and Quiet-dark next
+  to the default-app card, at 720pt and the 220pt minimum content width. While an AI card is up the
   announcement / default-app card is hidden. `usesDarkChrome` is threaded. All floating cards
   (announcement, default app, AI) share ONE `FloatingCardChrome` modifier. The card's arrival and
   departure animate on `aiCardKind` from a persistent `ZStack`.
 - **Composition cache.** `AIReviewCompositionCache` rebuilds only when the session or the editor's
   text changes; the container body re-evaluates far more often.
 - **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
-  `AIActionController.reviewNotice`, drawn on the review card (or alone on a status card for a
-  one-change review) and cleared by the next command; if the refusal was the last decision the
-  review ends and the refusal becomes `state = .message`.
+  `AIActionController.reviewNotice` (drawn in place of the review card's hint while a review is
+  up); with one change the refusal is always the last decision, so the review ends and the refusal
+  becomes `state = .message`.
 - **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call
   `endAIForDocumentChange()` first, like typing). Before this the backstop refused the edit after the
   search state had already moved on. The representable also drops `isAIReviewActive`

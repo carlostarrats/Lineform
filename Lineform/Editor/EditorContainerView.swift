@@ -1043,10 +1043,12 @@ struct EditorContainerView: View {
                             )
                         }
                     }
-                    // The AI's progress, message, Mark and review cards float at the bottom of
-                    // the CONTENT — never a laid-out bar, never at the top (the toolbar samples
-                    // the top edge).
-                    .overlay(alignment: .bottom) {
+                    // The AI's progress, message, Mark and review cards take the same
+                    // bottom-trailing corner and inset as the default-app card (which steps aside
+                    // while one is up) — never a laid-out bar, never at the top (the toolbar
+                    // samples the top edge). A persistent overlay of its own, so its card's
+                    // arrival and departure animate on `aiCardKind`.
+                    .overlay(alignment: .bottomTrailing) {
                         aiCard
                     }
 
@@ -2478,7 +2480,6 @@ struct EditorContainerView: View {
                 composition: aiCompositionCache.composition(text: aiController.editor?.string ?? document.text,
                                                             session: session),
                 currentID: session.currentID,
-                hasDecided: session.hasDecided,
                 profile: displayProfile,
                 editor: aiController.editor as? NSTextView,
                 onCommand: { command in aiController.handle(command) }
@@ -2496,8 +2497,8 @@ struct EditorContainerView: View {
         }
     }
 
-    /// The AI's one floating card: progress (Esc cancels), a message, Mark's count (Esc clears),
-    /// or the review's position and batch buttons — with a refused decision's notice on it.
+    /// The AI's one floating card, in the editor's bottom-trailing corner: progress (Esc cancels),
+    /// a message, Mark's count (Esc clears), or the review's one decision (Reject / Accept).
     /// Which AI card is up, so its arrival and departure animate (a change of text within one
     /// card does not).
     private var aiCardKind: Int {
@@ -2514,7 +2515,7 @@ struct EditorContainerView: View {
     private var aiCard: some View {
         // A persistent container, so the animation keyed on `aiCardKind` drives the insertion
         // and removal transitions of the card inside it.
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             aiCardContent
                 .padding(AnnouncementCard.edgeInset)
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
@@ -2553,22 +2554,15 @@ struct EditorContainerView: View {
                              hint: AIReviewCardPresentation.markHint, showsProgress: false,
                              usesDarkChrome: usesDarkChrome, onClose: { aiController.dismissMarks() })
             case .reviewing(let session):
-                if session.changes.count > 1 {
-                    AIReviewCard(
-                        position: session.position.current,
-                        total: session.position.total,
-                        hasDecided: session.hasDecided,
-                        notice: aiController.reviewNotice,
-                        usesDarkChrome: usesDarkChrome,
-                        onAcceptRemaining: { aiController.handle(.acceptRemaining) },
-                        onRejectRemaining: { aiController.handle(.rejectRemaining) }
-                    )
-                } else {
-                    // One change: no batch buttons, but the modal keys must be discoverable.
-                    AIStatusCard(text: aiController.reviewNotice ?? AIActionController.changesSuggestedMessage(1),
-                                 hint: AIReviewCardPresentation.singleChangeHint, showsProgress: false,
-                                 usesDarkChrome: usesDarkChrome, onClose: { aiController.handle(.end) })
-                }
+                // One action, one change, one decision (spec "AI review: option A").
+                AIReviewCard(
+                    title: AIReviewCardPresentation.title(for: session.action),
+                    notice: aiController.reviewNotice,
+                    usesDarkChrome: usesDarkChrome,
+                    onAccept: { aiController.handle(.acceptCurrent) },
+                    onReject: { aiController.handle(.end) },
+                    onClose: { aiController.handle(.end) }
+                )
             }
         }
     }

@@ -106,6 +106,23 @@ final class HistoryPaletteTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(visible, 1.15, "\(theme.name) tint vs page was \(visible)")
             let text = Theme.contrastRatio(theme.textColor, fill)
             XCTAssertGreaterThanOrEqual(text, 4.5, "\(theme.name) text on tint was \(text)")
+            // A replacement is highlighted Markdown: its link and code inks sit on the tint too.
+            // `readableInk` puts the link at AA against the PAGE, so any visible tint takes it
+            // under — no tint can fix that. The overlay draws each ink through
+            // `reviewReplacementInk`, which keeps on the tint the contrast it had on the page
+            // (up to AA): links and code reach 4.5:1, muted markers stay as muted as they were.
+            let link = HistoryPalette.reviewReplacementInk(theme.readableInk(NSColor.linkColor), for: theme)
+            let linkRatio = Theme.contrastRatio(link, fill)
+            XCTAssertGreaterThanOrEqual(linkRatio, 4.5, "\(theme.name) link ink on tint was \(linkRatio)")
+            let code = HistoryPalette.reviewReplacementInk(MarkdownSyntaxHighlighter.inlineCodeColor(for: theme), for: theme)
+            let codeRatio = Theme.contrastRatio(code, fill)
+            XCTAssertGreaterThanOrEqual(codeRatio, 4.5, "\(theme.name) code ink on tint was \(codeRatio)")
+            XCTAssertTrue(HistoryPalette.reviewReplacementInk(theme.textColor, for: theme) === theme.textColor,
+                          "\(theme.name): body text already reads on the tint and is left alone")
+            let marker = MarkdownSyntaxHighlighter.markdownMarkerColor(for: theme)
+            let markerTarget = min(4.5, Theme.contrastRatio(marker, theme.backgroundColor))
+            let markerRatio = Theme.contrastRatio(HistoryPalette.reviewReplacementInk(marker, for: theme), fill)
+            XCTAssertGreaterThanOrEqual(markerRatio, markerTarget - 0.01, "\(theme.name) marker on tint was \(markerRatio)")
         }
     }
 

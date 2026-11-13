@@ -22,9 +22,12 @@ protocol AIEditorSurface: AnyObject {
     func announceAI(_ message: String)
 }
 
+/// One action is one change, so a review has one decision: accept it (by id, or the current change
+/// with Return), reject it (by id; the card's Reject, Esc and ✕ send `end`, which rejects what is
+/// pending), or type (end, then type).
 enum AIReviewCommand: Equatable {
-    case accept(Int), reject(Int), toggleKeep(Int)
-    case acceptCurrent, next, previous, acceptRemaining, rejectRemaining, end
+    case accept(Int), reject(Int)
+    case acceptCurrent, end
     case typed(String)
 }
 
@@ -53,7 +56,7 @@ final class AIActionController: ObservableObject {
         case message(String)
     }
 
-    /// Leaving `.reviewing` — by ANY path (Esc, the card's buttons, the last pill, a typed key,
+    /// Leaving `.reviewing` — by ANY path (Esc, the card's buttons or ✕, Return, a typed key,
     /// a document swap, abandon, disconnect) — collapses the editor's selection to the end of the
     /// reviewed passage. This is the one choke point: the passage stays selected in the editor
     /// under the overlay, and a keystroke after the review would otherwise replace it.
@@ -117,14 +120,9 @@ final class AIActionController: ObservableObject {
     static var reviewEndedMessage: String { String(localized: "Review ended") }
     static var editSkippedMessage: String { String(localized: "That change couldn't be applied, so the review ended.") }
     static var acceptOneActionName: String { String(localized: "Accept Suggestion") }
-    static var acceptManyActionName: String { String(localized: "Accept Suggestions") }
 
     static func changesSuggestedMessage(_ count: Int) -> String {
         count == 1 ? String(localized: "1 change suggested") : String(localized: "\(count) changes suggested")
-    }
-
-    static func positionMessage(_ current: Int, of total: Int) -> String {
-        String(localized: "Change \(current) of \(total)")
     }
 
     static func markedMessage(_ count: Int) -> String {
@@ -314,32 +312,9 @@ final class AIActionController: ObservableObject {
             guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session, lengthBefore: before) }
         case .reject(let id):
             session.reject(id)
-        case .toggleKeep(let id):
-            session.toggleKeep(id)
-            state = .reviewing(session)
-            return
-        case .next, .previous:
-            session.move(by: command == .next ? 1 : -1)
-        case .acceptRemaining:
-            var candidate = session
-            let acceptedCount = candidate.pending.count
-            let edits = candidate.acceptRemaining()
-            if !edits.isEmpty {
-                guard isStructurePreserving(edits, in: editor.string) else {
-                    editor.announceAI(Self.structureRefusedMessage)
-                    reviewNotice = Self.structureRefusedMessage
-                    return
-                }
-                let before = (editor.string as NSString).length
-                guard editor.applyAIEdits(edits, actionName: acceptedCount == 1 ? Self.acceptOneActionName : Self.acceptManyActionName) else {
-                    return endAfterSkippedEdit(session, lengthBefore: before)
-                }
-            }
-            session = candidate
-        case .rejectRemaining:
-            session.rejectRemaining()
         case .end:
-            return endReview()
+            endReview()
+            return
         case .typed(let text):
             endReview()
             editor.insertTypedText(text)
@@ -352,18 +327,18 @@ final class AIActionController: ObservableObject {
             // A refusal that was the last decision: the review is gone, so the refusal is the
             // message the status card shows (already announced when it was refused).
             if let notice { state = .message(notice) }
-        } else {
-            let position = session.position
-            editor.announceAI(Self.positionMessage(position.current, of: position.total))
         }
     }
 
-    /// Ends the review: undecided changes are rejected (the text keeps them as they were). When
-    /// anything was accepted, History records the original plus the accepted result — one passage
-    /// per changed paragraph of the selection (`acceptedPassages`).
-    func endReview() {
-        guard case .reviewing(var session) = state else { return }
-        session.rejectRemaining()
+    /// Ends the review — Esc, ✕, the last decision, typing, a document swap. It is an explicit
+    /// REJECT of whatever is still pending: nothing pending is applied, and the text keeps it as it
+    /// was. When anything was accepted, History records the original plus the accepted result —
+    /// one passage per changed paragraph of the selection (`acceptedPassages`); otherwise nothing.
+    /// Returns the ended session (every change decided), nil when no review was up.
+    @discardableResult
+    func endReview() -> AIReviewSession? {
+        guard case .reviewing(var session) = state else { return nil }
+        for change in session.pending { session.reject(change.id) }
         reviewNotice = nil
         reviewProvider = nil
         state = .idle
@@ -381,6 +356,7 @@ final class AIActionController: ObservableObject {
             }
         }
         editor?.announceAI(Self.reviewEndedMessage)
+        return session
     }
 
     /// What History records for an accepted selection: one passage per CHANGED paragraph
@@ -442,7 +418,7 @@ final class AIActionController: ObservableObject {
         // `applyAIEdits` call, one undo group.
         let edits = candidate.accept(id)
         guard !edits.isEmpty else {
-            // Already decided, or a kept pure deletion (decided, nothing to write).
+            // Already decided.
             session = candidate
             return true
         }

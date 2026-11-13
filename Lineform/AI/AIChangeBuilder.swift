@@ -37,17 +37,11 @@ struct AIChange: Equatable, Identifiable {
 
     /// The edits that apply this change at its CURRENT `range`, in DESCENDING location order,
     /// each in the coordinates of the text before any of them — so applying them in order is
-    /// exact. `keepingOriginal` writes each part's original, a separator, then its replacement;
-    /// a kept part with an empty replacement writes nothing (no edit).
-    func edits(keepingOriginal: Bool = false) -> [AIReviewEdit] {
-        let originalNS = original as NSString
-        return parts.reversed().compactMap { part in
-            let range = NSRange(location: range.location + part.offset, length: part.length)
-            guard keepingOriginal else { return AIReviewEdit(range: range, replacement: part.replacement) }
-            guard !part.replacement.isEmpty else { return nil }
-            let kept = originalNS.substring(with: NSRange(location: part.offset, length: part.length))
-            return AIReviewEdit(range: range, replacement: kept
-                + AIReviewSession.separator(between: kept, and: part.replacement) + part.replacement)
+    /// exact.
+    func edits() -> [AIReviewEdit] {
+        parts.reversed().map { part in
+            AIReviewEdit(range: NSRange(location: range.location + part.offset, length: part.length),
+                         replacement: part.replacement)
         }
     }
 }
