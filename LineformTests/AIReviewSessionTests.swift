@@ -27,7 +27,9 @@ final class AIReviewSessionTests: XCTestCase {
     func testAcceptShiftsLaterChangesAndSelection() throws {
         var session = threeChanges()
         let text = "The big dog ran far away."
-        let edit = try XCTUnwrap(session.accept(0))
+        let edits = session.accept(0)
+        XCTAssertEqual(edits.count, 1)
+        let edit = try XCTUnwrap(edits.first)
         XCTAssertEqual(edit, AIReviewEdit(range: NSRange(location: 4, length: 3), replacement: "large"))
         let after = apply([edit], to: text)
         XCTAssertEqual(after, "The large dog ran far away.")
@@ -40,35 +42,35 @@ final class AIReviewSessionTests: XCTestCase {
         XCTAssertTrue(session.acceptedAny)
 
         // A second accept is in the shifted coordinates.
-        let second = try XCTUnwrap(session.accept(1))
+        let second = try XCTUnwrap(session.accept(1).first)
         XCTAssertEqual(apply([second], to: after), "The large dog sprinted far away.")
-        XCTAssertNil(session.accept(1), "a decided change cannot be decided again")
+        XCTAssertEqual(session.accept(1), [], "a decided change cannot be decided again")
     }
 
     func testKeepingDimmedTextKeepsOriginalAndInsertion() throws {
         var session = threeChanges()
         session.toggleKeep(0)
         XCTAssertEqual(session.keptOriginals, [0])
-        let edit = try XCTUnwrap(session.accept(0))
+        let edit = try XCTUnwrap(session.accept(0).first)
         XCTAssertEqual(edit.replacement, "big large")
         XCTAssertEqual(apply([edit], to: "The big dog ran far away."), "The big large dog ran far away.")
 
         // Keeping a pure deletion keeps everything: no edit at all.
         session.toggleKeep(2)
-        XCTAssertNil(session.accept(2))
+        XCTAssertEqual(session.accept(2), [])
         XCTAssertEqual(session.decisions[2], .accepted)
 
         // Untoggling restores the plain replacement.
         var other = threeChanges()
         other.toggleKeep(1)
         other.toggleKeep(1)
-        XCTAssertEqual(other.accept(1)?.replacement, "sprinted")
+        XCTAssertEqual(other.accept(1).first?.replacement, "sprinted")
 
         // No separator when a touching character is whitespace or a side is empty.
         var spaced = AIReviewSession(action: .rewrite, changes: [change(0, 0, "big ", "large")],
                                      selectionRange: NSRange(location: 0, length: 4), originalSelection: "big ")
         spaced.toggleKeep(0)
-        XCTAssertEqual(spaced.accept(0)?.replacement, "big large")
+        XCTAssertEqual(spaced.accept(0).first?.replacement, "big large")
     }
 
     func testAcceptRemainingReturnsDescendingEdits() throws {
@@ -115,5 +117,34 @@ final class AIReviewSessionTests: XCTestCase {
         session.acceptRemaining()
         session.move(by: 1)
         XCTAssertNil(session.currentID)
+    }
+
+    /// One change across two list items: accepting it is one decision that returns one edit per
+    /// changed segment (descending), never the whole span — the span crosses a line ending.
+    func testMultiPartChangeAcceptsAsOneDecisionWithPerSegmentEdits() throws {
+        let text = "- alpha one\n- beta two\n"
+        let ns = text as NSString
+        let segments = MarkdownStructureMap.proseSegments(in: text, selection: NSRange(location: 0, length: ns.length))
+        let change = try XCTUnwrap(AIChangeBuilder.change(segments: segments, revisions: ["alpha 1", "beta 2"], in: text))
+        var session = AIReviewSession(action: .rewrite, changes: [change],
+                                      selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
+        XCTAssertEqual(session.position.total, 1)
+        let edits = session.accept(0)
+        XCTAssertEqual(edits.map(\.range), [ns.range(of: "beta two"), ns.range(of: "alpha one")])
+        let after = apply(edits, to: text)
+        XCTAssertEqual(after, "- alpha 1\n- beta 2\n")
+        XCTAssertTrue(session.isFinished)
+        XCTAssertEqual(session.selectionRange, NSRange(location: 0, length: (after as NSString).length))
+        XCTAssertEqual((after as NSString).substring(with: session.changes[0].range), "alpha 1\n- beta 2",
+                       "an accepted change's range covers the text that replaced it")
+
+        var batch = AIReviewSession(action: .rewrite, changes: [change],
+                                    selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
+        XCTAssertEqual(apply(batch.acceptRemaining(), to: text), after, "Accept Remaining applies the same edits")
+
+        var kept = AIReviewSession(action: .rewrite, changes: [change],
+                                   selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
+        kept.toggleKeep(0)
+        XCTAssertEqual(apply(kept.accept(0), to: text), "- alpha one alpha 1\n- beta two beta 2\n")
     }
 }

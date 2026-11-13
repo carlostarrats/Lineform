@@ -34,10 +34,11 @@ enum AIReviewCommand: Equatable {
 /// - No request unless connected AND the writer chose an action (`run`). The Keychain is read
 ///   then, once, through `resolvedConnection()`.
 /// - Nothing reaches the document until a change is accepted. Mark changes nothing.
-/// - Every decision's resulting text must keep the document's Markdown structure byte-for-byte
-///   (`MarkdownStructureGuard.verify`) or it is not applied. The whole reply was verified, but a
-///   SUBSET of its changes can still re-pair structure (`$5` → `5$` split in two, one half alone
-///   making `$5$` math), so each decision is verified on its own.
+/// - One action is ONE change (`AIChangeBuilder.change`): whatever was selected is a single
+///   Accept / Reject decision, applied as one edit per changed segment.
+/// - The decision's resulting text must keep the document's Markdown structure byte-for-byte
+///   (`MarkdownStructureGuard.verify`) or it is not applied. The whole change is verified when the
+///   reply arrives and again, against the current text, when it is accepted.
 /// - A reply for text that changed while the request ran is discarded (exact UTF-16 compare).
 /// - History records when the review ends, if anything was accepted (one passage per changed
 ///   paragraph). Live reload abandons
@@ -281,18 +282,19 @@ final class AIActionController: ObservableObject {
                 return show(AIClientError.unusableResponse.message)
             }
             let admitted = MarkdownStructureGuard.admissibleRevisions(revisions, for: segments, in: snapshot)
-            let changes = AIChangeBuilder.changes(segments: segments, revisions: admitted, in: snapshot)
-            guard !changes.isEmpty else { return show(Self.noChangesMessage) }
-            let composed = Self.applying(changes.map { AIReviewEdit(range: $0.range, replacement: $0.replacement) }
-                .sorted { $0.range.location > $1.range.location }, to: snapshot)
-            guard MarkdownStructureGuard.verify(original: snapshot, revised: composed) else {
+            // ONE change for the whole selection: one Accept / Reject decision, however many
+            // segments (and whatever Markdown between them) it spans.
+            guard let change = AIChangeBuilder.change(segments: segments, revisions: admitted, in: snapshot) else {
+                return show(Self.noChangesMessage)
+            }
+            guard MarkdownStructureGuard.verify(original: snapshot, revised: Self.applying(change.edits(), to: snapshot)) else {
                 return show(AIClientError.unusableResponse.message)
             }
             let ns = snapshot as NSString
             reviewProvider = provider
-            state = .reviewing(AIReviewSession(action: action, changes: changes, selectionRange: selection,
+            state = .reviewing(AIReviewSession(action: action, changes: [change], selectionRange: selection,
                                                originalSelection: ns.substring(with: selection)))
-            editor.announceAI(Self.changesSuggestedMessage(changes.count))
+            editor.announceAI(Self.changesSuggestedMessage(1))
         }
     }
 
@@ -303,11 +305,13 @@ final class AIActionController: ObservableObject {
         reviewNotice = nil
         switch command {
         case .accept(let id):
-            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
+            let before = (editor.string as NSString).length
+            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session, lengthBefore: before) }
         case .acceptCurrent:
             // A change is current from the moment the review opens; the fallback only guards.
             guard let id = session.currentID ?? session.pending.first?.id else { return }
-            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
+            let before = (editor.string as NSString).length
+            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session, lengthBefore: before) }
         case .reject(let id):
             session.reject(id)
         case .toggleKeep(let id):
@@ -318,6 +322,7 @@ final class AIActionController: ObservableObject {
             session.move(by: command == .next ? 1 : -1)
         case .acceptRemaining:
             var candidate = session
+            let acceptedCount = candidate.pending.count
             let edits = candidate.acceptRemaining()
             if !edits.isEmpty {
                 guard isStructurePreserving(edits, in: editor.string) else {
@@ -326,7 +331,7 @@ final class AIActionController: ObservableObject {
                     return
                 }
                 let before = (editor.string as NSString).length
-                guard editor.applyAIEdits(edits, actionName: edits.count == 1 ? Self.acceptOneActionName : Self.acceptManyActionName) else {
+                guard editor.applyAIEdits(edits, actionName: acceptedCount == 1 ? Self.acceptOneActionName : Self.acceptManyActionName) else {
                     return endAfterSkippedEdit(session, lengthBefore: before)
                 }
             }
@@ -433,18 +438,21 @@ final class AIActionController: ObservableObject {
     /// False when the editor skipped the edit: the review must end (`endAfterSkippedEdit`).
     private func accept(_ id: Int, in session: inout AIReviewSession, editor: AIEditorSurface) -> Bool {
         var candidate = session
-        guard let edit = candidate.accept(id) else {
+        // One edit per changed segment of the change, all one decision: verified together, one
+        // `applyAIEdits` call, one undo group.
+        let edits = candidate.accept(id)
+        guard !edits.isEmpty else {
             // Already decided, or a kept pure deletion (decided, nothing to write).
             session = candidate
             return true
         }
-        guard isStructurePreserving([edit], in: editor.string) else {
+        guard isStructurePreserving(edits, in: editor.string) else {
             session.reject(id)
             editor.announceAI(Self.structureRefusedMessage)
             reviewNotice = Self.structureRefusedMessage
             return true
         }
-        guard editor.applyAIEdits([edit], actionName: Self.acceptOneActionName) else { return false }
+        guard editor.applyAIEdits(edits, actionName: Self.acceptOneActionName) else { return false }
         session = candidate
         return true
     }
@@ -486,7 +494,7 @@ final class AIActionController: ObservableObject {
     }
 
     /// Applies `edits` in order, each in the coordinates the previous one left.
-    static func applying(_ edits: [AIReviewEdit], to text: String) -> String {
+    nonisolated static func applying(_ edits: [AIReviewEdit], to text: String) -> String {
         let result = NSMutableString(string: text)
         for edit in edits {
             guard edit.range.location >= 0, NSMaxRange(edit.range) <= result.length else { continue }

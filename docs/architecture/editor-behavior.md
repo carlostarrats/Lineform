@@ -815,8 +815,8 @@ action does to the document. The two sections after it cover the text-view and o
   whole reply is "couldn't be used". (2) `MarkdownStructureGuard.admissibleRevisions` drops, per
   segment, any revision with a line terminator, a `Cc`, a `Cf` the original lacked, a different
   structure-punctuation sequence, or a different block signature. (3) The composed document must
-  `verify` against the original's whole-document signature, or nothing is offered. Then EVERY
-  decision is verified again on its own (below).
+  `verify` against the original's whole-document signature, or nothing is offered. Then the one
+  change is verified again when it is accepted (below).
 - **The structure rule, as built** (decisions paid for in review rounds — do not loosen):
   - Every `*`, `_` and `~` in the document is structure, paired or not. This closed a whole class of
     emphasis re-pairing bypasses; the cost is that the AI cannot fix a typo that touches one of them
@@ -829,16 +829,30 @@ action does to the document. The two sections after it cover the text-view and o
     control the original segment did not contain is dropped. This also drops an AI's new emoji ZWJ
     sequence or Persian/Indic ZWNJ shaping — accepted as the price of never admitting invisible
     control characters.
-  - Token comparison in the diff is canonical-equivalence (an NFC-only renormalisation is "no
+  - "Unchanged" is canonical equivalence (an NFC-only renormalisation of a segment is "no
     change", the writer's bytes kept); the stale-segment and stale-text checks are exact UTF-16.
-- **Per-decision verify.** A subset of a verified reply can still change structure (`$5` → `5$`
-  diffs into a deletion and an insertion; accepting only the insertion gives `$5$`, which is math).
-  Each accept and each Accept Remaining runs `verify(current, current+edits)` first; a refused one is
-  marked rejected (single) or left pending (batch) and shows "That change would alter the Markdown,
-  so it wasn't applied." on the card.
-- **Undo shape.** One decision = one `applyAIEdits` call = one undo group = one ⌘Z. Accept Remaining
-  is ONE call, named "Accept Suggestions" ("Accept Suggestion" for one edit), its edits in
-  descending order in pre-batch coordinates.
+- **One change per action** (QA 1.8, spec "AI review: option A"). Whatever the writer selected —
+  a word, a sentence, several paragraphs; Trim, Cut in half, Rewrite or Proofread — is ONE
+  `AIChange` and ONE Accept / Reject decision (`AIChangeBuilder.change`). Build 38 diffed each
+  segment at word level (tokens, LCS, hunks) and offered every hunk as its own decision: a
+  one-sentence rewrite came back as three. That word-level diff is gone; do not bring it back to
+  split decisions. The change's `range` runs from the first CHANGED segment to the last (unchanged
+  segments at the edges are outside it; one in the middle is kept verbatim); `replacement` is that
+  span with each changed segment rewritten and the document's own text between segments —
+  markers, CRLF — byte-for-byte. It is APPLIED as `parts`, one edit per changed segment
+  (`AIChange.edits`, descending), in one `applyAIEdits` call: the span crosses line endings, and
+  the text view refuses (skips) any AI edit that touches one.
+- **Verify the whole change.** The composed reply is verified when it arrives, and the change is
+  verified again against the CURRENT text when it is accepted (`verify(current, current+edits)`).
+  Before one-change-per-action, a SUBSET of a verified reply could change structure (`$5` → `5$`
+  diffed into a deletion and an insertion; accepting only the insertion gave `$5$`, which is
+  math) — verifying the whole change removes that class. A refused accept is marked rejected and,
+  as the only decision, ends the review with "That change would alter the Markdown, so it wasn't
+  applied." as the status message; a refused Accept Remaining leaves it pending with that notice
+  on the card.
+- **Undo shape.** One decision = one `applyAIEdits` call = one undo group = one ⌘Z, however many
+  segment edits it carries. Accept Remaining is ONE call, named by the number of DECISIONS it
+  takes ("Accept Suggestion" for one), its edits in descending order in pre-batch coordinates.
 - **History.** Recorded once, when the review ends (last decision, End/Esc, or typing), and only if
   something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
   records nothing.

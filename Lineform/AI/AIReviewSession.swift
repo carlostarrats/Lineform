@@ -48,20 +48,21 @@ struct AIReviewSession: Equatable {
 
     // MARK: - Decisions
 
-    mutating func accept(_ id: Int) -> AIReviewEdit? {
-        guard let index = changes.firstIndex(where: { $0.id == id }), decisions[id] == nil else { return nil }
+    /// Accepts `id`: the edits to apply, in DESCENDING location order in the current text (one
+    /// per changed segment of the change). Empty when it was already decided, or when it is a
+    /// kept pure deletion (decided, nothing to write).
+    mutating func accept(_ id: Int) -> [AIReviewEdit] {
+        guard let index = changes.firstIndex(where: { $0.id == id }), decisions[id] == nil else { return [] }
         decisions[id] = .accepted
         defer { advance(after: id) }
-        guard let text = editText(for: changes[index]) else { return nil }
-        let range = changes[index].range
-        let newLength = (text as NSString).length
-        let delta = newLength - range.length
+        let edits = changes[index].edits(keepingOriginal: keptOriginals.contains(id))
+        let delta = Self.lengthDelta(of: edits)
         for later in changes.indices where later > index {
             changes[later].range.location += delta
         }
-        changes[index].range.length = newLength
+        changes[index].range.length += delta
         selectionRange.length += delta
-        return AIReviewEdit(range: range, replacement: text)
+        return edits
     }
 
     mutating func reject(_ id: Int) {
@@ -87,20 +88,21 @@ struct AIReviewSession: Equatable {
         var edits: [AIReviewEdit] = []
         var shift = 0
         for index in changes.indices {
-            let before = changes[index].range
+            let before = changes[index]
             changes[index].range.location += shift
             let id = changes[index].id
             guard decisions[id] == nil else { continue }
             decisions[id] = .accepted
-            guard let text = editText(for: changes[index]) else { continue }
-            edits.append(AIReviewEdit(range: before, replacement: text))
-            let newLength = (text as NSString).length
-            shift += newLength - before.length
-            changes[index].range.length = newLength
+            // In pre-batch coordinates: the change as it was before this batch shifted it.
+            let changeEdits = before.edits(keepingOriginal: keptOriginals.contains(id))
+            edits += changeEdits
+            let delta = Self.lengthDelta(of: changeEdits)
+            shift += delta
+            changes[index].range.length += delta
         }
         selectionRange.length += shift
         currentID = nil
-        return edits.reversed()
+        return edits.sorted { $0.range.location > $1.range.location }
     }
 
     mutating func rejectRemaining() {
@@ -127,12 +129,8 @@ struct AIReviewSession: Equatable {
 
     // MARK: - Private
 
-    /// What a decision writes: the replacement, or — when the removed text is kept — the
-    /// original followed by the replacement. A kept pure deletion changes nothing (nil).
-    private func editText(for change: AIChange) -> String? {
-        guard keptOriginals.contains(change.id) else { return change.replacement }
-        guard !change.replacement.isEmpty else { return nil }
-        return change.original + Self.separator(between: change.original, and: change.replacement) + change.replacement
+    private static func lengthDelta(of edits: [AIReviewEdit]) -> Int {
+        edits.reduce(0) { $0 + ($1.replacement as NSString).length - $1.range.length }
     }
 
     /// `" "` when both sides are non-empty and neither touching character is whitespace.

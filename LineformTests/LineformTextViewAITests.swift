@@ -204,27 +204,30 @@ final class LineformTextViewAITests: XCTestCase {
     }
 
     /// Accept → ⌘Z, and Accept Remaining → ⌘Z, through the real controller and the real text view.
+    /// The selection spans two paragraphs, so its one change is applied as one edit per paragraph:
+    /// the real text view refuses any AI edit that touches a line ending, and none does.
     func testAcceptAndAcceptRemainingAreOneUndoEachThroughTheController() async throws {
-        let text = "The big dog ran far away from home."
-        let vendor = UndoManagerVendor(groupsByEvent: false)
-        let textView = makeTextView(text)
-        textView.delegate = vendor
-        let controller = makeController(replacing: ["big": "large", "far": "near", "home": "here"])
-        controller.editor = textView
-        controller.run(.rewrite, range: NSRange(location: 0, length: (text as NSString).length), text: text)
-        await controller.runTask?.value
+        let text = "The big dog ran.\r\n\r\nIt went far away from home."
+        let accepted = "The large dog ran.\r\n\r\nIt went near away from here."
+        for command in [AIReviewCommand.accept(0), .acceptRemaining] {
+            let vendor = UndoManagerVendor(groupsByEvent: false)
+            let textView = makeTextView(text)
+            textView.delegate = vendor
+            let controller = makeController(replacing: ["big": "large", "far": "near", "home": "here"])
+            controller.editor = textView
+            controller.run(.rewrite, range: NSRange(location: 0, length: (text as NSString).length), text: text)
+            await controller.runTask?.value
+            guard case .reviewing(let session) = controller.state else { return XCTFail("\(controller.state)") }
+            XCTAssertEqual(session.changes.count, 1, "one decision for the whole selection")
 
-        controller.handle(.accept(0))
-        XCTAssertEqual(textView.string, "The large dog ran far away from home.")
-        controller.handle(.acceptRemaining)
-        XCTAssertEqual(textView.string, "The large dog ran near away from here.")
-        XCTAssertEqual(controller.state, .idle)
+            controller.handle(command)
+            XCTAssertEqual(textView.string, accepted, "\(command)")
+            XCTAssertEqual(controller.state, .idle)
 
-        vendor.manager.undo()
-        XCTAssertEqual(textView.string, "The large dog ran far away from home.", "Accept Remaining is one ⌘Z")
-        vendor.manager.undo()
-        XCTAssertEqual(textView.string, text, "one accept is one ⌘Z")
-        XCTAssertFalse(vendor.manager.canUndo)
+            vendor.manager.undo()
+            XCTAssertEqual(textView.string, text, "one decision is one ⌘Z (\(command))")
+            XCTAssertFalse(vendor.manager.canUndo)
+        }
     }
 
     /// The accept reaches History through the text view's one user-edit source, so a passage

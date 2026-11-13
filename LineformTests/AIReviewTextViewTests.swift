@@ -313,7 +313,7 @@ final class AIReviewTextViewTests: XCTestCase {
             case "reject": session.reject(0)
             case "keep": session.toggleKeep(2)
             default:
-                let edit = try XCTUnwrap(session.accept(1))
+                let edit = try XCTUnwrap(session.accept(1).first)
                 text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
             }
             let composition = AIReviewComposition.build(text: text, session: session)

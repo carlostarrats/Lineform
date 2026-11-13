@@ -65,7 +65,7 @@ final class AIReviewCompositionTests: XCTestCase {
         var text = "a big day and a good night"
         var review = session(text, [change(0, "big", in: text, "large"), change(1, "good", in: text, "fine"),
                                     change(2, "night", in: text, "evening")])
-        let edit = try! XCTUnwrap(review.accept(0))
+        let edit = try! XCTUnwrap(review.accept(0).first)
         text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
         review.reject(2)
         let composition = AIReviewComposition.build(text: text, session: review)
