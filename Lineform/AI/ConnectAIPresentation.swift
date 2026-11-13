@@ -16,8 +16,8 @@ enum ConnectAIPaneState: Equatable {
 enum ConnectAIPresentation {
     /// Also the name `AIClientError` messages point writers to ("Check it in Connect Your AI"),
     /// in every language. `ConnectAIPresentationTests` asserts the two agree.
-    static var windowTitle: String { windowTitle(bundle: .main) }
-    static func windowTitle(bundle: Bundle) -> String {
+    static var title: String { title(bundle: .main) }
+    static func title(bundle: Bundle) -> String {
         String(localized: "Connect Your AI", bundle: bundle)
     }
 
@@ -28,7 +28,6 @@ enum ConnectAIPresentation {
     static var optionalModelLabel: String { String(localized: "Model (optional)") }
     static var connectedText: String { String(localized: "Connected") }
     static var disconnectTitle: String { String(localized: "Disconnect") }
-    static var doneTitle: String { String(localized: "Done") }
     static var reconnectNote: String {
         String(localized: "Lineform can't find this key in your Keychain. Paste it again to reconnect.")
     }

@@ -754,6 +754,13 @@ shows passages with history and steps their versions. Spec:
   (`testEnterFocusExitNeverChangesTheDocument`). Nested passages: only the focused one shows a
   counter. Rejected 2026-11-12, do not retry: version dots under the first word (in every
   position tried: hugging the line, centred in the gap, trailing) and the blue selection fill.
+- **The context menu in History mode is Cut / Copy / Paste only** (2026-11-12, owner request).
+  The formatting group (Title, Section, Bold, Italic, Code, Bulleted List, Link) is left out
+  (`LineformTextContextMenuPresentation.showsFormattingCommands(for:isHistoryModeActive:)`, which
+  `commandTitles(for:isHistoryModeActive:)` shares), because the writer is stepping versions, not
+  formatting. Add to History is left out too — explicitly, though the clamped caret already made
+  it unreachable — and the AI group was already absent (`allowsAIAction`). The ⌘B/⌘I keys and the
+  Format menu are untouched: they still leave the mode and apply, as above.
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
   `didChangeText` — never `applyWholeTextReplacement`.
 - **Leaving.** Esc, another sidebar tab, Read or Split mode, typing (the first keystroke leaves and

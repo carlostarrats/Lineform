@@ -70,7 +70,7 @@ enum AppMenuConfiguration {
     /// MUST match `MARKETING_VERSION` in the project. This is a hand-maintained string, so it
     /// drifts silently on a version bump — it shipped as V1.2.0 while the app was 1.3.0. The
     /// release checklist in `Lineform/Resources/ReleaseReadiness.md` now calls it out explicitly.
-    static let aboutVersionDisplay = "V1.7.5"
+    static let aboutVersionDisplay = "V1.8.0"
     /// The Info.plist `NSHumanReadableCopyright` pair for `ReleaseResourceTests`, not display
     /// copy — the visible About-panel copyright comes from `NSHumanReadableCopyright` itself
     /// (localized via `Lineform/InfoPlist.xcstrings`), which macOS's standard About panel reads
@@ -89,11 +89,21 @@ enum AppMenuConfiguration {
     static let closeTabCommandKeyEquivalent = "w"
     static let closeTabCommandModifiers: EventModifiers = .command
 
-    /// ⌘W is Close Tab, which only document windows answer. A utility window this app owns
-    /// (Connect Your AI) is closed as a window instead, or ⌘W does nothing there.
+    /// The in-window modals (Settings, Connect Your AI) present in the MAIN document window's
+    /// `EditorContainerView`. With no documents open, make one first (what ⌘N would do) so the
+    /// command always works; a silent no-op would break the platform expectation that Settings
+    /// opens from any app state.
     @MainActor
-    static func closeTabClosesWindowDirectly(_ controller: NSWindowController?) -> Bool {
-        controller is ConnectAIWindowController
+    static func presentInMainWindow(_ notification: LineformAppNotification) {
+        guard NSDocumentController.shared.documents.isEmpty else {
+            notification.post()
+            return
+        }
+        NSDocumentController.shared.newDocument(nil)
+        // Let the fresh window become main before the modal presents.
+        DispatchQueue.main.async {
+            notification.post()
+        }
     }
     /// Format > Link's shortcut letter. Was "k" until quick-open claimed Cmd+K
     /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
@@ -438,22 +448,14 @@ struct AppCommands: Commands {
             // a silent no-op here would break the platform expectation that Settings
             // opens from any app state.
             Button(AppMenuConfiguration.settingsCommandTitle) {
-                if NSDocumentController.shared.documents.isEmpty {
-                    NSDocumentController.shared.newDocument(nil)
-                    // Let the fresh window become main before the modal presents.
-                    DispatchQueue.main.async {
-                        LineformAppNotification.showSettings.post()
-                    }
-                } else {
-                    LineformAppNotification.showSettings.post()
-                }
+                AppMenuConfiguration.presentInMainWindow(.showSettings)
             }
             .keyboardShortcut(",", modifiers: .command)
 
-            // Its own window, not the Settings modal: it works with no document open, and
-            // opening it makes no network request and reads no key.
+            // The same in-window Muse modal as Settings, routed the same way. Opening it makes
+            // no network request and reads no key.
             Button(AppMenuConfiguration.connectAICommandTitle) {
-                ConnectAIWindowController.shared.show()
+                AppMenuConfiguration.presentInMainWindow(.showConnectAI)
             }
 
             Divider()
@@ -797,12 +799,7 @@ struct AppCommands: Commands {
 
         CommandGroup(after: .saveItem) {
             Button(String(localized: "Close Tab")) {
-                if let window = NSApp.keyWindow,
-                   AppMenuConfiguration.closeTabClosesWindowDirectly(window.windowController) {
-                    window.performClose(nil)
-                } else {
-                    LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
-                }
+                LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut(
                 KeyEquivalent(Character(AppMenuConfiguration.closeTabCommandKeyEquivalent)),

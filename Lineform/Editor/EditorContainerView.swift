@@ -31,7 +31,8 @@ struct EditorContainerView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isShowingReadingInspector = false
-    @State private var isShowingSettings = false
+    /// Settings or Connect Your AI — one value, so the two in-window modals can never stack.
+    @State private var presentedAppModal: EditorAppModal?
     @State private var displayMode = EditorDisplayMode.write
     @State private var isShowingOutline: Bool
     @State private var outlineItems: [MarkdownOutlineItem] = []
@@ -435,13 +436,10 @@ struct EditorContainerView: View {
             isShowingOutline.toggle()
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showSettings.name)) { _ in
-            // Present in the MAIN window, not via key-window payload matching: still
-            // works when a panel (About, open/save) is key, and can never match
-            // several windows at once the way a nil window number could.
-            guard activeWindow?.isMainWindow == true else {
-                return
-            }
-            isShowingSettings = true
+            presentAppModalInMainWindow(.settings)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showConnectAI.name)) { _ in
+            presentAppModalInMainWindow(.connectAI)
         }
         .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.renameCurrentFile.name)) { notification in
             guard notificationMatchesActiveWindow(notification), let url = currentFileURL else {
@@ -870,14 +868,27 @@ struct EditorContainerView: View {
 
             // Settings uses the shared Muse modal language: scrim + centered light
             // card + Esc/outside-click dismissal.
-            if isShowingSettings {
-                museModalLayer(scrimZIndex: 3, modalZIndex: 4, onDismiss: { isShowingSettings = false }) { geometry in
+            if presentedAppModal == .settings {
+                museModalLayer(scrimZIndex: 3, modalZIndex: 4, onDismiss: { presentedAppModal = nil }) { geometry in
                     SettingsModal(
                         settings: settings,
                         usesDarkChrome: theme.usesDarkChrome,
                         availableWidth: geometry.size.width
                     ) {
-                        isShowingSettings = false
+                        presentedAppModal = nil
+                    }
+                }
+            }
+
+            // Connect Your AI: the same Muse modal language and presentation as Settings.
+            if presentedAppModal == .connectAI {
+                museModalLayer(scrimZIndex: 3, modalZIndex: 4, onDismiss: { presentedAppModal = nil }) { geometry in
+                    ConnectAIView(
+                        store: .shared,
+                        usesDarkChrome: theme.usesDarkChrome,
+                        availableSize: geometry.size
+                    ) {
+                        presentedAppModal = nil
                     }
                 }
             }
@@ -927,12 +938,22 @@ struct EditorContainerView: View {
         }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
-            value: isShowingSettings
+            value: presentedAppModal
         )
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
             value: isShowingQuickOpen
         )
+    }
+
+    /// Present in the MAIN window, not via key-window payload matching: still works when a
+    /// panel (About, open/save) is key, and can never match several windows at once the way a
+    /// nil window number could.
+    private func presentAppModalInMainWindow(_ modal: EditorAppModal) {
+        guard activeWindow?.isMainWindow == true else {
+            return
+        }
+        presentedAppModal = modal
     }
 
     /// The shared presentation for a Muse-style modal (Info, Settings): a tap-to-dismiss
@@ -2415,7 +2436,7 @@ struct EditorContainerView: View {
 
     private var canPresentAppReviewPrompt: Bool {
         guard let window = activeWindow else { return false }
-        let hasInAppObstruction = isShowingSettings
+        let hasInAppObstruction = presentedAppModal != nil
             || isShowingQuickOpen
             || isShowingFindReplace
             || isShowingReadingInspector

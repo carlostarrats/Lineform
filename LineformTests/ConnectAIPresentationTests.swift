@@ -41,9 +41,9 @@ final class ConnectAIPresentationTests: XCTestCase {
     func testCopyIsTranslatedInEveryLanguage() throws {
         for language in Self.languages {
             let bundle = try bundle(language)
-            let title = ConnectAIPresentation.windowTitle(bundle: bundle)
+            let title = ConnectAIPresentation.title(bundle: bundle)
             let privacy = ConnectAIPresentation.privacyNote(bundle: bundle)
-            XCTAssertNotEqual(title, ConnectAIPresentation.windowTitle(bundle: .main), language)
+            XCTAssertNotEqual(title, ConnectAIPresentation.title(bundle: .main), language)
             XCTAssertNotEqual(title, "Connect Your AI", language)
             XCTAssertNotEqual(privacy, "Lineform sends only the text you act on, only when you choose an AI action, directly to the provider you connected, under your account and that provider's terms. Lineform's developer receives nothing.", language)
             for key in ["Connect — Lineform will send the text you choose to %@",
@@ -61,14 +61,14 @@ final class ConnectAIPresentationTests: XCTestCase {
         }
     }
 
-    /// The window and the AI client error copy name the same place; keep them in agreement.
-    func testWindowTitleMatchesTheNameErrorsPointTo() throws {
-        XCTAssertEqual(ConnectAIPresentation.windowTitle, "Connect Your AI")
+    /// The modal's title and the AI client error copy name the same place; keep them in agreement.
+    func testTitleMatchesTheNameErrorsPointTo() throws {
+        XCTAssertEqual(ConnectAIPresentation.title, "Connect Your AI")
         XCTAssertEqual(AppMenuConfiguration.connectAICommandTitle, "Connect Your AI…")
-        XCTAssertTrue(AIClientError.connectionFailed.message.contains(ConnectAIPresentation.windowTitle))
+        XCTAssertTrue(AIClientError.connectionFailed.message.contains(ConnectAIPresentation.title))
         for language in Self.languages {
             let bundle = try bundle(language)
-            let title = ConnectAIPresentation.windowTitle(bundle: bundle)
+            let title = ConnectAIPresentation.title(bundle: bundle)
             let error = bundle.localizedString(
                 forKey: "Couldn't make a secure connection to the AI. Check the address in Connect Your AI.",
                 value: nil, table: nil)
@@ -134,25 +134,62 @@ final class ConnectAIPresentationTests: XCTestCase {
         XCTAssertEqual(keychain.readCount, 0)
     }
 
-    /// Return in a field is the Connect gesture; it must never close the window and drop the
-    /// pasted key. Done is not the default button; Esc and ⌘W close.
-    func testReturnInAFieldSubmitsConnectAndNeverCloses() throws {
+    private func source(_ path: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let source = try String(contentsOf: root.appending(path: "Lineform/AI/ConnectAIView.swift"), encoding: .utf8)
-        XCTAssertFalse(source.contains(".defaultAction"), "no default button: Return would close the window")
-        XCTAssertTrue(source.contains(".keyboardShortcut(.cancelAction)"), "Esc closes via Done")
+        return try String(contentsOf: root.appending(path: path), encoding: .utf8)
+    }
+
+    /// Return in a field is the Connect gesture; it must never close the modal and drop the
+    /// pasted key. There is no default button; Esc (the shared header's ✕) closes.
+    func testReturnInAFieldSubmitsConnectAndNeverCloses() throws {
+        let source = try source("Lineform/AI/ConnectAIView.swift")
+        XCTAssertFalse(source.contains(".defaultAction"), "no default button: Return would close the modal")
         let fields = source.matches(of: /(Secure|Text)Field\(/).count
         XCTAssertEqual(fields, 4, "field count changed; update this test")
         XCTAssertEqual(source.components(separatedBy: ".onSubmit(connect)").count - 1, fields,
                        "every field submits Connect on Return")
     }
 
-    /// Hand-test fix 4: ⌘W (Close Tab, which only document windows answer) closes the Connect
-    /// Your AI window as a window. No window is created here.
-    @MainActor
-    func testCloseTabClosesTheConnectWindowDirectly() {
-        XCTAssertTrue(AppMenuConfiguration.closeTabClosesWindowDirectly(ConnectAIWindowController.shared))
-        XCTAssertFalse(AppMenuConfiguration.closeTabClosesWindowDirectly(nil))
-        XCTAssertFalse(AppMenuConfiguration.closeTabClosesWindowDirectly(NSWindowController(window: nil)))
+    /// Presented exactly like Settings: the shared header (whose ✕ is the Esc-bound cancel
+    /// action), the shared card, and the threaded theme — never a window of its own.
+    func testModalUsesTheSettingsChromeAndEscCloses() throws {
+        let view = try source("Lineform/AI/ConnectAIView.swift")
+        XCTAssertTrue(view.contains("MuseModalHeader(title: ConnectAIPresentation.title, usesDarkChrome: usesDarkChrome, dismiss: dismiss)"))
+        XCTAssertTrue(view.contains(".museModalCard("))
+        XCTAssertFalse(view.contains("@Environment(\\.colorScheme) "), "usesDarkChrome is threaded, never read from the environment")
+        XCTAssertFalse(view.contains("NSWindow"), "no window of its own")
+        let header = try source("Lineform/Editor/EditorChromeAndControls.swift")
+        let headerBody = try XCTUnwrap(header.range(of: "struct MuseModalHeader: View {")).upperBound
+        let headerEnd = try XCTUnwrap(header.range(of: "private struct MuseModalCard", range: headerBody..<header.endIndex)).lowerBound
+        XCTAssertTrue(header[headerBody..<headerEnd].contains(".keyboardShortcut(.cancelAction)"), "Esc closes via the header's ✕")
+    }
+
+    /// Opening and closing go through one state value in the container, like Settings.
+    func testModalIsPresentedByTheContainerLikeSettings() throws {
+        XCTAssertEqual(EditorAppModal.connectAI.notification, .showConnectAI)
+        XCTAssertEqual(EditorAppModal.settings.notification, .showSettings)
+        XCTAssertEqual(LineformAppNotification.showConnectAI.name.rawValue, "Lineform.showConnectAI")
+        XCTAssertNotEqual(LineformAppNotification.showConnectAI.name, LineformAppNotification.showSettings.name)
+
+        let container = try source("Lineform/Editor/EditorContainerView.swift")
+        XCTAssertTrue(container.contains("publisher(for: LineformAppNotification.showConnectAI.name)) { _ in\n            presentAppModalInMainWindow(.connectAI)"))
+        XCTAssertTrue(container.contains("if presentedAppModal == .connectAI {"))
+        XCTAssertTrue(container.contains("presentedAppModal = nil"), "✕, Esc and the scrim dismiss it")
+        let commands = try source("Lineform/App/AppCommands.swift")
+        XCTAssertTrue(commands.contains("AppMenuConfiguration.presentInMainWindow(.showConnectAI)"))
+        XCTAssertTrue(commands.contains("AppMenuConfiguration.presentInMainWindow(.showSettings)"))
+    }
+
+    func testCardFitsTheWindowAndThePaneScrollsWhenShort() {
+        XCTAssertGreaterThan(ConnectAIView.contentWidth, SettingsModal.contentWidth, "two columns need more room")
+        XCTAssertEqual(ConnectAIView.cardWidth(availableWidth: 2_000), ConnectAIView.contentWidth)
+        XCTAssertEqual(ConnectAIView.cardWidth(availableWidth: 500), 476)
+        XCTAssertEqual(ConnectAIView.cardWidth(availableWidth: 200), 280)
+        XCTAssertEqual(ConnectAIView.bodyHeight(availableHeight: 2_000), ConnectAIView.idealBodyHeight)
+        let short: CGFloat = 400
+        let body = ConnectAIView.bodyHeight(availableHeight: short)
+        XCTAssertLessThan(body, ConnectAIView.idealBodyHeight)
+        XCTAssertLessThanOrEqual(body + ConnectAIView.verticalChrome, short, "the card stays inside the window")
+        XCTAssertEqual(ConnectAIView.bodyHeight(availableHeight: 50), ConnectAIView.minimumBodyHeight)
     }
 }
