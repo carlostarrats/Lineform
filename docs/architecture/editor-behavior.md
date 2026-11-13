@@ -678,8 +678,10 @@ shows passages with history and steps their versions. Spec:
   reparented to its parent at its `parentVersionIndex` — its only version IS the live text, so they
   still sit exactly where that parent shows them (removing them would silently delete revised
   history nested in an unrevised sentence). `FilePassageHistoryStore.load` applies
-  `DocumentHistoryEngine.collapsingAdjacentDuplicates`, so 1.8.0's doubled adds load as one
-  version and are discarded on the next exit. A passage added WHILE History mode is on records
+  `DocumentHistoryEngine.preparedForLoad`: adjacent duplicates collapse, then every one-version
+  passage is discarded (same reparenting). A one-version passage only exists while History mode is
+  open on it, so one on disk is a session that never ended (quit while History was open; quit
+  skips persisting in History mode, but the add already saved) or 1.8.0's doubled add. A passage added WHILE History mode is on records
   its version in `entryVersions` (Add never changes the text), or ⌘Z after a replacement left the
   replacement current over the restored original and the next locate dropped the passage. The
   controller fires `onRequestShowHistory(id)` after every add; `showPassage(_:text:)` enters

@@ -229,9 +229,9 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertTrue(controller.hasHistory, "an accepted AI change is two versions: it stays")
     }
 
-    /// 1.8.0 stored every Add twice; that history loads as one version and is discarded like any
-    /// other unrevised passage on the next exit from History.
-    func testLegacyDuplicateAddIsCollapsedOnLoadAndDiscardedOnExit() throws {
+    /// 1.8.0 stored every Add twice; that history collapses to one version on load and, being
+    /// unrevised, is discarded there — the document opens with no history.
+    func testLegacyDuplicateAddIsDiscardedOnLoad() throws {
         let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
         let a = try makeFile("a.md", contents: text)
         let context = PassageHistoryText.context(around: range(of: sentence, in: text), in: text)
@@ -243,11 +243,8 @@ final class DocumentHistoryControllerTests: XCTestCase {
             contextBefore: context.before, contextAfter: context.after, lastTouched: fixedDate)]), for: a)
         let controller = makeController(store: store)
         controller.open(url: a, text: text)
-        XCTAssertTrue(controller.enterHistoryMode(text: text))
-        _ = controller.handle(.moveSelection(1), text: text)
-        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), [sentence])
-        _ = controller.exitHistoryMode()
         XCTAssertFalse(controller.hasHistory)
+        XCTAssertFalse(controller.enterHistoryMode(text: text))
         XCTAssertTrue(store.load(for: a).isEmpty)
     }
 
@@ -932,7 +929,9 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let textView = makeTextView(text)
         controller.attach(textView)
         controller.open(url: a, text: text)
-        _ = controller.handle(.add(range(of: sentence, in: text)), text: text)
+        // A frozen original plus a current copy (see `attachedEditedPassage`): a one-version
+        // passage is discarded on load, so the stored passage needs a second version.
+        controller.recordAccepted(range: range(of: sentence, in: text), original: sentence, accepted: sentence, text: text)
         textView.setSelectedRange(range(of: "beta", in: textView.string))
         textView.insertText("BETA", replacementRange: NSRange(location: NSNotFound, length: 0))
 
@@ -978,7 +977,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let old = fixedDate.addingTimeInterval(-FilePassageHistoryStore.staleInterval - 60)
         let staleHistory = DocumentHistory(passages: [HistoryPassage(
             id: UUID(), level: .sentence,
-            versions: [HistoryVersion(text: sentence, author: .you, createdAt: old),
+            versions: [HistoryVersion(text: "Alpha earlier words.", author: .you, createdAt: old),
                        HistoryVersion(text: sentence, author: .you, createdAt: old)],
             currentIndex: 1, parentID: nil, parentVersionIndex: nil,
             contextBefore: "", contextAfter: " Epsilon zeta eta theta.", lastTouched: old)])

@@ -372,6 +372,16 @@ struct DocumentHistoryEngine {
     /// Adjacent versions with identical text collapse into one (children of the duplicate move to
     /// its twin; a current duplicate becomes its twin). Applied when history is loaded: 1.8.0's
     /// Add stored the original twice, which the sidebar then listed twice.
+    /// What a stored history is when it is loaded: adjacent duplicates collapsed, then every
+    /// one-version passage discarded (children reparented, as on leaving History). A one-version
+    /// passage only exists while History mode is open on it, so one on disk is left over from a
+    /// session that never ended (quit while History was open) or from 1.8.0's doubled Add.
+    static func preparedForLoad(_ history: DocumentHistory) -> DocumentHistory {
+        var engine = DocumentHistoryEngine(history: collapsingAdjacentDuplicates(history), now: Date.init)
+        engine.discardUnrevisedPassages()
+        return engine.history
+    }
+
     static func collapsingAdjacentDuplicates(_ history: DocumentHistory) -> DocumentHistory {
         var engine = DocumentHistoryEngine(history: history, now: Date.init)
         for p in engine.history.passages.indices {
