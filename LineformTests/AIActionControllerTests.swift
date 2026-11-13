@@ -225,6 +225,32 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(rows.map(\.author), [.you, .ai])
     }
 
+    /// The first accepted review introduces History (the editor shows it, focused on the passage);
+    /// later accepts don't.
+    func testFirstAcceptIntroducesHistoryOnce() async throws {
+        let suite = "AIActionControllerTests.intro.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let history = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
+        history.open(url: nil, text: historyDoc)
+        var requested: [UUID] = []
+        history.onRequestShowHistory = { requested.append($0) }
+        let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
+        let sentence = range(of: "The big dog ran far away from home.", in: historyDoc)
+
+        await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertEqual(requested.count, 1, "the first accept shows History")
+        XCTAssertTrue(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey))
+
+        // Once ever: a later accept shows nothing.
+        let later = surface.string
+        await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: later), text: later)
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(requested.count, 1)
+    }
+
     /// Ruling: an accepted change whose selection spans several paragraphs records one passage
     /// per CHANGED paragraph (original + accepted). An unchanged paragraph records nothing.
     func testMultiParagraphAcceptRecordsOnePassagePerChangedParagraph() async throws {

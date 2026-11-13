@@ -127,6 +127,7 @@ final class DocumentHistoryController: ObservableObject {
 
     private let store: PassageHistoryPersisting
     private let now: () -> Date
+    private let defaults: UserDefaults
     private var engine: DocumentHistoryEngine
     private var documentID: UUID?
     /// Whether the store holds (or may hold) an entry for `url`. Without one, an empty history is
@@ -145,6 +146,10 @@ final class DocumentHistoryController: ObservableObject {
     /// Fired after every successful Add to History (a new passage or one already there) with the
     /// passage's id: the editor opens the sidebar on History focused on it (`showPassage`).
     var onRequestShowHistory: ((UUID) -> Void)?
+
+    /// Set once the first accepted AI review has shown History (`introduceAfterAIAccept`). App-wide
+    /// and never reset: later accepts don't open the sidebar.
+    static let didIntroduceAfterAIKey = "Lineform.history.didIntroduceAfterAI"
 
     /// Stores already pruned this app session (one entry in production: the shared store). Held
     /// weakly: an `ObjectIdentifier` of a freed store can be reused by a new one, which would then
@@ -170,9 +175,10 @@ final class DocumentHistoryController: ObservableObject {
     private var lifecycleObservations: [AnyCancellable] = []
 
     init(store: PassageHistoryPersisting, now: @escaping () -> Date = Date.init,
-         notificationCenter: NotificationCenter = .default) {
+         notificationCenter: NotificationCenter = .default, defaults: UserDefaults = .standard) {
         self.store = store
         self.now = now
+        self.defaults = defaults
         engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: now)
         clearAllObservation = notificationCenter
             .publisher(for: Self.didClearAllNotification, object: store)
@@ -524,10 +530,22 @@ final class DocumentHistoryController: ObservableObject {
 
     /// An accepted AI change (plan 3). `text` is the text after the accept, already reported
     /// through `noteUserEdit`.
-    func recordAccepted(range: NSRange, original: String, accepted: String, text: String) {
-        guard engine.recordAccepted(range: range, original: original, accepted: accepted, in: text) != nil else { return }
+    /// Returns the passage it recorded, nil when nothing was.
+    @discardableResult
+    func recordAccepted(range: NSRange, original: String, accepted: String, text: String) -> UUID? {
+        guard let id = engine.recordAccepted(range: range, original: original, accepted: accepted, in: text) else { return nil }
         save()
         refreshHasHistory()
+        return id
+    }
+
+    /// An AI review ended with passage `id` recorded. The first time ever, History is shown
+    /// focused on it — so the writer learns it exists — through `onRequestShowHistory`. The
+    /// once-ever flag is only spent when someone is listening to show it.
+    func introduceAfterAIAccept(_ id: UUID) {
+        guard !defaults.bool(forKey: Self.didIntroduceAfterAIKey), let onRequestShowHistory else { return }
+        defaults.set(true, forKey: Self.didIntroduceAfterAIKey)
+        onRequestShowHistory(id)
     }
 
     // MARK: - Private

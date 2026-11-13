@@ -344,11 +344,15 @@ final class AIActionController: ObservableObject {
             let range = session.selectionRange
             if range.location >= 0, NSMaxRange(range) <= ns.length {
                 let accepted = ns.substring(with: range)
+                var firstRecorded: UUID?
                 for passage in Self.acceptedPassages(original: session.originalSelection, accepted: accepted,
                                                      at: range.location) {
-                    history.recordAccepted(range: passage.range, original: passage.original,
-                                           accepted: passage.accepted, text: text)
+                    let id = history.recordAccepted(range: passage.range, original: passage.original,
+                                                    accepted: passage.accepted, text: text)
+                    if firstRecorded == nil { firstRecorded = id }
                 }
+                // The first accepted review ever shows History, focused on what it recorded.
+                if let firstRecorded { history.introduceAfterAIAccept(firstRecorded) }
             }
         }
         editor?.announceAI(Self.reviewEndedMessage)

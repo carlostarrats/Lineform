@@ -690,6 +690,29 @@ shows passages with history and steps their versions. Spec:
   replacement current over the restored original and the next locate dropped the passage. The
   controller fires `onRequestShowHistory(id)` after every add; `showPassage(_:text:)` enters History
   mode focused on it.
+- **Showing History (2026-11-13).** `EditorContainerView.showHistory(focusing:)` is the one path for
+  "open History on this passage": `HistoryMenuHandlers` subscribes it to `onRequestShowHistory`,
+  DEFERRED a runloop turn (the request fires from inside `add` and from the end of an AI review,
+  which must finish first). It ends AI work only when a request or review is actually up (the
+  first-accept intro arrives just after a review ended; abandoning then would drop a refusal
+  message), switches to Write, calls `showPassage`, and only if that succeeded opens the sidebar
+  through `showSidebarIfHidden()` — AppKit's `toggleSidebar:` (so it slides) and ONLY when hidden;
+  a bare `isShowingOutline = true` write snaps the column with no animation. View ▸ History uses the
+  same helper (it used to write the binding). The sidebar follows `isHistoryModeActive` onto its
+  History tab and back to the tab it came from (`OutlineSidebarTab.historyModeTransition`).
+- **Sidebar controls.** A "History" header row carries **Exit** (calls `exitHistoryMode()`); below
+  the versions, a centred **Add Replacement** capsule swaps for a text field: Return calls
+  `addReplacement(_:)` (the controller trims, and ignores empty or unchanged text), Esc
+  (`onExitCommand`) or focus loss closes it unsaved. While the field is first responder it owns the
+  keys — ← → edit the text, Esc closes the FIELD, not History — and on close
+  `focusEditorForHistory()` makes the text view first responder again, so ← → step versions. Both
+  capsules and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
+  the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
+  inset (`HistorySidebarPresentation.textInset`).
+- **First AI accept introduces History, once ever.** `AIActionController.endReview` hands the first
+  passage it recorded to `introduceAfterAIAccept(_:)`, which fires `onRequestShowHistory` and sets
+  `Lineform.history.didIntroduceAfterAI`. The flag is only spent when someone is subscribed — the AI
+  test suites (no editor) never consume it, and never write to the test host's real defaults.
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the

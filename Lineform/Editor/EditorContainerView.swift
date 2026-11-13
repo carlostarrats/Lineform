@@ -169,6 +169,9 @@ struct EditorContainerView: View {
                 onSelectHistoryLevel: { level in historyController.selectLevel(level) },
                 onSelectHistoryVersion: { index in selectHistoryVersion(index) },
                 onDeleteHistoryVersion: { index in deleteHistoryVersion(index) },
+                onExitHistory: { historyController.exitHistoryMode() },
+                onAddHistoryReplacement: { replacement in historyController.addReplacement(replacement) },
+                onHistoryReplacementFieldEnded: { focusEditorForHistory() },
                 isHistoryModeActive: historyController.isHistoryModeActive,
                 onSelectTab: { tab in selectSidebarTab(tab) },
                 fileBrowserStore: fileBrowserStore,
@@ -503,7 +506,8 @@ struct EditorContainerView: View {
             windowNumber: windowNumber,
             historyController: historyController,
             isKeyWindow: { activeWindow?.isKeyWindow == true },
-            toggleHistory: toggleHistoryFromMenu
+            toggleHistory: toggleHistoryFromMenu,
+            showHistory: { id in showHistory(focusing: id) }
         ))
         .modifier(AIActionModeHandlers(aiController: aiController, displayMode: $displayMode))
         .onChange(of: tabStore.selectedTabID) { _, newID in
@@ -2596,9 +2600,41 @@ struct EditorContainerView: View {
             return
         }
         guard historyController.hasHistory else { return }
-        isShowingOutline = true
         // The sidebar follows `isHistoryModeActive` onto its History tab (and back afterwards).
-        _ = selectSidebarTab(.history)
+        guard selectSidebarTab(.history) else { return }
+        showSidebarIfHidden()
+    }
+
+    /// Add to History, and the first accepted AI review: History mode focused on passage `id`,
+    /// with the sidebar shown on its History tab (it follows `isHistoryModeActive`).
+    private func showHistory(focusing id: UUID) {
+        // History mode and AI never overlap. Only when AI work is actually up: the first-accept
+        // intro arrives just after a review ended, and abandoning then would drop its message.
+        switch aiController.state {
+        case .running, .reviewing: endAIForDocumentChange()
+        case .idle, .marking, .message: break
+        }
+        if displayMode != .write {
+            displayMode = .write
+        }
+        guard historyController.showPassage(id, text: historyEditorText) else { return }
+        showSidebarIfHidden()
+        focusEditorForHistory()
+    }
+
+    /// Opens the sidebar the way its toolbar toggle does — AppKit's `toggleSidebar:`, so it slides
+    /// in — and only when it is hidden (a toggle on a shown sidebar would close it).
+    private func showSidebarIfHidden() {
+        guard !isShowingOutline else { return }
+        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+    }
+
+    /// History's keys (← → ↑ ↓ Esc) are the text view's: after the sidebar's replacement field
+    /// closes, or History opens from a menu, the editor takes first responder back.
+    private func focusEditorForHistory() {
+        guard let view = historyController.editor as? NSView, let window = view.window,
+              window.firstResponder !== view else { return }
+        window.makeFirstResponder(view)
     }
 
     private func selectHistoryVersion(_ index: Int) {
@@ -3187,9 +3223,18 @@ private struct HistoryMenuHandlers: ViewModifier {
     @ObservedObject var historyController: DocumentHistoryController
     let isKeyWindow: () -> Bool
     let toggleHistory: () -> Void
+    /// Add to History and the first accepted AI review ask to show History on a passage.
+    let showHistory: (UUID) -> Void
 
     func body(content: Content) -> some View {
         content
+            .onAppear {
+                // Deferred a turn: the request fires from inside the controller's add / the AI
+                // review's end, which must finish before History mode starts.
+                historyController.onRequestShowHistory = { id in
+                    DispatchQueue.main.async { showHistory(id) }
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showHistory.name)) { notification in
                 guard let payload = notification.object as? LineformAppNotification.Payload,
                       payload.matches(windowNumber: windowNumber) else { return }

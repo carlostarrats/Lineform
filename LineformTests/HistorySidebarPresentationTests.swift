@@ -58,4 +58,54 @@ final class HistorySidebarPresentationTests: XCTestCase {
                       "the version row mirrors its context menu in the actions rotor")
         XCTAssertTrue(source.contains(".contextMenu {\n            rowActionButtons()"))
     }
+
+    // MARK: - Exit, Add Replacement, hint (QA 1.8 follow-ups)
+
+    func testExitAndReplacementStrings() {
+        XCTAssertEqual(HistorySidebarPresentation.exitTitle, "Exit")
+        XCTAssertEqual(HistorySidebarPresentation.addReplacementTitle, "Add Replacement")
+        XCTAssertEqual(HistorySidebarPresentation.replacementPlaceholder, "Type a replacement")
+        XCTAssertEqual(HistorySidebarPresentation.exitTitle, String(localized: "Exit"))
+    }
+
+    /// The hint sits on the empty-state text's 14pt inset (left-aligned, not centred).
+    func testHintSharesTheEmptyStateInset() {
+        XCTAssertEqual(HistorySidebarPresentation.textInset, 14)
+    }
+
+    /// Leaving History (Exit, Esc, typing) returns the sidebar to the tab it came from;
+    /// entering it from another tab remembers that tab.
+    func testExitReturnsToPreviousTab() {
+        let entered = OutlineSidebarTab.historyModeTransition(isActive: true, selected: .files, previous: nil)
+        XCTAssertEqual(entered.selected, .history)
+        XCTAssertEqual(entered.previous, .files)
+        let left = OutlineSidebarTab.historyModeTransition(isActive: false, selected: entered.selected, previous: entered.previous)
+        XCTAssertEqual(left.selected, .files)
+        XCTAssertNil(left.previous)
+        // Already on History (the tab click remembered where it came from): nothing is overwritten.
+        let clicked = OutlineSidebarTab.historyModeTransition(isActive: true, selected: .history, previous: .markdownBasics)
+        XCTAssertEqual(clicked.selected, .history)
+        XCTAssertEqual(clicked.previous, .markdownBasics)
+        XCTAssertEqual(OutlineSidebarTab.historyModeTransition(isActive: false, selected: .history, previous: nil).selected, .outline)
+    }
+
+    /// One capsule for Files' Change/Choose and History's Exit/Add Replacement: the colours are
+    /// the Files values, unchanged.
+    @MainActor
+    func testSidebarCapsuleColoursAreTheFilesValues() {
+        typealias S = SidebarCapsuleButtonStyle
+        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: false, emphasis: .quiet, isHovered: false), 0.91)
+        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: false, emphasis: .quiet, isHovered: true), 0.86)
+        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: true, emphasis: .quiet, isHovered: false), 0.40)
+        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: true, emphasis: .quiet, isHovered: true), 0.48)
+        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: false, emphasis: .prominent, isHovered: false), 0.20)
+        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: true, emphasis: .prominent, isHovered: true), 1.0)
+        XCTAssertEqual(S.textWhite(usesDarkChrome: false, emphasis: .quiet), 0.34)
+        XCTAssertEqual(S.textWhite(usesDarkChrome: true, emphasis: .quiet), 0.98)
+        XCTAssertEqual(S.textWhite(usesDarkChrome: false, emphasis: .prominent), 1.0)
+        XCTAssertEqual(S.textWhite(usesDarkChrome: true, emphasis: .prominent), 0.10)
+        XCTAssertEqual(S.fontSize, 11)
+        XCTAssertEqual(S.horizontalPadding, 10)
+        XCTAssertEqual(S.height, 22)
+    }
 }

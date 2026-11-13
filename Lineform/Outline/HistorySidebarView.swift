@@ -57,6 +57,11 @@ enum HistorySidebarPresentation {
     static let emptySelectionText = String(localized: "Click a highlighted passage to see its versions.")
     static let hintText = String(localized: "Click to select · ← → switch version · Esc closes")
     static let deleteVersionTitle = String(localized: "Delete from History")
+    static let exitTitle = String(localized: "Exit")
+    static let addReplacementTitle = String(localized: "Add Replacement")
+    static let replacementPlaceholder = String(localized: "Type a replacement")
+    /// The leading inset every line of History prose sits on: the empty-state text and the hint.
+    static let textInset: CGFloat = 14
 
     /// A version row's actions: its context menu AND its accessibility actions are built from
     /// this one list, so the two cannot drift apart.
@@ -77,36 +82,52 @@ struct HistorySidebarView: View {
     var onSelectLevel: (HistoryLevel) -> Void
     var onSelectVersion: (Int) -> Void
     var onDeleteVersion: (Int) -> Void
+    var onExit: () -> Void = {}
+    /// Return in the replacement field: the typed text (the controller trims it and ignores an
+    /// empty or unchanged one).
+    var onAddReplacement: (String) -> Void = { _ in }
+    /// The field closed (committed or cancelled): the editor takes the keys back, so ← → step
+    /// versions again.
+    var onReplacementFieldEnded: () -> Void = {}
+
+    @State private var isEditingReplacement = false
+    @State private var replacementDraft = ""
+    @FocusState private var replacementFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
+            header
             if model.hasSelection {
                 if HistorySidebarPresentation.showsLevelSwitcher(model.levels) {
                     levelSwitcher
                 }
                 ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(Array(model.versions.enumerated()), id: \.element.id) { index, row in
-                            HistoryVersionRowView(
-                                row: row,
-                                position: index + 1,
-                                count: model.versions.count,
-                                usesDarkChrome: usesDarkChrome,
-                                onSelect: { onSelectVersion(row.id) },
-                                onDelete: { onDeleteVersion(row.id) }
-                            )
+                    VStack(spacing: 10) {
+                        LazyVStack(spacing: 2) {
+                            ForEach(Array(model.versions.enumerated()), id: \.element.id) { index, row in
+                                HistoryVersionRowView(
+                                    row: row,
+                                    position: index + 1,
+                                    count: model.versions.count,
+                                    usesDarkChrome: usesDarkChrome,
+                                    onSelect: { onSelectVersion(row.id) },
+                                    onDelete: { onDeleteVersion(row.id) }
+                                )
+                            }
                         }
+                        replacementControl
                     }
                     .padding(.horizontal, HistorySidebarPresentation.rowLayout.containerPadding)
                     .padding(.top, 8)
+                    .padding(.bottom, 8)
                 }
             } else {
                 Text(HistorySidebarPresentation.emptySelectionText)
                     .font(.system(size: 12))
                     .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 14)
+                    .padding(.horizontal, HistorySidebarPresentation.textInset)
+                    .padding(.top, 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer(minLength: 0)
             }
@@ -115,12 +136,94 @@ struct HistorySidebarView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                 .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 14)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, HistorySidebarPresentation.textInset)
                 .padding(.vertical, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Another passage (or none) is selected: an open field belonged to the old one.
+        .onChange(of: model.hasSelection) { _, _ in closeReplacementField() }
+    }
+
+    /// "History" with Exit on the right — the Files root row's geometry: 28pt tall, the capsule
+    /// 12pt in from the sidebar edge (6 content padding + 6 row trailing).
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text(OutlineSidebarTab.history.title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            Button(HistorySidebarPresentation.exitTitle, action: onExit)
+                .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
+        }
+        .padding(.leading, HistorySidebarPresentation.textInset)
+        .padding(.trailing, OutlineSidebarView.filesContentHorizontalPadding + 6)
+        .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesRootRowHeight,
+               maxHeight: OutlineSidebarView.filesRootRowHeight)
+        .padding(.top, 8)
+    }
+
+    /// Below the versions: the Add Replacement capsule, or — once clicked — the field it opens.
+    /// While the field has focus it owns the keys (arrows edit the text, Esc closes the field and
+    /// leaves History on); Return adds the text as the passage's new current version.
+    @ViewBuilder
+    private var replacementControl: some View {
+        if isEditingReplacement {
+            TextField(
+                HistorySidebarPresentation.replacementPlaceholder,
+                text: $replacementDraft,
+                prompt: Text(HistorySidebarPresentation.replacementPlaceholder)
+                    .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            )
+            .textFieldStyle(.plain)
+            .font(.system(size: 13))
+            .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(0.05))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome).opacity(0.22),
+                                  lineWidth: 1)
+            }
+            .padding(.horizontal, HistorySidebarPresentation.rowLayout.backgroundInset)
+            .focused($replacementFieldFocused)
+            .onSubmit(commitReplacement)
+            .onExitCommand(perform: closeReplacementField)
+            .onChange(of: replacementFieldFocused) { _, focused in
+                // Clicking away (into the text, another passage) closes the field unsaved.
+                if !focused, isEditingReplacement { closeReplacementField() }
+            }
+            .onAppear { replacementFieldFocused = true }
+        } else {
+            Button(HistorySidebarPresentation.addReplacementTitle) {
+                replacementDraft = ""
+                isEditingReplacement = true
+            }
+            .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private func commitReplacement() {
+        let text = replacementDraft
+        isEditingReplacement = false
+        replacementDraft = ""
+        onAddReplacement(text)
+        onReplacementFieldEnded()
+    }
+
+    private func closeReplacementField() {
+        guard isEditingReplacement else { return }
+        isEditingReplacement = false
+        replacementDraft = ""
+        onReplacementFieldEnded()
     }
 
     private var levelSwitcher: some View {

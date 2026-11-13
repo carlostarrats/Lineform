@@ -43,6 +43,17 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         return tabAfterHistoryDisappears(selected: .history, previous: previous)
     }
 
+    /// The sidebar following History mode: entering it from another tab shows History and
+    /// remembers that tab; leaving it (Exit, Esc, typing, a document swap) returns there.
+    static func historyModeTransition(isActive: Bool, selected: OutlineSidebarTab, previous: OutlineSidebarTab?)
+        -> (selected: OutlineSidebarTab, previous: OutlineSidebarTab?) {
+        if isActive {
+            guard selected != .history else { return (selected, previous) }
+            return (.history, selected)
+        }
+        return (tabAfterHistoryDisappears(selected: selected, previous: previous), nil)
+    }
+
     static func visibleTabs(hasHistory: Bool) -> [OutlineSidebarTab] {
         hasHistory ? allCases : allCases.filter { $0 != .history }
     }
@@ -385,6 +396,11 @@ struct OutlineSidebarView: View {
     var onSelectHistoryLevel: (HistoryLevel) -> Void = { _ in }
     var onSelectHistoryVersion: (Int) -> Void = { _ in }
     var onDeleteHistoryVersion: (Int) -> Void = { _ in }
+    /// History's Exit capsule and its Add Replacement field (Return commits the typed text).
+    var onExitHistory: () -> Void = {}
+    var onAddHistoryReplacement: (String) -> Void = { _ in }
+    /// The replacement field closed (committed or cancelled): the editor takes the keys back.
+    var onHistoryReplacementFieldEnded: () -> Void = {}
     /// Whether the editor is in History mode. Leaving it (Esc, typing, a document swap) returns
     /// the sidebar to the tab the user came from; entering it from elsewhere shows History.
     var isHistoryModeActive: Bool = false
@@ -424,6 +440,9 @@ struct OutlineSidebarView: View {
         onSelectHistoryLevel: @escaping (HistoryLevel) -> Void = { _ in },
         onSelectHistoryVersion: @escaping (Int) -> Void = { _ in },
         onDeleteHistoryVersion: @escaping (Int) -> Void = { _ in },
+        onExitHistory: @escaping () -> Void = {},
+        onAddHistoryReplacement: @escaping (String) -> Void = { _ in },
+        onHistoryReplacementFieldEnded: @escaping () -> Void = {},
         isHistoryModeActive: Bool = false,
         onSelectTab: @escaping (OutlineSidebarTab) -> Bool = { _ in true },
         fileBrowserStore: OutlineFileBrowserStore? = nil,
@@ -448,6 +467,9 @@ struct OutlineSidebarView: View {
         self.onSelectHistoryLevel = onSelectHistoryLevel
         self.onSelectHistoryVersion = onSelectHistoryVersion
         self.onDeleteHistoryVersion = onDeleteHistoryVersion
+        self.onExitHistory = onExitHistory
+        self.onAddHistoryReplacement = onAddHistoryReplacement
+        self.onHistoryReplacementFieldEnded = onHistoryReplacementFieldEnded
         self.isHistoryModeActive = isHistoryModeActive
         self.onSelectTab = onSelectTab
         self.settings = settings
@@ -491,14 +513,9 @@ struct OutlineSidebarView: View {
             tabBeforeHistory = nil
         }
         .onChange(of: isHistoryModeActive) { _, isActive in
-            if isActive {
-                guard selectedTab != .history else { return }
-                tabBeforeHistory = selectedTab
-                selectedTab = .history
-            } else {
-                selectedTab = OutlineSidebarTab.tabAfterHistoryDisappears(selected: selectedTab, previous: tabBeforeHistory)
-                tabBeforeHistory = nil
-            }
+            let next = OutlineSidebarTab.historyModeTransition(isActive: isActive, selected: selectedTab, previous: tabBeforeHistory)
+            selectedTab = next.selected
+            tabBeforeHistory = next.previous
         }
     }
 
@@ -517,7 +534,10 @@ struct OutlineSidebarView: View {
                 usesDarkChrome: usesDarkChrome,
                 onSelectLevel: onSelectHistoryLevel,
                 onSelectVersion: onSelectHistoryVersion,
-                onDeleteVersion: onDeleteHistoryVersion
+                onDeleteVersion: onDeleteHistoryVersion,
+                onExit: onExitHistory,
+                onAddReplacement: onAddHistoryReplacement,
+                onReplacementFieldEnded: onHistoryReplacementFieldEnded
             )
         }
     }
@@ -2279,7 +2299,6 @@ private struct OutlineFileRootRow: View {
     var usesDarkChrome: Bool
     var toggleCollapsed: () -> Void
     var chooseWorkspaceFolder: () -> Void
-    @State private var isWorkspaceActionHovered = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2322,21 +2341,11 @@ private struct OutlineFileRootRow: View {
                     chooseWorkspaceFolder()
                 } label: {
                     Text(workspaceActionTitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .padding(.horizontal, 10)
-                        .frame(height: 22)
                 }
-                .buttonStyle(.plain)
-                .background {
-                    Capsule()
-                        .fill(fileActionBackgroundColor)
-                }
-                .foregroundStyle(fileActionTextColor)
-                .onHover { hovering in
-                    withAnimation(.easeOut(duration: 0.12)) {
-                        isWorkspaceActionHovered = hovering
-                    }
-                }
+                .buttonStyle(SidebarCapsuleButtonStyle(
+                    usesDarkChrome: usesDarkChrome,
+                    emphasis: isChooseAction ? .prominent : .quiet
+                ))
             }
         }
         // Chevron hangs at the content edge (the LazyVStack already insets by the chevron
@@ -2427,32 +2436,68 @@ private struct OutlineFileRootRow: View {
     private var isChooseAction: Bool {
         root.state == .unassigned
     }
+}
 
-    private var fileActionBackgroundColor: Color {
-        let white: CGFloat
-        if isChooseAction {
+/// The sidebar's small capsule button: Files' Change/Choose and History's Exit and Add
+/// Replacement are one control, so they cannot drift apart. `.quiet` is the secondary grey
+/// ("Change"); `.prominent` is the first-time near-black call-to-action ("Choose").
+struct SidebarCapsuleButtonStyle: ButtonStyle {
+    enum Emphasis { case quiet, prominent }
+
+    var usesDarkChrome: Bool
+    var emphasis: Emphasis = .quiet
+
+    static let fontSize: CGFloat = 11
+    static let horizontalPadding: CGFloat = 10
+    static let height: CGFloat = 22
+
+    static func backgroundWhite(usesDarkChrome: Bool, emphasis: Emphasis, isHovered: Bool) -> CGFloat {
+        switch emphasis {
+        case .prominent:
             // Prominent CTA: near-black (light) / near-white (dark).
-            white = usesDarkChrome
-                ? (isWorkspaceActionHovered ? 1.0 : 0.92)
-                : (isWorkspaceActionHovered ? 0.12 : 0.20)
-        } else {
-            // Quiet secondary "Change": light grey that shifts on hover.
-            white = usesDarkChrome
-                ? (isWorkspaceActionHovered ? 0.48 : 0.40)
-                : (isWorkspaceActionHovered ? 0.86 : 0.91)
+            return usesDarkChrome ? (isHovered ? 1.0 : 0.92) : (isHovered ? 0.12 : 0.20)
+        case .quiet:
+            // Quiet secondary: light grey that shifts on hover.
+            return usesDarkChrome ? (isHovered ? 0.48 : 0.40) : (isHovered ? 0.86 : 0.91)
         }
-        return Color(nsColor: NSColor(calibratedWhite: white, alpha: 1))
     }
 
-    private var fileActionTextColor: Color {
-        let white: CGFloat
-        if isChooseAction {
-            white = usesDarkChrome ? 0.10 : 1.0
-        } else {
-            // Softer than pure black/white on the light-grey fill.
-            white = usesDarkChrome ? 0.98 : 0.34
+    static func textWhite(usesDarkChrome: Bool, emphasis: Emphasis) -> CGFloat {
+        switch emphasis {
+        case .prominent: return usesDarkChrome ? 0.10 : 1.0
+        // Softer than pure black/white on the light-grey fill.
+        case .quiet: return usesDarkChrome ? 0.98 : 0.34
         }
-        return Color(nsColor: NSColor(calibratedWhite: white, alpha: 1))
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        CapsuleBody(configuration: configuration, usesDarkChrome: usesDarkChrome, emphasis: emphasis)
+    }
+
+    private struct CapsuleBody: View {
+        let configuration: ButtonStyleConfiguration
+        let usesDarkChrome: Bool
+        let emphasis: Emphasis
+        @State private var isHovered = false
+
+        var body: some View {
+            let style = SidebarCapsuleButtonStyle.self
+            configuration.label
+                .font(.system(size: style.fontSize, weight: .medium))
+                .lineLimit(1)
+                .padding(.horizontal, style.horizontalPadding)
+                .frame(height: style.height)
+                .background {
+                    Capsule().fill(Color(nsColor: NSColor(calibratedWhite: style.backgroundWhite(
+                        usesDarkChrome: usesDarkChrome, emphasis: emphasis, isHovered: isHovered), alpha: 1)))
+                }
+                .foregroundStyle(Color(nsColor: NSColor(calibratedWhite: style.textWhite(
+                    usesDarkChrome: usesDarkChrome, emphasis: emphasis), alpha: 1)))
+                .contentShape(Capsule())
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
+                }
+        }
     }
 }
 

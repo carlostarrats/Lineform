@@ -173,6 +173,53 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertEqual(controller.display?.selectedID, requested.last, "in History mode the new passage is focused")
     }
 
+    /// Add to History asks the editor to show History focused on THAT passage.
+    func testAddRequestsShowingHistoryForThePassage() throws {
+        let controller = makeController()
+        controller.open(url: nil, text: text)
+        var requested: [UUID] = []
+        controller.onRequestShowHistory = { requested.append($0) }
+        let second = try XCTUnwrap(controller.add(range(of: "Epsilon zeta eta theta.", in: text), text: text))
+        XCTAssertEqual(requested, [second])
+        XCTAssertTrue(controller.showPassage(second, text: text))
+        XCTAssertEqual(controller.display?.selectedID, second)
+    }
+
+    /// The first accepted AI review shows History once, ever; later accepts (in this controller
+    /// or any other sharing the defaults) don't. Nothing is consumed while no one can show it.
+    func testFirstAIAcceptRequestsHistoryOnlyOnce() throws {
+        let suite = "DocumentHistoryControllerTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let accepted = "Alpha BETA gamma delta."
+        let doc = (text as NSString).replacingOccurrences(of: sentence, with: accepted)
+
+        let unwired = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
+        unwired.open(url: nil, text: doc)
+        let unseen = try XCTUnwrap(unwired.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
+                                                          accepted: accepted, text: doc))
+        unwired.introduceAfterAIAccept(unseen)
+        XCTAssertFalse(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey),
+                       "no one could show History, so the intro is still owed")
+
+        let controller = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
+        controller.open(url: nil, text: doc)
+        var requested: [UUID] = []
+        controller.onRequestShowHistory = { requested.append($0) }
+        let first = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
+                                                            accepted: accepted, text: doc))
+        controller.introduceAfterAIAccept(first)
+        XCTAssertEqual(requested, [first])
+        XCTAssertTrue(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey))
+        XCTAssertEqual(DocumentHistoryController.didIntroduceAfterAIKey, "Lineform.history.didIntroduceAfterAI")
+
+        controller.introduceAfterAIAccept(first)
+        let other = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
+        other.onRequestShowHistory = { requested.append($0) }
+        other.introduceAfterAIAccept(first)
+        XCTAssertEqual(requested, [first], "once ever")
+    }
+
     func testExitDiscardsPassagesWithNoReplacement() throws {
         let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
         let a = try makeFile("a.md", contents: text)
