@@ -25,6 +25,9 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
     /// History for the document shown. The text view reports user edits to it and History mode
     /// draws its `display`; the controller applies History's own edits through the text view.
     var historyController: DocumentHistoryController?
+    /// AI actions for the document shown: the text view is its editor surface, offers its context
+    /// menu group, and draws its marks. Nil = no AI wiring at all.
+    var aiController: AIActionController? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -65,6 +68,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         context.coordinator.historyController = historyController
         historyController?.attach(textView)
         textView.historyDisplay = historyController?.display
+        configureAI(textView)
 
         scrollView.documentView = textView
         textView.updateScrollBoundsObservation()
@@ -134,6 +138,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
         historyController?.attach(textView)
         textView.historyDisplay = historyController?.display
+        configureAI(textView)
 
         textView.setSearchHighlights(searchRanges, activeRange: activeSearchRange)
 
@@ -160,6 +165,51 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             DispatchQueue.main.async {
                 requestedScrollToTopRange = nil
             }
+        }
+    }
+
+    /// Pushes the AI controller's handlers and state into the text view, like `historyDisplay`.
+    /// Cheap: no text analysis happens here (availability is asked when a menu is built).
+    private func configureAI(_ textView: LineformTextView) {
+        guard let aiController else {
+            textView.aiAvailabilityHandler = nil
+            textView.aiCommandHandler = nil
+            textView.aiMarkRanges = []
+            textView.isAIRequestRunning = false
+            textView.isAIReviewActive = false
+            return
+        }
+        aiController.editor = textView
+        aiController.history = historyController
+        textView.aiAvailabilityHandler = { [weak aiController, weak textView] range in
+            guard let aiController, let textView else { return false }
+            return aiController.isAvailable(for: range, text: textView.string)
+        }
+        textView.aiCommandHandler = { [weak aiController, weak textView] command in
+            guard let aiController, let textView else { return }
+            switch command {
+            case let .run(action, range): aiController.run(action, range: range, text: textView.string)
+            case .cancel: aiController.cancel()
+            case .dismissMarks: aiController.dismissMarks()
+            }
+        }
+        switch aiController.state {
+        case .marking(let ranges):
+            textView.aiMarkRanges = ranges
+            textView.isAIRequestRunning = false
+            textView.isAIReviewActive = false
+        case .running:
+            textView.aiMarkRanges = []
+            textView.isAIRequestRunning = true
+            textView.isAIReviewActive = false
+        case .reviewing:
+            textView.aiMarkRanges = []
+            textView.isAIRequestRunning = false
+            textView.isAIReviewActive = true
+        case .idle, .message:
+            textView.aiMarkRanges = []
+            textView.isAIRequestRunning = false
+            textView.isAIReviewActive = false
         }
     }
 

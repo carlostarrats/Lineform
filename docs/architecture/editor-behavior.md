@@ -779,6 +779,32 @@ shows passages with history and steps their versions. Spec:
   `LINEFORM_DUMP_MAIN_MENU=1`, whose dump now prints each row's shortcut; 48 rows carry one and no
   two collide.
 
+## AI actions in the text view (2026-11-12)
+
+`LineformTextView+AI.swift`; the controller is `AIActionController` (Lineform/AI).
+
+- **Context menu.** After Paste and Add to History: separator, Rewrite ▸ (Trim, Cut in half,
+  Rewrite), Proofread, Mark ▸ (Weakest sentences, Long sentences). ABSENT, not disabled, unless
+  `aiAvailabilityHandler` says yes for a non-empty selection — a whole-document structure
+  analysis, so it is asked only when the menu is built. Both submenus carry
+  `MainMenuIconDecorator.excludedMenuIdentifier`.
+- **One decision = one ⌘Z.** `applyAIEdits` opens ONE undo group and runs every edit through
+  `shouldChangeText → textStorage.replaceCharacters → didChangeText`, so History hears each edit
+  from its single user-edit source in pre-change coordinates. `breakUndoCoalescing` and
+  `setActionName` happen INSIDE the open group: both register with the undo manager, and outside
+  a group (an undo manager with `groupsByEvent` off) they raise. An edit that would split a
+  composed character or touch a line ending / BOM is skipped, never widened.
+- **Read-only review.** While `isAIReviewActive`, `shouldChangeText` refuses every edit except the
+  review's own (`performAIEdit`). A backstop: the review overlay holds focus.
+- **Keys.** Esc (`cancelOperation:` in `doCommand(by:)`, after History's handling) cancels a
+  running request, else dismisses marks; otherwise it is not taken.
+- **Marks** are layout-manager TEMPORARY `.backgroundColor` in `HistoryPalette.tint` — the text
+  storage is never touched — re-inked on a theme change, and dismissed by any real edit.
+- **History.** An accepted review records one passage per CHANGED paragraph of the selection
+  (`AIActionController.acceptedPassages`; accepted edits never add or remove a line ending, so
+  original and accepted lines pair up). Before this, a multi-paragraph accept recorded one passage
+  spanning the paragraphs.
+
 ## Open bug: "Edited" stays in the title bar after a live reload (found 2026-11-06, not fixed)
 
 **Seen on:** installed 1.7.5 (build 37, TestFlight), macOS 27.0.1.

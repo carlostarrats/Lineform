@@ -31,7 +31,8 @@ enum AIReviewCommand: Equatable {
 ///   SUBSET of its changes can still re-pair structure (`$5` → `5$` split in two, one half alone
 ///   making `$5$` math), so each decision is verified on its own.
 /// - A reply for text that changed while the request ran is discarded (exact UTF-16 compare).
-/// - History records once, when the review ends, if anything was accepted. Live reload abandons
+/// - History records when the review ends, if anything was accepted (one passage per changed
+///   paragraph). Live reload abandons
 ///   the review and records nothing.
 @MainActor
 final class AIActionController: ObservableObject {
@@ -288,24 +289,78 @@ final class AIActionController: ObservableObject {
     }
 
     /// Ends the review: undecided changes are rejected (the text keeps them as they were). When
-    /// anything was accepted, History records ONE passage for the selection: the original plus
-    /// the accepted result.
+    /// anything was accepted, History records the original plus the accepted result — one passage
+    /// per changed paragraph of the selection (`acceptedPassages`).
     func endReview() {
         guard case .reviewing(var session) = state else { return }
         session.rejectRemaining()
         state = .idle
         if session.acceptedAny, let editor, let history {
-            let ns = editor.string as NSString
+            let text = editor.string
+            let ns = text as NSString
             let range = session.selectionRange
             if range.location >= 0, NSMaxRange(range) <= ns.length {
                 let accepted = ns.substring(with: range)
-                if !accepted.utf16.elementsEqual(session.originalSelection.utf16) {
-                    history.recordAccepted(range: range, original: session.originalSelection,
-                                           accepted: accepted, text: editor.string)
+                for passage in Self.acceptedPassages(original: session.originalSelection, accepted: accepted,
+                                                     at: range.location) {
+                    history.recordAccepted(range: passage.range, original: passage.original,
+                                           accepted: passage.accepted, text: text)
                 }
             }
         }
         editor?.announceAI(Self.reviewEndedMessage)
+    }
+
+    /// What History records for an accepted selection: one passage per CHANGED paragraph
+    /// (ruling: a selection spanning several paragraphs records each, rather than nothing).
+    ///
+    /// Accepted edits never add or remove a line ending, so the original and accepted selections
+    /// have the same lines, pairwise. Paragraphs are runs of lines that are non-blank in the
+    /// original. Each paragraph's text is edge-trimmed on both sides, and `range` is where the
+    /// accepted text sits in the document. A selection inside one line is one piece: the selection
+    /// itself, trimmed. Line counts that disagree (never expected) also record one piece.
+    static func acceptedPassages(original: String, accepted: String, at location: Int)
+        -> [(range: NSRange, original: String, accepted: String)] {
+        guard !accepted.utf16.elementsEqual(original.utf16) else { return [] }
+        let before = markdownSourceLines(in: original)
+        let after = markdownSourceLines(in: accepted)
+        let beforeNS = original as NSString
+        let afterNS = accepted as NSString
+
+        func piece(_ beforeRange: NSRange, _ afterRange: NSRange) -> (range: NSRange, original: String, accepted: String)? {
+            let b = PassageHistoryText.aligned(beforeRange, in: original)
+            let a = PassageHistoryText.aligned(afterRange, in: accepted)
+            guard a.length > 0, b.length > 0 else { return nil }
+            let o = beforeNS.substring(with: b)
+            let n = afterNS.substring(with: a)
+            guard !o.utf16.elementsEqual(n.utf16) else { return nil }
+            return (NSRange(location: location + a.location, length: a.length), o, n)
+        }
+
+        guard before.lines.count == after.lines.count, before.lines.count > 1 else {
+            return piece(NSRange(location: 0, length: beforeNS.length),
+                         NSRange(location: 0, length: afterNS.length)).map { [$0] } ?? []
+        }
+        var result: [(range: NSRange, original: String, accepted: String)] = []
+        var runStart: Int?
+        func flush(through last: Int) {
+            guard let first = runStart else { return }
+            runStart = nil
+            let b = NSRange(location: before.ranges[first].location,
+                            length: NSMaxRange(before.ranges[last]) - before.ranges[first].location)
+            let a = NSRange(location: after.ranges[first].location,
+                            length: NSMaxRange(after.ranges[last]) - after.ranges[first].location)
+            if let p = piece(b, a) { result.append(p) }
+        }
+        for index in before.lines.indices {
+            if before.lines[index].trimmingCharacters(in: markdownLineTrimCharacters).isEmpty {
+                flush(through: index - 1)
+            } else if runStart == nil {
+                runStart = index
+            }
+        }
+        flush(through: before.lines.count - 1)
+        return result
     }
 
     private func accept(_ id: Int, in session: inout AIReviewSession, editor: AIEditorSurface) {

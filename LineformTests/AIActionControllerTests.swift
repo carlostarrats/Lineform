@@ -207,6 +207,85 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(rows.map(\.author), [.you, .ai])
     }
 
+    /// Ruling: an accepted change whose selection spans several paragraphs records one passage
+    /// per CHANGED paragraph (original + accepted). An unchanged paragraph records nothing.
+    func testMultiParagraphAcceptRecordsOnePassagePerChangedParagraph() async throws {
+        let doc = "Intro stays put.\n\nThe big dog ran.\n\nNothing here moves.\n\nA cat sat far away.\n\nOutro stays too."
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: doc)
+        let (controller, surface, _) = make(doc, replace(["big": "large", "far": "near"]), history: history)
+        let start = range(of: "The big dog", in: doc).location
+        let end = NSMaxRange(range(of: "far away.", in: doc))
+        await runToCompletion(controller, .rewrite, range: NSRange(location: start, length: end - start), text: doc)
+        controller.handle(.acceptRemaining)
+        XCTAssertEqual(controller.state, .idle)
+        let text = surface.string
+        XCTAssertEqual(text, "Intro stays put.\n\nThe large dog ran.\n\nNothing here moves.\n\nA cat sat near away.\n\nOutro stays too.")
+        XCTAssertTrue(history.hasHistory)
+
+        XCTAssertTrue(history.enterHistoryMode(text: text))
+        let passages = try XCTUnwrap(history.display?.passages)
+        XCTAssertEqual(passages.map(\.range), [range(of: "The large dog ran.", in: text), range(of: "A cat sat near away.", in: text)])
+        var rows: [[String]] = []
+        for passage in passages {
+            _ = history.handle(.select(passage.id), text: text)
+            rows.append(history.sidebarModel.versions.map(\.text))
+            XCTAssertEqual(history.sidebarModel.versions.map(\.author), [.you, .ai])
+        }
+        _ = history.handle(.exit, text: text)
+        XCTAssertEqual(rows, [["The big dog ran.", "The large dog ran."], ["A cat sat far away.", "A cat sat near away."]])
+    }
+
+    /// Plan follow-up: is there an input where EVERY revision is admitted on its own block, yet
+    /// the composed document fails `verify`? After the every-`*_~`-is-structure ruling, none is
+    /// known: blocks are bounded by blank lines a revision cannot create or remove (an empty
+    /// revision is refused), the structure punctuation sequence is fixed per segment, reference
+    /// definitions are whole-line structure (so the document's labels cannot change), and the
+    /// constructs that cross blank lines (fences, math, front matter, multi-line HTML) are
+    /// protected and start the block's analysis window early. This seeded search pins that: any
+    /// admitted subset, composed as the controller composes it, verifies. The controller's
+    /// composed `verify` stays as the backstop for a hole this search did not find.
+    func testAdmittedRevisionsAlwaysComposeToVerifiedStructure() {
+        let blocks = [
+            "Intro line with words.", "# A heading here", "Title line\n===", "Setext two\n---",
+            "- item one\n- item two\n\n  continued para", "1. first\n2. second", "> quoted text\nlazy line",
+            "[note]: https://example.com/a", "See [note] and [other] here.", "A | B\n--- | ---\nc | d",
+            "Text <!-- open\n\nstill comment -->\nafter it", "```\ncode\n\nmore code\n```\nprose after",
+            "$$\nx+y\n\n$$\nprose", "Some `code` and $m$ and **bold** text.", "    indented code",
+            "<div title=\"a\"\nb=\"c\">html</div>", "Para one\n\n---\n\nPara two", "Footnote[^1] here.\n\n[^1]: The note text.",
+        ]
+        let inserts = ["- ", "1. ", "===", "---", ": http://x.y", "www.example.com", " ", "+", "=", "(", ")", ":",
+                       "!", "\"", "'", "2)", "a@b.co", "http://z.q", ".", "-", "0", "x"]
+        var rng = SplitMix64(seed: 0xA17E57)
+        var admittedCount = 0
+        for iteration in 0..<400 {
+            var parts: [String] = []
+            for _ in 0..<Int.random(in: 2...5, using: &rng) { parts.append(blocks.randomElement(using: &rng)!) }
+            let doc = (iteration % 3 == 0 ? "---\ntitle: x\n---\n" : "") + parts.joined(separator: "\n\n") + "\n"
+            let segments = MarkdownStructureMap.proseSegments(in: doc, selection: NSRange(location: 0, length: (doc as NSString).length))
+            guard !segments.isEmpty else { continue }
+            let revisions = segments.map { segment -> String in
+                let ns = segment.text as NSString
+                let at = ns.rangeOfComposedCharacterSequence(at: Int.random(in: 0..<ns.length, using: &rng)).location
+                switch Int.random(in: 0..<4, using: &rng) {
+                case 0: return inserts.randomElement(using: &rng)! + segment.text
+                case 1: return segment.text + inserts.randomElement(using: &rng)!
+                case 2: return ns.replacingCharacters(in: NSRange(location: at, length: 0), with: inserts.randomElement(using: &rng)!)
+                default: return segment.text.uppercased()
+                }
+            }
+            let admitted = MarkdownStructureGuard.admissibleRevisions(revisions, for: segments, in: doc)
+            admittedCount += admitted.compactMap { $0 }.count
+            let changes = AIChangeBuilder.changes(segments: segments, revisions: admitted, in: doc)
+            let composed = AIActionController.applying(
+                changes.map { AIReviewEdit(range: $0.range, replacement: $0.replacement) }
+                    .sorted { $0.range.location > $1.range.location }, to: doc)
+            XCTAssertTrue(MarkdownStructureGuard.verify(original: doc, revised: composed),
+                          "iteration \(iteration)\n\(doc)\n→\n\(composed)")
+        }
+        XCTAssertGreaterThan(admittedCount, 400, "the search must exercise admitted revisions, not only refusals")
+    }
+
     func testNothingAcceptedRecordsNoHistory() async throws {
         let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
