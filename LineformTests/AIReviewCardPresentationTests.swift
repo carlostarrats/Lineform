@@ -26,6 +26,7 @@ final class AIReviewCardPresentationTests: XCTestCase {
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .markLong, provider: .google), "Marking with Google…")
         XCTAssertEqual(AIReviewCardPresentation.cancelHint, "Esc to cancel")
         XCTAssertEqual(AIReviewCardPresentation.markHint, "Esc clears marks")
+        XCTAssertEqual(AIReviewCardPresentation.singleChangeHint, "Return to accept · Esc to dismiss")
         for action in AIAction.allCases {
             for provider in AIProvider.allCases where provider != .other {
                 XCTAssertTrue(AIReviewCardPresentation.progressText(for: action, provider: provider)
@@ -48,6 +49,9 @@ final class AIReviewCardPresentationTests: XCTestCase {
             }
             XCTAssertNotEqual(AIReviewCardPresentation.cancelHint(bundle: bundle), "Esc to cancel", language)
             XCTAssertNotEqual(AIReviewCardPresentation.markHint(bundle: bundle), "Esc clears marks", language)
+            let hint = AIReviewCardPresentation.singleChangeHint(bundle: bundle)
+            XCTAssertNotEqual(hint, "Return to accept · Esc to dismiss", language)
+            XCTAssertTrue(hint.contains("Return") && (hint.contains("Esc") || hint.contains("Échap")), "\(language): \(hint)")
             for action in AIAction.allCases {
                 for provider in AIProvider.allCases {
                     let local = AIReviewCardPresentation.progressText(for: action, provider: provider, bundle: bundle)

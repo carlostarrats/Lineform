@@ -20,22 +20,39 @@ extension LineformTextView: AIEditorSurface {
     /// user-edit source in pre-change coordinates and its live ranges stay right. An edit that
     /// would split a composed character, or that touches a line ending or a BOM (structure: never
     /// in a replacement), is skipped rather than widened.
-    func applyAIEdits(_ edits: [AIReviewEdit], actionName: String) {
-        guard !edits.isEmpty else { return }
+    @discardableResult
+    func applyAIEdits(_ edits: [AIReviewEdit], actionName: String) -> Bool {
+        guard !edits.isEmpty else { return true }
+        var appliedAll = true
         performAIEdit {
             let manager = undoManager
             manager?.beginUndoGrouping()
             // Inside the group: breaking coalescing registers with the undo manager, and the
             // accept must never merge into the writer's preceding typing (or the next keystroke).
             breakUndoCoalescing()
-            for edit in edits {
-                replaceForAI(edit.range, with: edit.replacement)
+            for edit in edits where !replaceForAI(edit.range, with: edit.replacement) {
+                appliedAll = false
             }
             breakUndoCoalescing()
             // Named while the group is open: naming a closed group registers outside any group.
             manager?.setActionName(actionName)
             manager?.endUndoGrouping()
         }
+        return appliedAll
+    }
+
+    /// The one place a review's end reaches the editor's selection (the controller calls it
+    /// whenever its state leaves `.reviewing`). The passage stayed selected under the overlay;
+    /// left selected, the next keystroke would replace all of it. Clamped, and kept on a
+    /// composed-character boundary.
+    func collapseSelectionAfterAIReview(at location: Int) {
+        let ns = string as NSString
+        var caret = min(max(0, location), ns.length)
+        if caret > 0, caret < ns.length {
+            let character = ns.rangeOfComposedCharacterSequence(at: caret)
+            if character.location != caret { caret = NSMaxRange(character) }
+        }
+        setSelectedRange(NSRange(location: caret, length: 0))
     }
 
     /// Typing during a review ends it (the controller) and then types here, at the selection.
@@ -84,16 +101,19 @@ extension LineformTextView {
         text.utf16.contains { structureUnits.contains($0) }
     }
 
-    private func replaceForAI(_ range: NSRange, with replacement: String) {
+    /// False when the edit was skipped.
+    private func replaceForAI(_ range: NSRange, with replacement: String) -> Bool {
         let ns = string as NSString
-        guard range.location != NSNotFound, range.location >= 0, NSMaxRange(range) <= ns.length else { return }
+        guard range.location != NSNotFound, range.location >= 0, NSMaxRange(range) <= ns.length else { return false }
         // The same alignment the formatting commands use: an edit it would move is refused here.
         guard MarkdownFormattingCommand.composedCharacterAligned(range, in: string) == range,
               !Self.containsStructureUnit(replacement),
               !Self.containsStructureUnit(ns.substring(with: range)),
-              shouldChangeText(in: range, replacementString: replacement) else { return }
-        textStorage?.replaceCharacters(in: range, with: replacement)
+              shouldChangeText(in: range, replacementString: replacement),
+              let textStorage else { return false }
+        textStorage.replaceCharacters(in: range, with: replacement)
         didChangeText()
+        return true
     }
 
     // MARK: - Keys and edits

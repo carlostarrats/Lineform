@@ -13941,6 +13941,46 @@
         }
       }
     },
+    "That change couldn't be applied, so the review ended.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "That change couldn't be applied, so the review ended."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo aplicar ese cambio, así que la revisión terminó."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette modification n’a pas pu être appliquée ; la révision est donc terminée."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Änderung konnte nicht übernommen werden, daher wurde die Überprüfung beendet."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この変更を適用できなかったため、レビューを終了しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法应用该更改，因此审阅已结束。"
+          }
+        }
+      }
+    },
     "Review ended": {
       "localizations": {
         "en": {
@@ -14937,6 +14977,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "按 Esc 清除标记"
+          }
+        }
+      }
+    },
+    "Return to accept · Esc to dismiss": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Return to accept · Esc to dismiss"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return para aceptar · Esc para descartar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return pour accepter · Échap pour ignorer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return zum Annehmen · Esc zum Verwerfen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Returnで適用 · Escで閉じる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按 Return 接受 · 按 Esc 关闭"
           }
         }
       }

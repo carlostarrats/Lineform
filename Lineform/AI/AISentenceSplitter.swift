@@ -10,8 +10,11 @@ struct AISentence: Equatable {
 }
 
 enum AISentenceSplitter {
-    /// The sentences of every non-blank block the selection touches, over each block's FULL
-    /// lines inside the selection. Sentences with no prose (a rule, a code fence) are skipped.
+    /// The sentences the selection TOUCHES: each sentence whose prose range intersects the
+    /// selection, sent whole (a partly selected sentence goes whole; a sentence the selection does
+    /// not reach is never sent — Privacy.md promises this). Sentences are FOUND over the full
+    /// lines of each block the selection touches, so a boundary never cuts a construct; only the
+    /// touched ones are kept. Sentences with no prose (a rule, a code fence) are skipped.
     static func sentences(in text: String, selection: NSRange) -> [AISentence] {
         let ns = text as NSString
         guard ns.length > 0 else { return [] }
@@ -35,7 +38,7 @@ enum AISentenceSplitter {
             result += sentences(inBlock: block, of: text, ns: ns)
             line = end + 1
         }
-        return result
+        return result.filter { NSIntersectionRange($0.range, clamped).length > 0 }
     }
 
     private static func sentences(inBlock block: NSRange, of text: String, ns: NSString) -> [AISentence] {

@@ -159,19 +159,35 @@ final class FakeAIEditorSurface: AIEditorSurface {
     private(set) var editCalls: [(edits: [AIReviewEdit], actionName: String)] = []
     private(set) var typed: [String] = []
     private(set) var announcements: [String] = []
+    /// Every `collapseSelectionAfterAIReview` location, in order.
+    private(set) var collapsedSelections: [Int] = []
+    /// When set, edits whose index in a call is listed are skipped (as the text view skips an
+    /// edit that would split a character or touch structure), and the call reports false.
+    var skippedEditIndices: Set<Int> = []
 
     init(_ string: String) {
         self.string = string
     }
 
-    func applyAIEdits(_ edits: [AIReviewEdit], actionName: String) {
+    @discardableResult
+    func applyAIEdits(_ edits: [AIReviewEdit], actionName: String) -> Bool {
         editCalls.append((edits, actionName))
         let text = NSMutableString(string: string)
-        for edit in edits {
+        var appliedAll = true
+        for (index, edit) in edits.enumerated() {
+            guard !skippedEditIndices.contains(index) else {
+                appliedAll = false
+                continue
+            }
             history?.noteUserEdit(edit.range, replacement: edit.replacement)
             text.replaceCharacters(in: edit.range, with: edit.replacement)
         }
         string = text as String
+        return appliedAll
+    }
+
+    func collapseSelectionAfterAIReview(at location: Int) {
+        collapsedSelections.append(location)
     }
 
     func insertTypedText(_ text: String) {

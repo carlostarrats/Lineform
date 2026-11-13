@@ -610,6 +610,138 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertNil(batch.reviewNotice, "abandon clears it")
         withExtendedLifetime((surface, lastSurface)) {}
     }
+
+    // MARK: - Final-review fixes
+
+    /// Critical: the reviewed passage stays selected in the editor under the overlay. EVERY way
+    /// out of `.reviewing` must collapse that selection to the passage's (shifted) end, or the
+    /// next keystroke replaces the whole passage.
+    func testEveryWayOutOfAReviewCollapsesTheSelectionToThePassageEnd() async throws {
+        let doc = "Intro.\n\nThe big dog ran far away from home.\n\nOutro."
+        let passage = range(of: "The big dog ran far away from home.", in: doc)
+        let words = ["big": "large", "far": "near", "home": "here"]
+
+        // Esc (End Review): nothing accepted, the end is where it was.
+        let (esc, escSurface, _) = make(doc, replace(words))
+        await runToCompletion(esc, .rewrite, range: passage, text: doc)
+        XCTAssertEqual(escSurface.collapsedSelections, [], "nothing collapses while the review is up")
+        esc.handle(.end)
+        XCTAssertEqual(escSurface.collapsedSelections, [NSMaxRange(passage)])
+
+        // Accept All: the end moves by every accepted change's delta.
+        let (all, allSurface, _) = make(doc, replace(words))
+        await runToCompletion(all, .rewrite, range: passage, text: doc)
+        all.handle(.acceptRemaining)
+        let accepted = range(of: "The large dog ran near away from here.", in: allSurface.string)
+        XCTAssertEqual(allSurface.collapsedSelections, [NSMaxRange(accepted)])
+
+        // The last pill: one accept then the remaining rejects end it.
+        let (pill, pillSurface, _) = make(doc, replace(words))
+        await runToCompletion(pill, .rewrite, range: passage, text: doc)
+        pill.handle(.accept(0))
+        pill.handle(.reject(1))
+        XCTAssertEqual(pillSurface.collapsedSelections, [])
+        pill.handle(.reject(2))
+        XCTAssertEqual(pillSurface.collapsedSelections,
+                       [NSMaxRange(range(of: "The large dog ran far away from home.", in: pillSurface.string))])
+
+        // A typed key: collapsed BEFORE the key is typed.
+        let (typed, typedSurface, _) = make(doc, replace(words))
+        await runToCompletion(typed, .rewrite, range: passage, text: doc)
+        typed.handle(.typed("x"))
+        XCTAssertEqual(typedSurface.collapsedSelections, [NSMaxRange(passage)])
+        XCTAssertEqual(typedSurface.typed, ["x"])
+
+        // Abandon (reload) and a document swap's endReview + abandon.
+        let (gone, goneSurface, _) = make(doc, replace(words))
+        await runToCompletion(gone, .rewrite, range: passage, text: doc)
+        gone.abandon()
+        XCTAssertEqual(goneSurface.collapsedSelections, [NSMaxRange(passage)])
+        let (swap, swapSurface, _) = make(doc, replace(words))
+        await runToCompletion(swap, .rewrite, range: passage, text: doc)
+        swap.endReview()
+        swap.abandon()
+        XCTAssertEqual(swapSurface.collapsedSelections, [NSMaxRange(passage)], "once, as the review leaves")
+    }
+
+    /// Minor 4: an edit the editor skips ends the review at once, records nothing, and says so —
+    /// it never goes on with ranges that no longer describe the text.
+    func testASkippedEditEndsTheReviewRecordingNothing() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: historyDoc)
+        let passage = range(of: "The big dog ran far away from home.", in: historyDoc)
+
+        let (single, singleSurface, _) = make(historyDoc, replace(["big": "large", "far": "near"]), history: history)
+        await runToCompletion(single, .rewrite, range: passage, text: historyDoc)
+        singleSurface.skippedEditIndices = [0]
+        single.handle(.accept(0))
+        XCTAssertEqual(single.state, .message(AIActionController.editSkippedMessage))
+        XCTAssertEqual(singleSurface.announcements.last, AIActionController.editSkippedMessage)
+        XCTAssertEqual(singleSurface.collapsedSelections, [NSMaxRange(passage)])
+        XCTAssertFalse(history.hasHistory)
+        single.handle(.accept(1))
+        XCTAssertEqual(singleSurface.editCalls.count, 1, "no later decision aims at shifted text")
+
+        // A batch where one edit lands and one is skipped: the review ends, the caret goes to the
+        // passage's real end, and History records nothing.
+        let (batch, batchSurface, _) = make(historyDoc, replace(["big": "large", "far": "near"]), history: history)
+        await runToCompletion(batch, .rewrite, range: passage, text: historyDoc)
+        batchSurface.skippedEditIndices = [1]   // descending: index 1 is "big"
+        batch.handle(.acceptRemaining)
+        XCTAssertEqual(batch.state, .message(AIActionController.editSkippedMessage))
+        XCTAssertEqual(batchSurface.string, historyDoc.replacingOccurrences(of: "far", with: "near"))
+        XCTAssertEqual(batchSurface.collapsedSelections.last,
+                       NSMaxRange(range(of: "The big dog ran near away from home.", in: batchSurface.string)))
+        XCTAssertFalse(history.hasHistory)
+    }
+
+    /// Minor 5: Disconnect cancels a request in flight and abandons a review it produced.
+    func testDisconnectCancelsTheRequestAndAbandonsTheReview() async throws {
+        let text = "The big dog ran far away from home."
+        suiteName = "AIActionControllerTests.\(UUID().uuidString)"
+        let store = AIConnectionStore(defaults: UserDefaults(suiteName: suiteName)!, keychain: InMemoryAIKeychain())
+        XCTAssertNil(store.connect(.claude, key: "test-key-not-real"))
+        let suspended = FakeAIClient(.suspend)
+        let running = AIActionController(connectionStore: store) { _ in suspended }
+        let runningSurface = FakeAIEditorSurface(text)
+        running.editor = runningSurface
+        running.run(.rewrite, range: whole(text), text: text)
+        let task = running.runTask
+        while suspended.prompts.isEmpty { await Task.yield() }
+        store.disconnect()
+        XCTAssertEqual(running.state, .idle)
+        await task?.value
+        XCTAssertTrue(suspended.observedCancellation)
+        XCTAssertEqual(running.state, .idle, "the cancelled reply is ignored")
+
+        XCTAssertNil(store.connect(.claude, key: "test-key-not-real"))
+        let replying = FakeAIClient(replace(["big": "large"]))
+        let reviewing = AIActionController(connectionStore: store) { _ in replying }
+        let surface = FakeAIEditorSurface(text)
+        reviewing.editor = surface
+        await runToCompletion(reviewing, .rewrite, range: whole(text), text: text)
+        _ = try session(reviewing)
+        XCTAssertNil(store.connect(.claude, key: "another-test-key"), "the same provider, a new key")
+        _ = try session(reviewing)
+        XCTAssertNil(store.connect(.chatGPT, key: "test-key-not-real"))
+        XCTAssertEqual(reviewing.state, .idle, "another provider: the review leaves")
+        XCTAssertEqual(surface.string, text)
+        XCTAssertTrue(surface.editCalls.isEmpty)
+    }
+
+    /// Important 2: Mark sends only the sentences the selection touches — never the rest of the
+    /// line — and a partly selected sentence goes whole.
+    func testMarkSendsOnlyTheSentencesTheSelectionTouches() async {
+        let text = "Alpha is first. Beta is second. Gamma is third."
+        let selection = NSRange(location: range(of: "is second", in: text).location, length: 4)
+        let (controller, surface, fake) = make(text, .reply("{\"sentences\": [1]}"))
+        await runToCompletion(controller, .markLong, range: selection, text: text)
+        XCTAssertEqual(controller.state, .marking([range(of: "Beta is second.", in: text)]))
+        XCTAssertEqual(surface.string, text)
+        let user = fake.prompts.first?.user ?? ""
+        XCTAssertTrue(user.contains("\"sentences\":[\"Beta is second.\"]"), user)
+        XCTAssertFalse(user.contains("Alpha") || user.contains("Gamma"), user)
+    }
 }
 
 private extension NSRange {

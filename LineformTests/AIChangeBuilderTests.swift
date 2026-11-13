@@ -154,13 +154,24 @@ final class AIChangeBuilderTests: XCTestCase {
         XCTAssertEqual(sentences.last?.range, NSRange(location: 23, length: 9))
     }
 
-    func testSentencesUseFullLinesAndSkipStructure() {
-        let text = "# Title\n\nFirst one. Second one.\n\n---\n\n```\ncode here.\n```\n"
-        let start = (text as NSString).range(of: "one. Second").location
-        let all = AISentenceSplitter.sentences(in: text, selection: NSRange(location: 0, length: (text as NSString).length))
-        XCTAssertEqual(all.map(\.prose), ["Title", "First one.", "Second one."])
-        let partial = AISentenceSplitter.sentences(in: text, selection: NSRange(location: start, length: 3))
-        XCTAssertEqual(partial.map(\.prose), ["First one.", "Second one."], "the selection widens to full lines")
+    func testSentencesAreOnlyThoseTheSelectionTouchesAndSkipStructure() {
+        let text = "# Title\n\nFirst one. Second one. Third one.\n\n---\n\n```\ncode here.\n```\n"
+        let ns = text as NSString
+        let all = AISentenceSplitter.sentences(in: text, selection: NSRange(location: 0, length: ns.length))
+        XCTAssertEqual(all.map(\.prose), ["Title", "First one.", "Second one.", "Third one."])
+
+        // Inside one sentence: that sentence, whole — never its neighbours on the line.
+        let inside = NSRange(location: ns.range(of: "Second").location + 2, length: 3)
+        XCTAssertEqual(AISentenceSplitter.sentences(in: text, selection: inside).map(\.prose), ["Second one."])
+
+        // Partly into two sentences: both, whole; the third is never sent.
+        let across = NSRange(location: ns.range(of: "one. Second").location, length: 8)
+        XCTAssertEqual(AISentenceSplitter.sentences(in: text, selection: across).map(\.prose),
+                       ["First one.", "Second one."])
+
+        // Only the space between sentences touches none.
+        let gap = NSRange(location: NSMaxRange(ns.range(of: "First one.")), length: 1)
+        XCTAssertEqual(AISentenceSplitter.sentences(in: text, selection: gap), [])
     }
 
     func testGuardedPipelineKeepsStructureAcrossEmphasisAndCRLF() {

@@ -796,7 +796,11 @@ action does to the document. The two sections after it cover the text-view and o
 - **What is sent.** Only `MarkdownStructureMap.proseSegments` of the selection — one JSON
   `{"action":…,"segments":[…]}` user message behind a fixed English system prompt
   (`AIActionPrompt`, deliberately not localized: it is a model instruction, never drawn). Mark
-  sends the selection's sentences (`AISentenceSplitter`, prose only, list/quote markers excluded).
+  sends the sentences the selection touches (`AISentenceSplitter`, prose only, list/quote markers
+  excluded): sentences are found over the full lines of each touched block, so a boundary never
+  cuts a construct, but only those whose prose range intersects the selection are kept — a partly
+  selected sentence goes whole, a sentence the selection does not reach is never sent. Before the
+  final review it sent every sentence of the touched lines, more than Privacy.md promised.
   Code, math, front matter, URLs, link destinations, image alt text, HTML, tables' pipes, every
   marker and every `* _ ~` are never sent.
 - **What comes back is checked three times.** (1) `AIResponseParser.segments` takes the JSON
@@ -831,6 +835,22 @@ action does to the document. The two sections after it cover the text-view and o
 - **History.** Recorded once, when the review ends (last decision, End/Esc, or typing), and only if
   something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
   records nothing.
+- **The selection after a review.** The reviewed passage stays selected in the editor under the
+  overlay. Whenever `state` leaves `.reviewing` — Esc, the card's buttons, the last pill, a typed
+  key, a tab swap's `endReview`, `abandon`, disconnect — its `didSet` calls
+  `collapseSelectionAfterAIReview(at: NSMaxRange(selectionRange))` (the session keeps that range
+  shifted by every accept). One choke point, so no exit can be missed. Without it the keystroke
+  that ended a review (or the next Delete, Tab, Space or dictation) replaced the whole passage.
+  The overlay's ⌫ only ends the review and is not re-sent: re-sent, it would delete the passage's
+  last character.
+- **A skipped edit ends the review.** `applyAIEdits` returns false when the text view skipped an
+  edit (it would split a character or touch a line ending / BOM — never expected after the
+  guards). The session's ranges then no longer describe the text, so the controller ends the
+  review at once with "That change couldn't be applied, so the review ended.", records nothing in
+  History and puts the caret at the passage's real end. Whatever did land stays (one ⌘Z).
+- **Disconnect.** The controller observes `AIConnectionStore.connectedProvider`: a change away from
+  the provider of a running request cancels it, and away from the provider a review came from
+  abandons the review. Reconnecting the same provider (a new key) leaves both alone.
 - **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
   `HistoryPalette.tint`; the reply's 1-based sentence numbers are bounded before any `Int`
   conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
@@ -899,6 +919,15 @@ the app's one `AIConnectionStore.shared`).
   sized the scroll view); dismantle returns first responder to the editor.
 - **Highlight, THEN attach.** `MarkdownSyntaxHighlighter.highlight` resets every attribute over the
   whole range, attachments included, so the pills are added after it.
+- **A decision redraws only its span.** The first `present` (and a profile change) is a whole pass.
+  A decision's composition differs from the last only around the decided change, so `present`
+  replaces just the differing UTF-16 span (`differingSpan`), re-tokenizes just its lines
+  (`refreshTokens`; the analyzer is line-local, so this equals a whole pass — asserted), re-sets
+  every pill and the dimming, and does NOT `sizeToFit` (that lays out the whole document after the
+  span; background layout grows the view instead). It also never sets `font` / `textColor`, which
+  rewrite the whole storage. Measured at 700 KB: whole pass ~600 ms (~500 ms of it the full layout,
+  ~80 ms highlighting), a decision ~11 ms. The one-time ~600 ms when a review opens on a very large
+  document remains — the same full layout the editor pays when the document opens.
 - **Keys: the overlay ROUTES, the editor still never intercepts `keyDown`.** In the overlay's
   `keyDown`, a key that is not a review key (arrows, Return/Enter, Esc, Page Up/Down, Home/End) and
   carries no ⌘/⌃ (and is not a function key) ends the review synchronously (`.end`), drops the editor's
@@ -919,7 +948,9 @@ the app's one `AIConnectionStore.shared`).
 - **Cards.** One floating card at the BOTTOM of `editorContent` (an overlay, never a laid-out bar):
   `AIStatusCard` for a running request (progress, "Esc to cancel", ✕ cancels), a message (steps aside
   after 8 s) or Mark's count ("Esc clears marks"); `AIReviewCard` ("3 of 7", Accept All / Reject All
-  → Remaining after a decision) while a review has more than one change. While an AI card is up the
+  → Remaining after a decision) while a review has more than one change. A one-change review gets a
+  quiet `AIStatusCard` ("1 change suggested", "Return to accept · Esc to dismiss", ✕ ends the
+  review), so its modal keys are discoverable. While an AI card is up the
   announcement / default-app card is hidden. `usesDarkChrome` is threaded. All floating cards
   (announcement, default app, AI) share ONE `FloatingCardChrome` modifier. The card's arrival and
   departure animate on `aiCardKind` from a persistent `ZStack`.

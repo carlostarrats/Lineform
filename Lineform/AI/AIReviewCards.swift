@@ -42,6 +42,12 @@ enum AIReviewCardPresentation {
     static var markHint: String { markHint(bundle: .main) }
     static func markHint(bundle: Bundle) -> String { String(localized: "Esc clears marks", bundle: bundle) }
 
+    /// A one-change review has no card of its own; this quiet hint makes its keys discoverable.
+    static var singleChangeHint: String { singleChangeHint(bundle: .main) }
+    static func singleChangeHint(bundle: Bundle) -> String {
+        String(localized: "Return to accept · Esc to dismiss", bundle: bundle)
+    }
+
     static var closeTitle: String { String(localized: "Close") }
     static var reviewCardLabel: String { String(localized: "Suggested changes") }
 }

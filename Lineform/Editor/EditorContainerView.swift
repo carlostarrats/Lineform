@@ -2470,9 +2470,7 @@ struct EditorContainerView: View {
         switch aiController.state {
         case .idle:
             return false
-        case .reviewing(let session):
-            return session.changes.count > 1 || aiController.reviewNotice != nil
-        case .running, .marking, .message:
+        case .running, .reviewing, .marking, .message:
             return true
         }
     }
@@ -2544,9 +2542,11 @@ struct EditorContainerView: View {
                         onAcceptRemaining: { aiController.handle(.acceptRemaining) },
                         onRejectRemaining: { aiController.handle(.rejectRemaining) }
                     )
-                } else if let notice = aiController.reviewNotice {
-                    AIStatusCard(text: notice, hint: nil, showsProgress: false, usesDarkChrome: usesDarkChrome,
-                                 onClose: { aiController.dismissReviewNotice() })
+                } else {
+                    // One change: no batch buttons, but the modal keys must be discoverable.
+                    AIStatusCard(text: aiController.reviewNotice ?? AIActionController.changesSuggestedMessage(1),
+                                 hint: AIReviewCardPresentation.singleChangeHint, showsProgress: false,
+                                 usesDarkChrome: usesDarkChrome, onClose: { aiController.handle(.end) })
                 }
             }
         }

@@ -70,7 +70,15 @@ final class AIReviewTextView: NSTextView {
     /// Draws `composition`: Markdown highlighting as the editor has it, the removed originals in
     /// History's receded ink (temporary attributes — the storage keeps its colours), and a pill
     /// per change (the current one in the theme's ink, the others receded).
+    ///
+    /// A decision re-presents with the SAME profile, and its composition differs from the last
+    /// one only around the decided change. That case replaces just the differing span and
+    /// re-tokenizes just its lines (`MarkdownRangeAnalyzer` is line-local, so the result is
+    /// identical to a whole pass). Measured on a 700 KB document: the whole pass cost ~80 ms of
+    /// highlighting plus ~500 ms of re-layout per decision; the span pass keeps the layout of
+    /// everything it does not touch. The first present (and a profile change) is a whole pass.
     func present(_ composition: AIReviewComposition, currentID: Int?, profile: ReadingProfile, hasDecided: Bool = false) {
+        let previous = self.composition
         self.composition = composition
         self.currentID = currentID
         self.hasDecided = hasDecided
@@ -78,12 +86,26 @@ final class AIReviewTextView: NSTextView {
         let receded = HistoryPalette.recededInk(for: theme)
         let base = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         backgroundColor = theme.backgroundColor
-        textColor = theme.textColor
-        font = base[.font] as? NSFont
+        // Never `font =` / `textColor =`: each rewrites the WHOLE storage (~100 ms at 700 KB), and
+        // the storage carries the base attributes already.
+        typingAttributes = base
 
         guard let textStorage, let layoutManager else { return }
-        textStorage.setAttributedString(NSAttributedString(string: composition.string, attributes: base))
-        highlighter.highlight(textView: self, profile: profile)
+        let isIncremental = presentedProfile == profile && textStorage.length > 0
+            && textStorage.string.utf16.elementsEqual(previous.string.utf16)
+        presentedProfile = profile
+        if isIncremental {
+            if let span = Self.differingSpan(from: previous.string, to: composition.string) {
+                textStorage.replaceCharacters(in: span.old,
+                                              with: NSAttributedString(string: (composition.string as NSString).substring(with: span.new),
+                                                                       attributes: base))
+                let lines = (composition.string as NSString).lineRange(for: span.new)
+                highlighter.refreshTokens(textView: self, profile: profile, scope: lines)
+            }
+        } else {
+            textStorage.setAttributedString(NSAttributedString(string: composition.string, attributes: base))
+            highlighter.highlight(textView: self, profile: profile)
+        }
 
         // After highlighting: its base pass resets every attribute, attachments included.
         let capHeight = (base[.font] as? NSFont)?.capHeight ?? 11
@@ -106,8 +128,29 @@ final class AIReviewTextView: NSTextView {
             guard clamped.length > 0 else { continue }
             layoutManager.addTemporaryAttribute(.foregroundColor, value: receded, forCharacterRange: clamped)
         }
-        sizeToFit()
+        // A whole pass sizes the view now (the scroll hand-over reads line positions at once). A
+        // span pass leaves it to the layout manager: `sizeToFit` would lay out the WHOLE
+        // document after the span (~450 ms at 700 KB); unforced, only what is shown is laid out
+        // now, the rest in background layout, and the view grows with it (vertically resizable).
+        if !isIncremental { sizeToFit() }
         needsDisplay = true
+    }
+
+    private var presentedProfile: ReadingProfile?
+
+    /// The one span where `old` and `new` differ: the range to replace in `old`, and the range of
+    /// its replacement in `new` (between their common UTF-16 prefix and suffix). Nil when equal.
+    static func differingSpan(from old: String, to new: String) -> (old: NSRange, new: NSRange)? {
+        let a = Array(old.utf16)
+        let b = Array(new.utf16)
+        var prefix = 0
+        let shorter = min(a.count, b.count)
+        while prefix < shorter, a[prefix] == b[prefix] { prefix += 1 }
+        if prefix == a.count, prefix == b.count { return nil }
+        var suffix = 0
+        while suffix < shorter - prefix, a[a.count - 1 - suffix] == b[b.count - 1 - suffix] { suffix += 1 }
+        return (NSRange(location: prefix, length: a.count - suffix - prefix),
+                NSRange(location: prefix, length: b.count - suffix - prefix))
     }
 
     /// Lays the overlay out exactly as `editor` is laid out, so its lines sit on the editor's.
@@ -153,16 +196,25 @@ final class AIReviewTextView: NSTextView {
     /// key binding, so the overlay runs it itself, and the decisions are made in
     /// `doCommand(by:)`. The editor still never intercepts `keyDown` (CLAUDE.md invariant); this
     /// is the overlay choosing which view the event belongs to.
+    ///
+    /// Delete (⌫) only ENDS the review: it is not re-sent. Ending collapses the editor's selection
+    /// to the passage's end (the controller), so a re-sent ⌫ would eat the passage's last
+    /// character — a deletion the writer aimed at the review, not at the text.
     override func keyDown(with event: NSEvent) {
         if Self.handsOffToEditor(event), let editor = handOffEditor {
             commandHandler?(.end)
             (editor as? LineformTextView)?.prepareForAIHandOff()
             editor.window?.makeFirstResponder(editor)
-            editor.keyDown(with: event)
+            if !Self.deletionKeyCodes.contains(event.keyCode) {
+                editor.keyDown(with: event)
+            }
             return
         }
         interpretKeyEvents([event])
     }
+
+    /// Delete (⌫). Forward Delete (⌦) is a function key, so it never hands off at all.
+    static let deletionKeyCodes: Set<UInt16> = [51]
 
     /// Arrows, Return / Enter, Esc, Page Up/Down, Home and End belong to the review.
     static let reviewKeyCodes: Set<UInt16> = [123, 124, 125, 126, 36, 76, 53, 116, 121, 115, 119]

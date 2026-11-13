@@ -230,6 +230,144 @@ final class AIReviewTextViewTests: XCTestCase {
         XCTAssertEqual(commands.last, .typed("w"))
     }
 
+    /// Critical: ⌫ after a review must not delete the reviewed passage. It ends the review (the
+    /// controller collapses the selection to the passage's end) and is NOT re-sent, so it deletes
+    /// nothing — not the passage, and not its last character.
+    func testDeleteEndsTheReviewWithoutDeletingThePassage() async throws {
+        let (view, _, _) = presented()
+        let backspace = try key("\u{7f}", 51)
+
+        // Through the real controller and the real editor.
+        let suite = "AIReviewTextViewTests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let store = AIConnectionStore(defaults: UserDefaults(suiteName: suite)!, keychain: InMemoryAIKeychain())
+        XCTAssertNil(store.connect(.claude, key: "test-key-not-real"))
+        let fake = FakeAIClient(FakeAIClient.revising { _, segment in segment.replacingOccurrences(of: "big", with: "large") })
+        let controller = AIActionController(connectionStore: store) { _ in fake }
+        let editor = LineformTextView()
+        editor.string = text
+        controller.editor = editor
+        let passage = (text as NSString).range(of: "A very big day.")
+        controller.run(.rewrite, range: passage, text: text)
+        await controller.runTask?.value
+        guard case .reviewing = controller.state else { return XCTFail("expected a review, got \(controller.state)") }
+        editor.setSelectedRange(passage)
+        editor.isAIReviewActive = true
+        view.handOffEditor = editor
+        view.commandHandler = { controller.handle($0) }
+        view.keyDown(with: backspace)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertEqual(editor.string, text, "the passage is intact")
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: NSMaxRange(passage), length: 0))
+
+        // The key is not re-sent: a plain text view (which DOES type without a window) proves it.
+        let plain = NSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        plain.string = "abc"
+        plain.setSelectedRange(NSRange(location: 0, length: 3))
+        var commands: [AIReviewCommand] = []
+        view.commandHandler = { commands.append($0) }
+        view.handOffEditor = plain
+        view.keyDown(with: backspace)
+        XCTAssertEqual(commands, [.end])
+        XCTAssertEqual(plain.string, "abc")
+    }
+
+    private func assertSameDrawing(_ a: AIReviewTextView, _ b: AIReviewTextView, _ label: String,
+                                   file: StaticString = #filePath, line: UInt = #line) throws {
+        let sa = try XCTUnwrap(a.textStorage), sb = try XCTUnwrap(b.textStorage)
+        XCTAssertEqual(sa.string, sb.string, label, file: file, line: line)
+        guard sa.length == sb.length else { return }
+        for index in 0..<sa.length {
+            let x = sa.attributes(at: index, effectiveRange: nil), y = sb.attributes(at: index, effectiveRange: nil)
+            XCTAssertEqual(x[.foregroundColor] as? NSColor, y[.foregroundColor] as? NSColor, "\(label) ink at \(index)", file: file, line: line)
+            XCTAssertEqual(x[.font] as? NSFont, y[.font] as? NSFont, "\(label) font at \(index)", file: file, line: line)
+            let pa = (x[.attachment] as? NSTextAttachment)?.attachmentCell as? AIReviewPillCell
+            let pb = (y[.attachment] as? NSTextAttachment)?.attachmentCell as? AIReviewPillCell
+            XCTAssertEqual(pa?.changeID, pb?.changeID, "\(label) pill at \(index)", file: file, line: line)
+            XCTAssertEqual(pa?.isCurrent, pb?.isCurrent, "\(label) current pill at \(index)", file: file, line: line)
+            let ta = a.layoutManager?.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
+            let tb = b.layoutManager?.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
+            XCTAssertEqual(ta, tb, "\(label) dimming at \(index)", file: file, line: line)
+            if x[.foregroundColor] as? NSColor != y[.foregroundColor] as? NSColor || pa?.isCurrent != pb?.isCurrent { return }
+        }
+    }
+
+    /// Minor 8: a decision re-presents only the span that changed, and draws exactly what a
+    /// whole pass draws (highlighting, pills, dimming).
+    func testADecisionRedrawsOnlyItsSpanAndMatchesAWholePass() throws {
+        let doc = "# A *big* title\n\nThe big dog ran `far` away from **home**.\n\n- A good item\n- Last one here"
+        let ns = doc as NSString
+        let changes = [
+            AIChange(id: 0, range: ns.range(of: "big dog"), original: "big dog", replacement: "dog"),
+            AIChange(id: 1, range: ns.range(of: "away"), original: "away", replacement: "off"),
+            AIChange(id: 2, range: ns.range(of: "good"), original: "good", replacement: "fine"),
+        ]
+        var session = AIReviewSession(action: .trim, changes: changes, selectionRange: NSRange(location: 0, length: ns.length),
+                                      originalSelection: doc)
+        let view = AIReviewTextView.make()
+        view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
+        view.present(AIReviewComposition.build(text: doc, session: session), currentID: session.currentID, profile: profile)
+        var text = doc
+        for step in ["reject", "keep", "accept"] {
+            switch step {
+            case "reject": session.reject(0)
+            case "keep": session.toggleKeep(2)
+            default:
+                let edit = try XCTUnwrap(session.accept(1))
+                text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+            }
+            let composition = AIReviewComposition.build(text: text, session: session)
+            view.present(composition, currentID: session.currentID, profile: profile, hasDecided: true)
+            let fresh = AIReviewTextView.make()
+            fresh.frame = view.frame
+            fresh.present(composition, currentID: session.currentID, profile: profile, hasDecided: true)
+            try assertSameDrawing(view, fresh, step)
+        }
+    }
+
+    func testDifferingSpan() {
+        XCTAssertNil(AIReviewTextView.differingSpan(from: "abc", to: "abc"))
+        XCTAssertEqual(AIReviewTextView.differingSpan(from: "abXYcd", to: "abcd").map { [$0.old, $0.new] },
+                       [NSRange(location: 2, length: 2), NSRange(location: 2, length: 0)])
+        XCTAssertEqual(AIReviewTextView.differingSpan(from: "aa", to: "aaa").map { [$0.old, $0.new] },
+                       [NSRange(location: 2, length: 0), NSRange(location: 2, length: 1)])
+        XCTAssertEqual(AIReviewTextView.differingSpan(from: "", to: "x").map { [$0.old, $0.new] },
+                       [NSRange(location: 0, length: 0), NSRange(location: 0, length: 1)])
+    }
+
+    /// Minor 8, as a ratio (never wall clock): on a large document a decision costs a small
+    /// fraction of the first, whole present. Measured at 700 KB: ~600 ms whole, ~11 ms per decision.
+    func testADecisionOnALargeDocumentCostsAFractionOfTheWholePass() throws {
+        var paragraphs: [String] = []
+        var index = 0
+        while paragraphs.joined(separator: "\n\n").utf16.count < 300_000 {
+            paragraphs.append("## Section \(index)\n\nThe big dog ran **far** away from `home` and [a link](x.md) number \(index). It was a very good day.\n\n- item one\n- item two")
+            index += 1
+        }
+        let big = paragraphs.joined(separator: "\n\n")
+        let ns = big as NSString
+        let changes = [AIChange(id: 0, range: ns.range(of: "big"), original: "big", replacement: "large"),
+                       AIChange(id: 1, range: ns.range(of: "far"), original: "far", replacement: "near")]
+        var session = AIReviewSession(action: .trim, changes: changes, selectionRange: NSRange(location: 0, length: 200),
+                                      originalSelection: ns.substring(with: NSRange(location: 0, length: 200)))
+        let view = AIReviewTextView.make()
+        view.frame = NSRect(x: 0, y: 0, width: 700, height: 800)
+        view.textContainer?.containerSize = NSSize(width: 660, height: CGFloat.greatestFiniteMagnitude)
+        // As in the app (AIReviewSurfaceRepresentable): the overlay is a scroll view's document.
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 800))
+        scrollView.documentView = view
+        let first = CFAbsoluteTimeGetCurrent()
+        view.present(AIReviewComposition.build(text: big, session: session), currentID: 0, profile: profile)
+        let whole = CFAbsoluteTimeGetCurrent() - first
+        session.reject(0)
+        let decided = AIReviewComposition.build(text: big, session: session)
+        let second = CFAbsoluteTimeGetCurrent()
+        view.present(decided, currentID: session.currentID, profile: profile, hasDecided: true)
+        let decision = CFAbsoluteTimeGetCurrent() - second
+        XCTAssertEqual(view.string, decided.string)
+        XCTAssertLessThan(decision, whole / 5, "decision \(decision)s vs whole \(whole)s")
+    }
+
     func testSpokenValueLeavesOutThePills() {
         let (view, composition, _) = presented()
         XCTAssertEqual(view.accessibilityValue(), composition.string.replacingOccurrences(of: "\u{FFFC}", with: ""))

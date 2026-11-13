@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// The editor as an AI action sees it. The text view implements it: `applyAIEdits` goes through
@@ -8,8 +9,15 @@ import Foundation
 protocol AIEditorSurface: AnyObject {
     var string: String { get }
     /// Applies `edits` IN ORDER, each in the coordinates of the text the previous one left.
-    func applyAIEdits(_ edits: [AIReviewEdit], actionName: String)
+    /// False when any edit was skipped (it would split a character or touch structure): the
+    /// review's ranges no longer describe the text, so the controller ends the review.
+    @discardableResult
+    func applyAIEdits(_ edits: [AIReviewEdit], actionName: String) -> Bool
     func insertTypedText(_ text: String)
+    /// A review just ended: the reviewed passage must not stay selected, or the next keystroke
+    /// (typing, Delete, Tab, dictation) would act on — replace — the whole passage. Collapses the
+    /// selection to `location`, the end of the reviewed passage.
+    func collapseSelectionAfterAIReview(at location: Int)
     /// Spoken status (`.announcementRequested`), never written into the text view's AX value.
     func announceAI(_ message: String)
 }
@@ -44,7 +52,17 @@ final class AIActionController: ObservableObject {
         case message(String)
     }
 
-    @Published private(set) var state: State = .idle
+    /// Leaving `.reviewing` — by ANY path (Esc, the card's buttons, the last pill, a typed key,
+    /// a document swap, abandon, disconnect) — collapses the editor's selection to the end of the
+    /// reviewed passage. This is the one choke point: the passage stays selected in the editor
+    /// under the overlay, and a keystroke after the review would otherwise replace it.
+    @Published private(set) var state: State = .idle {
+        didSet {
+            guard case .reviewing(let ended) = oldValue else { return }
+            if case .reviewing = state { return }
+            editor?.collapseSelectionAfterAIReview(at: NSMaxRange(ended.selectionRange))
+        }
+    }
     /// A refused decision's explanation, while the review it happened in goes on. Drawn on the
     /// floating card (seen, not only announced); cleared by the next command, `endReview` and
     /// `abandon`. A refusal that ends the review becomes `state = .message` instead.
@@ -57,11 +75,33 @@ final class AIActionController: ObservableObject {
     private let clientFactory: (AIConnection) -> AIClient
     /// Bumped by every run, cancel and abandon, so a late reply from an old request is ignored.
     private var generation = 0
+    /// Who answered the request the current review came from.
+    private var reviewProvider: AIProvider?
+    private var connectionObservation: AnyCancellable?
 
     init(connectionStore: AIConnectionStore,
          clientFactory: @escaping (AIConnection) -> AIClient = { AIClientFactory.client(for: $0) }) {
         self.connectionStore = connectionStore
         self.clientFactory = clientFactory
+        // `@Published` delivers the NEW value synchronously, on the main actor, before it lands.
+        connectionObservation = connectionStore.$connectedProvider
+            .dropFirst()
+            .sink { [weak self] provider in
+                MainActor.assumeIsolated { self?.connectionChanged(to: provider) }
+            }
+    }
+
+    /// Disconnect (or a switch to another provider) cancels a request in flight and abandons a
+    /// review that provider produced: nothing more is sent, and its suggestions leave.
+    private func connectionChanged(to provider: AIProvider?) {
+        switch state {
+        case .running(_, let running) where running != provider:
+            abandon()
+        case .reviewing where reviewProvider != provider:
+            abandon()
+        default:
+            break
+        }
     }
 
     // MARK: - Messages
@@ -73,6 +113,7 @@ final class AIActionController: ObservableObject {
     static var nothingToMarkMessage: String { String(localized: "Nothing to mark.") }
     static var structureRefusedMessage: String { String(localized: "That change would alter the Markdown, so it wasn't applied.") }
     static var reviewEndedMessage: String { String(localized: "Review ended") }
+    static var editSkippedMessage: String { String(localized: "That change couldn't be applied, so the review ended.") }
     static var acceptOneActionName: String { String(localized: "Accept Suggestion") }
     static var acceptManyActionName: String { String(localized: "Accept Suggestions") }
 
@@ -177,6 +218,7 @@ final class AIActionController: ObservableObject {
     func abandon() {
         stopRequest()
         reviewNotice = nil
+        reviewProvider = nil
         state = .idle
     }
 
@@ -205,7 +247,7 @@ final class AIActionController: ObservableObject {
 
     private func finish(token: Int, action: AIAction, request: Request, selection: NSRange,
                         snapshot: String, result: Result<String, AIClientError>) {
-        guard token == generation, case .running = state else { return }
+        guard token == generation, case .running(_, let provider) = state else { return }
         runTask = nil
         let reply: String
         switch result {
@@ -244,6 +286,7 @@ final class AIActionController: ObservableObject {
                 return show(AIClientError.unusableResponse.message)
             }
             let ns = snapshot as NSString
+            reviewProvider = provider
             state = .reviewing(AIReviewSession(action: action, changes: changes, selectionRange: selection,
                                                originalSelection: ns.substring(with: selection)))
             editor.announceAI(Self.changesSuggestedMessage(changes.count))
@@ -257,10 +300,10 @@ final class AIActionController: ObservableObject {
         reviewNotice = nil
         switch command {
         case .accept(let id):
-            accept(id, in: &session, editor: editor)
+            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
         case .acceptCurrent:
             guard let id = session.currentID else { return }
-            accept(id, in: &session, editor: editor)
+            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
         case .reject(let id):
             session.reject(id)
         case .toggleKeep(let id):
@@ -278,7 +321,10 @@ final class AIActionController: ObservableObject {
                     reviewNotice = Self.structureRefusedMessage
                     return
                 }
-                editor.applyAIEdits(edits, actionName: edits.count == 1 ? Self.acceptOneActionName : Self.acceptManyActionName)
+                let before = (editor.string as NSString).length
+                guard editor.applyAIEdits(edits, actionName: edits.count == 1 ? Self.acceptOneActionName : Self.acceptManyActionName) else {
+                    return endAfterSkippedEdit(session, lengthBefore: before)
+                }
             }
             session = candidate
         case .rejectRemaining:
@@ -310,6 +356,7 @@ final class AIActionController: ObservableObject {
         guard case .reviewing(var session) = state else { return }
         session.rejectRemaining()
         reviewNotice = nil
+        reviewProvider = nil
         state = .idle
         if session.acceptedAny, let editor, let history {
             let text = editor.string
@@ -379,21 +426,37 @@ final class AIActionController: ObservableObject {
         return result
     }
 
-    private func accept(_ id: Int, in session: inout AIReviewSession, editor: AIEditorSurface) {
+    /// False when the editor skipped the edit: the review must end (`endAfterSkippedEdit`).
+    private func accept(_ id: Int, in session: inout AIReviewSession, editor: AIEditorSurface) -> Bool {
         var candidate = session
         guard let edit = candidate.accept(id) else {
             // Already decided, or a kept pure deletion (decided, nothing to write).
             session = candidate
-            return
+            return true
         }
         guard isStructurePreserving([edit], in: editor.string) else {
             session.reject(id)
             editor.announceAI(Self.structureRefusedMessage)
             reviewNotice = Self.structureRefusedMessage
-            return
+            return true
         }
-        editor.applyAIEdits([edit], actionName: Self.acceptOneActionName)
+        guard editor.applyAIEdits([edit], actionName: Self.acceptOneActionName) else { return false }
         session = candidate
+        return true
+    }
+
+    /// The editor skipped an edit (never expected: every edit was verified). The session's ranges
+    /// no longer describe the text, so the review ends at once — no later decision may aim at
+    /// shifted text — and History records nothing. Whatever did land stays, and is one ⌘Z.
+    /// `session` is the review before the failed decision; `lengthBefore` the text's length then.
+    private func endAfterSkippedEdit(_ session: AIReviewSession, lengthBefore: Int? = nil) {
+        reviewNotice = nil
+        reviewProvider = nil
+        show(Self.editSkippedMessage)
+        guard let editor, let lengthBefore else { return }
+        // The edits all lie inside the passage, so its end moved by however much did land.
+        let moved = (editor.string as NSString).length - lengthBefore
+        editor.collapseSelectionAfterAIReview(at: NSMaxRange(session.selectionRange) + moved)
     }
 
     private func isStructurePreserving(_ edits: [AIReviewEdit], in text: String) -> Bool {

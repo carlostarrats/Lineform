@@ -69,7 +69,7 @@ review; this is the connection, the wire, and the rules around them.
 - **Connecting sends nothing.** `connect`/`connectOther` validate locally, write the Keychain and
   defaults, and return. The key is not tested — a bad key surfaces as "The key wasn't accepted" on
   the first action. One connection at a time: connecting deletes every other provider's key.
-  Disconnect deletes the key and the Other settings.
+  Disconnect deletes the key and the Other settings; an editor's request in flight is cancelled and a review from that provider abandoned (`AIActionController` observes `connectedProvider`).
 - **Keychain.** `SystemAIKeychain`: generic password, service `<bundle id>.ai`, account
   `AIProvider.rawValue`, `kSecAttrSynchronizable = false`, legacy file keychain (no
   `kSecUseDataProtectionKeychain`, so no new entitlement). The secret is read ONLY by

@@ -186,13 +186,21 @@ final class LineformTextViewAITests: XCTestCase {
     func testApplyAIEditsSkipsStructureAndSplitCharacters() {
         let text = "\u{FEFF}A👍🏽b\r\nc"
         let textView = makeTextView(text)
-        textView.applyAIEdits([
+        XCTAssertTrue(textView.applyAIEdits([], actionName: "Accept Suggestions"))
+        for (index, skipped) in [NSRange(location: 4, length: 2), NSRange(location: 7, length: 2)].enumerated() {
+            XCTAssertFalse(textView.applyAIEdits([AIReviewEdit(range: skipped, replacement: "x")],
+                                                 actionName: "Accept Suggestion"), "a skip is reported (\(index))")
+        }
+        XCTAssertFalse(textView.applyAIEdits([
             AIReviewEdit(range: NSRange(location: 4, length: 2), replacement: "x"),     // inside 👍🏽
             AIReviewEdit(range: NSRange(location: 7, length: 2), replacement: ""),      // the CRLF
             AIReviewEdit(range: NSRange(location: 0, length: 1), replacement: ""),      // the BOM
             AIReviewEdit(range: NSRange(location: 1, length: 1), replacement: "a\n"),   // a newline in
-        ], actionName: "Accept Suggestions")
+        ], actionName: "Accept Suggestions"))
         XCTAssertEqual(textView.string, text)
+        XCTAssertTrue(textView.applyAIEdits([AIReviewEdit(range: NSRange(location: 1, length: 1), replacement: "Z")],
+                                            actionName: "Accept Suggestion"))
+        XCTAssertEqual(textView.string, "\u{FEFF}Z👍🏽b\r\nc")
     }
 
     /// Accept → ⌘Z, and Accept Remaining → ⌘Z, through the real controller and the real text view.
@@ -321,12 +329,50 @@ final class LineformTextViewAITests: XCTestCase {
         await controller.runTask?.value
         guard case .reviewing = controller.state else { return XCTFail("expected a review") }
         textView.isAIReviewActive = true   // what the representable pushed for `.reviewing`
-        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        // The reviewed passage is still selected in the editor, as it is in the app.
+        textView.setSelectedRange(NSRange(location: 0, length: (text as NSString).length))
 
         controller.handle(.typed("x"))
         XCTAssertEqual(controller.state, .idle)
         XCTAssertFalse(textView.isAIReviewActive)
-        XCTAssertEqual(textView.string, "x" + text)
+        XCTAssertEqual(textView.string, text + "x", "the passage is intact; the key lands at its end")
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: (text as NSString).length + 1, length: 0))
+    }
+
+    /// Critical: Esc, Accept All and the last pill leave the caret at the passage's end — never the
+    /// passage selected, which the next keystroke would replace.
+    func testEndingAReviewCollapsesTheEditorSelection() async throws {
+        let text = "Intro.\n\nThe big dog ran far away from home.\n\nOutro."
+        let passage = range(of: "The big dog ran far away from home.", in: text)
+        for ending in ["esc", "acceptAll", "lastPill"] {
+            let textView = makeTextView(text)
+            let controller = makeController(replacing: ["big": "large", "far": "near"])
+            controller.editor = textView
+            controller.run(.rewrite, range: passage, text: text)
+            await controller.runTask?.value
+            textView.setSelectedRange(passage)
+            switch ending {
+            case "esc": controller.handle(.end)
+            case "acceptAll": controller.handle(.acceptRemaining)
+            default:
+                controller.handle(.accept(0))
+                controller.handle(.reject(1))
+            }
+            XCTAssertEqual(controller.state, .idle, ending)
+            let end = NSMaxRange(range(of: ending == "esc" ? "from home." : "home.", in: textView.string))
+            XCTAssertEqual(textView.selectedRange(), NSRange(location: end, length: 0), ending)
+        }
+    }
+
+    func testCollapseIsClampedAndStaysOnACharacterBoundary() {
+        let textView = makeTextView("A👍🏽b")
+        textView.setSelectedRange(NSRange(location: 0, length: 4))
+        textView.collapseSelectionAfterAIReview(at: 2)   // inside 👍🏽
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 5, length: 0))
+        textView.collapseSelectionAfterAIReview(at: 99)
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 6, length: 0))
+        textView.collapseSelectionAfterAIReview(at: -3)
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 0, length: 0))
     }
 
     func testHistoryEditsPassTheReviewBackstop() {

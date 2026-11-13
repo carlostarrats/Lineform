@@ -36,7 +36,7 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 
 ## Local-First Privacy
 
-Documents stay wherever the user saves them. Lineform does not add accounts, analytics, or document upload. If you connect your own AI, only the prose of a selection you act on is sent, only when you choose an action, directly to the provider you connected, under your account and their terms; your key is kept in your Mac's Keychain. Lineform ▸ Connect Your AI… ▸ Disconnect deletes the key. History is stored in Lineform's own folder on your Mac (`~/Library/Application Support/Lineform/History`, inside Lineform's app container), never in your files.
+Documents stay wherever the user saves them. Lineform does not add accounts, analytics, or document upload. If you connect your own AI, only the prose of a selection you act on is sent (for Mark, the sentences your selection touches), only when you choose an action, directly to the provider you connected, under your account and their terms; your key is kept in your Mac's Keychain. Lineform ▸ Connect Your AI… ▸ Disconnect deletes the key. History is stored in Lineform's own folder on your Mac (`~/Library/Application Support/Lineform/History`, inside Lineform's app container), never in your files.
 
 ## Credits
 
