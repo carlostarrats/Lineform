@@ -372,7 +372,8 @@ extension LineformTextView {
     /// the dirty state and the undo stack are untouched, and the extra kern is removed exactly
     /// (`HistoryCounterSpacing`) when focus moves or History mode ends. The reflow keeps the
     /// focused passage's first line where it was on screen.
-    func updateHistoryCounterSpacing(for passage: LocatedPassage?, anchoringAt anchor: Int?) {
+    func updateHistoryCounterSpacing(for passage: LocatedPassage?, anchoringAt anchor: Int?,
+                                     preservesLayout: Bool = true) {
         guard let textStorage else { return }
         let target: (index: Int, width: CGFloat)? = {
             guard let passage, let counter = historyDisplayStorage?.counter,
@@ -383,18 +384,25 @@ extension LineformTextView {
         let manager = undoManager
         manager?.disableUndoRegistration()
         defer { manager?.enableUndoRegistration() }
-        preserveVisibleLayoutAnchorDuring(anchoringCharacterAt: anchor) {
+        if preservesLayout {
+            preserveVisibleLayoutAnchorDuring(anchoringCharacterAt: anchor) {
+                HistoryCounterSpacing.apply(target, in: textStorage)
+            }
+        } else {
             HistoryCounterSpacing.apply(target, in: textStorage)
         }
         needsDisplay = true
     }
 
     /// The highlighter resets attributes with `setAttributes`, which wipes the reserved space; it
-    /// calls this after every pass so the focused passage's counter keeps its room.
+    /// calls this after every pass so the focused passage's counter keeps its room. WITHOUT layout
+    /// preservation: re-reserving restores the layout that was already on screen. Anchoring here
+    /// captured the UNKERNED layout the highlighter had just made, so a passage the reserved room
+    /// wraps scrolled the view a line further on every pass (scroll-settle passes included).
     func reapplyHistoryCounterSpacingIfNeeded() {
         guard let display = historyDisplayStorage else { return }
         updateHistoryCounterSpacing(for: display.counter == nil ? nil : display.selectedPassage,
-                                    anchoringAt: display.selectedPassage?.range.location)
+                                    anchoringAt: nil, preservesLayout: false)
     }
 
     // MARK: - Input

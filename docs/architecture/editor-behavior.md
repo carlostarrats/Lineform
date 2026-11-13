@@ -745,7 +745,9 @@ shows passages with history and steps their versions. Spec:
   the text storage the way the highlighter writes attributes — never through `shouldChangeText`,
   with undo registration disabled — and tagged with a marker holding the kern it replaced, so it
   is removed exactly when focus moves or History mode ends. The highlighter's `setAttributes`
-  wipes it, so every highlighter pass calls `reapplyHistoryCounterSpacingIfNeeded()`. The reflow
+  wipes it, so every highlighter pass calls `reapplyHistoryCounterSpacingIfNeeded()` — WITHOUT
+  layout preservation (it restores the layout already on screen; anchoring there captured the
+  unkerned layout and scrolled a line per pass when the reserved room wraps the passage). The reflow
   runs inside `preserveVisibleLayoutAnchorDuring(anchoringCharacterAt:)` on the focused passage's
   first character, so its first line stays where it was on screen. Enter → focus → exit leaves the
   string, the file, the undo stack and every kern value unchanged, and posts no text change

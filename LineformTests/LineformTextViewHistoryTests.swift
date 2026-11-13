@@ -315,6 +315,56 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertTrue(HistoryCounterSpacing.spacedCharacters(in: storage).isEmpty)
     }
 
+    /// A focused word at a line's end whose reserved counter room WRAPS it: every highlighter
+    /// pass (scroll-settle included) wipes and re-reserves the room. Re-reserving restores the
+    /// layout already on screen, so it must not re-anchor — anchoring there captured the unkerned
+    /// layout and scrolled one line further on every pass.
+    func testRepeatedHighlighterPassesNeverScrollAFocusedLineEndPassage() throws {
+        let line = "Alpha beta gamma delta"
+        let text = Array(repeating: line, count: 60).joined(separator: "\n")
+        let target = (text as NSString).range(of: "delta", options: [], range: NSRange(location: 30 * 23, length: 23))
+        XCTAssertNotEqual(target.location, NSNotFound)
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 800, height: 300))
+        let textView = LineformTextView()
+        scrollView.documentView = textView
+        textView.applyDefaultTypography()
+        textView.string = text
+        textView.refreshMarkdownHighlighting()  // measure the layout the highlighter produces
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        func lineStartsAtTarget() -> Bool {
+            layoutManager.ensureLayout(for: container)
+            var lineGlyphs = NSRange(location: 0, length: 0)
+            layoutManager.lineFragmentRect(forGlyphAt: layoutManager.glyphIndexForCharacter(at: target.location), effectiveRange: &lineGlyphs)
+            return layoutManager.characterRange(forGlyphRange: lineGlyphs, actualGlyphRange: nil).location == target.location
+        }
+        // The view sizes its own text container from its frame: find the narrowest frame that
+        // still keeps "delta" on its line, so the reserved room wraps it.
+        var width: CGFloat = 700
+        func fits(_ w: CGFloat) -> Bool {
+            textView.setFrameSize(NSSize(width: w, height: textView.frame.height))
+            return !lineStartsAtTarget()
+        }
+        while width > 100, fits(width - 1) { width -= 1 }
+        XCTAssertTrue(fits(width))
+        let word = passage(target, level: .word)
+        textView.historyDisplay = display([word])
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 600))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        textView.historyDisplay = display([word], selected: word.id, counter: HistoryCounter(count: 3, current: 1))
+        layoutManager.ensureLayout(for: container)
+        XCTAssertTrue(lineStartsAtTarget(), "the reserved room wrapped the word (the case under test)")
+        let origin = scrollView.contentView.bounds.origin.y
+
+        for _ in 0..<3 {
+            textView.refreshMarkdownHighlighting()
+            layoutManager.ensureLayout(for: container)
+        }
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, origin, accuracy: 0.5, "highlighter passes never scroll")
+        XCTAssertEqual(HistoryCounterSpacing.spacedCharacters(in: try XCTUnwrap(textView.textStorage)), [NSMaxRange(target) - 1])
+    }
+
     /// A word passage mid-line, followed by text on the same line: the counter ends before the
     /// next glyph starts, and the passage's first line does not move.
     func testCounterNeverOverlapsFollowingText() throws {
