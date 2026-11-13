@@ -239,65 +239,45 @@ final class LineformTextViewHistoryTests: XCTestCase {
 
     // MARK: - Dot placement (pure)
 
-    /// 17pt SF Pro at 1.5 line height: the dots sit centred in the gap between the descender and
-    /// the next line's ascender, at least 2pt from each.
-    func testDotsCentreInTheInterLineGap() throws {
-        let top = try XCTUnwrap(HistoryDotPlacement.belowTop(
-            baselineY: 100, descender: 4, nextLineTopY: 120, diameter: 5))
-        XCTAssertEqual(top, 104 + (16 - 5) / 2, accuracy: 0.001)
-        XCTAssertGreaterThanOrEqual(top - 104, 2)
-        XCTAssertGreaterThanOrEqual(120 - (top + 5), 2)
-
-        let tall = try XCTUnwrap(HistoryDotPlacement.belowTop(
-            baselineY: 100, descender: 4, nextLineTopY: 140, diameter: 5))
-        XCTAssertEqual(tall, 104 + HistoryDotPlacement.maximumClearanceAbove, accuracy: 0.001,
-                       "a paragraph gap never pushes the dots away from their line")
+    /// As in the approved mockup: the dots' top edge at baseline + 0.32 × font size, 5pt dots.
+    func testDotsHugTheFirstLine() {
+        let placed = HistoryDotPlacement.place(baselineY: 100, fontSize: 17, nextLineTopY: 120)
+        XCTAssertEqual(placed.top, 100 + 0.32 * 17, accuracy: 0.001)
+        XCTAssertEqual(placed.diameter, 5)
     }
 
-    /// Real layout at the default profile: the dots sit under the first line with at least 2pt
-    /// from its descender and from the next line's ascender.
-    func testDefaultProfileDotsClearBothLines() throws {
+    /// Very tight line heights shrink the dots to 4pt; they stay hugging the first line.
+    func testTightLineHeightShrinksDotsButKeepsThemUnderTheLine() {
+        let top = 100 + 0.32 * 17
+        let roomy = HistoryDotPlacement.place(baselineY: 100, fontSize: 17, nextLineTopY: top + 5 + 1)
+        XCTAssertEqual(roomy.diameter, 5, "exactly 1pt from the next line still fits")
+        let tight = HistoryDotPlacement.place(baselineY: 100, fontSize: 17, nextLineTopY: top + 5 + 0.9)
+        XCTAssertEqual(tight.diameter, 4)
+        XCTAssertEqual(tight.top, top, accuracy: 0.001, "never moved away from the first line")
+    }
+
+    /// Real layout at the default profile (17pt SF Pro, 1.5): under the passage's FIRST glyph,
+    /// top = baseline + 0.32 × 17pt — also for a passage that ends its line (no trailing dots).
+    func testDefaultProfileDotsSitUnderTheFirstGlyph() throws {
         let textView = LineformTextView()
+        textView.frame = NSRect(x: 0, y: 0, width: 700, height: 400)
         textView.applyDefaultTypography()
         // A line separator: a second line in the SAME paragraph (no paragraph spacing).
         textView.string = "Hello world again.\u{2028}Bold lines below."
         let font = try XCTUnwrap(textView.font)
+        XCTAssertEqual(font.pointSize, 17)
         let layoutManager = try XCTUnwrap(textView.layoutManager)
         layoutManager.ensureLayout(for: try XCTUnwrap(textView.textContainer))
-
-        let placement = try XCTUnwrap(textView.historyDotsPlacement(for: NSRange(location: 0, length: 18)))
-        XCTAssertTrue(placement.isBelow, "a 1.5 line height has room between the lines")
-        var firstLine = NSRange(location: 0, length: 0)
-        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: 0, effectiveRange: &firstLine)
+        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil)
         let baseline = textView.textContainerOrigin.y + lineRect.minY + layoutManager.location(forGlyphAt: 0).y
-        let nextGlyph = NSMaxRange(firstLine)
-        let nextBaseline = textView.textContainerOrigin.y
-            + layoutManager.lineFragmentRect(forGlyphAt: nextGlyph, effectiveRange: nil).minY
-            + layoutManager.location(forGlyphAt: nextGlyph).y
-        XCTAssertGreaterThanOrEqual(placement.origin.y - (baseline - font.descender), 2 - 0.001)
-        XCTAssertGreaterThanOrEqual((nextBaseline - font.ascender) - (placement.origin.y + LineformTextView.historyDotDiameter), 2 - 0.001)
-    }
+        let firstX = textView.textContainerOrigin.x + lineRect.minX + layoutManager.location(forGlyphAt: 0).x
 
-    /// Trailing dots only where they cannot cover text: the passage's last glyph must end its
-    /// line and the row must fit before the container edge. Otherwise below, best effort.
-    func testTrailingDotsNeverOverlapFollowingTextOrTheEdge() {
-        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: 104, lastGlyphEndsLine: false, trailingRowMaxX: 50, containerMaxX: 100), .below)
-        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: nil, lastGlyphEndsLine: true, trailingRowMaxX: 99, containerMaxX: 100), .trailing)
-        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: nil, lastGlyphEndsLine: false, trailingRowMaxX: 50, containerMaxX: 100), .below,
-                       "a passage ending mid-line has text after it")
-        XCTAssertEqual(HistoryDotPlacement.choose(belowTop: nil, lastGlyphEndsLine: true, trailingRowMaxX: 101, containerMaxX: 100), .below,
-                       "never past the container edge")
-        // Best-effort below: centred in whatever gap exists, never above the descender.
-        XCTAssertEqual(HistoryDotPlacement.bestEffortBelowTop(baselineY: 100, descender: 4, nextLineTopY: 111, diameter: 5), 105, accuracy: 0.001)
-        XCTAssertEqual(HistoryDotPlacement.bestEffortBelowTop(baselineY: 100, descender: 4, nextLineTopY: 106, diameter: 5), 104, accuracy: 0.001)
-    }
-
-    func testTightLineHeightMovesDotsToTheLineEnd() {
-        XCTAssertNil(HistoryDotPlacement.belowTop(baselineY: 100, descender: 4, nextLineTopY: 112.9, diameter: 5),
-                     "a gap under dot + 4pt has no room")
-        XCTAssertNotNil(HistoryDotPlacement.belowTop(baselineY: 100, descender: 4, nextLineTopY: 113, diameter: 5))
-        // Centred on the x-height: baseline 100, x-height 9 → centre 95.5.
-        XCTAssertEqual(HistoryDotPlacement.trailingTop(baselineY: 100, xHeight: 9, diameter: 5), 93, accuracy: 0.001)
+        for passage in [NSRange(location: 0, length: 18), NSRange(location: 0, length: 5)] {
+            let placement = try XCTUnwrap(textView.historyDotsPlacement(for: passage))
+            XCTAssertEqual(placement.origin.y, baseline + 0.32 * 17, accuracy: 0.001)
+            XCTAssertEqual(placement.origin.x, firstX, accuracy: 0.001)
+            XCTAssertEqual(placement.diameter, 5)
+        }
     }
 
     func testHistoryEditsAreNotMistakenForTyping() {

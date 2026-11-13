@@ -730,14 +730,13 @@ shows passages with history and steps their versions. Spec:
   caret moved to its end). Only that: a first version refused every range-replacing edit and so
   silently threw away ⌘B/⌘I, ⌘0–⌘6, Insert/Reformat Table, Find & Replace and spelling
   corrections issued in History mode — those leave the mode and apply.
-- **Version dots** (`HistoryDotPlacement`, pure and tested): centred in the gap between the first
-  line's descender and the next line's ascender top (font metrics; the next line's real layout
-  when it exists), at least 2pt from each and at most 6pt below the descender. When that gap is
-  under dot + 4pt (tight line heights) they go after the passage's last glyph instead, centred on
-  the x-height — but only when that glyph ends its line fragment and the row fits before the
-  container edge (`HistoryDotPlacement.choose`); otherwise they stay below with whatever
-  clearance exists (`bestEffortBelowTop`), never over text on the same line. At the default profile (17pt SF Pro, 1.5) the gap is ~10pt, so the clearance is
-  ~2.5pt each side by metrics (glyph tops of ascender letters sit several points lower).
+- **Version dots** (`HistoryDotPlacement`, pure and tested) always sit under the passage's FIRST
+  glyph, as in the approved mockup: top edge at baseline + 0.32 × font size (5pt dots, 3pt gap,
+  0.75pt stroke), hugging the first line just under its descenders and leaving the rest of the
+  line gap open. If that would bring them within 1pt of the next line's ascender (very tight line
+  heights) they shrink to 4pt and stay in place. Tried and rejected on 2026-11-12, do not retry:
+  centring them in the inter-line gap (still read as crowded at default size) and moving them
+  after the passage's last glyph (the owner found trailing dots confusing).
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
   `didChangeText` — never `applyWholeTextReplacement`.
 - **Leaving.** Esc, another sidebar tab, Read or Split mode, typing (the first keystroke leaves and

@@ -109,11 +109,8 @@ protocol HistoryEditorSurface: AnyObject {
 extension LineformTextView: HistoryEditorSurface {}
 
 extension LineformTextView {
-    static let historyDotDiameter: CGFloat = 5
     static let historyDotGap: CGFloat = 3
     static let historyDotStrokeWidth: CGFloat = 0.75
-    /// Space between a passage's last glyph and the dots when they sit at the line's end.
-    static let historyDotTrailingGap: CGFloat = 4
 
     // MARK: - Display state
 
@@ -295,16 +292,15 @@ extension LineformTextView {
     }
 
     private func drawHistoryDots(_ dots: HistoryDots, at range: NSRange, theme: Theme) {
-        guard let origin = historyDotsOrigin(for: range, count: dots.count) else { return }
-        let left = origin.x
-        let top = origin.y
+        guard let placement = historyDotsPlacement(for: range) else { return }
+        let diameter = placement.diameter
         let ink = HistoryPalette.dotInk(for: theme)
         for index in 0..<dots.count {
             let rect = NSRect(
-                x: left + CGFloat(index) * (Self.historyDotDiameter + Self.historyDotGap),
-                y: top,
-                width: Self.historyDotDiameter,
-                height: Self.historyDotDiameter
+                x: placement.origin.x + CGFloat(index) * (diameter + Self.historyDotGap),
+                y: placement.origin.y,
+                width: diameter,
+                height: diameter
             )
             if index == dots.current {
                 ink.setFill()
@@ -319,18 +315,11 @@ extension LineformTextView {
         }
     }
 
-    /// The first dot's top-left corner for a passage, plus whether it went under the first line
-    /// (`isBelow`) or after the last glyph. Nil when the passage has no laid-out glyph.
-    func historyDotsPlacement(for range: NSRange, count: Int = 1) -> (origin: NSPoint, isBelow: Bool)? {
+    /// The dots under the passage's FIRST glyph: the first dot's top-left corner and the dot
+    /// diameter (`HistoryDotPlacement.place`). Nil when the passage has no laid-out glyph.
+    func historyDotsPlacement(for range: NSRange) -> (origin: NSPoint, diameter: CGFloat)? {
         let ns = string as NSString
-        guard
-            let layoutManager,
-            let textContainer,
-            range.length > 0,
-            range.location < ns.length
-        else {
-            return nil
-        }
+        guard let layoutManager, range.length > 0, range.location < ns.length else { return nil }
         func fontAt(_ index: Int) -> NSFont {
             (textStorage?.attribute(.font, at: index, effectiveRange: nil) as? NSFont)
                 ?? font ?? .systemFont(ofSize: CGFloat(appliedReadingProfile.fontSize))
@@ -356,53 +345,10 @@ extension LineformTextView {
             nextLineTopY = textContainerOrigin.y + lineRect.maxY + glyphLocation.y - firstFont.ascender
         }
 
-        let belowTop = HistoryDotPlacement.belowTop(
-            baselineY: baselineY, descender: -firstFont.descender,
-            nextLineTopY: nextLineTopY, diameter: Self.historyDotDiameter
-        )
-        let belowLeft = textContainerOrigin.x + lineRect.minX + glyphLocation.x
-        if let belowTop { return (NSPoint(x: belowLeft, y: belowTop), true) }
-
-        // Too tight to fit between the lines: after the passage's last glyph, when that is safe.
-        var last = NSMaxRange(range) - 1
-        while last > range.location,
-              let scalar = Unicode.Scalar(ns.character(at: last)),
-              CharacterSet.whitespacesAndNewlines.contains(scalar) {
-            last -= 1
-        }
-        let lastGlyph = layoutManager.glyphIndexForCharacter(at: last)
-        guard lastGlyph < layoutManager.numberOfGlyphs else { return nil }
-        var lastLineGlyphs = NSRange(location: 0, length: 0)
-        let lastRect = layoutManager.lineFragmentRect(forGlyphAt: lastGlyph, effectiveRange: &lastLineGlyphs)
-        let lastLocation = layoutManager.location(forGlyphAt: lastGlyph)
-        let glyphBox = layoutManager.boundingRect(forGlyphRange: NSRange(location: lastGlyph, length: 1), in: textContainer)
-        let lineChars = layoutManager.characterRange(forGlyphRange: lastLineGlyphs, actualGlyphRange: nil)
-        let afterLast = NSRange(location: last + 1, length: max(0, NSMaxRange(lineChars) - (last + 1)))
-        let endsLine = afterLast.length == 0
-            || ns.substring(with: afterLast).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let trailingLeft = textContainerOrigin.x + glyphBox.maxX + Self.historyDotTrailingGap
-        let rowWidth = CGFloat(max(count, 1)) * Self.historyDotDiameter + CGFloat(max(count - 1, 0)) * Self.historyDotGap
-        let containerMaxX = textContainerOrigin.x + textContainer.size.width - textContainer.lineFragmentPadding
-
-        switch HistoryDotPlacement.choose(belowTop: nil, lastGlyphEndsLine: endsLine,
-                                          trailingRowMaxX: trailingLeft + rowWidth, containerMaxX: containerMaxX) {
-        case .trailing:
-            let top = HistoryDotPlacement.trailingTop(
-                baselineY: textContainerOrigin.y + lastRect.minY + lastLocation.y,
-                xHeight: fontAt(last).xHeight, diameter: Self.historyDotDiameter
-            )
-            return (NSPoint(x: trailingLeft, y: top), false)
-        case .below:
-            let top = HistoryDotPlacement.bestEffortBelowTop(
-                baselineY: baselineY, descender: -firstFont.descender,
-                nextLineTopY: nextLineTopY, diameter: Self.historyDotDiameter
-            )
-            return (NSPoint(x: belowLeft, y: top), true)
-        }
-    }
-
-    private func historyDotsOrigin(for range: NSRange, count: Int) -> NSPoint? {
-        historyDotsPlacement(for: range, count: count)?.origin
+        let placed = HistoryDotPlacement.place(baselineY: baselineY, fontSize: firstFont.pointSize,
+                                               nextLineTopY: nextLineTopY)
+        let left = textContainerOrigin.x + lineRect.minX + glyphLocation.x
+        return (NSPoint(x: left, y: placed.top), placed.diameter)
     }
 
     // MARK: - Input
@@ -658,46 +604,22 @@ extension LineformTextView {
 
 
 /// Where the version dots go, in flipped view coordinates (y grows down). Pure, so the geometry is
-/// pinned by tests rather than eyeballed.
+/// pinned by tests rather than eyeballed. Always under the passage's FIRST glyph — never at the
+/// passage's end (tried and rejected by the owner, 2026-11-12: confusing).
 enum HistoryDotPlacement {
-    /// The least clear space between the dots and the text above or below them.
-    static let minimumClearance: CGFloat = 2
-    /// The most space left above the dots in a tall gap (paragraph spacing), so they stay
-    /// attached to the line they mark.
-    static let maximumClearanceAbove: CGFloat = 6
+    /// As in the approved mockup (`top: 1.32em` on the first word): the dots' top edge sits this
+    /// share of the font size below the baseline, hugging the first line just under its
+    /// descenders and leaving the rest of the line gap open above the next line.
+    static let baselineOffsetRatio: CGFloat = 0.32
+    static let diameter: CGFloat = 5
+    /// Used when the regular dots would come within `minimumNextLineClearance` of the next
+    /// line's ascender (very tight line heights). They still hug the first line.
+    static let compactDiameter: CGFloat = 4
+    static let minimumNextLineClearance: CGFloat = 1
 
-    /// The dots' top edge under the first line: centred in the gap between that line's
-    /// descender and the next line's ascender. Nil when the gap is under `diameter + 2 × 2pt` —
-    /// the caller then draws them at the passage's end (`trailingTop`).
-    static func belowTop(baselineY: CGFloat, descender: CGFloat, nextLineTopY: CGFloat, diameter: CGFloat) -> CGFloat? {
-        let descenderBottom = baselineY + descender
-        let gap = nextLineTopY - descenderBottom
-        guard gap >= diameter + 2 * minimumClearance else { return nil }
-        return descenderBottom + min((gap - diameter) / 2, maximumClearanceAbove)
-    }
-
-    enum Choice: Equatable { case below, trailing }
-
-    /// Below when it fits (`belowTop` non-nil). Trailing only where the dots cannot cover text:
-    /// the passage's last glyph ends its line fragment and the whole row fits before the
-    /// container edge. Anything else is below, best effort (`bestEffortBelowTop`) — the dots are
-    /// small, and crowding the next line beats drawing over text on this one.
-    static func choose(belowTop: CGFloat?, lastGlyphEndsLine: Bool, trailingRowMaxX: CGFloat,
-                       containerMaxX: CGFloat) -> Choice {
-        if belowTop != nil { return .below }
-        return lastGlyphEndsLine && trailingRowMaxX <= containerMaxX ? .trailing : .below
-    }
-
-    /// Centred in whatever gap exists under the descender (never above it), capped like `belowTop`.
-    static func bestEffortBelowTop(baselineY: CGFloat, descender: CGFloat, nextLineTopY: CGFloat,
-                                   diameter: CGFloat) -> CGFloat {
-        let descenderBottom = baselineY + descender
-        let gap = nextLineTopY - descenderBottom
-        return descenderBottom + min(max(0, (gap - diameter) / 2), maximumClearanceAbove)
-    }
-
-    /// The dots' top edge after a line's last glyph: centred on the x-height.
-    static func trailingTop(baselineY: CGFloat, xHeight: CGFloat, diameter: CGFloat) -> CGFloat {
-        baselineY - xHeight / 2 - diameter / 2
+    static func place(baselineY: CGFloat, fontSize: CGFloat, nextLineTopY: CGFloat) -> (top: CGFloat, diameter: CGFloat) {
+        let top = baselineY + baselineOffsetRatio * fontSize
+        let fits = top + diameter <= nextLineTopY - minimumNextLineClearance
+        return (top, fits ? diameter : compactDiameter)
     }
 }
