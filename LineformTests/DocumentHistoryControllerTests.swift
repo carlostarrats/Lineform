@@ -620,6 +620,43 @@ final class DocumentHistoryControllerTests: XCTestCase {
         return texts
     }
 
+    /// A session that deleted a version registers no version undo, so live ranges survive into
+    /// the exit's ⌘Z. The collapse here (entry → exit) removes one of three identical sentences;
+    /// placed prefix-first ({22,11}), its undo is an insert at {22,0} that left C on {11,10} —
+    /// the identical SECOND sentence (true C is {22,10}). Dropped is fine; retargeted never is.
+    func testExitAfterDeletingVersionThenUndoNeverRetargetsPassage() throws {
+        let doc = "Keep this. Keep that. End here now."
+        let (controller, textView, manager) = attachedEditedPassage(
+            store: NullPassageHistoryStore(), url: nil, doc: doc,
+            passages: ["Keep this.", "Keep that.", "End here now."])
+        typeInView(textView, manager, replacing: "that", with: "this")
+        textView.setSelectedRange(NSRange(location: 0, length: 10))
+        grouped(manager) { textView.insertText("Keep this. Keep this.", replacementRange: NSRange(location: NSNotFound, length: 0)) }
+        textView.breakUndoCoalescing()
+        typeInView(textView, manager, replacing: "now", with: "soon")
+        let entry = textView.string
+        XCTAssertEqual(entry, "Keep this. Keep this. Keep this. End here soon.")
+
+        XCTAssertTrue(controller.enterHistoryMode(text: entry))
+        let passages = try XCTUnwrap(controller.display?.passages)
+        let b = try XCTUnwrap(passages.first { $0.range == NSRange(location: 0, length: 21) }?.id, "B")
+        let c = try XCTUnwrap(passages.first { $0.range == NSRange(location: 22, length: 10) }?.id, "C")
+        let d = try XCTUnwrap(passages.first { $0.range == NSRange(location: 33, length: 14) }?.id, "D")
+        _ = controller.handle(.select(d), text: textView.string)
+        _ = controller.deleteVersion(0, text: textView.string)
+        _ = controller.handle(.select(b), text: textView.string)
+        _ = controller.handle(.step(-1), text: textView.string)
+        XCTAssertEqual(textView.string, "Keep this. Keep this. End here soon.")
+        grouped(manager) { _ = controller.handle(.exit, text: textView.string) }
+
+        manager.undo()
+        XCTAssertEqual(textView.string, entry)
+        if controller.enterHistoryMode(text: textView.string),
+           let located = controller.display?.passages.first(where: { $0.id == c }) {
+            XCTAssertEqual(located.range, NSRange(location: 22, length: 10), "C may only stay on its own sentence")
+        }
+    }
+
     /// C1: ⌘B, then a save (persist re-locates), then ⌘Z. NSTextView undoes the formatting as one
     /// document-spanning edit; reported as such it straddled every passage and dropped them all.
     func testFormattingThenSaveThenUndoKeepsUnrelatedPassages() throws {

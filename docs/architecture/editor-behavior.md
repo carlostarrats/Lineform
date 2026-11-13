@@ -686,7 +686,12 @@ shows passages with history and steps their versions. Spec:
   UNION (earliest start to latest end, replacement rebuilt so the result text is identical), so
   every passage overlapping the ambiguous region straddles the edit and is dropped — history may
   disappear, wrong text may not. Ordinary typing has one placement and is reported exactly as
-  before. The exit collapse still uses `minimalEdit`: it is History's own edit, not a range map.
+  before. The exit collapse is built with `unambiguousEdit` too: its ⌘Z / redo run outside
+  `performHistoryEdit` and are reported against live ranges. Normally the version undo and the
+  redo bracket clear those first, but a session that DELETED a version registers neither, so an
+  ambiguous prefix-first collapse's undo left a passage on an identical earlier sentence. Such an
+  exit now registers `registerInvalidationBracket` (live ranges forgotten after the text undo and
+  before the text redo) and the collapse straddles any ambiguous region.
   Writes that bypass the text view
   (they set the binding) still call `noteWholeTextReplacement()` / `engine.invalidateLiveRanges()`
   and passages are re-found literally: live reload, Convert to Plain Text / Restore Markdown, the
@@ -703,7 +708,7 @@ shows passages with history and steps their versions. Spec:
   is up the representable's coordinator vends a stand-in EMPTY `UndoManager` (`undoManager(for:)`),
   because the tab's real stack holds edits in entry-text coordinates and ⌘Z would replay one against
   the stepped text. On exit (`applyHistoryExit`) the entry text is restored with registration off,
-  then one collapsed, minimal edit (entry → exit, `HistoryUndoCollapse.minimalEdit`, widened to
+  then one collapsed, minimal edit (entry → exit, `HistoryUndoCollapse.unambiguousEdit`, widened to
   Character boundaries so CRLF and a BOM outside the change are never rewritten) is applied through
   the normal undoable path, and a version-restore undo action is registered in the same group. One
   ⌘Z after leaving restores both the entry text and each passage's current version. A REDO bracket

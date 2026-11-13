@@ -380,7 +380,9 @@ final class DocumentHistoryController: ObservableObject {
     @discardableResult
     func exitHistoryMode() -> HistoryEdit? {
         guard isHistoryModeActive, let entry = entryText, let current = modeText else { return nil }
-        let collapse = HistoryUndoCollapse.minimalEdit(from: entry, to: current)
+        // Never a guessed placement: the collapse's own undo and redo are reported against live
+        // ranges, so an ambiguous one must straddle the region it could sit in.
+        let collapse = HistoryUndoCollapse.unambiguousEdit(from: entry, to: current)
         let restoring = sessionDeletedVersions ? nil : entryVersions
         let exitVersions = currentVersions()
         resetModeState()
@@ -389,7 +391,13 @@ final class DocumentHistoryController: ObservableObject {
         // The text view's manager is the tab's real stack again once the display is cleared.
         var bracketed: UndoManager?
         let applied = editor.applyHistoryExit(restoring: entry, collapse: collapse, expecting: current) { [self] in
-            guard restoring != nil, let manager = editor.undoManager else { return }
+            guard let manager = editor.undoManager else { return }
+            guard restoring != nil else {
+                // No version undo is registered (the session deleted a version), so nothing
+                // else clears the live ranges around the collapse's undo and redo.
+                registerInvalidationBracket(on: manager, documentID: documentID, url: url)
+                return
+            }
             registerRedoBracket(on: manager, making: exitVersions, documentID: documentID, url: url)
             bracketed = manager
         }
@@ -557,6 +565,22 @@ final class DocumentHistoryController: ObservableObject {
     /// ranges before the collapse's text redo runs. Without it the text redo ran first, reported
     /// against live ranges a save had re-found for the entry text — a collapse spanning several
     /// passages straddled them all and dropped them.
+    /// Registered in the exit's undo group BEFORE the collapse when no version undo is (the
+    /// session deleted a version): undo forgets the live ranges right AFTER the collapse's text
+    /// undo, redo right BEFORE its text redo, so the next locate re-finds passages literally
+    /// instead of trusting ranges mapped through a text-only edit.
+    private func registerInvalidationBracket(on manager: UndoManager, documentID: UUID?, url: URL?) {
+        manager.registerUndo(withTarget: self) { controller in
+            MainActor.assumeIsolated {
+                if controller.documentID == documentID, Self.sameFile(controller.url, url) {
+                    controller.engine.invalidateLiveRanges()
+                    controller.located = []
+                }
+                controller.registerInvalidationBracket(on: manager, documentID: documentID, url: url)
+            }
+        }
+    }
+
     private func registerRedoBracket(on manager: UndoManager, making exitIndices: [UUID: Int],
                                      documentID: UUID?, url: URL?) {
         manager.registerUndo(withTarget: self) { controller in
