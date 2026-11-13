@@ -14227,46 +14227,6 @@
         }
       }
     },
-    "%lld changes suggested": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%lld changes suggested"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld cambios sugeridos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld modifications suggérées"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Änderungen vorgeschlagen"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 件の変更を提案"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "建议了 %lld 处更改"
-          }
-        }
-      }
-    },
     "1 sentence marked": {
       "localizations": {
         "en": {

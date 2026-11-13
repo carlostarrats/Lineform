@@ -880,8 +880,9 @@ action does to the document. The two sections after it cover the text-view and o
 - **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
   `HistoryPalette.tint`; the reply's 1-based sentence numbers are bounded before any `Int`
   conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
-- **Messages use one/many, not a stringsdict.** "1 change suggested" / "%lld changes suggested"
-  (and the sentence-marked pair) are two catalog keys chosen by `count == 1`. That is correct for
+- **Messages use one/many, not a stringsdict.** "1 sentence marked" / "%lld sentences marked"
+  are two catalog keys chosen by `count == 1`. ("1 change suggested" is now a fixed message: one
+  action is one change, so its plural key was removed.) That is correct for
   every shipped language (es, fr, de, ja, zh-Hans: ja/zh have one form, and 0 never reaches these
   strings — it becomes "No changes suggested." / "Nothing to mark."). A language with dual/few/many
   forms (Russian, Polish, Arabic) would need a real plural variation in the catalog.
@@ -1025,9 +1026,9 @@ the app's one `AIConnectionStore.shared`).
 - **Composition cache.** `AIReviewCompositionCache` rebuilds only when the session or the editor's
   text changes; the container body re-evaluates far more often.
 - **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
-  `AIActionController.reviewNotice` (drawn in place of the review card's hint while a review is
-  up); with one change the refusal is always the last decision, so the review ends and the refusal
-  becomes `state = .message`.
+  `AIActionController.reviewNotice`; with one change the refusal is always the last decision, so
+  the review ends and the notice becomes `state = .message` (the status card). The review card
+  never draws a notice.
 - **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call
   `endAIForDocumentChange()` first, like typing). Before this the backstop refused the edit after the
   search state had already moved on. The representable also drops `isAIReviewActive`

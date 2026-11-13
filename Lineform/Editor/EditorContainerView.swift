@@ -2557,7 +2557,6 @@ struct EditorContainerView: View {
                 // One action, one change, one decision (spec "AI review: option A").
                 AIReviewCard(
                     title: AIReviewCardPresentation.title(for: session.action),
-                    notice: aiController.reviewNotice,
                     usesDarkChrome: usesDarkChrome,
                     onAccept: { aiController.handle(.acceptCurrent) },
                     onReject: { aiController.handle(.end) },

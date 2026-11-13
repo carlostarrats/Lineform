@@ -129,20 +129,18 @@ private struct AICardCloseButton: View {
 
 /// The review card, in the bottom-right corner while a review is up: what is ready ("Rewrite
 /// ready"), the keys, then Reject and Accept; ✕ ends the review (= reject, like Esc). One action
-/// is one change, so there is no counter and no batch button. A refused decision's notice, if the
-/// review is still up, replaces the hint — seen, not only announced.
+/// is one change, so there is no counter and no batch button. A refused accept ends the review, so
+/// its explanation is the status card's message, never drawn here.
 struct AIReviewCard: View {
     let title: String
-    let notice: String?
     let usesDarkChrome: Bool
     var onAccept: () -> Void
     var onReject: () -> Void
     var onClose: () -> Void
 
-    init(title: String, notice: String? = nil, usesDarkChrome: Bool,
+    init(title: String, usesDarkChrome: Bool,
          onAccept: @escaping () -> Void, onReject: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.title = title
-        self.notice = notice
         self.usesDarkChrome = usesDarkChrome
         self.onAccept = onAccept
         self.onReject = onReject
@@ -157,12 +155,12 @@ struct AIReviewCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(notice ?? AIReviewCardPresentation.reviewHint)
+                Text(AIReviewCardPresentation.reviewHint)
                     .font(.system(size: 11.5))
                     .lineSpacing(2)
                     .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Button(titles.reject, action: onReject)
                         .buttonStyle(.bordered)
                         .controlSize(.small)

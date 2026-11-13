@@ -68,10 +68,11 @@ final class AIActionController: ObservableObject {
             editor.collapseSelectionForAI(at: Self.caretEnd(of: ended.selectionRange, in: editor.string))
         }
     }
-    /// A refused decision's explanation, while the review it happened in goes on. Drawn on the
-    /// floating card (seen, not only announced); cleared by the next command, `endReview` and
-    /// `abandon`. A refusal that ends the review becomes `state = .message` instead.
-    @Published private(set) var reviewNotice: String?
+    /// A refused decision's explanation, carried from the refusal to the end of `handle`. With one
+    /// change per review the refusal is always the last decision, so it ends the review and becomes
+    /// `state = .message` (seen, not only announced). Cleared by the next command, `endReview` and
+    /// `abandon`. Never drawn on its own: nothing can show it while a review is still up.
+    private(set) var reviewNotice: String?
     weak var editor: AIEditorSurface?
     weak var history: DocumentHistoryController?
     private(set) var runTask: Task<Void, Never>?
@@ -121,9 +122,8 @@ final class AIActionController: ObservableObject {
     static var editSkippedMessage: String { String(localized: "That change couldn't be applied, so the review ended.") }
     static var acceptOneActionName: String { String(localized: "Accept Suggestion") }
 
-    static func changesSuggestedMessage(_ count: Int) -> String {
-        count == 1 ? String(localized: "1 change suggested") : String(localized: "\(count) changes suggested")
-    }
+    /// One action is one change, so a review always opens with exactly one.
+    static var changeSuggestedMessage: String { String(localized: "1 change suggested") }
 
     static func markedMessage(_ count: Int) -> String {
         count == 1 ? String(localized: "1 sentence marked") : String(localized: "\(count) sentences marked")
@@ -222,10 +222,6 @@ final class AIActionController: ObservableObject {
         state = .idle
     }
 
-    func dismissReviewNotice() {
-        reviewNotice = nil
-    }
-
     func dismissMarks() {
         if case .marking = state { state = .idle }
     }
@@ -292,7 +288,7 @@ final class AIActionController: ObservableObject {
             reviewProvider = provider
             state = .reviewing(AIReviewSession(action: action, changes: [change], selectionRange: selection,
                                                originalSelection: ns.substring(with: selection)))
-            editor.announceAI(Self.changesSuggestedMessage(1))
+            editor.announceAI(Self.changeSuggestedMessage)
         }
     }
 

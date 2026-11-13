@@ -154,9 +154,9 @@ final class LineformTextViewAITests: XCTestCase {
         textView.applyAIEdits([
             AIReviewEdit(range: range(of: "epsilon", in: sample), replacement: "EPSILON"),
             AIReviewEdit(range: range(of: "beta", in: sample), replacement: "B"),
-        ], actionName: "Accept Suggestions")
+        ], actionName: "Accept Suggestion")
         XCTAssertEqual(textView.string, "Alpha B gamma. Delta EPSILON.")
-        XCTAssertEqual(vendor.manager.undoActionName, "Accept Suggestions")
+        XCTAssertEqual(vendor.manager.undoActionName, "Accept Suggestion")
 
         vendor.manager.undo()
         XCTAssertEqual(textView.string, sample, "one ⌘Z undoes the whole call")
@@ -173,7 +173,7 @@ final class LineformTextViewAITests: XCTestCase {
         textView.applyAIEdits([
             AIReviewEdit(range: range(of: "far", in: text), replacement: "near"),
             AIReviewEdit(range: range(of: "big", in: text), replacement: "large"),
-        ], actionName: "Accept Suggestions")
+        ], actionName: "Accept Suggestion")
         XCTAssertEqual(textView.string, "\u{FEFF}# Head\r\n\r\nThe large dog.\r\nIt ran near.\r\n")
         XCTAssertEqual(textView.string.unicodeScalars.first, "\u{FEFF}")
         XCTAssertEqual(textView.string.components(separatedBy: "\r\n").count, text.components(separatedBy: "\r\n").count)
@@ -186,7 +186,7 @@ final class LineformTextViewAITests: XCTestCase {
     func testApplyAIEditsSkipsStructureAndSplitCharacters() {
         let text = "\u{FEFF}A👍🏽b\r\nc"
         let textView = makeTextView(text)
-        XCTAssertTrue(textView.applyAIEdits([], actionName: "Accept Suggestions"))
+        XCTAssertTrue(textView.applyAIEdits([], actionName: "Accept Suggestion"))
         for (index, skipped) in [NSRange(location: 4, length: 2), NSRange(location: 7, length: 2)].enumerated() {
             XCTAssertFalse(textView.applyAIEdits([AIReviewEdit(range: skipped, replacement: "x")],
                                                  actionName: "Accept Suggestion"), "a skip is reported (\(index))")
@@ -196,7 +196,7 @@ final class LineformTextViewAITests: XCTestCase {
             AIReviewEdit(range: NSRange(location: 7, length: 2), replacement: ""),      // the CRLF
             AIReviewEdit(range: NSRange(location: 0, length: 1), replacement: ""),      // the BOM
             AIReviewEdit(range: NSRange(location: 1, length: 1), replacement: "a\n"),   // a newline in
-        ], actionName: "Accept Suggestions"))
+        ], actionName: "Accept Suggestion"))
         XCTAssertEqual(textView.string, text)
         XCTAssertTrue(textView.applyAIEdits([AIReviewEdit(range: NSRange(location: 1, length: 1), replacement: "Z")],
                                             actionName: "Accept Suggestion"))
