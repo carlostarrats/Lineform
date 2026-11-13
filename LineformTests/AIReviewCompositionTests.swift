@@ -39,6 +39,29 @@ final class AIReviewCompositionTests: XCTestCase {
         XCTAssertEqual(composition.string, "First line.\r\nOld second line.\r\nNew second line.\r\nThird.")
     }
 
+    /// A rewritten list, task or quote item is a whole-line change: the replacement stacks on its
+    /// own line and repeats the item's marker, so it reads as the same item (overlay only).
+    func testWholeItemChangeStacksAndRepeatsTheMarker() {
+        let original = "Though wise men, at their end know dark is right,"
+        let replacement = "Though wise men, at their end, know that darkness is right,"
+        for prefix in ["- ", "1. ", "> ", "- [ ] ", "  * ", "> - "] {
+            let text = "Intro\n\(prefix)\(original)\r\nAfter"
+            let review = session(text, [change(0, original, in: text, replacement)])
+            let composition = AIReviewComposition.build(text: text, session: review)
+            XCTAssertEqual(composition.string, "Intro\n\(prefix)\(original)\r\n\(prefix)\(replacement)\r\nAfter", prefix)
+            XCTAssertEqual(substrings(composition.string, composition.removedRanges[0]), [original], prefix)
+            XCTAssertEqual(substrings(composition.string, composition.replacementRanges[0]), [replacement], prefix)
+            assertRoundTrip(text, review)
+        }
+    }
+
+    /// Prose before the change on the same line is not a marker: inline.
+    func testPartOfAnItemStaysInline() {
+        let text = "- Keep this. Old part.\nAfter"
+        let composition = AIReviewComposition.build(text: text, session: session(text, [change(0, "Old part.", in: text, "New part.")]))
+        XCTAssertEqual(composition.string, "- Keep this. Old part. New part.\nAfter")
+    }
+
     func testMidLineChangeIsInline() {
         let text = "Though wise men, at their end know dark is right,"
         let composition = AIReviewComposition.build(text: text, session: session(text, [change(0, "end know dark", in: text, "end, know that darkness")]))
@@ -90,7 +113,8 @@ final class AIReviewCompositionTests: XCTestCase {
             AIChange.Part(offset: second.location - first.location, length: second.length, replacement: "Second item new"),
         ])
         let composition = AIReviewComposition.build(text: text, session: session(text, [multi]))
-        XCTAssertEqual(composition.string, "- First item old First item new\n- Second item old Second item new\n")
+        // Each item is wholly rewritten, so each stacks under itself with its marker repeated.
+        XCTAssertEqual(composition.string, "- First item old\n- First item new\n- Second item old\n- Second item new\n")
         XCTAssertEqual(substrings(composition.string, composition.removedRanges[0]), ["First item old", "Second item old"])
         XCTAssertEqual(substrings(composition.string, composition.replacementRanges[0]), ["First item new", "Second item new"])
         assertRoundTrip(text, session(text, [multi]))

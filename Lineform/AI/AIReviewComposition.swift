@@ -92,8 +92,10 @@ struct AIReviewComposition: Equatable {
                     copyDocument(upTo: NSMaxRange(removedRange))
                 }
                 let removedText = source.substring(with: removedRange)
-                if removedRange.length > 0, !added.isEmpty, isWholeLine(removedRange, in: source) {
-                    insert(MarkdownLineEnding.inForce(at: removedRange.location, in: source).text, isReplacement: false, id: change.id)
+                if removedRange.length > 0, !added.isEmpty, let marker = wholeLineMarker(removedRange, in: source) {
+                    // The item's own marker repeats, so the replacement reads as the same item.
+                    insert(MarkdownLineEnding.inForce(at: removedRange.location, in: source).text + marker,
+                           isReplacement: false, id: change.id)
                 } else {
                     insert(AIReviewSession.separator(between: removedText, and: added), isReplacement: false, id: change.id)
                 }
@@ -162,16 +164,28 @@ struct AIReviewComposition: Equatable {
         return zip(bounds, bounds.dropFirst()).map { NSRange(location: $0, length: $1 - $0) }
     }
 
-    /// Whether `range` is a whole line of `text`: it starts where a line starts and ends where
-    /// that line's text ends (before its terminator, or at the end of the document).
-    private static func isWholeLine(_ range: NSRange, in text: NSString) -> Bool {
+    /// When `range` is ALL of a line's prose — from the line start, or from just after the line's
+    /// Markdown marker prefix (`- `, `1. `, `> `, `- [ ] `, nested `> - `, with indentation), to
+    /// where the line's text ends (before its terminator, or at the end of the document) — that
+    /// prefix ("" for a plain line). Nil when the range is only part of the line.
+    static func wholeLineMarker(_ range: NSRange, in text: NSString) -> String? {
         let newline = unichar(10), carriageReturn = unichar(13)
-        let startsLine = range.location == 0 || text.character(at: range.location - 1) == newline
         let end = NSMaxRange(range)
         let endsLine = end == text.length || text.character(at: end) == newline
             || (text.character(at: end) == carriageReturn && end + 1 < text.length && text.character(at: end + 1) == newline)
-        return startsLine && endsLine
+        guard endsLine else { return nil }
+        var lineStart = range.location
+        while lineStart > 0, text.character(at: lineStart - 1) != newline { lineStart -= 1 }
+        let prefix = text.substring(with: NSRange(location: lineStart, length: range.location - lineStart))
+        let whole = NSRange(location: 0, length: (prefix as NSString).length)
+        guard markerPrefix.firstMatch(in: prefix, range: whole)?.range == whole else { return nil }
+        return prefix
     }
+
+    /// Zero or more list (`-`, `*`, `+`, 1–9 digits with `.` or `)`, optional task box) or quote
+    /// markers, each optionally indented. Digits are capped at nine, as `MarkdownBlockGrouping`.
+    private static let markerPrefix = try! NSRegularExpression(
+        pattern: #"^(?:[ \t]*(?:(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?|>[ \t]?))*"#)
 
     // MARK: - Index mapping (scroll hand-over between the editor and the overlay)
 

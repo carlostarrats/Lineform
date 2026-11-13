@@ -948,8 +948,10 @@ the app's one `AIConnectionStore.shared`).
   sentence alone. When what differs is a whole physical line (starts at a line start, ends before its
   terminator or at the end of the text), the replacement goes on its own line using
   `MarkdownLineEnding.inForce` — overlay only, never written; otherwise it follows inline after
-  `AIReviewSession.separator`. A list item's prose starts after its marker, so it is never "whole
-  line" and stays inline. A kept original (session API; no UI sets it now) shows whole, unstruck,
+  `AIReviewSession.separator`. "Whole line" also covers ALL of a line's prose after its Markdown
+  marker prefix (`- `, `1. `, `> `, `- [ ] `, nested `> - `, indented): the replacement line then
+  repeats that prefix so it reads as the same list/quote item (`wholeLineMarker`; overlay only, the
+  document edit is unchanged). Prose before the change on the same line keeps it inline. A kept original (session API; no UI sets it now) shows whole, unstruck,
   separator, replacement — what a kept accept writes. Everything before the first change is byte-identical to the
   document and `matchGeometry(of:)` copies the editor's inset, padding, container width, frame width
   and paragraph style, so its lines sit on the editor's.
