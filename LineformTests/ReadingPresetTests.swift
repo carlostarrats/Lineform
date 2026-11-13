@@ -178,4 +178,23 @@ final class ReadingPresetTests: XCTestCase {
         XCTAssertEqual(profile.readingRulerEnabled, readingRuler, file: file, line: line)
         XCTAssertEqual(profile.typewriterModeEnabled, typewriterMode, file: file, line: line)
     }
+
+    func testUnselectedPresetStrokeIsVisibleOnDarkChrome() {
+        let page = (Theme.quiet.backgroundColor.usingColorSpace(.sRGB))!
+        let stroke = ReadingPresetCard.unselectedStrokeColor(usesDarkChrome: true)
+            .usingColorSpace(.sRGB)!
+        let alpha = stroke.alphaComponent
+        let composite = NSColor(
+            srgbRed: stroke.redComponent * alpha + page.redComponent * (1 - alpha),
+            green: stroke.greenComponent * alpha + page.greenComponent * (1 - alpha),
+            blue: stroke.blueComponent * alpha + page.blueComponent * (1 - alpha),
+            alpha: 1
+        )
+
+        XCTAssertGreaterThanOrEqual(Theme.contrastRatio(composite, page), 1.3)
+        XCTAssertEqual(
+            ReadingPresetCard.unselectedStrokeColor(usesDarkChrome: false),
+            NSColor.black.withAlphaComponent(0.08)
+        )
+    }
 }
