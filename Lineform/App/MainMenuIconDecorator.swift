@@ -493,6 +493,8 @@ enum MainMenuIconDecorator {
         "toggle outline": "list.bullet.indent",
         "show hidden folders": "eye",
         "reading experience": "slider.horizontal.3",
+        // The sidebar History tab's own glyph.
+        "history": "clock.arrow.circlepath",
         "show toolbar": "menubar.rectangle",
         "hide toolbar": "menubar.rectangle",
         "customize toolbar": "wrench.adjustable",
@@ -551,7 +553,14 @@ enum MainMenuIconDecorator {
                 // Resolution and application are different failures: a row can map to the right
                 // symbol and still draw bare if nothing ever assigned the image.
                 let applied = item.image == nil ? "NO IMAGE" : "image"
-                emit("\(indent)\(item.title) | \(selector) | \(symbol) | \(applied)")
+                // The shortcut, so a new one can be checked against every row for a collision.
+                let flags = item.keyEquivalentModifierMask
+                let shortcut = item.keyEquivalent.isEmpty ? "-" : [
+                    flags.contains(.control) ? "⌃" : "", flags.contains(.option) ? "⌥" : "",
+                    flags.contains(.shift) ? "⇧" : "", flags.contains(.command) ? "⌘" : "",
+                    item.keyEquivalent
+                ].joined()
+                emit("\(indent)\(item.title) | \(selector) | \(symbol) | \(applied) | \(shortcut)")
             }
             if let submenu = item.submenu {
                 dump(submenu, depth: depth + 1)

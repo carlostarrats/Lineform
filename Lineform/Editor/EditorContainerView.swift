@@ -492,6 +492,12 @@ struct EditorContainerView: View {
             isKeyWindow: { activeWindow?.isKeyWindow == true },
             startSpeaking: startSpeakingCurrentDocument
         ))
+        .modifier(HistoryMenuHandlers(
+            windowNumber: windowNumber,
+            historyController: historyController,
+            isKeyWindow: { activeWindow?.isKeyWindow == true },
+            toggleHistory: toggleHistoryFromMenu
+        ))
         .onChange(of: tabStore.selectedTabID) { _, newID in
             guard newID != nil else { return }
             activateSelectedTab()
@@ -2419,6 +2425,18 @@ struct EditorContainerView: View {
         return historyController.enterHistoryMode(text: historyEditorText)
     }
 
+    /// View ▸ History: enters History mode with the sidebar showing its History tab, or leaves it.
+    private func toggleHistoryFromMenu() {
+        if historyController.isHistoryModeActive {
+            historyController.exitHistoryMode()
+            return
+        }
+        guard historyController.hasHistory else { return }
+        isShowingOutline = true
+        // The sidebar follows `isHistoryModeActive` onto its History tab (and back afterwards).
+        _ = selectSidebarTab(.history)
+    }
+
     private func selectHistoryVersion(_ index: Int) {
         historyController.selectVersion(index, text: historyEditorText)
     }
@@ -2971,6 +2989,41 @@ struct SidebarSwitchDialog: Identifiable {
     let url: URL
     let tabTitle: String
     var whenOpenedHere: () -> Void = {}
+}
+
+/// View ▸ History for this window: the command, and the menu's enabled state tracking the key
+/// window's document. Bundled as a modifier for the same type-checker-budget reason as
+/// `SpeechNotificationHandlers`.
+private struct HistoryMenuHandlers: ViewModifier {
+    let windowNumber: Int?
+    @ObservedObject var historyController: DocumentHistoryController
+    let isKeyWindow: () -> Bool
+    let toggleHistory: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showHistory.name)) { notification in
+                guard let payload = notification.object as? LineformAppNotification.Payload,
+                      payload.matches(windowNumber: windowNumber) else { return }
+                toggleHistory()
+            }
+            .onChange(of: historyController.hasHistory) { _, hasHistory in
+                if isKeyWindow() {
+                    LineformHistoryMenuState.shared.setHasHistory(hasHistory)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+                guard let number = windowNumber, (notification.object as? NSWindow)?.windowNumber == number else { return }
+                LineformHistoryMenuState.shared.setHasHistory(historyController.hasHistory)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+                // Closing the key window leaves View ▸ History disabled until the next key window
+                // reports its own state (as File ▸ Rename/Delete do).
+                guard let window = notification.object as? NSWindow, let number = windowNumber,
+                      window.windowNumber == number, window.isKeyWindow else { return }
+                LineformHistoryMenuState.shared.setHasHistory(false)
+            }
+    }
 }
 
 /// Re-runs the cross-file search when either scanned root changes. Bundled as a modifier so

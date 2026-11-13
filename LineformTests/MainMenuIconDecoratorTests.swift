@@ -44,7 +44,8 @@ final class MainMenuIconDecoratorTests: XCTestCase {
             AppMenuConfiguration.printCommandTitle,
             AppMenuConfiguration.findCommandTitle,
             AppMenuConfiguration.findReplaceCommandTitle,
-            AppMenuConfiguration.showHiddenFoldersCommandTitle
+            AppMenuConfiguration.showHiddenFoldersCommandTitle,
+            AppMenuConfiguration.historyCommandTitle
         ] + AppMenuConfiguration.markdownFormattingCommandTitles
 
         for title in titles {
@@ -53,6 +54,21 @@ final class MainMenuIconDecoratorTests: XCTestCase {
                 MainMenuIconDecorator.symbolsByTitle[key],
                 "Menu title \"\(title)\" (key \"\(key)\") has no icon mapping"
             )
+        }
+    }
+
+    /// View ▸ History is a SwiftUI `Button`, so it resolves by title — in every shipped locale,
+    /// which needs its English key in `allEnglishTitleKeys` too.
+    func testHistoryMenuItemHasIcon() {
+        let key = MainMenuIconDecorator.normalizedTitle(AppMenuConfiguration.historyCommandTitle)
+        XCTAssertEqual(MainMenuIconDecorator.symbolsByTitle["history"], "clock.arrow.circlepath",
+                       "the same glyph as the sidebar's History tab")
+        XCTAssertTrue(AppMenuConfiguration.allEnglishTitleKeys.contains("History"))
+        let item = NSMenuItem(title: AppMenuConfiguration.historyCommandTitle, action: nil, keyEquivalent: "")
+        XCTAssertEqual(MainMenuIconDecorator.symbolName(for: item), "clock.arrow.circlepath", "key \"\(key)\"")
+        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+            XCTAssertNotNil(MainMenuIconDecorator.localizedAliases(languageCode: language)["history"],
+                            "\(language): View ▸ History has no localized title to match")
         }
     }
 

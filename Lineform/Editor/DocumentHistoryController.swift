@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// The smallest edit that turns `entry` into `exit`: the common UTF-16 prefix and suffix are left
@@ -108,10 +109,29 @@ final class DocumentHistoryController: ObservableObject {
         directory: FilePassageHistoryStore.defaultDirectory(home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
     )
 
-    init(store: PassageHistoryPersisting, now: @escaping () -> Date = Date.init) {
+    /// Posted (object: the store) after `clearAllHistory(in:)` emptied a store. Every controller
+    /// on that store re-reads it, so no open editor keeps — or later writes back — cleared history.
+    static let didClearAllNotification = Notification.Name("Lineform.historyDidClearAll")
+    private var clearAllObservation: AnyCancellable?
+
+    init(store: PassageHistoryPersisting, now: @escaping () -> Date = Date.init,
+         notificationCenter: NotificationCenter = .default) {
         self.store = store
         self.now = now
         engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: now)
+        clearAllObservation = notificationCenter
+            .publisher(for: Self.didClearAllNotification, object: store)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.reloadFromStore() }
+            }
+    }
+
+    /// Settings ▸ Clear History: removes every document's history from `store` and refreshes
+    /// every open controller on it (each window's, active tab or not; background tabs re-read
+    /// the store when they are next shown).
+    static func clearAllHistory(in store: PassageHistoryPersisting, center: NotificationCenter = .default) {
+        store.clearAll()
+        center.post(name: didClearAllNotification, object: store)
     }
 
     // MARK: - Editor
@@ -225,13 +245,18 @@ final class DocumentHistoryController: ObservableObject {
         persist(text: text)
     }
 
-    /// Re-reads the store for the current document (Settings ▸ Clear History).
+    /// Re-reads the store for the current document (Settings ▸ Clear History). An untitled
+    /// document's in-memory history is dropped too: it has no store entry to re-read.
+    ///
+    /// The engine is replaced BEFORE History mode leaves: leaving saves, and saving the old engine
+    /// would write the cleared history straight back. The text History mode left stays (it is the
+    /// writer's document) and still collapses into one undoable edit.
     func reloadFromStore() {
-        if isHistoryModeActive { _ = exitHistoryMode() }
         let history = url.map(store.load(for:)) ?? DocumentHistory(passages: [])
         hasStoreEntry = !history.isEmpty
         engine = DocumentHistoryEngine(history: history, now: now)
         located = []
+        if isHistoryModeActive { _ = exitHistoryMode() }
         refreshHasHistory()
     }
 

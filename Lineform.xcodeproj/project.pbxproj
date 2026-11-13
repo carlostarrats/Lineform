@@ -50,6 +50,7 @@
 		1F00000100000000000004D9 /* HistorySidebarPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */; };
 		1F00000100000000000004D6 /* LineformTextViewHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */; };
 		1F00000100000000000004DB /* DocumentHistoryControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004DB /* DocumentHistoryControllerTests.swift */; };
+		1F00000100000000000004DC /* SettingsClearHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004DC /* SettingsClearHistoryTests.swift */; };
 		1F0000010000000000000011 /* LineformApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000011 /* LineformApp.swift */; };
 		1F00000100000000000004AF /* LineformAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AF /* LineformAppIntents.swift */; };
 		1F00000100000000000004B0 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B0 /* AppIntents.framework */; };
@@ -278,6 +279,7 @@
 		1F00000200000000000004D7 /* HistoryPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPaletteTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewHistoryTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004DB /* DocumentHistoryControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentHistoryControllerTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004DC /* SettingsClearHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsClearHistoryTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000020000000000000004 /* Lineform.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lineform.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0000020000000000000005 /* LineformTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -719,6 +721,7 @@
 				1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */,
 				1F00000200000000000004D6 /* LineformTextViewHistoryTests.swift */,
 				1F00000200000000000004DB /* DocumentHistoryControllerTests.swift */,
+				1F00000200000000000004DC /* SettingsClearHistoryTests.swift */,
 				1F0000020000000000000105 /* ReleaseResourceTests.swift */,
 				1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */,
 				1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */,
@@ -1107,6 +1110,7 @@
 				1F00000100000000000004D9 /* HistorySidebarPresentationTests.swift in Sources */,
 				1F00000100000000000004D6 /* LineformTextViewHistoryTests.swift in Sources */,
 				1F00000100000000000004DB /* DocumentHistoryControllerTests.swift in Sources */,
+				1F00000100000000000004DC /* SettingsClearHistoryTests.swift in Sources */,
 				1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */,
 				1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */,
 				1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */,

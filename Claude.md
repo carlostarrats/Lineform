@@ -42,6 +42,7 @@ Core product principles:
 - Read/Preview rendering of Mermaid diagrams, LaTeX math, GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
+- History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Automatic Dark Mode (Settings, default on): while the Mac is in Dark Mode every preset draws with Quiet's page and ink but keeps its own font and layout. Display only — export and print keep the chosen theme.
@@ -132,6 +133,13 @@ file named after it carries the full story and the reasoning.
 - `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must accept the SAME heading shape (≤3 columns of indent; space, tab, or end of line after the hashes). A disagreement is the stacking bug from the other side.
 - Ordered-list continuation must cap the marker at NINE ASCII digits, matching `MarkdownBlockGrouping`'s `[0-9]{1,9}`. Unbounded, `Int.max` overflowed `number + 1` and Return on that line CRASHED the app, and a 10-digit marker drew as a paragraph while Return continued it as a list.
 - Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
+
+**History** (`editor-behavior.md` § History)
+- History never writes into the document file. The store lives under Application Support in the app container; nothing is stored until a version is kept.
+- Normal writing draws NO history markers. History mode is the only place history is drawn, and its receded ink is a layout-manager temporary attribute, never a text-storage change.
+- History-mode steps are undo-DISABLED (the coordinator vends an empty stand-in `UndoManager` while the mode is up) and collapse into ONE undoable edit on exit, plus a version-restore undo action — one ⌘Z after leaving restores text and current versions.
+- User edits reach History only through `LineformTextView.shouldChangeText(in:replacementString:)`; History's own edits run in `performHistoryEdit {}`; every wholesale text replacement calls `noteWholeTextReplacement()`. Reported as one edit, a whole-document replacement drops every passage.
+- `DocumentHistoryController.reloadFromStore()` (Clear History) replaces the engine BEFORE leaving History mode — leaving saves, and the other order writes the cleared history straight back.
 
 **Rendering** (`rendering.md`)
 - Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.

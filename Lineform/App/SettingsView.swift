@@ -8,6 +8,8 @@ struct SettingsModal: View {
     @ObservedObject var settings: LineformSettingsStore
     @ObservedObject private var defaultMarkdownApp: DefaultMarkdownAppStore
     @StateObject private var iCloud: ICloudSettingViewModel
+    @State private var isConfirmingClearHistory = false
+    private let historyStore: PassageHistoryPersisting
     /// THREADED from the theme, never read from `@Environment(\.colorScheme)` — see
     /// `MuseModalChrome.primaryTextColor(usesDarkChrome:)`.
     var usesDarkChrome: Bool
@@ -42,6 +44,18 @@ struct SettingsModal: View {
     static let makeDefaultTitle = String(localized: "Make Default")
     static let defaultStatusTitle = String(localized: "Default")
     static let changingDefaultTitle = String(localized: "Changing…")
+    static let clearHistoryTitle = String(localized: "Clear History")
+    static let clearHistoryNote = String(localized: "Removes saved versions for every document. Your files are not changed.")
+    static let clearHistoryButtonTitle = String(localized: "Clear…")
+    static let clearHistoryConfirmTitle = String(localized: "Clear all history?")
+    static let clearHistoryConfirmMessage = String(localized: "Saved versions for every document will be removed. This can't be undone. Your files are not changed.")
+    static let cancelTitle = String(localized: "Cancel")
+
+    /// The confirmed Clear History: empties the store and refreshes every open editor's History.
+    @MainActor
+    static func clearHistory(store: PassageHistoryPersisting, center: NotificationCenter = .default) {
+        DocumentHistoryController.clearAllHistory(in: store, center: center)
+    }
 
     /// Window width the presenting container offers (via GeometryReader).
     var availableWidth: CGFloat
@@ -51,6 +65,7 @@ struct SettingsModal: View {
         usesDarkChrome: Bool = false,
         availableWidth: CGFloat = SettingsModal.contentWidth + 24,
         defaultMarkdownApp: DefaultMarkdownAppStore = .shared,
+        historyStore: PassageHistoryPersisting = DocumentHistoryController.sharedStore,
         // Autoclosure so the default view-model is built at most once, inside
         // StateObject's own lazy storage — not on every SettingsModal init.
         iCloudViewModel: @autoclosure @escaping () -> ICloudSettingViewModel = ICloudSettingViewModel(),
@@ -58,6 +73,7 @@ struct SettingsModal: View {
     ) {
         self.settings = settings
         self.defaultMarkdownApp = defaultMarkdownApp
+        self.historyStore = historyStore
         self.usesDarkChrome = usesDarkChrome
         self.availableWidth = availableWidth
         _iCloud = StateObject(wrappedValue: iCloudViewModel())
@@ -122,6 +138,11 @@ struct SettingsModal: View {
                     // it back on defers to the normal launch check / cache restore.
                     if !isEnabled { AnnouncementStore.shared.retractForDisabledSetting() }
                 }
+
+                Divider()
+                    .padding(.vertical, 12)
+
+                clearHistoryRow
             }
         }
         .museModalCard(
@@ -219,6 +240,43 @@ struct SettingsModal: View {
         // The AppKit-backed button/progress control can otherwise leave the editor's I-beam
         // over this row while Settings is presented. Match the existing setting rows.
         .background(CursorRectView(cursor: .arrow))
+    }
+
+    private var clearHistoryRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(Self.clearHistoryTitle)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                Text(Self.clearHistoryNote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Button(Self.clearHistoryButtonTitle) {
+                isConfirmingClearHistory = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel(Self.clearHistoryTitle)
+            .accessibilityHint(Self.clearHistoryNote)
+        }
+        // Same reason as the Make Default row: the AppKit-backed button would otherwise leave the
+        // editor's I-beam over this row.
+        .background(CursorRectView(cursor: .arrow))
+        .alert(Self.clearHistoryConfirmTitle, isPresented: $isConfirmingClearHistory) {
+            // Cancel is the Return default (as for sidebar Delete); clearing takes a click.
+            Button(Self.cancelTitle, role: .cancel) {}
+                .keyboardShortcut(.defaultAction)
+            Button(Self.clearHistoryTitle, role: .destructive) {
+                Self.clearHistory(store: historyStore)
+            }
+        } message: {
+            Text(Self.clearHistoryConfirmMessage)
+        }
     }
 
     private func settingRow(title: String, note: String, isOn: Binding<Bool>, disabled: Bool = false) -> some View {
