@@ -6,25 +6,31 @@ import AppKit
 /// the palette with it. Values follow the History-mode mockup
 /// (`docs/superpowers/specs/2026-11-12-history-mode-mockup.html`).
 ///
-/// The two tints are TRANSLUCENT fills drawn behind full-ink text; `HistoryPaletteTests` asserts
-/// the ink keeps ≥ 4.5:1 against each tint flattened onto the page, on every built-in theme.
+/// The wash and hover tints are drawn behind full-ink text; `HistoryPaletteTests` asserts the ink
+/// keeps ≥ 4.5:1 against each (the wash stacked three deep), on every built-in theme.
 ///
-/// Focus (a passage clicked) carries no fill: the focused passage and its counter keep the full
-/// ink (≥ 4.5:1), other passages fall to `focusOtherInk`, unchanged text to `deepRecededInk`.
+/// Focus (a passage clicked): the focused passage and its counter keep the full ink (≥ 4.5:1) and
+/// no fill. The OTHER passages stay visibly highlighted — `focusOtherTint` (opaque, ≥ 1.15:1 off
+/// the page) under `focusOtherInk` (≥ 3:1 on that tint) — and hovering one brings it to full
+/// strength (full ink on the opaque hover fill). Unchanged text falls to `deepRecededInk`.
 /// The receded inks are de-emphasis, not body text; each keeps a documented floor.
 enum HistoryPalette {
-    /// A passage that has history: a light wash of the theme's own ink.
-    static let tintAlpha: CGFloat = 0.06
-    /// The passage under the pointer: a slightly stronger wash. Preview only.
-    static let hoverTintAlpha: CGFloat = 0.11
+    /// A passage that has history: a light wash of the theme's own ink. 0.08 is the lightest wash
+    /// that clears 1.15:1 off the page on the light themes; three nested washes still keep AA on
+    /// Quiet (0.09 does not).
+    static let tintAlpha: CGFloat = 0.08
+    /// The passage under the pointer: a stronger wash, drawn opaque. Preview only.
+    static let hoverTintAlpha: CGFloat = 0.15
     /// Unchanged text recedes to this share of the ink before the readability floor is applied.
     static let recededInkAlpha: CGFloat = 0.45
     /// Receded text is de-emphasised, not hidden: it keeps at least this ratio against the page.
     static let recededInkMinimumRatio: CGFloat = 3.0
-    /// While a passage is focused: the OTHER passages (the hovered one uses `recededInk`, so it
-    /// still reads as clickable).
+    /// While a passage is focused: the OTHER passages' fill. Owner (QA 1.8): "dark enough for
+    /// accessibility … it can't be too faint" — so stronger than the unfocused wash.
+    static let focusOtherTintAlpha: CGFloat = 0.10
+    /// While a passage is focused: the OTHER passages' ink, measured ON `focusOtherTint`.
     static let focusOtherInkAlpha: CGFloat = 0.38
-    static let focusOtherInkMinimumRatio: CGFloat = 2.5
+    static let focusOtherInkMinimumRatio: CGFloat = 3.0
     /// While a passage is focused: unchanged text, receded further.
     static let deepRecededInkAlpha: CGFloat = 0.22
     static let deepRecededInkMinimumRatio: CGFloat = 2.0
@@ -44,10 +50,17 @@ enum HistoryPalette {
         )
     }
 
+    /// Opaque (`opaqueFill`), so nested passages never stack and what is drawn is exactly the
+    /// pair `HistoryPaletteTests` measures.
+    static func focusOtherTint(for theme: Theme) -> NSColor {
+        opaqueFill(ink(of: theme).withAlphaComponent(focusOtherTintAlpha), for: theme)
+    }
+
     static func focusOtherInk(for theme: Theme) -> NSColor {
         theme.readableInk(
             ink(of: theme).withAlphaComponent(focusOtherInkAlpha),
-            minimumRatio: focusOtherInkMinimumRatio
+            minimumRatio: focusOtherInkMinimumRatio,
+            on: focusOtherTint(for: theme)
         )
     }
 

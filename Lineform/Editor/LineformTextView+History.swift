@@ -134,12 +134,15 @@ extension LineformTextView {
             removeHistoryRecededInk()
             updateHistoryCounterSpacing(for: nil, anchoringAt: previous?.selectedPassage?.range.location)
             removeHistoryTrackingArea()
+            // The pointing hand belongs to History mode: hand the cursor back to the I-beam.
+            window?.invalidateCursorRects(for: self)
             updateInsertionPointStateAndRestartTimer(true)
             needsDisplay = true
             return
         }
 
         if previous == nil {
+            window?.invalidateCursorRects(for: self)
             // A selection carried in (⌘Z after a whole-text command selects the whole document)
             // would be REPLACED by the keystroke that leaves History mode. Collapse it; the
             // selection override keeps it collapsed for the whole mode.
@@ -172,7 +175,7 @@ extension LineformTextView {
     }
 
     /// Hover is a redraw, not a command: no handler call, no announcement. While a passage is
-    /// focused, hover lifts another passage to the receded ink, so the ink is refreshed then.
+    /// focused, hover lifts another passage to the full ink, so the ink is refreshed then.
     func setHistoryHoveredID(_ id: UUID?) {
         guard var display = historyDisplayStorage, display.hoveredID != id else { return }
         display.hoveredID = id
@@ -198,8 +201,8 @@ extension LineformTextView {
     ///
     /// Nothing focused: unchanged text receded, every passage full ink (on its tint).
     /// A passage focused: unchanged text DEEP receded; every other passage at the focus-other
-    /// ink (the hovered one at the receded ink, so it reads as clickable); the focused passage
-    /// — with anything nested inside it — full ink.
+    /// ink; the hovered passage (full strength, so it reads as clickable) and the focused passage
+    /// — each with anything nested inside it — full ink.
     func refreshHistoryRecededInk() {
         guard let layoutManager, let display = historyDisplayStorage else { return }
         let length = (string as NSString).length
@@ -217,18 +220,19 @@ extension LineformTextView {
         }
         if let focused {
             let otherInk = HistoryPalette.focusOtherInk(for: theme)
-            let hoverInk = HistoryPalette.recededInk(for: theme)
-            // Outer first, so a nested passage's own ink wins over its parent's.
-            for other in display.passages.sorted(by: { $0.range.length > $1.range.length }) where other.id != focused.id {
+            for other in display.passages where other.id != focused.id {
                 let range = NSIntersectionRange(other.range, target)
                 guard range.length > 0 else { continue }
-                layoutManager.addTemporaryAttribute(.foregroundColor,
-                                                    value: other.id == display.hoveredID ? hoverInk : otherInk,
-                                                    forCharacterRange: range)
+                layoutManager.addTemporaryAttribute(.foregroundColor, value: otherInk, forCharacterRange: range)
             }
-            let range = NSIntersectionRange(focused.range, target)
-            if range.length > 0 {
-                layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: range)
+            // The hovered passage is drawn on its opaque hover fill, which covers anything nested
+            // in it, so its whole range takes the full ink — as the focused passage's does.
+            let hovered = display.passages.first { $0.id == display.hoveredID && $0.id != focused.id }
+            for passage in [hovered, focused].compactMap({ $0 }) {
+                let range = NSIntersectionRange(passage.range, target)
+                if range.length > 0 {
+                    layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: range)
+                }
             }
         }
         historyRecededInkRange = target
@@ -285,17 +289,15 @@ extension LineformTextView {
 
     /// Nothing focused: a translucent wash behind every visible passage, outer first (a nested
     /// passage reads as a deeper wash), and the hovered one drawn LAST and OPAQUE
-    /// (`HistoryPalette.opaqueFill`) so it replaces the washes beneath. A passage focused: no
-    /// fills at all — focus is carried by the inks — and the focused passage's counter.
+    /// (`HistoryPalette.opaqueFill`) so it replaces the washes beneath.
+    ///
+    /// A passage focused: every OTHER passage keeps a dimmed but clearly visible fill
+    /// (`focusOtherTint`, opaque, so nested ones never stack under the dimmed ink), the hovered
+    /// one the opaque hover fill (full strength), the focused passage none — it is carried by its
+    /// full ink and its counter. QA 1.8: with no fills here, the other passages vanished.
     func drawHistoryIfNeeded() {
         guard let display = historyDisplayStorage else { return }
         let theme = Theme.theme(for: appliedReadingProfile)
-
-        if let focused = display.selectedPassage {
-            if let counter = display.counter { drawHistoryCounter(counter, after: focused.range, theme: theme) }
-            return
-        }
-
         let visible = visibleCharacterRangeForLayoutPreservation()
         func fill(_ passage: LocatedPassage, with color: NSColor) {
             let range = visible.map { NSIntersectionRange(passage.range, $0) } ?? passage.range
@@ -305,15 +307,19 @@ extension LineformTextView {
                 rect.fill(using: .sourceOver)
             }
         }
-        let wash = HistoryPalette.tint(for: theme)
+        let focused = display.selectedPassage
+        let wash = focused == nil ? HistoryPalette.tint(for: theme) : HistoryPalette.focusOtherTint(for: theme)
         for passage in display.passages
-            .filter({ $0.id != display.hoveredID })
+            .filter({ $0.id != display.hoveredID && $0.id != focused?.id })
             .sorted(by: { $0.range.length > $1.range.length }) {
             fill(passage, with: wash)
         }
-        if let hoveredID = display.hoveredID,
+        if let hoveredID = display.hoveredID, hoveredID != focused?.id,
            let hovered = display.passages.first(where: { $0.id == hoveredID }) {
             fill(hovered, with: HistoryPalette.opaqueFill(HistoryPalette.hoverTint(for: theme), for: theme))
+        }
+        if let focused, let counter = display.counter {
+            drawHistoryCounter(counter, after: focused.range, theme: theme)
         }
     }
 
@@ -587,11 +593,15 @@ extension LineformTextView {
     /// The character under the pointer, or nil when the pointer is not over a glyph (past a
     /// line's end, in the margin) — so hovering empty space never lights a passage.
     private func historyCharacterIndex(at event: NSEvent) -> Int? {
+        historyCharacterIndex(atViewPoint: convert(event.locationInWindow, from: nil))
+    }
+
+    private func historyCharacterIndex(atViewPoint viewPoint: NSPoint) -> Int? {
         guard let layoutManager, let textContainer else { return nil }
         let length = (string as NSString).length
         guard length > 0 else { return nil }
 
-        var point = convert(event.locationInWindow, from: nil)
+        var point = viewPoint
         point.x -= textContainerOrigin.x
         point.y -= textContainerOrigin.y
 
@@ -611,13 +621,30 @@ extension LineformTextView {
         return characterIndex < length ? characterIndex : nil
     }
 
+    /// The pointing hand over a passage History mode would select on click (`point` in view
+    /// coordinates); the I-beam everywhere else, and always outside History mode.
+    func historyCursor(at point: NSPoint) -> NSCursor {
+        guard let display = historyDisplayStorage,
+              let index = historyCharacterIndex(atViewPoint: point),
+              display.innermostPassage(containing: index) != nil else { return .iBeam }
+        return .pointingHand
+    }
+
+    /// Sets History mode's cursor for `event`. Returns false outside History mode, leaving the
+    /// cursor to AppKit.
+    func updateHistoryCursor(for event: NSEvent) -> Bool {
+        guard historyDisplayStorage != nil else { return false }
+        historyCursor(at: convert(event.locationInWindow, from: nil)).set()
+        return true
+    }
+
     // MARK: - Hover tracking
 
     private func installHistoryTrackingAreaIfNeeded() {
         guard historyTrackingArea == nil else { return }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .activeInKeyWindow, .inVisibleRect],
             owner: self,
             userInfo: nil
         )

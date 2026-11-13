@@ -280,6 +280,8 @@ final class LineformTextView: NSTextView {
 
         super.mouseMoved(with: event)
         handleHistoryMouseMoved(event)
+        // After super, which sets the I-beam: History mode's pointing hand over passages wins.
+        _ = updateHistoryCursor(for: event)
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -333,6 +335,9 @@ final class LineformTextView: NSTextView {
 
     override func cursorUpdate(with event: NSEvent) {
         if isEventInsideFloatingControl(event) {
+            return
+        }
+        if updateHistoryCursor(for: event) {
             return
         }
 

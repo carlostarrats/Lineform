@@ -24,6 +24,7 @@ final class HistoryPaletteTests: XCTestCase {
             HistoryPalette.hoverTint(for: theme),
             HistoryPalette.recededInk(for: theme),
             HistoryPalette.focusOtherInk(for: theme),
+            HistoryPalette.focusOtherTint(for: theme),
             HistoryPalette.deepRecededInk(for: theme),
             HistoryPalette.counterInk(for: theme),
         ]
@@ -79,20 +80,44 @@ final class HistoryPaletteTests: XCTestCase {
         }
     }
 
-    /// Focus: the focused passage and its counter are full ink (AA); the other inks keep their
-    /// documented floors and step down in order: receded > focus-other > deep receded.
+    /// Focus: the focused passage and its counter are full ink (AA); unchanged text keeps its
+    /// documented floor and sits below the other passages' ink.
     func testFocusInksKeepTheirFloorsAndOrderOnEveryTheme() {
         for theme in Theme.builtIn {
             let page = theme.backgroundColor
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, page), 4.5, theme.name)
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(HistoryPalette.counterInk(for: theme), page), 4.5, theme.name)
-            let receded = Theme.contrastRatio(HistoryPalette.recededInk(for: theme), page)
             let other = Theme.contrastRatio(HistoryPalette.focusOtherInk(for: theme), page)
             let deep = Theme.contrastRatio(HistoryPalette.deepRecededInk(for: theme), page)
-            XCTAssertGreaterThanOrEqual(other, 2.5, "\(theme.name) focus-other was \(other)")
             XCTAssertGreaterThanOrEqual(deep, 2.0, "\(theme.name) deep receded was \(deep)")
-            XCTAssertGreaterThanOrEqual(receded + 0.001, other, theme.name)
             XCTAssertGreaterThanOrEqual(other + 0.001, deep, theme.name)
+        }
+    }
+
+    /// Focus keeps the OTHER passages visible (QA 1.8: they vanished into the page once one was
+    /// clicked, and the owner's bar is "dark enough for accessibility … it can't be too faint").
+    /// Their fill is drawn opaque, so what is measured here is exactly what is drawn: visibly off
+    /// the page, with the dimmed `focusOtherInk` on it at ≥ 3:1. The unfocused wash meets the same
+    /// visibility floor. Every built-in theme, which includes Quiet — Automatic Dark Mode's page.
+    func testFocusOtherTintIsVisibleInEveryTheme() {
+        for theme in Theme.builtIn {
+            let page = theme.backgroundColor
+            let fill = HistoryPalette.focusOtherTint(for: theme)
+            XCTAssertEqual(fill.alphaComponent, 1, "\(theme.name): drawn opaque, so nested passages never stack")
+            let visible = Theme.contrastRatio(fill, page)
+            XCTAssertGreaterThanOrEqual(visible, 1.15, "\(theme.name) focus-other tint vs page was \(visible)")
+            let text = Theme.contrastRatio(HistoryPalette.focusOtherInk(for: theme), fill)
+            XCTAssertGreaterThanOrEqual(text, 3.0, "\(theme.name) focus-other ink on its tint was \(text)")
+
+            let wash = Self.flattened(HistoryPalette.tint(for: theme), over: page)
+            let washVisible = Theme.contrastRatio(wash, page)
+            XCTAssertGreaterThanOrEqual(washVisible, 1.15, "\(theme.name) unfocused wash vs page was \(washVisible)")
+
+            // Hovering another passage brings it to full strength: full ink on the hover fill,
+            // a fill visibly stronger than the dimmed one around it.
+            let hover = HistoryPalette.opaqueFill(HistoryPalette.hoverTint(for: theme), for: theme)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, hover), 4.5, theme.name)
+            XCTAssertGreaterThan(Theme.contrastRatio(hover, page), visible, theme.name)
         }
     }
 

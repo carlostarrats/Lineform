@@ -429,7 +429,7 @@ final class LineformTextViewHistoryTests: XCTestCase {
                        "the focused passage's first line stays put")
     }
 
-    /// Focus: the focused passage full ink, others at the focus-other ink (hovered: receded),
+    /// Focus: the focused passage full ink, others at the focus-other ink (hovered: full ink),
     /// unchanged text deep receded. Unfocused: unchanged receded, passages full ink.
     func testFocusInks() throws {
         let textView = makeTextView()
@@ -451,7 +451,66 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertEqual(ink(12), HistoryPalette.deepRecededInk(for: theme))
 
         textView.setHistoryHoveredID(second.id)
-        XCTAssertEqual(ink(7), HistoryPalette.recededInk(for: theme), "a hovered passage reads as clickable")
+        XCTAssertNil(ink(7), "hovering another passage brings it to full strength")
+        XCTAssertNil(ink(0), "the focused passage keeps the full ink")
+        XCTAssertEqual(ink(12), HistoryPalette.deepRecededInk(for: theme))
+
+        textView.setHistoryHoveredID(nil)
+        XCTAssertEqual(ink(7), HistoryPalette.focusOtherInk(for: theme))
+    }
+
+    // MARK: - Focus fills and cursor
+
+    /// The centre of a glyph's box, in view coordinates.
+    private func point(over index: Int, in textView: LineformTextView) throws -> NSPoint {
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let container = try XCTUnwrap(textView.textContainer)
+        let glyphs = layoutManager.glyphRange(forCharacterRange: NSRange(location: index, length: 1), actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: container)
+        return NSPoint(x: rect.midX + textView.textContainerOrigin.x, y: rect.midY + textView.textContainerOrigin.y)
+    }
+
+    private func renderedLuminance(of textView: LineformTextView, at viewPoint: NSPoint) throws -> CGFloat {
+        let rep = try XCTUnwrap(textView.bitmapImageRepForCachingDisplay(in: textView.bounds))
+        textView.cacheDisplay(in: textView.bounds, to: rep)
+        let scale = CGFloat(rep.pixelsWide) / textView.bounds.width
+        // The text view is flipped; the bitmap's rows run top-down too.
+        let color = try XCTUnwrap(rep.colorAt(x: Int(viewPoint.x * scale), y: Int(viewPoint.y * scale)))
+        return Theme.relativeLuminance(try XCTUnwrap(color.usingColorSpace(.sRGB)))
+    }
+
+    /// QA 1.8: clicking a passage made every OTHER passage vanish into the page (the focused
+    /// branch drew no fills). They keep a dimmed fill; unchanged text stays on the bare page.
+    func testOtherPassagesKeepAFillWhileOneIsFocused() throws {
+        let textView = try laidOutTextView(sample)
+        let first = passage(NSRange(location: 0, length: 17))
+        let second = passage(NSRange(location: 18, length: 14))
+        textView.historyDisplay = display([first, second], selected: first.id, counter: HistoryCounter(count: 2, current: 1))
+        let gapSpace = try point(over: 17, in: textView)       // unchanged text
+        let otherSpace = try point(over: 23, in: textView)     // the space inside "Delta epsilon."
+        let page = try renderedLuminance(of: textView, at: gapSpace)
+        let other = try renderedLuminance(of: textView, at: otherSpace)
+        let ratio = (max(page, other) + 0.05) / (min(page, other) + 0.05)
+        XCTAssertGreaterThanOrEqual(ratio, 1.15, "the other passage must stay visibly highlighted, was \(ratio)")
+    }
+
+    func testHistoryCursorIsPointingHandOverPassagesOnly() throws {
+        let textView = try laidOutTextView(sample)
+        let overPassage = try point(over: 7, in: textView)
+        let overUnchanged = try point(over: 12, in: textView)
+        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.iBeam, "outside History mode")
+
+        let changed = passage(NSRange(location: 6, length: 4))
+        textView.historyDisplay = display([changed])
+        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.pointingHand)
+        XCTAssertTrue(textView.historyCursor(at: overUnchanged) === NSCursor.iBeam)
+        XCTAssertTrue(textView.historyCursor(at: NSPoint(x: 690, y: 390)) === NSCursor.iBeam, "empty space")
+
+        textView.historyDisplay = display([changed], selected: changed.id)
+        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.pointingHand, "focused too")
+
+        textView.historyDisplay = nil
+        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.iBeam)
     }
 
     /// History's replacement field is open but focus did not land in it (or was clicked away):

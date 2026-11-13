@@ -788,14 +788,26 @@ shows passages with history and steps their versions. Spec:
   caret moved to its end). Only that: a first version refused every range-replacing edit and so
   silently threw away ⌘B/⌘I, ⌘0–⌘6, Insert/Reformat Table, Find & Replace and spelling
   corrections issued in History mode — those leave the mode and apply.
-- **History-mode visuals (2026-11-12, owner-approved "C + A").** Entering: unchanged text
-  receded (`recededInk`, ≥ 3.0:1), passages with history full ink on a gray wash (`tint`, hover
-  `hoverTint` drawn opaque); no counters, so NOTHING reflows on entry. Focus (a passage clicked):
-  no fills and no blue — the focused passage keeps the full ink, every other passage drops to
-  `focusOtherInk` (0.38, ≥ 2.5:1; the hovered one to `recededInk`, so it reads as clickable), and
-  unchanged text to `deepRecededInk` (0.22, ≥ 2.0:1). `HistoryPaletteTests` asserts the floors,
-  their order, and AA for the focused text and counter on every theme. All inks are temporary
-  layout-manager attributes.
+- **History-mode visuals (2026-11-12, owner-approved "C + A"; focus fills revised 2026-11-13
+  after 1.8 QA).** Entering: unchanged text receded (`recededInk`, ≥ 3.0:1), passages with history
+  full ink on a gray wash (`tint`, 0.08 — the lightest that clears 1.15:1 off the light pages while
+  three nested washes keep AA on Quiet; 0.09 does not), the hovered one on `hoverTint` (0.15) drawn
+  opaque; no counters, so NOTHING reflows on entry. Focus (a passage clicked): the focused passage
+  keeps the full ink and no fill; every OTHER passage stays visibly highlighted — `focusOtherTint`
+  (0.10, drawn OPAQUE so nested passages never stack under the dimmed ink, ≥ 1.15:1 off the page)
+  with `focusOtherInk` (0.38, raised by `readableInk` to ≥ 3:1 measured ON that tint); hovering
+  one brings it to full strength (full ink on the opaque hover fill); unchanged text drops to
+  `deepRecededInk` (0.22, ≥ 2.0:1). No blue. The first version drew NO fills while focused
+  ("focus is carried by the inks"), and QA found the other passages simply vanished into the page
+  once one was clicked; the owner's bar is "dark enough for accessibility … it can't be too
+  faint". `HistoryPaletteTests` asserts every floor on every built-in theme (Quiet is Automatic
+  Dark Mode's page), and `testOtherPassagesKeepAFillWhileOneIsFocused` renders the view and
+  measures the drawn fill. All inks are temporary layout-manager attributes.
+- **Cursor.** In History mode the pointer is the pointing hand over any passage a click would
+  select (`historyCursor(at:)`, the same glyph hit-test as the click and hover) and the I-beam
+  elsewhere. The History tracking area carries `.cursorUpdate`; `mouseMoved` sets the cursor AFTER
+  `super` (which sets the I-beam) and `cursorUpdate` returns before `super` while History mode is
+  on. Cursor rects are invalidated on entry and exit so leaving hands the I-beam back.
 - **The counter** ("current/total", `HistoryCounter.text`) appears ONLY on the focused passage,
   after its last non-whitespace glyph: 10pt medium tabular numerals (`HistoryCounterLayout`),
   3pt after the glyph, cap-aligned with the text, full ink. Its room is RESERVED so it can never
