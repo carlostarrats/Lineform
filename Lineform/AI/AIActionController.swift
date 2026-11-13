@@ -14,10 +14,10 @@ protocol AIEditorSurface: AnyObject {
     @discardableResult
     func applyAIEdits(_ edits: [AIReviewEdit], actionName: String) -> Bool
     func insertTypedText(_ text: String)
-    /// A review just ended: the reviewed passage must not stay selected, or the next keystroke
-    /// (typing, Delete, Tab, dictation) would act on — replace — the whole passage. Collapses the
-    /// selection to `location`, the end of the reviewed passage.
-    func collapseSelectionAfterAIReview(at location: Int)
+    /// A review just ended, or marks are shown: the passage must not stay selected — the next
+    /// keystroke (typing, Delete, Tab, dictation) would replace it, and a selection draws over
+    /// Mark's wash. Collapses the selection to `location` (`caretEnd`: the passage's text end).
+    func collapseSelectionForAI(at location: Int)
     /// Spoken status (`.announcementRequested`), never written into the text view's AX value.
     func announceAI(_ message: String)
 }
@@ -60,7 +60,8 @@ final class AIActionController: ObservableObject {
         didSet {
             guard case .reviewing(let ended) = oldValue else { return }
             if case .reviewing = state { return }
-            editor?.collapseSelectionAfterAIReview(at: NSMaxRange(ended.selectionRange))
+            guard let editor else { return }
+            editor.collapseSelectionForAI(at: Self.caretEnd(of: ended.selectionRange, in: editor.string))
         }
     }
     /// A refused decision's explanation, while the review it happened in goes on. Drawn on the
@@ -271,6 +272,8 @@ final class AIActionController: ObservableObject {
             }
             guard !indices.isEmpty else { return show(Self.nothingToMarkMessage) }
             state = .marking(indices.map { sentences[$0].range })
+            // The selection would draw over the wash and hide it.
+            editor.collapseSelectionForAI(at: Self.caretEnd(of: selection, in: snapshot))
             editor.announceAI(Self.markedMessage(indices.count))
 
         case .edit(let segments):
@@ -302,7 +305,8 @@ final class AIActionController: ObservableObject {
         case .accept(let id):
             guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
         case .acceptCurrent:
-            guard let id = session.currentID else { return }
+            // A change is current from the moment the review opens; the fallback only guards.
+            guard let id = session.currentID ?? session.pending.first?.id else { return }
             guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
         case .reject(let id):
             session.reject(id)
@@ -456,7 +460,25 @@ final class AIActionController: ObservableObject {
         guard let editor, let lengthBefore else { return }
         // The edits all lie inside the passage, so its end moved by however much did land.
         let moved = (editor.string as NSString).length - lengthBefore
-        editor.collapseSelectionAfterAIReview(at: NSMaxRange(session.selectionRange) + moved)
+        let shifted = NSRange(location: session.selectionRange.location,
+                              length: max(0, session.selectionRange.length + moved))
+        editor.collapseSelectionForAI(at: Self.caretEnd(of: shifted, in: editor.string))
+    }
+
+    /// Where the caret goes when an AI selection collapses: the END of the passage's text, before
+    /// any line endings the selection ends with. A triple-click selects a line WITH its "\n" (or
+    /// "\r\n"); NSMaxRange would put the caret at the start of the NEXT line, and a typed key
+    /// would land there.
+    static func caretEnd(of range: NSRange, in text: String) -> Int {
+        let ns = text as NSString
+        let clamped = NSIntersectionRange(range, NSRange(location: 0, length: ns.length))
+        var end = NSMaxRange(clamped)
+        while end > clamped.location {
+            let unit = ns.character(at: end - 1)
+            guard unit == 0x0A || unit == 0x0D else { break }
+            end -= 1
+        }
+        return end
     }
 
     private func isStructurePreserving(_ edits: [AIReviewEdit], in text: String) -> Bool {

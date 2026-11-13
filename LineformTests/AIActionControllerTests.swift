@@ -729,6 +729,46 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertTrue(surface.editCalls.isEmpty)
     }
 
+    /// Hand-test fix 1: the first change is current the moment the review opens, so Return
+    /// accepts it without an arrow press; after a decision the next undecided one is current.
+    func testReturnAcceptsTheFirstChangeWithNoArrowPress() async throws {
+        let text = "The big dog ran far away from home."
+        let (controller, surface, _) = make(text, replace(["big": "large", "far": "near", "home": "here"]))
+        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        XCTAssertEqual(try session(controller).currentID, 0)
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(surface.string, "The large dog ran far away from home.")
+        XCTAssertEqual(try session(controller).currentID, 1)
+        controller.handle(.reject(1))
+        XCTAssertEqual(try session(controller).currentID, 2)
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(surface.string, "The large dog ran far away from here.")
+        XCTAssertEqual(controller.state, .idle)
+    }
+
+    /// Hand-test fixes 2 and 3: Mark collapses the selection (it drew over the wash), and every
+    /// collapse lands at the passage's TEXT end — before the line ending a triple-click includes.
+    func testMarkCollapsesTheSelectionBeforeATrailingLineEnding() async {
+        for ending in ["\n", "\r\n"] {
+            let text = "First is short. Second one is a much longer sentence.\(ending)Next line."
+            let line = NSRange(location: 0, length: NSMaxRange(range(of: ending + "Next", in: text)) - 4)
+            XCTAssertTrue((text as NSString).substring(with: line).hasSuffix(ending))
+            let (controller, surface, _) = make(text, .reply("{\"sentences\": [2]}"))
+            await runToCompletion(controller, .markLong, range: line, text: text)
+            guard case .marking = controller.state else { return XCTFail("\(controller.state)") }
+            XCTAssertEqual(surface.collapsedSelections, [NSMaxRange(range(of: "sentence.", in: text))], ending.debugDescription)
+        }
+    }
+
+    func testCaretEndExcludesTrailingLineEndings() {
+        XCTAssertEqual(AIActionController.caretEnd(of: NSRange(location: 0, length: 4), in: "abc\ndef"), 3)
+        XCTAssertEqual(AIActionController.caretEnd(of: NSRange(location: 0, length: 5), in: "abc\r\ndef"), 3)
+        XCTAssertEqual(AIActionController.caretEnd(of: NSRange(location: 0, length: 5), in: "abc\n\ndef"), 3)
+        XCTAssertEqual(AIActionController.caretEnd(of: NSRange(location: 0, length: 3), in: "abc\ndef"), 3)
+        XCTAssertEqual(AIActionController.caretEnd(of: NSRange(location: 3, length: 1), in: "abc\ndef"), 3)
+        XCTAssertEqual(AIActionController.caretEnd(of: NSRange(location: 0, length: 99), in: "abc\n"), 3)
+    }
+
     /// Important 2: Mark sends only the sentences the selection touches — never the rest of the
     /// line — and a partly selected sentence goes whole.
     func testMarkSendsOnlyTheSentencesTheSelectionTouches() async {

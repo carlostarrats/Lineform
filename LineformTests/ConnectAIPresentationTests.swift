@@ -146,4 +146,13 @@ final class ConnectAIPresentationTests: XCTestCase {
         XCTAssertEqual(source.components(separatedBy: ".onSubmit(connect)").count - 1, fields,
                        "every field submits Connect on Return")
     }
+
+    /// Hand-test fix 4: ⌘W (Close Tab, which only document windows answer) closes the Connect
+    /// Your AI window as a window. No window is created here.
+    @MainActor
+    func testCloseTabClosesTheConnectWindowDirectly() {
+        XCTAssertTrue(AppMenuConfiguration.closeTabClosesWindowDirectly(ConnectAIWindowController.shared))
+        XCTAssertFalse(AppMenuConfiguration.closeTabClosesWindowDirectly(nil))
+        XCTAssertFalse(AppMenuConfiguration.closeTabClosesWindowDirectly(NSWindowController(window: nil)))
+    }
 }

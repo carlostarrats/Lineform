@@ -179,6 +179,16 @@ final class AIReviewTextView: NSTextView {
     // MARK: - Read-only
 
     override var acceptsFirstResponder: Bool { true }
+
+    /// The overlay takes the keyboard the moment it is in a window. The representable's own grab
+    /// runs on the next turn and again on later updates, but SwiftUI can insert the view after that
+    /// turn and push no further update — then Return (accept) went to the read-only editor and did
+    /// nothing until some other key happened to trigger an update.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window, commandHandler != nil, window.firstResponder !== self else { return }
+        window.makeFirstResponder(self)
+    }
     override var undoManager: UndoManager? { emptyUndoManager }
     override func menu(for event: NSEvent) -> NSMenu? { nil }
     override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool { false }

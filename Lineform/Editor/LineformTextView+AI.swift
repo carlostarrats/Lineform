@@ -45,7 +45,7 @@ extension LineformTextView: AIEditorSurface {
     /// whenever its state leaves `.reviewing`). The passage stayed selected under the overlay;
     /// left selected, the next keystroke would replace all of it. Clamped, and kept on a
     /// composed-character boundary.
-    func collapseSelectionAfterAIReview(at location: Int) {
+    func collapseSelectionForAI(at location: Int) {
         let ns = string as NSString
         var caret = min(max(0, location), ns.length)
         if caret > 0, caret < ns.length {

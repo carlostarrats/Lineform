@@ -159,7 +159,7 @@ final class FakeAIEditorSurface: AIEditorSurface {
     private(set) var editCalls: [(edits: [AIReviewEdit], actionName: String)] = []
     private(set) var typed: [String] = []
     private(set) var announcements: [String] = []
-    /// Every `collapseSelectionAfterAIReview` location, in order.
+    /// Every `collapseSelectionForAI` location, in order.
     private(set) var collapsedSelections: [Int] = []
     /// When set, edits whose index in a call is listed are skipped (as the text view skips an
     /// edit that would split a character or touch structure), and the call reports false.
@@ -186,7 +186,7 @@ final class FakeAIEditorSurface: AIEditorSurface {
         return appliedAll
     }
 
-    func collapseSelectionAfterAIReview(at location: Int) {
+    func collapseSelectionForAI(at location: Int) {
         collapsedSelections.append(location)
     }
 

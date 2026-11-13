@@ -838,8 +838,10 @@ action does to the document. The two sections after it cover the text-view and o
 - **The selection after a review.** The reviewed passage stays selected in the editor under the
   overlay. Whenever `state` leaves `.reviewing` — Esc, the card's buttons, the last pill, a typed
   key, a tab swap's `endReview`, `abandon`, disconnect — its `didSet` calls
-  `collapseSelectionAfterAIReview(at: NSMaxRange(selectionRange))` (the session keeps that range
-  shifted by every accept). One choke point, so no exit can be missed. Without it the keystroke
+  `collapseSelectionForAI(at: caretEnd(of: selectionRange))` (the session keeps that range
+  shifted by every accept). `caretEnd` stops BEFORE trailing `\n` / `\r\n`: a triple-click selects
+  the line with its ending, and `NSMaxRange` put the typed key at the start of the next line. Mark
+  collapses the same way when its marks appear — a selection draws over the wash and hid it. One choke point, so no exit can be missed. Without it the keystroke
   that ended a review (or the next Delete, Tab, Space or dictation) replaced the whole passage.
   The overlay's ⌫ only ends the review and is not re-sent: re-sent, it would delete the passage's
   last character.
@@ -937,7 +939,11 @@ the app's one `AIConnectionStore.shared`).
   `insertText` instead dropped that first keystroke — a dead key or an input method never reaches
   `insertText` on its first press. Review keys go to `interpretKeyEvents` (a NON-editable
   `NSTextView` drops key events before key binding — verified), and are decided in `doCommand(by:)`.
-  `insertText → .typed` and `setMarkedText → .end` remain as fallbacks. Window-free tests cannot
+  `insertText → .typed` and `setMarkedText → .end` remain as fallbacks. The overlay also takes first
+  responder in `viewDidMoveToWindow`: the representable's next-turn grab could run before SwiftUI put
+  the view in a window, with no later update, so Return went to the read-only editor and did nothing
+  until another key caused an update (hand-tested). The first change is current from the moment the
+  session opens. Window-free tests cannot
   prove LineformTextView types from a re-sent event (its `keyDown` types nothing without a window);
   a plain text view stands in.
 - **Undo can't reach underneath.** The overlay's `undoManager` is an empty private one: ⌘Z during a

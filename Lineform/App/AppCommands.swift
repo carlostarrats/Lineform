@@ -88,6 +88,13 @@ enum AppMenuConfiguration {
     static let jumpToFileCommandKeyEquivalent = "k"
     static let closeTabCommandKeyEquivalent = "w"
     static let closeTabCommandModifiers: EventModifiers = .command
+
+    /// ⌘W is Close Tab, which only document windows answer. A utility window this app owns
+    /// (Connect Your AI) is closed as a window instead, or ⌘W does nothing there.
+    @MainActor
+    static func closeTabClosesWindowDirectly(_ controller: NSWindowController?) -> Bool {
+        controller is ConnectAIWindowController
+    }
     /// Format > Link's shortcut letter. Was "k" until quick-open claimed Cmd+K
     /// (2026-07-17 spec); the text view's right-click menu hint must stay in sync.
     static let linkCommandKeyEquivalent = "l"
@@ -790,7 +797,12 @@ struct AppCommands: Commands {
 
         CommandGroup(after: .saveItem) {
             Button(String(localized: "Close Tab")) {
-                LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
+                if let window = NSApp.keyWindow,
+                   AppMenuConfiguration.closeTabClosesWindowDirectly(window.windowController) {
+                    window.performClose(nil)
+                } else {
+                    LineformAppNotification.closeTab.post(object: LineformAppNotification.activeWindowPayload())
+                }
             }
             .keyboardShortcut(
                 KeyEquivalent(Character(AppMenuConfiguration.closeTabCommandKeyEquivalent)),

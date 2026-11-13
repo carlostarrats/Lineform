@@ -364,14 +364,33 @@ final class LineformTextViewAITests: XCTestCase {
         }
     }
 
+    /// Hand-test fix 3: a review started from a triple-click (the line WITH its line ending): the
+    /// key that ends it lands at the end of that line's text, never at the start of the next line.
+    func testTypedKeyAfterALineSelectionReviewLandsBeforeTheLineEnding() async {
+        for ending in ["\n", "\r\n"] {
+            let text = "The big dog ran far.\(ending)Next line."
+            let line = NSRange(location: 0, length: ("The big dog ran far." + ending as NSString).length)
+            let textView = makeTextView(text)
+            let controller = makeController(replacing: ["big": "large"])
+            controller.editor = textView
+            controller.run(.rewrite, range: line, text: text)
+            await controller.runTask?.value
+            guard case .reviewing = controller.state else { return XCTFail("expected a review") }
+            textView.isAIReviewActive = true
+            textView.setSelectedRange(line)
+            controller.handle(.typed("x"))
+            XCTAssertEqual(textView.string, "The big dog ran far.x\(ending)Next line.", ending.debugDescription)
+        }
+    }
+
     func testCollapseIsClampedAndStaysOnACharacterBoundary() {
         let textView = makeTextView("A👍🏽b")
         textView.setSelectedRange(NSRange(location: 0, length: 4))
-        textView.collapseSelectionAfterAIReview(at: 2)   // inside 👍🏽
+        textView.collapseSelectionForAI(at: 2)   // inside 👍🏽
         XCTAssertEqual(textView.selectedRange(), NSRange(location: 5, length: 0))
-        textView.collapseSelectionAfterAIReview(at: 99)
+        textView.collapseSelectionForAI(at: 99)
         XCTAssertEqual(textView.selectedRange(), NSRange(location: 6, length: 0))
-        textView.collapseSelectionAfterAIReview(at: -3)
+        textView.collapseSelectionForAI(at: -3)
         XCTAssertEqual(textView.selectedRange(), NSRange(location: 0, length: 0))
     }
 
