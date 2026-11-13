@@ -667,9 +667,12 @@ shows passages with history and steps their versions. Spec:
   that is already a passage adds nothing and returns that passage. 1.8.0 stored a frozen copy plus
   an identical live version, so the sidebar listed every added word twice ("gentle", "gentle").
   `addReplacement(_:to:in:)` appends the writer's own text, makes it current, and returns the
-  `HistoryEdit` that puts it in the document. The typed text is trimmed and given the live passage's
-  OWN leading/trailing whitespace, so an accepted "AI rewrite. " keeps the space before the next
-  sentence; it is nil when the trimmed text is empty or equals the trimmed current version. The
+  `HistoryEdit` that puts it in the document. The typed text is made single-line
+  (`singleLineReplacement`: line breaks, with the whitespace around them, collapse to one space) and
+  given the live passage's OWN leading/trailing whitespace, so an accepted "AI rewrite. " keeps the
+  space before the next sentence; it is nil when the text is empty or equals the trimmed current
+  version, and text equal (trimmed) to another existing version SELECTS that version instead of
+  appending a duplicate. The
   controller's `addReplacement(_:for:)` applies the edit through the same undo-disabled `didProduce`
   path as a step, so the session still collapses to one undo step on exit. Children stay with the
   version they were made in (hidden, as on a step), unlike `appendLive`, which only accepted AI
@@ -738,9 +741,12 @@ shows passages with history and steps their versions. Spec:
   the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
   inset (`HistorySidebarPresentation.textInset`).
 - **First AI accept introduces History, once ever.** `AIActionController.endReview` hands the first
-  passage it recorded to `introduceAfterAIAccept(_:)`, which fires `onRequestShowHistory` and sets
-  `Lineform.history.didIntroduceAfterAI`. The flag is only spent when someone is subscribed — the AI
-  test suites (no editor) never consume it, and never write to the test host's real defaults.
+  passage it recorded to `introduceAfterAIAccept(_:)`. When `Lineform.history.didIntroduceAfterAI`
+  is unset and someone is subscribed, it records the id as `pendingIntroID` and fires
+  `onRequestShowHistory`. The flag is spent only when `showPassage` then SUCCEEDS for that id (the
+  editor's handler runs a turn later) — with no subscriber, or a show that fails, the intro is still
+  owed. The AI test suites (no editor) never consume it, and never write to the test host's real
+  defaults.
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the
