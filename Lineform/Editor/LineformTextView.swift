@@ -856,7 +856,9 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.pasteTitle, action: #selector(paste(_:)), keyEquivalent: "v"))
         addHistoryItemIfAllowed(to: menu)
         addAIItemsIfAvailable(to: menu)
-        if contextMenuTextFormat == .markdown {
+        if LineformTextContextMenuPresentation.showsFormattingCommands(
+            for: contextMenuTextFormat, isHistoryModeActive: historyDisplay != nil
+        ) {
             menu.addItem(.separator())
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.titleTitle, action: #selector(toggleTitleMarkdown(_:)), keyEquivalent: "1"))
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.sectionTitle, action: #selector(toggleSectionMarkdown(_:)), keyEquivalent: "2"))
@@ -2143,27 +2145,33 @@ enum LineformTextContextMenuPresentation {
         }
     }
 
-    static func commandTitles(for textFormat: LineformTextFormat) -> [String] {
+    /// The formatting group (Title … Link). Markdown only, and never in History mode: there the
+    /// writer is stepping versions, not formatting, and a formatting command would leave History
+    /// mode by rewriting the text under the versions being reviewed.
+    static func showsFormattingCommands(for textFormat: LineformTextFormat, isHistoryModeActive: Bool) -> Bool {
+        textFormat == .markdown && !isHistoryModeActive
+    }
+
+    static let formattingCommandTitles = [
+        titleTitle,
+        sectionTitle,
+        boldTitle,
+        italicTitle,
+        codeTitle,
+        bulletedListTitle,
+        linkTitle
+    ]
+
+    static func commandTitles(for textFormat: LineformTextFormat, isHistoryModeActive: Bool = false) -> [String] {
         let rawTextCommands = [
             cutTitle,
             copyTitle,
             pasteTitle
         ]
-
-        switch textFormat {
-        case .markdown:
-            return rawTextCommands + [
-            titleTitle,
-            sectionTitle,
-            boldTitle,
-            italicTitle,
-            codeTitle,
-            bulletedListTitle,
-            linkTitle
-        ]
-        case .plainText:
+        guard showsFormattingCommands(for: textFormat, isHistoryModeActive: isHistoryModeActive) else {
             return rawTextCommands
         }
+        return rawTextCommands + formattingCommandTitles
     }
 
     static var commandTitles: [String] {

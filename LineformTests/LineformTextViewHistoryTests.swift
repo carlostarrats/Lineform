@@ -77,6 +77,44 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.addToHistoryTitle))
     }
 
+    /// In History mode the writer steps versions, not formatting: the menu is Cut / Copy / Paste
+    /// only — no formatting group, no Add to History (the selection is a caret there anyway).
+    func testHistoryModeContextMenuOmitsFormattingAndAddToHistory() throws {
+        defer { LineformTextFormatMenuState.shared.setTextFormat(.markdown) }
+        LineformTextFormatMenuState.shared.setTextFormat(.markdown)
+        let textView = makeTextView()
+        textView.historyCanAddHandler = { _ in true }
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 17))])
+
+        let titles = try XCTUnwrap(textView.menu(for: Self.contextMenuEvent())).items
+            .filter { !$0.isSeparatorItem }.map(\.title)
+
+        for title in LineformTextContextMenuPresentation.formattingCommandTitles {
+            XCTAssertFalse(titles.contains(title), title)
+        }
+        XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.addToHistoryTitle))
+        XCTAssertEqual(titles, LineformTextContextMenuPresentation.commandTitles(for: .markdown, isHistoryModeActive: true))
+        XCTAssertEqual(titles, [
+            LineformTextContextMenuPresentation.cutTitle,
+            LineformTextContextMenuPresentation.copyTitle,
+            LineformTextContextMenuPresentation.pasteTitle
+        ])
+    }
+
+    func testNormalModeContextMenuKeepsFormatting() throws {
+        defer { LineformTextFormatMenuState.shared.setTextFormat(.markdown) }
+        LineformTextFormatMenuState.shared.setTextFormat(.markdown)
+        let textView = makeTextView()
+        let titles = try XCTUnwrap(textView.menu(for: Self.contextMenuEvent())).items
+            .filter { !$0.isSeparatorItem }.map(\.title)
+        XCTAssertEqual(titles, LineformTextContextMenuPresentation.commandTitles(for: .markdown))
+        XCTAssertEqual(LineformTextContextMenuPresentation.commandTitles(for: .markdown),
+                       LineformTextContextMenuPresentation.commandTitles(for: .markdown, isHistoryModeActive: false))
+        for title in LineformTextContextMenuPresentation.formattingCommandTitles {
+            XCTAssertTrue(titles.contains(title), title)
+        }
+    }
+
     // MARK: - Keys
 
     func testArrowKeysStepVersionsInHistoryMode() {

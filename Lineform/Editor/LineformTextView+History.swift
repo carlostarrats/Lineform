@@ -610,9 +610,13 @@ extension LineformTextView {
     /// "Add to History" for a non-empty selection the controller accepts. `historyCanAddHandler`
     /// is an O(document) engine call, so it is asked HERE — when the menu is built — and never on
     /// selection change or per keystroke.
+    /// Never in History mode: there the selection is clamped to a caret
+    /// (`historyClampedSelection`), so there is no passage to add — the item is left out
+    /// explicitly rather than by that accident.
     func addHistoryItemIfAllowed(to menu: NSMenu) {
         let selection = selectedRange()
-        guard selection.length > 0, historyCanAddHandler?(selection) == true else { return }
+        guard historyDisplayStorage == nil, selection.length > 0,
+              historyCanAddHandler?(selection) == true else { return }
         menu.addItem(.separator())
         let item = NSMenuItem(
             title: LineformTextContextMenuPresentation.addToHistoryTitle,
