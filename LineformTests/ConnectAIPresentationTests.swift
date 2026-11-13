@@ -46,6 +46,14 @@ final class ConnectAIPresentationTests: XCTestCase {
             XCTAssertNotEqual(title, ConnectAIPresentation.windowTitle(bundle: .main), language)
             XCTAssertNotEqual(title, "Connect Your AI", language)
             XCTAssertNotEqual(privacy, "Lineform sends only the text you act on, only when you choose an AI action, directly to the provider you connected, under your account and that provider's terms. Lineform's developer receives nothing.", language)
+            for key in ["Connect — Lineform will send the text you choose to %@",
+                        "Connect — Lineform will send the text you choose to that address"] {
+                let consent = bundle.localizedString(forKey: key, value: nil, table: nil)
+                XCTAssertNotEqual(consent, key, "\(language): consent label untranslated")
+                if key.hasSuffix("%@") {
+                    XCTAssertTrue(consent.contains("%@"), "\(language): \"\(consent)\" lost the recipient")
+                }
+            }
             for provider in AIProvider.allCases {
                 XCTAssertNotEqual(ConnectAIPresentation.billingNote(for: provider, bundle: bundle),
                                   ConnectAIPresentation.billingNote(for: provider), "\(language) \(provider)")
@@ -124,5 +132,18 @@ final class ConnectAIPresentationTests: XCTestCase {
         XCTAssertNil(store.connectOther(address: "http://127.0.0.1:8080", key: nil, model: nil))
         XCTAssertFalse(store.connectedKeyIsMissing(), "Other's key is optional")
         XCTAssertEqual(keychain.readCount, 0)
+    }
+
+    /// Return in a field is the Connect gesture; it must never close the window and drop the
+    /// pasted key. Done is not the default button; Esc and ⌘W close.
+    func testReturnInAFieldSubmitsConnectAndNeverCloses() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appending(path: "Lineform/AI/ConnectAIView.swift"), encoding: .utf8)
+        XCTAssertFalse(source.contains(".defaultAction"), "no default button: Return would close the window")
+        XCTAssertTrue(source.contains(".keyboardShortcut(.cancelAction)"), "Esc closes via Done")
+        let fields = source.matches(of: /(Secure|Text)Field\(/).count
+        XCTAssertEqual(fields, 4, "field count changed; update this test")
+        XCTAssertEqual(source.components(separatedBy: ".onSubmit(connect)").count - 1, fields,
+                       "every field submits Connect on Return")
     }
 }

@@ -73,8 +73,10 @@ struct ConnectAIView: View {
 
             HStack {
                 Spacer()
+                // Not the default button: Return belongs to the fields, where it submits
+                // Connect. Esc closes, like ⌘W.
                 Button(ConnectAIPresentation.doneTitle, action: onDone)
-                    .keyboardShortcut(.defaultAction)
+                    .keyboardShortcut(.cancelAction)
                     .accessibilityIdentifier("connectAI.done")
             }
             .padding(.horizontal, 24)
@@ -175,14 +177,17 @@ struct ConnectAIView: View {
                 TextField(ConnectAIPresentation.addressLabel, text: $address,
                           prompt: Text(verbatim: "http://localhost:11434/v1"))
                     .accessibilityIdentifier("connectAI.address")
+                    .onSubmit(connect)
             }
             labeledField(ConnectAIPresentation.optionalKeyLabel) {
                 SecureField(ConnectAIPresentation.optionalKeyLabel, text: $key)
                     .accessibilityIdentifier("connectAI.key")
+                    .onSubmit(connect)
             }
             labeledField(ConnectAIPresentation.optionalModelLabel) {
                 TextField(ConnectAIPresentation.optionalModelLabel, text: $model)
                     .accessibilityIdentifier("connectAI.model")
+                    .onSubmit(connect)
             }
         } else {
             if let url = selection.createKeyURL {
@@ -192,6 +197,7 @@ struct ConnectAIView: View {
             labeledField(ConnectAIPresentation.keyLabel) {
                 SecureField(ConnectAIPresentation.keyLabel, text: $key)
                     .accessibilityIdentifier("connectAI.key")
+                    .onSubmit(connect)
             }
         }
     }
