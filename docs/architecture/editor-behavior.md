@@ -795,7 +795,9 @@ shows passages with history and steps their versions. Spec:
   a group (an undo manager with `groupsByEvent` off) they raise. An edit that would split a
   composed character or touch a line ending / BOM is skipped, never widened.
 - **Read-only review.** While `isAIReviewActive`, `shouldChangeText` refuses every edit except the
-  review's own (`performAIEdit`). A backstop: the review overlay holds focus.
+  review's own (`performAIEdit`) and History's (`performHistoryEdit`). A backstop: the review overlay
+  holds focus. `insertTypedText` clears the flag itself before typing — the controller ends the
+  review synchronously, before SwiftUI pushes the new state, so the ending keystroke is not refused.
 - **Keys.** Esc (`cancelOperation:` in `doCommand(by:)`, after History's handling) cancels a
   running request, else dismisses marks; otherwise it is not taken.
 - **Marks** are layout-manager TEMPORARY `.backgroundColor` in `HistoryPalette.tint` — the text

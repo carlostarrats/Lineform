@@ -39,7 +39,12 @@ extension LineformTextView: AIEditorSurface {
     }
 
     /// Typing during a review ends it (the controller) and then types here, at the selection.
+    /// The controller calls this right after ending the review, before SwiftUI pushes its new
+    /// state, so the review flag is cleared HERE — otherwise the read-only backstop in
+    /// `shouldChangeText` would refuse, and drop, the very keystroke that ended the review.
     func insertTypedText(_ text: String) {
+        isAIReviewActive = false
+        isAIRequestRunning = false
         window?.makeFirstResponder(self)
         insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
     }
@@ -105,7 +110,9 @@ extension LineformTextView {
     /// (a backstop — the review overlay holds focus). A real edit while marks are shown dismisses
     /// them and proceeds.
     func refusesEditForAI(replacement: String?) -> Bool {
-        guard !isApplyingAIEdit else { return false }
+        // History's own edits pass too: History mode and a review cannot overlap (AI is
+        // unavailable in History mode), but the backstop must never block History's restore.
+        guard !isApplyingAIEdit, !isApplyingHistoryEdit else { return false }
         if isAIReviewActive { return true }
         if replacement != nil, !aiMarkRangesStorage.isEmpty {
             aiCommandHandler?(.dismissMarks)

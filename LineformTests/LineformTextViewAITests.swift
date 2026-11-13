@@ -310,6 +310,32 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(textView.aiMarkRanges, [])
     }
 
+    /// Review fix: the keystroke that ends a review must be typed, not refused by the read-only
+    /// backstop — SwiftUI has not yet pushed the controller's new state when it arrives.
+    func testTypingDuringReviewEndsReviewAndTypes() async {
+        let text = "The big dog ran far away from home."
+        let textView = makeTextView(text)
+        let controller = makeController(replacing: ["big": "large"])
+        controller.editor = textView
+        controller.run(.rewrite, range: NSRange(location: 0, length: (text as NSString).length), text: text)
+        await controller.runTask?.value
+        guard case .reviewing = controller.state else { return XCTFail("expected a review") }
+        textView.isAIReviewActive = true   // what the representable pushed for `.reviewing`
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+
+        controller.handle(.typed("x"))
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertFalse(textView.isAIReviewActive)
+        XCTAssertEqual(textView.string, "x" + text)
+    }
+
+    func testHistoryEditsPassTheReviewBackstop() {
+        let textView = makeTextView()
+        textView.isAIReviewActive = true
+        textView.applyHistoryEdit(HistoryEdit(range: NSRange(location: 0, length: 5), replacement: "Omega"))
+        XCTAssertEqual(textView.string, "Omega beta gamma. Delta epsilon.")
+    }
+
     func testInsertTypedTextTypesAtTheSelection() {
         let textView = makeTextView()
         textView.setSelectedRange(NSRange(location: 5, length: 0))
