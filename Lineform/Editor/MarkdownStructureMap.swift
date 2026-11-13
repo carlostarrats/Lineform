@@ -85,9 +85,15 @@ enum MarkdownStructureMap {
     /// boundaries, clipped to those lines (terminators included). Identical to the whole-document
     /// result intersected with those lines.
     static func structureRanges(in text: NSString, scope: NSRange) -> [NSRange] {
+        structureRanges(in: text, scope: scope, referenceLabels: nil)
+    }
+
+    /// `referenceLabels` overrides the labels defined in `text` — the guard analyses a block
+    /// window but must judge `[label]` by the DOCUMENT's definitions, exactly as `verify` does.
+    static func structureRanges(in text: NSString, scope: NSRange, referenceLabels: Set<String>?) -> [NSRange] {
         let model = SourceModel(text)
         guard let span = model.lineSpan(touching: scope), span.length > 0 else { return [] }
-        return wholeDocumentStructure(model)
+        return wholeDocumentStructure(model, labels: referenceLabels ?? definedReferenceLabels(model))
             .map { NSIntersectionRange($0, span) }
             .filter { $0.length > 0 }
     }
@@ -116,7 +122,48 @@ enum MarkdownStructureMap {
     /// The structure substrings of the lines touching `scope`, in order. Two texts with the same
     /// signature carry byte-identical structure.
     static func signature(of text: NSString, scope: NSRange) -> [String] {
-        structureRanges(in: text, scope: scope).map { text.substring(with: $0) }
+        signature(of: text, scope: scope, referenceLabels: nil)
+    }
+
+    static func signature(of text: NSString, scope: NSRange, referenceLabels: Set<String>?) -> [String] {
+        structureRanges(in: text, scope: scope, referenceLabels: referenceLabels).map { text.substring(with: $0) }
+            + emphasisPairing(in: text, scope: scope)
+    }
+
+    /// Which `*`/`_`/`~` delimiters pair with which, by ordinal among those characters.
+    ///
+    /// Every such character is structure, so the substrings alone cannot see a prose edit that
+    /// re-pairs them — and pairing depends on the prose beside a delimiter (`a_b_c` is not
+    /// emphasis, `a+_b_,` is; `_x_,` is, `_x_1` is not). Since the characters themselves can
+    /// never move, their ordinals are stable, and a change in who pairs with whom is a change in
+    /// structure.
+    private static func emphasisPairing(in text: NSString, scope: NSRange) -> [String] {
+        let model = SourceModel(text)
+        guard let span = model.lineSpan(touching: scope), span.length > 0 else { return [] }
+        let first = model.lineIndex(containing: span.location)
+        let last = model.lineIndex(containing: max(span.location, NSMaxRange(span) - 1))
+        let patterns = [MarkdownInlineSyntax.bold, MarkdownInlineSyntax.italic, MarkdownInlineSyntax.italicAsterisk, MarkdownInlineSyntax.strikethrough, singleTilde]
+        var entries: [String] = []
+        var ordinal = 0
+        for index in first...last {
+            let line = model.lines[index]
+            let ns = line as NSString
+            // Ordinal of each delimiter character on this line, counted from the span's start.
+            var ordinals = [Int](repeating: 0, count: ns.length + 1)
+            for position in 0..<ns.length {
+                ordinals[position] = ordinal
+                if delimiterRunCharacters.contains(ns.character(at: position)) { ordinal += 1 }
+            }
+            ordinals[ns.length] = ordinal
+            for (kind, regex) in patterns.enumerated() {
+                for match in regex.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
+                    let inner = match.range(at: 1)
+                    guard inner.location != NSNotFound else { continue }
+                    entries.append("\u{1}\(kind):\(ordinals[match.range.location]):\(ordinals[NSMaxRange(inner)])")
+                }
+            }
+        }
+        return entries
     }
 
     // MARK: - Shared with the guard
@@ -222,7 +269,7 @@ enum MarkdownStructureMap {
 
     // MARK: - The composition
 
-    private static func wholeDocumentStructure(_ model: SourceModel) -> [NSRange] {
+    private static func wholeDocumentStructure(_ model: SourceModel, labels: Set<String>) -> [NSRange] {
         let text = model.text
         let full = NSRange(location: 0, length: text.length)
         guard full.length > 0 else { return [] }
@@ -238,7 +285,6 @@ enum MarkdownStructureMap {
             .map(\.range)
 
         // 3, 4, 6. Line-local rules. Reference labels are only structure when defined.
-        let labels = definedReferenceLabels(model)
         var codeLike: [NSRange] = []
         for index in model.lines.indices {
             let inline = inlineStructure(line: model.lines[index], offset: model.content[index].location, labels: labels)
@@ -315,7 +361,7 @@ enum MarkdownStructureMap {
         label.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").lowercased()
     }
 
-    private static func definedReferenceLabels(_ model: SourceModel) -> Set<String> {
+    static func definedReferenceLabels(_ model: SourceModel) -> Set<String> {
         var labels: Set<String> = []
         for line in model.lines {
             let ns = line as NSString
@@ -522,9 +568,16 @@ enum MarkdownStructureMap {
 
         // Control characters and in-line separators (a lone `\r`, U+2028 from InDesign, a tab):
         // the guard refuses any revision carrying one, so they must never be inside a segment.
+        //
+        // And EVERY `*`, `_`, `~`, paired or not (ruling, review round 2). Pairing them here the
+        // way the renderer does would be a fifth implementation of emphasis; running each
+        // pattern independently mispaired `**a**x*b* c` (the bold's closer read as the italic's
+        // opener), leaving the italic's real closer in prose where moving it was admitted.
+        // Prose almost never needs these changed; `2 * 3` and `snake_case` stay as written.
         for location in start..<end {
             let unit = text.character(at: location)
-            if unit < 0x20 || (unit >= 0x7F && unit <= 0x9F) || unit == 0x2028 || unit == 0x2029 {
+            if unit < 0x20 || (unit >= 0x7F && unit <= 0x9F) || unit == 0x2028 || unit == 0x2029
+                || delimiterRunCharacters.contains(unit) {
                 ranges.append(NSRange(location: location, length: 1))
             }
         }
@@ -726,6 +779,7 @@ enum MarkdownStructureGuard {
         guard ns.length > 0 else { return result }
         let model = MarkdownStructureMap.SourceModel(ns)
         let protected = MarkdownWritingToolsProtection.protectedRanges(in: ns, intersecting: NSRange(location: 0, length: ns.length))
+        let labels = MarkdownStructureMap.definedReferenceLabels(model)
         var blocks: [Int: BlockState] = [:]
 
         let order = segments.indices.sorted { segments[$0].range.location < segments[$1].range.location }
@@ -741,7 +795,7 @@ enum MarkdownStructureGuard {
             var last = line
             while last + 1 < model.lines.count, !model.isBlank(last + 1) { last += 1 }
 
-            var state = blocks[first] ?? BlockState(model: model, protected: protected, firstLine: first, lastLine: last)
+            var state = blocks[first] ?? BlockState(model: model, protected: protected, labels: labels, firstLine: first, lastLine: last)
             guard !state.edits.contains(where: { NSIntersectionRange($0.range, segment.range).length > 0 || $0.range.location == segment.range.location }) else {
                 continue
             }
@@ -776,7 +830,7 @@ enum MarkdownStructureGuard {
     /// structure CONTENT, not position, so `**very**` revised to `*very*` re-paired as
     /// `***very***` with an identical-looking structure list, and `a` → `a*` beside `*b*`
     /// re-paired the italic.
-    static let markdownPunctuation: Set<Unicode.Scalar> = ["*", "_", "~", "`", "|", "[", "]", "<", ">", "#", "$", "\\"]
+    static let markdownPunctuation: Set<Unicode.Scalar> = ["*", "_", "~", "`", "|", "[", "]", "<", ">", "#", "$", "\\", "^"]
 
     private static func punctuationSequence(_ text: String) -> [Unicode.Scalar] {
         text.unicodeScalars.filter { markdownPunctuation.contains($0) }
@@ -815,7 +869,10 @@ enum MarkdownStructureGuard {
         let originalSignature: [String]
         var edits: [(range: NSRange, text: String)] = []
 
-        init(model: MarkdownStructureMap.SourceModel, protected: [NSRange], firstLine: Int, lastLine: Int) {
+        let labels: Set<String>
+
+        init(model: MarkdownStructureMap.SourceModel, protected: [NSRange], labels: Set<String>, firstLine: Int, lastLine: Int) {
+            self.labels = labels
             let blockStart = model.raw[firstLine].location
             var start = blockStart
             var moved = true
@@ -832,7 +889,7 @@ enum MarkdownStructureGuard {
             windowStart = start
             prefix = start > 0 ? "\n" : ""
             window = model.text.substring(with: NSRange(location: start, length: end - start))
-            originalSignature = Self.signature(of: prefix + window)
+            originalSignature = Self.signature(of: prefix + window, labels: labels)
         }
 
         func signature(applying edits: [(range: NSRange, text: String)]) -> [String] {
@@ -843,12 +900,12 @@ enum MarkdownStructureGuard {
                     with: edit.text
                 )
             }
-            return Self.signature(of: prefix + (mutable as String))
+            return Self.signature(of: prefix + (mutable as String), labels: labels)
         }
 
-        private static func signature(of text: String) -> [String] {
+        private static func signature(of text: String, labels: Set<String>) -> [String] {
             let ns = text as NSString
-            return MarkdownStructureMap.signature(of: ns, scope: NSRange(location: 0, length: ns.length))
+            return MarkdownStructureMap.signature(of: ns, scope: NSRange(location: 0, length: ns.length), referenceLabels: labels)
         }
     }
 }

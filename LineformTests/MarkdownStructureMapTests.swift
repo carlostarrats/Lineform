@@ -78,8 +78,8 @@ final class MarkdownStructureMapTests: XCTestCase {
     func testEmphasisDelimitersAreStructure() {
         XCTAssertEqual(texts("This is **very** good"), ["This is", "very", "good"])
         XCTAssertEqual(texts("an *em* and _it_ and ~~gone~~"), ["an", "em", "and", "it", "and", "gone"])
-        // snake_case and arithmetic are prose, not emphasis.
-        XCTAssertEqual(texts("make_test_file 2 * 3 * 4"), ["make_test_file 2 * 3 * 4"])
+        // Every `*`, `_`, `~` is structure, paired or not: snake_case and arithmetic stay as written.
+        XCTAssertEqual(texts("make_test_file 2 * 3 * 4"), ["make", "test", "file 2", "3", "4"])
     }
 
     func testLinkTextIsProseDestinationIsNot() {
@@ -396,10 +396,8 @@ final class MarkdownStructureMapTests: XCTestCase {
         // A triple run is never split into a lone prose `*`.
         XCTAssertEqual(texts("***bold italic*** end"), ["bold italic", "end"])
         XCTAssertEqual(texts("x ~~~y~~~ z *a*** b"), ["x", "y", "z", "a", "b"])
-        // `___x___` is not emphasis to Lineform (no `__bold__`, no intraword `_`): it renders
-        // literally, so it is prose — and the punctuation rule still keeps every `_` in place.
-        XCTAssertEqual(texts("___x___ and"), ["___x___ and"])
-        XCTAssertEqual(admit("x and", replacing: "___x___ and", in: "___x___ and"), .some(nil))
+        // `___x___` is not emphasis to Lineform, but every `_` is structure anyway.
+        XCTAssertEqual(texts("___x___ and"), ["x", "and"])
         // Prose punctuation must survive in order, but prose around it may change.
         XCTAssertEqual(admit("It is #1 and $5", replacing: "It was #1 and $5", in: "It was #1 and $5\n"), "It is #1 and $5")
         XCTAssertEqual(admit("It was 1 and $5", replacing: "It was #1 and $5", in: "It was #1 and $5\n"), .some(nil))
@@ -437,6 +435,69 @@ final class MarkdownStructureMapTests: XCTestCase {
         XCTAssertEqual(texts("Mail <me@mail.com> or me@mail.com now"), ["Mail", "or", "now"])
         XCTAssertEqual(texts("See https://e.org/a?b=c. And www.x.org, ok"), ["See", ". And", ", ok"])
         XCTAssertEqual(texts("(see https://e.org/a)"), ["(see", ")"])
+    }
+
+    // MARK: - Review round 2
+
+    func testMispairedEmphasisClosersCannotMove() {
+        // Independent patterns paired the bold's closing `*` with the italic's opener.
+        for text in ["**a**x*b* c", "**a**;*b*c d"] {
+            for segment in segments(text) {
+                XCTAssertFalse(segment.text.contains("*"), "\(text): \(segment.text)")
+            }
+        }
+        XCTAssertEqual(texts("**a**x*b* c"), ["a", "x", "b", "c"])
+        XCTAssertEqual(admit("b *c", replacing: "c", in: "**a**x*b* c"), .some(nil))
+        XCTAssertEqual(admit("*c d", replacing: "c d", in: "**a**;*b*c d"), .some(nil))
+        let text = "**a**x*b* c"
+        let all = segments(text)
+        let admitted = MarkdownStructureGuard.admissibleRevisions(all.map { $0.text + "*" }, for: all, in: text)
+        XCTAssertEqual(admitted, all.map { _ in nil })
+    }
+
+    func testNoEmphasisCharacterIsEverInsideAProseSegment() {
+        let text = "Compute 2 * 3 and a*b, call make_test_file, ~approx~ 5, x ~ y, **b** _i_ ~~s~~ snake_case_name\n- * nested *star*\n"
+        for segment in segments(text) {
+            XCTAssertNil(segment.text.rangeOfCharacter(from: CharacterSet(charactersIn: "*_~")), segment.text)
+        }
+        XCTAssertEqual(texts("2 * 3 = 6"), ["2", "3 = 6"])
+    }
+
+    func testProseBesideADelimiterCannotRePairEmphasis() {
+        // `a_b_c` is not emphasis; dropping the `c` would make `_b_` italic.
+        let intraword = "Say a_b_c, ok"
+        XCTAssertEqual(texts(intraword), ["Say a", "b", "c, ok"])
+        let all = segments(intraword)
+        let joint = MarkdownStructureGuard.admissibleRevisions(["Say a+", "b", ", ok"], for: all, in: intraword)
+        XCTAssertEqual(joint, ["Say a+", "b", nil])
+        XCTAssertFalse(MarkdownStructureGuard.verify(original: intraword, revised: "Say a+_b_, ok"))
+        // `_naive beta_,` is italic; a digit after the closer would end it.
+        let italic = "1. _naive beta_, then"
+        XCTAssertEqual(admit("1., then", replacing: ", then", in: italic), .some(nil))
+        // Inner spacing that keeps the pair is fine.
+        XCTAssertEqual(admit("3 c", replacing: "3c", in: "2 *3c* d"), "3 c")
+        // A letter-for-letter edit beside a delimiter is still fine.
+        XCTAssertEqual(admit("Say e", replacing: "Say a", in: intraword), "Say e")
+    }
+
+    func testCaretCannotTurnLinkTextIntoAFootnote() {
+        let text = "See [word delta][ref] now\n\n[ref]: https://r.org"
+        XCTAssertEqual(admit("^word delta", replacing: "word delta", in: text), .some(nil))
+    }
+
+    func testGuardJudgesReferenceLabelsByTheWholeDocument() {
+        // The label is defined in another block; the guard's window must still know it.
+        let text = "1. 2 * 3 [undef] tail\r\n\r\n[ref]: https://r.org \"T\""
+        let all = segments(text)
+        let target = all.first { $0.text.contains("[undef]") }
+        XCTAssertNotNil(target)
+        if let target {
+            let result = MarkdownStructureGuard.admissibleRevisions(["*:[ref]@"], for: [target], in: text)
+            XCTAssertEqual(result, [nil])
+        }
+        // Even with the punctuation check out of the way, a defined label is structure in the window.
+        let defined = "Use [docs] here\n\n[docs]: https://d.org"
+        XCTAssertEqual(texts(defined), ["Use", "here"])
     }
 
     func testFormatCharactersAreNeverIntroduced() {
