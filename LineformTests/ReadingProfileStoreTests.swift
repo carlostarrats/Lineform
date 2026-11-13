@@ -33,6 +33,63 @@ final class ReadingProfileStoreTests: XCTestCase {
         XCTAssertEqual(store.activeProfile.columnWidth, 820)
     }
 
+    func testEditsSurviveSwitchingPresetsAndBack() {
+        let store = ReadingProfileStore(defaults: TestDefaults.makeSuite("LineformPresetEditsSurvive"))
+        store.applyPreset(.original)
+        store.update { $0.fontSize = 22 }
+
+        store.applyPreset(.quiet)
+        store.applyPreset(.original)
+
+        XCTAssertEqual(store.activeProfile.fontSize, 22)
+        XCTAssertEqual(store.activePresetID, ReadingPreset.original.id)
+    }
+
+    func testResetRestoresOnlyTheCurrentPreset() {
+        let store = ReadingProfileStore(defaults: TestDefaults.makeSuite("LineformPresetResetCurrent"))
+        store.applyPreset(.original)
+        store.update { $0.fontSize = 22 }
+        store.applyPreset(.quiet)
+        store.update { $0.fontSize = 30 }
+
+        store.resetCurrentPreset()
+
+        XCTAssertEqual(store.activeProfile, ReadingPreset.quiet.profile)
+        store.applyPreset(.original)
+        XCTAssertEqual(store.activeProfile.fontSize, 22)
+        store.applyPreset(.quiet)
+        XCTAssertEqual(store.activeProfile, ReadingPreset.quiet.profile)
+    }
+
+    func testOverridesPersistAcrossStores() {
+        let defaults = TestDefaults.makeSuite("LineformPresetOverridesPersist")
+        let store = ReadingProfileStore(defaults: defaults)
+        store.applyPreset(.paper)
+        store.update { $0.fontSize = 25 }
+        store.applyPreset(.quiet)
+
+        let restored = ReadingProfileStore(defaults: defaults)
+
+        XCTAssertEqual(restored.activePresetID, ReadingPreset.quiet.id)
+        restored.applyPreset(.paper)
+        XCTAssertEqual(restored.activeProfile.fontSize, 25)
+    }
+
+    func testLegacyProfileMigratesIntoMatchingPresetSlot() throws {
+        let defaults = TestDefaults.makeSuite("LineformPresetLegacyMigration")
+        var legacy = ReadingProfile.original
+        legacy.fontSize = 22
+        defaults.set(try JSONEncoder().encode(legacy), forKey: "Lineform.activeReadingProfile")
+
+        let store = ReadingProfileStore(defaults: defaults)
+
+        XCTAssertEqual(store.activePresetID, ReadingPreset.original.id)
+        XCTAssertEqual(store.activeProfile.fontSize, 22)
+        store.applyPreset(.quiet)
+        store.applyPreset(.original)
+        XCTAssertEqual(store.activeProfile.fontSize, 22)
+    }
+
     func testResetRestoresDefaultNormalReadingProfile() {
         let defaults = TestDefaults.makeSuite("LineformReadingProfileStoreResetTests")
         let store = ReadingProfileStore(defaults: defaults)

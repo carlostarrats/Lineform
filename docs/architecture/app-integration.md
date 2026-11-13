@@ -541,3 +541,14 @@ as ISO 15924 subtags — they are compared against BCP-47 tags, never displayed.
 - `LineformAppIntents.noteTitle(from:)` rejects only characters that cannot appear in filenames
   and preserves non-ASCII scripts. An ASCII allowlist collapses many languages to “New Note” and
   creates filename collisions.
+
+## Reading presets keep their own edits
+
+`ReadingProfileStore` holds one `activePresetID` (`Lineform.activeReadingPresetID`) and a per-preset
+override map (`Lineform.readingPresetOverrides`, JSON `[uuidString: ReadingProfile]`). `update(_:)` writes
+the edited profile into the active preset's slot; `applyPreset` loads the override if present, else the
+pristine preset. "Reset to Default" calls `resetCurrentPreset()`, which clears only the active preset's
+override (no active preset → `resetToDefault()`). The legacy `Lineform.activeReadingProfile` key is still
+written, and on first launch of this scheme it is filed into its matching preset's slot (by profile id,
+falling back to `matchingPresetID`). Overrides store the user's real profile; Automatic Dark Mode still
+derives its display profile on top of it. Card selection follows `activePresetID`, not profile equality.

@@ -8017,36 +8017,36 @@
         }
       }
     },
-    "Reset all to default": {
+    "Reset to Default": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle auf Standard zurücksetzen"
+            "value": "Auf Standard zurücksetzen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restablecer todo"
+            "value": "Restablecer a valores predeterminados"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout réinitialiser"
+            "value": "Rétablir les valeurs par défaut"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべてをデフォルトに戻す"
+            "value": "デフォルトに戻す"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部恢复默认"
+            "value": "恢复默认"
           }
         }
       }
