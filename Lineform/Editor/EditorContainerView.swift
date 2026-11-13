@@ -75,6 +75,10 @@ struct EditorContainerView: View {
     /// swap (`registerReloadWatcher`), closed in `resetTransientDocumentState`. Nothing touches
     /// the store until a document is opened — never at launch.
     @StateObject private var historyController = DocumentHistoryController(store: DocumentHistoryController.sharedStore)
+    /// AI actions and their review for the document on screen — one per editor. The connection
+    /// store is the app's one connection; building this reads UserDefaults only (no Keychain, no
+    /// network — those happen only when the writer chooses an action).
+    @StateObject private var aiController = AIActionController(connectionStore: .shared)
     @StateObject private var speechController = SpeechController()
     @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
@@ -398,6 +402,9 @@ struct EditorContainerView: View {
             convertDocumentTextFormat(to: format, selectedRange: notificationPayloadSelectedRange(notification))
         }
         .onChange(of: displayMode) { _, mode in
+            // AI actions, review and Mark live in Write; Read or Split ends them (undecided
+            // changes rejected, i.e. the text left as it is).
+            if mode != .write { endAIForDocumentChange() }
             // History mode lives in Write; Read or Split leaves it.
             historyController.displayModeDidChange(to: mode)
             LineformDisplayModeMenuState.shared.setDisplayMode(mode)
@@ -498,6 +505,7 @@ struct EditorContainerView: View {
             isKeyWindow: { activeWindow?.isKeyWindow == true },
             toggleHistory: toggleHistoryFromMenu
         ))
+        .modifier(AIActionModeHandlers(aiController: aiController, displayMode: $displayMode))
         .onChange(of: tabStore.selectedTabID) { _, newID in
             guard newID != nil else { return }
             activateSelectedTab()
@@ -561,6 +569,8 @@ struct EditorContainerView: View {
             }
             // Audio must never outlive the window it was started from.
             speechController.stop()
+            // Nor a request or a review (its accepted changes are kept and recorded).
+            endAIForDocumentChange()
             guard closingWindow.isKeyWindow || LineformCurrentFileMenuState.shared.currentFileURL == currentFileURL else {
                 return
             }
@@ -975,7 +985,10 @@ struct EditorContainerView: View {
                     // than a laid-out row, so the top edge of the shell — what the
                     // translucent toolbar samples — is unchanged whether it is up or not.
                     .overlay(alignment: .bottomTrailing) {
-                        if defaultMarkdownApp.isPromptVisible {
+                        // One bottom card at a time: the AI's card, while up, hides these.
+                        if showsAICard {
+                            EmptyView()
+                        } else if defaultMarkdownApp.isPromptVisible {
                             DefaultMarkdownAppCard(
                                 status: defaultMarkdownApp.status,
                                 usesDarkChrome: currentTheme.usesDarkChrome,
@@ -1006,6 +1019,12 @@ struct EditorContainerView: View {
                                     : .opacity.combined(with: .offset(y: 8))
                             )
                         }
+                    }
+                    // The AI's progress, message, Mark and review cards float at the bottom of
+                    // the CONTENT — never a laid-out bar, never at the top (the toolbar samples
+                    // the top edge).
+                    .overlay(alignment: .bottom) {
+                        aiCard
                     }
 
                 if EditorStatusBar.isVisible(in: displayMode) {
@@ -1095,6 +1114,7 @@ struct EditorContainerView: View {
     /// out from under the render) yields nil and is ignored.
     private func toggleCheckbox(at range: NSRange) {
         guard let newText = CheckboxToggle.toggledText(in: document.text, at: range) else { return }
+        aiController.abandon()
         document.text = newText
         // Written through the binding, not the text view: History re-finds its passages.
         historyController.noteWholeTextReplacement()
@@ -1116,6 +1136,7 @@ struct EditorContainerView: View {
         let dir = currentFileURL?.deletingLastPathComponent()
         let newPath = ImageLinkRewrite.linkPath(for: picked, documentDirectory: dir)
         guard let newText = ImageLinkRewrite.rewritten(in: document.text, at: range, newPath: newPath) else { return }
+        aiController.abandon()
         document.text = newText
         historyController.noteWholeTextReplacement()
     }
@@ -1358,8 +1379,12 @@ struct EditorContainerView: View {
             },
             onVisibleTopRangeChanged: onVisibleTopRangeChanged,
             splitScrollSynchronizer: splitScrollSynchronizer,
-            historyController: historyController
+            historyController: historyController,
+            aiController: aiController
         )
+        // The review overlay lies exactly over the editor (Write only). It is a sibling layer,
+        // not a modifier on the text view's accessibility: the editor stays a plain text area.
+        .overlay { aiReviewSurface }
         // No SwiftUI accessibility modifiers here, deliberately. `LineformTextView` sets its own
         // label, role, and help through AppKit, and it is a real `NSTextView`: VoiceOver reads it
         // by character, word, and line, and tracks the caret, because the system text-area
@@ -2252,6 +2277,9 @@ struct EditorContainerView: View {
             reloadController.clearLastReload()
             return
         }
+        // Reload wins over AI too: a request is cancelled and a review or marks leave, with
+        // nothing applied and nothing recorded.
+        aiController.abandon()
         // No selection request is pending in the common case, so the text replacement takes
         // MarkdownTextViewRepresentable's scroll-preserving branch (requestedSelection == nil).
         // A pending outline/search jump is deliberately left alone — the user's navigation wins.
@@ -2404,6 +2432,93 @@ struct EditorContainerView: View {
         )
     }
 
+    // MARK: - AI
+
+    /// Ends whatever AI work is up for the document on screen: a review ends (undecided changes
+    /// rejected; accepted ones stay and are recorded in History), then a request is cancelled and
+    /// marks or a message are dropped.
+    private func endAIForDocumentChange() {
+        aiController.endReview()
+        aiController.abandon()
+    }
+
+    /// The review overlay, while a review is up and the editor is in Write.
+    @ViewBuilder
+    private var aiReviewSurface: some View {
+        if displayMode == .write, case .reviewing(let session) = aiController.state {
+            AIReviewSurfaceRepresentable(
+                composition: AIReviewComposition.build(text: aiController.editor?.string ?? document.text, session: session),
+                currentID: session.currentID,
+                hasDecided: session.hasDecided,
+                profile: displayProfile,
+                editor: aiController.editor as? NSTextView,
+                onCommand: { command in aiController.handle(command) }
+            )
+        }
+    }
+
+    /// Whether an AI card is up (it hides the announcement and default-app cards meanwhile).
+    private var showsAICard: Bool {
+        switch aiController.state {
+        case .idle:
+            return false
+        case .reviewing(let session):
+            return session.changes.count > 1 || aiController.reviewNotice != nil
+        case .running, .marking, .message:
+            return true
+        }
+    }
+
+    /// The AI's one floating card: progress (Esc cancels), a message, Mark's count (Esc clears),
+    /// or the review's position and batch buttons — with a refused decision's notice on it.
+    @ViewBuilder
+    private var aiCard: some View {
+        let usesDarkChrome = currentTheme.usesDarkChrome
+        Group {
+            switch aiController.state {
+            case .idle:
+                EmptyView()
+            case let .running(action, provider):
+                AIStatusCard(
+                    text: AIReviewCardPresentation.progressText(for: action, provider: provider),
+                    hint: AIReviewCardPresentation.cancelHint,
+                    showsProgress: true,
+                    usesDarkChrome: usesDarkChrome,
+                    onClose: { aiController.cancel() }
+                )
+            case .message(let message):
+                AIStatusCard(text: message, hint: nil, showsProgress: false, usesDarkChrome: usesDarkChrome,
+                             onClose: { aiController.dismissMessage() })
+                    .task(id: message) {
+                        // A message steps aside on its own; it was also spoken when it arrived.
+                        guard (try? await Task.sleep(for: .seconds(8))) != nil else { return }
+                        aiController.dismissMessage()
+                    }
+            case .marking(let ranges):
+                AIStatusCard(text: AIActionController.markedMessage(ranges.count),
+                             hint: AIReviewCardPresentation.markHint, showsProgress: false,
+                             usesDarkChrome: usesDarkChrome, onClose: { aiController.dismissMarks() })
+            case .reviewing(let session):
+                if session.changes.count > 1 {
+                    AIReviewCard(
+                        position: session.position.current,
+                        total: session.position.total,
+                        hasDecided: session.hasDecided,
+                        notice: aiController.reviewNotice,
+                        usesDarkChrome: usesDarkChrome,
+                        onAcceptRemaining: { aiController.handle(.acceptRemaining) },
+                        onRejectRemaining: { aiController.handle(.rejectRemaining) }
+                    )
+                } else if let notice = aiController.reviewNotice {
+                    AIStatusCard(text: notice, hint: nil, showsProgress: false, usesDarkChrome: usesDarkChrome,
+                                 onClose: { aiController.dismissReviewNotice() })
+                }
+            }
+        }
+        .padding(AnnouncementCard.edgeInset)
+        .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
+    }
+
     // MARK: - History
 
     /// What History edits: the live text view when there is one, else the document.
@@ -2419,6 +2534,8 @@ struct EditorContainerView: View {
             historyController.exitHistoryMode()
             return true
         }
+        // History mode and AI never overlap: a review ends (keeping what was accepted) first.
+        endAIForDocumentChange()
         if displayMode != .write {
             displayMode = .write
         }
@@ -2446,8 +2563,11 @@ struct EditorContainerView: View {
     }
 
     private func resetTransientDocumentState() {
-        // The outgoing document is still on screen here: History mode leaves (its collapse lands
-        // on the outgoing text and undo stack) and the outgoing history is stored.
+        // The outgoing document is still on screen here. A review ends FIRST, so its accepted
+        // changes are recorded in the outgoing History before that History closes.
+        endAIForDocumentChange()
+        // History mode leaves (its collapse lands on the outgoing text and undo stack) and the
+        // outgoing history is stored.
         historyController.close(text: document.text)
         // A pending disk confirmation belongs to the outgoing document. Never let a later file
         // event for the incoming tab turn an earlier failed serialization into engagement.
@@ -2877,6 +2997,8 @@ struct EditorContainerView: View {
     }
 
     private func convertDocumentTextFormat(to format: LineformTextFormat, selectedRange: NSRange?) {
+        // A wholesale rewrite: a running request's reply or a review would aim at the old text.
+        aiController.abandon()
         historyController.exitHistoryMode()
         defer {
             // A wholesale rewrite of the text that is not reported edit by edit.
@@ -2994,6 +3116,25 @@ struct SidebarSwitchDialog: Identifiable {
 /// View ▸ History for this window: the command, and the menu's enabled state tracking the key
 /// window's document. Bundled as a modifier for the same type-checker-budget reason as
 /// `SpeechNotificationHandlers`.
+/// An AI action chosen in Split runs in Write: the editor switches to Write as the request
+/// starts. Bundled as a modifier for the same type-checker-budget reason as the others here.
+private struct AIActionModeHandlers: ViewModifier {
+    @ObservedObject var aiController: AIActionController
+    @Binding var displayMode: EditorDisplayMode
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: aiController.state) { _, state in
+                switch state {
+                case .running, .reviewing, .marking:
+                    if displayMode == .split { displayMode = .write }
+                case .idle, .message:
+                    break
+                }
+            }
+    }
+}
+
 private struct HistoryMenuHandlers: ViewModifier {
     let windowNumber: Int?
     @ObservedObject var historyController: DocumentHistoryController

@@ -561,6 +561,55 @@ final class AIActionControllerTests: XCTestCase {
         }
         XCTAssertEqual(refused, 1, "exactly one half of the move re-pairs `$` into math")
     }
+
+    /// The refusal must be SEEN, not only announced: while the review goes on it is the review's
+    /// notice (drawn on the floating card); when the refusal was the last decision it becomes the
+    /// controller's message (the status card).
+    func testRefusedDecisionLeavesAVisibleNotice() async throws {
+        let text = "Price $5 or more today."
+        var refusedID: Int?
+        for id in 0..<2 {
+            let (controller, surface, _) = make(text, replace(["$5": "5$"]))
+            await runToCompletion(controller, .proofread, range: whole(text), text: text)
+            controller.handle(.accept(id))
+            if surface.editCalls.isEmpty { refusedID = id }
+        }
+        let refused = try XCTUnwrap(refusedID)
+        let other = 1 - refused
+
+        // Refused while another change is pending: the review continues, with the notice.
+        let (controller, surface, _) = make(text, replace(["$5": "5$"]))
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        XCTAssertNil(controller.reviewNotice)
+        controller.handle(.accept(refused))
+        _ = try session(controller)
+        XCTAssertEqual(controller.reviewNotice, AIActionController.structureRefusedMessage)
+        controller.handle(.next)
+        XCTAssertNil(controller.reviewNotice, "the next decision or move clears it")
+
+        // Refused as the last decision: the review ends and the refusal is the message.
+        let (last, lastSurface, _) = make(text, replace(["$5": "5$"]))
+        await runToCompletion(last, .proofread, range: whole(text), text: text)
+        last.handle(.reject(other))
+        last.handle(.accept(refused))
+        XCTAssertEqual(last.state, .message(AIActionController.structureRefusedMessage))
+        XCTAssertNil(last.reviewNotice)
+
+        // A refused Accept Remaining leaves its changes pending, with the notice.
+        let (batch, batchSurface, _) = make(text, replace(["$5": "5$"]))
+        await runToCompletion(batch, .proofread, range: whole(text), text: text)
+        batch.handle(.reject(other))
+        batch.handle(.acceptRemaining)
+        XCTAssertTrue(batchSurface.editCalls.isEmpty)
+        XCTAssertEqual(batch.reviewNotice, AIActionController.structureRefusedMessage)
+        _ = try session(batch)
+        batch.dismissReviewNotice()
+        XCTAssertNil(batch.reviewNotice)
+        batch.handle(.acceptRemaining)
+        batch.abandon()
+        XCTAssertNil(batch.reviewNotice, "abandon clears it")
+        withExtendedLifetime((surface, lastSurface)) {}
+    }
 }
 
 private extension NSRange {

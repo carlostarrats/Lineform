@@ -45,6 +45,10 @@ final class AIActionController: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    /// A refused decision's explanation, while the review it happened in goes on. Drawn on the
+    /// floating card (seen, not only announced); cleared by the next command, `endReview` and
+    /// `abandon`. A refusal that ends the review becomes `state = .message` instead.
+    @Published private(set) var reviewNotice: String?
     weak var editor: AIEditorSurface?
     weak var history: DocumentHistoryController?
     private(set) var runTask: Task<Void, Never>?
@@ -172,7 +176,12 @@ final class AIActionController: ObservableObject {
     /// review or marks, and records nothing in History.
     func abandon() {
         stopRequest()
+        reviewNotice = nil
         state = .idle
+    }
+
+    func dismissReviewNotice() {
+        reviewNotice = nil
     }
 
     func dismissMarks() {
@@ -245,6 +254,7 @@ final class AIActionController: ObservableObject {
 
     func handle(_ command: AIReviewCommand) {
         guard case .reviewing(var session) = state, let editor else { return }
+        reviewNotice = nil
         switch command {
         case .accept(let id):
             accept(id, in: &session, editor: editor)
@@ -265,6 +275,7 @@ final class AIActionController: ObservableObject {
             if !edits.isEmpty {
                 guard isStructurePreserving(edits, in: editor.string) else {
                     editor.announceAI(Self.structureRefusedMessage)
+                    reviewNotice = Self.structureRefusedMessage
                     return
                 }
                 editor.applyAIEdits(edits, actionName: edits.count == 1 ? Self.acceptOneActionName : Self.acceptManyActionName)
@@ -281,7 +292,11 @@ final class AIActionController: ObservableObject {
         }
         state = .reviewing(session)
         if session.isFinished {
+            let notice = reviewNotice
             endReview()
+            // A refusal that was the last decision: the review is gone, so the refusal is the
+            // message the status card shows (already announced when it was refused).
+            if let notice { state = .message(notice) }
         } else {
             let position = session.position
             editor.announceAI(Self.positionMessage(position.current, of: position.total))
@@ -294,6 +309,7 @@ final class AIActionController: ObservableObject {
     func endReview() {
         guard case .reviewing(var session) = state else { return }
         session.rejectRemaining()
+        reviewNotice = nil
         state = .idle
         if session.acceptedAny, let editor, let history {
             let text = editor.string
@@ -373,6 +389,7 @@ final class AIActionController: ObservableObject {
         guard isStructurePreserving([edit], in: editor.string) else {
             session.reject(id)
             editor.announceAI(Self.structureRefusedMessage)
+            reviewNotice = Self.structureRefusedMessage
             return
         }
         editor.applyAIEdits([edit], actionName: Self.acceptOneActionName)

@@ -807,6 +807,51 @@ shows passages with history and steps their versions. Spec:
   original and accepted lines pair up). Before this, a multi-paragraph accept recorded one passage
   spanning the paragraphs.
 
+## AI review overlay and cards (2026-11-12)
+
+`Lineform/AI/AIReview*.swift`, wired in `EditorContainerView` (one `AIActionController` per editor,
+the app's one `AIConnectionStore.shared`).
+
+- **The suggestions are an overlay, never the buffer.** While `state == .reviewing` in Write, an
+  `AIReviewSurfaceRepresentable` (an `NSScrollView` + `AIReviewTextView`, a TextKit 1 stack like the
+  editor's) lies exactly over the editor. It shows `AIReviewComposition`: for each PENDING change, the
+  document's own original (dimmed with a TEMPORARY `.foregroundColor` in `HistoryPalette.recededInk`,
+  unless kept), the replacement in the normal ink, then a U+FFFC carrying an `AIReviewPillCell`.
+  Decided changes contribute nothing. Everything before the first change is byte-identical to the
+  document and `matchGeometry(of:)` copies the editor's inset, padding, container width, frame width
+  and paragraph style, so its lines sit on the editor's; on make it takes the editor's clip origin,
+  on dismantle it gives its own back and returns first responder to the editor.
+- **Highlight, THEN attach.** `MarkdownSyntaxHighlighter.highlight` resets every attribute over the
+  whole range, attachments included, so the pills are added after it.
+- **Keys.** A NON-editable `NSTextView` drops key events in `keyDown` before key binding (verified:
+  nothing reached `doCommand(by:)`). The overlay's `keyDown` therefore only calls
+  `interpretKeyEvents` — it intercepts nothing; ←/→ (`moveLeft:`/`moveRight:`), Return
+  (`insertNewline:`), Esc (`cancelOperation:`) and `insertText` (typing ends the review and types into
+  the document) are decided in `doCommand(by:)`/`insertText`. An input method starting a composition
+  (`setMarkedText`) ends the review instead, so the composition happens in the editor.
+- **Undo can't reach underneath.** The overlay's `undoManager` is an empty private one: ⌘Z during a
+  review is disabled rather than popping the document's stack (Task 7's open concern).
+- **VoiceOver.** The overlay carries `accessibilityCustomActions` (Accept/Reject Change, Keep Removed
+  Text when the current change removes text, Next/Previous Change, Accept/Reject All → Remaining,
+  End Review); progress is announced by the controller, never written into an AX value.
+- **Cards.** One floating card at the BOTTOM of `editorContent` (an overlay, never a laid-out bar):
+  `AIStatusCard` for a running request (progress, "Esc to cancel", ✕ cancels), a message (steps aside
+  after 8 s) or Mark's count ("Esc clears marks"); `AIReviewCard` ("3 of 7", Accept All / Reject All
+  → Remaining after a decision) while a review has more than one change. While an AI card is up the
+  announcement / default-app card is hidden. `usesDarkChrome` is threaded.
+- **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
+  `AIActionController.reviewNotice`, drawn on the review card (or alone on a status card for a
+  one-change review) and cleared by the next command; if the refusal was the last decision the
+  review ends and the refusal becomes `state = .message`.
+- **Where AI ends.** Leaving Write, entering History mode, a tab or document swap
+  (`resetTransientDocumentState`, BEFORE `historyController.close` so accepted changes are recorded in
+  the outgoing History) and window close call `endReview()` then `abandon()`. Live reload, Read-mode
+  checkbox/image rewrites and Convert Text Format call `abandon()` (nothing applied or recorded). An
+  action chosen in Split switches to Write as its request starts (`AIActionModeHandlers`).
+- **ATS.** Plain `http` to `127.0.0.1` and `localhost` (the "Other" provider) works with no ATS key:
+  checked from the test host against the stub. `ReleaseResourceTests.testATSAllowsAtMostLocalNetworking`
+  permits at most `NSAllowsLocalNetworking`, never arbitrary loads.
+
 ## Open bug: "Edited" stays in the title bar after a live reload (found 2026-11-06, not fixed)
 
 **Seen on:** installed 1.7.5 (build 37, TestFlight), macOS 27.0.1.

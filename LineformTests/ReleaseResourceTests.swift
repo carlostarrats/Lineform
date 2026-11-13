@@ -111,6 +111,20 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertEqual(info["ITSAppUsesNonExemptEncryption"] as? Bool, false)
     }
 
+    /// The "Other" AI provider may use plain `http` on the local machine only. If ATS ever needs
+    /// loosening for that, the ONLY permitted key is `NSAllowsLocalNetworking`; arbitrary loads
+    /// (in any form) would let every remote http address through and are a review flag.
+    func testATSAllowsAtMostLocalNetworking() throws {
+        let info = try XCTUnwrap(Bundle.main.infoDictionary)
+        guard let ats = info["NSAppTransportSecurity"] else { return }
+        let dictionary = try XCTUnwrap(ats as? [String: Any], "NSAppTransportSecurity must be a dictionary")
+        XCTAssertEqual(Set(dictionary.keys), ["NSAllowsLocalNetworking"])
+        XCTAssertEqual(dictionary["NSAllowsLocalNetworking"] as? Bool, true)
+        for key in dictionary.keys {
+            XCTAssertFalse(key.hasPrefix("NSAllowsArbitraryLoads"), key)
+        }
+    }
+
     func testInfoPlistDeclaresLineformICloudDocumentsContainer() throws {
         let info = try XCTUnwrap(Bundle.main.infoDictionary)
         let containers = try XCTUnwrap(info["NSUbiquitousContainers"] as? [String: [String: Any]])
