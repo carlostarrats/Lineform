@@ -40,7 +40,7 @@ enum MarkdownInlineSyntax {
     /// The markers a backslash may escape — exactly the ones the patterns above consume, so an
     /// escape never removes a backslash that meant something else (a Windows path, a regex in
     /// prose). Mirrors the appex's `unescapeInline`.
-    private static let escapedMarker = try! NSRegularExpression(pattern: #"\\([*_`~\[\]()!\\])"#)
+    static let escapedMarker = try! NSRegularExpression(pattern: #"\\([*_`~\[\]()!\\])"#)
 
     /// Drops the backslash from an escaped marker. Applied ONLY to the plain runs between tokens:
     /// a code span's contents are literal by definition (CommonMark does not process escapes
