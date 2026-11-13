@@ -37,6 +37,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Icon lookup tables — normalized English titles and their per-language aliases. The decorator only ever sets NSMenuItem.image; it writes no titles.",
         "LineformAppIntents.swift":
             "Every literal is a LocalizedStringResource / IntentDescription / @Parameter title / AppShortcut phrase. Those types localize a bare literal by construction and extract into Localizable.xcstrings and AppShortcuts.xcstrings, where LocalizationCatalogTests covers them.",
+        "AIActionPrompt.swift":
+            "Instructions sent to the AI model, never drawn. Pinned verbatim by the plan and AIActionPromptTests; the writer's language travels in the document text itself.",
     ]
 
     /// `File.swift|declaration` — whole declarations that are deliberately English.

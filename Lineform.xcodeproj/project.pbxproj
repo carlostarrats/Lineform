@@ -202,7 +202,15 @@
 		1F00000100000000000004E8 /* ConnectAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E8 /* ConnectAIView.swift */; };
 		1F00000100000000000004E9 /* ConnectAIPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E9 /* ConnectAIPresentation.swift */; };
 		1F00000100000000000004EA /* ConnectAIWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EA /* ConnectAIWindowController.swift */; };
+		1F000001000000000000004EF /* AIAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004EF /* AIAction.swift */; };
+		1F000001000000000000004F0 /* AIActionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F0 /* AIActionPrompt.swift */; };
+		1F000001000000000000004F1 /* AIResponseParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F1 /* AIResponseParser.swift */; };
+		1F000001000000000000004F2 /* AIChangeBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F2 /* AIChangeBuilder.swift */; };
+		1F000001000000000000004F3 /* AISentenceSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F3 /* AISentenceSplitter.swift */; };
 		1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EB /* ConnectAIPresentationTests.swift */; };
+		1F000001000000000000004F4 /* AIActionPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F4 /* AIActionPromptTests.swift */; };
+		1F000001000000000000004F5 /* AIResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F5 /* AIResponseParserTests.swift */; };
+		1F000001000000000000004F6 /* AIChangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F6 /* AIChangeBuilderTests.swift */; };
 		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
 		1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CD /* PassageHistoryModel.swift */; };
 		1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CE /* PassageHistoryStore.swift */; };
@@ -452,7 +460,15 @@
 		1F00000200000000000004E8 /* ConnectAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIView.swift; sourceTree = "<group>"; };
 		1F00000200000000000004E9 /* ConnectAIPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIPresentation.swift; sourceTree = "<group>"; };
 		1F00000200000000000004EA /* ConnectAIWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIWindowController.swift; sourceTree = "<group>"; };
+		1F000002000000000000004EF /* AIAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAction.swift; sourceTree = "<group>"; };
+		1F000002000000000000004F0 /* AIActionPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionPrompt.swift; sourceTree = "<group>"; };
+		1F000002000000000000004F1 /* AIResponseParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponseParser.swift; sourceTree = "<group>"; };
+		1F000002000000000000004F2 /* AIChangeBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChangeBuilder.swift; sourceTree = "<group>"; };
+		1F000002000000000000004F3 /* AISentenceSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISentenceSplitter.swift; sourceTree = "<group>"; };
 		1F00000200000000000004EB /* ConnectAIPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIPresentationTests.swift; sourceTree = "<group>"; };
+		1F000002000000000000004F4 /* AIActionPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionPromptTests.swift; sourceTree = "<group>"; };
+		1F000002000000000000004F5 /* AIResponseParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponseParserTests.swift; sourceTree = "<group>"; };
+		1F000002000000000000004F6 /* AIChangeBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChangeBuilderTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CD /* PassageHistoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryModel.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CE /* PassageHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStore.swift; sourceTree = "<group>"; };
@@ -555,6 +571,11 @@
 				1F00000200000000000004E8 /* ConnectAIView.swift */,
 				1F00000200000000000004E9 /* ConnectAIPresentation.swift */,
 				1F00000200000000000004EA /* ConnectAIWindowController.swift */,
+				1F000002000000000000004EF /* AIAction.swift */,
+				1F000002000000000000004F0 /* AIActionPrompt.swift */,
+				1F000002000000000000004F1 /* AIResponseParser.swift */,
+				1F000002000000000000004F2 /* AIChangeBuilder.swift */,
+				1F000002000000000000004F3 /* AISentenceSplitter.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -755,6 +776,9 @@
 				1F00000200000000000004E2 /* AIConnectionStoreTests.swift */,
 				1F00000200000000000004E7 /* AIClientTests.swift */,
 				1F00000200000000000004EB /* ConnectAIPresentationTests.swift */,
+				1F000002000000000000004F4 /* AIActionPromptTests.swift */,
+				1F000002000000000000004F5 /* AIResponseParserTests.swift */,
+				1F000002000000000000004F6 /* AIChangeBuilderTests.swift */,
 				1F00000200000000000004CF /* PassageHistoryStoreTests.swift */,
 				1F00000200000000000004D1 /* PassageHistoryTextTests.swift */,
 				1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */,
@@ -1057,6 +1081,11 @@
 				1F00000100000000000004E8 /* ConnectAIView.swift in Sources */,
 				1F00000100000000000004E9 /* ConnectAIPresentation.swift in Sources */,
 				1F00000100000000000004EA /* ConnectAIWindowController.swift in Sources */,
+				1F000001000000000000004EF /* AIAction.swift in Sources */,
+				1F000001000000000000004F0 /* AIActionPrompt.swift in Sources */,
+				1F000001000000000000004F1 /* AIResponseParser.swift in Sources */,
+				1F000001000000000000004F2 /* AIChangeBuilder.swift in Sources */,
+				1F000001000000000000004F3 /* AISentenceSplitter.swift in Sources */,
 				1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */,
 				1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */,
 				1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */,
@@ -1162,6 +1191,9 @@
 				1F00000100000000000004E2 /* AIConnectionStoreTests.swift in Sources */,
 				1F00000100000000000004E7 /* AIClientTests.swift in Sources */,
 				1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */,
+				1F000001000000000000004F4 /* AIActionPromptTests.swift in Sources */,
+				1F000001000000000000004F5 /* AIResponseParserTests.swift in Sources */,
+				1F000001000000000000004F6 /* AIChangeBuilderTests.swift in Sources */,
 				1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */,
 				1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */,
 				1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */,
