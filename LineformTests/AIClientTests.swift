@@ -178,9 +178,85 @@ final class AIClientTests: XCTestCase {
 
     func testErrorMessagesAreNonEmptyExceptCancelled() {
         let all: [AIClientError] = [.unauthorized, .rateLimited, .modelNotFound, .server(status: 502),
-                                    .timedOut, .offline, .responseTooLarge, .unusableResponse, .refused]
+                                    .timedOut, .offline, .connectionFailed, .responseTooLarge, .unusableResponse, .refused]
         for error in all { XCTAssertFalse(error.message.isEmpty) }
         XCTAssertTrue(AIClientError.server(status: 502).message.contains("502"))
         XCTAssertEqual(AIClientError.cancelled.message, "")
+    }
+
+    func testTransportRefusesRedirects() async {
+        StubURLProtocol.status = 200
+        StubURLProtocol.body = Data("{}".utf8)
+        let target = URL(string: "http://127.0.0.1:2/elsewhere")!
+        StubURLProtocol.redirectTo = target
+        StubURLProtocol.requestedURLs = []
+        defer { StubURLProtocol.redirectTo = nil }
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:1/x")!)
+        request.httpMethod = "POST"
+        request.setValue("secret", forHTTPHeaderField: "x-api-key")
+        do {
+            _ = try await stubbedTransport(byteLimit: 1024).send(request)
+            XCTFail("expected the redirect to be refused")
+        } catch {
+            XCTAssertEqual(error as? AIClientError, .unusableResponse)
+        }
+        XCTAssertFalse(StubURLProtocol.requestedURLs.contains(target), "the redirect target was requested")
+    }
+
+    func testLargeErrorBodyStillMapsByStatus() async throws {
+        StubURLProtocol.status = 401
+        StubURLProtocol.body = Data(repeating: 0x61, count: 5_000)
+        let transport = stubbedTransport(byteLimit: 1024)
+        let client = OpenAICompatibleClient(connection: connection(.chatGPT), transport: transport)
+        do {
+            _ = try await client.complete(prompt)
+            XCTFail("expected unauthorized")
+        } catch {
+            XCTAssertEqual(error as? AIClientError, .unauthorized)
+        }
+        StubURLProtocol.status = 200
+    }
+
+    func testURLErrorsMapToAccurateCases() async {
+        XCTAssertEqual(AIURLErrorMapping.map(URLError(.timedOut)), .timedOut)
+        for code in [URLError.Code.notConnectedToInternet, .cannotConnectToHost, .cannotFindHost, .networkConnectionLost] {
+            XCTAssertEqual(AIURLErrorMapping.map(URLError(code)), .offline, "\(code)")
+        }
+        XCTAssertEqual(AIURLErrorMapping.map(URLError(.cancelled)), .cancelled)
+        for code in [URLError.Code.secureConnectionFailed, .serverCertificateUntrusted, .appTransportSecurityRequiresSecureConnection, .badURL] {
+            XCTAssertEqual(AIURLErrorMapping.map(URLError(code)), .connectionFailed, "\(code)")
+        }
+        // The same mapping applies to errors thrown by any transport, through the client.
+        let cases: [(Error, AIClientError)] = [
+            (URLError(.timedOut), .timedOut), (URLError(.notConnectedToInternet), .offline),
+            (URLError(.secureConnectionFailed), .connectionFailed), (CancellationError(), .cancelled),
+            (AIClientError.responseTooLarge, .responseTooLarge),
+        ]
+        for (thrown, expected) in cases {
+            let client = OpenAICompatibleClient(connection: connection(.chatGPT), transport: FakeAITransport(error: thrown))
+            do {
+                _ = try await client.complete(prompt)
+                XCTFail("expected \(expected)")
+            } catch {
+                XCTAssertEqual(error as? AIClientError, expected)
+            }
+        }
+    }
+
+    func testOpenAICompatibleMessageRefusalIsRefused() async {
+        let transport = FakeAITransport(body: #"{"choices":[{"message":{"content":null,"refusal":"I can't help with that."},"finish_reason":"stop"}]}"#)
+        do {
+            _ = try await OpenAICompatibleClient(connection: connection(.chatGPT), transport: transport).complete(prompt)
+            XCTFail("expected refusal")
+        } catch { XCTAssertEqual(error as? AIClientError, .refused) }
+    }
+
+    func testAnthropicOptsIntoServerSideFallback() async throws {
+        let transport = FakeAITransport(body: #"{"stop_reason":"end_turn","content":[{"type":"fallback","model":"claude-sonnet-5"},{"type":"text","text":"ok"}]}"#)
+        let text = try await AnthropicMessagesClient(connection: connection(.claude), transport: transport).complete(prompt)
+        XCTAssertEqual(text, "ok")
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-beta"), "server-side-fallback-2026-07-01")
+        XCTAssertEqual(try json(request)["fallbacks"] as? String, "default")
     }
 }

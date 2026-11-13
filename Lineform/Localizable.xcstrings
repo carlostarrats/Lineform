@@ -12460,6 +12460,46 @@
           }
         }
       }
+    },
+    "Couldn't make a secure connection to the AI. Check the address in Connect Your AI.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Couldn't make a secure connection to the AI. Check the address in Connect Your AI."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo establecer una conexión segura con la IA. Comprueba la dirección en Conectar tu IA."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’établir une connexion sécurisée avec l’IA. Vérifiez l’adresse dans Connecter votre IA."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es konnte keine sichere Verbindung zur KI hergestellt werden. Prüfe die Adresse unter „KI verbinden“."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI へのセキュアな接続を確立できませんでした。「AI を接続」でアドレスを確認してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法与 AI 建立安全连接。请在“连接你的 AI”中检查地址。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

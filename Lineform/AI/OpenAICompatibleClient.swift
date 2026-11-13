@@ -18,7 +18,7 @@ struct OpenAICompatibleClient: AIClient {
 
     private struct Reply: Decodable {
         struct Choice: Decodable {
-            struct Message: Decodable { let content: String? }
+            struct Message: Decodable { let content: String?; let refusal: String? }
             let message: Message?
             let finish_reason: String?
         }
@@ -53,6 +53,7 @@ struct OpenAICompatibleClient: AIClient {
         case "content_filter": throw AIClientError.refused
         default: break
         }
+        if let refusal = choice.message?.refusal, !refusal.isEmpty { throw AIClientError.refused }
         guard let text = choice.message?.content, !text.isEmpty else {
             throw AIClientError.unusableResponse
         }

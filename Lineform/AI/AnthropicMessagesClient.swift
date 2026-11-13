@@ -20,6 +20,11 @@ struct AnthropicMessagesClient: AIClient {
         let system: String
         let messages: [Message]
         let output_config: OutputConfig
+        /// Server-side refusal fallback (claude-api skill: opt in by default for Sonnet 5.5; the
+        /// "default" form needs the -2026-07-01 beta header). Safe here: no `between_tools`
+        /// thinking, no tools, no streaming. Replies with a `fallback` block are handled because
+        /// only `text` blocks are read.
+        let fallbacks: String
     }
 
     private struct Reply: Decodable {
@@ -34,6 +39,7 @@ struct AnthropicMessagesClient: AIClient {
         request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue(AIProvider.anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        request.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
         if let key = connection.apiKey, !key.isEmpty {
             request.setValue(key, forHTTPHeaderField: "x-api-key")
         }
@@ -42,7 +48,8 @@ struct AnthropicMessagesClient: AIClient {
             max_tokens: AILimits.anthropicMaxTokens,
             system: prompt.system,
             messages: [.init(role: "user", content: prompt.user)],
-            output_config: .init(effort: "low")))
+            output_config: .init(effort: "low"),
+            fallbacks: "default"))
         return request
     }
 

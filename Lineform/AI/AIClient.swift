@@ -23,6 +23,7 @@ enum AIClientError: Error, Equatable {
     case server(status: Int)
     case timedOut
     case offline
+    case connectionFailed
     case responseTooLarge
     case unusableResponse
     case refused
@@ -41,6 +42,8 @@ enum AIClientError: Error, Equatable {
             return String(localized: "The AI's reply couldn't be used. Nothing was changed.")
         case .offline:
             return String(localized: "Couldn't reach the AI. Check your connection.")
+        case .connectionFailed:
+            return String(localized: "Couldn't make a secure connection to the AI. Check the address in Connect Your AI.")
         case .timedOut:
             return String(localized: "The AI took too long to answer.")
         case .rateLimited:
