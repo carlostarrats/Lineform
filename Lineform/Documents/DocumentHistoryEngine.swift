@@ -310,23 +310,84 @@ struct DocumentHistoryEngine {
         return .new(level: level, range: r, parent: parent, contained: contained)
     }
 
+    /// Add to History stores ONLY the original: one version, which is the live text. Adding a
+    /// range that is already a passage adds nothing and returns that passage. A passage that never
+    /// gains a second version is discarded when History mode is left
+    /// (`discardUnrevisedPassages`): adding something and changing nothing keeps nothing.
     @discardableResult
     mutating func add(_ range: NSRange, author: HistoryAuthor, in text: String) -> UUID? {
         guard let placement = placement(for: range, in: text) else { return nil }
-        let date = now()
         switch placement {
         case .existing(let id):
-            guard let index = index(of: id) else { return nil }
-            let live = history.passages[index].versions[history.passages[index].currentIndex].text
-            appendLive(HistoryVersion(text: live, author: author, createdAt: date), toPassageAt: index)
             return id
         case let .new(level, r, parent, contained):
             let live = (text as NSString).substring(with: r)
             return insertPassage(level: level, range: r, versions: [
-                HistoryVersion(text: live, author: .you, createdAt: date),
-                HistoryVersion(text: live, author: author, createdAt: date),
+                HistoryVersion(text: live, author: author, createdAt: now()),
             ], parent: parent, contained: contained, in: text)
         }
+    }
+
+    /// The writer's own alternative for passage `id`: appended as a new version and made current,
+    /// so the returned edit puts it in the document. Surrounding whitespace is trimmed. Nil when
+    /// the trimmed text is empty or equals the current version, or the passage cannot be located.
+    /// Like `select`, the edit is applied verbatim and NOT reported through `applyEdit`.
+    mutating func addReplacement(_ replacement: String, to id: UUID, in text: String) -> HistoryEdit? {
+        let trimmed = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let located = locateAll(in: text).first(where: { $0.id == id }),
+              let p = index(of: id) else { return nil }
+        // The current version IS the live text (locateAll just refreshed it).
+        guard trimmed != history.passages[p].versions[history.passages[p].currentIndex].text else { return nil }
+        history.passages[p].versions.append(HistoryVersion(text: trimmed, author: .you, createdAt: now()))
+        history.passages[p].currentIndex = history.passages[p].versions.count - 1
+        history.passages[p].lastTouched = now()
+        // Children stay with the version they were made in; didProduce hides them.
+        let edit = HistoryEdit(range: located.range, replacement: trimmed)
+        didProduce(edit, for: id)
+        return edit
+    }
+
+    /// Removes every passage with exactly one version (added, never given a replacement) and
+    /// returns their ids. Their children are NOT removed: they move up to the discarded passage's
+    /// own parent, in the version it was made in. A one-version passage's only version is the
+    /// live text, so those children still sit exactly where that parent shows them.
+    @discardableResult
+    mutating func discardUnrevisedPassages() -> [UUID] {
+        var discarded: [UUID] = []
+        while let p = history.passages.firstIndex(where: { $0.versions.count == 1 }) {
+            let gone = history.passages[p]
+            for i in history.passages.indices where history.passages[i].parentID == gone.id {
+                history.passages[i].parentID = gone.parentID
+                history.passages[i].parentVersionIndex = gone.parentVersionIndex
+            }
+            history.passages.remove(at: p)
+            liveRanges[gone.id] = nil
+            liveTexts[gone.id] = nil
+            discarded.append(gone.id)
+        }
+        return discarded
+    }
+
+    /// Adjacent versions with identical text collapse into one (children of the duplicate move to
+    /// its twin; a current duplicate becomes its twin). Applied when history is loaded: 1.8.0's
+    /// Add stored the original twice, which the sidebar then listed twice.
+    static func collapsingAdjacentDuplicates(_ history: DocumentHistory) -> DocumentHistory {
+        var engine = DocumentHistoryEngine(history: history, now: Date.init)
+        for p in engine.history.passages.indices {
+            var v = 1
+            while v < engine.history.passages[p].versions.count {
+                let versions = engine.history.passages[p].versions
+                if versions[v].text == versions[v - 1].text {
+                    if engine.history.passages[p].currentIndex == v { engine.history.passages[p].currentIndex = v - 1 }
+                    // Reparenting to the twin never removes a passage, so `p` stays valid.
+                    engine.removeVersion(at: v, ofPassageAt: p, reparentingTo: v - 1)
+                } else {
+                    v += 1
+                }
+            }
+        }
+        return engine.history
     }
 
     /// One accepted AI action = one passage: `[original(you), accepted(ai)]`. `text` is the text
@@ -396,7 +457,9 @@ struct DocumentHistoryEngine {
 
     /// The current version becomes frozen at its index and `version` is appended as the new live
     /// one. Children visible in the live text move with it. Consecutive duplicate FROZEN versions
-    /// collapse (the live version always stays, even when it equals the last frozen one).
+    /// collapse (the live version always stays, even when it equals the last frozen one). Used by
+    /// accepted AI changes only: Add to History adds no version, and `addReplacement` replaces the
+    /// live text (so children stay with the version they were made in).
     private mutating func appendLive(_ version: HistoryVersion, toPassageAt index: Int) {
         let id = history.passages[index].id
         let oldCurrent = history.passages[index].currentIndex

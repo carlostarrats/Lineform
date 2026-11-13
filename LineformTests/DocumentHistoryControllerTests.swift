@@ -46,13 +46,16 @@ final class DocumentHistoryControllerTests: XCTestCase {
         return (string as NSString).replacingCharacters(in: r, with: new)
     }
 
-    /// Open + Add to History on `sentence`, then a user edit inside it: two distinct versions.
+    /// `sentence` with two distinct versions, the second current: the user edit "beta" → "BETA"
+    /// recorded as an accepted change (Add to History alone now stores one version, which typing
+    /// edits in place).
     private func controllerWithEditedPassage(store: PassageHistoryPersisting = NullPassageHistoryStore(),
                                              url: URL? = nil) -> (DocumentHistoryController, String) {
         let controller = makeController(store: store)
         controller.open(url: url, text: text)
-        _ = controller.handle(.add(range(of: sentence, in: text)), text: text)
         let edited = type(controller, "beta", with: "BETA", in: text)
+        let accepted = "Alpha BETA gamma delta."
+        controller.recordAccepted(range: range(of: accepted, in: edited), original: sentence, accepted: accepted, text: edited)
         return (controller, edited)
     }
 
@@ -140,6 +143,137 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertNil(HistoryUndoCollapse.unambiguousEdit(from: "same", to: "same"))
         let crlf = try XCTUnwrap(HistoryUndoCollapse.unambiguousEdit(from: "a\r\nb", to: "a\nb"))
         XCTAssertEqual(apply(crlf, to: "a\r\nb"), "a\nb")
+    }
+
+    // MARK: - Add stores only the original; replacements; discard on exit (1.8 QA follow-ups)
+
+    func testAddReturnsThePassageAndRequestsShowingHistory() throws {
+        let controller = makeController()
+        controller.open(url: nil, text: text)
+        var requested: [UUID] = []
+        controller.onRequestShowHistory = { requested.append($0) }
+        let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertEqual(requested, [id])
+        XCTAssertTrue(controller.hasHistory)
+
+        XCTAssertTrue(controller.showPassage(id, text: text))
+        XCTAssertTrue(controller.isHistoryModeActive)
+        XCTAssertEqual(controller.display?.selectedID, id)
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), [sentence], "listed once, not twice")
+        XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 1, current: 0))
+
+        // Adding the same passage again adds nothing, but still asks to show it.
+        XCTAssertEqual(controller.add(range(of: sentence, in: text), text: text), id)
+        XCTAssertEqual(requested, [id, id])
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), [sentence])
+
+        // The text view's Add command goes through the same path.
+        _ = controller.handle(.add(range(of: "Epsilon zeta eta theta.", in: text)), text: text)
+        XCTAssertEqual(requested.count, 3)
+        XCTAssertEqual(controller.display?.selectedID, requested.last, "in History mode the new passage is focused")
+    }
+
+    func testExitDiscardsPassagesWithNoReplacement() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let controller = makeController(store: store)
+        controller.open(url: a, text: text)
+        let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertTrue(controller.showPassage(id, text: text))
+        XCTAssertNil(controller.exitHistoryMode(), "nothing changed in the document")
+        XCTAssertFalse(controller.hasHistory, "nothing was added, so nothing is kept")
+        XCTAssertTrue(store.load(for: a).isEmpty)
+    }
+
+    func testAddReplacementInHistoryModeKeepsThePassage() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let controller = makeController(store: store)
+        controller.open(url: a, text: text)
+        let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertTrue(controller.showPassage(id, text: text))
+
+        XCTAssertNil(controller.addReplacement("   "), "empty adds nothing")
+        XCTAssertNil(controller.addReplacement(sentence), "unchanged adds nothing")
+        let edit = try XCTUnwrap(controller.addReplacement("Alpha BETA gamma delta."))
+        let replaced = apply(edit, to: text)
+        XCTAssertEqual(replaced, "Alpha BETA gamma delta. Epsilon zeta eta theta.")
+        XCTAssertTrue(controller.isHistoryModeActive, "adding a replacement does not leave History")
+        XCTAssertEqual(controller.display?.selectedID, id)
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), [sentence, "Alpha BETA gamma delta."])
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.isCurrent), [false, true])
+
+        let collapse = controller.exitHistoryMode()
+        XCTAssertEqual(apply(collapse, to: text), replaced, "the session collapses from entry to exit text")
+        XCTAssertTrue(controller.hasHistory)
+        XCTAssertEqual(store.load(for: a).passages.first?.versions.map(\.text), [sentence, "Alpha BETA gamma delta."])
+    }
+
+    func testAddReplacementNeedsHistoryModeAndASelection() throws {
+        let controller = makeController()
+        controller.open(url: nil, text: text)
+        _ = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertNil(controller.addReplacement("Other words here."), "outside History mode")
+        XCTAssertTrue(controller.enterHistoryMode(text: text))
+        XCTAssertNil(controller.addReplacement("Other words here."), "no passage selected")
+    }
+
+    func testExitKeepsAIRecordedPassages() throws {
+        let controller = makeController()
+        let accepted = "Alpha BETA gamma delta."
+        let doc = (text as NSString).replacingOccurrences(of: sentence, with: accepted)
+        controller.open(url: nil, text: doc)
+        controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence, accepted: accepted, text: doc)
+        XCTAssertTrue(controller.enterHistoryMode(text: doc))
+        _ = controller.exitHistoryMode()
+        XCTAssertTrue(controller.hasHistory, "an accepted AI change is two versions: it stays")
+    }
+
+    /// 1.8.0 stored every Add twice; that history loads as one version and is discarded like any
+    /// other unrevised passage on the next exit from History.
+    func testLegacyDuplicateAddIsCollapsedOnLoadAndDiscardedOnExit() throws {
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
+        let a = try makeFile("a.md", contents: text)
+        let context = PassageHistoryText.context(around: range(of: sentence, in: text), in: text)
+        store.save(DocumentHistory(passages: [HistoryPassage(
+            id: UUID(), level: .sentence,
+            versions: [HistoryVersion(text: sentence, author: .you, createdAt: fixedDate),
+                       HistoryVersion(text: sentence, author: .you, createdAt: fixedDate)],
+            currentIndex: 1, parentID: nil, parentVersionIndex: nil,
+            contextBefore: context.before, contextAfter: context.after, lastTouched: fixedDate)]), for: a)
+        let controller = makeController(store: store)
+        controller.open(url: a, text: text)
+        XCTAssertTrue(controller.enterHistoryMode(text: text))
+        _ = controller.handle(.moveSelection(1), text: text)
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), [sentence])
+        _ = controller.exitHistoryMode()
+        XCTAssertFalse(controller.hasHistory)
+        XCTAssertTrue(store.load(for: a).isEmpty)
+    }
+
+    /// A passage added while History mode is on, then given a replacement: one ⌘Z after leaving
+    /// restores the entry text AND makes the original current again, so the passage survives.
+    func testReplacementOnPassageAddedInHistoryModeUndoesAsOneStep() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        let vendor = UndoManagerVendor()
+        let textView = makeTextView(edited)
+        textView.delegate = vendor
+        controller.attach(textView)
+        XCTAssertTrue(controller.enterHistoryMode(text: textView.string))
+
+        let other = "Epsilon zeta eta theta."
+        let id = try XCTUnwrap(controller.add(range(of: other, in: textView.string), text: textView.string))
+        XCTAssertEqual(controller.display?.selectedID, id)
+        _ = try XCTUnwrap(controller.addReplacement("Epsilon ZETA eta theta."))
+        XCTAssertEqual(textView.string, "Alpha BETA gamma delta. Epsilon ZETA eta theta.")
+        XCTAssertFalse(vendor.manager.canUndo, "a replacement is not undoable on its own")
+
+        _ = controller.handle(.exit, text: textView.string)
+        XCTAssertTrue(vendor.manager.canUndo)
+        vendor.manager.undo()
+        XCTAssertEqual(textView.string, edited, "one ⌘Z restores the entry text")
+        XCTAssertEqual(try versionTexts(controller, at: other, in: textView.string), [other, "Epsilon ZETA eta theta."],
+                       "the passage keeps both versions after the undo")
     }
 
     // MARK: - Mode
@@ -284,7 +418,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
     func testFileMovedKeepsHistory() throws {
         let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store", isDirectory: true))
         let a = try makeFile("a.md", contents: text)
-        let (controller, _) = controllerWithEditedPassage(store: store, url: a)
+        let (controller, edited) = controllerWithEditedPassage(store: store, url: a)
         XCTAssertTrue(controller.hasHistory)
 
         let b = directory.appendingPathComponent("b.md")
@@ -293,10 +427,10 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertEqual(controller.url.map(FileIdentity.key(for:)), FileIdentity.key(for: b))
 
         let reopened = makeController(store: store)
-        reopened.open(url: b, text: text)
+        reopened.open(url: b, text: edited)
         XCTAssertTrue(reopened.hasHistory)
         let stale = makeController(store: store)
-        stale.open(url: a, text: text)
+        stale.open(url: a, text: edited)
         XCTAssertFalse(stale.hasHistory)
     }
 
@@ -449,7 +583,9 @@ final class DocumentHistoryControllerTests: XCTestCase {
         textView.delegate = vendor
         controller.attach(textView)
         controller.open(url: nil, text: doc)
-        _ = controller.handle(.add(range(of: sentenceCRLF, in: doc)), text: doc)
+        // A frozen original plus a current copy (see `attachedEditedPassage`); typing edits the copy.
+        controller.recordAccepted(range: range(of: sentenceCRLF, in: doc), original: sentenceCRLF,
+                                  accepted: sentenceCRLF, text: doc)
         textView.setSelectedRange(range(of: "Windows", in: doc))
         textView.insertText("DOS", replacementRange: NSRange(location: NSNotFound, length: 0))
         let edited = textView.string
@@ -566,7 +702,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = folder.appendingPathComponent("a.md")
         try text.write(to: file, atomically: true, encoding: .utf8)
-        let (controller, _) = controllerWithEditedPassage(store: store, url: file)
+        let (controller, edited) = controllerWithEditedPassage(store: store, url: file)
 
         let renamed = directory.appendingPathComponent("renamed", isDirectory: true)
         try FileManager.default.moveItem(at: folder, to: renamed)
@@ -574,7 +710,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let moved = renamed.appendingPathComponent("a.md")
         XCTAssertEqual(controller.url.map(FileIdentity.key(for:)), FileIdentity.key(for: moved))
         let reopened = makeController(store: store)
-        reopened.open(url: moved, text: text)
+        reopened.open(url: moved, text: edited)
         XCTAssertTrue(reopened.hasHistory)
     }
     // MARK: - Final review fixes
@@ -585,8 +721,11 @@ final class DocumentHistoryControllerTests: XCTestCase {
         manager.endUndoGrouping()
     }
 
-    /// A text view on its own undo stack, explicit groups (no run loop to close them), with
-    /// `sentence` added to History and given a second version by typing.
+    /// A text view on its own undo stack, explicit groups (no run loop to close them), with each
+    /// passage (default `sentence`) holding its text twice — a frozen version plus a current copy —
+    /// so the caller's typing gives it a second, distinct version. Add to History now stores only
+    /// the original, so the copy is recorded as an accepted change of identical text (the engine
+    /// keeps an accepted version even when it equals the one before it).
     private func attachedEditedPassage(store: PassageHistoryPersisting, url: URL?, doc: String? = nil,
                                        passages: [String]? = nil) -> (DocumentHistoryController, LineformTextView, UndoManager) {
         let doc = doc ?? text
@@ -599,7 +738,8 @@ final class DocumentHistoryControllerTests: XCTestCase {
         controller.attach(textView)
         controller.open(url: url, text: doc)
         for needle in passages ?? [sentence] {
-            _ = controller.handle(.add(range(of: needle, in: textView.string)), text: textView.string)
+            controller.recordAccepted(range: range(of: needle, in: textView.string), original: needle,
+                                      accepted: needle, text: textView.string)
         }
         return (controller, textView, vendor.manager)
     }

@@ -34,6 +34,25 @@ final class DocumentHistoryEngineTests: XCTestCase {
         edit(&engine, text, replacing: range(of: old, in: text), with: new)
     }
 
+    /// A passage holding its original twice — frozen, plus a live copy that typing edits — so a
+    /// typed change makes two versions to step between. Add to History itself now stores only the
+    /// original (`testAddStoresOnlyTheOriginal`); this is the shape a replacement or an accepted
+    /// AI change leaves (a frozen version plus a current one the writer keeps typing into), built
+    /// directly so the live-range tests below stay about live ranges.
+    private func addWithLiveCopy(_ engine: inout DocumentHistoryEngine, _ r: NSRange, in text: String,
+                                 file: StaticString = #filePath, line: UInt = #line) throws -> UUID {
+        let id = try XCTUnwrap(engine.add(r, author: .you, in: text), file: file, line: line)
+        let p = try XCTUnwrap(engine.history.passages.firstIndex { $0.id == id }, file: file, line: line)
+        engine.history.passages[p].versions.append(engine.history.passages[p].versions[0])
+        engine.history.passages[p].currentIndex = 1
+        // Passages it took in when added sit in its live text.
+        for i in engine.history.passages.indices
+        where engine.history.passages[i].parentID == id && engine.history.passages[i].parentVersionIndex == 0 {
+            engine.history.passages[i].parentVersionIndex = 1
+        }
+        return id
+    }
+
     private let sentenceText = "Alpha one goes first. Hello there brave new world. Omega two ends it."
     private let sentence = "Hello there brave new world."
 
@@ -41,21 +60,147 @@ final class DocumentHistoryEngineTests: XCTestCase {
     private let paragraph = "First sentence is right here. Second sentence goes right here."
     private let innerSentence = "Second sentence goes right here."
 
-    func testAddCreatesPassageWithFrozenCopyAndLiveVersion() throws {
+    // MARK: - Add stores only the original (1.8 QA follow-ups)
+
+    private let gentleText = "The wind was gentle that night. Nobody slept."
+
+    func testAddStoresOnlyTheOriginal() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let id = try XCTUnwrap(engine.add(range(of: "gentle", in: gentleText), author: .you, in: gentleText))
         let passage = try XCTUnwrap(engine.history.passages.first { $0.id == id })
-        XCTAssertEqual(passage.level, .sentence)
-        XCTAssertEqual(passage.versions.count, 2)
-        XCTAssertEqual(passage.currentIndex, 1)
-        XCTAssertEqual(passage.versions.map(\.text), [sentence, sentence])
+        XCTAssertEqual(passage.level, .word)
+        XCTAssertEqual(passage.versions.map(\.text), ["gentle"], "one version: the original, never a copy plus a live twin")
+        XCTAssertEqual(passage.versions.map(\.author), [.you])
+        XCTAssertEqual(passage.currentIndex, 0)
         XCTAssertEqual(passage.lastTouched, fixedDate)
         XCTAssertNil(passage.parentID)
+
+        // Adding the same range again adds nothing and returns the same passage.
+        XCTAssertEqual(engine.add(range(of: "gentle", in: gentleText), author: .you, in: gentleText), id)
+        XCTAssertEqual(engine.history.passages.count, 1)
+        XCTAssertEqual(engine.history.passages.first?.versions.map(\.text), ["gentle"])
+    }
+
+    func testAddReplacementAppendsAndSelects() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "gentle", in: gentleText), author: .you, in: gentleText))
+        let edit = try XCTUnwrap(engine.addReplacement("dangerous", to: id, in: gentleText))
+        XCTAssertEqual(edit, HistoryEdit(range: range(of: "gentle", in: gentleText), replacement: "dangerous"))
+        let replaced = apply(edit, to: gentleText)
+        XCTAssertEqual(replaced, "The wind was dangerous that night. Nobody slept.")
+        let passage = try XCTUnwrap(engine.history.passages.first { $0.id == id })
+        XCTAssertEqual(passage.versions.map(\.text), ["gentle", "dangerous"])
+        XCTAssertEqual(passage.versions.map(\.author), [.you, .you])
+        XCTAssertEqual(passage.currentIndex, 1)
+        XCTAssertEqual(engine.locateAll(in: replaced).first { $0.id == id }?.range, range(of: "dangerous", in: replaced))
+
+        // Another replacement appends again, and stepping walks all three.
+        let third = apply(try XCTUnwrap(engine.addReplacement("fierce", to: id, in: replaced)), to: replaced)
+        XCTAssertEqual(engine.history.passages.first?.versions.map(\.text), ["gentle", "dangerous", "fierce"])
+        XCTAssertEqual(engine.history.passages.first?.currentIndex, 2)
+        XCTAssertEqual(apply(try XCTUnwrap(engine.step(id, by: 1, in: third)), to: third), gentleText)
+    }
+
+    func testAddReplacementIgnoresEmptyAndUnchanged() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "gentle", in: gentleText), author: .you, in: gentleText))
+        XCTAssertNil(engine.addReplacement("", to: id, in: gentleText))
+        XCTAssertNil(engine.addReplacement("  \n\t ", to: id, in: gentleText))
+        XCTAssertNil(engine.addReplacement("gentle", to: id, in: gentleText), "the current text is not a new version")
+        XCTAssertNil(engine.addReplacement(" gentle\n", to: id, in: gentleText), "nor is it with whitespace around it")
+        XCTAssertNil(engine.addReplacement("dangerous", to: UUID(), in: gentleText), "unknown passage")
+        XCTAssertEqual(engine.history.passages.first?.versions.map(\.text), ["gentle"])
+
+        // Surrounding whitespace is trimmed off a real replacement.
+        let edit = try XCTUnwrap(engine.addReplacement("  dangerous\n", to: id, in: gentleText))
+        XCTAssertEqual(edit.replacement, "dangerous")
+    }
+
+    func testDiscardRemovesPassagesWithNoReplacement() throws {
+        var engine = makeEngine()
+        let unrevised = try XCTUnwrap(engine.add(range(of: "gentle", in: gentleText), author: .you, in: gentleText))
+        let revised = try XCTUnwrap(engine.add(range(of: "Nobody slept.", in: gentleText), author: .you, in: gentleText))
+        let after = apply(try XCTUnwrap(engine.addReplacement("Everyone slept.", to: revised, in: gentleText)), to: gentleText)
+        XCTAssertEqual(engine.discardUnrevisedPassages(), [unrevised])
+        XCTAssertEqual(engine.history.passages.map(\.id), [revised])
+        XCTAssertEqual(engine.locateAll(in: after).map(\.id), [revised])
+        XCTAssertEqual(engine.discardUnrevisedPassages(), [])
+    }
+
+    func testDiscardKeepsAIRecordedPassages() throws {
+        var engine = makeEngine()
+        let accepted = "The wind was fierce that night. Nobody slept."
+        let id = try XCTUnwrap(engine.recordAccepted(range: range(of: "fierce", in: accepted),
+                                                     original: "gentle", accepted: "fierce", in: accepted))
+        XCTAssertEqual(engine.discardUnrevisedPassages(), [])
+        XCTAssertEqual(engine.history.passages.map(\.id), [id])
+        XCTAssertEqual(engine.history.passages.first?.versions.map(\.text), ["gentle", "fierce"])
+    }
+
+    /// A discarded passage never takes revised passages inside it down with it: they move up to
+    /// the discarded passage's own parent, in the version it sat in (its only version is the live
+    /// text, so they are still exactly where that parent shows them).
+    func testDiscardReparentsRevisedChildrenOfAnUnrevisedPassage() throws {
+        let text = "Intro paragraph sits here.\n\nFirst sentence is right here. Second sentence goes brightly here.\n\nOutro."
+        let para = "First sentence is right here. Second sentence goes brightly here."
+        let inner = "Second sentence goes brightly here."
+        var engine = makeEngine()
+        let paraID = try XCTUnwrap(engine.add(range(of: para, in: text), author: .you, in: text))
+        let t1 = apply(try XCTUnwrap(engine.addReplacement(para + " Third one.", to: paraID, in: text)), to: text)
+        let sentenceID = try XCTUnwrap(engine.add(range(of: inner, in: t1), author: .you, in: t1))   // never revised
+        let wordID = try XCTUnwrap(engine.add(range(of: "brightly", in: t1), author: .you, in: t1))
+        let t2 = apply(try XCTUnwrap(engine.addReplacement("softly", to: wordID, in: t1)), to: t1)
+        XCTAssertEqual(engine.chain(to: wordID), [paraID, sentenceID, wordID])
+
+        XCTAssertEqual(engine.discardUnrevisedPassages(), [sentenceID])
+        XCTAssertEqual(Set(engine.history.passages.map(\.id)), [paraID, wordID])
+        let word = try XCTUnwrap(engine.history.passages.first { $0.id == wordID })
+        XCTAssertEqual(word.parentID, paraID)
+        XCTAssertEqual(word.parentVersionIndex, 1, "the paragraph version the sentence was made in")
+        XCTAssertEqual(word.versions.map(\.text), ["brightly", "softly"])
+        XCTAssertEqual(engine.locateAll(in: t2).map(\.id), [paraID, wordID])
+        XCTAssertEqual(engine.chain(to: wordID), [paraID, wordID])
+        XCTAssertEqual(apply(try XCTUnwrap(engine.step(wordID, by: -1, in: t2)), to: t2), t1)
+
+        // An unrevised ROOT with a revised child: the child becomes a root.
+        var rooted = makeEngine()
+        let outer = try XCTUnwrap(rooted.add(range(of: inner, in: text), author: .you, in: text))
+        let child = try XCTUnwrap(rooted.add(range(of: "brightly", in: text), author: .you, in: text))
+        let swapped = apply(try XCTUnwrap(rooted.addReplacement("softly", to: child, in: text)), to: text)
+        XCTAssertEqual(rooted.discardUnrevisedPassages(), [outer])
+        let orphan = try XCTUnwrap(rooted.history.passages.first)
+        XCTAssertEqual(orphan.id, child)
+        XCTAssertNil(orphan.parentID)
+        XCTAssertNil(orphan.parentVersionIndex)
+        XCTAssertEqual(rooted.locateAll(in: swapped).map(\.id), [child])
+    }
+
+    func testCollapsingAdjacentDuplicatesKeepsOneOfEachRun() throws {
+        let date = fixedDate
+        func v(_ text: String, _ author: HistoryAuthor = .you) -> HistoryVersion {
+            HistoryVersion(text: text, author: author, createdAt: date)
+        }
+        let parentID = UUID()
+        let parent = HistoryPassage(
+            id: parentID, level: .sentence,
+            versions: [v("gentle"), v("gentle"), v("calm"), v("calm", .ai), v("gentle")],
+            currentIndex: 3, parentID: nil, parentVersionIndex: nil,
+            contextBefore: "", contextAfter: "", lastTouched: date)
+        let child = HistoryPassage(
+            id: UUID(), level: .word, versions: [v("a"), v("b")], currentIndex: 1,
+            parentID: parentID, parentVersionIndex: 3,
+            contextBefore: "", contextAfter: "", lastTouched: date)
+        let collapsed = DocumentHistoryEngine.collapsingAdjacentDuplicates(DocumentHistory(passages: [parent, child]))
+        let p = try XCTUnwrap(collapsed.passages.first { $0.id == parentID })
+        XCTAssertEqual(p.versions.map(\.text), ["gentle", "calm", "gentle"])
+        XCTAssertEqual(p.currentIndex, 1, "the current duplicate lands on its twin")
+        XCTAssertEqual(collapsed.passages.first { $0.id == child.id }?.parentVersionIndex, 1)
+        XCTAssertEqual(collapsed.passages.first { $0.id == child.id }?.versions.map(\.text), ["a", "b"])
     }
 
     func testStepReturnsEditReplacingCurrentText() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: sentence, in: sentenceText), in: sentenceText)
         let edited = typing(&engine, "brave new", with: "bold and brave new", in: sentenceText)
         let edit = try XCTUnwrap(engine.step(id, by: -1, in: edited))
         XCTAssertEqual(edit, HistoryEdit(range: range(of: "Hello there bold and brave new world.", in: edited),
@@ -65,7 +210,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testTypedEditsToCurrentVersionSurviveSwitchingAway() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: sentence, in: sentenceText), in: sentenceText)
         let typed = "Hello there bold and brave new world."
         let edited = typing(&engine, sentence, with: typed, in: sentenceText)
         let back = apply(try XCTUnwrap(engine.step(id, by: -1, in: edited)), to: edited)
@@ -84,8 +229,8 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testNestedPassageHiddenWhenParentShowsOtherVersion() throws {
         var engine = makeEngine()
-        let parentID = try XCTUnwrap(engine.add(range(of: paragraph, in: nestedText), author: .you, in: nestedText))
-        let childID = try XCTUnwrap(engine.add(range(of: innerSentence, in: nestedText), author: .you, in: nestedText))
+        let parentID = try addWithLiveCopy(&engine, range(of: paragraph, in: nestedText), in: nestedText)
+        let childID = try addWithLiveCopy(&engine, range(of: innerSentence, in: nestedText), in: nestedText)
         XCTAssertEqual(engine.locateAll(in: nestedText).map(\.id), [parentID, childID])
         XCTAssertEqual(engine.history.passages.first { $0.id == childID }?.parentID, parentID)
 
@@ -112,14 +257,14 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testDeletingDownToOneVersionRemovesPassageAndChildren() throws {
         var engine = makeEngine()
-        let parentID = try XCTUnwrap(engine.add(range(of: paragraph, in: nestedText), author: .you, in: nestedText))
-        _ = try XCTUnwrap(engine.add(range(of: innerSentence, in: nestedText), author: .you, in: nestedText))
+        let parentID = try addWithLiveCopy(&engine, range(of: paragraph, in: nestedText), in: nestedText)
+        _ = try addWithLiveCopy(&engine, range(of: innerSentence, in: nestedText), in: nestedText)
         XCTAssertNil(engine.deleteVersion(parentID, at: 0, in: nestedText))
         XCTAssertTrue(engine.history.isEmpty)
 
         // Deleting the current version switches to its neighbour first.
         var other = makeEngine()
-        let id = try XCTUnwrap(other.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&other, range(of: sentence, in: sentenceText), in: sentenceText)
         let edited = typing(&other, "brave new", with: "bold new", in: sentenceText)
         let edit = try XCTUnwrap(other.deleteVersion(id, at: 1, in: edited))
         XCTAssertEqual(edit.replacement, sentence)
@@ -272,7 +417,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
         let text = "Start of the story begins here. It works. Middle part of the story is here. It works. The end of it all."
         let second = (text as NSString).range(of: "It works.", options: .backwards)
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(second, author: .you, in: text))
+        let id = try addWithLiveCopy(&engine, second, in: text)
         let edited = edit(&engine, text, replacing: second, with: "It really works.")
         let edit = try XCTUnwrap(engine.step(id, by: -1, in: edited))
         XCTAssertEqual(edit.range, (edited as NSString).range(of: "It really works."))
@@ -333,7 +478,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testInsertionAtBoundariesStaysOutside() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: sentence, in: sentenceText), in: sentenceText)
         let start = range(of: sentence, in: sentenceText)
         var text = edit(&engine, sentenceText, replacing: NSRange(location: start.location, length: 0), with: "Then: ")
         XCTAssertEqual(engine.liveRanges[id], range(of: sentence, in: text), "insertion at the start shifts it")
@@ -346,7 +491,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testTypedIntoWordPassageSurvives() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: "brave", in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: "brave", in: sentenceText), in: sentenceText)
         let e = range(of: "brave", in: sentenceText).location + 4  // the trailing "e"
         let typed = edit(&engine, sentenceText, replacing: NSRange(location: e, length: 1), with: "er")
         XCTAssertEqual(typed, "Alpha one goes first. Hello there braver new world. Omega two ends it.")
@@ -361,7 +506,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
     func testParallelSentenceIsNeverClaimed() throws {
         let text = "The cat sat on the mat. The dog sat on the rug."
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: "The cat sat on the mat.", in: text), author: .you, in: text))
+        let id = try addWithLiveCopy(&engine, range(of: "The cat sat on the mat.", in: text), in: text)
         let typed = typing(&engine, "cat sat", with: "cat calmly sat", in: text)
         XCTAssertEqual(engine.locateAll(in: typed).map(\.id), [id])
         let deleted = typing(&engine, "The cat calmly sat on the mat. ", with: "", in: typed)
@@ -370,8 +515,8 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
         // With the untouched sentence tracked too, only its own range is ever edited.
         var both = makeEngine()
-        let catID = try XCTUnwrap(both.add(range(of: "The cat sat on the mat.", in: text), author: .you, in: text))
-        let dogID = try XCTUnwrap(both.add(range(of: "The dog sat on the rug.", in: text), author: .you, in: text))
+        let catID = try addWithLiveCopy(&both, range(of: "The cat sat on the mat.", in: text), in: text)
+        let dogID = try addWithLiveCopy(&both, range(of: "The dog sat on the rug.", in: text), in: text)
         let catTyped = typing(&both, "cat sat", with: "cat calmly sat", in: text)
         let dogTyped = typing(&both, "dog sat", with: "dog lazily sat", in: catTyped)
         let catGone = typing(&both, "The cat calmly sat on the mat. ", with: "", in: dogTyped)
@@ -384,7 +529,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testRecordAcceptedKeepsHistoryAfterDissimilarRewrite() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: sentence, in: sentenceText), in: sentenceText)
         let typed = typing(&engine, "brave", with: "very brave", in: sentenceText)
         let veryBrave = "Hello there very brave new world."
         let ai = "Greetings to this bold, unfamiliar planet."
@@ -430,8 +575,8 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testEngineEditsKeepLiveRangesConsistent() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
-        let wordID = try XCTUnwrap(engine.add(range(of: "Omega", in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: sentence, in: sentenceText), in: sentenceText)
+        let wordID = try addWithLiveCopy(&engine, range(of: "Omega", in: sentenceText), in: sentenceText)
         let typed = typing(&engine, "brave", with: "very brave", in: sentenceText)
         let typedRange = range(of: "Hello there very brave new world.", in: typed)
 
@@ -466,7 +611,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
     func testOverTypingTrackedWordKeepsWholeWord() throws {
         let text = "The cat sat on the mat."
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: "cat", in: text), author: .you, in: text))
+        let id = try addWithLiveCopy(&engine, range(of: "cat", in: text), in: text)
         let cat = range(of: "cat", in: text)
         var typed = edit(&engine, text, replacing: cat, with: "d")  // selection replaced by the first key
         typed = typeKeys(&engine, "og", at: cat.location + 1, in: typed)
@@ -493,7 +638,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testPrependingToTrackedWordGrowsIt() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: "brave", in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: "brave", in: sentenceText), in: sentenceText)
         let typed = typeKeys(&engine, "un", at: range(of: "brave", in: sentenceText).location, in: sentenceText)
         XCTAssertEqual(engine.liveRanges[id], range(of: "unbrave", in: typed))
         let back = apply(try XCTUnwrap(engine.step(id, by: -1, in: typed)), to: typed)
@@ -518,7 +663,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
     func testRecordAcceptedWithTrailingWhitespaceKeepsDraft() throws {
         let text = "One two. Three four. Five six."
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: "Three four.", in: text), author: .you, in: text))
+        let id = try addWithLiveCopy(&engine, range(of: "Three four.", in: text), in: text)
         let drafted = typing(&engine, "Three four.", with: "Drafted words.", in: text)
         let ai = "AI rewrite. "
         let accepted = edit(&engine, drafted, replacing: try XCTUnwrap(engine.liveRanges[id]), with: ai)
@@ -534,7 +679,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
     func testUnreportedSameLengthChangeNeverOverwrites() throws {
         let text = "AAA one. Tracked here. BBB."
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: "Tracked here.", in: text), author: .you, in: text))
+        let id = try addWithLiveCopy(&engine, range(of: "Tracked here.", in: text), in: text)
         let typed = typing(&engine, "here", with: "now!", in: text)
         XCTAssertEqual(typed, "AAA one. Tracked now!. BBB.")
         let changed = "one. Tracked now!. AAA BBB."  // unreported, same length
@@ -549,7 +694,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
 
     func testInvalidateLiveRangesReFindsLiterally() throws {
         var engine = makeEngine()
-        let id = try XCTUnwrap(engine.add(range(of: sentence, in: sentenceText), author: .you, in: sentenceText))
+        let id = try addWithLiveCopy(&engine, range(of: sentence, in: sentenceText), in: sentenceText)
         let typed = typing(&engine, "brave", with: "very brave", in: sentenceText)
         engine.invalidateLiveRanges()
         XCTAssertTrue(engine.liveRanges.isEmpty)
@@ -581,9 +726,9 @@ final class DocumentHistoryEngineTests: XCTestCase {
     func testInsertionAtJoinOfAdjacentPassagesGrowsOnlyOne() throws {
         let text = "Hello brave new world. Tail word here."
         var engine = makeEngine()
-        let braveID = try XCTUnwrap(engine.add(range(of: "brave", in: text), author: .you, in: text))
-        let newID = try XCTUnwrap(engine.add(range(of: "new", in: text), author: .you, in: text))
-        let tailID = try XCTUnwrap(engine.add(range(of: "Tail", in: text), author: .you, in: text))
+        let braveID = try addWithLiveCopy(&engine, range(of: "brave", in: text), in: text)
+        let newID = try addWithLiveCopy(&engine, range(of: "new", in: text), in: text)
+        let tailID = try addWithLiveCopy(&engine, range(of: "Tail", in: text), in: text)
         var typed = typing(&engine, "Tail", with: "Head", in: text)
         typed = edit(&engine, typed, replacing: NSRange(location: range(of: "brave", in: typed).upperBound, length: 1), with: "")
         typed = typeKeys(&engine, "x", at: range(of: "bravenew", in: typed).location + 5, in: typed)
@@ -608,8 +753,8 @@ final class DocumentHistoryEngineTests: XCTestCase {
         // The two-passage form of the join repro: it trapped on a stale passage index.
         let text = "Hello brave new world."
         var engine = makeEngine()
-        let braveID = try XCTUnwrap(engine.add(range(of: "brave", in: text), author: .you, in: text))
-        let newID = try XCTUnwrap(engine.add(range(of: "new", in: text), author: .you, in: text))
+        let braveID = try addWithLiveCopy(&engine, range(of: "brave", in: text), in: text)
+        let newID = try addWithLiveCopy(&engine, range(of: "new", in: text), in: text)
         var typed = typing(&engine, "new", with: "old", in: text)
         typed = edit(&engine, typed, replacing: NSRange(location: range(of: "brave", in: typed).upperBound, length: 1), with: "")
         typed = typeKeys(&engine, "x", at: range(of: "braveold", in: typed).location + 5, in: typed)

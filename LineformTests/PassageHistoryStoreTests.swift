@@ -45,6 +45,23 @@ final class PassageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.load(for: url("a.md")), saved)
     }
 
+    /// 1.8.0's Add to History stored the original twice (a frozen copy plus an identical live
+    /// version). Loading collapses adjacent identical versions, so the sidebar lists it once.
+    func testLoadCollapsesAdjacentDuplicateVersions() throws {
+        let store = makeStore()
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        let passage = HistoryPassage(
+            id: UUID(), level: .word,
+            versions: [HistoryVersion(text: "gentle", author: .you, createdAt: date),
+                       HistoryVersion(text: "gentle", author: .you, createdAt: date)],
+            currentIndex: 1, parentID: nil, parentVersionIndex: nil,
+            contextBefore: "The wind was ", contextAfter: " that night.", lastTouched: date)
+        store.save(DocumentHistory(passages: [passage]), for: url("a.md"))
+        let loaded = try XCTUnwrap(store.load(for: url("a.md")).passages.first)
+        XCTAssertEqual(loaded.versions.map(\.text), ["gentle"])
+        XCTAssertEqual(loaded.currentIndex, 0)
+    }
+
     func testSavingEmptyHistoryRemovesItsFiles() throws {
         let store = makeStore()
         store.save(history(), for: url("a.md"))

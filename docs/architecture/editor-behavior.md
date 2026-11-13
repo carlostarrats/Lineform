@@ -637,7 +637,7 @@ the commit message claimed. The fixture now measures the last line.
 ## History (2026-11-12)
 
 Per-passage version History: right-click a selection ▸ **Add to History** keeps the passage's
-current text as a version; History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
+current text as its original (alternatives are added in History; see below); History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
 shows passages with history and steps their versions. Spec:
 `docs/superpowers/specs/2026-11-12-bring-your-own-ai-design.md` §5–§6. Pieces:
 `PassageHistoryStore.swift` (store), `DocumentHistoryEngine` (passages, live ranges, versions),
@@ -662,6 +662,28 @@ shows passages with history and steps their versions. Spec:
   that store runs `reloadFromStore()`. `reloadFromStore` replaces the engine BEFORE leaving
   History mode, because leaving saves — the other order wrote the cleared history straight back
   (`SettingsClearHistoryTests.testClearHistoryCallsClearAll` catches it).
+- **Add stores only the original; replacements are the writer's (1.8 QA follow-ups, 2026-11-13).**
+  `DocumentHistoryEngine.add` creates ONE version (the live text, `currentIndex 0`); adding a range
+  that is already a passage adds nothing and returns that passage. 1.8.0 stored a frozen copy plus
+  an identical live version, so the sidebar listed every added word twice ("gentle", "gentle").
+  `addReplacement(_:to:in:)` appends the writer's own text (trimmed; nil when empty or equal to the
+  current version), makes it current, and returns the `HistoryEdit` that puts it in the document —
+  the controller's `addReplacement(_:)` applies it through the same undo-disabled `didProduce`
+  path as a step, so the session still collapses to one undo step on exit. Children stay with the
+  version they were made in (they are hidden, as on a step), unlike `appendLive`, which only accepted
+  AI changes use. **Leaving History mode (exit or `endHistoryModeWithoutEdit`) calls
+  `discardUnrevisedPassages()`**: every one-version passage goes ("if you don't do anything, and go
+  back, then it erases it, because nothing was added"). Accepted AI changes are always ≥ 2
+  versions and never touched. A discarded passage's children are NOT discarded with it: they are
+  reparented to its parent at its `parentVersionIndex` — its only version IS the live text, so they
+  still sit exactly where that parent shows them (removing them would silently delete revised
+  history nested in an unrevised sentence). `FilePassageHistoryStore.load` applies
+  `DocumentHistoryEngine.collapsingAdjacentDuplicates`, so 1.8.0's doubled adds load as one
+  version and are discarded on the next exit. A passage added WHILE History mode is on records
+  its version in `entryVersions` (Add never changes the text), or ⌘Z after a replacement left the
+  replacement current over the restored original and the next locate dropped the passage. The
+  controller fires `onRequestShowHistory(id)` after every add; `showPassage(_:text:)` enters
+  History mode focused on it.
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the
