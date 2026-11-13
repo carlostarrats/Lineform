@@ -329,8 +329,10 @@ struct DocumentHistoryEngine {
     }
 
     /// The writer's own alternative for passage `id`: appended as a new version and made current,
-    /// so the returned edit puts it in the document. Surrounding whitespace is trimmed. Nil when
-    /// the trimmed text is empty or equals the current version, or the passage cannot be located.
+    /// so the returned edit puts it in the document. The typed text is trimmed and given the live
+    /// passage's OWN leading/trailing whitespace (an accepted "AI rewrite. " keeps its trailing
+    /// space, so the next sentence does not run on). Nil when the trimmed text is empty or equals
+    /// the trimmed current version, or the passage cannot be located.
     /// Like `select`, the edit is applied verbatim and NOT reported through `applyEdit`.
     mutating func addReplacement(_ replacement: String, to id: UUID, in text: String) -> HistoryEdit? {
         let trimmed = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -338,12 +340,16 @@ struct DocumentHistoryEngine {
               let located = locateAll(in: text).first(where: { $0.id == id }),
               let p = index(of: id) else { return nil }
         // The current version IS the live text (locateAll just refreshed it).
-        guard trimmed != history.passages[p].versions[history.passages[p].currentIndex].text else { return nil }
-        history.passages[p].versions.append(HistoryVersion(text: trimmed, author: .you, createdAt: now()))
+        let live = history.passages[p].versions[history.passages[p].currentIndex].text
+        guard trimmed != live.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        let leading = String(live.prefix { $0.isWhitespace })
+        let trailing = live.allSatisfy(\.isWhitespace) ? "" : String(live.reversed().prefix { $0.isWhitespace }.reversed())
+        let text = leading + trimmed + trailing
+        history.passages[p].versions.append(HistoryVersion(text: text, author: .you, createdAt: now()))
         history.passages[p].currentIndex = history.passages[p].versions.count - 1
         history.passages[p].lastTouched = now()
         // Children stay with the version they were made in; didProduce hides them.
-        let edit = HistoryEdit(range: located.range, replacement: trimmed)
+        let edit = HistoryEdit(range: located.range, replacement: text)
         didProduce(edit, for: id)
         return edit
     }
@@ -369,9 +375,6 @@ struct DocumentHistoryEngine {
         return discarded
     }
 
-    /// Adjacent versions with identical text collapse into one (children of the duplicate move to
-    /// its twin; a current duplicate becomes its twin). Applied when history is loaded: 1.8.0's
-    /// Add stored the original twice, which the sidebar then listed twice.
     /// What a stored history is when it is loaded: adjacent duplicates collapsed, then every
     /// one-version passage discarded (children reparented, as on leaving History). A one-version
     /// passage only exists while History mode is open on it, so one on disk is left over from a
@@ -382,6 +385,9 @@ struct DocumentHistoryEngine {
         return engine.history
     }
 
+    /// Adjacent versions with identical text collapse into one (children of the duplicate move to
+    /// its twin; a current duplicate becomes its twin). Applied when history is loaded: 1.8.0's
+    /// Add stored the original twice, which the sidebar then listed twice.
     static func collapsingAdjacentDuplicates(_ history: DocumentHistory) -> DocumentHistory {
         var engine = DocumentHistoryEngine(history: history, now: Date.init)
         for p in engine.history.passages.indices {

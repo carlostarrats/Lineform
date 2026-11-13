@@ -666,26 +666,30 @@ shows passages with history and steps their versions. Spec:
   `DocumentHistoryEngine.add` creates ONE version (the live text, `currentIndex 0`); adding a range
   that is already a passage adds nothing and returns that passage. 1.8.0 stored a frozen copy plus
   an identical live version, so the sidebar listed every added word twice ("gentle", "gentle").
-  `addReplacement(_:to:in:)` appends the writer's own text (trimmed; nil when empty or equal to the
-  current version), makes it current, and returns the `HistoryEdit` that puts it in the document —
-  the controller's `addReplacement(_:)` applies it through the same undo-disabled `didProduce`
+  `addReplacement(_:to:in:)` appends the writer's own text, makes it current, and returns the
+  `HistoryEdit` that puts it in the document. The typed text is trimmed and given the live passage's
+  OWN leading/trailing whitespace, so an accepted "AI rewrite. " keeps the space before the next
+  sentence; it is nil when the trimmed text is empty or equals the trimmed current version. The
+  controller's `addReplacement(_:)` applies the edit through the same undo-disabled `didProduce`
   path as a step, so the session still collapses to one undo step on exit. Children stay with the
-  version they were made in (they are hidden, as on a step), unlike `appendLive`, which only accepted
-  AI changes use. **Leaving History mode (exit or `endHistoryModeWithoutEdit`) calls
+  version they were made in (hidden, as on a step), unlike `appendLive`, which only accepted AI
+  changes use. **Leaving History mode (exit or `endHistoryModeWithoutEdit`) calls
   `discardUnrevisedPassages()`**: every one-version passage goes ("if you don't do anything, and go
-  back, then it erases it, because nothing was added"). Accepted AI changes are always ≥ 2
-  versions and never touched. A discarded passage's children are NOT discarded with it: they are
-  reparented to its parent at its `parentVersionIndex` — its only version IS the live text, so they
-  still sit exactly where that parent shows them (removing them would silently delete revised
-  history nested in an unrevised sentence). `FilePassageHistoryStore.load` applies
-  `DocumentHistoryEngine.preparedForLoad`: adjacent duplicates collapse, then every one-version
-  passage is discarded (same reparenting). A one-version passage only exists while History mode is
-  open on it, so one on disk is a session that never ended (quit while History was open; quit
-  skips persisting in History mode, but the add already saved) or 1.8.0's doubled add. A passage added WHILE History mode is on records
-  its version in `entryVersions` (Add never changes the text), or ⌘Z after a replacement left the
+  back, then it erases it, because nothing was added"). Accepted AI changes are ≥ 2 versions and are
+  kept. A discarded passage's children are NOT discarded with it: they are reparented to its parent
+  at its `parentVersionIndex` — its only version IS the live text, so they still sit exactly where
+  that parent shows them (removing them would silently delete revised history nested in an unrevised
+  sentence). `FilePassageHistoryStore.load` applies `DocumentHistoryEngine.preparedForLoad`:
+  adjacent duplicates collapse, then every one-version passage is discarded (same reparenting). A
+  one-version passage only exists while History mode is open on it, so one on disk is a session that
+  never ended (quit while History was open; quit skips persisting in History mode, but the add
+  already saved) or 1.8.0's doubled add. Accepted behaviour: an AI accept whose text is identical to
+  the original is stored as two equal versions, so on the next load it collapses to one and is
+  discarded — there was no change to keep. A passage added WHILE History mode is on records its
+  version in `entryVersions` (Add never changes the text), or ⌘Z after a replacement left the
   replacement current over the restored original and the next locate dropped the passage. The
-  controller fires `onRequestShowHistory(id)` after every add; `showPassage(_:text:)` enters
-  History mode focused on it.
+  controller fires `onRequestShowHistory(id)` after every add; `showPassage(_:text:)` enters History
+  mode focused on it.
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the

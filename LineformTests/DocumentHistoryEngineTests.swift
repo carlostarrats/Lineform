@@ -116,6 +116,31 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(edit.replacement, "dangerous")
     }
 
+    /// A replacement keeps the live passage's own edge whitespace: an accepted "AI rewrite. "
+    /// stays separated from the next sentence. "Unchanged" compares trimmed to trimmed.
+    func testAddReplacementKeepsThePassagesEdgeWhitespace() throws {
+        // As in testRecordAcceptedWithTrailingWhitespaceKeepsDraft: an AI rewrite accepted over a
+        // tracked passage covers exactly what was inserted, trailing space included.
+        let text = "One two. Three four. Five six."
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "Three four.", in: text), author: .you, in: text))
+        let ai = "AI rewrite. "
+        let accepted = edit(&engine, text, replacing: try XCTUnwrap(engine.liveRanges[id]), with: ai)
+        XCTAssertEqual(engine.recordAccepted(range: range(of: ai, in: accepted), original: "Three four.",
+                                             accepted: ai, in: accepted), id)
+        XCTAssertEqual(accepted, "One two. AI rewrite.  Five six.")
+        XCTAssertEqual(engine.liveRanges[id], range(of: ai, in: accepted), "the live passage ends in a space")
+
+        XCTAssertNil(engine.addReplacement("AI rewrite.", to: id, in: accepted), "trimmed equals trimmed current")
+        XCTAssertNil(engine.addReplacement(" AI rewrite. \n", to: id, in: accepted))
+        let replacement = try XCTUnwrap(engine.addReplacement("  Mine instead.", to: id, in: accepted))
+        XCTAssertEqual(replacement.replacement, "Mine instead. ", "the passage's own trailing space is kept")
+        let replaced = apply(replacement, to: accepted)
+        XCTAssertEqual(replaced, "One two. Mine instead.  Five six.")
+        XCTAssertEqual(engine.history.passages.first?.versions.map(\.text), ["Three four.", ai, "Mine instead. "])
+        XCTAssertEqual(apply(try XCTUnwrap(engine.step(id, by: -1, in: replaced)), to: replaced), accepted)
+    }
+
     func testDiscardRemovesPassagesWithNoReplacement() throws {
         var engine = makeEngine()
         let unrevised = try XCTUnwrap(engine.add(range(of: "gentle", in: gentleText), author: .you, in: gentleText))
@@ -251,7 +276,7 @@ final class DocumentHistoryEngineTests: XCTestCase {
         let text = "Alpha one goes first. Hello there braveheart new world. Omega."
         _ = try XCTUnwrap(engine.add(range(of: "braveheart", in: text), author: .you, in: text))
         XCTAssertFalse(engine.canAdd(range(of: "heart", in: text), in: text))
-        XCTAssertTrue(engine.canAdd(range(of: "braveheart", in: text), in: text), "same range adds a version")
+        XCTAssertTrue(engine.canAdd(range(of: "braveheart", in: text), in: text), "the same range can be added (it returns the existing passage)")
         XCTAssertTrue(engine.canAdd(range(of: "Omega", in: text), in: text))
     }
 
