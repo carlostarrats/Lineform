@@ -62,13 +62,11 @@ final class AIReviewCardPresentationTests: XCTestCase {
                     }
                 }
             }
-            for hasDecided in [false, true] {
-                let local = AIReviewTextView.accessibilityActionTitles(hasDecided: hasDecided, bundle: bundle)
-                let english = AIReviewTextView.accessibilityActionTitles(hasDecided: hasDecided)
-                XCTAssertEqual(local.count, english.count)
-                for (title, source) in zip(local, english) {
-                    XCTAssertNotEqual(title, source, "\(language): VoiceOver action untranslated")
-                }
+            let local = AIReviewTextView.accessibilityActionTitles(bundle: bundle)
+            let english = AIReviewTextView.accessibilityActionTitles()
+            XCTAssertEqual(local.count, english.count)
+            for (title, source) in zip(local, english) {
+                XCTAssertNotEqual(title, source, "\(language): VoiceOver action untranslated")
             }
         }
     }

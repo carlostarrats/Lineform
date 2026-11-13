@@ -96,6 +96,19 @@ final class HistoryPaletteTests: XCTestCase {
         }
     }
 
+    /// The AI review's replacement highlight: visibly different from the page on every theme,
+    /// and the text drawn on it keeps AA.
+    func testReviewInsertTintIsVisibleInEveryTheme() {
+        for theme in Theme.builtIn {
+            let tint = HistoryPalette.reviewInsertTint(for: theme)
+            let fill = Self.flattened(tint, over: theme.backgroundColor)
+            let visible = Theme.contrastRatio(fill, theme.backgroundColor)
+            XCTAssertGreaterThanOrEqual(visible, 1.15, "\(theme.name) tint vs page was \(visible)")
+            let text = Theme.contrastRatio(theme.textColor, fill)
+            XCTAssertGreaterThanOrEqual(text, 4.5, "\(theme.name) text on tint was \(text)")
+        }
+    }
+
     /// The text view draws with the DISPLAY profile, so under Automatic Dark Mode a light preset
     /// resolves to Quiet — and the History palette must follow it there.
     func testAutomaticDarkModeUsesQuietPalette() {

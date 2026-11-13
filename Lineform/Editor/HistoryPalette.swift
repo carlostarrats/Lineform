@@ -58,6 +58,20 @@ enum HistoryPalette {
         )
     }
 
+    /// The AI review's replacement highlight (spec "AI review: option A"; the mockup's
+    /// `--washStrong`): the system accent blue washed over the page, stronger on a dark page,
+    /// where the same alpha reads weaker. Returned OPAQUE (`opaqueFill`), so what is drawn is
+    /// exactly the pair `HistoryPaletteTests` measures: visibly off the page (≥ 1.15:1) with the
+    /// text on it at AA, on every built-in theme.
+    static let reviewInsertAccent = NSColor(srgbRed: 10 / 255, green: 132 / 255, blue: 1, alpha: 1)
+    static let reviewInsertAlphaLight: CGFloat = 0.14
+    static let reviewInsertAlphaDark: CGFloat = 0.26
+
+    static func reviewInsertTint(for theme: Theme) -> NSColor {
+        let alpha = theme.usesDarkChrome ? reviewInsertAlphaDark : reviewInsertAlphaLight
+        return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
+    }
+
     /// The focused passage's counter: the theme's full ink, like the passage it labels.
     static func counterInk(for theme: Theme) -> NSColor {
         theme.readableInk(ink(of: theme), minimumRatio: 4.5)

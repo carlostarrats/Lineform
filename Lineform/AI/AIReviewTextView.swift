@@ -1,12 +1,13 @@
 import AppKit
 
-/// The review overlay (spec §4.1): a read-only text view laid exactly over the editor while a
-/// review is up, showing `AIReviewComposition` — removed text dimmed, insertions inline in the
-/// normal ink, a ✓|✕ pill at the end of each change. The document's own text storage never holds
-/// a suggestion, so autosave, live reload and undo can never write one to the `.md`.
+/// The review overlay (spec "AI review: option A"): a read-only text view laid exactly over the
+/// editor while a review is up, showing `AIReviewComposition` — the original struck through in
+/// the receded ink, the replacement on the review highlight. Nothing in it is clickable: the
+/// decision is the card's, or Return / Esc. The document's own text storage never holds a
+/// suggestion, so autosave, live reload and undo can never write one to the `.md`.
 ///
-/// It holds the keyboard during review, like search: ← / → move between changes, Return accepts
-/// the current one, Esc ends the review, and typing ends it and types into the document. Keys
+/// It holds the keyboard during review, like search: Return accepts the change, Esc rejects it
+/// and ends the review, and typing ends it and types into the document. Keys
 /// arrive through `doCommand(by:)` and `insertText` — never `keyDown`. Its undo manager is an
 /// empty private one, so ⌘Z during a review can never pop the document's undo stack underneath.
 final class AIReviewTextView: NSTextView {
@@ -68,8 +69,9 @@ final class AIReviewTextView: NSTextView {
     // MARK: - Presenting
 
     /// Draws `composition`: Markdown highlighting as the editor has it, the removed originals in
-    /// History's receded ink (temporary attributes — the storage keeps its colours), and a pill
-    /// per change (the current one in the theme's ink, the others receded).
+    /// History's receded ink with a single strikethrough, and the replacements on
+    /// `HistoryPalette.reviewInsertTint`. All three are layout-manager TEMPORARY attributes: the
+    /// storage keeps only the highlighter's attributes, so a span pass and a whole pass agree.
     ///
     /// A decision re-presents with the SAME profile, and its composition differs from the last
     /// one only around the decided change. That case replaces just the differing span and
@@ -107,26 +109,22 @@ final class AIReviewTextView: NSTextView {
             highlighter.highlight(textView: self, profile: profile)
         }
 
-        // After highlighting: its base pass resets every attribute, attachments included.
-        let capHeight = (base[.font] as? NSFont)?.capHeight ?? 11
-        let baselineOffset = ((capHeight - AIReviewPillCell.size.height) / 2).rounded()
-        textStorage.beginEditing()
-        for (id, index) in composition.pillIndices where index < textStorage.length {
-            let isCurrent = id == currentID
-            let cell = AIReviewPillCell(changeID: id, isCurrent: isCurrent, ink: isCurrent ? theme.textColor : receded)
-            cell.baselineOffsetY = baselineOffset
-            let attachment = NSTextAttachment()
-            attachment.attachmentCell = cell
-            textStorage.addAttribute(.attachment, value: attachment, range: NSRange(location: index, length: 1))
-        }
-        textStorage.endEditing()
-
         let whole = NSRange(location: 0, length: textStorage.length)
-        layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
-        for range in composition.removedRanges.values {
+        for key in [NSAttributedString.Key.foregroundColor, .strikethroughStyle, .backgroundColor] {
+            layoutManager.removeTemporaryAttribute(key, forCharacterRange: whole)
+        }
+        let insertTint = HistoryPalette.reviewInsertTint(for: theme)
+        for range in composition.removedRanges.values.joined() {
             let clamped = NSIntersectionRange(range, whole)
             guard clamped.length > 0 else { continue }
-            layoutManager.addTemporaryAttribute(.foregroundColor, value: receded, forCharacterRange: clamped)
+            layoutManager.addTemporaryAttributes([.foregroundColor: receded,
+                                                  .strikethroughStyle: NSUnderlineStyle.single.rawValue],
+                                                 forCharacterRange: clamped)
+        }
+        for range in composition.replacementRanges.values.joined() {
+            let clamped = NSIntersectionRange(range, whole)
+            guard clamped.length > 0 else { continue }
+            layoutManager.addTemporaryAttribute(.backgroundColor, value: insertTint, forCharacterRange: clamped)
         }
         // A whole pass sizes the view now (the scroll hand-over reads line positions at once). A
         // span pass leaves it to the layout manager: `sizeToFit` would lay out the WHOLE
@@ -226,8 +224,9 @@ final class AIReviewTextView: NSTextView {
     /// Delete (⌫). Forward Delete (⌦) is a function key, so it never hands off at all.
     static let deletionKeyCodes: Set<UInt16> = [51]
 
-    /// Arrows, Return / Enter, Esc, Page Up/Down, Home and End belong to the review.
-    static let reviewKeyCodes: Set<UInt16> = [123, 124, 125, 126, 36, 76, 53, 116, 121, 115, 119]
+    /// Return / Enter, Esc, ↑ / ↓ (scroll), Page Up/Down, Home and End belong to the review.
+    /// ← / → decide nothing (there is one change) and, as function keys, never hand off either.
+    static let reviewKeyCodes: Set<UInt16> = [125, 126, 36, 76, 53, 116, 121, 115, 119]
 
     /// Whether `event` ends the review and goes to the editor: any key but a review key, unless
     /// ⌘ or ⌃ is held (shortcuts stay with the menus and key bindings) or it is a function key
@@ -245,13 +244,11 @@ final class AIReviewTextView: NSTextView {
 
     override func doCommand(by selector: Selector) {
         switch selector {
-        case #selector(NSResponder.moveRight(_:)), #selector(NSResponder.moveForward(_:)):
-            commandHandler?(.next)
-        case #selector(NSResponder.moveLeft(_:)), #selector(NSResponder.moveBackward(_:)):
-            commandHandler?(.previous)
         case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertLineBreak(_:)):
             commandHandler?(.acceptCurrent)
         case #selector(NSResponder.cancelOperation(_:)):
+            // Rejects by ending: nothing pending is applied, and History records nothing unless
+            // something was accepted.
             commandHandler?(.end)
         case #selector(NSResponder.moveUp(_:)):
             super.doCommand(by: #selector(NSResponder.scrollLineUp(_:)))
@@ -284,76 +281,47 @@ final class AIReviewTextView: NSTextView {
 
     // MARK: - Mouse
 
-    override func mouseDown(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        if let command = command(at: point) {
-            commandHandler?(command)
-        }
+    /// Clicks decide nothing: the overlay is not editable, selectable or clickable. The card
+    /// holds the buttons.
+    override func mouseDown(with event: NSEvent) {}
+
+    /// The pointer stays an arrow over the overlay: nothing in it is text to edit or select.
+    override func resetCursorRects() {
+        addCursorRect(visibleRect, cursor: .arrow)
     }
 
-    /// What a click at `point` (view coordinates) decides: a pill's ✓ or ✕, or keeping a dimmed
-    /// original (or no longer keeping a kept one). Nil anywhere else.
-    func command(at point: NSPoint) -> AIReviewCommand? {
-        guard let layoutManager, let textContainer, layoutManager.numberOfGlyphs > 0 else { return nil }
-        let origin = textContainerOrigin
-        let local = NSPoint(x: point.x - origin.x, y: point.y - origin.y)
-        var fraction: CGFloat = 0
-        let glyph = layoutManager.glyphIndex(for: local, in: textContainer, fractionOfDistanceThroughGlyph: &fraction)
-        guard glyph < layoutManager.numberOfGlyphs else { return nil }
-        let rect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: textContainer)
-        guard rect.insetBy(dx: 0, dy: -2).contains(local) else { return nil }
-        let index = layoutManager.characterIndexForGlyph(at: glyph)
-        if let id = composition.changeID(atPill: index) {
-            let cell = (textStorage?.attribute(.attachment, at: index, effectiveRange: nil) as? NSTextAttachment)?
-                .attachmentCell as? AIReviewPillCell
-            let part = cell?.part(at: local, in: rect) ?? (local.x < rect.midX ? .accept : .reject)
-            return part == .accept ? .accept(id) : .reject(id)
-        }
-        if let id = composition.changeID(atRemovedOrKept: index) {
-            return .toggleKeep(id)
-        }
-        return nil
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.arrow.set()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        NSCursor.arrow.set()
     }
 
     // MARK: - Accessibility
 
-    /// The decisions VoiceOver, Switch Control and the keyboard reach without the pills. The
-    /// per-change ones act on the current change; the batch ones follow `hasDecided`.
-    static func accessibilityActionTitles(hasDecided: Bool, bundle: Bundle = .main) -> [String] {
-        let batch = AIReviewCardPresentation.buttonTitles(hasDecided: hasDecided, bundle: bundle)
-        return [
+    /// The decisions VoiceOver, Switch Control and the keyboard reach: the same three the card
+    /// and Return / Esc give — one change, one decision.
+    static func accessibilityActionTitles(bundle: Bundle = .main) -> [String] {
+        [
             String(localized: "Accept Change", bundle: bundle),
             String(localized: "Reject Change", bundle: bundle),
-            String(localized: "Keep Removed Text", bundle: bundle),
-            String(localized: "Next Change", bundle: bundle),
-            String(localized: "Previous Change", bundle: bundle),
-            batch.accept,
-            batch.reject,
             String(localized: "End Review", bundle: bundle),
         ]
     }
 
-    /// The pills are drawn as attachments (U+FFFC); VoiceOver reaches them through the custom
-    /// actions, so the spoken value leaves them out rather than reading "object replacement".
     override func accessibilityValue() -> String? {
-        composition.string.replacingOccurrences(of: AIReviewComposition.pillCharacter, with: "")
+        composition.string
     }
 
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
-        let titles = Self.accessibilityActionTitles(hasDecided: hasDecided)
+        let titles = Self.accessibilityActionTitles()
         var commands: [(String, AIReviewCommand)] = []
         if let id = currentID {
             commands.append((titles[0], .accept(id)))
             commands.append((titles[1], .reject(id)))
-            if composition.removedRanges[id] != nil || composition.keptRanges[id] != nil {
-                commands.append((titles[2], .toggleKeep(id)))
-            }
         }
-        commands.append((titles[3], .next))
-        commands.append((titles[4], .previous))
-        commands.append((titles[5], .acceptRemaining))
-        commands.append((titles[6], .rejectRemaining))
-        commands.append((titles[7], .end))
+        commands.append((titles[2], .end))
         return commands.map { title, command in
             NSAccessibilityCustomAction(name: title) { [weak self] in
                 guard let handler = self?.commandHandler else { return false }

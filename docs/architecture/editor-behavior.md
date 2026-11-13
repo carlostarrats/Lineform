@@ -857,7 +857,7 @@ action does to the document. The two sections after it cover the text-view and o
   something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
   records nothing.
 - **The selection after a review.** The reviewed passage stays selected in the editor under the
-  overlay. Whenever `state` leaves `.reviewing` — Esc, the card's buttons, the last pill, a typed
+  overlay. Whenever `state` leaves `.reviewing` — Esc, the card's buttons, Return, a typed
   key, a tab swap's `endReview`, `abandon`, disconnect — its `didSet` calls
   `collapseSelectionForAI(at: caretEnd(of: selectionRange))` (the session keeps that range
   shifted by every accept). `caretEnd` stops BEFORE trailing `\n` / `\r\n`: a triple-click selects
@@ -887,7 +887,7 @@ action does to the document. The two sections after it cover the text-view and o
   between a whole-text write and the next locate, an action inside a `.word` passage is not
   blocked. Live reload and open re-locate immediately, so the window is brief; the action itself is
   still structure-safe — only the spec §5 "nothing nests inside a word" rule is briefly unenforced.
-- **Not hands-on verified yet** (owed in GUI QA): pills/keys/cards on screen, dead keys and IME
+- **Not hands-on verified yet** (owed in GUI QA): the struck/highlighted change, keys and cards on screen, dead keys and IME
   hand-off (ja, zh-Hans, ⌥E), Focus/ruler assists (not mirrored in the overlay, so they vanish
   during a review), VoiceOver, German consent label fit.
 
@@ -927,26 +927,49 @@ the app's one `AIConnectionStore.shared`).
 - **The suggestions are an overlay, never the buffer.** While `state == .reviewing` in Write, an
   `AIReviewSurfaceRepresentable` (an `NSScrollView` + `AIReviewTextView`, a TextKit 1 stack like the
   editor's) lies exactly over the editor. It shows `AIReviewComposition`: for each PENDING change, the
-  document's own original (dimmed with a TEMPORARY `.foregroundColor` in `HistoryPalette.recededInk`,
-  unless kept), the replacement in the normal ink, then a U+FFFC carrying an `AIReviewPillCell`.
-  Decided changes contribute nothing. Everything before the first change is byte-identical to the
+  document's own original struck through and dimmed (TEMPORARY `.foregroundColor`
+  `HistoryPalette.recededInk` + `.strikethroughStyle` single, unless kept), then the replacement on a
+  TEMPORARY `.backgroundColor` `HistoryPalette.reviewInsertTint` (the mockup's accent wash, returned
+  opaque; ≥ 1.15:1 off the page with AA text on it, pinned in `HistoryPaletteTests`). Decided changes
+  contribute nothing.
+- **Option A, no pills (QA 1.8).** Build 38 put a ✓|✕ pill (a U+FFFC attachment) after every change
+  and made the struck original a click-to-keep toggle. Both are gone, with the pill's hit-testing,
+  ← / → navigation and the Keep / Next / Previous VoiceOver actions: one action is one change, decided
+  on the card or with Return (accept) / Esc (end = reject; nothing pending is applied). The overlay
+  takes no clicks and keeps an ARROW cursor (`resetCursorRects`, `cursorUpdate`, `mouseMoved`).
+  Temporary strikethrough was pixel-checked to draw (TextKit 1 documents temporary attributes as
+  "colours and underlines"; strikethrough is honoured too).
+- **Drawn from `parts`, sentence by sentence.** The composition walks `AIChange.parts`, never the
+  whole span: the span crosses list markers and line endings, which would otherwise be struck AND
+  repeated. Text between parts is copied once as document text. Inside a part,
+  `AIReviewComposition.differingSpan` drops identical leading/trailing SENTENCES
+  (`enumerateSubstrings(.bySentences)`, as `AISentenceSplitter`; exact UTF-16) and the whitespace the
+  two sides share at the remaining edges, so a paragraph whose middle sentence changed strikes that
+  sentence alone. When what differs is a whole physical line (starts at a line start, ends before its
+  terminator or at the end of the text), the replacement goes on its own line using
+  `MarkdownLineEnding.inForce` — overlay only, never written; otherwise it follows inline after
+  `AIReviewSession.separator`. A list item's prose starts after its marker, so it is never "whole
+  line" and stays inline. A kept original (session API; no UI sets it now) shows whole, unstruck,
+  separator, replacement — what a kept accept writes. Everything before the first change is byte-identical to the
   document and `matchGeometry(of:)` copies the editor's inset, padding, container width, frame width
   and paragraph style, so its lines sit on the editor's.
 - **Scroll hand-over is by CHARACTER, never pixel y.** Past the first change the overlay is taller
-  than the document (it also shows removed text and pills), so a copied `bounds.origin.y` showed
+  than the document (it also shows the struck originals), so a copied `bounds.origin.y` showed
   other text — a visible jump on every Esc / last decision, and on make when the selection began
   above the viewport. `topAnchor(of:)` takes the first character of the top line (and the offset
   into it); `AIReviewComposition.overlayIndex(forDocumentIndex:)` / `documentIndex(forOverlayIndex:)`
-  map it (text a change adds maps to the change's end); `originY(in:showing:offset:)` puts that
+  map it through the composition's `insertions` (separators, line breaks and replacements — text the
+  document lacks — map to the document index they stand at, the end of the struck original); `originY(in:showing:offset:)` puts that
   character's line at the top. On make it is applied now and again on the next turn (once SwiftUI has
   sized the scroll view); dismantle returns first responder to the editor.
-- **Highlight, THEN attach.** `MarkdownSyntaxHighlighter.highlight` resets every attribute over the
-  whole range, attachments included, so the pills are added after it.
+- **Review styling is temporary attributes only.** `MarkdownSyntaxHighlighter.highlight` resets every
+  storage attribute over its range, so nothing review-specific lives in the storage: strike, dimming
+  and highlight are all layout-manager temporary attributes, cleared and re-added on every present.
 - **A decision redraws only its span.** The first `present` (and a profile change) is a whole pass.
   A decision's composition differs from the last only around the decided change, so `present`
   replaces just the differing UTF-16 span (`differingSpan`), re-tokenizes just its lines
   (`refreshTokens`; the analyzer is line-local, so this equals a whole pass — asserted), re-sets
-  every pill and the dimming, and does NOT `sizeToFit` (that lays out the whole document after the
+  the strike, dimming and highlight, and does NOT `sizeToFit` (that lays out the whole document after the
   span; background layout grows the view instead). It also never sets `font` / `textColor`, which
   rewrite the whole storage. Measured at 700 KB: whole pass ~600 ms (~500 ms of it the full layout,
   ~80 ms highlighting), a decision ~11 ms. The one-time ~600 ms when a review opens on a very large
@@ -969,9 +992,9 @@ the app's one `AIConnectionStore.shared`).
   a plain text view stands in.
 - **Undo can't reach underneath.** The overlay's `undoManager` is an empty private one: ⌘Z during a
   review is disabled rather than popping the document's stack (Task 7's open concern).
-- **VoiceOver.** The overlay carries `accessibilityCustomActions` (Accept/Reject Change, Keep Removed
-  Text when the current change removes text, Next/Previous Change, Accept/Reject All → Remaining,
-  End Review); progress is announced by the controller, never written into an AX value.
+- **VoiceOver.** The overlay carries `accessibilityCustomActions` — exactly Accept Change, Reject
+  Change (while a change is current) and End Review; its AX value is the composition as drawn.
+  Progress is announced by the controller, never written into an AX value.
 - **Cards.** One floating card at the BOTTOM of `editorContent` (an overlay, never a laid-out bar):
   `AIStatusCard` for a running request (progress, "Esc to cancel", ✕ cancels), a message (steps aside
   after 8 s) or Mark's count ("Esc clears marks"); `AIReviewCard` ("3 of 7", Accept All / Reject All
@@ -982,8 +1005,7 @@ the app's one `AIConnectionStore.shared`).
   (announcement, default app, AI) share ONE `FloatingCardChrome` modifier. The card's arrival and
   departure animate on `aiCardKind` from a persistent `ZStack`.
 - **Composition cache.** `AIReviewCompositionCache` rebuilds only when the session or the editor's
-  text changes; the container body re-evaluates far more often. The overlay's spoken value drops the
-  pills' U+FFFC (VoiceOver reaches them through the custom actions).
+  text changes; the container body re-evaluates far more often.
 - **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
   `AIActionController.reviewNotice`, drawn on the review card (or alone on a status card for a
   one-change review) and cleared by the next command; if the refusal was the last decision the
