@@ -79,6 +79,8 @@ struct EditorContainerView: View {
     /// store is the app's one connection; building this reads UserDefaults only (no Keychain, no
     /// network — those happen only when the writer chooses an action).
     @StateObject private var aiController = AIActionController(connectionStore: .shared)
+    /// The review overlay's composition, rebuilt only when the session or the text changes.
+    @State private var aiCompositionCache = AIReviewCompositionCache()
     @StateObject private var speechController = SpeechController()
     @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
@@ -1239,6 +1241,10 @@ struct EditorContainerView: View {
     // Replace the current active match with the replacement text, then move to the next match
     // ("Replace & find next"). One undo step (routes through applyExternalReplacement).
     private func replaceCurrentMatch() {
+        // Replacing is an edit, and the document is read-only during a review: it ends the review
+        // first, like typing (accepted changes stay). Otherwise the backstop refuses the edit
+        // after the search state below has already moved on.
+        endAIForDocumentChange()
         guard let currentIndex = activeSearchIndex, searchMatches.indices.contains(currentIndex) else {
             return
         }
@@ -1277,6 +1283,7 @@ struct EditorContainerView: View {
     }
 
     private func replaceAllMatches() {
+        endAIForDocumentChange()  // as in replaceCurrentMatch
         guard let result = EditorSearchResolver.replaceAll(
             in: document.text,
             query: searchQuery,
@@ -2447,7 +2454,8 @@ struct EditorContainerView: View {
     private var aiReviewSurface: some View {
         if displayMode == .write, case .reviewing(let session) = aiController.state {
             AIReviewSurfaceRepresentable(
-                composition: AIReviewComposition.build(text: aiController.editor?.string ?? document.text, session: session),
+                composition: aiCompositionCache.composition(text: aiController.editor?.string ?? document.text,
+                                                            session: session),
                 currentID: session.currentID,
                 hasDecided: session.hasDecided,
                 profile: displayProfile,
@@ -2471,8 +2479,35 @@ struct EditorContainerView: View {
 
     /// The AI's one floating card: progress (Esc cancels), a message, Mark's count (Esc clears),
     /// or the review's position and batch buttons — with a refused decision's notice on it.
-    @ViewBuilder
+    /// Which AI card is up, so its arrival and departure animate (a change of text within one
+    /// card does not).
+    private var aiCardKind: Int {
+        guard showsAICard else { return 0 }
+        switch aiController.state {
+        case .idle: return 0
+        case .running: return 1
+        case .message: return 2
+        case .marking: return 3
+        case .reviewing: return 4
+        }
+    }
+
     private var aiCard: some View {
+        // A persistent container, so the animation keyed on `aiCardKind` drives the insertion
+        // and removal transitions of the card inside it.
+        ZStack {
+            aiCardContent
+                .padding(AnnouncementCard.edgeInset)
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
+        }
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: 0.24), reduceMotion: reduceMotion),
+            value: aiCardKind
+        )
+    }
+
+    @ViewBuilder
+    private var aiCardContent: some View {
         let usesDarkChrome = currentTheme.usesDarkChrome
         Group {
             switch aiController.state {
@@ -2515,8 +2550,6 @@ struct EditorContainerView: View {
                 }
             }
         }
-        .padding(AnnouncementCard.edgeInset)
-        .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
     }
 
     // MARK: - History
@@ -3113,9 +3146,6 @@ struct SidebarSwitchDialog: Identifiable {
     var whenOpenedHere: () -> Void = {}
 }
 
-/// View ▸ History for this window: the command, and the menu's enabled state tracking the key
-/// window's document. Bundled as a modifier for the same type-checker-budget reason as
-/// `SpeechNotificationHandlers`.
 /// An AI action chosen in Split runs in Write: the editor switches to Write as the request
 /// starts. Bundled as a modifier for the same type-checker-budget reason as the others here.
 private struct AIActionModeHandlers: ViewModifier {
@@ -3135,6 +3165,9 @@ private struct AIActionModeHandlers: ViewModifier {
     }
 }
 
+/// View ▸ History for this window: the command, and the menu's enabled state tracking the key
+/// window's document. Bundled as a modifier for the same type-checker-budget reason as
+/// `SpeechNotificationHandlers`.
 private struct HistoryMenuHandlers: ViewModifier {
     let windowNumber: Int?
     @ObservedObject var historyController: DocumentHistoryController

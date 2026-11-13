@@ -43,10 +43,17 @@ extension LineformTextView: AIEditorSurface {
     /// state, so the review flag is cleared HERE — otherwise the read-only backstop in
     /// `shouldChangeText` would refuse, and drop, the very keystroke that ended the review.
     func insertTypedText(_ text: String) {
-        isAIReviewActive = false
-        isAIRequestRunning = false
+        prepareForAIHandOff()
         window?.makeFirstResponder(self)
         insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
+    }
+
+    /// The review just ended synchronously and a keystroke is about to arrive here (typed text,
+    /// or a key the overlay re-sends). SwiftUI has not pushed the new state yet, so the read-only
+    /// backstop's flag is cleared HERE, or it would refuse — and drop — that keystroke.
+    func prepareForAIHandOff() {
+        isAIReviewActive = false
+        isAIRequestRunning = false
     }
 
     /// Spoken status, never written into the text view's AX value.

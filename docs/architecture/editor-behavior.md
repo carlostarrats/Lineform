@@ -819,16 +819,29 @@ the app's one `AIConnectionStore.shared`).
   unless kept), the replacement in the normal ink, then a U+FFFC carrying an `AIReviewPillCell`.
   Decided changes contribute nothing. Everything before the first change is byte-identical to the
   document and `matchGeometry(of:)` copies the editor's inset, padding, container width, frame width
-  and paragraph style, so its lines sit on the editor's; on make it takes the editor's clip origin,
-  on dismantle it gives its own back and returns first responder to the editor.
+  and paragraph style, so its lines sit on the editor's.
+- **Scroll hand-over is by CHARACTER, never pixel y.** Past the first change the overlay is taller
+  than the document (it also shows removed text and pills), so a copied `bounds.origin.y` showed
+  other text — a visible jump on every Esc / last decision, and on make when the selection began
+  above the viewport. `topAnchor(of:)` takes the first character of the top line (and the offset
+  into it); `AIReviewComposition.overlayIndex(forDocumentIndex:)` / `documentIndex(forOverlayIndex:)`
+  map it (text a change adds maps to the change's end); `originY(in:showing:offset:)` puts that
+  character's line at the top. On make it is applied now and again on the next turn (once SwiftUI has
+  sized the scroll view); dismantle returns first responder to the editor.
 - **Highlight, THEN attach.** `MarkdownSyntaxHighlighter.highlight` resets every attribute over the
   whole range, attachments included, so the pills are added after it.
-- **Keys.** A NON-editable `NSTextView` drops key events in `keyDown` before key binding (verified:
-  nothing reached `doCommand(by:)`). The overlay's `keyDown` therefore only calls
-  `interpretKeyEvents` — it intercepts nothing; ←/→ (`moveLeft:`/`moveRight:`), Return
-  (`insertNewline:`), Esc (`cancelOperation:`) and `insertText` (typing ends the review and types into
-  the document) are decided in `doCommand(by:)`/`insertText`. An input method starting a composition
-  (`setMarkedText`) ends the review instead, so the composition happens in the editor.
+- **Keys: the overlay ROUTES, the editor still never intercepts `keyDown`.** In the overlay's
+  `keyDown`, a key that is not a review key (arrows, Return/Enter, Esc, Page Up/Down, Home/End) and
+  carries no ⌘/⌃ (and is not a function key) ends the review synchronously (`.end`), drops the editor's
+  backstop (`prepareForAIHandOff`), makes the editor first responder and RE-SENDS the same event to
+  `editor.keyDown`. The editor's own input context then handles it: plain text, dead keys (⌥E, ⌥U,
+  ^ on ABC/French/German) and the first key of a Japanese/Chinese composition. Ending the review in
+  `insertText` instead dropped that first keystroke — a dead key or an input method never reaches
+  `insertText` on its first press. Review keys go to `interpretKeyEvents` (a NON-editable
+  `NSTextView` drops key events before key binding — verified), and are decided in `doCommand(by:)`.
+  `insertText → .typed` and `setMarkedText → .end` remain as fallbacks. Window-free tests cannot
+  prove LineformTextView types from a re-sent event (its `keyDown` types nothing without a window);
+  a plain text view stands in.
 - **Undo can't reach underneath.** The overlay's `undoManager` is an empty private one: ⌘Z during a
   review is disabled rather than popping the document's stack (Task 7's open concern).
 - **VoiceOver.** The overlay carries `accessibilityCustomActions` (Accept/Reject Change, Keep Removed
@@ -838,11 +851,20 @@ the app's one `AIConnectionStore.shared`).
   `AIStatusCard` for a running request (progress, "Esc to cancel", ✕ cancels), a message (steps aside
   after 8 s) or Mark's count ("Esc clears marks"); `AIReviewCard` ("3 of 7", Accept All / Reject All
   → Remaining after a decision) while a review has more than one change. While an AI card is up the
-  announcement / default-app card is hidden. `usesDarkChrome` is threaded.
+  announcement / default-app card is hidden. `usesDarkChrome` is threaded. All floating cards
+  (announcement, default app, AI) share ONE `FloatingCardChrome` modifier. The card's arrival and
+  departure animate on `aiCardKind` from a persistent `ZStack`.
+- **Composition cache.** `AIReviewCompositionCache` rebuilds only when the session or the editor's
+  text changes; the container body re-evaluates far more often. The overlay's spoken value drops the
+  pills' U+FFFC (VoiceOver reaches them through the custom actions).
 - **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
   `AIActionController.reviewNotice`, drawn on the review card (or alone on a status card for a
   one-change review) and cleared by the next command; if the refusal was the last decision the
   review ends and the refusal becomes `state = .message`.
+- **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call
+  `endAIForDocumentChange()` first, like typing). Before this the backstop refused the edit after the
+  search state had already moved on. The representable also drops `isAIReviewActive`
+  (`keepsReviewBackstop`) BEFORE applying a requested replacement in the same update.
 - **Where AI ends.** Leaving Write, entering History mode, a tab or document swap
   (`resetTransientDocumentState`, BEFORE `historyController.close` so accepted changes are recorded in
   the outgoing History) and window close call `endReview()` then `abandon()`. Live reload, Read-mode

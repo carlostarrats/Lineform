@@ -100,6 +100,11 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         context.coordinator.currentTabID = activeTabID
         context.coordinator.retainUndoManagers(for: liveTabIDs)
 
+        // Before applying a requested edit: a review that ended this turn (Find & Replace ends
+        // it first) must not leave the read-only backstop up, or the replacement is refused.
+        // `configureAI` below sets the full AI state as usual.
+        textView.isAIReviewActive = Self.keepsReviewBackstop(aiController?.state)
+
         if let replacement = requestedReplacement {
             // A Find & Replace edit. Route through the same undoable whole-text path the
             // formatting commands use (shouldChangeText → setAttributedString → didChangeText),
@@ -166,6 +171,12 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
                 requestedScrollToTopRange = nil
             }
         }
+    }
+
+    /// The text view refuses edits only while a review is actually up.
+    static func keepsReviewBackstop(_ state: AIActionController.State?) -> Bool {
+        if case .reviewing = state { return true }
+        return false
     }
 
     /// Pushes the AI controller's handlers and state into the text view, like `historyDisplay`.

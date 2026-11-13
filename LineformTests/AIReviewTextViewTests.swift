@@ -166,4 +166,162 @@ final class AIReviewTextViewTests: XCTestCase {
         XCTAssertEqual(overlay.backgroundColor, editor.backgroundColor)
         XCTAssertEqual(overlay.defaultParagraphStyle, editor.defaultParagraphStyle)
     }
+
+    // MARK: - Key routing to the editor (dead keys, input methods, plain text)
+
+    private func key(_ characters: String, _ code: UInt16, _ flags: NSEvent.ModifierFlags = []) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0,
+                                       windowNumber: 0, context: nil, characters: characters,
+                                       charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code))
+    }
+
+    func testOnlyNonReviewKeysWithoutCommandOrControlGoToTheEditor() throws {
+        let arrow = String(UnicodeScalar(NSRightArrowFunctionKey)!)
+        XCTAssertTrue(AIReviewTextView.handsOffToEditor(try key("q", 12)))
+        XCTAssertTrue(AIReviewTextView.handsOffToEditor(try key("e", 14, .option)), "⌥E starts a dead key")
+        XCTAssertTrue(AIReviewTextView.handsOffToEditor(try key("^", 33, .shift)))
+        XCTAssertTrue(AIReviewTextView.handsOffToEditor(try key("\u{7f}", 51)), "Delete edits, so it ends the review")
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key(arrow, 124)))
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key(String(UnicodeScalar(NSLeftArrowFunctionKey)!), 123)))
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key("\r", 36)))
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key("\u{3}", 76)), "keypad Enter")
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key("\u{1b}", 53)))
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key(String(UnicodeScalar(NSPageDownFunctionKey)!), 121)))
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key(String(UnicodeScalar(NSHomeFunctionKey)!), 115)))
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key("z", 6, .command)), "⌘Z stays with the menus")
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key("a", 0, .control)))
+        XCTAssertFalse(AIReviewTextView.handsOffToEditor(try key(String(UnicodeScalar(NSF5FunctionKey)!), 96)))
+    }
+
+    func testATypedKeyEndsTheReviewAndIsHandledByTheEditor() throws {
+        let (view, _, _) = presented()
+        let editor = LineformTextView()
+        editor.string = text
+        editor.setSelectedRange(NSRange(location: 0, length: 0))
+        editor.isAIReviewActive = true
+        view.handOffEditor = editor
+        var commands: [AIReviewCommand] = []
+        view.commandHandler = { commands.append($0) }
+
+        view.keyDown(with: try key(String(UnicodeScalar(NSRightArrowFunctionKey)!), 124))
+        XCTAssertEqual(commands, [.next], "a review key stays in the review")
+        XCTAssertEqual(editor.string, text)
+
+        view.keyDown(with: try key("q", 12))
+        XCTAssertEqual(commands, [.next, .end], "the review ends first, synchronously")
+        XCTAssertFalse(editor.isAIReviewActive, "the backstop is down before the key arrives")
+        XCTAssertEqual(view.string, composition().0.string, "nothing lands in the overlay")
+
+        // The re-sent event is handled by the editor's OWN keyDown (its input context: plain
+        // text, dead keys, input methods). LineformTextView's keyDown types nothing without a
+        // window (a test-host limit; `interpretKeyEvents` does), so a plain text view stands in
+        // to prove the event arrives and types.
+        let plain = NSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        plain.string = "abc"
+        plain.setSelectedRange(NSRange(location: 0, length: 0))
+        view.handOffEditor = plain
+        view.keyDown(with: try key("q", 12))
+        XCTAssertEqual(plain.string, "qabc")
+        XCTAssertEqual(commands, [.next, .end, .end])
+
+        // Without an editor to hand to, typing still ends the review through `insertText`.
+        view.handOffEditor = nil
+        view.keyDown(with: try key("w", 13))
+        XCTAssertEqual(commands.last, .typed("w"))
+    }
+
+    func testSpokenValueLeavesOutThePills() {
+        let (view, composition, _) = presented()
+        XCTAssertEqual(view.accessibilityValue(), composition.string.replacingOccurrences(of: "\u{FFFC}", with: ""))
+        XCTAssertFalse(view.accessibilityValue()?.contains("\u{FFFC}") ?? true)
+    }
+
+    // MARK: - Scroll hand-over by character
+
+    private func scrolled<T: NSTextView>(_ textView: T) -> NSScrollView {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        textView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+        textView.isVerticallyResizable = true
+        textView.textContainer?.widthTracksTextView = false
+        textView.textContainer?.containerSize = NSSize(width: 360, height: CGFloat.greatestFiniteMagnitude)
+        scrollView.documentView = textView
+        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+        textView.sizeToFit()
+        return scrollView
+    }
+
+    func testScrollHandOverKeepsTheTopCharacterNotThePixelOffset() throws {
+        let lines = (0..<80).map { "Line \($0) has a big word." }
+        let document = lines.joined(separator: "\n")
+        let ns = document as NSString
+        // Long replacements on the first lines wrap, so past them the overlay is TALLER.
+        var changes: [AIChange] = []
+        var searchFrom = 0
+        for id in 0..<10 {
+            let range = ns.range(of: "big", range: NSRange(location: searchFrom, length: ns.length - searchFrom))
+            changes.append(AIChange(id: id, range: range, original: "big",
+                                    replacement: String(repeating: "considerably larger ", count: 4)))
+            searchFrom = NSMaxRange(range)
+        }
+        let review = AIReviewSession(action: .rewrite, changes: changes,
+                                     selectionRange: NSRange(location: 0, length: ns.length), originalSelection: document)
+        let composition = AIReviewComposition.build(text: document, session: review)
+
+        let editor = AIReviewTextView.make()
+        editor.string = document
+        editor.font = .systemFont(ofSize: 13)
+        let editorScroll = scrolled(editor)
+        let overlay = AIReviewTextView.make()
+        overlay.present(composition, currentID: 0, profile: profile)
+        overlay.font = .systemFont(ofSize: 13)
+        let overlayScroll = scrolled(overlay)
+
+        // The editor shows line 40 at the top.
+        let line40 = ns.range(of: "Line 40 ").location
+        let editorY = try XCTUnwrap(AIReviewSurfaceRepresentable.originY(in: editor, showing: line40, offset: 0))
+        AIReviewSurfaceRepresentable.scroll(editorScroll, toY: editorY)
+        let anchor = try XCTUnwrap(AIReviewSurfaceRepresentable.topAnchor(of: editor))
+        XCTAssertEqual(anchor.index, line40)
+
+        // Make: mapped by character into the overlay.
+        let overlayIndex = composition.overlayIndex(forDocumentIndex: anchor.index)
+        let overlayY = try XCTUnwrap(AIReviewSurfaceRepresentable.originY(in: overlay, showing: overlayIndex, offset: anchor.offset))
+        XCTAssertGreaterThan(overlayY, editorY + 20, "the overlay is taller here: copying y would show other text")
+        AIReviewSurfaceRepresentable.scroll(overlayScroll, toY: overlayY)
+        let overlayAnchor = try XCTUnwrap(AIReviewSurfaceRepresentable.topAnchor(of: overlay))
+        XCTAssertEqual((composition.string as NSString).substring(with: NSRange(location: overlayAnchor.index, length: 8)), "Line 40 ")
+
+        // Dismantle: back to the same document character.
+        AIReviewSurfaceRepresentable.scroll(editorScroll, toY: 0)
+        let back = composition.documentIndex(forOverlayIndex: overlayAnchor.index)
+        let backY = try XCTUnwrap(AIReviewSurfaceRepresentable.originY(in: editor, showing: back, offset: overlayAnchor.offset))
+        AIReviewSurfaceRepresentable.scroll(editorScroll, toY: backY)
+        XCTAssertEqual(try XCTUnwrap(AIReviewSurfaceRepresentable.topAnchor(of: editor)).index, line40)
+    }
+
+    // MARK: - Find & Replace during a review
+
+    func testReplacementLandsOnceTheReviewHasEnded() throws {
+        let ns = text as NSString
+        let session = AIReviewSession(action: .trim,
+                                      changes: [AIChange(id: 0, range: ns.range(of: "big"), original: "big", replacement: "large")],
+                                      selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
+        XCTAssertTrue(MarkdownTextViewRepresentable.keepsReviewBackstop(.reviewing(session)))
+        for state: AIActionController.State in [.idle, .running(.trim, .claude), .marking([]), .message("x")] {
+            XCTAssertFalse(MarkdownTextViewRepresentable.keepsReviewBackstop(state), "\(state)")
+        }
+        XCTAssertFalse(MarkdownTextViewRepresentable.keepsReviewBackstop(nil))
+
+        let editor = LineformTextView()
+        editor.string = text
+        let replaced = text.replacingOccurrences(of: "good", with: "fine")
+        editor.isAIReviewActive = MarkdownTextViewRepresentable.keepsReviewBackstop(.reviewing(session))
+        editor.applyExternalReplacement(MarkdownEdit(text: replaced, selectedRange: NSRange(location: 0, length: 0)))
+        XCTAssertEqual(editor.string, text, "while a review is up the backstop refuses (why replace ends it first)")
+        // Replace ends the review; the representable drops the backstop before applying the edit.
+        editor.isAIReviewActive = MarkdownTextViewRepresentable.keepsReviewBackstop(.idle)
+        editor.applyExternalReplacement(MarkdownEdit(text: replaced, selectedRange: NSRange(location: 0, length: 0)))
+        XCTAssertEqual(editor.string, replaced)
+    }
 }
+

@@ -83,4 +83,60 @@ final class AIReviewCompositionTests: XCTestCase {
         XCTAssertEqual(composition.string, text)
         XCTAssertTrue(composition.pillIndices.isEmpty)
     }
+
+    // MARK: - Index mapping (scroll hand-over)
+
+    private func assertRoundTrip(_ text: String, _ review: AIReviewSession, file: StaticString = #filePath, line: UInt = #line) {
+        let composition = AIReviewComposition.build(text: text, session: review)
+        let doc = text as NSString
+        let shown = composition.string as NSString
+        for index in 0...doc.length {
+            let overlay = composition.overlayIndex(forDocumentIndex: index)
+            XCTAssertEqual(composition.documentIndex(forOverlayIndex: overlay), index, "doc \(index)", file: file, line: line)
+            if index < doc.length {
+                XCTAssertEqual(shown.character(at: overlay), doc.character(at: index),
+                               "doc \(index) shows its own character", file: file, line: line)
+            }
+        }
+    }
+
+    func testIndexMappingRoundTripsEveryDocumentCharacter() {
+        let text = "a big day and a good night, one two three"
+        var review = session(text, [
+            change(0, "big", in: text, "considerably larger"),
+            change(1, "good", in: text, "fine"),
+            AIChange(id: 2, range: NSRange(location: 30, length: 0), original: "", replacement: " (inserted)"),
+            change(3, " three", in: text, ""),
+        ])
+        assertRoundTrip(text, review)
+        review.toggleKeep(1)
+        assertRoundTrip(text, review)
+    }
+
+    func testTextAddedByAChangeMapsToTheChangesEnd() {
+        let text = "a big day"
+        let composition = AIReviewComposition.build(text: text, session: session(text, [change(0, "big", in: text, "large")]))
+        // "a biglarge\u{FFFC} day": the replacement (5…9) and the pill (10) are not in the document.
+        for overlay in 5...10 {
+            XCTAssertEqual(composition.documentIndex(forOverlayIndex: overlay), 5, "overlay \(overlay)")
+        }
+        XCTAssertEqual(composition.documentIndex(forOverlayIndex: 3), 3, "inside the original: one to one")
+        XCTAssertEqual(composition.documentIndex(forOverlayIndex: 12), 6, "after the change: shifted back")
+        XCTAssertEqual(composition.overlayIndex(forDocumentIndex: 6), 12)
+    }
+
+    func testCacheRebuildsOnlyWhenSessionOrTextChanges() {
+        let text = "a big day and a good night"
+        var review = session(text, [change(0, "big", in: text, "large"), change(1, "good", in: text, "fine")])
+        let cache = AIReviewCompositionCache()
+        let first = cache.composition(text: text, session: review)
+        _ = cache.composition(text: text, session: review)
+        XCTAssertEqual(cache.buildCount, 1)
+        review.move(by: 1)
+        XCTAssertNotEqual(cache.composition(text: text, session: review), AIReviewComposition.empty)
+        XCTAssertEqual(cache.buildCount, 2, "a new session state rebuilds")
+        _ = cache.composition(text: text + " ", session: review)
+        XCTAssertEqual(cache.buildCount, 3, "new text rebuilds")
+        XCTAssertEqual(first, AIReviewComposition.build(text: text, session: session(text, [change(0, "big", in: text, "large"), change(1, "good", in: text, "fine")])))
+    }
 }

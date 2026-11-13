@@ -46,8 +46,7 @@ enum AIReviewCardPresentation {
     static var reviewCardLabel: String { String(localized: "Suggested changes") }
 }
 
-/// The AI cards' chrome: the announcement card's opaque two-variant fill, hairline, corner and
-/// shadow. `usesDarkChrome` is THREADED from the theme, never read from the environment.
+/// The AI cards' padding and width cap, then the shared `FloatingCardChrome`.
 private struct AICardChrome: ViewModifier {
     let usesDarkChrome: Bool
     let maximumWidth: CGFloat
@@ -59,19 +58,7 @@ private struct AICardChrome: ViewModifier {
             .padding(.vertical, 10)
             // A cap, never a fixed width: the editor can be as narrow as 220pt.
             .frame(maxWidth: maximumWidth)
-            .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
-            .background(
-                RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
-                    .fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
-                    .strokeBorder(usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(usesDarkChrome ? 0.45 : 0.16), radius: 18, y: 6)
-            // Floats over the text view, whose I-beam otherwise wins the cursor.
-            .background(CursorRectView(cursor: .arrow))
+            .modifier(FloatingCardChrome(usesDarkChrome: usesDarkChrome))
     }
 }
 

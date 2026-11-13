@@ -86,19 +86,7 @@ struct AnnouncementCard: View {
         // there is room and compresses when there isn't — the same concession
         // `findReplaceBar` makes.
         .frame(maxWidth: Self.maximumWidth, alignment: .leading)
-        // Pin the controls to the matching appearance so every glyph reads against the
-        // card, whichever page theme is active.
-        .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
-        .background(cardBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-                .strokeBorder(usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
-        .shadow(color: .black.opacity(usesDarkChrome ? 0.45 : 0.16), radius: 18, y: 6)
-        // The card floats over the text view, whose I-beam otherwise wins the cursor over
-        // the whole content area (see CursorRectView — it tracks geometrically).
-        .background(CursorRectView(cursor: .arrow))
+        .modifier(FloatingCardChrome(usesDarkChrome: usesDarkChrome))
         .onExitCommand(perform: onDismiss)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Announcement: \(announcement.title)")
@@ -140,16 +128,6 @@ struct AnnouncementCard: View {
         .accessibilityLabel("Dismiss announcement")
         .padding(.top, -2)
         .padding(.trailing, -2)
-    }
-
-    /// An OPAQUE fill, matching `findReplaceBar`'s two-variant treatment. A `.regularMaterial`
-    /// was tried underneath and removed: the fill above it is fully opaque, so the material
-    /// was completely occluded — it drew nothing and cost a blur layer. Opacity is also what
-    /// keeps the card legible over dense text, which is the reason not to make it translucent
-    /// to bring the material back.
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-            .fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
     }
 
     private var primaryInk: Color {
@@ -238,18 +216,7 @@ struct DefaultMarkdownAppCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
         .frame(maxWidth: Self.maximumWidth, alignment: .leading)
-        .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
-        .background(
-            RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
-                .fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
-                .strokeBorder(usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous))
-        .shadow(color: .black.opacity(usesDarkChrome ? 0.45 : 0.16), radius: 18, y: 6)
-        .background(CursorRectView(cursor: .arrow))
+        .modifier(FloatingCardChrome(usesDarkChrome: usesDarkChrome))
         .onExitCommand(perform: onNotNow)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Self.title)
@@ -261,5 +228,36 @@ struct DefaultMarkdownAppCard: View {
 
     private var secondaryInk: Color {
         MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome)
+    }
+}
+
+/// The chrome every floating bottom card shares (announcement, default app, AI): an opaque
+/// two-variant fill, a hairline, the corner, the shadow, and the arrow cursor. One definition, so
+/// the cards cannot drift apart. `usesDarkChrome` is THREADED from the theme.
+struct FloatingCardChrome: ViewModifier {
+    let usesDarkChrome: Bool
+
+    func body(content: Content) -> some View {
+        content
+            // Pin the controls to the matching appearance so every glyph reads against the
+            // card, whichever page theme is active.
+            .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
+            // An OPAQUE fill, matching `findReplaceBar`'s two-variant treatment. A
+            // `.regularMaterial` was tried underneath and removed: the fill above it is fully
+            // opaque, so the material was completely occluded — it drew nothing and cost a blur
+            // layer. Opacity is also what keeps the card legible over dense text.
+            .background(
+                RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
+                    .fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
+                    .strokeBorder(usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(usesDarkChrome ? 0.45 : 0.16), radius: 18, y: 6)
+            // The card floats over the text view, whose I-beam otherwise wins the cursor over
+            // the whole content area (see CursorRectView — it tracks geometrically).
+            .background(CursorRectView(cursor: .arrow))
     }
 }

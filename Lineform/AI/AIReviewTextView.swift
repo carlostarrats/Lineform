@@ -11,9 +11,11 @@ import AppKit
 /// empty private one, so ⌘Z during a review can never pop the document's undo stack underneath.
 final class AIReviewTextView: NSTextView {
     var commandHandler: ((AIReviewCommand) -> Void)?
+    /// The editor underneath. A key that is not a review key ends the review and is re-sent to
+    /// it, so the editor's own input context handles plain text, dead keys and input methods.
+    weak var handOffEditor: NSTextView?
 
-    private(set) var composition = AIReviewComposition(string: "", removedRanges: [:], pillIndices: [:],
-                                                       keptRanges: [:], changeRanges: [:])
+    private(set) var composition = AIReviewComposition.empty
     private(set) var currentID: Int?
     private(set) var hasDecided = false
     private let emptyUndoManager = UndoManager()
@@ -140,12 +142,43 @@ final class AIReviewTextView: NSTextView {
 
     // MARK: - Keys
 
-    /// A NON-editable NSTextView drops key events before key binding, so the overlay hands every
-    /// key to `interpretKeyEvents` itself — the same key-binding / input-method path an editable
-    /// view takes. No key is intercepted here: the decisions are made in `doCommand(by:)` and
-    /// `insertText`, so the standard bindings (and any custom ones) apply.
+    /// Routing, not interception. A key that is not a review key (and carries no ⌘ or ⌃) ends
+    /// the review and is re-sent, unchanged, to the editor — which then handles it exactly as if
+    /// it had been typed there: plain text, a dead key (⌥E, ⌥U, ^), or the first key of an input
+    /// method's composition (Japanese, Chinese). Ending the review in `insertText` instead would
+    /// drop that first keystroke, because a dead key or an input method never reaches
+    /// `insertText` on its first press.
+    ///
+    /// Review keys go to `interpretKeyEvents`: a NON-editable NSTextView drops key events before
+    /// key binding, so the overlay runs it itself, and the decisions are made in
+    /// `doCommand(by:)`. The editor still never intercepts `keyDown` (CLAUDE.md invariant); this
+    /// is the overlay choosing which view the event belongs to.
     override func keyDown(with event: NSEvent) {
+        if Self.handsOffToEditor(event), let editor = handOffEditor {
+            commandHandler?(.end)
+            (editor as? LineformTextView)?.prepareForAIHandOff()
+            editor.window?.makeFirstResponder(editor)
+            editor.keyDown(with: event)
+            return
+        }
         interpretKeyEvents([event])
+    }
+
+    /// Arrows, Return / Enter, Esc, Page Up/Down, Home and End belong to the review.
+    static let reviewKeyCodes: Set<UInt16> = [123, 124, 125, 126, 36, 76, 53, 116, 121, 115, 119]
+
+    /// Whether `event` ends the review and goes to the editor: any key but a review key, unless
+    /// ⌘ or ⌃ is held (shortcuts stay with the menus and key bindings) or it is a function key
+    /// (F1…, which types nothing).
+    static func handsOffToEditor(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown, !reviewKeyCodes.contains(event.keyCode) else { return false }
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard modifiers.intersection([.command, .control]).isEmpty else { return false }
+        if let scalar = event.charactersIgnoringModifiers?.unicodeScalars.first,
+           (0xF700...0xF8FF).contains(scalar.value) {
+            return false
+        }
+        return true
     }
 
     override func doCommand(by selector: Selector) {
@@ -179,8 +212,8 @@ final class AIReviewTextView: NSTextView {
         commandHandler?(.typed(text))
     }
 
-    /// An input method starting a composition: the review ends and the editor takes the keyboard
-    /// back, so the composition happens in the document, not in a read-only overlay.
+    /// Fallback only (`keyDown` normally routes such keys to the editor first): an input method
+    /// starting a composition here ends the review rather than composing into a read-only view.
     override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
         commandHandler?(.end)
     }
@@ -236,6 +269,12 @@ final class AIReviewTextView: NSTextView {
             batch.reject,
             String(localized: "End Review", bundle: bundle),
         ]
+    }
+
+    /// The pills are drawn as attachments (U+FFFC); VoiceOver reaches them through the custom
+    /// actions, so the spoken value leaves them out rather than reading "object replacement".
+    override func accessibilityValue() -> String? {
+        composition.string.replacingOccurrences(of: AIReviewComposition.pillCharacter, with: "")
     }
 
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
