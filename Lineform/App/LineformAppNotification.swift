@@ -3,6 +3,7 @@ import Foundation
 
 enum LineformAppNotification {
     case showSettings
+    case showConnectAI
     case showReadingExperience
     case focusSearch
     case showFindReplace
@@ -33,6 +34,8 @@ enum LineformAppNotification {
         switch self {
         case .showSettings:
             return Notification.Name("Lineform.showSettings")
+        case .showConnectAI:
+            return Notification.Name("Lineform.showConnectAI")
         case .showReadingExperience:
             return Notification.Name("Lineform.showReadingExperience")
         case .focusSearch:

@@ -1075,3 +1075,18 @@ struct EditorWindowChrome {
         }
     }
 }
+
+/// The app-level in-window modals a document window's `EditorContainerView` presents, each
+/// from its own app-menu notification (see `AppMenuConfiguration.presentInMainWindow`). One
+/// value, so Settings and Connect Your AI replace each other rather than stack.
+enum EditorAppModal: Equatable, CaseIterable {
+    case settings
+    case connectAI
+
+    var notification: LineformAppNotification {
+        switch self {
+        case .settings: return .showSettings
+        case .connectAI: return .showConnectAI
+        }
+    }
+}

@@ -1,23 +1,45 @@
 import AppKit
 import SwiftUI
 
-/// Connect Your AI — one window, opened from Lineform ▸ Connect Your AI…. Pick a provider on
-/// the left; the right pane holds the key (or Other's address) and the consent button, whose
-/// title names what is sent and to whom. Pressing it only stores the key: nothing is sent
-/// until the writer chooses an AI action.
+/// Connect Your AI — opened from Lineform ▸ Connect Your AI…, presented exactly like Settings:
+/// a `MuseModalChrome` card over a `MuseModalScrim` inside the main document window
+/// (`EditorContainerView`, `EditorAppModal.connectAI`), with the shared header, ✕ and Esc to
+/// close. Pick a provider on the left; the right pane holds the key (or Other's address) and the
+/// consent button, whose title names what is sent and to whom. Pressing it only stores the key:
+/// nothing is sent until the writer chooses an AI action.
 ///
-/// Opening the window makes no network request and never reads a key. The one Keychain call
+/// Opening the modal makes no network request and never reads a key. The one Keychain call
 /// it makes is a presence check (`AIConnectionStore.connectedKeyIsMissing`), so a provider
 /// whose key went missing shows the key field again instead of a "Connected" that would fail
-/// at the first action.
+/// at the first action. The view is built fresh on every presentation, so typed keys never
+/// linger after it closes and the check runs again each time.
 struct ConnectAIView: View {
-    private enum Layout {
-        static let sidebarWidth: CGFloat = 180
-        static let windowSize = CGSize(width: 680, height: 460)
+    /// Wider than Settings (460) so the provider list and the pane fit side by side.
+    static let contentWidth: CGFloat = 640
+    static let providerColumnWidth: CGFloat = 160
+    /// The two columns' height when the window allows; the pane scrolls when it is shorter.
+    static let idealBodyHeight: CGFloat = 380
+    static let minimumBodyHeight: CGFloat = 140
+    /// Card padding (24 × 2), the header row (28) and the gap under it (18), plus a 24pt margin
+    /// above and below the card — everything around the two columns.
+    static let verticalChrome: CGFloat = 24 * 2 + 28 + 18 + 24 * 2
+
+    /// Clamps to the window like `SettingsModal.cardWidth(availableWidth:)`.
+    static func cardWidth(availableWidth: CGFloat) -> CGFloat {
+        min(contentWidth, max(280, availableWidth - 24))
+    }
+
+    static func bodyHeight(availableHeight: CGFloat) -> CGFloat {
+        min(idealBodyHeight, max(minimumBodyHeight, availableHeight - verticalChrome))
     }
 
     @ObservedObject private var store: AIConnectionStore
-    private let onDone: () -> Void
+    /// THREADED from the theme, never read from `@Environment(\.colorScheme)` — see
+    /// `MuseModalChrome.primaryTextColor(usesDarkChrome:)`.
+    private let usesDarkChrome: Bool
+    /// The window size the presenting container offers (via GeometryReader).
+    private let availableSize: CGSize
+    private let dismiss: () -> Void
 
     @State private var selection: AIProvider
     @State private var keyMissing = false
@@ -26,9 +48,16 @@ struct ConnectAIView: View {
     @State private var model = ""
     @State private var error: AIConnectError?
 
-    init(store: AIConnectionStore, onDone: @escaping () -> Void) {
+    init(
+        store: AIConnectionStore,
+        usesDarkChrome: Bool = false,
+        availableSize: CGSize = CGSize(width: ConnectAIView.contentWidth + 24, height: 600),
+        dismiss: @escaping () -> Void
+    ) {
         _store = ObservedObject(wrappedValue: store)
-        self.onDone = onDone
+        self.usesDarkChrome = usesDarkChrome
+        self.availableSize = availableSize
+        self.dismiss = dismiss
         _selection = State(initialValue: store.connectedProvider ?? .claude)
     }
 
@@ -37,53 +66,44 @@ struct ConnectAIView: View {
                                         keyMissing: keyMissing)
     }
 
+    private var primaryText: Color { MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome) }
+    private var secondaryText: Color { MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(ConnectAIPresentation.windowTitle)
-                .font(.system(size: 24, weight: .semibold))
-                .accessibilityAddTraits(.isHeader)
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
-                .padding(.bottom, 16)
+        VStack(alignment: .leading, spacing: 18) {
+            // Its ✕ carries `.keyboardShortcut(.cancelAction)`: Esc closes, as in Settings.
+            // There is deliberately no default button — Return belongs to the fields, where it
+            // submits Connect.
+            MuseModalHeader(title: ConnectAIPresentation.title, usesDarkChrome: usesDarkChrome, dismiss: dismiss)
 
-            Divider()
-
-            HStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(AIProvider.allCases) { provider in
                         providerRow(provider)
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(10)
-                .frame(width: Layout.sidebarWidth)
+                .padding(.trailing, 12)
+                .frame(width: Self.providerColumnWidth)
 
                 Divider()
 
                 ScrollView {
                     pane
-                        .padding(24)
+                        .padding(.leading, 20)
+                        .padding(.trailing, 4)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .id(selection)
             }
-            .frame(maxHeight: .infinity)
-
-            Divider()
-
-            HStack {
-                Spacer()
-                // Not the default button: Return belongs to the fields, where it submits
-                // Connect. Esc closes, like ⌘W.
-                Button(ConnectAIPresentation.doneTitle, action: onDone)
-                    .keyboardShortcut(.cancelAction)
-                    .accessibilityIdentifier("connectAI.done")
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
+            .frame(height: Self.bodyHeight(availableHeight: availableSize.height))
         }
-        .frame(width: Layout.windowSize.width, height: Layout.windowSize.height)
-        .accessibilityIdentifier("connectAI.window")
+        .museModalCard(
+            width: Self.cardWidth(availableWidth: availableSize.width),
+            accessibilityLabel: ConnectAIPresentation.title,
+            usesDarkChrome: usesDarkChrome
+        )
+        .accessibilityIdentifier("connectAI.modal")
         .onAppear { keyMissing = store.connectedKeyIsMissing() }
     }
 
@@ -98,6 +118,7 @@ struct ConnectAIView: View {
         } label: {
             HStack(spacing: 8) {
                 Text(provider.displayName)
+                    .foregroundStyle(primaryText)
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if isConnected {
@@ -110,10 +131,13 @@ struct ConnectAIView: View {
             .padding(.horizontal, 10)
             .frame(height: 30)
             .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isSelected ? Color.primary.opacity(0.10) : .clear))
+                .fill(isSelected ? primaryText.opacity(0.08) : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // A plain button swallows the mouse-moved stream `modalArrowCursor` rides on; see
+        // `CursorRectView`. Not on the pane: its fields keep their I-beam.
+        .background(CursorRectView(cursor: .arrow))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("connectAI.provider.\(provider.rawValue)")
     }
@@ -134,7 +158,7 @@ struct ConnectAIView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(ConnectAIPresentation.billingNote(for: selection))
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             switch paneState {
@@ -144,6 +168,7 @@ struct ConnectAIView: View {
                 if reconnect {
                     Text(ConnectAIPresentation.reconnectNote)
                         .font(.callout)
+                        .foregroundStyle(primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 fields
@@ -156,10 +181,11 @@ struct ConnectAIView: View {
                 }
                 Text(ConnectAIPresentation.privacyNote)
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(connectTitle, action: connect)
                     .buttonStyle(.borderedProminent)
+                    .background(CursorRectView(cursor: .arrow))
                     .accessibilityIdentifier("connectAI.connect")
             }
         }
@@ -206,6 +232,7 @@ struct ConnectAIView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
                 .font(.callout)
+                .foregroundStyle(primaryText)
                 .accessibilityHidden(true)
             field()
                 .textFieldStyle(.roundedBorder)
@@ -221,10 +248,11 @@ struct ConnectAIView: View {
         if selection == .other, let endpoint = store.otherEndpoint {
             Text(verbatim: endpoint.absoluteString)
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondaryText)
                 .textSelection(.enabled)
         }
         Button(ConnectAIPresentation.disconnectTitle, action: disconnect)
+            .background(CursorRectView(cursor: .arrow))
             .accessibilityIdentifier("connectAI.disconnect")
     }
 

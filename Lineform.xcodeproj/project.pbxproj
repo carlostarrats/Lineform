@@ -203,7 +203,6 @@
 		1F00000100000000000004E7 /* AIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E7 /* AIClientTests.swift */; };
 		1F00000100000000000004E8 /* ConnectAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E8 /* ConnectAIView.swift */; };
 		1F00000100000000000004E9 /* ConnectAIPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E9 /* ConnectAIPresentation.swift */; };
-		1F00000100000000000004EA /* ConnectAIWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EA /* ConnectAIWindowController.swift */; };
 		1F00000100000000000004EF /* AIAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EF /* AIAction.swift */; };
 		1F00000100000000000004F0 /* AIActionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F0 /* AIActionPrompt.swift */; };
 		1F00000100000000000004F1 /* AIResponseParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F1 /* AIResponseParser.swift */; };
@@ -476,7 +475,6 @@
 		1F00000200000000000004E7 /* AIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004E8 /* ConnectAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIView.swift; sourceTree = "<group>"; };
 		1F00000200000000000004E9 /* ConnectAIPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIPresentation.swift; sourceTree = "<group>"; };
-		1F00000200000000000004EA /* ConnectAIWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIWindowController.swift; sourceTree = "<group>"; };
 		1F00000200000000000004EF /* AIAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAction.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F0 /* AIActionPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionPrompt.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F1 /* AIResponseParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponseParser.swift; sourceTree = "<group>"; };
@@ -600,7 +598,6 @@
 				1F00000200000000000004E6 /* OpenAICompatibleClient.swift */,
 				1F00000200000000000004E8 /* ConnectAIView.swift */,
 				1F00000200000000000004E9 /* ConnectAIPresentation.swift */,
-				1F00000200000000000004EA /* ConnectAIWindowController.swift */,
 				1F00000200000000000004EF /* AIAction.swift */,
 				1F00000200000000000004F0 /* AIActionPrompt.swift */,
 				1F00000200000000000004F1 /* AIResponseParser.swift */,
@@ -1126,7 +1123,6 @@
 				1F00000100000000000004E6 /* OpenAICompatibleClient.swift in Sources */,
 				1F00000100000000000004E8 /* ConnectAIView.swift in Sources */,
 				1F00000100000000000004E9 /* ConnectAIPresentation.swift in Sources */,
-				1F00000100000000000004EA /* ConnectAIWindowController.swift in Sources */,
 				1F00000100000000000004EF /* AIAction.swift in Sources */,
 				1F00000100000000000004F0 /* AIActionPrompt.swift in Sources */,
 				1F00000100000000000004F1 /* AIResponseParser.swift in Sources */,
