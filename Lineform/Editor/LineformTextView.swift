@@ -109,6 +109,27 @@ final class LineformTextView: NSTextView {
     private var hasAppliedTextContainerLayout = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var searchHighlightRanges: [NSRange] = []
+    /// History mode. `nil` = normal writing, which draws no history markers. Setting an equal
+    /// value is a no-op (like `setSearchHighlights`). See `LineformTextView+History.swift`.
+    var historyDisplay: HistoryModeDisplay? {
+        get { historyDisplayStorage }
+        set { applyHistoryDisplay(newValue) }
+    }
+    /// Whether "Add to History" may be offered for a selection. Backed by an O(document) engine
+    /// call: asked only when the context menu is built.
+    var historyCanAddHandler: ((NSRange) -> Bool)?
+    var historyCommandHandler: ((HistoryTextCommand) -> Void)?
+    /// Every USER text change, before it lands, trimmed to its minimal changed span: the replaced
+    /// range (pre-change coordinates) and the inserted string. Whole-text replacements (formatting,
+    /// Find & Replace) and their undo/redo arrive here trimmed too. Not called for History's own
+    /// edits (`performHistoryEdit`), attribute-only changes, or edits that change nothing.
+    var historyUserEditHandler: ((NSRange, String) -> Void)?
+    // Storage for `LineformTextView+History.swift` (extensions cannot hold stored properties).
+    // Not for use elsewhere.
+    var historyDisplayStorage: HistoryModeDisplay?
+    var historyRecededInkRange: NSRange?
+    var historyTrackingArea: NSTrackingArea?
+    var isApplyingHistoryEdit = false
     private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
     private var pendingDeferredVisualLayoutAnchor: VisualLayoutAnchor?
@@ -237,6 +258,50 @@ final class LineformTextView: NSTextView {
         }
 
         super.mouseMoved(with: event)
+        handleHistoryMouseMoved(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        setHistoryHoveredID(nil)
+    }
+
+    /// History mode's arrow keys and Esc. Hooked HERE, never in `keyDown` — `keyDown` runs before
+    /// input-method handling and would swallow keys mid-composition.
+    override func doCommand(by selector: Selector) {
+        if handleHistoryCommand(selector) {
+            return
+        }
+        super.doCommand(by: selector)
+    }
+
+    /// In History mode the first edit tells the controller (which leaves History mode
+    /// synchronously), then proceeds normally — the keystroke types rather than silently failing.
+    ///
+    /// It is also the ONE source of user edits for History's live ranges: an edit is reported here,
+    /// after AppKit allowed it and before it lands, in the coordinates of the text before it.
+    /// Attribute-only changes (`replacementString == nil`) are neither typing nor edits.
+    override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        if refusesHistoryModeReplacement(affectedCharRange, replacement: replacementString) {
+            return false
+        }
+        if replacementString != nil {
+            noteHistoryTypingIfNeeded()
+        }
+        let allowed = super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
+        if allowed, let replacementString {
+            noteHistoryUserEditIfNeeded(affectedCharRange, replacement: replacementString)
+        }
+        return allowed
+    }
+
+    /// History mode's commands for VoiceOver, keyboard-only and Switch Control users — the mirror
+    /// of its hit-tested click and arrow-key paths. Present only while History mode is on; the
+    /// text view's own AX value and label are never touched.
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        let inherited = super.accessibilityCustomActions()
+        guard historyDisplay != nil else { return inherited }
+        return (inherited ?? []) + historyAccessibilityCustomActions()
     }
 
     override func cursorUpdate(with event: NSEvent) {
@@ -281,6 +346,10 @@ final class LineformTextView: NSTextView {
         updateTextContainerLayout(for: profile)
         typingAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         refreshMarkdownHighlighting()
+        if historyDisplay != nil {
+            // The receded ink is baked into temporary attributes; a theme change re-derives it.
+            refreshHistoryRecededInk()
+        }
         refreshReadingAssists()
     }
 
@@ -299,6 +368,7 @@ final class LineformTextView: NSTextView {
         let scope = currentVisibleTokenScope()
         markdownHighlighter.highlight(textView: self, profile: activeReadingProfile, tokenScope: scope)
         lastHighlightedTokenRange = scope ?? NSRange(location: 0, length: (string as NSString).length)
+        reapplyHistoryCounterSpacingIfNeeded()
     }
 
     /// Typing-pause pass: re-tokenize only the visible window. Base is already whole-document
@@ -310,6 +380,7 @@ final class LineformTextView: NSTextView {
         }
         markdownHighlighter.refreshTokens(textView: self, profile: activeReadingProfile, scope: scope)
         lastHighlightedTokenRange = scope
+        reapplyHistoryCounterSpacingIfNeeded()
     }
 
     /// The visible character range expanded by `highlightMargin` and snapped to line
@@ -406,6 +477,7 @@ final class LineformTextView: NSTextView {
         }
         markdownHighlighter.refreshTokens(textView: self, profile: activeReadingProfile, scope: scope)
         lastHighlightedTokenRange = scope
+        reapplyHistoryCounterSpacingIfNeeded()
     }
 
     private func scheduleVisibleTokensRefreshAfterScroll() {
@@ -469,6 +541,7 @@ final class LineformTextView: NSTextView {
 
     @objc private func clipViewBoundsDidChange(_ notification: Notification) {
         splitScrollSynchronizer?.editorDidScroll(from: self)
+        refreshHistoryRecededInkAfterScrollIfNeeded()
         scheduleVisibleTokensRefreshAfterScroll()
         scheduleVisibleTopRangeReportAfterScroll()
     }
@@ -480,7 +553,7 @@ final class LineformTextView: NSTextView {
         // typing — no ruler, no search) skips it and leaves AppKit's minimal edited-line
         // invalidation in place; the saved per-keystroke repaint of a dense Retina viewport
         // is what keeps the caret from momentarily trailing fast typing (perf, 2026-07-05).
-        if activeReadingProfile.readingRulerEnabled || !searchHighlightRanges.isEmpty || string.isEmpty {
+        if activeReadingProfile.readingRulerEnabled || !searchHighlightRanges.isEmpty || historyDisplay != nil || string.isEmpty {
             needsDisplay = true
         }
         centerSelectionForTypewriterModeIfNeeded()
@@ -759,6 +832,7 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.cutTitle, action: #selector(cut(_:)), keyEquivalent: "x"))
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.copyTitle, action: #selector(copy(_:)), keyEquivalent: "c"))
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.pasteTitle, action: #selector(paste(_:)), keyEquivalent: "v"))
+        addHistoryItemIfAllowed(to: menu)
         if contextMenuTextFormat == .markdown {
             menu.addItem(.separator())
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.titleTitle, action: #selector(toggleTitleMarkdown(_:)), keyEquivalent: "1"))
@@ -956,7 +1030,20 @@ final class LineformTextView: NSTextView {
         }
 
         window?.makeFirstResponder(self)
+        if handleHistoryMouseDown(event) {
+            return
+        }
         super.mouseDown(with: event)
+    }
+
+    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting stillSelectingFlag: Bool) {
+        super.setSelectedRanges(historyClampedSelection(ranges) ?? ranges, affinity: affinity,
+                                stillSelecting: stillSelectingFlag)
+    }
+
+    /// History mode hides the caret (`hidesInsertionPointForHistory`).
+    override var shouldDrawInsertionPoint: Bool {
+        super.shouldDrawInsertionPoint && !hidesInsertionPointForHistory
     }
 
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
@@ -984,6 +1071,8 @@ final class LineformTextView: NSTextView {
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
         drawEmptyStatePlaceholderIfNeeded()
+        // History first: its hover/selection fills are opaque, so search matches stay on top.
+        drawHistoryIfNeeded()
         drawSearchHighlightsIfNeeded()
         drawReadingRulerIfNeeded()
     }
@@ -1140,10 +1229,13 @@ final class LineformTextView: NSTextView {
         }
     }
 
+    /// `anchoringCharacterAt` anchors on that character instead of the first visible one (History
+    /// mode's counter keeps the focused passage's first line in place).
     func preserveVisibleLayoutAnchorDuring(
         preservesVisualAnchor: Bool = true,
         restoresAfterDeferredLayout: Bool = false,
         verticalScrollOrigin: CGFloat? = nil,
+        anchoringCharacterAt anchorCharacter: Int? = nil,
         _ updates: () -> Void
     ) {
         // Re-entrancy guard (crash fix, 2026-07-05): AppKit resizes the text view from INSIDE
@@ -1182,7 +1274,7 @@ final class LineformTextView: NSTextView {
         let verticalScrollOriginToRestore = preservesVisualAnchor
             ? nil
             : verticalScrollOrigin ?? enclosingScrollView?.contentView.bounds.origin.y
-        let visualAnchor = preservesVisualAnchor ? visualLayoutAnchorForPreservation() : nil
+        let visualAnchor = preservesVisualAnchor ? visualLayoutAnchorForPreservation(anchorCharacter: anchorCharacter) : nil
         updates()
         if let visualAnchor {
             restoreVisualLayoutAnchor(visualAnchor)
@@ -1386,7 +1478,7 @@ final class LineformTextView: NSTextView {
         rectsForCharacterRange(characterRange).first
     }
 
-    private func rectsForCharacterRange(_ characterRange: NSRange?) -> [NSRect] {
+    func rectsForCharacterRange(_ characterRange: NSRange?) -> [NSRect] {
         guard
             let characterRange,
             characterRange.length > 0,
@@ -1732,7 +1824,7 @@ final class LineformTextView: NSTextView {
         let capturedAtTop: Bool
     }
 
-    private func visualLayoutAnchorForPreservation() -> VisualLayoutAnchor? {
+    private func visualLayoutAnchorForPreservation(anchorCharacter: Int? = nil) -> VisualLayoutAnchor? {
         guard
             let visibleRange = visibleCharacterRangeForLayoutPreservation(),
             visibleRange.location < (string as NSString).length,
@@ -1741,7 +1833,8 @@ final class LineformTextView: NSTextView {
             return nil
         }
 
-        let characterRange = NSRange(location: visibleRange.location, length: 1)
+        let location = anchorCharacter.map { min(max(0, $0), (string as NSString).length - 1) } ?? visibleRange.location
+        let characterRange = NSRange(location: location, length: 1)
         guard let yInWindow = yPositionInWindow(for: characterRange) else {
             return nil
         }
@@ -1749,7 +1842,8 @@ final class LineformTextView: NSTextView {
         return VisualLayoutAnchor(
             characterRange: characterRange,
             yInWindow: yInWindow,
-            capturedAtTop: scrollView.contentView.bounds.origin.y <= 1
+            // An explicit anchor is held in place even at the top of the document.
+            capturedAtTop: anchorCharacter == nil && scrollView.contentView.bounds.origin.y <= 1
         )
     }
 
@@ -1921,6 +2015,9 @@ enum LineformTextContextMenuPresentation {
     static let learnSpellingTitle = String(localized: "Learn Spelling")
     static let ignoreSpellingTitle = String(localized: "Ignore Spelling")
     static let noGuessesTitle = String(localized: "No Guesses Found")
+    /// Conditional: offered only for a non-empty selection the History controller accepts, so it
+    /// is not part of `commandTitles(for:)` (the rows every menu carries).
+    static let addToHistoryTitle = String(localized: "Add to History")
 
     /// The single suggestion to offer for a misspelling, or none.
     ///

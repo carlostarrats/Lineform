@@ -8,6 +8,7 @@ Lineform is local-first.
 - There is no analytics collection by default.
 - There is no document upload.
 - Images written as a web address are never downloaded. Only image files already on your Mac are displayed; a remote image always stays a placeholder.
+- History (the versions you keep with Add to History) is stored only on your Mac, in Lineform's own folder: `~/Library/Application Support/Lineform/History`, inside the app's sandbox container. It is never written into your Markdown file and never sent anywhere. Versions untouched for 30 days are removed automatically, history for a deleted file is removed, and Settings ▸ Clear History removes all of it at once without changing your files.
 - Reading a document aloud uses the speech voices built into macOS. Nothing is sent anywhere.
 - Spell checking uses the checker built into macOS. There is no bundled dictionary and no online lookup — your words are checked on your Mac, and nothing is sent anywhere. Words you teach it are stored by macOS in your own user dictionary.
 - Lineform checks once a day for announcements — occasional news such as a new version. It reads a small public file from the Lineform website and nothing else: no account, no identifier, no information about you, your Mac, or your documents is sent, and nothing about the check is stored. You can turn it off in Settings, and when it is off Lineform makes no network request at all.

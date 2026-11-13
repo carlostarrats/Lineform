@@ -27,6 +27,7 @@ enum LineformAppNotification {
     case startSpeaking
     case pauseResumeSpeech
     case stopSpeech
+    case showHistory
 
     var name: Notification.Name {
         switch self {
@@ -80,6 +81,8 @@ enum LineformAppNotification {
             return Notification.Name("Lineform.pauseResumeSpeech")
         case .stopSpeech:
             return Notification.Name("Lineform.stopSpeech")
+        case .showHistory:
+            return Notification.Name("Lineform.showHistory")
         }
     }
 

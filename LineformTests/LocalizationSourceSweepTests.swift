@@ -64,6 +64,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "BundledFontRegistrar.swift|Fonts": "Bundle subdirectory name.",
         "DiagramLog.swift|Library/Application Support": "File-system path component.",
+        "PassageHistoryStore.swift|Library/Application Support": "File-system path component.",
         "SpeechVoiceResolver.swift|Hans":
             "ISO 15924 script subtag compared against BCP-47 voice tags, never displayed.",
         "SpeechVoiceResolver.swift|Hant":

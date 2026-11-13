@@ -5,6 +5,7 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
     case outline = "Outline"
     case files = "Files"
     case markdownBasics = "Markdown Basics"
+    case history = "History"
 
     var id: Self { self }
 
@@ -13,6 +14,7 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         case .outline: return "list.bullet"
         case .files: return "folder"
         case .markdownBasics: return "curlybraces"
+        case .history: return "clock.arrow.circlepath"
         }
     }
 
@@ -22,7 +24,27 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         case .outline: return String(localized: "Outline")
         case .files: return String(localized: "Files")
         case .markdownBasics: return String(localized: "Markdown Basics")
+        case .history: return String(localized: "History")
         }
+    }
+
+    /// The tabs the picker shows. History appears only while the document has any.
+    /// Where the sidebar goes when History vanishes: back to the tab the user came from.
+    static func tabAfterHistoryDisappears(selected: OutlineSidebarTab, previous: OutlineSidebarTab?) -> OutlineSidebarTab {
+        guard selected == .history else { return selected }
+        guard let previous, previous != .history else { return .outline }
+        return previous
+    }
+
+    /// Where a tab click leaves the sidebar: on the tab, unless History mode declined to start
+    /// (nothing locatable) — then back to the tab the user came from, never an inert History tab.
+    static func tabAfterSelecting(_ tab: OutlineSidebarTab, accepted: Bool, previous: OutlineSidebarTab?) -> OutlineSidebarTab {
+        guard tab == .history, !accepted else { return tab }
+        return tabAfterHistoryDisappears(selected: .history, previous: previous)
+    }
+
+    static func visibleTabs(hasHistory: Bool) -> [OutlineSidebarTab] {
+        hasHistory ? allCases : allCases.filter { $0 != .history }
     }
 }
 
@@ -134,7 +156,7 @@ struct OutlineSidebarView: View {
     // takes the system unemphasized grey (see `rowSelectionFillColor`). Retained for the ⌘K
     // quick-open palette, which is a transient accent-tinted list, not a source list.
     static let rowSelectionFillOpacity = 0.15
-    static let tabTitles = OutlineSidebarTab.allCases.map(\.title)
+    static let tabTitles = OutlineSidebarTab.visibleTabs(hasHistory: false).map(\.title)
     static let tabsFillAvailableWidth = true
     static let tabsUseNativeEqualWidthSegments = true
     static let tabsUseExplicitThemeAppearance = true
@@ -264,6 +286,11 @@ struct OutlineSidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedNodeIDs: Set<String> = []
     @State private var selectedTab = OutlineSidebarTab.outline
+    @State private var tabBeforeHistory: OutlineSidebarTab?
+    /// History vanishes with its last passage; fall back rather than strand the user on a hidden tab.
+    private var effectiveTab: OutlineSidebarTab {
+        selectedTab == .history && !hasHistory ? .outline : selectedTab
+    }
     @State private var isSettingsHovered = false
     @StateObject private var fileBrowserStore: OutlineFileBrowserStore
 
@@ -351,6 +378,19 @@ struct OutlineSidebarView: View {
     /// The file currently shown in this window, so its Files-tab row can render the native
     /// selection highlight. `nil` for untitled documents (no on-disk URL to match).
     var currentFileURL: URL?
+    /// History tab: shown only when `hasHistory`. Defaults render the empty state; the editor
+    /// container supplies the live model and callbacks.
+    var hasHistory: Bool = false
+    var historyModel: HistorySidebarModel = HistorySidebarModel()
+    var onSelectHistoryLevel: (HistoryLevel) -> Void = { _ in }
+    var onSelectHistoryVersion: (Int) -> Void = { _ in }
+    var onDeleteHistoryVersion: (Int) -> Void = { _ in }
+    /// Whether the editor is in History mode. Leaving it (Esc, typing, a document swap) returns
+    /// the sidebar to the tab the user came from; entering it from elsewhere shows History.
+    var isHistoryModeActive: Bool = false
+    /// Every tab click. The editor enters History mode for `.history` and leaves it otherwise;
+    /// returning false (History mode declined) sends the sidebar back where it came from.
+    var onSelectTab: (OutlineSidebarTab) -> Bool = { _ in true }
     /// Context-menu actions on Files-tab rows. The sidebar stays dumb: the window's
     /// editor container supplies these (it presents the dialogs, performs the file
     /// operation, and broadcasts the app-wide refresh/retarget notifications).
@@ -379,6 +419,13 @@ struct OutlineSidebarView: View {
             LineformSidebarFileOpener.open(url, replacing: nil)
         },
         currentFileURL: URL? = nil,
+        hasHistory: Bool = false,
+        historyModel: HistorySidebarModel = HistorySidebarModel(),
+        onSelectHistoryLevel: @escaping (HistoryLevel) -> Void = { _ in },
+        onSelectHistoryVersion: @escaping (Int) -> Void = { _ in },
+        onDeleteHistoryVersion: @escaping (Int) -> Void = { _ in },
+        isHistoryModeActive: Bool = false,
+        onSelectTab: @escaping (OutlineSidebarTab) -> Bool = { _ in true },
         fileBrowserStore: OutlineFileBrowserStore? = nil,
         settings: LineformSettingsStore = .shared,
         renameItem: @escaping (OutlineFileTreeItem) -> Void = { _ in },
@@ -396,6 +443,13 @@ struct OutlineSidebarView: View {
         self.jumpToHeading = jumpToHeading
         self.openFile = openFile
         self.currentFileURL = currentFileURL
+        self.hasHistory = hasHistory
+        self.historyModel = historyModel
+        self.onSelectHistoryLevel = onSelectHistoryLevel
+        self.onSelectHistoryVersion = onSelectHistoryVersion
+        self.onDeleteHistoryVersion = onDeleteHistoryVersion
+        self.isHistoryModeActive = isHistoryModeActive
+        self.onSelectTab = onSelectTab
         self.settings = settings
         self.renameItem = renameItem
         self.deleteItem = deleteItem
@@ -431,17 +485,40 @@ struct OutlineSidebarView: View {
         }
         .frame(minWidth: Self.minimumColumnWidth, idealWidth: Self.idealColumnWidth, maxWidth: Self.maximumColumnWidth)
         .accessibilityLabel(String(localized: "Document outline"))
+        .onChange(of: hasHistory) { _, nowHasHistory in
+            guard !nowHasHistory else { return }
+            selectedTab = OutlineSidebarTab.tabAfterHistoryDisappears(selected: selectedTab, previous: tabBeforeHistory)
+            tabBeforeHistory = nil
+        }
+        .onChange(of: isHistoryModeActive) { _, isActive in
+            if isActive {
+                guard selectedTab != .history else { return }
+                tabBeforeHistory = selectedTab
+                selectedTab = .history
+            } else {
+                selectedTab = OutlineSidebarTab.tabAfterHistoryDisappears(selected: selectedTab, previous: tabBeforeHistory)
+                tabBeforeHistory = nil
+            }
+        }
     }
 
     @ViewBuilder
     private var tabContent: some View {
-        switch selectedTab {
+        switch effectiveTab {
         case .outline:
             outlineContent
         case .files:
             filesContent
         case .markdownBasics:
             OutlineMarkdownBasicsTabView(usesDarkChrome: usesDarkChrome)
+        case .history:
+            HistorySidebarView(
+                model: historyModel,
+                usesDarkChrome: usesDarkChrome,
+                onSelectLevel: onSelectHistoryLevel,
+                onSelectVersion: onSelectHistoryVersion,
+                onDeleteVersion: onDeleteHistoryVersion
+            )
         }
     }
 
@@ -552,12 +629,18 @@ struct OutlineSidebarView: View {
     private var tabPicker: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(OutlineSidebarTab.allCases) { tab in
+                ForEach(OutlineSidebarTab.visibleTabs(hasHistory: hasHistory)) { tab in
                     SidebarTabButton(
                         tab: tab,
-                        isSelected: selectedTab == tab,
+                        isSelected: effectiveTab == tab,
                         usesDarkChrome: usesDarkChrome,
-                        action: { selectedTab = tab }
+                        action: {
+                            if tab == .history, selectedTab != .history { tabBeforeHistory = selectedTab }
+                            selectedTab = tab
+                            let accepted = onSelectTab(tab)
+                            selectedTab = OutlineSidebarTab.tabAfterSelecting(tab, accepted: accepted, previous: tabBeforeHistory)
+                            if selectedTab != .history { tabBeforeHistory = nil }
+                        }
                     )
                 }
             }

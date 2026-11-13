@@ -104,6 +104,10 @@ enum AppMenuConfiguration {
     static let showHiddenFoldersCommandTitle = String(localized: "Show Hidden Folders")
     static let showHiddenFoldersCommandKeyEquivalent = "."
     static let findCommandTitle = String(localized: "Find")
+    static let historyCommandTitle = String(localized: "History")
+    /// ⌘Y — Safari's "Show History". Free in this app's menus and in AppKit's standard ones
+    /// (checked with `LINEFORM_DUMP_MAIN_MENU=1`), and NSTextView binds no ⌘Y.
+    static let historyCommandKeyEquivalent = "y"
     static let findCommandKeyEquivalent = "f"
     // ⌥⌘F — the macOS-standard Find & Replace shortcut (TextEdit/Pages).
     static let findReplaceCommandTitle = String(localized: "Find & Replace…")
@@ -205,6 +209,7 @@ enum AppMenuConfiguration {
         "Toggle Outline",
         "Show Hidden Folders",
         "Reading Experience",
+        "History",
         // Window menu
         "New Window",
         // Help menu
@@ -344,6 +349,24 @@ final class LineformCurrentFileMenuState: ObservableObject {
     }
 }
 
+/// Whether the key window's document has History, so View ▸ History enables only when there is
+/// something to show. Same shared-state pattern as `LineformCurrentFileMenuState`.
+@MainActor
+final class LineformHistoryMenuState: ObservableObject {
+    static let shared = LineformHistoryMenuState()
+
+    @Published private(set) var hasHistory = false
+
+    func setHasHistory(_ hasHistory: Bool) {
+        guard hasHistory != self.hasHistory else {
+            return
+        }
+
+        self.hasHistory = hasHistory
+        NSApp.mainMenu?.update()
+    }
+}
+
 /// Tracks the key window's `SpeechController` state so the Edit ▸ Speech submenu's Pause·Resume
 /// label and enablement track the frontmost window. Same shared-state pattern as
 /// `LineformCurrentFileMenuState`: each window's editor container pushes its controller's state
@@ -370,6 +393,7 @@ struct AppCommands: Commands {
     @ObservedObject private var hiddenFoldersMenuState: HiddenFoldersMenuState
     @ObservedObject private var currentFileMenuState: LineformCurrentFileMenuState
     @ObservedObject private var speechMenuState: LineformSpeechMenuState
+    @ObservedObject private var historyMenuState: LineformHistoryMenuState
     @ObservedObject private var settingsStore: LineformSettingsStore
 
     init(
@@ -378,6 +402,7 @@ struct AppCommands: Commands {
         hiddenFoldersMenuState: HiddenFoldersMenuState = .shared,
         currentFileMenuState: LineformCurrentFileMenuState = .shared,
         speechMenuState: LineformSpeechMenuState = .shared,
+        historyMenuState: LineformHistoryMenuState = .shared,
         settingsStore: LineformSettingsStore = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
@@ -385,6 +410,7 @@ struct AppCommands: Commands {
         _hiddenFoldersMenuState = ObservedObject(wrappedValue: hiddenFoldersMenuState)
         _currentFileMenuState = ObservedObject(wrappedValue: currentFileMenuState)
         _speechMenuState = ObservedObject(wrappedValue: speechMenuState)
+        _historyMenuState = ObservedObject(wrappedValue: historyMenuState)
         _settingsStore = ObservedObject(wrappedValue: settingsStore)
     }
 
@@ -649,6 +675,16 @@ struct AppCommands: Commands {
                 LineformAppNotification.showReadingExperience.post(object: LineformAppNotification.activeWindowPayload())
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
+
+            // Enters History mode (showing the sidebar's History tab), or leaves it when on.
+            Button(AppMenuConfiguration.historyCommandTitle) {
+                LineformAppNotification.showHistory.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .keyboardShortcut(
+                KeyEquivalent(Character(AppMenuConfiguration.historyCommandKeyEquivalent)),
+                modifiers: .command
+            )
+            .disabled(!historyMenuState.hasHistory)
 
             Divider()
         }
