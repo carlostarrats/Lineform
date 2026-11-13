@@ -139,6 +139,117 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertNil(textView.historyDisplay)
     }
 
+    /// ⌘Z after a whole-text formatting command leaves the WHOLE document selected. Carried into
+    /// History mode, the first keystroke (exit, then type) replaced the entire document.
+    func testEnteringHistoryModeCollapsesSelection() {
+        let textView = makeTextView()
+        let all = NSRange(location: 0, length: (sample as NSString).length)
+        textView.setSelectedRange(all)
+
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 17))])
+        XCTAssertEqual(textView.selectedRange().length, 0, "History mode never holds a selection")
+
+        textView.selectAll(nil)
+        XCTAssertEqual(textView.selectedRange().length, 0, "and stays collapsed for the whole mode")
+        textView.setSelectedRange(NSRange(location: 6, length: 4))
+        XCTAssertEqual(textView.selectedRange().length, 0)
+
+        textView.historyDisplay = nil
+        textView.setSelectedRange(all)
+        XCTAssertEqual(textView.selectedRange(), all, "normal writing selects as usual")
+    }
+
+    func testTypingAfterSelectingPassageInsertsAtPassageEnd() {
+        let textView = makeTextView()
+        textView.selectAll(nil)
+        let first = passage(NSRange(location: 0, length: 17))
+        let second = passage(NSRange(location: 18, length: 14))
+        textView.historyCommandHandler = { command in
+            if command == .typedWhileInHistoryMode { textView.historyDisplay = nil }
+        }
+        textView.historyDisplay = display([first, second])
+        textView.historyDisplay = display([first, second], selected: first.id)
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 17, length: 0), "the hidden caret sits at the passage end")
+
+        textView.insertText("X", replacementRange: NSRange(location: NSNotFound, length: 0))
+
+        XCTAssertNil(textView.historyDisplay)
+        XCTAssertEqual(textView.string, "Alpha beta gamma.X Delta epsilon.", "nothing else is replaced")
+    }
+
+    /// Defence in depth: even if a selection reached History mode, typing never replaces it.
+    func testTypingInHistoryModeNeverReplacesASelection() {
+        let textView = makeTextView()
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 17))])
+        var commands: [HistoryTextCommand] = []
+        textView.historyCommandHandler = { command in
+            commands.append(command)
+            if command == .typedWhileInHistoryMode { textView.historyDisplay = nil }
+        }
+        let all = NSRange(location: 0, length: (sample as NSString).length)
+        XCTAssertFalse(textView.shouldChangeText(in: all, replacementString: "X"))
+        XCTAssertEqual(textView.string, sample)
+    }
+
+    func testHistoryModeHidesTheInsertionPoint() {
+        let textView = makeTextView()
+        XCTAssertFalse(textView.hidesInsertionPointForHistory)
+        textView.historyDisplay = display([passage(NSRange(location: 0, length: 5))])
+        XCTAssertTrue(textView.hidesInsertionPointForHistory)
+        XCTAssertFalse(textView.shouldDrawInsertionPoint)
+        textView.historyDisplay = nil
+        XCTAssertFalse(textView.hidesInsertionPointForHistory)
+    }
+
+    // MARK: - Dot placement (pure)
+
+    /// 17pt SF Pro at 1.5 line height: the dots sit centred in the gap between the descender and
+    /// the next line's ascender, at least 2pt from each.
+    func testDotsCentreInTheInterLineGap() throws {
+        let top = try XCTUnwrap(HistoryDotPlacement.belowTop(
+            baselineY: 100, descender: 4, nextLineTopY: 120, diameter: 5))
+        XCTAssertEqual(top, 104 + (16 - 5) / 2, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(top - 104, 2)
+        XCTAssertGreaterThanOrEqual(120 - (top + 5), 2)
+
+        let tall = try XCTUnwrap(HistoryDotPlacement.belowTop(
+            baselineY: 100, descender: 4, nextLineTopY: 140, diameter: 5))
+        XCTAssertEqual(tall, 104 + HistoryDotPlacement.maximumClearanceAbove, accuracy: 0.001,
+                       "a paragraph gap never pushes the dots away from their line")
+    }
+
+    /// Real layout at the default profile: the dots sit under the first line with at least 2pt
+    /// from its descender and from the next line's ascender.
+    func testDefaultProfileDotsClearBothLines() throws {
+        let textView = LineformTextView()
+        textView.applyDefaultTypography()
+        // A line separator: a second line in the SAME paragraph (no paragraph spacing).
+        textView.string = "Hello world again.\u{2028}Bold lines below."
+        let font = try XCTUnwrap(textView.font)
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        layoutManager.ensureLayout(for: try XCTUnwrap(textView.textContainer))
+
+        let placement = try XCTUnwrap(textView.historyDotsPlacement(for: NSRange(location: 0, length: 18)))
+        XCTAssertTrue(placement.isBelow, "a 1.5 line height has room between the lines")
+        var firstLine = NSRange(location: 0, length: 0)
+        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: 0, effectiveRange: &firstLine)
+        let baseline = textView.textContainerOrigin.y + lineRect.minY + layoutManager.location(forGlyphAt: 0).y
+        let nextGlyph = NSMaxRange(firstLine)
+        let nextBaseline = textView.textContainerOrigin.y
+            + layoutManager.lineFragmentRect(forGlyphAt: nextGlyph, effectiveRange: nil).minY
+            + layoutManager.location(forGlyphAt: nextGlyph).y
+        XCTAssertGreaterThanOrEqual(placement.origin.y - (baseline - font.descender), 2 - 0.001)
+        XCTAssertGreaterThanOrEqual((nextBaseline - font.ascender) - (placement.origin.y + LineformTextView.historyDotDiameter), 2 - 0.001)
+    }
+
+    func testTightLineHeightMovesDotsToTheLineEnd() {
+        XCTAssertNil(HistoryDotPlacement.belowTop(baselineY: 100, descender: 4, nextLineTopY: 112.9, diameter: 5),
+                     "a gap under dot + 4pt has no room")
+        XCTAssertNotNil(HistoryDotPlacement.belowTop(baselineY: 100, descender: 4, nextLineTopY: 113, diameter: 5))
+        // Centred on the x-height: baseline 100, x-height 9 → centre 95.5.
+        XCTAssertEqual(HistoryDotPlacement.trailingTop(baselineY: 100, xHeight: 9, diameter: 5), 93, accuracy: 0.001)
+    }
+
     func testHistoryEditsAreNotMistakenForTyping() {
         let textView = makeTextView()
         textView.historyDisplay = display([passage(NSRange(location: 0, length: 5))])

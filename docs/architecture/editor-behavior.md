@@ -718,6 +718,21 @@ shows passages with history and steps their versions. Spec:
   the entry text, and a collapse spanning several passages dropped them all (undo → save → redo).
   The version-restore action and the bracket are skipped after a version was deleted in the session
   (indices shifted).
+- **History mode holds no selection and shows no caret.** Entering collapses the selection
+  (`applyHistoryDisplay`) and the `setSelectedRanges` override (`historyClampedSelection`) refuses
+  any non-empty one for the whole mode (⌘A included); the caret is hidden
+  (`shouldDrawInsertionPoint` / `hidesInsertionPointForHistory`) and, when a passage is selected,
+  parked at that passage's END, so the keystroke that leaves inserts there. Found by hand: ⌘B, ⌘S,
+  ⌘Z leaves the WHOLE document selected; History-mode clicks never reach `super.mouseDown`, so the
+  selection survived and the first keystroke (leave, then type) replaced the entire document.
+  `refusesHistoryModeReplacement` is the backstop: a user edit in History mode that would replace
+  a non-empty range with text is refused (mode left, caret moved to its end).
+- **Version dots** (`HistoryDotPlacement`, pure and tested): centred in the gap between the first
+  line's descender and the next line's ascender top (font metrics; the next line's real layout
+  when it exists), at least 2pt from each and at most 6pt below the descender. When that gap is
+  under dot + 4pt (tight line heights) they go after the passage's last glyph instead, centred on
+  the x-height. At the default profile (17pt SF Pro, 1.5) the gap is ~10pt, so the clearance is
+  ~2.5pt each side by metrics (glyph tops of ascender letters sit several points lower).
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
   `didChangeText` — never `applyWholeTextReplacement`.
 - **Leaving.** Esc, another sidebar tab, Read or Split mode, typing (the first keystroke leaves and

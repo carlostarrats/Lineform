@@ -112,9 +112,8 @@ extension LineformTextView {
     static let historyDotDiameter: CGFloat = 5
     static let historyDotGap: CGFloat = 3
     static let historyDotStrokeWidth: CGFloat = 0.75
-    /// The dots' top edge sits this share of a line height below the baseline — clear of
-    /// descenders, so they never crowd the text.
-    static let historyDotBaselineOffsetRatio: CGFloat = 0.32
+    /// Space between a passage's last glyph and the dots when they sit at the line's end.
+    static let historyDotTrailingGap: CGFloat = 4
 
     // MARK: - Display state
 
@@ -136,8 +135,23 @@ extension LineformTextView {
         guard let incoming else {
             removeHistoryRecededInk()
             removeHistoryTrackingArea()
+            updateInsertionPointStateAndRestartTimer(true)
             needsDisplay = true
             return
+        }
+
+        if previous == nil {
+            // A selection carried in (⌘Z after a whole-text command selects the whole document)
+            // would be REPLACED by the keystroke that leaves History mode. Collapse it; the
+            // selection override keeps it collapsed for the whole mode.
+            setSelectedRange(NSRange(location: selectedRange().location, length: 0))
+            updateInsertionPointStateAndRestartTimer(true)
+        }
+        if let selected = incoming.selectedPassage,
+           previous?.selectedPassage?.id != selected.id || previous?.selectedPassage?.range != selected.range {
+            // The hidden caret follows the selected passage, so leaving by typing inserts there.
+            let end = min(NSMaxRange(selected.range), (string as NSString).length)
+            setSelectedRange(NSRange(location: end, length: 0))
         }
 
         if previous?.passages != incoming.passages || previous == nil {
@@ -281,25 +295,9 @@ extension LineformTextView {
     }
 
     private func drawHistoryDots(_ dots: HistoryDots, at range: NSRange, theme: Theme) {
-        guard
-            let layoutManager,
-            range.length > 0,
-            range.location < (string as NSString).length
-        else {
-            return
-        }
-
-        let glyphIndex = layoutManager.glyphIndexForCharacter(at: range.location)
-        guard glyphIndex < layoutManager.numberOfGlyphs else { return }
-        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
-        let glyphLocation = layoutManager.location(forGlyphAt: glyphIndex)
-        let lineHeight = layoutManager.defaultLineHeight(
-            for: font ?? .systemFont(ofSize: CGFloat(appliedReadingProfile.fontSize))
-        )
-        let baselineY = textContainerOrigin.y + lineRect.minY + glyphLocation.y
-        let top = baselineY + Self.historyDotBaselineOffsetRatio * lineHeight
-        let left = textContainerOrigin.x + lineRect.minX + glyphLocation.x
-
+        guard let origin = historyDotsOrigin(for: range) else { return }
+        let left = origin.x
+        let top = origin.y
         let ink = HistoryPalette.dotInk(for: theme)
         for index in 0..<dots.count {
             let rect = NSRect(
@@ -319,6 +317,81 @@ extension LineformTextView {
                 path.stroke()
             }
         }
+    }
+
+    /// The first dot's top-left corner for a passage, plus whether it went under the first line
+    /// (`isBelow`) or after the last glyph. Nil when the passage has no laid-out glyph.
+    func historyDotsPlacement(for range: NSRange) -> (origin: NSPoint, isBelow: Bool)? {
+        let ns = string as NSString
+        guard
+            let layoutManager,
+            let textContainer,
+            range.length > 0,
+            range.location < ns.length
+        else {
+            return nil
+        }
+        func fontAt(_ index: Int) -> NSFont {
+            (textStorage?.attribute(.font, at: index, effectiveRange: nil) as? NSFont)
+                ?? font ?? .systemFont(ofSize: CGFloat(appliedReadingProfile.fontSize))
+        }
+
+        let glyphIndex = layoutManager.glyphIndexForCharacter(at: range.location)
+        guard glyphIndex < layoutManager.numberOfGlyphs else { return nil }
+        var lineGlyphs = NSRange(location: 0, length: 0)
+        let lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: &lineGlyphs)
+        let glyphLocation = layoutManager.location(forGlyphAt: glyphIndex)
+        let firstFont = fontAt(range.location)
+        let baselineY = textContainerOrigin.y + lineRect.minY + glyphLocation.y
+
+        // The next line's ascender top, from its real layout when there is one.
+        let nextLineTopY: CGFloat
+        let nextGlyph = NSMaxRange(lineGlyphs)
+        if nextGlyph < layoutManager.numberOfGlyphs {
+            let nextRect = layoutManager.lineFragmentRect(forGlyphAt: nextGlyph, effectiveRange: nil)
+            let nextLocation = layoutManager.location(forGlyphAt: nextGlyph)
+            let nextFont = fontAt(min(layoutManager.characterIndexForGlyph(at: nextGlyph), ns.length - 1))
+            nextLineTopY = textContainerOrigin.y + nextRect.minY + nextLocation.y - nextFont.ascender
+        } else {
+            nextLineTopY = textContainerOrigin.y + lineRect.maxY + glyphLocation.y - firstFont.ascender
+        }
+
+        let left: CGFloat
+        let top: CGFloat
+        let isBelow: Bool
+        if let below = HistoryDotPlacement.belowTop(
+            baselineY: baselineY, descender: -firstFont.descender,
+            nextLineTopY: nextLineTopY, diameter: Self.historyDotDiameter
+        ) {
+            left = textContainerOrigin.x + lineRect.minX + glyphLocation.x
+            top = below
+            isBelow = true
+        } else {
+            isBelow = false
+            // Too tight to fit between the lines: after the passage's last glyph instead.
+            var last = NSMaxRange(range) - 1
+            while last > range.location,
+                  let scalar = Unicode.Scalar(ns.character(at: last)),
+                  CharacterSet.whitespacesAndNewlines.contains(scalar) {
+                last -= 1
+            }
+            let lastGlyph = layoutManager.glyphIndexForCharacter(at: last)
+            guard lastGlyph < layoutManager.numberOfGlyphs else { return nil }
+            let lastRect = layoutManager.lineFragmentRect(forGlyphAt: lastGlyph, effectiveRange: nil)
+            let lastLocation = layoutManager.location(forGlyphAt: lastGlyph)
+            let glyphBox = layoutManager.boundingRect(forGlyphRange: NSRange(location: lastGlyph, length: 1), in: textContainer)
+            left = textContainerOrigin.x + glyphBox.maxX + Self.historyDotTrailingGap
+            top = HistoryDotPlacement.trailingTop(
+                baselineY: textContainerOrigin.y + lastRect.minY + lastLocation.y,
+                xHeight: fontAt(last).xHeight, diameter: Self.historyDotDiameter
+            )
+        }
+
+        return (NSPoint(x: left, y: top), isBelow)
+    }
+
+    private func historyDotsOrigin(for range: NSRange) -> NSPoint? {
+        historyDotsPlacement(for: range)?.origin
     }
 
     // MARK: - Input
@@ -365,6 +438,32 @@ extension LineformTextView {
             return name.hasPrefix("move") || name.hasPrefix("page")
         }
         historyCommandHandler?(command)
+        return true
+    }
+
+    /// True while History mode is on: the caret is hidden (the selection is the passage tint).
+    var hidesInsertionPointForHistory: Bool { historyDisplayStorage != nil }
+
+    /// History mode never holds a text selection: a requested non-empty selection is refused and
+    /// the collapsed caret stays where it is. Nil outside History mode (select as usual).
+    func historyClampedSelection(_ ranges: [NSValue]) -> [NSValue]? {
+        guard historyDisplayStorage != nil else { return nil }
+        if ranges.count == 1, let only = ranges.first, only.rangeValue.length == 0 { return nil }
+        let caret = ranges.first.map { $0.rangeValue.length == 0 ? $0.rangeValue.location : selectedRange().location }
+            ?? selectedRange().location
+        return [NSValue(range: NSRange(location: caret, length: 0))]
+    }
+
+    /// Defence in depth for the exit-by-typing path: a user edit in History mode that would
+    /// REPLACE a range with new text (a selection that somehow survived) is refused — History
+    /// mode is left, the caret goes to the range's end, and nothing is replaced. Caret-relative
+    /// deletes (empty replacement) and insertions (empty range) pass.
+    func refusesHistoryModeReplacement(_ range: NSRange, replacement: String?) -> Bool {
+        guard historyDisplayStorage != nil, !isApplyingHistoryEdit, let replacement,
+              range.length > 0, !replacement.isEmpty else { return false }
+        historyCommandHandler?(.typedWhileInHistoryMode)
+        let end = min(NSMaxRange(range), (string as NSString).length)
+        setSelectedRange(NSRange(location: end, length: 0))
         return true
     }
 
@@ -542,5 +641,31 @@ extension LineformTextView {
                 .priority: NSAccessibilityPriorityLevel.high.rawValue,
             ]
         )
+    }
+}
+
+
+/// Where the version dots go, in flipped view coordinates (y grows down). Pure, so the geometry is
+/// pinned by tests rather than eyeballed.
+enum HistoryDotPlacement {
+    /// The least clear space between the dots and the text above or below them.
+    static let minimumClearance: CGFloat = 2
+    /// The most space left above the dots in a tall gap (paragraph spacing), so they stay
+    /// attached to the line they mark.
+    static let maximumClearanceAbove: CGFloat = 6
+
+    /// The dots' top edge under the first line: centred in the gap between that line's
+    /// descender and the next line's ascender. Nil when the gap is under `diameter + 2 × 2pt` —
+    /// the caller then draws them at the passage's end (`trailingTop`).
+    static func belowTop(baselineY: CGFloat, descender: CGFloat, nextLineTopY: CGFloat, diameter: CGFloat) -> CGFloat? {
+        let descenderBottom = baselineY + descender
+        let gap = nextLineTopY - descenderBottom
+        guard gap >= diameter + 2 * minimumClearance else { return nil }
+        return descenderBottom + min((gap - diameter) / 2, maximumClearanceAbove)
+    }
+
+    /// The dots' top edge after a line's last glyph: centred on the x-height.
+    static func trailingTop(baselineY: CGFloat, xHeight: CGFloat, diameter: CGFloat) -> CGFloat {
+        baselineY - xHeight / 2 - diameter / 2
     }
 }

@@ -282,6 +282,9 @@ final class LineformTextView: NSTextView {
     /// after AppKit allowed it and before it lands, in the coordinates of the text before it.
     /// Attribute-only changes (`replacementString == nil`) are neither typing nor edits.
     override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        if refusesHistoryModeReplacement(affectedCharRange, replacement: replacementString) {
+            return false
+        }
         if replacementString != nil {
             noteHistoryTypingIfNeeded()
         }
@@ -1028,6 +1031,16 @@ final class LineformTextView: NSTextView {
             return
         }
         super.mouseDown(with: event)
+    }
+
+    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting stillSelectingFlag: Bool) {
+        super.setSelectedRanges(historyClampedSelection(ranges) ?? ranges, affinity: affinity,
+                                stillSelecting: stillSelectingFlag)
+    }
+
+    /// History mode hides the caret (`hidesInsertionPointForHistory`).
+    override var shouldDrawInsertionPoint: Bool {
+        super.shouldDrawInsertionPoint && !hidesInsertionPointForHistory
     }
 
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
