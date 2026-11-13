@@ -670,7 +670,7 @@ shows passages with history and steps their versions. Spec:
   `HistoryEdit` that puts it in the document. The typed text is trimmed and given the live passage's
   OWN leading/trailing whitespace, so an accepted "AI rewrite. " keeps the space before the next
   sentence; it is nil when the trimmed text is empty or equals the trimmed current version. The
-  controller's `addReplacement(_:)` applies the edit through the same undo-disabled `didProduce`
+  controller's `addReplacement(_:for:)` applies the edit through the same undo-disabled `didProduce`
   path as a step, so the session still collapses to one undo step on exit. Children stay with the
   version they were made in (hidden, as on a step), unlike `appendLive`, which only accepted AI
   changes use. **Leaving History mode (exit or `endHistoryModeWithoutEdit`) calls
@@ -693,17 +693,35 @@ shows passages with history and steps their versions. Spec:
 - **Showing History (2026-11-13).** `EditorContainerView.showHistory(focusing:)` is the one path for
   "open History on this passage": `HistoryMenuHandlers` subscribes it to `onRequestShowHistory`,
   DEFERRED a runloop turn (the request fires from inside `add` and from the end of an AI review,
-  which must finish first). It ends AI work only when a request or review is actually up (the
-  first-accept intro arrives just after a review ended; abandoning then would drop a refusal
-  message), switches to Write, calls `showPassage`, and only if that succeeded opens the sidebar
-  through `showSidebarIfHidden()` — AppKit's `toggleSidebar:` (so it slides) and ONLY when hidden;
-  a bare `isShowingOutline = true` write snaps the column with no animation. View ▸ History uses the
+  which must finish first). It hands AI to `AIActionController.yieldToHistory()`: a request or
+  review ends, Mark's wash is dismissed (History never opens under it), and a message stays (the
+  first-accept intro arrives just after a review ended; dropping it would lose a refusal). Then it
+  switches to Write, calls `showPassage` — which checks the passage is in the text BEFORE entering
+  History mode, so a stale id never leaves History on with nothing selected — and only if that
+  succeeded opens the sidebar through `showSidebarIfHidden()` — AppKit's nil-targeted
+  `toggleSidebar:` (so it slides; it reaches the key window, which is the requesting window in
+  every current trigger) and ONLY when hidden; a bare `isShowingOutline = true` write snaps the
+  column with no animation. The hook is set through `setShowHistoryHandler(owner:)` and cleared on
+  the view's disappear by `clearShowHistoryHandler(owner:)`: it captures the whole editor view —
+  every `@StateObject`, the controller included — so it is a retain cycle until cleared, and the
+  owner token keeps a hierarchy rebuild (new appear before old disappear) from clearing the live
+  hook. View ▸ History uses the
   same helper (it used to write the binding). The sidebar follows `isHistoryModeActive` onto its
   History tab and back to the tab it came from (`OutlineSidebarTab.historyModeTransition`).
 - **Sidebar controls.** A "History" header row carries **Exit** (calls `exitHistoryMode()`); below
-  the versions, a centred **Add Replacement** capsule swaps for a text field: Return calls
-  `addReplacement(_:)` (the controller trims, and ignores empty or unchanged text), Esc
-  (`onExitCommand`) or focus loss closes it unsaved. While the field is first responder it owns the
+  the versions, a centred **Add Replacement** capsule swaps for a text field opened for ONE passage
+  (`HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`): Return calls
+  `addReplacement(_:for:)` with that passage, which the controller REFUSES when the selection has
+  moved since. The field also closes when the selected passage id changes — the level buttons
+  (Paragraph · Sentence · Word) take no focus from it, so without that a sentence-sized replacement
+  typed, then "Paragraph" clicked, then Return replaced the whole paragraph. The engine makes the
+  text one line (`singleLineReplacement`: every line terminator, `\r\n` `\n` `\r` U+2028 U+2029
+  U+0085, with the whitespace around it, becomes one space — a pasted LF would otherwise land bare
+  in a CRLF file or start new Markdown structure), ignores empty text and text equal to the current
+  version, and SELECTS an existing version whose trimmed text matches instead of appending a
+  duplicate. Esc (`onExitCommand`), focus loss, or the sidebar view disappearing (hidden while
+  History stays on) closes it unsaved; every close reports `onReplacementFieldEnded` exactly once,
+  so `historyReplacementFieldIsOpen` can never stay stuck. While the field is first responder it owns the
   keys — ← → edit the text, Esc closes the FIELD, not History — and on close
   `focusEditorForHistory()` makes the text view first responder again, so ← → step versions.
   The field's focus is written a runloop turn AFTER it is inserted
@@ -712,7 +730,10 @@ shows passages with history and steps their versions. Spec:
   text view's `historyReplacementFieldIsOpen` is set, and any key that still reaches it — text
   (`refusesEditForHistoryReplacementField`, in `shouldChangeText`) or a caret move — types nothing,
   never leaves History, and asks the field for focus (`HistoryReplacementFieldSignal`); Esc there
-  closes the field. History's own edits pass (`isApplyingHistoryEdit`); ending History clears it. Both
+  closes the field. History's own edits pass (`isApplyingHistoryEdit`); ending History clears it.
+  Because the refusal sits in `shouldChangeText`, it covers every whole-text command too: while the
+  field is open, formatting commands, heading keys, list toggles, Insert/Reformat Table and Find &
+  Replace change nothing, and History stays on. Both
   capsules and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
   the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
   inset (`HistorySidebarPresentation.textInset`).

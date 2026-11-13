@@ -222,6 +222,22 @@ final class AIActionController: ObservableObject {
         state = .idle
     }
 
+    /// History is about to open on a passage (Add to History, the first-accept intro): History
+    /// and AI never overlap. A request or review ends (keeping what was accepted); Mark's wash is
+    /// dismissed. A message is left up — the first-accept intro arrives just after a review
+    /// ended, and dropping it then would lose a refusal.
+    func yieldToHistory() {
+        switch state {
+        case .running, .reviewing:
+            endReview()
+            abandon()
+        case .marking:
+            dismissMarks()
+        case .idle, .message:
+            break
+        }
+    }
+
     func dismissMarks() {
         if case .marking = state { state = .idle }
     }

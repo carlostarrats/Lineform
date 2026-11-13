@@ -329,19 +329,27 @@ struct DocumentHistoryEngine {
     }
 
     /// The writer's own alternative for passage `id`: appended as a new version and made current,
-    /// so the returned edit puts it in the document. The typed text is trimmed and given the live
-    /// passage's OWN leading/trailing whitespace (an accepted "AI rewrite. " keeps its trailing
-    /// space, so the next sentence does not run on). Nil when the trimmed text is empty or equals
-    /// the trimmed current version, or the passage cannot be located.
+    /// so the returned edit puts it in the document. The typed text is made one line
+    /// (`singleLineReplacement`) and given the live passage's OWN leading/trailing whitespace (an
+    /// accepted "AI rewrite. " keeps its trailing space, so the next sentence does not run on).
+    /// Text equal (trimmed) to a version the passage already has is not appended: that version is
+    /// selected instead. Nil when the text is empty or equals the trimmed current version, or the
+    /// passage cannot be located.
     /// Like `select`, the edit is applied verbatim and NOT reported through `applyEdit`.
     mutating func addReplacement(_ replacement: String, to id: UUID, in text: String) -> HistoryEdit? {
-        let trimmed = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = Self.singleLineReplacement(replacement)
         guard !trimmed.isEmpty,
               let located = locateAll(in: text).first(where: { $0.id == id }),
               let p = index(of: id) else { return nil }
         // The current version IS the live text (locateAll just refreshed it).
-        let live = history.passages[p].versions[history.passages[p].currentIndex].text
-        guard trimmed != live.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        let current = history.passages[p].currentIndex
+        let live = history.passages[p].versions[current].text
+        if let existing = history.passages[p].versions.firstIndex(where: {
+            $0.text.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed
+        }) {
+            guard existing != current else { return nil }
+            return select(id, version: existing, in: text)
+        }
         let leading = String(live.prefix { $0.isWhitespace })
         let trailing = live.allSatisfy(\.isWhitespace) ? "" : String(live.reversed().prefix { $0.isWhitespace }.reversed())
         let text = leading + trimmed + trailing
@@ -352,6 +360,18 @@ struct DocumentHistoryEngine {
         let edit = HistoryEdit(range: located.range, replacement: text)
         didProduce(edit, for: id)
         return edit
+    }
+
+    /// The replacement field is one line. A pasted line terminator — `\r\n`, `\n`, `\r`, U+2028,
+    /// U+2029, U+0085 (any `Character.isNewline`) — and the whitespace around it become ONE space:
+    /// inserted verbatim it would put a bare LF into a CRLF file (`MarkdownLineEnding.inForce`)
+    /// or start new Markdown structure. Edges are trimmed; other interior whitespace is kept.
+    static func singleLineReplacement(_ replacement: String) -> String {
+        replacement
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     /// Removes every passage with exactly one version (added, never given a replacement) and

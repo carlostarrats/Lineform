@@ -116,6 +116,47 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(edit.replacement, "dangerous")
     }
 
+    /// The field is one line: a pasted line terminator (any of them) and the whitespace around it
+    /// become one space, so a replacement never puts a bare LF into a CRLF file or starts new
+    /// Markdown structure.
+    func testAddReplacementCollapsesInteriorLineTerminators() throws {
+        let text = "Alpha beta.\r\nGamma delta.\r\n"
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "Alpha beta.", in: text), author: .you, in: text))
+        let edit = try XCTUnwrap(engine.addReplacement("a\nb", to: id, in: text))
+        XCTAssertEqual(edit.replacement, "a b")
+        let replaced = apply(edit, to: text)
+        XCTAssertEqual(replaced, "a b\r\nGamma delta.\r\n")
+        XCTAssertEqual(replaced.components(separatedBy: "\n").count, replaced.components(separatedBy: "\r\n").count,
+                       "no bare LF")
+
+        for terminator in ["\r\n", "\r", "\u{2028}", "\u{2029}", "\u{85}"] {
+            var other = makeEngine()
+            let otherID = try XCTUnwrap(other.add(range(of: "Alpha beta.", in: text), author: .you, in: text))
+            let replacement = try XCTUnwrap(other.addReplacement("one  \(terminator) \(terminator)\t two", to: otherID, in: text))
+            XCTAssertEqual(replacement.replacement, "one two", "terminator \(terminator.unicodeScalars.map { $0.value })")
+        }
+        var spaced = makeEngine()
+        let spacedID = try XCTUnwrap(spaced.add(range(of: "Alpha beta.", in: text), author: .you, in: text))
+        XCTAssertEqual(try XCTUnwrap(spaced.addReplacement("keep  inner\tspaces", to: spacedID, in: text)).replacement,
+                       "keep  inner\tspaces", "only runs holding a line terminator collapse")
+    }
+
+    /// Text that equals ANY version already kept is not a new version: that version is selected.
+    func testAddReplacementMatchingAnEarlierVersionSelectsIt() throws {
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.add(range(of: "gentle", in: gentleText), author: .you, in: gentleText))
+        let t1 = apply(try XCTUnwrap(engine.addReplacement("dangerous", to: id, in: gentleText)), to: gentleText)
+        let t2 = apply(try XCTUnwrap(engine.addReplacement("fierce", to: id, in: t1)), to: t1)
+
+        let back = try XCTUnwrap(engine.addReplacement("  gentle \n", to: id, in: t2))
+        XCTAssertEqual(back, HistoryEdit(range: range(of: "fierce", in: t2), replacement: "gentle"))
+        XCTAssertEqual(apply(back, to: t2), gentleText)
+        let passage = try XCTUnwrap(engine.history.passages.first { $0.id == id })
+        XCTAssertEqual(passage.versions.map(\.text), ["gentle", "dangerous", "fierce"], "nothing appended")
+        XCTAssertEqual(passage.currentIndex, 0)
+    }
+
     /// A replacement keeps the live passage's own edge whitespace: an accepted "AI rewrite. "
     /// stays separated from the next sentence. "Unchanged" compares trimmed to trimmed.
     func testAddReplacementKeepsThePassagesEdgeWhitespace() throws {

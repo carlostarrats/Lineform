@@ -538,6 +538,14 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertEqual(requests, [.focus, .focus, .focus, .focus, .cancel])
         XCTAssertNotNil(textView.historyDisplay)
 
+        // Whole-text commands (formatting, heading keys, Find & Replace) go through the same
+        // refusal: nothing changes and History stays on.
+        textView.applyExternalReplacement(MarkdownEdit(text: "**" + sample + "**", selectedRange: NSRange(location: 0, length: 0)))
+        XCTAssertEqual(textView.string, sample, "a formatting command changes nothing while the field is open")
+        XCTAssertEqual(commands, [])
+        XCTAssertEqual(requests.last, .focus)
+        XCTAssertNotNil(textView.historyDisplay)
+
         // History's own edit (the committed replacement lands while the flag is still set) passes.
         textView.performHistoryEdit {
             XCTAssertTrue(textView.shouldChangeText(in: NSRange(location: 0, length: 5), replacementString: "Omega"))

@@ -6,6 +6,51 @@ struct HistorySidebarModel: Equatable {
     var currentLevel: HistoryLevel?
     var versions: [HistorySidebarRow] = []
     var hasSelection: Bool = false
+    /// The passage the versions belong to. The replacement field is opened for ONE passage and
+    /// closes when this changes (`HistoryReplacementFieldState.selectionChanged`).
+    var selectedPassageID: UUID?
+}
+
+/// The sidebar's replacement field: open for exactly one passage. The level buttons take no
+/// focus from the field, so focus loss alone cannot close it when the selection moves — the
+/// selected passage id does. Return commits the text FOR that passage; the controller refuses
+/// it when the selection is no longer that passage.
+struct HistoryReplacementFieldState: Equatable {
+    /// The passage the field was opened for; nil while closed.
+    private(set) var passageID: UUID?
+    var draft = ""
+
+    var isOpen: Bool { passageID != nil }
+
+    /// False (and stays closed) when no passage is selected.
+    mutating func open(for id: UUID?) -> Bool {
+        guard let id else { return false }
+        passageID = id
+        draft = ""
+        return true
+    }
+
+    /// True when the field WAS open: the caller reports the end exactly once.
+    mutating func close() -> Bool {
+        guard isOpen else { return false }
+        passageID = nil
+        draft = ""
+        return true
+    }
+
+    /// The selected passage changed: an open field belonged to the old one and closes unsaved.
+    mutating func selectionChanged(to id: UUID?) -> Bool {
+        guard isOpen, id != passageID else { return false }
+        return close()
+    }
+
+    /// Return: the typed text and the passage it is for; the field closes.
+    mutating func commit() -> (text: String, passageID: UUID)? {
+        guard let id = passageID else { return nil }
+        let text = draft
+        _ = close()
+        return (text, id)
+    }
 }
 
 struct HistorySidebarRow: Equatable, Identifiable {
@@ -113,9 +158,10 @@ struct HistorySidebarView: View {
     var onSelectVersion: (Int) -> Void
     var onDeleteVersion: (Int) -> Void
     var onExit: () -> Void = {}
-    /// Return in the replacement field: the typed text (the controller trims it and ignores an
+    /// Return in the replacement field: the typed text and the passage the field was opened for
+    /// (the controller refuses it when that is no longer the selection, trims it, and ignores an
     /// empty or unchanged one).
-    var onAddReplacement: (String) -> Void = { _ in }
+    var onAddReplacement: (String, UUID) -> Void = { _, _ in }
     /// The field closed (committed or cancelled): the editor takes the keys back, so ← → step
     /// versions again.
     var onReplacementFieldEnded: () -> Void = {}
@@ -125,8 +171,7 @@ struct HistorySidebarView: View {
     /// (`focus`) or close it (`cancel`, Esc).
     var replacementFieldSignal = HistoryReplacementFieldSignal()
 
-    @State private var isEditingReplacement = false
-    @State private var replacementDraft = ""
+    @State private var replacementField = HistoryReplacementFieldState()
     @FocusState private var replacementFieldFocused: Bool
 
     var body: some View {
@@ -177,10 +222,16 @@ struct HistorySidebarView: View {
                 .padding(.vertical, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Another passage (or none) is selected: an open field belonged to the old one.
-        .onChange(of: model.hasSelection) { _, _ in closeReplacementField() }
+        // Another passage (or none) is selected — a click in the text, a level button (which takes
+        // no focus from the field): an open field belonged to the old one.
+        .onChange(of: model.selectedPassageID) { _, id in
+            if replacementField.selectionChanged(to: id) { onReplacementFieldEnded() }
+        }
+        // Torn down while open (sidebar hidden, History still on): the editor must get its keys
+        // back, or `historyReplacementFieldIsOpen` stays set and every key is refused.
+        .onDisappear(perform: closeReplacementField)
         .onChange(of: replacementFieldSignal.focus) { _, _ in
-            guard isEditingReplacement else { return }
+            guard replacementField.isOpen else { return }
             HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
         }
         .onChange(of: replacementFieldSignal.cancel) { _, _ in closeReplacementField() }
@@ -211,10 +262,10 @@ struct HistorySidebarView: View {
     /// leaves History on); Return adds the text as the passage's new current version.
     @ViewBuilder
     private var replacementControl: some View {
-        if isEditingReplacement {
+        if replacementField.isOpen {
             TextField(
                 HistorySidebarPresentation.replacementPlaceholder,
-                text: $replacementDraft,
+                text: $replacementField.draft,
                 prompt: Text(HistorySidebarPresentation.replacementPlaceholder)
                     .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
             )
@@ -238,16 +289,14 @@ struct HistorySidebarView: View {
             .onExitCommand(perform: closeReplacementField)
             .onChange(of: replacementFieldFocused) { _, focused in
                 // Clicking away (into the text, another passage) closes the field unsaved.
-                if !focused, isEditingReplacement { closeReplacementField() }
+                if !focused, replacementField.isOpen { closeReplacementField() }
             }
             .onAppear {
                 HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
             }
         } else {
             Button(HistorySidebarPresentation.addReplacementTitle) {
-                replacementDraft = ""
-                isEditingReplacement = true
-                onReplacementFieldBegan()
+                if replacementField.open(for: model.selectedPassageID) { onReplacementFieldBegan() }
             }
             .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
             .frame(maxWidth: .infinity, alignment: .center)
@@ -255,18 +304,13 @@ struct HistorySidebarView: View {
     }
 
     private func commitReplacement() {
-        let text = replacementDraft
-        isEditingReplacement = false
-        replacementDraft = ""
-        onAddReplacement(text)
+        guard let committed = replacementField.commit() else { return }
+        onAddReplacement(committed.text, committed.passageID)
         onReplacementFieldEnded()
     }
 
     private func closeReplacementField() {
-        guard isEditingReplacement else { return }
-        isEditingReplacement = false
-        replacementDraft = ""
-        onReplacementFieldEnded()
+        if replacementField.close() { onReplacementFieldEnded() }
     }
 
     private var levelSwitcher: some View {

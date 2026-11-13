@@ -120,4 +120,39 @@ final class HistorySidebarPresentationTests: XCTestCase {
         scheduled.forEach { $0() }
         XCTAssertTrue(focused)
     }
+    /// The replacement field belongs to the passage it was opened for: when the selected passage
+    /// changes (a level button, which takes no focus from the field) it closes, and Return can
+    /// only ever commit for that passage.
+    func testReplacementFieldClosesWhenTheSelectedPassageChanges() throws {
+        let sentence = UUID()
+        let paragraph = UUID()
+        var field = HistoryReplacementFieldState()
+        XCTAssertFalse(field.open(for: nil), "nothing selected, nothing to replace")
+        XCTAssertFalse(field.isOpen)
+        XCTAssertTrue(field.open(for: sentence))
+        field.draft = "Sentence text."
+        XCTAssertFalse(field.selectionChanged(to: sentence), "same passage: stays open")
+        XCTAssertTrue(field.isOpen)
+        XCTAssertTrue(field.selectionChanged(to: paragraph), "another passage: closes, and reports it ended")
+        XCTAssertFalse(field.isOpen)
+        XCTAssertEqual(field.draft, "")
+        XCTAssertNil(field.commit(), "nothing to commit once closed")
+
+        XCTAssertTrue(field.open(for: paragraph))
+        field.draft = "Whole paragraph."
+        let committed = try XCTUnwrap(field.commit())
+        XCTAssertEqual(committed.text, "Whole paragraph.")
+        XCTAssertEqual(committed.passageID, paragraph)
+        XCTAssertFalse(field.isOpen)
+    }
+
+    /// Torn down while open (sidebar hidden with History still on): closing reports the end once,
+    /// so the editor's `historyReplacementFieldIsOpen` cannot stay stuck.
+    func testReplacementFieldCloseReportsOnlyWhenOpen() {
+        var field = HistoryReplacementFieldState()
+        XCTAssertFalse(field.close())
+        _ = field.open(for: UUID())
+        XCTAssertTrue(field.close())
+        XCTAssertFalse(field.close(), "a second close (focus loss after disappear) reports nothing")
+    }
 }

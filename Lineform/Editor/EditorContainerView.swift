@@ -172,7 +172,7 @@ struct EditorContainerView: View {
                 onSelectHistoryVersion: { index in selectHistoryVersion(index) },
                 onDeleteHistoryVersion: { index in deleteHistoryVersion(index) },
                 onExitHistory: { historyController.exitHistoryMode() },
-                onAddHistoryReplacement: { replacement in historyController.addReplacement(replacement) },
+                onAddHistoryReplacement: { replacement, id in historyController.addReplacement(replacement, for: id) },
                 onHistoryReplacementFieldEnded: { historyReplacementFieldEnded() },
                 onHistoryReplacementFieldBegan: { historyReplacementFieldBegan() },
                 historyReplacementFieldSignal: historyReplacementFieldSignal,
@@ -2612,12 +2612,9 @@ struct EditorContainerView: View {
     /// Add to History, and the first accepted AI review: History mode focused on passage `id`,
     /// with the sidebar shown on its History tab (it follows `isHistoryModeActive`).
     private func showHistory(focusing id: UUID) {
-        // History mode and AI never overlap. Only when AI work is actually up: the first-accept
-        // intro arrives just after a review ended, and abandoning then would drop its message.
-        switch aiController.state {
-        case .running, .reviewing: endAIForDocumentChange()
-        case .idle, .marking, .message: break
-        }
+        // History mode and AI never overlap: a request or review ends, Mark's wash is dismissed,
+        // and a message (the first-accept intro's) stays (`yieldToHistory`).
+        aiController.yieldToHistory()
         if displayMode != .write {
             displayMode = .write
         }
@@ -2630,6 +2627,8 @@ struct EditorContainerView: View {
     /// in — and only when it is hidden (a toggle on a shown sidebar would close it).
     private func showSidebarIfHidden() {
         guard !isShowingOutline else { return }
+        // Nil-targeted: reaches the KEY window's split view controller, which is the requesting
+        // window in every current trigger (a menu command, Add to History, an accepted review).
         NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
     }
 
@@ -2644,7 +2643,10 @@ struct EditorContainerView: View {
     }
 
     private func historyReplacementFieldEnded() {
-        (historyController.editor as? LineformTextView)?.historyReplacementFieldIsOpen = false
+        let textView = historyController.editor as? LineformTextView
+        textView?.historyReplacementFieldIsOpen = false
+        // The handler captures this view; drop it with the field.
+        textView?.historyReplacementFieldHandler = nil
         focusEditorForHistory()
     }
 
@@ -3245,14 +3247,22 @@ private struct HistoryMenuHandlers: ViewModifier {
     /// Add to History and the first accepted AI review ask to show History on a passage.
     let showHistory: (UUID) -> Void
 
+    /// Identifies THIS view's show-History hook, so its disappear clears only its own.
+    @State private var handlerOwner = UUID()
+
     func body(content: Content) -> some View {
         content
             .onAppear {
                 // Deferred a turn: the request fires from inside the controller's add / the AI
                 // review's end, which must finish before History mode starts.
-                historyController.onRequestShowHistory = { id in
+                historyController.setShowHistoryHandler(owner: handlerOwner) { id in
                     DispatchQueue.main.async { showHistory(id) }
                 }
+            }
+            // The hook captures the whole editor view (every @StateObject, this controller
+            // included): a retain cycle until it is cleared.
+            .onDisappear {
+                historyController.clearShowHistoryHandler(owner: handlerOwner)
             }
             .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showHistory.name)) { notification in
                 guard let payload = notification.object as? LineformAppNotification.Payload,

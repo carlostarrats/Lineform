@@ -398,7 +398,7 @@ struct OutlineSidebarView: View {
     var onDeleteHistoryVersion: (Int) -> Void = { _ in }
     /// History's Exit capsule and its Add Replacement field (Return commits the typed text).
     var onExitHistory: () -> Void = {}
-    var onAddHistoryReplacement: (String) -> Void = { _ in }
+    var onAddHistoryReplacement: (String, UUID) -> Void = { _, _ in }
     /// The replacement field closed (committed or cancelled): the editor takes the keys back.
     var onHistoryReplacementFieldEnded: () -> Void = {}
     var onHistoryReplacementFieldBegan: () -> Void = {}
@@ -444,7 +444,7 @@ struct OutlineSidebarView: View {
         onSelectHistoryVersion: @escaping (Int) -> Void = { _ in },
         onDeleteHistoryVersion: @escaping (Int) -> Void = { _ in },
         onExitHistory: @escaping () -> Void = {},
-        onAddHistoryReplacement: @escaping (String) -> Void = { _ in },
+        onAddHistoryReplacement: @escaping (String, UUID) -> Void = { _, _ in },
         onHistoryReplacementFieldEnded: @escaping () -> Void = {},
         onHistoryReplacementFieldBegan: @escaping () -> Void = {},
         historyReplacementFieldSignal: HistoryReplacementFieldSignal = HistoryReplacementFieldSignal(),

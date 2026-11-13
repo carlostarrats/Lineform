@@ -146,6 +146,25 @@ final class DocumentHistoryController: ObservableObject {
     /// Fired after every successful Add to History (a new passage or one already there) with the
     /// passage's id: the editor opens the sidebar on History focused on it (`showPassage`).
     var onRequestShowHistory: ((UUID) -> Void)?
+    /// Who set `onRequestShowHistory`. The editor's handler captures the whole view (and through
+    /// it every `@StateObject`, this controller included), so the view clears it on disappear —
+    /// but only its OWN: a hierarchy rebuild can run the new view's appear before the old one's
+    /// disappear.
+    private var showHistoryHandlerOwner: UUID?
+    /// The first-accept intro asked to show this passage; the once-ever flag is spent only when
+    /// `showPassage` actually shows it (the editor's handler runs a turn later).
+    private var pendingIntroID: UUID?
+
+    func setShowHistoryHandler(owner: UUID, _ handler: @escaping (UUID) -> Void) {
+        showHistoryHandlerOwner = owner
+        onRequestShowHistory = handler
+    }
+
+    func clearShowHistoryHandler(owner: UUID) {
+        guard showHistoryHandlerOwner == owner else { return }
+        showHistoryHandlerOwner = nil
+        onRequestShowHistory = nil
+    }
 
     /// Set once the first accepted AI review has shown History (`introduceAfterAIAccept`). App-wide
     /// and never reset: later accepts don't open the sidebar.
@@ -475,19 +494,31 @@ final class DocumentHistoryController: ObservableObject {
     /// History mode could not start or the passage is not in the text.
     @discardableResult
     func showPassage(_ id: UUID, text: String) -> Bool {
-        guard enterHistoryMode(text: text), located.contains(where: { $0.id == id }) else { return false }
+        let intro = pendingIntroID == id
+        if intro { pendingIntroID = nil }
+        // Checked BEFORE History mode starts: a passage that is not in the text must not leave
+        // History on with nothing selected.
+        if !isHistoryModeActive {
+            guard engine.history.passages.contains(where: { $0.id == id }) else { return false }
+            located = engine.locateAll(in: text)
+        }
+        guard located.contains(where: { $0.id == id }), enterHistoryMode(text: text) else { return false }
         selectedID = id
         publishMode()
+        if intro { defaults.set(true, forKey: Self.didIntroduceAfterAIKey) }
         return true
     }
 
     /// The writer's own alternative for the selected passage: appended as a new version, made
     /// current, and put in the document through the same undo-disabled path as a step, so the
     /// session still collapses to one undo step on exit. Nil outside History mode, with nothing
-    /// selected, or when the trimmed text is empty or equals the current version.
+    /// selected, or when the trimmed text is empty or equals the current version. `passageID` is
+    /// the passage the field was opened for: when the selection moved since (a level button, a
+    /// click in the text), nothing is added — the text was written for another passage.
     @discardableResult
-    func addReplacement(_ replacement: String) -> HistoryEdit? {
-        guard isHistoryModeActive, let id = selectedID, let text = editor?.string ?? modeText else { return nil }
+    func addReplacement(_ replacement: String, for passageID: UUID) -> HistoryEdit? {
+        guard isHistoryModeActive, let id = selectedID, id == passageID,
+              let text = editor?.string ?? modeText else { return nil }
         return didProduce(engine.addReplacement(replacement, to: id, in: text), in: text)
     }
 
@@ -541,10 +572,11 @@ final class DocumentHistoryController: ObservableObject {
 
     /// An AI review ended with passage `id` recorded. The first time ever, History is shown
     /// focused on it — so the writer learns it exists — through `onRequestShowHistory`. The
-    /// once-ever flag is only spent when someone is listening to show it.
+    /// once-ever flag is spent only when `showPassage` then shows it (the editor's handler runs a
+    /// turn later): with no one listening, or a show that fails, the intro is still owed.
     func introduceAfterAIAccept(_ id: UUID) {
         guard !defaults.bool(forKey: Self.didIntroduceAfterAIKey), let onRequestShowHistory else { return }
-        defaults.set(true, forKey: Self.didIntroduceAfterAIKey)
+        pendingIntroID = id
         onRequestShowHistory(id)
     }
 
@@ -731,7 +763,8 @@ final class DocumentHistoryController: ObservableObject {
                             isCurrent: index == passage.currentIndex
                         )
                     },
-                    hasSelection: true
+                    hasSelection: true,
+                    selectedPassageID: passage.id
                 )
             } else {
                 newModel = HistorySidebarModel()

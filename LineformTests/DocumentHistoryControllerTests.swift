@@ -205,19 +205,59 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let controller = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
         controller.open(url: nil, text: doc)
         var requested: [UUID] = []
-        controller.onRequestShowHistory = { requested.append($0) }
+        var showText = "Nothing of the passage is in this text."
+        controller.onRequestShowHistory = { id in
+            requested.append(id)
+            controller.showPassage(id, text: showText)
+        }
         let first = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
                                                             accepted: accepted, text: doc))
         controller.introduceAfterAIAccept(first)
         XCTAssertEqual(requested, [first])
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertFalse(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey),
+                       "History could not be shown, so the intro is still owed")
+
+        // (A passage that cannot be found in the text is dropped; the next accept records anew.)
+        showText = doc
+        let second = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
+                                                             accepted: accepted, text: doc))
+        controller.introduceAfterAIAccept(second)
+        XCTAssertEqual(requested, [first, second])
+        XCTAssertTrue(controller.isHistoryModeActive)
+        XCTAssertEqual(controller.display?.selectedID, second)
         XCTAssertTrue(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey))
         XCTAssertEqual(DocumentHistoryController.didIntroduceAfterAIKey, "Lineform.history.didIntroduceAfterAI")
+        requested = []
 
         controller.introduceAfterAIAccept(first)
         let other = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
         other.onRequestShowHistory = { requested.append($0) }
         other.introduceAfterAIAccept(first)
-        XCTAssertEqual(requested, [first], "once ever")
+        XCTAssertEqual(requested, [], "once ever")
+    }
+
+    /// A passage that is not in the text is checked BEFORE History mode starts: nothing is
+    /// entered (no wash, no sidebar on an inert History tab).
+    func testShowPassageForAMissingPassageDoesNotEnterHistoryMode() throws {
+        let (controller, edited) = controllerWithEditedPassage()
+        XCTAssertFalse(controller.showPassage(UUID(), text: edited))
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertNil(controller.display)
+    }
+
+    /// The show-History hook is cleared only by the view that set it: a hierarchy rebuild can run
+    /// the new view's onAppear before the old one's onDisappear.
+    func testShowHistoryHandlerIsClearedOnlyByItsOwner() {
+        let controller = makeController()
+        let old = UUID()
+        let new = UUID()
+        controller.setShowHistoryHandler(owner: old) { _ in }
+        controller.setShowHistoryHandler(owner: new) { _ in }
+        controller.clearShowHistoryHandler(owner: old)
+        XCTAssertNotNil(controller.onRequestShowHistory, "a stale owner does not clear the live hook")
+        controller.clearShowHistoryHandler(owner: new)
+        XCTAssertNil(controller.onRequestShowHistory, "the owner's disappear breaks the view ↔ controller cycle")
     }
 
     func testExitDiscardsPassagesWithNoReplacement() throws {
@@ -240,9 +280,9 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
         XCTAssertTrue(controller.showPassage(id, text: text))
 
-        XCTAssertNil(controller.addReplacement("   "), "empty adds nothing")
-        XCTAssertNil(controller.addReplacement(sentence), "unchanged adds nothing")
-        let edit = try XCTUnwrap(controller.addReplacement("Alpha BETA gamma delta."))
+        XCTAssertNil(controller.addReplacement("   ", for: id), "empty adds nothing")
+        XCTAssertNil(controller.addReplacement(sentence, for: id), "unchanged adds nothing")
+        let edit = try XCTUnwrap(controller.addReplacement("Alpha BETA gamma delta.", for: id))
         let replaced = apply(edit, to: text)
         XCTAssertEqual(replaced, "Alpha BETA gamma delta. Epsilon zeta eta theta.")
         XCTAssertTrue(controller.isHistoryModeActive, "adding a replacement does not leave History")
@@ -259,10 +299,30 @@ final class DocumentHistoryControllerTests: XCTestCase {
     func testAddReplacementNeedsHistoryModeAndASelection() throws {
         let controller = makeController()
         controller.open(url: nil, text: text)
-        _ = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
-        XCTAssertNil(controller.addReplacement("Other words here."), "outside History mode")
+        let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertNil(controller.addReplacement("Other words here.", for: id), "outside History mode")
         XCTAssertTrue(controller.enterHistoryMode(text: text))
-        XCTAssertNil(controller.addReplacement("Other words here."), "no passage selected")
+        XCTAssertNil(controller.addReplacement("Other words here.", for: id), "no passage selected")
+    }
+
+    /// The field is opened for one passage. If the selection moved meanwhile (a level button, a
+    /// click in the text) the text is NOT put on the passage selected now — a sentence-sized
+    /// replacement must never land on the whole paragraph.
+    func testAddReplacementRefusesWhenTheSelectionChangedSinceTheFieldOpened() throws {
+        let doc = "First one here. Second one there.\n\nOther paragraph."
+        let controller = makeController()
+        controller.open(url: nil, text: doc)
+        let paragraph = try XCTUnwrap(controller.add(range(of: "First one here. Second one there.", in: doc), text: doc))
+        XCTAssertTrue(controller.showPassage(paragraph, text: doc))
+        let sentenceID = try XCTUnwrap(controller.add(range(of: "First one here.", in: doc), text: doc))
+        XCTAssertEqual(controller.sidebarModel.selectedPassageID, sentenceID, "the sidebar model names the passage")
+
+        // The field opened on the sentence; then "Paragraph" was clicked.
+        controller.selectLevel(.paragraph)
+        XCTAssertEqual(controller.sidebarModel.selectedPassageID, paragraph)
+        XCTAssertNil(controller.addReplacement("Sentence text.", for: sentenceID))
+        XCTAssertEqual(controller.sidebarModel.versions.map(\.text), ["First one here. Second one there."])
+        XCTAssertNotNil(controller.addReplacement("Whole new paragraph.", for: paragraph))
     }
 
     func testExitKeepsAIRecordedPassages() throws {
@@ -308,7 +368,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         let other = "Epsilon zeta eta theta."
         let id = try XCTUnwrap(controller.add(range(of: other, in: textView.string), text: textView.string))
         XCTAssertEqual(controller.display?.selectedID, id)
-        _ = try XCTUnwrap(controller.addReplacement("Epsilon ZETA eta theta."))
+        _ = try XCTUnwrap(controller.addReplacement("Epsilon ZETA eta theta.", for: id))
         XCTAssertEqual(textView.string, "Alpha BETA gamma delta. Epsilon ZETA eta theta.")
         XCTAssertFalse(vendor.manager.canUndo, "a replacement is not undoable on its own")
 

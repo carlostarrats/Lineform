@@ -234,15 +234,24 @@ final class AIActionControllerTests: XCTestCase {
         let history = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
         history.open(url: nil, text: historyDoc)
         var requested: [UUID] = []
-        history.onRequestShowHistory = { requested.append($0) }
+        var shownText: () -> String = { "" }
+        // As the editor does: the request shows History on the passage (the flag is spent only
+        // when that succeeds).
+        history.onRequestShowHistory = { id in
+            requested.append(id)
+            history.showPassage(id, text: shownText())
+        }
         let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
+        shownText = { surface.string }
         let sentence = range(of: "The big dog ran far away from home.", in: historyDoc)
 
         await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(controller.state, .idle)
         XCTAssertEqual(requested.count, 1, "the first accept shows History")
+        XCTAssertTrue(history.isHistoryModeActive)
         XCTAssertTrue(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey))
+        history.exitHistoryMode()
 
         // Once ever: a later accept shows nothing.
         let later = surface.string
@@ -456,6 +465,25 @@ final class AIActionControllerTests: XCTestCase {
 
         let (empty, emptySurface, _) = make(text, .reply("{\"sentences\": []}"))
         await runToCompletion(empty, .markWeakest, range: whole(text), text: text)
+        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        XCTAssertEqual(emptySurface.string, text)
+    }
+
+    /// Showing History (Add to History, the first-accept intro) ends Mark: History never opens
+    /// under Mark's wash. A message (the review-ended intro's) is left up.
+    func testYieldingToHistoryDismissesMarksButKeepsAMessage() async {
+        let text = "- First sentence is short. Second one is a very long sentence indeed.\n\nThird."
+        let (controller, surface, _) = make(text, .reply("{\"sentences\": [1]}"))
+        await runToCompletion(controller, .markLong, range: whole(text), text: text)
+        guard case .marking = controller.state else { return XCTFail("\(controller.state)") }
+        controller.yieldToHistory()
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertEqual(surface.string, text)
+
+        let (empty, emptySurface, _) = make(text, .reply("{\"sentences\": []}"))
+        await runToCompletion(empty, .markWeakest, range: whole(text), text: text)
+        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        empty.yieldToHistory()
         XCTAssertEqual(empty.state, .message("Nothing to mark."))
         XCTAssertEqual(emptySurface.string, text)
     }
