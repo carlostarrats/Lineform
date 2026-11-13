@@ -27,7 +27,8 @@ struct ProseSegment: Equatable {
 ///    `.markersOnly` blocks via `MarkdownHeadingParser`, `MarkdownList`, `MarkdownCheckbox`,
 ///    `MarkdownBlockquote`, `MarkdownCallout`, `MarkdownTableParser`.
 /// 6. Constructs Lineform does not render but the spec protects, defined ONCE here: raw HTML
-///    tags and comments, footnote markers, and CommonMark autolinks.
+///    tags and comments (multi-line too), footnote markers, reference definitions and labels,
+///    autolinks, bare URLs and emails, single-tilde strikethrough, every backslash escape.
 ///
 /// Everything is OVER-approximated toward structure: anything claimed by any rule is structure,
 /// and only what no rule claims is prose. Structure ranges are widened to composed-character
@@ -236,11 +237,19 @@ enum MarkdownStructureMap {
             .filter { protection(of: $0.kind) == .structure }
             .map(\.range)
 
-        // 3, 4, 6. Line-local rules.
+        // 3, 4, 6. Line-local rules. Reference labels are only structure when defined.
+        let labels = definedReferenceLabels(model)
+        var codeLike: [NSRange] = []
         for index in model.lines.indices {
-            ranges += inlineStructure(line: model.lines[index], offset: model.content[index].location)
+            let inline = inlineStructure(line: model.lines[index], offset: model.content[index].location, labels: labels)
+            ranges += inline.all
+            codeLike += inline.code
             ranges += lineStructure(model, index)
         }
+        codeLike += MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: full)
+
+        // 6, cross-line: multi-line HTML comments and tags opened but not closed on their line.
+        ranges += multiLineHTML(model, excluding: codeLike)
 
         // 5. Blocks.
         ranges += blockStructure(model)
@@ -279,32 +288,154 @@ enum MarkdownStructureMap {
     /// Footnote references and definitions (`[^1]`, `[^note]:`). Defined only here.
     private static let footnoteMarker = try! NSRegularExpression(pattern: #"\[\^[^\]\s]+\]:?"#)
 
-    private static func inlineStructure(line: String, offset: Int) -> [NSRange] {
+    /// GFM single-tilde strikethrough (`~x~`). Not rendered by Lineform. Defined only here.
+    private static let singleTilde = try! NSRegularExpression(pattern: #"(?<![~\\])~([^~\s\n](?:[^~\n]*[^~\s\n])?)~(?!~)"#)
+    /// Every CommonMark backslash escape — a superset of `MarkdownInlineSyntax.escapedMarker`,
+    /// which is only the set the app UNESCAPES. All of them are structure.
+    private static let anyEscape = try! NSRegularExpression(pattern: #"\\[!-/:-@\[-`{-~]"#)
+    /// Email autolinks (`<me@mail.com>`). Defined only here.
+    private static let emailAutolink = try! NSRegularExpression(
+        pattern: #"<[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*>"#
+    )
+    /// GFM autolink literals: bare URLs and bare emails. Structure by ruling, so proofreading
+    /// never "fixes" an address. Defined only here.
+    private static let bareURL = try! NSRegularExpression(pattern: #"(?:https?://|www\.)[^\s<]*[^\s<?!.,:*_~)]"#)
+    private static let bareEmail = try! NSRegularExpression(pattern: #"[A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+"#)
+    /// A reference-link definition line, `[ref]: https://… "Title"` — whole line. A label starting
+    /// with `^` is a footnote definition, whose text stays prose.
+    static let referenceDefinition = try! NSRegularExpression(pattern: #"^ {0,3}\[(?!\^)([^\]]+)\]:[ \t]*\S.*$"#)
+    /// `[text][label]` (full or collapsed reference). Group 1 is the text, group 2 the label.
+    private static let fullReference = try! NSRegularExpression(pattern: #"(?<![\\!])\[([^\]\n]+)\]\[([^\]\n]*)\]"#)
+    /// `![alt][label]` — a reference image is structure whole, like an inline one.
+    private static let referenceImage = try! NSRegularExpression(pattern: #"(?<!\\)!\[[^\]\n]*\]\[[^\]\n]*\]"#)
+    /// `[label]` alone (shortcut reference) — structure only when the label is defined.
+    private static let shortcutReference = try! NSRegularExpression(pattern: #"(?<![\\\]])\[([^\]\n]+)\](?![\[(:])"#)
+
+    private static func normalizedLabel(_ label: String) -> String {
+        label.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").lowercased()
+    }
+
+    private static func definedReferenceLabels(_ model: SourceModel) -> Set<String> {
+        var labels: Set<String> = []
+        for line in model.lines {
+            let ns = line as NSString
+            if let match = referenceDefinition.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) {
+                labels.insert(normalizedLabel(ns.substring(with: match.range(at: 1))))
+            }
+        }
+        return labels
+    }
+
+    private static let delimiterRunCharacters: Set<UInt16> = [
+        UInt16(UnicodeScalar("*").value), UInt16(UnicodeScalar("_").value), UInt16(UnicodeScalar("~").value),
+    ]
+    private static let backtickUnit = UInt16(UnicodeScalar("`").value)
+
+    /// A delimiter piece widened over the whole run of delimiter characters touching it, so
+    /// `***bold italic***` never leaves a lone prose `*` beside a matched `**` / `*`.
+    private static func widenedRun(_ range: NSRange, in ns: NSString, units: Set<UInt16>) -> NSRange {
+        var lower = range.location
+        var upper = NSMaxRange(range)
+        while lower > 0, units.contains(ns.character(at: lower - 1)) { lower -= 1 }
+        while upper < ns.length, units.contains(ns.character(at: upper)) { upper += 1 }
+        return NSRange(location: lower, length: upper - lower)
+    }
+
+    private static func inlineStructure(line: String, offset: Int, labels: Set<String>) -> (all: [NSRange], code: [NSRange]) {
         let ns = line as NSString
         let lineRange = NSRange(location: 0, length: ns.length)
-        guard lineRange.length > 0 else { return [] }
+        guard lineRange.length > 0 else { return ([], []) }
         var local: [NSRange] = []
+        var code: [NSRange] = []
 
         func matches(_ regex: NSRegularExpression) -> [NSTextCheckingResult] {
             regex.matches(in: line, range: lineRange)
         }
 
+        if referenceDefinition.firstMatch(in: line, range: lineRange) != nil {
+            local.append(lineRange)
+        }
         for match in matches(MarkdownInlineSyntax.image) {
             local.append(balancedExtent(of: match, destinationGroup: 2, in: ns))
         }
         for match in matches(MarkdownInlineSyntax.link) {
             local += subtracting(group: 1, from: balancedExtent(of: match, destinationGroup: 2, in: ns), match: match)
         }
-        for regex in [MarkdownInlineSyntax.bold, MarkdownInlineSyntax.italic, MarkdownInlineSyntax.italicAsterisk, MarkdownInlineSyntax.strikethrough] {
+        for match in matches(fullReference) {
+            let label = ns.substring(with: match.range(at: 2))
+            // A collapsed `[text][]` uses its text as the label: the whole thing is structure.
+            local += label.isEmpty ? [match.range] : subtracting(group: 1, from: match.range, match: match)
+        }
+        for match in matches(shortcutReference) where labels.contains(normalizedLabel(ns.substring(with: match.range(at: 1)))) {
+            local.append(match.range)
+        }
+        for regex in [MarkdownInlineSyntax.bold, MarkdownInlineSyntax.italic, MarkdownInlineSyntax.italicAsterisk, MarkdownInlineSyntax.strikethrough, singleTilde] {
             for match in matches(regex) {
                 local += subtracting(group: 1, from: match.range, match: match)
+                    .map { widenedRun($0, in: ns, units: delimiterRunCharacters) }
             }
         }
-        for regex in [MarkdownInlineSyntax.code, MarkdownInlineSyntax.escapedMarker, htmlTag, htmlComment, autolink, footnoteMarker] {
+        for match in matches(MarkdownInlineSyntax.code) {
+            // ``x`` — the outer backticks of a double-backtick span are the same span.
+            code.append(widenedRun(match.range, in: ns, units: [backtickUnit]))
+        }
+        local += code
+        for regex in [referenceImage, MarkdownInlineSyntax.escapedMarker, anyEscape, htmlTag, htmlComment, autolink, emailAutolink, bareURL, bareEmail, footnoteMarker] {
             local += matches(regex).map(\.range)
         }
 
-        return local.map { NSRange(location: $0.location + offset, length: $0.length) }
+        let shift = { (range: NSRange) in NSRange(location: range.location + offset, length: range.length) }
+        return (local.map(shift), code.map(shift))
+    }
+
+    /// An HTML comment opened on a line and closed on a later one (or never), and a tag whose
+    /// `<name` opens on a line without its `>` — `<img src="a.png"⏎ width="3">`. Comments run to
+    /// the closing `-->` or the end of the document; an open tag runs to its `>` if one comes
+    /// before a blank line (where CommonMark ends an HTML block), else to the end of its line.
+    /// Openers inside code, math, or front matter are ignored.
+    private static let openTag = try! NSRegularExpression(pattern: #"<[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?$"#)
+
+    private static func multiLineHTML(_ model: SourceModel, excluding codeLike: [NSRange]) -> [NSRange] {
+        let text = model.text
+        var ranges: [NSRange] = []
+        func isCode(_ location: Int) -> Bool {
+            codeLike.contains { NSLocationInRange(location, $0) }
+        }
+
+        var search = 0
+        while search < text.length {
+            let open = text.range(of: "<!--", options: [], range: NSRange(location: search, length: text.length - search))
+            guard open.location != NSNotFound else { break }
+            if isCode(open.location) {
+                search = NSMaxRange(open)
+                continue
+            }
+            let afterOpen = NSMaxRange(open)
+            let close = text.range(of: "-->", options: [], range: NSRange(location: afterOpen, length: text.length - afterOpen))
+            let end = close.location == NSNotFound ? text.length : NSMaxRange(close)
+            ranges.append(NSRange(location: open.location, length: end - open.location))
+            search = end
+        }
+
+        for index in model.lines.indices {
+            let line = model.lines[index]
+            let ns = line as NSString
+            guard let match = openTag.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else { continue }
+            let start = model.content[index].location + match.range.location
+            guard !isCode(start) else { continue }
+            var end = NSMaxRange(model.content[index])
+            var next = index + 1
+            while next < model.lines.count, !model.isBlank(next) {
+                let candidate = (model.lines[next] as NSString).range(of: ">")
+                if candidate.location != NSNotFound {
+                    end = model.content[next].location + NSMaxRange(candidate)
+                    break
+                }
+                next += 1
+            }
+            ranges.append(NSRange(location: start, length: end - start))
+        }
+        return ranges
     }
 
     private static func subtracting(group: Int, from range: NSRange, match: NSTextCheckingResult) -> [NSRange] {
@@ -584,7 +715,8 @@ enum MarkdownStructureMap {
 enum MarkdownStructureGuard {
     /// One result per segment, in `segments` order: the (edge-trimmed) revision to splice in, or
     /// nil. A revision is refused when it is empty after trimming; contains a line terminator or
-    /// any `Cc` character; exceeds `2 × original + 200` UTF-16 units; or changes the structure
+    /// any `Cc` character, or a `Cf` character the original did not; carries a different
+    /// sequence of `markdownPunctuation` than the original; exceeds `2 × original + 200` UTF-16 units; or changes the structure
     /// signature of its block (the contiguous non-blank lines around it) when spliced in together
     /// with the revisions already admitted on that block. A segment that no longer matches `text`
     /// is refused. Missing revisions are nil; extra revisions are ignored.
@@ -639,16 +771,34 @@ enum MarkdownStructureGuard {
         return ns.substring(with: range) == segment.text
     }
 
+    /// The characters that can make or break Markdown. A revision must carry exactly the same
+    /// sequence of them as the text it replaces. The signature alone is not enough: it compares
+    /// structure CONTENT, not position, so `**very**` revised to `*very*` re-paired as
+    /// `***very***` with an identical-looking structure list, and `a` → `a*` beside `*b*`
+    /// re-paired the italic.
+    static let markdownPunctuation: Set<Unicode.Scalar> = ["*", "_", "~", "`", "|", "[", "]", "<", ">", "#", "$", "\\"]
+
+    private static func punctuationSequence(_ text: String) -> [Unicode.Scalar] {
+        text.unicodeScalars.filter { markdownPunctuation.contains($0) }
+    }
+
+    private static func formatCharacters(_ text: String) -> Set<Unicode.Scalar> {
+        Set(text.unicodeScalars.filter { $0.properties.generalCategory == .format })
+    }
+
     private static func normalized(_ revision: String, replacing segment: ProseSegment) -> String? {
         let forbidden = revision.unicodeScalars.contains { scalar in
             scalar.properties.generalCategory == .control
                 || scalar.value == 0x2028 || scalar.value == 0x2029
         }
         guard !forbidden else { return nil }
+        // Format characters (ZWSP, a U+202E bidi override) are invisible: never introduced.
+        guard formatCharacters(revision).isSubset(of: formatCharacters(segment.text)) else { return nil }
         let ns = revision as NSString
         let trimmed = ns.substring(with: MarkdownStructureMap.edgeTrimmed(NSRange(location: 0, length: ns.length), in: ns))
         let length = (trimmed as NSString).length
         guard length > 0, length <= 2 * (segment.text as NSString).length + 200 else { return nil }
+        guard punctuationSequence(trimmed) == punctuationSequence(segment.text) else { return nil }
         return trimmed
     }
 

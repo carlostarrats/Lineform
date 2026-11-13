@@ -348,8 +348,9 @@ final class MarkdownStructureMapTests: XCTestCase {
         // "a _x" + "y_ b" would form an italic span only when both land.
         let pair = "First **bold** second"
         let pairSegments = segments(pair)
+        // Each half carries an `_` the original did not, so each is refused on its own.
         let joint = MarkdownStructureGuard.admissibleRevisions(["a _x", "mid", "y_ b"], for: pairSegments, in: pair)
-        XCTAssertEqual(joint, ["a _x", "mid", "y_ b"].enumerated().map { $0.offset == 2 ? nil : $0.element })
+        XCTAssertEqual(joint, [nil, "mid", nil])
     }
 
     func testProseAfterACodeBlockWithBlankLinesIsStillEditable() {
@@ -384,6 +385,66 @@ final class MarkdownStructureMapTests: XCTestCase {
         let admitted = MarkdownStructureGuard.admissibleRevisions(revisions, for: all, in: text)
         XCTAssertEqual(admitted, revisions.map { Optional($0) })
         XCTAssertTrue(MarkdownStructureGuard.verify(original: text, revised: applying(admitted, to: all, in: text)))
+    }
+
+    // MARK: - Review round 1
+
+    func testEmphasisCannotBeRePairedOrRemoved() {
+        XCTAssertEqual(admit("*very*", replacing: "very", in: "This is **very** good"), .some(nil))
+        XCTAssertEqual(admit("a*", replacing: "a", in: "a *b* c"), .some(nil))
+        XCTAssertEqual(admit("b_", replacing: "b", in: "a _b_ c"), .some(nil))
+        // A triple run is never split into a lone prose `*`.
+        XCTAssertEqual(texts("***bold italic*** end"), ["bold italic", "end"])
+        XCTAssertEqual(texts("x ~~~y~~~ z *a*** b"), ["x", "y", "z", "a", "b"])
+        // `___x___` is not emphasis to Lineform (no `__bold__`, no intraword `_`): it renders
+        // literally, so it is prose — and the punctuation rule still keeps every `_` in place.
+        XCTAssertEqual(texts("___x___ and"), ["___x___ and"])
+        XCTAssertEqual(admit("x and", replacing: "___x___ and", in: "___x___ and"), .some(nil))
+        // Prose punctuation must survive in order, but prose around it may change.
+        XCTAssertEqual(admit("It is #1 and $5", replacing: "It was #1 and $5", in: "It was #1 and $5\n"), "It is #1 and $5")
+        XCTAssertEqual(admit("It was 1 and $5", replacing: "It was #1 and $5", in: "It was #1 and $5\n"), .some(nil))
+    }
+
+    func testSingleTildeDoubleBacktickAndAllEscapesAreStructure() {
+        XCTAssertEqual(texts("a ~gone~ b"), ["a", "gone", "b"])
+        XCTAssertEqual(texts("``x`` y"), ["y"])
+        XCTAssertEqual(texts("a \\- b \\# c"), ["a", "b", "c"])
+    }
+
+    func testMultiLineHTMLIsStructure() {
+        XCTAssertEqual(texts("Intro\n<!--\nhidden note\n-->\nAfter"), ["Intro", "After"])
+        XCTAssertEqual(texts("Intro\n\n<!-- never closed\nstill hidden\n\nhidden too"), ["Intro"])
+        XCTAssertEqual(texts("<img src=\"a.png\"\n width=\"3\"> tail\n\nNext"), ["tail", "Next"])
+        // An opener inside code opens nothing.
+        XCTAssertEqual(texts("Use `<!--` here\n\nLater"), ["Use", "here", "Later"])
+        let comment = "Intro\n<!--\nhidden note\n-->\nAfter"
+        XCTAssertNil(segments(comment).first { $0.text.contains("<!--") || $0.text.contains("-->") })
+    }
+
+    func testReferenceLinksAreStructure() {
+        let text = "[docs][ref] and [ref] here\n\n[ref]: https://e.org \"Title\""
+        XCTAssertEqual(texts(text), ["docs", "and", "here"])
+        XCTAssertEqual(texts("[Docs][] ok\n\n[docs]: u"), ["ok"])
+        XCTAssertEqual(texts("![alt][img] x\n\n[img]: a.png"), ["x"])
+        // An undefined `[maybe]` is just bracketed prose — but its brackets cannot be changed.
+        XCTAssertEqual(texts("[maybe] x"), ["[maybe] x"])
+        XCTAssertEqual(admit("(maybe) x", replacing: "[maybe] x", in: "[maybe] x"), .some(nil))
+        // Footnote definitions keep their text as prose.
+        XCTAssertEqual(texts("[^1]: The note."), ["The note."])
+    }
+
+    func testEmailsAndBareURLsAreStructure() {
+        XCTAssertEqual(texts("Mail <me@mail.com> or me@mail.com now"), ["Mail", "or", "now"])
+        XCTAssertEqual(texts("See https://e.org/a?b=c. And www.x.org, ok"), ["See", ". And", ", ok"])
+        XCTAssertEqual(texts("(see https://e.org/a)"), ["(see", ")"])
+    }
+
+    func testFormatCharactersAreNeverIntroduced() {
+        let text = "Hello world\n"
+        XCTAssertEqual(admit("Hello\u{200B} world", replacing: "Hello world", in: text), .some(nil))
+        XCTAssertEqual(admit("Hello \u{202E}world", replacing: "Hello world", in: text), .some(nil))
+        // One the original already carried may stay.
+        XCTAssertEqual(admit("Hi\u{200B}there", replacing: "Hello\u{200B}world", in: "Hello\u{200B}world"), "Hi\u{200B}there")
     }
 
     func testControlAndSeparatorCharactersInsideALineAreNeverSent() {
