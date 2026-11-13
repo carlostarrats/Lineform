@@ -33,6 +33,7 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         let titles = [
             AppMenuConfiguration.aboutCommandTitle,
             AppMenuConfiguration.settingsCommandTitle,
+            AppMenuConfiguration.connectAICommandTitle,
             AppMenuConfiguration.privacyPolicyCommandTitle,
             AppMenuConfiguration.termsOfUseCommandTitle,
             AppMenuConfiguration.guideCommandTitle,

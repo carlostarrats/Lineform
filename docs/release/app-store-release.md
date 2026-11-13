@@ -152,6 +152,25 @@ The App Privacy answer is **Data Not Collected**:
 - Announcements are an optional once-a-day GET of a static public JSON file. The request has no
   body, query string, identifier, or cookie, and the Settings switch prevents the request itself.
 - Diagram failures remain local and cannot be submitted from the app.
+- **Bring-your-own AI does not change this answer (checked 2026-11-12).** With an AI
+  connected, the prose of a selection the writer acts on goes from the writer's Mac DIRECTLY to the
+  provider the writer chose (Anthropic, OpenAI, Google, or an address they typed — often a model on
+  their own Mac), under the writer's own account, API key, and contract with that provider. The
+  developer receives nothing: there is no Lineform server, proxy, relay, SDK, or analytics on that
+  path; the provider is not a "third-party partner", which Apple's App Privacy details page defines
+  as "analytics tools, advertising networks, third-party SDKs, or other external vendors whose code
+  you've added to your app" — Lineform adds no provider code (raw `URLSession` HTTP, no SDK), has no
+  agreement or shared account with any provider, and never sees or pays for the traffic; the key is
+  in the writer's Keychain. ("Collect" is defined there as "transmitting data off the device in a way
+  that allows you and/or your third-party partners to access it for a period longer than what is
+  necessary to service the transmitted request in real time" — checked 2026-11-12.) Nothing is sent unless
+  the writer connected AND chose an action. That is the same shape as a mail or browser client
+  sending to a server the user configured, which is not collection by the app's developer.
+  **Owner check:** this reasoning is sound but it is a judgement, not a quote of an Apple ruling on
+  BYO-key AI. If App Review or Apple's App Privacy FAQ ever treats a user-configured third-party AI
+  as the developer's "third-party partner", the answer would become "User Content — Other User
+  Content, not linked, not used for tracking, App Functionality". Re-read Apple's App Privacy
+  details page before each submission that touches the AI path.
 
 Review these facts against the shipping binary whenever a network call, entitlement, or external
 service changes.
@@ -165,6 +184,35 @@ service changes.
 - [ ] Use **free** and **source-available**, never “open source” (PolyForm Shield 1.0.0).
 - [ ] Do not describe a CLI or app-managed updates; neither exists.
 - [ ] Explain the announcements request if App Review asks why `network.client` is present.
+- [ ] Claims say "No AI built in. Connect your own if you want it." — never "no AI" or "No AI
+      inside" (bring-your-own AI ships).
+- [ ] **App Review 5.1.2(i) — third-party AI (checked 2026-11-12).** Wording checked at
+      `https://developer.apple.com/app-store/review/guidelines/`: "You must clearly disclose where
+      personal data will be shared with third parties, including with third-party AI, and obtain
+      explicit permission before doing so." Lineform meets it this way:
+      - **Disclosure + permission = the Connect button.** Its label names what and to whom —
+        "Connect — Lineform will send the text you choose to Anthropic" (OpenAI / Google / the typed
+        host) — directly above the privacy note: "Lineform sends only the text you act on, only when
+        you choose an AI action, directly to the provider you connected, under your account and that
+        provider's terms. Lineform's developer receives nothing." Clicking it (or Return in a field)
+        is the explicit, prior, informed act. It is translated in every shipped language.
+      - **Nothing is shared before it.** No request at launch, on opening the window, or on Connect
+        itself (the key is not tested). AI menu items do not exist until connected.
+      - **Each send is user-initiated.** A request happens only when the writer selects text and
+        chooses Rewrite / Proofread / Mark, and only that selection's prose is sent. Bundled
+        Privacy.md and Help.md describe what, to whom, when, the Keychain, and Disconnect.
+      - **Conclusion:** no per-action prompt is required by the text of 5.1.2(i); the guideline asks
+        for clear disclosure and explicit permission *before* sharing, which the consent label gives
+        once per provider, and each action is itself the writer's choice. Do NOT shorten the label
+        to a bare "Connect". If App Review asks for more (e.g. a per-action confirmation), bring it
+        to the owner — do not add UI on review feedback alone.
+      - **Review note to paste:** "Lineform has no built-in AI. Optionally, the user can connect
+        their own AI provider (Lineform ▸ Connect Your AI…) with their own API key, stored in the
+        Keychain. The Connect button states which company will receive the text. Nothing is sent on
+        connect. Afterwards, only the prose of a selection the user right-clicks and chooses an AI
+        action for is sent, directly from the Mac to that provider; the developer operates no
+        server and receives nothing. To test without an account, choose Other and point it at a
+        local OpenAI-compatible server (e.g. Ollama at http://localhost:11434/v1)."
 
 ## 7. Post-release checks
 

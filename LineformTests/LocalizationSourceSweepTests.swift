@@ -41,6 +41,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
 
     /// `File.swift|declaration` — whole declarations that are deliberately English.
     private static let exemptDeclarations: [String: String] = [
+        "AIActionPrompt.swift|modelInstruction":
+            "Per-action instructions sent to the AI model, never drawn. Pinned verbatim by the plan and AIActionPromptTests; the writer's language travels in the document text itself.",
         "AppCommands.swift|allEnglishTitleKeys":
             "The decorator's English lookup keys. They must stay byte-identical to the English source strings, so localizing them would break title matching in every language.",
         "ReadingExperiencePopover.swift|visibleControlLabels":
@@ -69,6 +71,17 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "ISO 15924 script subtag compared against BCP-47 voice tags, never displayed.",
         "SpeechVoiceResolver.swift|Hant":
             "ISO 15924 script subtag compared against BCP-47 voice tags, never displayed.",
+
+        // Brand names. Never translated (plan Global Constraints).
+        "AIProvider.swift|Claude": "Brand name.",
+        "AIProvider.swift|Google": "Brand name.",
+        "AIProvider.swift|Anthropic": "Brand name.",
+        "AIProvider.swift|AIConnection(provider: %@, endpoint: %@, ":
+            "Debug description, never displayed; deliberately redacts the key.",
+        "AIProvider.swift|model: %@, apiKey: %@)":
+            "Debug description, never displayed; deliberately redacts the key.",
+        "OpenAICompatibleClient.swift|Authorization": "HTTP header name.",
+        "OpenAICompatibleClient.swift|Bearer %@": "HTTP header value.",
 
         // Typeface names. Never translated (plan Global Constraints); only the descriptive
         // "Monospaced" label is, and it is String(localized:) in the same array.

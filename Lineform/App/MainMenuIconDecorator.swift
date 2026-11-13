@@ -399,6 +399,7 @@ enum MainMenuIconDecorator {
         // Application menu
         "about": "info.circle",
         "settings": "gearshape",
+        "connect your ai": "sparkles",
         "privacy policy": "hand.raised",
         "terms of use": "doc.text",
         "services": "square.grid.2x2",

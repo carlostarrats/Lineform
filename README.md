@@ -36,7 +36,11 @@ Lineform is local-first.
 - Documents stay wherever you save them.
 - Files remain ordinary Markdown or text files.
 
-Lineform contacts the network in exactly one case: a once-a-day read of a small public announcements file on the Lineform website, which sends no identifier and can be turned off in Settings. **Your document content never leaves your device.**
+- No AI built in. Connect your own if you want it.
+
+On its own, Lineform contacts the network in exactly one case: a once-a-day read of a small public announcements file on the Lineform website, which sends no identifier and can be turned off in Settings. **Your document content never reaches Lineform's developer.**
+
+If you choose to connect your own AI (Lineform ▸ Connect Your AI… — Claude, ChatGPT, Google, or any OpenAI-compatible server, including one on your Mac), only the prose of a selection you choose an AI action for is sent, directly from your Mac to that provider, under your account and their terms. Nothing is sent when you connect; your API key stays in your Mac's Keychain; Disconnect deletes it.
 
 Full [Privacy](https://lineform.app/privacy) and [Terms of Use](https://lineform.app/terms) are published online and linked from the app's menu.
 

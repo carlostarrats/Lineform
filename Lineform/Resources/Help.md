@@ -21,6 +21,7 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 - Use Reading Experience to adjust type, spacing, themes, reading ruler, and typewriter mode.
 - Keep versions of a passage: select it, right-click, and choose Add to History. When a document has history, a History tab appears in the sidebar; click it, or choose View ▸ History (⌘Y), to see the passages with history. Click one to focus it — the rest of the text fades back and a small counter such as 2/3 shows which version you are on — then use ← and → or the sidebar to switch versions — the text you leave showing is your document, and one ⌘Z afterwards puts it back. Press Esc to return to writing. History is kept on your Mac, never inside the file; versions untouched for 30 days are removed, and Settings ▸ Clear History removes everything. An untitled document keeps its history only while it stays the document you are working in; save it to keep its history.
 - Have a document read aloud from Edit ▸ Speech.
+- Use your own AI, if you want one. Lineform has no AI built in. Choose Lineform ▸ Connect Your AI…, pick Claude, ChatGPT, Google, or Other (any OpenAI-compatible server, including a model running on your Mac), and paste your API key — API keys are billed per use by the provider, separately from a Claude, ChatGPT, or Gemini subscription. Then, in Write mode, select some text and right-click: Rewrite ▸ Trim, Cut in half, or Rewrite; Proofread; or Mark ▸ Weakest sentences or Long sentences. Suggestions appear over your text with removed words dimmed and a small ✓ ✕ pill after each change. Click ✓ or ✕ (or Accept All / Reject All on the card at the bottom), or use ← → to move, Return to accept, and Esc to end the review; typing ends it too. Nothing changes in your file until you accept a change, each accepted change is one ⌘Z, and accepted changes are kept in History. Mark only highlights sentences; Esc clears them. Markdown structure — code, math, front matter, links' addresses, markers — is never sent and never changed, so the AI can't break your formatting (and can't fix a typo that touches `*`, `_`, or `~`). The AI items appear only while an AI is connected.
 - Use native macOS Writing Tools on selected text where the system provides them.
 - Preview Markdown files straight from Finder with Quick Look.
 
@@ -35,7 +36,7 @@ Lineform is a free native Mac Markdown editor focused on calm writing, readable 
 
 ## Local-First Privacy
 
-Documents stay wherever the user saves them. Lineform does not add accounts, analytics, or document upload. History is stored in Lineform's own folder on your Mac (`~/Library/Application Support/Lineform/History`, inside Lineform's app container), never in your files.
+Documents stay wherever the user saves them. Lineform does not add accounts, analytics, or document upload. If you connect your own AI, only the prose of a selection you act on is sent (for Mark, the sentences your selection touches), only when you choose an action, directly to the provider you connected, under your account and their terms; your key is kept in your Mac's Keychain. Lineform ▸ Connect Your AI… ▸ Disconnect deletes the key. History is stored in Lineform's own folder on your Mac (`~/Library/Application Support/Lineform/History`, inside Lineform's app container), never in your files.
 
 ## Credits
 

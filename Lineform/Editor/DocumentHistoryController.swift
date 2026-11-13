@@ -474,6 +474,11 @@ final class DocumentHistoryController: ObservableObject {
         engine.canAdd(range, in: text)
     }
 
+    /// AI actions are unavailable while History mode is on and inside a word-level passage (spec §5).
+    func allowsAIAction(on range: NSRange) -> Bool {
+        !isHistoryModeActive && !engine.isInsideWordPassage(range)
+    }
+
     /// An accepted AI change (plan 3). `text` is the text after the accept, already reported
     /// through `noteUserEdit`.
     func recordAccepted(range: NSRange, original: String, accepted: String, text: String) {

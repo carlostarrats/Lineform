@@ -130,6 +130,21 @@ final class LineformTextView: NSTextView {
     var historyRecededInkRange: NSRange?
     var historyTrackingArea: NSTrackingArea?
     var isApplyingHistoryEdit = false
+    /// AI actions (`LineformTextView+AI.swift`). Whether the AI group may be offered for a
+    /// selection — whole-document structure analysis, so asked only when the context menu is built.
+    var aiAvailabilityHandler: ((NSRange) -> Bool)?
+    var aiCommandHandler: ((AITextCommand) -> Void)?
+    /// Mark's sentences, drawn as a temporary wash. Setting an equal value is a no-op.
+    var aiMarkRanges: [NSRange] {
+        get { aiMarkRangesStorage }
+        set { applyAIMarkRanges(newValue) }
+    }
+    var isAIRequestRunning = false
+    /// While a review is shown the document is read-only (its own accepts excepted).
+    var isAIReviewActive = false
+    // Storage for `LineformTextView+AI.swift`. Not for use elsewhere.
+    var aiMarkRangesStorage: [NSRange] = []
+    var isApplyingAIEdit = false
     private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
     private var pendingDeferredVisualLayoutAnchor: VisualLayoutAnchor?
@@ -269,7 +284,7 @@ final class LineformTextView: NSTextView {
     /// History mode's arrow keys and Esc. Hooked HERE, never in `keyDown` — `keyDown` runs before
     /// input-method handling and would swallow keys mid-composition.
     override func doCommand(by selector: Selector) {
-        if handleHistoryCommand(selector) {
+        if handleHistoryCommand(selector) || handleAICommand(selector) {
             return
         }
         super.doCommand(by: selector)
@@ -282,6 +297,9 @@ final class LineformTextView: NSTextView {
     /// after AppKit allowed it and before it lands, in the coordinates of the text before it.
     /// Attribute-only changes (`replacementString == nil`) are neither typing nor edits.
     override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        if refusesEditForAI(replacement: replacementString) {
+            return false
+        }
         if refusesHistoryModeReplacement(affectedCharRange, replacement: replacementString) {
             return false
         }
@@ -349,6 +367,10 @@ final class LineformTextView: NSTextView {
         if historyDisplay != nil {
             // The receded ink is baked into temporary attributes; a theme change re-derives it.
             refreshHistoryRecededInk()
+        }
+        if !aiMarkRangesStorage.isEmpty {
+            // Mark's wash is baked into temporary attributes too.
+            refreshAIMarks()
         }
         refreshReadingAssists()
     }
@@ -833,6 +855,7 @@ final class LineformTextView: NSTextView {
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.copyTitle, action: #selector(copy(_:)), keyEquivalent: "c"))
         menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.pasteTitle, action: #selector(paste(_:)), keyEquivalent: "v"))
         addHistoryItemIfAllowed(to: menu)
+        addAIItemsIfAvailable(to: menu)
         if contextMenuTextFormat == .markdown {
             menu.addItem(.separator())
             menu.addItem(NSMenuItem(title: LineformTextContextMenuPresentation.titleTitle, action: #selector(toggleTitleMarkdown(_:)), keyEquivalent: "1"))
@@ -2018,6 +2041,10 @@ enum LineformTextContextMenuPresentation {
     /// Conditional: offered only for a non-empty selection the History controller accepts, so it
     /// is not part of `commandTitles(for:)` (the rows every menu carries).
     static let addToHistoryTitle = String(localized: "Add to History")
+    /// The AI group's submenus. Conditional (connected, a selection with prose), so not part of
+    /// `commandTitles(for:)` either.
+    static let aiRewriteMenuTitle = String(localized: "Rewrite")
+    static let aiMarkMenuTitle = String(localized: "Mark")
 
     /// The single suggestion to offer for a misspelling, or none.
     ///

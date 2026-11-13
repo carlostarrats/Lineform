@@ -48,6 +48,74 @@ in this area.
 
 - **App Store review prompt (2026-09-05)**: Lineform uses StoreKit's system review sheet directly. Never add a custom "Are you enjoying Lineform?" pre-prompt: App Review guideline 5.6.1 requires the provided rating API, and the system owns the wording, actions, accessibility, localization, frequency limit, and whether a request is displayed. `AppReviewPromptStore` records only local `UserDefaults` state: the capped number of process sessions containing at least one successful source-file write, the first such date, and the last marketing version for which Lineform made a request. Launches, reading, browsing, and edits that have not reached disk do not count. `LineformDocument.fileWrapper(configuration:)` is only SERIALIZATION, not proof of a successful safe write: explicit save flows count from `NSDocument`'s successful completion callback, while ordinary Save/autosave is confirmed only when `DocumentReloadController` reads the serialized bytes back through the existing file presenter. That first readback is confirmation-only — it must never enter the external-reload policy while AppKit's safe write may still be in flight — and a no-op serialization matching the previous baseline does not count. Never move the engagement call back into `DocumentSaveStatus.recordWrite`; a later filesystem failure would count work that never reached disk. Production eligibility requires four engaged sessions spanning at least seven days and another real write in the current process. Every confirmed write restarts a four-second quiet-period task; the active editor requests the sheet only while the app is active and no Lineform alert, sheet, search field, inspector, settings/quick-open overlay, default-app invitation, or announcement is visible. Returning to the foreground may recreate the delay but never counts as engagement. The version is claimed immediately before `AppStore.requestReview(in:)`, so multiple windows cannot request together and Lineform asks at most once per marketing version even if StoreKit suppresses it. StoreKit applies its own broader system limits. The system prompt has no effect in TestFlight. `LINEFORM_FORCE_REVIEW_PROMPT=1` is a DEBUG-only eligibility seam, compiled out of Release; it emits an explicit stderr trace when Lineform reaches the StoreKit request so QA can distinguish our presentation path from StoreKit choosing not to display its UI. Use an Xcode development run to inspect the system sheet itself.
 
+## Bring your own AI (2026-11-12)
+
+`Lineform/AI/`. What an action does to the document is in `editor-behavior.md` § AI actions and
+review; this is the connection, the wire, and the rules around them.
+
+- **Connect Your AI window.** Lineform ▸ Connect Your AI… (after Settings…, `sparkles` icon) opens
+  ONE `ConnectAIWindowController.shared` window (680×460, `[.titled, .closable]`, not restorable).
+  Each open from closed gets a fresh `NSHostingController`, so a typed key never lingers in a closed
+  window. Providers: Claude, ChatGPT, Google, Other (an OpenAI-compatible address, optional key and
+  model). Return in any field connects; Done is the cancel action (Esc), ⌘W closes.
+- **Consent IS the Connect button's label.** It names what is sent and to whom:
+  "Connect — Lineform will send the text you choose to Anthropic / OpenAI / Google / <host>"
+  ("…to that address" before a host is typed), above the privacy note ("Lineform sends only the
+  text you act on, only when you choose an AI action, directly to the provider you connected, under
+  your account and that provider's terms. Lineform's developer receives nothing.") and the billing
+  note (a Claude/ChatGPT/Gemini subscription does not cover API use). This is the App Review 5.1.2(i)
+  disclosure and explicit permission — see `docs/release/app-store-release.md` §6. Do not shorten
+  the label to a bare "Connect" or move the disclosure out of the button.
+- **Connecting sends nothing.** `connect`/`connectOther` validate locally, write the Keychain and
+  defaults, and return. The key is not tested — a bad key surfaces as "The key wasn't accepted" on
+  the first action. One connection at a time: connecting deletes every other provider's key.
+  ⌘W closes the window: it is Close Tab, which only document windows answer, so the command closes a
+  key `ConnectAIWindowController` window directly (`AppMenuConfiguration.closeTabClosesWindowDirectly`).
+  Disconnect deletes the key and the Other settings; an editor's request in flight is cancelled and a review from that provider abandoned (`AIActionController` observes `connectedProvider`).
+- **Keychain.** `SystemAIKeychain`: generic password, service `<bundle id>.ai`, account
+  `AIProvider.rawValue`, `kSecAttrSynchronizable = false`, legacy file keychain (no
+  `kSecUseDataProtectionKeychain`, so no new entitlement). The secret is read ONLY by
+  `resolvedConnection()`, inside an action. Opening the window runs `hasKey` — an existence query
+  with no `kSecReturnData`/attributes — so a connected provider whose item was deleted shows
+  "Paste it again to reconnect" instead of a false "Connected". Never UserDefaults, never files;
+  `AIConnection.description` redacts the key.
+- **Endpoints and models** (one constant each on `AIProvider`, verified when implemented):
+  - Claude: `https://api.anthropic.com/v1/messages`, `anthropic-version: 2026-10-21`, model
+    `claude-sonnet-5-5`, `x-api-key`. Raw HTTP, no SDK. Per the claude-api skill the body opts into
+    server-side refusal fallbacks (`"fallbacks": "default"`, header
+    `anthropic-beta: server-side-fallback-2026-07-01`); fallback targets stay on Anthropic, so no
+    new recipient. Only `text` content blocks are read. `max_tokens` 16,000; no thinking, no
+    temperature, no tools, no streaming. `stop_reason: max_tokens` is an unusable reply.
+  - ChatGPT: `https://api.openai.com/v1/chat/completions`, `gpt-5-mini`, `Authorization: Bearer`.
+  - Google: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`,
+    `gemini-2.5-flash` (Google's OpenAI-compatible endpoint, same client).
+  - Other: the typed address normalised to `…/chat/completions`. `http` only for `localhost`,
+    `127.0.0.1`, `[::1]` and `*.local`; `https` for anything else. No model typed → `"default"`.
+    Known minor: a query string on the typed address is dropped.
+- **Transport** (`URLSessionAITransport`): ephemeral session, no cookie storage, no URL cache;
+  every redirect REFUSED (a redirect could carry the key to another host — a 3xx is an unusable
+  response); status checked before body (non-2xx reads at most 4,096 bytes, so a huge 401 still
+  maps to "key wasn't accepted"); reply capped at 262,144 bytes counted as bytes arrive, never from
+  `Content-Length`; 60 s request / 120 s resource timeouts. Errors map to a short, localized,
+  actionable message (`AIClientError`); replies are plain text, never rendered as Markdown/HTML.
+- **ATS needed no exception.** Plain `http` to `127.0.0.1` and `localhost` (Other → Ollama, LM
+  Studio, the stub) works with no `NSAppTransportSecurity` key: probed from the test host (the app
+  with its real Info.plist and Debug sandbox) with raw `URLSession` and the real client.
+  `ReleaseResourceTests.testATSAllowsAtMostLocalNetworking` permits at most `NSAllowsLocalNetworking`,
+  never arbitrary loads. `com.apple.security.network.client` was already present (announcements).
+- **Network rule.** No request unless connected AND the writer chose an action: nothing at launch,
+  at window creation, on opening Connect Your AI, or on Connect. Nothing AI is wired into
+  `applicationDidFinishLaunching` — the test host is the app, so anything there would run on every
+  `xcodebuild test`. Building `EditorContainerView`'s `AIActionController` reads UserDefaults only.
+- **Tests never touch the real network or Keychain.** `InMemoryAIKeychain` (with `readCount`, so a
+  test can assert the secret was not read), `FakeAIClient`, `FakeAITransport` and `StubURLProtocol`
+  stand in. Manual checks use `scripts/ai-stub-server.py` (stdlib, binds 127.0.0.1 only; `--mangle`,
+  `--delay`, `--status`, `--junk`) through the Other provider. Never enter a real API key while
+  developing.
+- **Strings.** Brand names (Claude, ChatGPT, Google, Anthropic, OpenAI) are not translated
+  (sweep-exempt with reasons); `AIProvider`/`AIAction` rawValues are persisted identity; the model
+  instructions in `AIActionPrompt` stay English (exempt at the `modelInstruction` declaration only).
+
 ## Localization (Phase 1, 2026-08-05)
 
 App chrome is localized into Spanish, French, German, Japanese, and Simplified Chinese; document

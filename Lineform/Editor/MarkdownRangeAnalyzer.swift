@@ -1,6 +1,6 @@
 import Foundation
 
-enum MarkdownTokenKind: String, Hashable {
+enum MarkdownTokenKind: String, Hashable, CaseIterable {
     case headingMarker
     case listMarker
     case checkbox

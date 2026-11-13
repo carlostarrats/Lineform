@@ -779,6 +779,207 @@ shows passages with history and steps their versions. Spec:
   `LINEFORM_DUMP_MAIN_MENU=1`, whose dump now prints each row's shortcut; 48 rows carry one and no
   two collide.
 
+## AI actions and review (2026-11-12)
+
+Bring-your-own AI (spec `docs/superpowers/specs/2026-11-12-bring-your-own-ai-design.md` §4). The
+connection and network side is in `app-integration.md` § Bring your own AI; this section is what an
+action does to the document. The two sections after it cover the text-view and overlay detail.
+
+- **State machine** (`AIActionController.State`): `idle → running(action, provider) →
+  reviewing(session) | marking(ranges) | message(text) → idle`. `run` is a SILENT no-op unless
+  connected, the selection is non-empty, nothing is running or under review, and History allows it
+  (`DocumentHistoryController.allowsAIAction`: not in History mode, not inside a `.word` passage).
+  It then builds the request, checks `AILimits` (≤ 400 segments, ≤ 24,000 UTF-16 units of prose,
+  else "Select less text"), and only THEN calls `resolvedConnection()` — the one Keychain read —
+  and the client. A generation token makes any reply after cancel/abandon a no-op. Write mode only;
+  an action chosen in Split switches to Write as it starts; leaving Write ends the review.
+- **What is sent.** Only `MarkdownStructureMap.proseSegments` of the selection — one JSON
+  `{"action":…,"segments":[…]}` user message behind a fixed English system prompt
+  (`AIActionPrompt`, deliberately not localized: it is a model instruction, never drawn). Mark
+  sends the sentences the selection touches (`AISentenceSplitter`, prose only, list/quote markers
+  excluded): sentences are found over the full lines of each touched block, so a boundary never
+  cuts a construct, but only those whose prose range intersects the selection are kept — a partly
+  selected sentence goes whole, a sentence the selection does not reach is never sent. Before the
+  final review it sent every sentence of the touched lines, more than Privacy.md promised.
+  Code, math, front matter, URLs, link destinations, image alt text, HTML, tables' pipes, every
+  marker and every `* _ ~` are never sent.
+- **What comes back is checked three times.** (1) `AIResponseParser.segments` takes the JSON
+  between the first `{` and the last `}` and requires exactly `segments.count` strings, else the
+  whole reply is "couldn't be used". (2) `MarkdownStructureGuard.admissibleRevisions` drops, per
+  segment, any revision with a line terminator, a `Cc`, a `Cf` the original lacked, a different
+  structure-punctuation sequence, or a different block signature. (3) The composed document must
+  `verify` against the original's whole-document signature, or nothing is offered. Then EVERY
+  decision is verified again on its own (below).
+- **The structure rule, as built** (decisions paid for in review rounds — do not loosen):
+  - Every `*`, `_` and `~` in the document is structure, paired or not. This closed a whole class of
+    emphasis re-pairing bypasses; the cost is that the AI cannot fix a typo that touches one of them
+    (`make_tset_file` stays as written). The signature also fingerprints which delimiter pairs with
+    which, so prose beside a delimiter cannot re-pair emphasis.
+  - Bare URLs, bare emails, `<autolinks>`, reference definitions and reference/shortcut links (judged
+    against the WHOLE document's labels) are structure. HTML entities (`&amp;`, `&nbsp;`) are NOT —
+    they remain prose and the AI may rewrite them.
+  - The `Cf` (format character) rule fails CLOSED: a revision that adds a ZWJ, ZWNJ, ZWSP or bidi
+    control the original segment did not contain is dropped. This also drops an AI's new emoji ZWJ
+    sequence or Persian/Indic ZWNJ shaping — accepted as the price of never admitting invisible
+    control characters.
+  - Token comparison in the diff is canonical-equivalence (an NFC-only renormalisation is "no
+    change", the writer's bytes kept); the stale-segment and stale-text checks are exact UTF-16.
+- **Per-decision verify.** A subset of a verified reply can still change structure (`$5` → `5$`
+  diffs into a deletion and an insertion; accepting only the insertion gives `$5$`, which is math).
+  Each accept and each Accept Remaining runs `verify(current, current+edits)` first; a refused one is
+  marked rejected (single) or left pending (batch) and shows "That change would alter the Markdown,
+  so it wasn't applied." on the card.
+- **Undo shape.** One decision = one `applyAIEdits` call = one undo group = one ⌘Z. Accept Remaining
+  is ONE call, named "Accept Suggestions" ("Accept Suggestion" for one edit), its edits in
+  descending order in pre-batch coordinates.
+- **History.** Recorded once, when the review ends (last decision, End/Esc, or typing), and only if
+  something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
+  records nothing.
+- **The selection after a review.** The reviewed passage stays selected in the editor under the
+  overlay. Whenever `state` leaves `.reviewing` — Esc, the card's buttons, the last pill, a typed
+  key, a tab swap's `endReview`, `abandon`, disconnect — its `didSet` calls
+  `collapseSelectionForAI(at: caretEnd(of: selectionRange))` (the session keeps that range
+  shifted by every accept). `caretEnd` stops BEFORE trailing `\n` / `\r\n`: a triple-click selects
+  the line with its ending, and `NSMaxRange` put the typed key at the start of the next line. Mark
+  collapses the same way when its marks appear — a selection draws over the wash and hid it. One choke point, so no exit can be missed. Without it the keystroke
+  that ended a review (or the next Delete, Tab, Space or dictation) replaced the whole passage.
+  The overlay's ⌫ only ends the review and is not re-sent: re-sent, it would delete the passage's
+  last character.
+- **A skipped edit ends the review.** `applyAIEdits` returns false when the text view skipped an
+  edit (it would split a character or touch a line ending / BOM — never expected after the
+  guards). The session's ranges then no longer describe the text, so the controller ends the
+  review at once with "That change couldn't be applied, so the review ended.", records nothing in
+  History and puts the caret at the passage's real end. Whatever did land stays (one ⌘Z).
+- **Disconnect.** The controller observes `AIConnectionStore.connectedProvider`: a change away from
+  the provider of a running request cancels it, and away from the provider a review came from
+  abandons the review. Reconnecting the same provider (a new key) leaves both alone.
+- **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
+  `HistoryPalette.tint`; the reply's 1-based sentence numbers are bounded before any `Int`
+  conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
+- **Messages use one/many, not a stringsdict.** "1 change suggested" / "%lld changes suggested"
+  (and the sentence-marked pair) are two catalog keys chosen by `count == 1`. That is correct for
+  every shipped language (es, fr, de, ja, zh-Hans: ja/zh have one form, and 0 never reaches these
+  strings — it becomes "No changes suggested." / "Nothing to mark."). A language with dual/few/many
+  forms (Russian, Polish, Arabic) would need a real plural variation in the catalog.
+- **Known gap: word passages right after a whole-text write.** `allowsAIAction` reads History's
+  LIVE ranges only (it never searches text). `noteWholeTextReplacement()` invalidates them, so
+  between a whole-text write and the next locate, an action inside a `.word` passage is not
+  blocked. Live reload and open re-locate immediately, so the window is brief; the action itself is
+  still structure-safe — only the spec §5 "nothing nests inside a word" rule is briefly unenforced.
+- **Not hands-on verified yet** (owed in GUI QA): pills/keys/cards on screen, dead keys and IME
+  hand-off (ja, zh-Hans, ⌥E), Focus/ruler assists (not mirrored in the overlay, so they vanish
+  during a review), VoiceOver, German consent label fit.
+
+## AI actions in the text view (2026-11-12)
+
+`LineformTextView+AI.swift`; the controller is `AIActionController` (Lineform/AI).
+
+- **Context menu.** After Paste and Add to History: separator, Rewrite ▸ (Trim, Cut in half,
+  Rewrite), Proofread, Mark ▸ (Weakest sentences, Long sentences). ABSENT, not disabled, unless
+  `aiAvailabilityHandler` says yes for a non-empty selection — a whole-document structure
+  analysis, so it is asked only when the menu is built. Both submenus carry
+  `MainMenuIconDecorator.excludedMenuIdentifier`.
+- **One decision = one ⌘Z.** `applyAIEdits` opens ONE undo group and runs every edit through
+  `shouldChangeText → textStorage.replaceCharacters → didChangeText`, so History hears each edit
+  from its single user-edit source in pre-change coordinates. `breakUndoCoalescing` and
+  `setActionName` happen INSIDE the open group: both register with the undo manager, and outside
+  a group (an undo manager with `groupsByEvent` off) they raise. An edit that would split a
+  composed character or touch a line ending / BOM is skipped, never widened.
+- **Read-only review.** While `isAIReviewActive`, `shouldChangeText` refuses every edit except the
+  review's own (`performAIEdit`) and History's (`performHistoryEdit`). A backstop: the review overlay
+  holds focus. `insertTypedText` clears the flag itself before typing — the controller ends the
+  review synchronously, before SwiftUI pushes the new state, so the ending keystroke is not refused.
+- **Keys.** Esc (`cancelOperation:` in `doCommand(by:)`, after History's handling) cancels a
+  running request, else dismisses marks; otherwise it is not taken.
+- **Marks** are layout-manager TEMPORARY `.backgroundColor` in `HistoryPalette.tint` — the text
+  storage is never touched — re-inked on a theme change, and dismissed by any real edit.
+- **History.** An accepted review records one passage per CHANGED paragraph of the selection
+  (`AIActionController.acceptedPassages`; accepted edits never add or remove a line ending, so
+  original and accepted lines pair up). Before this, a multi-paragraph accept recorded one passage
+  spanning the paragraphs.
+
+## AI review overlay and cards (2026-11-12)
+
+`Lineform/AI/AIReview*.swift`, wired in `EditorContainerView` (one `AIActionController` per editor,
+the app's one `AIConnectionStore.shared`).
+
+- **The suggestions are an overlay, never the buffer.** While `state == .reviewing` in Write, an
+  `AIReviewSurfaceRepresentable` (an `NSScrollView` + `AIReviewTextView`, a TextKit 1 stack like the
+  editor's) lies exactly over the editor. It shows `AIReviewComposition`: for each PENDING change, the
+  document's own original (dimmed with a TEMPORARY `.foregroundColor` in `HistoryPalette.recededInk`,
+  unless kept), the replacement in the normal ink, then a U+FFFC carrying an `AIReviewPillCell`.
+  Decided changes contribute nothing. Everything before the first change is byte-identical to the
+  document and `matchGeometry(of:)` copies the editor's inset, padding, container width, frame width
+  and paragraph style, so its lines sit on the editor's.
+- **Scroll hand-over is by CHARACTER, never pixel y.** Past the first change the overlay is taller
+  than the document (it also shows removed text and pills), so a copied `bounds.origin.y` showed
+  other text — a visible jump on every Esc / last decision, and on make when the selection began
+  above the viewport. `topAnchor(of:)` takes the first character of the top line (and the offset
+  into it); `AIReviewComposition.overlayIndex(forDocumentIndex:)` / `documentIndex(forOverlayIndex:)`
+  map it (text a change adds maps to the change's end); `originY(in:showing:offset:)` puts that
+  character's line at the top. On make it is applied now and again on the next turn (once SwiftUI has
+  sized the scroll view); dismantle returns first responder to the editor.
+- **Highlight, THEN attach.** `MarkdownSyntaxHighlighter.highlight` resets every attribute over the
+  whole range, attachments included, so the pills are added after it.
+- **A decision redraws only its span.** The first `present` (and a profile change) is a whole pass.
+  A decision's composition differs from the last only around the decided change, so `present`
+  replaces just the differing UTF-16 span (`differingSpan`), re-tokenizes just its lines
+  (`refreshTokens`; the analyzer is line-local, so this equals a whole pass — asserted), re-sets
+  every pill and the dimming, and does NOT `sizeToFit` (that lays out the whole document after the
+  span; background layout grows the view instead). It also never sets `font` / `textColor`, which
+  rewrite the whole storage. Measured at 700 KB: whole pass ~600 ms (~500 ms of it the full layout,
+  ~80 ms highlighting), a decision ~11 ms. The one-time ~600 ms when a review opens on a very large
+  document remains — the same full layout the editor pays when the document opens.
+- **Keys: the overlay ROUTES, the editor still never intercepts `keyDown`.** In the overlay's
+  `keyDown`, a key that is not a review key (arrows, Return/Enter, Esc, Page Up/Down, Home/End) and
+  carries no ⌘/⌃ (and is not a function key) ends the review synchronously (`.end`), drops the editor's
+  backstop (`prepareForAIHandOff`), makes the editor first responder and RE-SENDS the same event to
+  `editor.keyDown`. The editor's own input context then handles it: plain text, dead keys (⌥E, ⌥U,
+  ^ on ABC/French/German) and the first key of a Japanese/Chinese composition. Ending the review in
+  `insertText` instead dropped that first keystroke — a dead key or an input method never reaches
+  `insertText` on its first press. Review keys go to `interpretKeyEvents` (a NON-editable
+  `NSTextView` drops key events before key binding — verified), and are decided in `doCommand(by:)`.
+  `insertText → .typed` and `setMarkedText → .end` remain as fallbacks. The overlay also takes first
+  responder in `viewDidMoveToWindow`: the representable's next-turn grab could run before SwiftUI put
+  the view in a window, with no later update, so Return went to the read-only editor and did nothing
+  until another key caused an update (hand-tested). The first change is current from the moment the
+  session opens. Window-free tests cannot
+  prove LineformTextView types from a re-sent event (its `keyDown` types nothing without a window);
+  a plain text view stands in.
+- **Undo can't reach underneath.** The overlay's `undoManager` is an empty private one: ⌘Z during a
+  review is disabled rather than popping the document's stack (Task 7's open concern).
+- **VoiceOver.** The overlay carries `accessibilityCustomActions` (Accept/Reject Change, Keep Removed
+  Text when the current change removes text, Next/Previous Change, Accept/Reject All → Remaining,
+  End Review); progress is announced by the controller, never written into an AX value.
+- **Cards.** One floating card at the BOTTOM of `editorContent` (an overlay, never a laid-out bar):
+  `AIStatusCard` for a running request (progress, "Esc to cancel", ✕ cancels), a message (steps aside
+  after 8 s) or Mark's count ("Esc clears marks"); `AIReviewCard` ("3 of 7", Accept All / Reject All
+  → Remaining after a decision) while a review has more than one change. A one-change review gets a
+  quiet `AIStatusCard` ("1 change suggested", "Return to accept · Esc to dismiss", ✕ ends the
+  review), so its modal keys are discoverable. While an AI card is up the
+  announcement / default-app card is hidden. `usesDarkChrome` is threaded. All floating cards
+  (announcement, default app, AI) share ONE `FloatingCardChrome` modifier. The card's arrival and
+  departure animate on `aiCardKind` from a persistent `ZStack`.
+- **Composition cache.** `AIReviewCompositionCache` rebuilds only when the session or the editor's
+  text changes; the container body re-evaluates far more often. The overlay's spoken value drops the
+  pills' U+FFFC (VoiceOver reaches them through the custom actions).
+- **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
+  `AIActionController.reviewNotice`, drawn on the review card (or alone on a status card for a
+  one-change review) and cleared by the next command; if the refusal was the last decision the
+  review ends and the refusal becomes `state = .message`.
+- **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call
+  `endAIForDocumentChange()` first, like typing). Before this the backstop refused the edit after the
+  search state had already moved on. The representable also drops `isAIReviewActive`
+  (`keepsReviewBackstop`) BEFORE applying a requested replacement in the same update.
+- **Where AI ends.** Leaving Write, entering History mode, a tab or document swap
+  (`resetTransientDocumentState`, BEFORE `historyController.close` so accepted changes are recorded in
+  the outgoing History) and window close call `endReview()` then `abandon()`. Live reload, Read-mode
+  checkbox/image rewrites and Convert Text Format call `abandon()` (nothing applied or recorded). An
+  action chosen in Split switches to Write as its request starts (`AIActionModeHandlers`).
+- **ATS.** Plain `http` to `127.0.0.1` and `localhost` (the "Other" provider) works with no ATS key:
+  checked from the test host against the stub. `ReleaseResourceTests.testATSAllowsAtMostLocalNetworking`
+  permits at most `NSAllowsLocalNetworking`, never arbitrary loads.
+
 ## Open bug: "Edited" stays in the title bar after a live reload (found 2026-11-06, not fixed)
 
 **Seen on:** installed 1.7.5 (build 37, TestFlight), macOS 27.0.1.
