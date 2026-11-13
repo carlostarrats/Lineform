@@ -111,6 +111,28 @@ final class AIChangeBuilderTests: XCTestCase {
         XCTAssertEqual(AIChangeBuilder.changes(segments: [segment], revisions: ["Howdy"], in: "Hi"), [])
     }
 
+    /// The stale check is EXACT: a document region that is only canonically equal (same UTF-16
+    /// length, combining marks reordered) is stale, or a change would splice over bytes the AI
+    /// never saw.
+    func testSegmentDifferingOnlyByNormalizationIsStale() {
+        let segmentText = "Ba\u{301}\u{323}d day"
+        let document = "Ba\u{323}\u{301}d day"
+        XCTAssertEqual(segmentText, document, "canonically equivalent")
+        XCTAssertEqual((segmentText as NSString).length, (document as NSString).length)
+        let segment = ProseSegment(range: NSRange(location: 0, length: (segmentText as NSString).length), text: segmentText)
+        XCTAssertEqual(AIChangeBuilder.changes(segments: [segment], revisions: ["Good day"], in: document), [])
+        XCTAssertEqual(AIChangeBuilder.changes(segments: [segment], revisions: ["Good day"], in: segmentText).count, 1)
+    }
+
+    func testSentenceRangesExcludeListAndQuoteMarkers() {
+        let list = "- Item one. Item two."
+        XCTAssertEqual(AISentenceSplitter.sentences(in: list, selection: NSRange(location: 0, length: (list as NSString).length)).map(\.range),
+                       [(list as NSString).range(of: "Item one."), (list as NSString).range(of: "Item two.")])
+        let quote = "> Quote one. Quote two."
+        XCTAssertEqual(AISentenceSplitter.sentences(in: quote, selection: NSRange(location: 0, length: (quote as NSString).length)).map(\.range),
+                       [(quote as NSString).range(of: "Quote one."), (quote as NSString).range(of: "Quote two.")])
+    }
+
     func testOversizedDiffFallsBackToOneChange() {
         let words = (0..<2_100).map { "w\($0)" }
         let original = words.joined(separator: " ")

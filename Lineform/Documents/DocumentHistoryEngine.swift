@@ -268,6 +268,15 @@ struct DocumentHistoryEngine {
                                          in: text, within: scope)
     }
 
+    /// True when `range` lies inside the live range of a `.word` passage (spec §5: nothing nests
+    /// inside a word, so AI actions are unavailable there). Live ranges only: never searches text.
+    func isInsideWordPassage(_ range: NSRange) -> Bool {
+        let levels = Dictionary(history.passages.map { ($0.id, $0.level) }, uniquingKeysWith: { first, _ in first })
+        return liveRanges.contains { id, live in
+            levels[id] == .word && range.location >= live.location && NSMaxRange(range) <= NSMaxRange(live)
+        }
+    }
+
     // MARK: - Adding
 
     func canAdd(_ range: NSRange, in text: String) -> Bool {

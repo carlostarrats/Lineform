@@ -9,14 +9,16 @@ enum AIActionPrompt {
 
     /// The per-action line appended to the system text.
     static func instruction(for action: AIAction) -> String {
+        let modelInstruction: String
         switch action {
-        case .trim: return "Remove needless words. Keep the meaning. Change as little as possible."
-        case .cutInHalf: return "Make the passage about half as long. Keep the most important points."
-        case .rewrite: return "Rewrite for clarity and flow. Keep the meaning and about the same length."
-        case .proofread: return "Fix only spelling, typos, grammar slips and prose punctuation. Change nothing else."
-        case .markWeakest: return "Choose the weakest sentences: vague, flat or unclear."
-        case .markLong: return "Choose sentences too long to read comfortably."
+        case .trim: modelInstruction = "Remove needless words. Keep the meaning. Change as little as possible."
+        case .cutInHalf: modelInstruction = "Make the passage about half as long. Keep the most important points."
+        case .rewrite: modelInstruction = "Rewrite for clarity and flow. Keep the meaning and about the same length."
+        case .proofread: modelInstruction = "Fix only spelling, typos, grammar slips and prose punctuation. Change nothing else."
+        case .markWeakest: modelInstruction = "Choose the weakest sentences: vague, flat or unclear."
+        case .markLong: modelInstruction = "Choose sentences too long to read comfortably."
         }
+        return modelInstruction
     }
 
     static func editPrompt(_ action: AIAction, segments: [String]) -> AIPrompt {

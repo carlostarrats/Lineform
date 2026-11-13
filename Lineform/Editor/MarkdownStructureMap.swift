@@ -822,7 +822,7 @@ enum MarkdownStructureGuard {
     private static func isCurrent(_ segment: ProseSegment, in ns: NSString) -> Bool {
         let range = segment.range
         guard range.location >= 0, range.length > 0, NSMaxRange(range) <= ns.length else { return false }
-        return ns.substring(with: range) == segment.text
+        return ns.substring(with: range).utf16.elementsEqual(segment.text.utf16)
     }
 
     /// The characters that can make or break Markdown. A revision must carry exactly the same

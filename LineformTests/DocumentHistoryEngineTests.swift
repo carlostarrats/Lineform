@@ -162,6 +162,20 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(engine.locateAll(in: text).map(\.rootID), [p, p, p])
     }
 
+    func testInsideWordPassageDetection() throws {
+        let text = "Intro paragraph sits here.\n\nFirst sentence is right here. Second sentence goes brightly here.\n\nOutro."
+        var engine = makeEngine()
+        _ = try XCTUnwrap(engine.add(range(of: "Second sentence goes brightly here.", in: text), author: .you, in: text))
+        let word = range(of: "brightly", in: text)
+        XCTAssertFalse(engine.isInsideWordPassage(word), "a sentence passage is not a word passage")
+        _ = try XCTUnwrap(engine.add(word, author: .you, in: text))
+        XCTAssertTrue(engine.isInsideWordPassage(word))
+        XCTAssertTrue(engine.isInsideWordPassage(NSRange(location: word.location + 2, length: 3)))
+        XCTAssertFalse(engine.isInsideWordPassage(NSRange(location: word.location - 1, length: word.length + 1)),
+                       "a selection reaching outside the word is not inside it")
+        XCTAssertFalse(engine.isInsideWordPassage(range(of: "Intro", in: text)))
+    }
+
     func testRecordAcceptedStoresOriginalAndAIVersion() throws {
         var engine = makeEngine()
         let original = "Hi world, you are so very brave."

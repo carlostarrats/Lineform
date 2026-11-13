@@ -29,7 +29,9 @@ enum AIChangeBuilder {
         for (index, segment) in segments.enumerated() where index < revisions.count {
             guard let revision = revisions[index],
                   segment.range.location >= 0, NSMaxRange(segment.range) <= ns.length,
-                  ns.substring(with: segment.range) == segment.text,
+                  // EXACT UTF-16: `==` is canonical equivalence, so a renormalized region would
+                  // pass and a change would splice over bytes the AI never saw.
+                  ns.substring(with: segment.range).utf16.elementsEqual(segment.text.utf16),
                   revision != segment.text else { continue }
             pieces += diff(segment, revision: revision)
         }

@@ -211,6 +211,10 @@
 		1F000001000000000000004F4 /* AIActionPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F4 /* AIActionPromptTests.swift */; };
 		1F000001000000000000004F5 /* AIResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F5 /* AIResponseParserTests.swift */; };
 		1F000001000000000000004F6 /* AIChangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000004F6 /* AIChangeBuilderTests.swift */; };
+		1F00000100000000000004F7 /* AIReviewSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F7 /* AIReviewSession.swift */; };
+		1F00000100000000000004F8 /* AIActionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F8 /* AIActionController.swift */; };
+		1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F9 /* AIReviewSessionTests.swift */; };
+		1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FA /* AIActionControllerTests.swift */; };
 		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
 		1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CD /* PassageHistoryModel.swift */; };
 		1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CE /* PassageHistoryStore.swift */; };
@@ -469,6 +473,10 @@
 		1F000002000000000000004F4 /* AIActionPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionPromptTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000004F5 /* AIResponseParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponseParserTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000004F6 /* AIChangeBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChangeBuilderTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004F7 /* AIReviewSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSession.swift; sourceTree = "<group>"; };
+		1F00000200000000000004F8 /* AIActionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionController.swift; sourceTree = "<group>"; };
+		1F00000200000000000004F9 /* AIReviewSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSessionTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004FA /* AIActionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionControllerTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CD /* PassageHistoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryModel.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CE /* PassageHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStore.swift; sourceTree = "<group>"; };
@@ -576,6 +584,8 @@
 				1F000002000000000000004F1 /* AIResponseParser.swift */,
 				1F000002000000000000004F2 /* AIChangeBuilder.swift */,
 				1F000002000000000000004F3 /* AISentenceSplitter.swift */,
+				1F00000200000000000004F7 /* AIReviewSession.swift */,
+				1F00000200000000000004F8 /* AIActionController.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -779,6 +789,8 @@
 				1F000002000000000000004F4 /* AIActionPromptTests.swift */,
 				1F000002000000000000004F5 /* AIResponseParserTests.swift */,
 				1F000002000000000000004F6 /* AIChangeBuilderTests.swift */,
+				1F00000200000000000004F9 /* AIReviewSessionTests.swift */,
+				1F00000200000000000004FA /* AIActionControllerTests.swift */,
 				1F00000200000000000004CF /* PassageHistoryStoreTests.swift */,
 				1F00000200000000000004D1 /* PassageHistoryTextTests.swift */,
 				1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */,
@@ -1086,6 +1098,8 @@
 				1F000001000000000000004F1 /* AIResponseParser.swift in Sources */,
 				1F000001000000000000004F2 /* AIChangeBuilder.swift in Sources */,
 				1F000001000000000000004F3 /* AISentenceSplitter.swift in Sources */,
+				1F00000100000000000004F7 /* AIReviewSession.swift in Sources */,
+				1F00000100000000000004F8 /* AIActionController.swift in Sources */,
 				1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */,
 				1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */,
 				1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */,
@@ -1194,6 +1208,8 @@
 				1F000001000000000000004F4 /* AIActionPromptTests.swift in Sources */,
 				1F000001000000000000004F5 /* AIResponseParserTests.swift in Sources */,
 				1F000001000000000000004F6 /* AIChangeBuilderTests.swift in Sources */,
+				1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */,
+				1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */,
 				1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */,
 				1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */,
 				1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */,

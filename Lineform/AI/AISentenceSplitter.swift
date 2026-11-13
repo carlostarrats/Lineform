@@ -1,7 +1,9 @@
 import Foundation
 
 /// One sentence for Mark, in DOCUMENT UTF-16 coordinates. `prose` is what the model sees: the
-/// sentence's prose segments joined with one space, its Markdown structure left out.
+/// sentence's prose segments joined with one space, its Markdown structure left out. `range`
+/// runs from the sentence's first prose character to its last, so leading markers (`- `, `> `,
+/// `- [ ] `) and trailing structure are outside it.
 struct AISentence: Equatable {
     let range: NSRange
     let prose: String
@@ -49,14 +51,22 @@ enum AISentenceSplitter {
             let trimmed = MarkdownStructureMap.edgeTrimmed(range, in: ns)
             guard trimmed.length > 0 else { continue }
             var pieces: [String] = []
+            var proseStart: Int?
+            var proseEnd = 0
             for segment in segments {
                 let overlap = NSIntersectionRange(segment.range, trimmed)
                 guard overlap.length > 0 else { continue }
                 let piece = MarkdownStructureMap.edgeTrimmed(ns.rangeOfComposedCharacterSequences(for: overlap), in: ns)
-                if piece.length > 0 { pieces.append(ns.substring(with: piece)) }
+                guard piece.length > 0 else { continue }
+                pieces.append(ns.substring(with: piece))
+                proseStart = proseStart ?? piece.location
+                proseEnd = NSMaxRange(piece)
             }
-            guard !pieces.isEmpty else { continue }
-            result.append(AISentence(range: trimmed, prose: pieces.joined(separator: " ")))
+            guard let proseStart, !pieces.isEmpty else { continue }
+            // The range a mark covers runs from the first prose to the last: a list, quote or
+            // task marker before the sentence is structure and is never marked.
+            result.append(AISentence(range: NSRange(location: proseStart, length: proseEnd - proseStart),
+                                     prose: pieces.joined(separator: " ")))
         }
         return result
     }

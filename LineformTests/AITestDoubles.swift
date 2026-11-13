@@ -92,3 +92,93 @@ final class StubURLProtocol: URLProtocol {
 
     override func stopLoading() {}
 }
+
+/// Scripted AI. Records every prompt; `.suspend` waits until its task is cancelled.
+final class FakeAIClient: AIClient, @unchecked Sendable {
+    enum Behavior {
+        case reply(String)
+        case respond(@Sendable (AIPrompt) -> String)
+        case fail(AIClientError)
+        case suspend
+    }
+
+    private let lock = NSLock()
+    private let behavior: Behavior
+    private var recordedPrompts: [AIPrompt] = []
+    private var cancellationSeen = false
+
+    init(_ behavior: Behavior) {
+        self.behavior = behavior
+    }
+
+    var prompts: [AIPrompt] { lock.withLock { recordedPrompts } }
+    var observedCancellation: Bool { lock.withLock { cancellationSeen } }
+
+    func complete(_ prompt: AIPrompt) async throws -> String {
+        lock.withLock { recordedPrompts.append(prompt) }
+        switch behavior {
+        case .reply(let text):
+            return text
+        case .respond(let body):
+            return body(prompt)
+        case .fail(let error):
+            throw error
+        case .suspend:
+            do {
+                try await Task.sleep(nanoseconds: 60_000_000_000)
+            } catch {
+                lock.withLock { cancellationSeen = true }
+                throw AIClientError.cancelled
+            }
+            return "{}"
+        }
+    }
+
+    /// The segments the prompt carried (edit actions).
+    static func segments(in prompt: AIPrompt) -> [String] {
+        let object = (try? JSONSerialization.jsonObject(with: Data(prompt.user.utf8))) as? [String: Any]
+        return object?["segments"] as? [String] ?? []
+    }
+
+    /// A reply that revises every segment with `transform(index, segment)`.
+    static func revising(_ transform: @escaping @Sendable (Int, String) -> String) -> Behavior {
+        .respond { prompt in
+            let revised = segments(in: prompt).enumerated().map { transform($0.offset, $0.element) }
+            let data = try! JSONSerialization.data(withJSONObject: ["segments": revised])
+            return String(decoding: data, as: UTF8.self)
+        }
+    }
+}
+
+/// The editor as the AI controller sees it. Applies edits the way the text view does: each edit
+/// is reported to History in pre-change coordinates (`shouldChangeText`), then lands.
+@MainActor
+final class FakeAIEditorSurface: AIEditorSurface {
+    var string: String
+    weak var history: DocumentHistoryController?
+    private(set) var editCalls: [(edits: [AIReviewEdit], actionName: String)] = []
+    private(set) var typed: [String] = []
+    private(set) var announcements: [String] = []
+
+    init(_ string: String) {
+        self.string = string
+    }
+
+    func applyAIEdits(_ edits: [AIReviewEdit], actionName: String) {
+        editCalls.append((edits, actionName))
+        let text = NSMutableString(string: string)
+        for edit in edits {
+            history?.noteUserEdit(edit.range, replacement: edit.replacement)
+            text.replaceCharacters(in: edit.range, with: edit.replacement)
+        }
+        string = text as String
+    }
+
+    func insertTypedText(_ text: String) {
+        typed.append(text)
+    }
+
+    func announceAI(_ message: String) {
+        announcements.append(message)
+    }
+}
