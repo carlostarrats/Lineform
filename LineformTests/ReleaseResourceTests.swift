@@ -143,6 +143,14 @@ final class ReleaseResourceTests: XCTestCase {
         XCTAssertTrue(guide.contains("# Heading"))
     }
 
+    func testPrivacyDocDescribesAIConnection() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "Privacy", withExtension: "md"))
+        let privacy = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(privacy.contains("Connect Your AI"), "Privacy.md must say how the AI connection works.")
+        XCTAssertTrue(privacy.contains("Keychain"), "Privacy.md must say where the API key is kept.")
+    }
+
     func testBundledFontLicensesShipWithBundledFonts() {
         for resource in ["OFL-AtkinsonHyperlegible", "OFL-OpenDyslexic"] {
             XCTAssertNotNil(

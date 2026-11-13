@@ -779,6 +779,75 @@ shows passages with history and steps their versions. Spec:
   `LINEFORM_DUMP_MAIN_MENU=1`, whose dump now prints each row's shortcut; 48 rows carry one and no
   two collide.
 
+## AI actions and review (2026-11-12)
+
+Bring-your-own AI (spec `docs/superpowers/specs/2026-11-12-bring-your-own-ai-design.md` §4). The
+connection and network side is in `app-integration.md` § Bring your own AI; this section is what an
+action does to the document. The two sections after it cover the text-view and overlay detail.
+
+- **State machine** (`AIActionController.State`): `idle → running(action, provider) →
+  reviewing(session) | marking(ranges) | message(text) → idle`. `run` is a SILENT no-op unless
+  connected, the selection is non-empty, nothing is running or under review, and History allows it
+  (`DocumentHistoryController.allowsAIAction`: not in History mode, not inside a `.word` passage).
+  It then builds the request, checks `AILimits` (≤ 400 segments, ≤ 24,000 UTF-16 units of prose,
+  else "Select less text"), and only THEN calls `resolvedConnection()` — the one Keychain read —
+  and the client. A generation token makes any reply after cancel/abandon a no-op. Write mode only;
+  an action chosen in Split switches to Write as it starts; leaving Write ends the review.
+- **What is sent.** Only `MarkdownStructureMap.proseSegments` of the selection — one JSON
+  `{"action":…,"segments":[…]}` user message behind a fixed English system prompt
+  (`AIActionPrompt`, deliberately not localized: it is a model instruction, never drawn). Mark
+  sends the selection's sentences (`AISentenceSplitter`, prose only, list/quote markers excluded).
+  Code, math, front matter, URLs, link destinations, image alt text, HTML, tables' pipes, every
+  marker and every `* _ ~` are never sent.
+- **What comes back is checked three times.** (1) `AIResponseParser.segments` takes the JSON
+  between the first `{` and the last `}` and requires exactly `segments.count` strings, else the
+  whole reply is "couldn't be used". (2) `MarkdownStructureGuard.admissibleRevisions` drops, per
+  segment, any revision with a line terminator, a `Cc`, a `Cf` the original lacked, a different
+  structure-punctuation sequence, or a different block signature. (3) The composed document must
+  `verify` against the original's whole-document signature, or nothing is offered. Then EVERY
+  decision is verified again on its own (below).
+- **The structure rule, as built** (decisions paid for in review rounds — do not loosen):
+  - Every `*`, `_` and `~` in the document is structure, paired or not. This closed a whole class of
+    emphasis re-pairing bypasses; the cost is that the AI cannot fix a typo that touches one of them
+    (`make_tset_file` stays as written). The signature also fingerprints which delimiter pairs with
+    which, so prose beside a delimiter cannot re-pair emphasis.
+  - Bare URLs, bare emails, `<autolinks>`, reference definitions and reference/shortcut links (judged
+    against the WHOLE document's labels) are structure. HTML entities (`&amp;`, `&nbsp;`) are NOT —
+    they remain prose and the AI may rewrite them.
+  - The `Cf` (format character) rule fails CLOSED: a revision that adds a ZWJ, ZWNJ, ZWSP or bidi
+    control the original segment did not contain is dropped. This also drops an AI's new emoji ZWJ
+    sequence or Persian/Indic ZWNJ shaping — accepted as the price of never admitting invisible
+    control characters.
+  - Token comparison in the diff is canonical-equivalence (an NFC-only renormalisation is "no
+    change", the writer's bytes kept); the stale-segment and stale-text checks are exact UTF-16.
+- **Per-decision verify.** A subset of a verified reply can still change structure (`$5` → `5$`
+  diffs into a deletion and an insertion; accepting only the insertion gives `$5$`, which is math).
+  Each accept and each Accept Remaining runs `verify(current, current+edits)` first; a refused one is
+  marked rejected (single) or left pending (batch) and shows "That change would alter the Markdown,
+  so it wasn't applied." on the card.
+- **Undo shape.** One decision = one `applyAIEdits` call = one undo group = one ⌘Z. Accept Remaining
+  is ONE call, named "Accept Suggestions" ("Accept Suggestion" for one edit), its edits in
+  descending order in pre-batch coordinates.
+- **History.** Recorded once, when the review ends (last decision, End/Esc, or typing), and only if
+  something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
+  records nothing.
+- **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
+  `HistoryPalette.tint`; the reply's 1-based sentence numbers are bounded before any `Int`
+  conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
+- **Messages use one/many, not a stringsdict.** "1 change suggested" / "%lld changes suggested"
+  (and the sentence-marked pair) are two catalog keys chosen by `count == 1`. That is correct for
+  every shipped language (es, fr, de, ja, zh-Hans: ja/zh have one form, and 0 never reaches these
+  strings — it becomes "No changes suggested." / "Nothing to mark."). A language with dual/few/many
+  forms (Russian, Polish, Arabic) would need a real plural variation in the catalog.
+- **Known gap: word passages right after a whole-text write.** `allowsAIAction` reads History's
+  LIVE ranges only (it never searches text). `noteWholeTextReplacement()` invalidates them, so
+  between a whole-text write and the next locate, an action inside a `.word` passage is not
+  blocked. Live reload and open re-locate immediately, so the window is brief; the action itself is
+  still structure-safe — only the spec §5 "nothing nests inside a word" rule is briefly unenforced.
+- **Not hands-on verified yet** (owed in GUI QA): pills/keys/cards on screen, dead keys and IME
+  hand-off (ja, zh-Hans, ⌥E), Focus/ruler assists (not mirrored in the overlay, so they vanish
+  during a review), VoiceOver, German consent label fit.
+
 ## AI actions in the text view (2026-11-12)
 
 `LineformTextView+AI.swift`; the controller is `AIActionController` (Lineform/AI).
