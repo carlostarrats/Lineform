@@ -18,6 +18,7 @@ final class AIReviewCardPresentationTests: XCTestCase {
         XCTAssertEqual(AIReviewCardPresentation.title(for: .trim), "Trim ready")
         XCTAssertEqual(AIReviewCardPresentation.title(for: .cutInHalf), "Cut ready")
         XCTAssertEqual(AIReviewCardPresentation.title(for: .proofread), "Proofread ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .anotherWord), "Word ready")
         XCTAssertTrue(AIReviewCardPresentation.buttonTitles == ("Reject", "Accept"))
         XCTAssertEqual(AIReviewCardPresentation.reviewHint, "Return to accept · Esc to reject")
     }
@@ -27,6 +28,10 @@ final class AIReviewCardPresentationTests: XCTestCase {
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .trim, provider: .other), "Trimming with your AI…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .proofread, provider: .chatGPT), "Proofreading with ChatGPT…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .markLong, provider: .google), "Marking with Google…")
+        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .anotherWord, provider: .chatGPT),
+                       "Finding another word with ChatGPT…")
+        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .anotherWord, provider: .other),
+                       "Finding another word with your AI…")
         XCTAssertEqual(AIReviewCardPresentation.cancelHint, "Esc to cancel")
         XCTAssertEqual(AIReviewCardPresentation.markHint, "Esc clears marks")
         for action in AIAction.allCases {
@@ -34,6 +39,18 @@ final class AIReviewCardPresentationTests: XCTestCase {
                 XCTAssertTrue(AIReviewCardPresentation.progressText(for: action, provider: provider)
                     .contains(provider.displayName), "\(action) \(provider)")
             }
+        }
+    }
+
+    /// A Rewrite / Trim / Cut in half / Another Word reply identical to the selection names who
+    /// answered, like the progress card ("Your AI" for Other, whose address is not a name).
+    func testSameTextMessageNamesTheProvider() {
+        XCTAssertEqual(AIReviewCardPresentation.sameTextMessage(provider: .chatGPT),
+                       "ChatGPT returned the same text. Try again.")
+        XCTAssertEqual(AIReviewCardPresentation.sameTextMessage(provider: .other),
+                       "Your AI returned the same text. Try again.")
+        for provider in AIProvider.allCases where provider != .other {
+            XCTAssertTrue(AIReviewCardPresentation.sameTextMessage(provider: provider).hasPrefix(provider.displayName))
         }
     }
 
@@ -60,6 +77,14 @@ final class AIReviewCardPresentationTests: XCTestCase {
                     if provider != .other {
                         XCTAssertTrue(local.contains(provider.displayName), "\(language): \(local) lost the brand")
                     }
+                }
+            }
+            for provider in AIProvider.allCases {
+                let local = AIReviewCardPresentation.sameTextMessage(provider: provider, bundle: bundle)
+                XCTAssertNotEqual(local, AIReviewCardPresentation.sameTextMessage(provider: provider),
+                                  "\(language) \(provider)")
+                if provider != .other {
+                    XCTAssertTrue(local.contains(provider.displayName), "\(language): \(local) lost the brand")
                 }
             }
             let local = AIReviewTextView.accessibilityActionTitles(bundle: bundle)

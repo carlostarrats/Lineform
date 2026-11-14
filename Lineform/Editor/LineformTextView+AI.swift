@@ -184,9 +184,17 @@ extension LineformTextView {
         let selection = selectedRange()
         guard selection.length > 0, aiAvailabilityHandler?(selection) == true else { return }
         menu.addItem(.separator())
-        menu.addItem(aiSubmenuItem(LineformTextContextMenuPresentation.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]))
-        menu.addItem(aiActionItem(.proofread))
-        menu.addItem(aiSubmenuItem(LineformTextContextMenuPresentation.aiMarkMenuTitle, [.markWeakest, .markLong]))
+        let text = string
+        let entries = LineformTextContextMenuPresentation.aiMenuEntries(
+            selectedText: (text as NSString).substring(with: selection),
+            sentenceCount: { AISentenceSplitter.sentences(in: text, selection: selection).count }
+        )
+        for entry in entries {
+            switch entry {
+            case .action(let action): menu.addItem(aiActionItem(action))
+            case .submenu(let title, let actions): menu.addItem(aiSubmenuItem(title, actions))
+            }
+        }
     }
 
     private func aiActionItem(_ action: AIAction) -> NSMenuItem {

@@ -125,6 +125,21 @@ final class AIActionController: ObservableObject {
     /// One action is one change, so a review always opens with exactly one.
     static var changeSuggestedMessage: String { String(localized: "1 change suggested") }
 
+    /// What a reply that changes nothing says. Proofread: "No changes suggested." (no errors is a
+    /// legitimate answer). An action that must change the text (`mustChangeText`) never says
+    /// that: a reply identical to the selection is "<AI> returned the same text. Try again.", and
+    /// one whose changes were all refused (structure, length) is an unusable response.
+    static func unchangedMessage(for action: AIAction, provider: AIProvider,
+                                 segments: [ProseSegment], revisions: [String]) -> String {
+        guard action.mustChangeText else { return noChangesMessage }
+        let identical = zip(segments, revisions).allSatisfy { segment, revision in
+            revision.trimmingCharacters(in: .whitespacesAndNewlines)
+                == segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return identical ? AIReviewCardPresentation.sameTextMessage(provider: provider)
+                         : AIClientError.unusableResponse.message
+    }
+
     static func markedMessage(_ count: Int) -> String {
         count == 1 ? String(localized: "1 sentence marked") : String(localized: "\(count) sentences marked")
     }
@@ -295,7 +310,7 @@ final class AIActionController: ObservableObject {
             // ONE change for the whole selection: one Accept / Reject decision, however many
             // segments (and whatever Markdown between them) it spans.
             guard let change = AIChangeBuilder.change(segments: segments, revisions: admitted, in: snapshot) else {
-                return show(Self.noChangesMessage)
+                return show(Self.unchangedMessage(for: action, provider: provider, segments: segments, revisions: revisions))
             }
             guard MarkdownStructureGuard.verify(original: snapshot, revised: Self.applying(change.edits(), to: snapshot)) else {
                 return show(AIClientError.unusableResponse.message)

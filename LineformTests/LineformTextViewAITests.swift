@@ -64,7 +64,8 @@ final class LineformTextViewAITests: XCTestCase {
 
     func testContextMenuOffersAIGroupForSelection() throws {
         let textView = makeTextView()
-        let selection = NSRange(location: 6, length: 4)
+        // Two sentences, several words: the full group (Rewrite ▸, Proofread, Mark ▸).
+        let selection = NSRange(location: 6, length: 20)
         textView.setSelectedRange(selection)
         var asked: [NSRange] = []
         textView.aiAvailabilityHandler = { asked.append($0); return true }
@@ -81,6 +82,7 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertTrue(menu.items[rewrite - 1].isSeparatorItem)
         XCTAssertEqual(titles[rewrite + 1], AIAction.proofread.title)
         XCTAssertEqual(titles[rewrite + 2], LineformTextContextMenuPresentation.aiMarkMenuTitle)
+        XCTAssertFalse(titles.contains(AIAction.anotherWord.title))
 
         let rewriteMenu = try XCTUnwrap(menu.items[rewrite].submenu)
         XCTAssertEqual(rewriteMenu.items.map(\.title), ["Trim", "Cut in half", "Rewrite"])
@@ -98,6 +100,60 @@ final class LineformTextViewAITests: XCTestCase {
         }
     }
 
+    /// One word: "Another Word" replaces the Rewrite submenu; Proofread stays; no Mark (one
+    /// sentence). Choosing it runs `.anotherWord` on the selection.
+    func testSingleWordSelectionOffersAnotherWord() throws {
+        let textView = makeTextView()
+        let selection = NSRange(location: 6, length: 4) // "beta"
+        textView.setSelectedRange(selection)
+        textView.aiAvailabilityHandler = { _ in true }
+        var commands: [AITextCommand] = []
+        textView.aiCommandHandler = { commands.append($0) }
+        let menu = try XCTUnwrap(textView.menu(for: Self.contextMenuEvent()))
+        let titles = menu.items.map(\.title)
+        let another = try XCTUnwrap(titles.firstIndex(of: "Another Word"))
+        XCTAssertTrue(menu.items[another - 1].isSeparatorItem)
+        XCTAssertEqual(titles[another + 1], AIAction.proofread.title)
+        XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.aiRewriteMenuTitle))
+        XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.aiMarkMenuTitle))
+        let item = menu.items[another]
+        XCTAssertNil(item.submenu)
+        _ = textView.perform(try XCTUnwrap(item.action), with: item)
+        XCTAssertEqual(commands, [.run(.anotherWord, selection)])
+    }
+
+    /// Several words of ONE sentence: Rewrite ▸ and Proofread, but no Mark.
+    func testOneSentenceSelectionHasNoMark() throws {
+        let textView = makeTextView()
+        textView.setSelectedRange(NSRange(location: 0, length: 16)) // "Alpha beta gamma"
+        textView.aiAvailabilityHandler = { _ in true }
+        let titles = try XCTUnwrap(textView.menu(for: Self.contextMenuEvent())).items.map(\.title)
+        XCTAssertTrue(titles.contains(LineformTextContextMenuPresentation.aiRewriteMenuTitle))
+        XCTAssertTrue(titles.contains(AIAction.proofread.title))
+        XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.aiMarkMenuTitle))
+    }
+
+    func testAIMenuEntriesRule() {
+        typealias P = LineformTextContextMenuPresentation
+        var counted = 0
+        let count: (Int) -> () -> Int = { n in { counted += 1; return n } }
+        XCTAssertEqual(P.aiMenuEntries(selectedText: " word ", sentenceCount: count(1)),
+                       [.action(.anotherWord), .action(.proofread)])
+        XCTAssertEqual(counted, 0, "a single word never pays for the sentence split")
+        XCTAssertEqual(P.aiMenuEntries(selectedText: "two words", sentenceCount: count(1)),
+                       [.submenu(P.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread)])
+        XCTAssertEqual(P.aiMenuEntries(selectedText: "One. Two.", sentenceCount: count(2)),
+                       [.submenu(P.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread),
+                        .submenu(P.aiMarkMenuTitle, [.markWeakest, .markLong])])
+
+        for word in ["word", "Word.", "don't", "e-mail", "Café,", " padded\n", "日本語"] {
+            XCTAssertTrue(P.isSingleWord(word), word)
+        }
+        for notWord in ["two words", "line\nbreak", "tab\there", "42", "—", "", "   ", "1.5"] {
+            XCTAssertFalse(P.isSingleWord(notWord), notWord)
+        }
+    }
+
     func testNoAIItemsForEmptySelection() throws {
         let textView = makeTextView()
         textView.setSelectedRange(NSRange(location: 3, length: 0))
@@ -111,7 +167,7 @@ final class LineformTextViewAITests: XCTestCase {
 
     func testChoosingAnItemSendsRun() throws {
         let textView = makeTextView()
-        let selection = NSRange(location: 6, length: 4)
+        let selection = NSRange(location: 6, length: 10) // "beta gamma"
         textView.setSelectedRange(selection)
         textView.aiAvailabilityHandler = { _ in true }
         var commands: [AITextCommand] = []

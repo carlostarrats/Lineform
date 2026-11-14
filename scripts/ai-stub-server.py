@@ -6,11 +6,12 @@
   Connect Your AI > Other > http://127.0.0.1:8765/v1, no key.
 
 The last user message is JSON, as Lineform's AIActionPrompt builds it:
-  edit actions  {"action": "trim|cutInHalf|rewrite|proofread", "segments": [...]}
+  edit actions  {"action": "trim|cutInHalf|rewrite|proofread|anotherWord", "segments": [...]}
                 -> {"segments": [...]}       (one revised string per segment, same order)
   Mark actions  {"action": "weakestSentences|longSentences", "sentences": [...]}
                 -> {"sentences": [n, ...]}   (1-based sentence numbers, as AIResponseParser reads)
-Replies are deterministic. Flags: --mangle (inject Markdown/line breaks into every segment),
+Replies are deterministic, and like the prompts ask, rewrite / trim (more than three words) /
+anotherWord never return a segment unchanged. Flags: --mangle (inject Markdown/line breaks into every segment),
 --delay SECONDS, --status CODE, --junk (non-JSON reply), --self-check (assert the reply contract
 above and exit). Logs action and item count per request, never text.
 """
@@ -25,8 +26,46 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 FILLERS = re.compile(r"\b(?:very|really|just|quite)\b\s*", re.IGNORECASE)
 
 
+SYNONYMS = {
+    "big": "large", "good": "fine", "small": "little", "fast": "quick", "quick": "fast",
+    "happy": "glad", "sad": "unhappy", "said": "noted", "begin": "start", "start": "begin",
+    "end": "finish", "use": "employ", "help": "aid", "show": "reveal", "large": "big",
+    "fine": "good", "little": "small", "old": "aged", "new": "fresh", "walk": "stroll",
+}
+WORD = re.compile(r"[A-Za-z]+")
+PURE_WORD = re.compile(r"^[A-Za-z]+$")
+
+
+def match_case(source, word):
+    if source.isupper() and len(source) > 1:
+        return word.upper()
+    if source[:1].isupper():
+        return word[:1].upper() + word[1:]
+    return word
+
+
+def another_word(seg):
+    """One different word for the first word in the segment (its punctuation kept)."""
+    m = WORD.search(seg)
+    if not m:
+        return seg
+    word = m.group(0)
+    alt = SYNONYMS.get(word.lower(), "other" if word.lower() != "other" else "another")
+    return seg[: m.start()] + match_case(word, alt) + seg[m.end():]
+
+
 def trim(seg):
-    return re.sub(r"\s{2,}", " ", FILLERS.sub("", seg)).strip()
+    """Fillers out; with nothing to remove, a segment of more than three words still loses one
+    plain word (never the first, and never one carrying punctuation, which the app guards)."""
+    out = re.sub(r"\s{2,}", " ", FILLERS.sub("", seg)).strip()
+    if out != seg.strip():
+        return out
+    words = seg.split()
+    if len(words) > 3:
+        for i in range(1, len(words)):
+            if PURE_WORD.match(words[i]):
+                return " ".join(words[:i] + words[i + 1:])
+    return out
 
 
 def cut_in_half(seg):
@@ -35,7 +74,21 @@ def cut_in_half(seg):
 
 
 def rewrite(seg):
-    return re.sub(r"\bbig\b", "large", re.sub(r"\bgood\b", "fine", seg))
+    """Always a different wording: every known word swapped for its synonym, and the two
+    halves of a sentence around its first comma reordered; with neither, "plainly" goes in after
+    the first word. Punctuation is never added or removed."""
+    out = WORD.sub(lambda m: match_case(m.group(0), SYNONYMS.get(m.group(0).lower(), m.group(0))), seg)
+    head, sep, tail = out.partition(", ")
+    if sep and tail and WORD.search(head) and WORD.search(tail):
+        end = re.search(r"[.!?]*$", tail).group(0)
+        tail = tail[: len(tail) - len(end)] if end else tail
+        if PURE_WORD.match(tail.replace(" ", "")) and PURE_WORD.match(head.replace(" ", "")):
+            out = match_case(head, tail[:1].lower() + tail[1:]) + sep + head[:1].lower() + head[1:] + end
+    if out == seg:
+        m = WORD.search(seg)
+        if m:
+            out = seg[: m.end()] + " plainly" + seg[m.end():]
+    return out
 
 
 def proofread(seg):
@@ -61,7 +114,8 @@ def result_for(payload):
             if count > best_count:
                 best, best_count = i, count
         return {"sentences": [best]}
-    fn = {"trim": trim, "cutInHalf": cut_in_half, "rewrite": rewrite, "proofread": proofread}.get(action)
+    fn = {"trim": trim, "cutInHalf": cut_in_half, "rewrite": rewrite, "proofread": proofread,
+          "anotherWord": another_word}.get(action)
     out = [fn(s) if fn else s for s in segments]
     return {"segments": out}
 
@@ -126,7 +180,25 @@ def self_check():
     edit = {"action": "trim", "segments": ["A very big day.", "It was really good."]}
     assert result_for(edit) == {"segments": ["A big day.", "It was good."]}, result_for(edit)
     assert result_for({"action": "proofread", "segments": ["teh dog ,"]}) == {"segments": ["the dog,"]}
-    for action in ("trim", "cutInHalf", "rewrite", "proofread"):
+    # Rewrite always changes the text: known words swap, a comma clause reorders, and with
+    # neither a word goes in. Punctuation never changes (the app's structure guard).
+    assert result_for({"action": "rewrite", "segments": ["A big day."]}) == {"segments": ["A large day."]}
+    for seg in ("The cat sat on the mat.", "Yesterday it rained, we stayed in.", "Hi", "Big"):
+        out = result_for({"action": "rewrite", "segments": [seg]})["segments"][0]
+        assert out != seg, (seg, out)
+        assert re.sub(r"[A-Za-z ]", "", out) == re.sub(r"[A-Za-z ]", "", seg), (seg, out)
+    # Trim always removes a word when there are more than three.
+    for seg in ("The cat sat on the mat.", "One two three four"):
+        out = result_for({"action": "trim", "segments": [seg]})["segments"][0]
+        assert len(out.split()) < len(seg.split()), (seg, out)
+    assert result_for({"action": "trim", "segments": ["One two three"]}) == {"segments": ["One two three"]}
+    # Another Word: a different word, case and punctuation kept.
+    assert result_for({"action": "anotherWord", "segments": ["big"]}) == {"segments": ["large"]}
+    assert result_for({"action": "anotherWord", "segments": ["Happy,"]}) == {"segments": ["Glad,"]}
+    for seg in ("zebra", "other", "Other"):
+        out = result_for({"action": "anotherWord", "segments": [seg]})["segments"][0]
+        assert out.lower() != seg.lower() and len(out.split()) == 1, (seg, out)
+    for action in ("trim", "cutInHalf", "rewrite", "proofread", "anotherWord"):
         reply = result_for({"action": action, "segments": ["one two", "three"]})
         assert set(reply) == {"segments"} and len(reply["segments"]) == 2, reply
     print("self-check: ok", flush=True)

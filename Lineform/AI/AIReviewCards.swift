@@ -12,6 +12,7 @@ enum AIReviewCardPresentation {
         case .cutInHalf: return String(localized: "Cut ready", bundle: bundle)
         case .rewrite: return String(localized: "Rewrite ready", bundle: bundle)
         case .proofread: return String(localized: "Proofread ready", bundle: bundle)
+        case .anotherWord: return String(localized: "Word ready", bundle: bundle)
         case .markWeakest, .markLong: return action.title
         }
     }
@@ -36,6 +37,7 @@ enum AIReviewCardPresentation {
             case .cutInHalf: return String(localized: "Cutting with your AI…", bundle: bundle)
             case .rewrite: return String(localized: "Rewriting with your AI…", bundle: bundle)
             case .proofread: return String(localized: "Proofreading with your AI…", bundle: bundle)
+            case .anotherWord: return String(localized: "Finding another word with your AI…", bundle: bundle)
             case .markWeakest, .markLong: return String(localized: "Marking with your AI…", bundle: bundle)
             }
         }
@@ -45,8 +47,19 @@ enum AIReviewCardPresentation {
         case .cutInHalf: return String(localized: "Cutting with \(name)…", bundle: bundle)
         case .rewrite: return String(localized: "Rewriting with \(name)…", bundle: bundle)
         case .proofread: return String(localized: "Proofreading with \(name)…", bundle: bundle)
+        case .anotherWord: return String(localized: "Finding another word with \(name)…", bundle: bundle)
         case .markWeakest, .markLong: return String(localized: "Marking with \(name)…", bundle: bundle)
         }
+    }
+
+    /// A Rewrite, Trim, Cut in half or Another Word reply identical to the selection: "ChatGPT
+    /// returned the same text. Try again."; for Other, "Your AI returned…" (as `progressText`).
+    static func sameTextMessage(provider: AIProvider, bundle: Bundle = .main) -> String {
+        guard provider != .other else {
+            return String(localized: "Your AI returned the same text. Try again.", bundle: bundle)
+        }
+        let name = provider.displayName
+        return String(localized: "\(name) returned the same text. Try again.", bundle: bundle)
     }
 
     static var cancelHint: String { cancelHint(bundle: .main) }

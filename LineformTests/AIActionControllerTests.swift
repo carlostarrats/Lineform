@@ -430,6 +430,46 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(unchangedSurface.string, text)
     }
 
+    /// Rewrite, Trim, Cut in half and Another Word exist to change the text: an identical reply is
+    /// the AI failing, never "No changes suggested" (which stays Proofread's legitimate answer).
+    func testIdenticalReplyToAChangingActionSaysTheAIReturnedTheSameText() async {
+        let text = "The big dog ran far away from home."
+        let word = range(of: "big", in: text)
+        for (action, selection) in [(AIAction.rewrite, whole(text)), (.trim, whole(text)),
+                                    (.cutInHalf, whole(text)), (.anotherWord, word)] {
+            // An identical reply, and one that differs only in edge whitespace.
+            for behavior in [replace([:]), FakeAIClient.revising { _, segment in " \(segment) " }] {
+                let (controller, surface, _) = make(text, behavior)
+                await runToCompletion(controller, action, range: selection, text: text)
+                XCTAssertEqual(controller.state, .message("Claude returned the same text. Try again."), "\(action)")
+                XCTAssertEqual(surface.announcements.last, "Claude returned the same text. Try again.")
+                XCTAssertEqual(surface.string, text)
+            }
+        }
+        XCTAssertEqual(AIActionController.unchangedMessage(for: .rewrite, provider: .other,
+                                                           segments: [], revisions: []),
+                       "Your AI returned the same text. Try again.")
+        XCTAssertEqual(AIActionController.unchangedMessage(for: .proofread, provider: .chatGPT,
+                                                           segments: [], revisions: []),
+                       "No changes suggested.")
+    }
+
+    /// Another Word flows through the same one-change review as Rewrite: the word is struck,
+    /// its replacement offered, Return accepts it.
+    func testAnotherWordIsOneReviewedChange() async throws {
+        let text = "The big dog ran far away from home."
+        let word = range(of: "big", in: text)
+        let (controller, surface, fake) = make(text, replace(["big": "large"]))
+        await runToCompletion(controller, .anotherWord, range: word, text: text)
+        XCTAssertEqual(FakeAIClient.segments(in: try XCTUnwrap(fake.prompts.first)), ["big"])
+        let review = try session(controller)
+        XCTAssertEqual(review.action, .anotherWord)
+        XCTAssertEqual(review.changes.map(\.replacement), ["large"])
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertEqual(surface.string, "The large dog ran far away from home.")
+    }
+
     func testAbandonOnReloadAppliesNothingAndRecordsNoHistory() async throws {
         let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
@@ -584,7 +624,9 @@ final class AIActionControllerTests: XCTestCase {
         let (controller, surface, fake) = make(text, FakeAIClient.revising { Self.mangle($0, $1) })
         await runToCompletion(controller, .rewrite, range: whole(text), text: text)
         XCTAssertGreaterThan(FakeAIClient.segments(in: try XCTUnwrap(fake.prompts.first)).count, 10)
-        XCTAssertEqual(controller.state, .message("No changes suggested."))
+        // Rewrite never says "No changes suggested": every revision was refused, so the reply was
+        // unusable (it was not the same text).
+        XCTAssertEqual(controller.state, .message(AIClientError.unusableResponse.message))
         controller.handle(.acceptCurrent)
         XCTAssertTrue(surface.editCalls.isEmpty)
         XCTAssertEqual(surface.string, text)

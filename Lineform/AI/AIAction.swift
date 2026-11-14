@@ -7,6 +7,8 @@ enum AIAction: String, CaseIterable {
     case cutInHalf
     case rewrite
     case proofread
+    /// Offered instead of the Rewrite submenu when the selection is one word.
+    case anotherWord
     case markWeakest = "weakestSentences"
     case markLong = "longSentences"
 
@@ -16,6 +18,7 @@ enum AIAction: String, CaseIterable {
         case .cutInHalf: return String(localized: "Cut in half")
         case .rewrite: return String(localized: "Rewrite")
         case .proofread: return String(localized: "Proofread")
+        case .anotherWord: return String(localized: "Another Word")
         case .markWeakest: return String(localized: "Weakest sentences")
         case .markLong: return String(localized: "Long sentences")
         }
@@ -25,7 +28,17 @@ enum AIAction: String, CaseIterable {
     var isMark: Bool {
         switch self {
         case .markWeakest, .markLong: return true
-        case .trim, .cutInHalf, .rewrite, .proofread: return false
+        case .trim, .cutInHalf, .rewrite, .proofread, .anotherWord: return false
+        }
+    }
+
+    /// Actions whose whole point is a different text. A reply identical to the selection is a
+    /// failed answer for them ("returned the same text"), never "No changes suggested" — which
+    /// stays for Proofread, where finding no errors is a legitimate answer.
+    var mustChangeText: Bool {
+        switch self {
+        case .trim, .cutInHalf, .rewrite, .anotherWord: return true
+        case .proofread, .markWeakest, .markLong: return false
         }
     }
 
@@ -35,6 +48,7 @@ enum AIAction: String, CaseIterable {
         case .cutInHalf: return String(localized: "Cutting…")
         case .rewrite: return String(localized: "Rewriting…")
         case .proofread: return String(localized: "Proofreading…")
+        case .anotherWord: return String(localized: "Finding another word…")
         case .markWeakest, .markLong: return String(localized: "Marking…")
         }
     }

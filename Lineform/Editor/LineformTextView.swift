@@ -2062,6 +2062,40 @@ enum LineformTextContextMenuPresentation {
     static let aiRewriteMenuTitle = String(localized: "Rewrite")
     static let aiMarkMenuTitle = String(localized: "Mark")
 
+    /// One row of the AI group: an action, or a submenu of actions.
+    enum AIMenuEntry: Equatable {
+        case action(AIAction)
+        case submenu(String, [AIAction])
+    }
+
+    /// The AI group for a selection. A single word gets "Another Word" in place of the Rewrite
+    /// submenu (Trim / Cut in half / Rewrite make no sense for one word); Proofread is always
+    /// there; Mark only when the selection touches at least two sentences (marking "the weakest"
+    /// of one sentence is meaningless). `sentenceCount` is a closure so a single word never pays
+    /// for the sentence split. The AI group only exists for a non-empty selection, so there is
+    /// no whole-document case.
+    static func aiMenuEntries(selectedText: String, sentenceCount: () -> Int) -> [AIMenuEntry] {
+        guard !isSingleWord(selectedText) else {
+            return [.action(.anotherWord), .action(.proofread)]
+        }
+        var entries: [AIMenuEntry] = [.submenu(aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread)]
+        if sentenceCount() >= 2 {
+            entries.append(.submenu(aiMarkMenuTitle, [.markWeakest, .markLong]))
+        }
+        return entries
+    }
+
+    /// One word: once trimmed, no whitespace inside and at least one letter ("don't", "e-mail"
+    /// and "Café," count; "42" and "—" don't).
+    static func isSingleWord(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !trimmed.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) else {
+            return false
+        }
+        return trimmed.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+    }
+
     /// The single suggestion to offer for a misspelling, or none.
     ///
     /// `NSSpellChecker.guesses` is a broad phonetic net, not an answer: for "teh" it returns
