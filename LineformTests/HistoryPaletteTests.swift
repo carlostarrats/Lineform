@@ -119,6 +119,14 @@ final class HistoryPaletteTests: XCTestCase {
         }
     }
 
+    /// The counter is drawn on the PAGE (outside the boxes): AA there on every theme.
+    func testCounterInkMeetsAAOnThePage() {
+        for theme in Theme.builtIn {
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(HistoryPalette.counterInk(for: theme), theme.backgroundColor),
+                                        4.5, theme.name)
+        }
+    }
+
     func testRecededInkStaysReadableOnEveryTheme() {
         for theme in Theme.builtIn {
             let receded = HistoryPalette.recededInk(for: theme)

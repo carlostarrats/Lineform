@@ -349,13 +349,26 @@ extension LineformTextView {
         guard let display = historyDisplayStorage else { return }
         let theme = Theme.theme(for: appliedReadingProfile)
         let visible = visibleCharacterRangeForLayoutPreservation()
+        // The counter sits OUTSIDE every box: its reserved space is cut out of them.
+        let counterFrame = display.selectedPassage.flatMap { selected in
+            display.counter.flatMap { historyCounterFrame(for: selected.range, counter: $0) }
+        }
+        let reserved = display.counter.map {
+            HistoryCounterLayout.reservedWidth(for: $0.text, textSize: historyCounterTextSize)
+        } ?? 0
         for (passage, color) in display.layerFills(for: theme) {
             let range = visible.map { NSIntersectionRange(passage.range, $0) } ?? passage.range
             guard range.length > 0 else { continue }
             color.setFill()
             for rect in rectsForCharacterRange(range) {
-                NSBezierPath(roundedRect: rect, xRadius: HistoryPalette.layerCornerRadius,
-                             yRadius: HistoryPalette.layerCornerRadius).fill()
+                let pieces = counterFrame.map {
+                    HistoryCounterLayout.carving(rect, around: $0, glyphEndX: $0.minX - HistoryCounterLayout.leadingGap,
+                                                 reservedWidth: reserved)
+                } ?? [rect]
+                for piece in pieces {
+                    NSBezierPath(roundedRect: piece, xRadius: HistoryPalette.layerCornerRadius,
+                                 yRadius: HistoryPalette.layerCornerRadius).fill()
+                }
             }
         }
         if let focused = display.selectedPassage, let counter = display.counter {
@@ -363,10 +376,13 @@ extension LineformTextView {
         }
     }
 
+    /// The body size the counter scales from: the applied profile's.
+    var historyCounterTextSize: CGFloat { CGFloat(appliedReadingProfile.fontSize) }
+
     private func drawHistoryCounter(_ counter: HistoryCounter, after range: NSRange, theme: Theme) {
         guard let frame = historyCounterFrame(for: range, counter: counter) else { return }
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: HistoryCounterLayout.font,
+            .font: HistoryCounterLayout.font(forTextSize: historyCounterTextSize),
             .foregroundColor: HistoryPalette.counterInk(for: theme),
         ]
         (counter.text as NSString).draw(with: frame, options: [.usesLineFragmentOrigin], attributes: attributes)
@@ -404,12 +420,14 @@ extension LineformTextView {
         let ownKern = HistoryCounterSpacing.originalKern(at: last, in: textStorage)
         let glyphEndX = textContainerOrigin.x + lineRect.minX + location.x + advance + ownKern
         let baselineY = textContainerOrigin.y + lineRect.minY + location.y
-        let width = HistoryCounterLayout.width(of: counter.text)
+        let size = historyCounterTextSize
+        let counterFont = HistoryCounterLayout.font(forTextSize: size)
+        let width = HistoryCounterLayout.width(of: counter.text, textSize: size)
         return NSRect(
             x: HistoryCounterLayout.originX(afterGlyphEndingAt: glyphEndX),
-            y: HistoryCounterLayout.top(baselineY: baselineY, textCapHeight: textFont.capHeight),
+            y: HistoryCounterLayout.top(baselineY: baselineY, textCapHeight: textFont.capHeight, font: counterFont),
             width: width,
-            height: HistoryCounterLayout.font.ascender - HistoryCounterLayout.font.descender
+            height: counterFont.ascender - counterFont.descender
         )
     }
 
@@ -425,7 +443,7 @@ extension LineformTextView {
         let target: (index: Int, width: CGFloat)? = {
             guard let passage, let counter = historyDisplayStorage?.counter,
                   let last = historyCounterAnchorCharacter(in: passage.range) else { return nil }
-            return (last, HistoryCounterLayout.reservedWidth(for: counter.text))
+            return (last, HistoryCounterLayout.reservedWidth(for: counter.text, textSize: historyCounterTextSize))
         }()
         guard HistoryCounterSpacing.needsUpdate(in: textStorage, target: target) else { return }
         let manager = undoManager
@@ -764,17 +782,30 @@ extension LineformTextView {
 /// aligned to the text's cap height, `leadingGap` after the last glyph, `trailingGap` before
 /// whatever follows on the line.
 enum HistoryCounterLayout {
-    static var font: NSFont { NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium) }
-    static let leadingGap: CGFloat = 3
-    static let trailingGap: CGFloat = 2
+    /// Never smaller than this, however small the body text (2026-11-14: a fixed 10pt counter was
+    /// hard to read at small sizes).
+    static let minimumPointSize: CGFloat = 11
+    /// Above the floor the counter follows the body size.
+    static let bodyScale: CGFloat = 0.75
 
-    static func width(of text: String) -> CGFloat {
-        ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    static func pointSize(forTextSize textSize: CGFloat) -> CGFloat {
+        max(minimumPointSize, (textSize * bodyScale).rounded())
+    }
+
+    static func font(forTextSize textSize: CGFloat) -> NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: pointSize(forTextSize: textSize), weight: .medium)
+    }
+
+    static let leadingGap: CGFloat = 4
+    static let trailingGap: CGFloat = 3
+
+    static func width(of text: String, textSize: CGFloat) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: font(forTextSize: textSize)]).width)
     }
 
     /// The extra advance reserved after the last glyph: the counter can never reach the next glyph.
-    static func reservedWidth(for text: String) -> CGFloat {
-        leadingGap + width(of: text) + trailingGap
+    static func reservedWidth(for text: String, textSize: CGFloat) -> CGFloat {
+        leadingGap + width(of: text, textSize: textSize) + trailingGap
     }
 
     static func originX(afterGlyphEndingAt glyphEndX: CGFloat) -> CGFloat {
@@ -782,8 +813,25 @@ enum HistoryCounterLayout {
     }
 
     /// The top of the counter's line box (flipped) so its cap height starts where the text's does.
-    static func top(baselineY: CGFloat, textCapHeight: CGFloat) -> CGFloat {
+    static func top(baselineY: CGFloat, textCapHeight: CGFloat, font: NSFont) -> CGFloat {
         baselineY - textCapHeight - (font.ascender - font.capHeight)
+    }
+
+    /// The passage boxes with the counter's reserved space cut out of them, so the counter sits
+    /// OUTSIDE every box, on the page (2026-11-14: it was drawn inside the selected passage's
+    /// blue). A rect on the counter's line that reaches past `glyphEndX` is split around
+    /// `[glyphEndX, glyphEndX + reservedWidth)`.
+    static func carving(_ rect: NSRect, around counter: NSRect, glyphEndX: CGFloat, reservedWidth: CGFloat) -> [NSRect] {
+        let hole = NSRect(x: glyphEndX, y: counter.minY, width: reservedWidth, height: counter.height)
+        guard rect.intersects(hole), rect.maxX > glyphEndX else { return [rect] }
+        var pieces: [NSRect] = []
+        if rect.minX < glyphEndX {
+            pieces.append(NSRect(x: rect.minX, y: rect.minY, width: glyphEndX - rect.minX, height: rect.height))
+        }
+        if rect.maxX > hole.maxX {
+            pieces.append(NSRect(x: hole.maxX, y: rect.minY, width: rect.maxX - hole.maxX, height: rect.height))
+        }
+        return pieces
     }
 }
 
