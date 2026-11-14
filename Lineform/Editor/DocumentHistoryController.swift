@@ -134,6 +134,14 @@ final class DocumentHistoryController: ObservableObject {
     private var hasStoreEntry = false
     private var located: [LocatedPassage] = []
     private var selectedID: UUID?
+    /// History mode was on when an AI action started (`aiActionWillStart`): the passage that was
+    /// selected then. Settled by `aiActionDidEnd`, dropped by `aiActionAbandoned`.
+    private var aiResume: AIResume?
+    private struct AIResume { let selectedID: UUID? }
+    /// The passage an AI accept recorded while History was off: the next PLAIN entry into History
+    /// (the History tab, View ▸ History) selects it. Cleared once used, on a document swap, and by
+    /// any entry with an explicit target (`showPassage`).
+    private(set) var rememberedPassageID: UUID?
     /// The text when History mode was entered, and the text as History mode has left it.
     private var entryText: String?
     private var modeText: String?
@@ -265,6 +273,8 @@ final class DocumentHistoryController: ObservableObject {
         self.url = url
         self.documentID = documentID
         selectedID = nil
+        rememberedPassageID = nil
+        aiResume = nil
         var history = DocumentHistory(passages: [])
         if let url {
             pruneOnce()
@@ -287,6 +297,8 @@ final class DocumentHistoryController: ObservableObject {
         persist(text: text)
         url = nil
         documentID = nil
+        rememberedPassageID = nil
+        aiResume = nil
         hasStoreEntry = false
         engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: now)
         located = []
@@ -484,6 +496,8 @@ final class DocumentHistoryController: ObservableObject {
     /// History mode could not start or the passage is not in the text.
     @discardableResult
     func showPassage(_ id: UUID, text: String) -> Bool {
+        // An entry with an explicit target: a remembered AI passage is no longer wanted.
+        rememberedPassageID = nil
         // Checked BEFORE History mode starts: a passage that is not in the text must not leave
         // History on with nothing selected.
         if !isHistoryModeActive {
@@ -566,6 +580,62 @@ final class DocumentHistoryController: ObservableObject {
     func introduceAfterAIAccept(_ id: UUID, documentHadHistory: Bool) {
         guard !documentHadHistory else { return }
         onRequestShowHistory?(id)
+    }
+
+    /// A PLAIN entry into History (the History tab, View ▸ History): History mode with nothing
+    /// selected — or, when an AI accept left a remembered passage that still locates, that one
+    /// selected. The memory is spent either way.
+    @discardableResult
+    func enterHistoryModeFromTab(text: String) -> Bool {
+        let remembered = rememberedPassageID
+        rememberedPassageID = nil
+        guard enterHistoryMode(text: text) else { return false }
+        if let remembered, located.contains(where: { $0.id == remembered }) {
+            selectedID = remembered
+            publishMode()
+        }
+        return true
+    }
+
+    /// An AI request is about to start. When History mode is on, the passage selected now is
+    /// remembered (History and AI never overlap, so History mode ends here); `aiActionDidEnd`
+    /// returns to it. Called again by Try Again's re-run with History already off: an existing
+    /// context is kept.
+    func aiActionWillStart() {
+        guard isHistoryModeActive else { return }
+        aiResume = AIResume(selectedID: selectedID)
+        exitHistoryMode()
+    }
+
+    /// An AI action ended — accepted, rejected, Esc / ✕, cancelled, a message or an error.
+    /// `recorded`: the passage the accept recorded; `changedRange`: where the accepted change sits
+    /// in `text`. History was on when the action started → History mode comes back (through
+    /// `onRequestShowHistory`, as every editor-side show does) focused on `recorded`, else the
+    /// passage containing `changedRange`, else the passage selected before the action — the
+    /// first that still locates; none → History stays off. History was off → an accept's passage
+    /// is remembered for the next plain entry (`enterHistoryModeFromTab`).
+    func aiActionDidEnd(recorded: UUID?, changedRange: NSRange? = nil, text: String) {
+        guard let resume = aiResume else {
+            if let recorded { rememberedPassageID = recorded }
+            return
+        }
+        aiResume = nil
+        let candidates = engine.history.isEmpty ? [] : engine.locateAll(in: text)
+        let containing = changedRange.flatMap { range in
+            candidates.filter { NSIntersectionRange($0.range, range).length > 0 || $0.range.location == range.location }
+                .min { $0.range.length < $1.range.length }?.id
+        }
+        for id in [recorded, containing, resume.selectedID].compactMap({ $0 })
+        where candidates.contains(where: { $0.id == id }) {
+            onRequestShowHistory?(id)
+            return
+        }
+    }
+
+    /// The AI action ended in a way that must not bring History back (live reload, a document
+    /// swap, typing, History opening on its own target, Mark's marks): the context is dropped.
+    func aiActionAbandoned() {
+        aiResume = nil
     }
 
     // MARK: - Private

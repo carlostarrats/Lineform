@@ -214,6 +214,9 @@ final class AIActionController: ObservableObject {
         case .mark: prompt = AIActionPrompt.markPrompt(action, sentences: pieces)
         }
         let client = clientFactory(connection)
+        // History mode on? Its selected passage is remembered and History mode ends; the action's
+        // end brings it back (`settleHistory`).
+        history?.aiActionWillStart()
         generation += 1
         let token = generation
         state = .running(action, connection.provider)
@@ -236,6 +239,17 @@ final class AIActionController: ObservableObject {
         guard case .running = state else { return }
         stopRequest()
         state = .idle
+        settleHistory(recorded: nil)
+    }
+
+    /// The action is over (no review, request or marks remain): History comes back on the passage
+    /// it was on when the action started, or remembers an accept's passage
+    /// (`DocumentHistoryController.aiActionDidEnd`).
+    private func settleHistory(recorded: UUID?, changedRange: NSRange? = nil) {
+        guard let history else { return }
+        // No editor, no text to locate in (locating in the wrong text would drop passages).
+        guard let editor else { return history.aiActionAbandoned() }
+        history.aiActionDidEnd(recorded: recorded, changedRange: changedRange, text: editor.string)
     }
 
     /// Live reload (or any wholesale text replacement): reload wins. Cancels a request, drops a
@@ -246,6 +260,7 @@ final class AIActionController: ObservableObject {
         reviewProvider = nil
         reviewRevisions = nil
         state = .idle
+        history?.aiActionAbandoned()
     }
 
     /// History is about to open on a passage (Add to History, a document's first accepted change): History
@@ -255,13 +270,15 @@ final class AIActionController: ObservableObject {
     func yieldToHistory() {
         switch state {
         case .running, .reviewing:
-            endReview()
+            endReview(settlingHistory: false)
             abandon()
         case .marking:
             dismissMarks()
         case .idle, .message:
             break
         }
+        // History opens on its own target: it must not ALSO come back where it was.
+        history?.aiActionAbandoned()
     }
 
     func dismissMarks() {
@@ -287,6 +304,13 @@ final class AIActionController: ObservableObject {
                         snapshot: String, result: Result<String, AIClientError>) {
         guard token == generation, case .running(_, let provider) = state else { return }
         runTask = nil
+        defer {
+            switch state {
+            case .reviewing: break // the review's end settles History
+            case .marking: history?.aiActionAbandoned() // History would dismiss the marks at once
+            case .idle, .running, .message: settleHistory(recorded: nil)
+            }
+        }
         let reply: String
         switch result {
         case .failure(.cancelled):
@@ -355,7 +379,9 @@ final class AIActionController: ObservableObject {
             endReview()
             return
         case .typed(let text):
-            endReview()
+            // Typing goes on writing: History must not reopen under the keystroke.
+            endReview(settlingHistory: false)
+            history?.aiActionAbandoned()
             editor.insertTypedText(text)
             return
         case .retry:
@@ -363,7 +389,8 @@ final class AIActionController: ObservableObject {
             // text at the session's range (a review applies nothing until Accept).
             guard !session.acceptedAny else { return }
             let previous = reviewRevisions
-            endReview()
+            // The action goes on: History stays settled-later (the re-run keeps its context).
+            endReview(settlingHistory: false)
             run(session.action, range: session.selectionRange, text: editor.string, avoiding: previous)
             return
         }
@@ -382,9 +409,14 @@ final class AIActionController: ObservableObject {
     /// was. When anything was accepted, History records the original plus the accepted result —
     /// one passage per changed paragraph of the selection (`acceptedPassages`); otherwise nothing.
     /// Returns the ended session (every change decided), nil when no review was up.
+    /// `settlingHistory` false: the action is not over (Try Again) or must not bring History back
+    /// (typing, History opening on its own target).
     @discardableResult
-    func endReview() -> AIReviewSession? {
+    func endReview(settlingHistory: Bool = true) -> AIReviewSession? {
         guard case .reviewing(var session) = state else { return nil }
+        var firstRecorded: UUID?
+        var changedRange: NSRange?
+        var introduction: (id: UUID, documentHadHistory: Bool)?
         for change in session.pending { session.reject(change.id) }
         reviewNotice = nil
         reviewProvider = nil
@@ -398,7 +430,7 @@ final class AIActionController: ObservableObject {
                 // Read BEFORE recording: the accept that gives a document its first History shows it.
                 let documentHadHistory = history.hasHistory
                 let accepted = ns.substring(with: range)
-                var firstRecorded: UUID?
+                changedRange = range
                 for passage in Self.acceptedPassages(original: session.originalSelection, accepted: accepted,
                                                      at: range.location) {
                     let id = history.recordAccepted(range: passage.range, original: passage.original,
@@ -407,12 +439,15 @@ final class AIActionController: ObservableObject {
                 }
                 // The accept that gives this document its first History shows it, focused on
                 // what it recorded; later accepts in the same document leave the sidebar alone.
-                if let firstRecorded {
-                    history.introduceAfterAIAccept(firstRecorded, documentHadHistory: documentHadHistory)
-                }
+                if let firstRecorded { introduction = (firstRecorded, documentHadHistory) }
             }
         }
         editor?.announceAI(Self.reviewEndedMessage)
+        if settlingHistory { settleHistory(recorded: firstRecorded, changedRange: changedRange) }
+        // After settling: a show on its own target spends any passage just remembered.
+        if let introduction {
+            history?.introduceAfterAIAccept(introduction.id, documentHadHistory: introduction.documentHadHistory)
+        }
         return session
     }
 
@@ -498,6 +533,7 @@ final class AIActionController: ObservableObject {
         reviewNotice = nil
         reviewProvider = nil
         show(Self.editSkippedMessage)
+        settleHistory(recorded: nil)
         guard let editor, let lengthBefore else { return }
         // The edits all lie inside the passage, so its end moved by however much did land.
         let moved = (editor.string as NSString).length - lengthBefore

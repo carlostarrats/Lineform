@@ -225,6 +225,121 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(rows.map(\.author), [.you, .ai])
     }
 
+    // MARK: - History around an AI action (2026-11-13)
+
+    /// A document with History on "The big dog…" (one accepted change), History mode focused on
+    /// that passage, then — as when an action starts in History — the context is captured and
+    /// History mode ends. Returns the controller and the passage id.
+    private func historyInContext(requested: @escaping (UUID) -> Void) throws -> (DocumentHistoryController, UUID, String) {
+        let text = "Intro stays put.\n\nThe large dog ran far away from home.\n\nOutro stays too."
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: text)
+        let passage = try XCTUnwrap(history.recordAccepted(range: range(of: "The large dog ran far away from home.", in: text),
+                                                           original: "The big dog ran far away from home.",
+                                                           accepted: "The large dog ran far away from home.", text: text))
+        XCTAssertTrue(history.showPassage(passage, text: text))
+        history.aiActionWillStart()
+        XCTAssertFalse(history.isHistoryModeActive, "History and AI never overlap")
+        history.onRequestShowHistory = requested
+        return (history, passage, text)
+    }
+
+    /// History was on when the action started: every way the action ends brings History back on
+    /// the passage selected before it — reject (Esc, ✕), cancel, a same-text message, an error.
+    func testHistoryReturnsToTheSelectedPassageWhenTheActionEnds() async throws {
+        let ends: [(String, FakeAIClient.Behavior, (AIActionController) -> Void)] = [
+            ("reject", replace(["Intro": "Opening"]), { $0.handle(.end) }),
+            ("same text", replace([:]), { _ in }),
+            ("error", .fail(.rateLimited), { _ in }),
+        ]
+        for (name, behavior, end) in ends {
+            var requested: [UUID] = []
+            let (history, passage, text) = try historyInContext { requested.append($0) }
+            let (controller, surface, _) = make(text, behavior, history: history)
+            await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+            end(controller)
+            withExtendedLifetime(surface) {}
+            XCTAssertEqual(requested, [passage], name)
+        }
+
+        var requested: [UUID] = []
+        let (history, passage, text) = try historyInContext { requested.append($0) }
+        let (controller, surface, _) = make(text, .suspend, history: history)
+        controller.run(.rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+        controller.cancel()
+        withExtendedLifetime(surface) {}
+        XCTAssertEqual(requested, [passage], "cancel")
+    }
+
+    /// History was on, and the change was accepted: History comes back on the passage the accept
+    /// recorded, not the one selected before.
+    func testHistoryReturnsToTheAcceptedPassage() async throws {
+        var requested: [UUID] = []
+        let (history, passage, text) = try historyInContext { requested.append($0) }
+        let (controller, surface, _) = make(text, replace(["Intro": "Opening"]), history: history)
+        await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(requested.count, 1)
+        XCTAssertNotEqual(requested.first, passage)
+        let recorded = try XCTUnwrap(requested.first)
+        XCTAssertTrue(history.showPassage(recorded, text: surface.string))
+        XCTAssertEqual(history.display?.selectedID, recorded)
+    }
+
+    /// Try Again keeps the context (History comes back once, at the real end); typing and History
+    /// opening on its own target drop it.
+    func testRetryKeepsTheHistoryContextAndTypingDropsIt() async throws {
+        var requested: [UUID] = []
+        let (history, passage, text) = try historyInContext { requested.append($0) }
+        let (controller, surface, _) = make(text, replace(["Intro": "Opening"]), history: history)
+        await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+        controller.handle(.retry)
+        await controller.runTask?.value
+        XCTAssertEqual(requested, [], "the action is not over")
+        controller.handle(.end)
+        XCTAssertEqual(requested, [passage])
+        withExtendedLifetime(surface) {}
+
+        var typedRequests: [UUID] = []
+        let (typedHistory, _, typedText) = try historyInContext { typedRequests.append($0) }
+        let (typing, _, _) = make(typedText, replace(["Intro": "Opening"]), history: typedHistory)
+        await runToCompletion(typing, .rewrite, range: range(of: "Intro stays put.", in: typedText), text: typedText)
+        typing.handle(.typed("x"))
+        XCTAssertEqual(typedRequests, [])
+
+        var yieldRequests: [UUID] = []
+        let (yieldHistory, _, yieldText) = try historyInContext { yieldRequests.append($0) }
+        let (yielding, _, _) = make(yieldText, replace(["Intro": "Opening"]), history: yieldHistory)
+        await runToCompletion(yielding, .rewrite, range: range(of: "Intro stays put.", in: yieldText), text: yieldText)
+        yielding.yieldToHistory()
+        yielding.handle(.end)
+        XCTAssertEqual(yieldRequests, [])
+    }
+
+    /// History was off: an accept's passage is remembered for the next plain History entry; a
+    /// reject remembers nothing.
+    func testAcceptOutsideHistoryRemembersItsPassage() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: historyDoc)
+        history.recordAccepted(range: range(of: "Outro stays too.", in: historyDoc), original: "Outro stays.",
+                               accepted: "Outro stays too.", text: historyDoc)
+        let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
+        let sentence = range(of: "The big dog ran far away from home.", in: historyDoc)
+
+        await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
+        controller.handle(.end)
+        XCTAssertNil(history.rememberedPassageID, "a reject records and remembers nothing")
+
+        await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
+        controller.handle(.acceptCurrent)
+        let remembered = try XCTUnwrap(history.rememberedPassageID)
+        XCTAssertFalse(history.isHistoryModeActive)
+        XCTAssertTrue(history.enterHistoryModeFromTab(text: surface.string))
+        XCTAssertEqual(history.display?.selectedID, remembered)
+        XCTAssertNil(history.rememberedPassageID, "spent")
+    }
+
+
     /// The accept that gives a document its FIRST History shows it (the editor opens the sidebar
     /// focused on the passage); later accepts in the same document don't switch the sidebar. A
     /// document with no History yet is shown again — the rule is per document, not once ever.

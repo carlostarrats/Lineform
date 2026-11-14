@@ -2595,7 +2595,7 @@ struct EditorContainerView: View {
         if displayMode != .write {
             displayMode = .write
         }
-        return historyController.enterHistoryMode(text: historyEditorText)
+        return historyController.enterHistoryModeFromTab(text: historyEditorText)
     }
 
     /// View ▸ History: enters History mode with the sidebar showing its History tab, or leaves it.
