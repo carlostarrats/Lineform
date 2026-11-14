@@ -66,6 +66,9 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, "Exit")
         XCTAssertEqual(HistorySidebarPresentation.addAlternativeTitle, "Add Alternative")
         XCTAssertEqual(HistorySidebarPresentation.addAlternativeCommitLabel, "Add")
+        XCTAssertEqual(HistorySidebarPresentation.addButtonTitle, "Add")
+        XCTAssertEqual(HistorySidebarPresentation.versionsHeading, "Versions of selected text")
+        XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addButtonSymbol, accessibilityDescription: nil))
         XCTAssertEqual(HistorySidebarPresentation.replacementPlaceholder, "Type a replacement")
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, String(localized: "Exit"))
         XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addAlternativeCommitSymbol,
@@ -77,9 +80,36 @@ final class HistorySidebarPresentationTests: XCTestCase {
     func testAlternativeStringsAreLocalized() throws {
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
-            for key in ["Add Alternative", "Add"] {
+            for key in ["Add Alternative", "Add", "Versions of selected text"] {
                 XCTAssertNotEqual(bundle.localizedString(forKey: key, value: nil, table: nil), key, "\(language): \(key)")
             }
+        }
+    }
+
+    /// The section row's Add is quieter than the Exit capsule's label — lighter in light chrome,
+    /// darker in dark — yet still ≥ 3:1 on the sidebar background, hovered or not.
+    @MainActor
+    func testAddButtonIsQuieterThanExitAndStillLegible() {
+        for usesDarkChrome in [false, true] {
+            let exitInk = SidebarCapsuleButtonStyle.textWhite(usesDarkChrome: usesDarkChrome, emphasis: .quiet)
+            let background = usesDarkChrome
+                ? OutlineSidebarView.darkBackgroundNSColor
+                : NSColor(calibratedWhite: OutlineSidebarView.lightBackgroundWhiteComponent, alpha: 1)
+            for hovered in [false, true] {
+                let white = HistorySidebarPresentation.addButtonWhite(usesDarkChrome: usesDarkChrome, isHovered: hovered)
+                if usesDarkChrome {
+                    XCTAssertLessThan(white, exitInk, "dark: a darker grey than Exit")
+                } else {
+                    XCTAssertGreaterThan(white, exitInk, "light: a lighter grey than Exit")
+                }
+                let ratio = Theme.contrastRatio(NSColor(calibratedWhite: white, alpha: 1), background)
+                XCTAssertGreaterThanOrEqual(ratio, 3, "dark \(usesDarkChrome) hovered \(hovered): \(ratio):1")
+            }
+            // Hover brightens it toward the label ink.
+            let rest = HistorySidebarPresentation.addButtonWhite(usesDarkChrome: usesDarkChrome, isHovered: false)
+            let hover = HistorySidebarPresentation.addButtonWhite(usesDarkChrome: usesDarkChrome, isHovered: true)
+            XCTAssertGreaterThan(Theme.contrastRatio(NSColor(calibratedWhite: hover, alpha: 1), background),
+                                 Theme.contrastRatio(NSColor(calibratedWhite: rest, alpha: 1), background))
         }
     }
 

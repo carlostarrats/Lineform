@@ -15646,6 +15646,40 @@
           }
         }
       }
+    },
+    "Versions of selected text": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versiones del texto seleccionado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versions du texte sélectionné"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versionen des ausgewählten Texts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択したテキストのバージョン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选文本的版本"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

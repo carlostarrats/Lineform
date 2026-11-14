@@ -108,7 +108,20 @@ enum HistorySidebarPresentation {
     static let hintText = String(localized: "Click to select · ← → switch version · Esc closes")
     static let deleteVersionTitle = String(localized: "Delete from History")
     static let exitTitle = String(localized: "Exit")
+    /// The section row's Add button: its accessibility label (the visible text is "Add" + plus).
     static let addAlternativeTitle = String(localized: "Add Alternative")
+    static let addButtonTitle = String(localized: "Add")
+    static let addButtonSymbol = "plus"
+    static let versionsHeading = String(localized: "Versions of selected text")
+    /// The section row's text size: the footer hint's.
+    static let sectionFontSize: CGFloat = 11
+
+    /// The section row's Add ink. Quieter than the Exit capsule's label (0.34 light / 0.98 dark):
+    /// lighter in light chrome, darker in dark chrome; hover brightens it a little. Kept ≥ 3:1
+    /// against the sidebar background (`HistorySidebarPresentationTests`).
+    static func addButtonWhite(usesDarkChrome: Bool, isHovered: Bool) -> CGFloat {
+        usesDarkChrome ? (isHovered ? 0.72 : 0.58) : (isHovered ? 0.38 : 0.47)
+    }
     /// The field's trailing return button (does what Return does).
     static let addAlternativeCommitLabel = String(localized: "Add")
     static let addAlternativeCommitSymbol = "arrow.turn.down.left"
@@ -189,6 +202,7 @@ struct HistorySidebarView: View {
         // No header: the tab picker's History row above carries the title and the Exit capsule.
         VStack(spacing: 0) {
             if model.hasSelection {
+                sectionRow
                 if HistorySidebarPresentation.showsLevelSwitcher(model.levels) {
                     levelSwitcher
                 }
@@ -209,8 +223,7 @@ struct HistorySidebarView: View {
                         replacementControl
                     }
                     .padding(.horizontal, HistorySidebarPresentation.rowLayout.containerPadding)
-                    // Straight under the tab divider when there is no level switcher above.
-                    .padding(.top, HistorySidebarPresentation.showsLevelSwitcher(model.levels) ? 8 : 12)
+                    .padding(.top, 6)
                     .padding(.bottom, 8)
                 }
             } else {
@@ -250,7 +263,31 @@ struct HistorySidebarView: View {
         .onChange(of: replacementFieldSignal.cancel) { _, _ in closeReplacementField() }
     }
 
-    /// Below the versions: the Add Alternative capsule, or — once clicked — the field it opens.
+    /// "Versions of selected text" on the left, a quiet "Add +" on the right: the first row under
+    /// the tab divider while a passage is selected. Add opens the field below the versions.
+    private var sectionRow: some View {
+        HStack(spacing: 8) {
+            Text(HistorySidebarPresentation.versionsHeading)
+                .font(.system(size: HistorySidebarPresentation.sectionFontSize))
+                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            HistoryAddAlternativeButton(usesDarkChrome: usesDarkChrome) {
+                guard !replacementField.isOpen else {
+                    HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
+                    return
+                }
+                if replacementField.open(for: model.selectedPassageID) { onReplacementFieldBegan() }
+            }
+        }
+        .padding(.leading, HistorySidebarPresentation.textInset)
+        // The button's own 4pt padding brings its glyph to the Exit capsule's trailing edge.
+        .padding(.trailing, OutlineSidebarView.pillHorizontalInset - 4)
+        .padding(.top, 10)
+    }
+
+    /// At the end of the versions: the field the section row's Add opens (nothing while closed).
     /// While the field has focus it owns the keys (arrows edit the text, Esc closes the field and
     /// leaves History on); Return adds the text as the passage's new current version.
     @ViewBuilder
@@ -294,12 +331,6 @@ struct HistorySidebarView: View {
             .onAppear {
                 HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
             }
-        } else {
-            Button(HistorySidebarPresentation.addAlternativeTitle) {
-                if replacementField.open(for: model.selectedPassageID) { onReplacementFieldBegan() }
-            }
-            .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
-            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -325,7 +356,37 @@ struct HistorySidebarView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 12)
+        .padding(.top, 6)
+    }
+}
+
+/// The section row's quiet "Add +": borderless, muted ink (`addButtonWhite`), spoken as
+/// "Add Alternative".
+private struct HistoryAddAlternativeButton: View {
+    var usesDarkChrome: Bool
+    var action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Text(HistorySidebarPresentation.addButtonTitle)
+                    .font(.system(size: HistorySidebarPresentation.sectionFontSize, weight: .medium))
+                Image(systemName: HistorySidebarPresentation.addButtonSymbol)
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundStyle(Color(nsColor: NSColor(calibratedWhite: HistorySidebarPresentation.addButtonWhite(
+                usesDarkChrome: usesDarkChrome, isHovered: isHovered), alpha: 1)))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
+        }
+        .accessibilityLabel(HistorySidebarPresentation.addAlternativeTitle)
     }
 }
 
