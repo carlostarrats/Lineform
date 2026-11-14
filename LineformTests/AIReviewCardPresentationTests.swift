@@ -31,13 +31,13 @@ final class AIReviewCardPresentationTests: XCTestCase {
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .trim, provider: .claude), "Trimming with Claude…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .trim, provider: .other), "Trimming with your AI…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .proofread, provider: .chatGPT), "Proofreading with ChatGPT…")
-        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .markLong, provider: .google), "Marking with Google…")
+        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .markLong, provider: .google), "Finding sentences with Google…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .anotherWord, provider: .chatGPT),
                        "Finding another word with ChatGPT…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .anotherWord, provider: .other),
                        "Finding another word with your AI…")
         XCTAssertEqual(AIReviewCardPresentation.cancelHint, "Esc to cancel")
-        XCTAssertEqual(AIReviewCardPresentation.markHint, "Esc clears marks")
+        XCTAssertEqual(AIReviewCardPresentation.markHint, "Esc clears highlights")
         for action in AIAction.allCases {
             for provider in AIProvider.allCases where provider != .other {
                 XCTAssertTrue(AIReviewCardPresentation.progressText(for: action, provider: provider)
@@ -70,7 +70,7 @@ final class AIReviewCardPresentationTests: XCTestCase {
             XCTAssertNotEqual(titles.reject, "Reject", language)
             XCTAssertNotEqual(AIReviewCardPresentation.cancelHint(bundle: bundle), "Esc to cancel", language)
             XCTAssertNotEqual(AIReviewCardPresentation.retryTitle(bundle: bundle), "Try Again", language)
-            XCTAssertNotEqual(AIReviewCardPresentation.markHint(bundle: bundle), "Esc clears marks", language)
+            XCTAssertNotEqual(AIReviewCardPresentation.markHint(bundle: bundle), "Esc clears highlights", language)
             let hint = AIReviewCardPresentation.reviewHint(bundle: bundle)
             XCTAssertNotEqual(hint, "Return to accept · Esc to reject", language)
             XCTAssertTrue(hint.contains("Return") && (hint.contains("Esc") || hint.contains("Échap")), "\(language): \(hint)")

@@ -43,7 +43,7 @@ enum AIReviewCardPresentation {
             case .rewrite: return String(localized: "Rewriting with your AI…", bundle: bundle)
             case .proofread: return String(localized: "Proofreading with your AI…", bundle: bundle)
             case .anotherWord: return String(localized: "Finding another word with your AI…", bundle: bundle)
-            case .markWeakest, .markLong: return String(localized: "Marking with your AI…", bundle: bundle)
+            case .markWeakest, .markLong: return String(localized: "Finding sentences with your AI…", bundle: bundle)
             }
         }
         let name = provider.displayName
@@ -53,7 +53,7 @@ enum AIReviewCardPresentation {
         case .rewrite: return String(localized: "Rewriting with \(name)…", bundle: bundle)
         case .proofread: return String(localized: "Proofreading with \(name)…", bundle: bundle)
         case .anotherWord: return String(localized: "Finding another word with \(name)…", bundle: bundle)
-        case .markWeakest, .markLong: return String(localized: "Marking with \(name)…", bundle: bundle)
+        case .markWeakest, .markLong: return String(localized: "Finding sentences with \(name)…", bundle: bundle)
         }
     }
 
@@ -71,7 +71,7 @@ enum AIReviewCardPresentation {
     static func cancelHint(bundle: Bundle) -> String { String(localized: "Esc to cancel", bundle: bundle) }
 
     static var markHint: String { markHint(bundle: .main) }
-    static func markHint(bundle: Bundle) -> String { String(localized: "Esc clears marks", bundle: bundle) }
+    static func markHint(bundle: Bundle) -> String { String(localized: "Esc clears highlights", bundle: bundle) }
 
     static var closeTitle: String { String(localized: "Close") }
     static var reviewCardLabel: String { String(localized: "Suggested changes") }

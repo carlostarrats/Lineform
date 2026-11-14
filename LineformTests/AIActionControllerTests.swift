@@ -225,6 +225,13 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(rows.map(\.author), [.you, .ai])
     }
 
+    /// Find's count (2026-11-14; was "N sentences marked"): one plural key, per-language rules.
+    func testFindCountUsesPluralRules() throws {
+        XCTAssertEqual(AIActionController.markedMessage(1), "1 sentence found")
+        XCTAssertEqual(AIActionController.markedMessage(3), "3 sentences found")
+        XCTAssertEqual(AIActionController.nothingToMarkMessage, "No sentences found.")
+    }
+
     // MARK: - History around an AI action (2026-11-13)
 
     /// A document with History on "The big dog…" (one accepted change), History mode focused on
@@ -727,7 +734,7 @@ final class AIActionControllerTests: XCTestCase {
 
         let (empty, emptySurface, _) = make(text, .reply("{\"sentences\": []}"))
         await runToCompletion(empty, .markWeakest, range: whole(text), text: text)
-        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        XCTAssertEqual(empty.state, .message("No sentences found."))
         XCTAssertEqual(emptySurface.string, text)
     }
 
@@ -744,9 +751,9 @@ final class AIActionControllerTests: XCTestCase {
 
         let (empty, emptySurface, _) = make(text, .reply("{\"sentences\": []}"))
         await runToCompletion(empty, .markWeakest, range: whole(text), text: text)
-        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        XCTAssertEqual(empty.state, .message("No sentences found."))
         empty.yieldToHistory()
-        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        XCTAssertEqual(empty.state, .message("No sentences found."))
         XCTAssertEqual(emptySurface.string, text)
     }
 

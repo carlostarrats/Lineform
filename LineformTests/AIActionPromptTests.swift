@@ -65,8 +65,8 @@ final class AIActionPromptTests: XCTestCase {
     }
 
     func testEveryActionHasLocalizedTitle() throws {
-        let titles = ["Trim", "Cut in half", "Rewrite", "Proofread", "Another Word", "Weakest sentences", "Long sentences"]
-        let verbs = ["Trimming…", "Cutting…", "Rewriting…", "Proofreading…", "Finding another word…", "Marking…"]
+        let titles = ["Trim", "Cut in half", "Rewrite", "Proofread", "Another Word", "Weakest Sentences", "Long Sentences"]
+        let verbs = ["Trimming…", "Cutting…", "Rewriting…", "Proofreading…", "Finding another word…", "Finding sentences…"]
         XCTAssertEqual(AIAction.allCases.map(\.title), titles)
         XCTAssertEqual(Array(Set(AIAction.allCases.map(\.progressVerb))).sorted(), verbs.sorted())
         for language in Self.languages {

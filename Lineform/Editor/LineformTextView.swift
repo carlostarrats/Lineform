@@ -2062,7 +2062,8 @@ enum LineformTextContextMenuPresentation {
     /// The AI group's submenus. Conditional (connected, a selection with prose), so not part of
     /// `commandTitles(for:)` either.
     static let aiRewriteMenuTitle = String(localized: "Rewrite")
-    static let aiMarkMenuTitle = String(localized: "Mark")
+    /// "Find ▸ Weakest Sentences / Long Sentences" (2026-11-14; was "Mark").
+    static let aiMarkMenuTitle = String(localized: "Find")
 
     /// One row of the AI group: an action, or a submenu of actions.
     enum AIMenuEntry: Equatable {

@@ -88,7 +88,7 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(rewriteMenu.items.map(\.title), ["Trim", "Cut in half", "Rewrite"])
         XCTAssertEqual(rewriteMenu.identifier, MainMenuIconDecorator.excludedMenuIdentifier)
         let markMenu = try XCTUnwrap(menu.items[rewrite + 2].submenu)
-        XCTAssertEqual(markMenu.items.map(\.title), ["Weakest sentences", "Long sentences"])
+        XCTAssertEqual(markMenu.items.map(\.title), ["Weakest Sentences", "Long Sentences"])
         XCTAssertEqual(markMenu.identifier, MainMenuIconDecorator.excludedMenuIdentifier)
 
         let actionItems = rewriteMenu.items + [menu.items[rewrite + 1]] + markMenu.items

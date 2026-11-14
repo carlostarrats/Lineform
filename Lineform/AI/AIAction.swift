@@ -19,12 +19,13 @@ enum AIAction: String, CaseIterable {
         case .rewrite: return String(localized: "Rewrite")
         case .proofread: return String(localized: "Proofread")
         case .anotherWord: return String(localized: "Another Word")
-        case .markWeakest: return String(localized: "Weakest sentences")
-        case .markLong: return String(localized: "Long sentences")
+        case .markWeakest: return String(localized: "Weakest Sentences")
+        case .markLong: return String(localized: "Long Sentences")
         }
     }
 
-    /// Mark actions highlight sentences and change nothing.
+    /// Find actions (the menu's "Find ▸"; `isMark` and the case names predate the rename)
+    /// highlight sentences and change nothing.
     var isMark: Bool {
         switch self {
         case .markWeakest, .markLong: return true
@@ -49,7 +50,7 @@ enum AIAction: String, CaseIterable {
         case .rewrite: return String(localized: "Rewriting…")
         case .proofread: return String(localized: "Proofreading…")
         case .anotherWord: return String(localized: "Finding another word…")
-        case .markWeakest, .markLong: return String(localized: "Marking…")
+        case .markWeakest, .markLong: return String(localized: "Finding sentences…")
         }
     }
 }

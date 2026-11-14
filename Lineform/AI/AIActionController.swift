@@ -121,7 +121,7 @@ final class AIActionController: ObservableObject {
     static var reconnectMessage: String { String(localized: "Connect your AI again in Lineform ▸ Connect Your AI….") }
     static var textChangedMessage: String { String(localized: "The text changed while Lineform was waiting. Nothing was changed.") }
     static var noChangesMessage: String { String(localized: "No changes suggested.") }
-    static var nothingToMarkMessage: String { String(localized: "Nothing to mark.") }
+    static var nothingToMarkMessage: String { String(localized: "No sentences found.") }
     static var structureRefusedMessage: String { String(localized: "That change would alter the Markdown, so it wasn't applied.") }
     static var reviewEndedMessage: String { String(localized: "Review ended") }
     static var editSkippedMessage: String { String(localized: "That change couldn't be applied, so the review ended.") }
@@ -146,7 +146,7 @@ final class AIActionController: ObservableObject {
     }
 
     static func markedMessage(_ count: Int) -> String {
-        count == 1 ? String(localized: "1 sentence marked") : String(localized: "\(count) sentences marked")
+        String(localized: "\(count) sentences found")
     }
 
     // MARK: - Availability
