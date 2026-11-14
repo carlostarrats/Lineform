@@ -151,6 +151,14 @@ struct OutlineSidebarView: View {
     /// stack spacing + that 4pt inset.
     static let sidebarLeadLineTop: CGFloat = 20
     static let sidebarLeadToFirstRow: CGFloat = 12
+    /// One left edge and one right margin for every tab (2026-11-13). Lead/secondary text lines
+    /// (Files' sort row, Markdown Basics' headings, History's lead line, empty text and hint) start
+    /// on the icon column's left edge, `sidebarIconColumnLeading` (22 — where the tab icons' and
+    /// the Workspace row's 18pt icon frames start, and the sort row's icon). Trailing controls
+    /// (Exit, Add +, the Files Choose/Change capsule) and row backgrounds end
+    /// `sidebarTrailingInset` from the sidebar's edge.
+    static let sidebarLeadTextLeading: CGFloat = 22
+    static let sidebarTrailingInset: CGFloat = 12
     /// The Files sort row's own vertical inset (its hover target), subtracted from both gaps.
     static let filesSortRowVerticalPadding: CGFloat = 4
     /// The small secondary lead-line label (Files' "Sort folders by", History's lead line): 12pt
@@ -696,6 +704,9 @@ struct OutlineSidebarView: View {
                         if OutlineSidebarTab.showsHistoryExit(on: tab, effectiveTab: effectiveTab) {
                             Button(HistorySidebarPresentation.exitTitle, action: onExitHistory)
                                 .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
+                                // The row ends at the picker's 14pt inset; the capsule ends on the
+                                // shared trailing inset.
+                                .padding(.trailing, -(Self.pillHorizontalInset - Self.sidebarTrailingInset))
                         }
                     }
                 }
@@ -2386,8 +2397,8 @@ private struct OutlineFileRootRow: View {
             }
         }
         // Chevron hangs at the content edge (the LazyVStack already insets by the chevron
-        // column); only a trailing inset for the Change button.
-        .padding(.trailing, 6)
+        // column); only a trailing inset, so the Change button ends on the shared trailing inset.
+        .padding(.trailing, OutlineSidebarView.sidebarTrailingInset - OutlineSidebarView.filesContentHorizontalPadding)
         .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesRootRowHeight, maxHeight: OutlineSidebarView.filesRootRowHeight, alignment: .leading)
         // Root headers are quiet section labels, not file rows — no hover fill (per design:
         // a non-openable folder header shouldn't light up like a selectable row).

@@ -15680,6 +15680,40 @@
           }
         }
       }
+    },
+    "Click to select · ← → switch version · Esc deselects": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clic para elegir · ← → cambia de versión · Esc deselecciona"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cliquer pour choisir · ← → changer de version · Échap désélectionne"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicken zum Wählen · ← → Version wechseln · Esc hebt Auswahl auf"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリックで選択 · ← → でバージョン切替 · Esc で選択解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按选择 · ← → 切换版本 · Esc 取消选择"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

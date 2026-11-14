@@ -97,9 +97,11 @@ enum HistorySidebarPresentation {
         var containerPadding: CGFloat = OutlineSidebarView.filesContentHorizontalPadding
         var chevronSlotWidth: CGFloat = OutlineSidebarView.filesChevronSlotWidth
         var iconWidth: CGFloat = 18
-        var iconLeading: CGFloat = 2
+        /// container 6 + row 0 + chevron slot 12 + 4 = 22: the icon frame starts on the shared
+        /// icon column, like the tab icons and the Files rows (slot 12 + gap 4).
+        var iconLeading: CGFloat = OutlineSidebarView.filesChevronToIconGap
         var textLeading: CGFloat = 4
-        var rowLeading: CGFloat = 6
+        var rowLeading: CGFloat = 0
         var rowTrailing: CGFloat = 6
         var backgroundInset: CGFloat = OutlineSidebarView.filesRowBackgroundHorizontalInset
         var height: CGFloat = OutlineSidebarView.filesChildRowHeight
@@ -108,6 +110,8 @@ enum HistorySidebarPresentation {
 
     static let emptySelectionText = String(localized: "Click a highlighted passage to see its versions.")
     static let hintText = String(localized: "Click to select · ← → switch version · Esc closes")
+    /// With a passage selected, Esc (or a click on ordinary text) returns to the overview.
+    static let selectedHintText = String(localized: "Click to select · ← → switch version · Esc deselects")
     static let deleteVersionTitle = String(localized: "Delete from History")
     static let exitTitle = String(localized: "Exit")
     /// The section row's Add button: its accessibility label (the visible text is "Add" + plus).
@@ -144,8 +148,11 @@ enum HistorySidebarPresentation {
     static let commitButtonDiameter: CGFloat = 20
     static let commitButtonGap: CGFloat = 7
     static let replacementPlaceholder = String(localized: "Type an alternative")
-    /// The leading inset every line of History prose sits on: the empty-state text and the hint.
-    static let textInset: CGFloat = 14
+    /// The leading inset every line of History prose sits on (lead line, empty text, hint): the
+    /// shared lead-text edge, `OutlineSidebarView.sidebarLeadTextLeading`.
+    static let textInset: CGFloat = 22
+    /// Where History's trailing controls and prose end: `OutlineSidebarView.sidebarTrailingInset`.
+    static let trailingInset: CGFloat = 12
 
     /// Focuses the replacement field one runloop turn after it was inserted. A `@FocusState`
     /// write in the same pass as the insertion (a bare `.onAppear`) is routinely dropped on
@@ -246,13 +253,14 @@ struct HistorySidebarView: View {
                 Spacer(minLength: 0)
             }
 
-            Text(HistorySidebarPresentation.hintText)
+            Text(model.hasSelection ? HistorySidebarPresentation.selectedHintText : HistorySidebarPresentation.hintText)
                 .font(.system(size: 11))
                 .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, HistorySidebarPresentation.textInset)
+                .padding(.leading, HistorySidebarPresentation.textInset)
+                .padding(.trailing, HistorySidebarPresentation.trailingInset)
                 .padding(.vertical, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -288,7 +296,8 @@ struct HistorySidebarView: View {
     /// Places a lead line on the shared inset and distance under the divider.
     private func leadLine<Content: View>(_ content: Content) -> some View {
         content
-            .padding(.horizontal, HistorySidebarPresentation.textInset)
+            .padding(.leading, HistorySidebarPresentation.textInset)
+            .padding(.trailing, HistorySidebarPresentation.trailingInset)
             .padding(.top, HistorySidebarPresentation.leadTextTopInset)
     }
 

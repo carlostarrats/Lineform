@@ -49,9 +49,9 @@ struct OutlineMarkdownBasicsTabView: View {
                             isSelected: false,
                             isHovered: false
                         ))
-                        // Align the header with the box's syntax text (outer 14 + box inner 10 = 24),
-                        // which is also the shared icon column.
-                        .padding(.leading, 10)
+                        // The shared lead-text edge (22, the icon column's left), like every tab's
+                        // lead line.
+                        .padding(.leading, OutlineSidebarView.sidebarLeadTextLeading - OutlineSidebarView.pillHorizontalInset)
                         .padding(.trailing, OutlineSidebarView.pillHorizontalInset)
 
                     // The shared lead-line → first-row gap (every section, so they read alike).
