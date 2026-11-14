@@ -95,10 +95,14 @@ enum AIWordDiff {
     /// `text` as tokens tiling it, in UTF-16 ranges: a run of word characters (letters, digits,
     /// combining marks — whole `Character`s, so an accented letter or an emoji is never split —
     /// with an apostrophe between two word characters kept inside the word: "don't"), a run of
-    /// whitespace, or one other character (punctuation, a symbol, an emoji).
+    /// whitespace, or one other character (punctuation, a symbol, an emoji). A CJK ideograph,
+    /// kana or hangul character is a token of its own (2026-11-14): those scripts have no spaces,
+    /// so a run would make one fixed particle a whole-clause correction; adjacent changed
+    /// characters still group into one correction.
     static func tokens(_ text: String) -> [NSRange] {
         enum Kind { case word, space, other }
         func kind(_ c: Character) -> Kind {
+            if isIdeographic(c) { return .other }
             if c.isLetter || c.isNumber { return .word }
             if c.isWhitespace { return .space }
             return .other
@@ -133,6 +137,11 @@ enum AIWordDiff {
         return result
     }
 
+    /// Han ideographs, hiragana, katakana and hangul: scripts written without spaces between words.
+    static func isIdeographic(_ c: Character) -> Bool {
+        c.unicodeScalars.first.map(PassageHistoryText.isIdeographic) ?? false
+    }
+
     /// Token pairs past which a diff is not attempted: the corrections fall back to one span (the
     /// differing middle after the shared prefix and suffix).
     static let maximumCells = 4_000_000
@@ -140,13 +149,14 @@ enum AIWordDiff {
     /// The corrections turning `original` into `revised`: each maximal run of CONTIGUOUS changed
     /// tokens is one correction — its range in `original` (empty for a pure insertion, at the
     /// insertion point) and the text replacing it — in order. Empty when the two are equal.
-    /// Identity is exact UTF-16 per token.
+    /// Tokens are equal when CANONICALLY equivalent (Swift `String ==`, 2026-11-14): a model that
+    /// answers in NFC for an NFD document changes nothing the writer can see, so that is no
+    /// correction and the writer's bytes are kept (as the Rewrite builder already rules).
     static func corrections(original: String, revised: String) -> [(range: NSRange, replacement: String)] {
         let a = original as NSString, b = revised as NSString
         let ta = tokens(original), tb = tokens(revised)
-        func same(_ i: Int, _ j: Int) -> Bool {
-            ta[i].length == tb[j].length && a.substring(with: ta[i]).utf16.elementsEqual(b.substring(with: tb[j]).utf16)
-        }
+        let sa = ta.map { a.substring(with: $0) }, sb = tb.map { b.substring(with: $0) }
+        func same(_ i: Int, _ j: Int) -> Bool { sa[i] == sb[j] }
         // Shared prefix and suffix first: most of a proofread segment is unchanged.
         var lo = 0
         while lo < ta.count, lo < tb.count, same(lo, lo) { lo += 1 }

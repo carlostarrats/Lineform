@@ -154,6 +154,50 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(surface.editCalls.count, 1)
     }
 
+    /// Read tears the Write editor down before the review ends: the accepted decisions go into
+    /// the document through the fallback — applied once, recorded in History — never lost.
+    func testAcceptedDecisionsSurviveTheEditorGoingAway() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        let text = "Teh cat and teh dog."
+        history.open(url: nil, text: text)
+        var document = text
+        var surface: FakeAIEditorSurface?
+        let controller: AIActionController
+        do {
+            let made = make(text, replace(["teh": "the", "Teh": "The"]), history: history)
+            controller = made.0
+            surface = made.1
+        }
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        XCTAssertNotNil(surface)
+        controller.handle(.acceptCurrent)
+        surface = nil   // the editor is gone (weak), as after the switch to Read
+        XCTAssertNil(controller.editor)
+        var applied = 0
+        controller.documentFallback = (text: { document }, apply: { edits in
+            applied += 1
+            for edit in edits { history.noteUserEdit(edit.range, replacement: edit.replacement) }
+            document = AIActionController.applying(edits, to: document)
+        })
+        controller.endReview()
+        XCTAssertEqual(applied, 1)
+        XCTAssertEqual(document, "The cat and teh dog.")
+        let recorded = try XCTUnwrap(history.rememberedPassageID)
+        XCTAssertEqual(history.passage(recorded)?.versions.map(\.text), ["Teh cat and teh dog.", "The cat and teh dog."])
+    }
+
+    /// A range that no longer reads what was reviewed: nothing is spliced, "text changed".
+    func testStaleAcceptedRangeAppliesNothing() async throws {
+        let text = "The cat sat on teh mat."
+        let (controller, surface, _) = make(text, replace(["teh": "the"]))
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        surface.string = "A cat sat on teh mat."
+        controller.handle(.acceptAll)
+        XCTAssertEqual(surface.string, "A cat sat on teh mat.")
+        XCTAssertTrue(surface.editCalls.isEmpty)
+        XCTAssertEqual(controller.state, .message(AIActionController.textChangedMessage))
+    }
+
     /// Accept All accepts every remaining correction; all accepted corrections are ONE undo step
     /// and ONE History version of the passage.
     func testProofreadAcceptAllIsOneUndoAndOneHistoryRecord() async throws {
@@ -987,7 +1031,9 @@ final class AIActionControllerTests: XCTestCase {
         singleSurface.string = shifted
         single.handle(.accept(0))
         XCTAssertTrue(singleSurface.editCalls.isEmpty)
-        XCTAssertEqual(single.state, .message(AIActionController.structureRefusedMessage))
+        // The range no longer reads what was reviewed, so it is refused before the structure
+        // guard (2026-11-14): nothing is spliced, and the refusal is seen.
+        XCTAssertEqual(single.state, .message(AIActionController.textChangedMessage))
     }
 
     // MARK: - Final-review fixes

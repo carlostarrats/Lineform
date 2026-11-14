@@ -142,7 +142,6 @@ final class AdversarialReviewProbeTests: XCTestCase {
     func testProofreadWordDiffReportsNoCorrectionForNormalizationOnlyReply() {
         let nfd = "The cafe\u{301} was open."
         let nfc = "The caf\u{E9} was open."
-        XCTExpectFailure("AIWordDiff.corrections compares tokens by exact UTF-16: an NFC reply to NFD text yields a bogus no-op correction")
         XCTAssertEqual(AIWordDiff.corrections(segments: [segment(nfd)], revisions: [nfc], in: nfd).count, 0)
     }
 
@@ -152,7 +151,6 @@ final class AdversarialReviewProbeTests: XCTestCase {
         let nfd = "Le cafe\u{301} e\u{301}tait ferme\u{301}."
         let (controller, _) = make(nfd, FakeAIClient.revising { _, s in s.precomposedStringWithCanonicalMapping })
         await run(controller, .proofread, whole(nfd), nfd)
-        XCTExpectFailure("Proofread opens a review of invisible NFC-for-NFD corrections")
         XCTAssertEqual(message(controller), AIActionController.noChangesMessage)
     }
 
@@ -308,7 +306,6 @@ final class AdversarialReviewProbeTests: XCTestCase {
         let revised = "私は昨日学校に行きました。"
         let changes = AIWordDiff.corrections(segments: [segment(text)], revisions: [revised], in: text)
         XCTAssertEqual(applyAll(changes, to: text), revised, "applies exactly")
-        XCTExpectFailure("AIWordDiff.tokens treats a whole CJK run as one word: a one-particle fix becomes a whole-clause suggestion")
         XCTAssertLessThanOrEqual(changes.first.map { ($0.original as NSString).length } ?? 99, 3)
     }
 
@@ -383,7 +380,9 @@ final class AdversarialReviewProbeTests: XCTestCase {
                     failures.append("#\(case_) bad boundary \(change.range) in \(original.debugDescription)")
                 }
             }
-            if applyAll(changes, to: original) != revised || !applyAll(changes, to: original).utf16.elementsEqual(revised.utf16) {
+            // Canonical equality (2026-11-14): tokens that are canonically equal are no correction,
+            // so the writer's own bytes stay there (an NFD "café" against an NFC reply).
+            if applyAll(changes, to: original) != revised {
                 failures.append("#\(case_) all≠revised: \(original.debugDescription) → \(revised.debugDescription) got \(applyAll(changes, to: original).debugDescription)")
             }
             if !applyAll([], to: original).utf16.elementsEqual(original.utf16) { failures.append("#\(case_) none≠original") }
@@ -667,7 +666,6 @@ final class AdversarialReviewProbeTests: XCTestCase {
         _ = try XCTUnwrap(reviewSession(controller))
         surface.string = "A cat sat on teh mat."  // two UTF-16 units shorter, unreported
         controller.handle(.acceptAll)
-        XCTExpectFailure("endReview applies stored ranges without checking the text there still reads `original` (not reachable through any path found: every known writer ends the review first)")
         XCTAssertTrue(surface.string == "A cat sat on the mat." || surface.string == "A cat sat on teh mat.",
                       "got \(surface.string.debugDescription)")
     }

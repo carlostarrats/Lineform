@@ -81,6 +81,12 @@ final class AIActionController: ObservableObject {
         }
     }
     weak var editor: AIEditorSurface?
+    /// Where a review's accepted changes go when the editor is ALREADY gone at the review's end
+    /// (2026-11-14: switching to Read tears the Write text view down before `onChange(of:
+    /// displayMode)` ends the review, and the accepted Proofread decisions were silently lost).
+    /// `text` reads the document; `apply` writes the edits (descending) into it, reporting each to
+    /// History as a user edit. Set by the editor around that call only.
+    var documentFallback: (text: () -> String, apply: ([AIReviewEdit]) -> Void)?
     weak var history: DocumentHistoryController?
     private(set) var runTask: Task<Void, Never>?
 
@@ -304,9 +310,10 @@ final class AIActionController: ObservableObject {
     /// (`DocumentHistoryController.aiActionDidEnd`).
     private func settleHistory(recorded: UUID?, changedRange: NSRange? = nil) {
         guard let history else { return }
-        // No editor, no text to locate in (locating in the wrong text would drop passages).
-        guard let editor else { return history.aiActionAbandoned() }
-        history.aiActionDidEnd(recorded: recorded, changedRange: changedRange, text: editor.string)
+        // No editor (nor document fallback), no text to locate in (locating in the wrong text
+        // would drop passages).
+        guard let text = editor?.string ?? documentFallback?.text() else { return history.aiActionAbandoned() }
+        history.aiActionDidEnd(recorded: recorded, changedRange: changedRange, text: text)
     }
 
     /// Live reload (or any wholesale text replacement): reload wins. Cancels a request, drops a
@@ -498,28 +505,41 @@ final class AIActionController: ObservableObject {
         reviewRevisions = nil
 
         // Every accepted change is applied NOW, together: one `applyAIEdits` call, one undo step.
-        // The structure guard checks the whole accepted result first.
-        enum Outcome { case nothingAccepted, applied, refused, skipped }
+        // Each range must still read what was reviewed (defence in depth: every known writer ends
+        // the review first), then the structure guard checks the whole accepted result.
+        enum Outcome { case nothingAccepted, applied, refused, skipped, stale }
         var outcome = Outcome.nothingAccepted
         let edits = session.acceptedEdits
-        if !edits.isEmpty, let editor {
-            if isStructurePreserving(edits, in: editor.string) {
-                let before = (editor.string as NSString).length
+        if !edits.isEmpty, let current = editor?.string ?? documentFallback?.text() {
+            let ns = current as NSString
+            let intact = session.accepted.allSatisfy { change in
+                change.range.location >= 0 && NSMaxRange(change.range) <= ns.length
+                    && ns.substring(with: change.range).utf16.elementsEqual(change.original.utf16)
+            }
+            if !intact {
+                outcome = .stale
+            } else if !isStructurePreserving(edits, in: current) {
+                outcome = .refused
+            } else if let editor {
+                let before = ns.length
                 history?.aiAcceptWillApply()
                 let appliedAll = editor.applyAIEdits(edits, actionName: Self.acceptOneActionName)
                 history?.aiAcceptDidApply()
                 session.shiftSelection(by: (editor.string as NSString).length - before)
                 outcome = appliedAll ? .applied : .skipped
-            } else {
-                outcome = .refused
+            } else if let fallback = documentFallback {
+                history?.aiAcceptWillApply()
+                fallback.apply(edits)
+                history?.aiAcceptDidApply()
+                session.shiftSelection(by: AIReviewSession.lengthDelta(of: edits))
+                outcome = .applied
             }
         }
         // Through `.reviewing` first, so the `didSet` collapse aims at the selection as it is now.
         state = .reviewing(session)
         state = .idle
 
-        if outcome == .applied, let editor, let history {
-            let text = editor.string
+        if outcome == .applied, let history, let text = editor?.string ?? documentFallback?.text() {
             let ns = text as NSString
             let range = session.selectionRange
             if range.location >= 0, NSMaxRange(range) <= ns.length {
@@ -543,6 +563,9 @@ final class AIActionController: ObservableObject {
         case .skipped:
             // Whatever did land stays (one ⌘Z); History records nothing.
             show(Self.editSkippedMessage)
+        case .stale:
+            // The text under the review changed: nothing is spliced at offsets that moved.
+            show(Self.textChangedMessage)
         case .nothingAccepted, .applied:
             editor?.announceAI(Self.reviewEndedMessage)
         }

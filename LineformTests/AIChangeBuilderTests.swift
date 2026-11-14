@@ -205,9 +205,10 @@ final class AIChangeBuilderTests: XCTestCase {
     /// UTF-16 offsets into the original.
     func testWordDiffKeepsCharactersWhole() {
         XCTAssertEqual(fixes("Great 👍🏽 job tday", "Great 👍🏽 job today"), ["tday→today"])
-        XCTAssertEqual(fixes("A cafe\u{301} au lait", "A café au lait"), ["cafe\u{301}→café"])
+        XCTAssertEqual(fixes("A cafe\u{301} au lait", "A café au lait"), [], "canonically equal: no correction")
         XCTAssertEqual(fixes("Je suis allé a Paris.", "Je suis allé à Paris."), ["a→à"])
-        XCTAssertEqual(fixes("我爱北京", "我爱上海"), ["我爱北京→我爱上海"], "a CJK run is one word token")
+        XCTAssertEqual(fixes("我爱北京", "我爱上海"), ["北京→上海"], "CJK per character; adjacent changes group")
+        XCTAssertEqual(fixes("学校へ行く", "学校に行く"), ["へ→に"])
         assertRoundTrip("Great 👍🏽 job tday 👨‍👩‍👧", "Great 👍🏽 job today 👨‍👩‍👧")
         let tokens = AIWordDiff.tokens("don't 👨‍👩‍👧 go")
         XCTAssertEqual(tokens.map { ("don't 👨‍👩‍👧 go" as NSString).substring(with: $0) }, ["don't", " ", "👨‍👩‍👧", " ", "go"])

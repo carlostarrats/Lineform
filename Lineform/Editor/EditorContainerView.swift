@@ -414,7 +414,20 @@ struct EditorContainerView: View {
         .onChange(of: displayMode) { _, mode in
             // AI actions, review and Mark live in Write; Read or Split ends them (undecided
             // changes rejected, i.e. the text left as it is).
-            if mode != .write { endAIForDocumentChange() }
+            if mode != .write {
+                // Read tears the Write text view down before this runs: accepted review
+                // decisions then go into the document directly (one write, each edit reported to
+                // History), never lost. Set only for this call — the closure captures the view.
+                aiController.documentFallback = (
+                    text: { document.text },
+                    apply: { edits in
+                        for edit in edits { historyController.noteUserEdit(edit.range, replacement: edit.replacement) }
+                        document.text = AIActionController.applying(edits, to: document.text)
+                    }
+                )
+                endAIForDocumentChange()
+                aiController.documentFallback = nil
+            }
             // History mode lives in Write; Read or Split leaves it.
             historyController.displayModeDidChange(to: mode)
             LineformDisplayModeMenuState.shared.setDisplayMode(mode)
