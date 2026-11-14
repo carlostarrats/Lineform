@@ -1337,8 +1337,12 @@ the app's one `AIConnectionStore.shared`).
   marker repeated (`AIReviewComposition.lineContent`) — interleaved pieces around a link were
   unreadable. **The card never covers the current change**: the overlay knows the card's measured
   height (`AIReviewCardHeightKey`, + inset + 8) and, when a review opens, the card is measured, or
-  the current correction changes, scrolls the LEAST amount that shows the change above the card
-  (`revealOriginY`) — and not at all when it already shows, so the no-jump fix holds. The overlay takes
+  the current correction changes, scrolls the LEAST amount that puts the change's BOTTOM above
+  the card's top (`revealOriginY`) — and not at all when it already is, so the no-jump fix holds.
+  The rect is the union of EVERY drawn range of the change (struck, replacements, stacked lines),
+  measured after laying the overlay out from the top: a first-line anchor and non-contiguous
+  layout's estimated heights left a multi-line change's last lines under the card. A change taller
+  than the room above the card is scrolled so its TOP sits at the visible top. The overlay takes
   ← / → (`.move`) and a click on a pending change (`.select`); its accessibility actions add Accept
   All and Next / Previous Change while 2+ are pending.
 - **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call

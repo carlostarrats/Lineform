@@ -161,27 +161,41 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
     /// the card covered a change near the bottom). Nothing moves when it is already visible — the
     /// review must not make the document jump.
     static func revealCurrentChange(of textView: AIReviewTextView, in scrollView: NSScrollView, bottomObscured: CGFloat) {
-        guard let range = textView.currentChangeRange, let layoutManager = textView.layoutManager,
+        guard let id = textView.currentID, let layoutManager = textView.layoutManager,
               let container = textView.textContainer else { return }
-        layoutManager.ensureLayout(forCharacterRange: range)
-        let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-        let rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: container)
-            .offsetBy(dx: textView.textContainerOrigin.x, dy: textView.textContainerOrigin.y)
+        // EVERY drawn range of the change — struck, replacements, stacked lines — not an anchor.
+        let composition = textView.composition
+        let ranges = (composition.removedRanges[id] ?? []) + (composition.replacementRanges[id] ?? [])
+            + (composition.changeRanges[id].map { [$0] } ?? [])
+        guard let end = ranges.map(NSMaxRange).max(), !ranges.isEmpty else { return }
+        // Laid out from the top, so the y positions are measured, not estimated (non-contiguous
+        // layout guesses the height of text it has not laid out — the change's lower lines read
+        // as if they were higher, and the scroll fell short).
+        layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: end))
+        var rect = NSRect.null
+        for range in ranges where range.length > 0 {
+            let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            rect = rect.union(layoutManager.boundingRect(forGlyphRange: glyphs, in: container))
+        }
+        guard !rect.isNull else { return }
+        rect = rect.offsetBy(dx: textView.textContainerOrigin.x, dy: textView.textContainerOrigin.y)
         guard let y = revealOriginY(for: rect, visible: scrollView.contentView.bounds, bottomObscured: bottomObscured) else { return }
         scroll(scrollView, toY: y)
     }
 
-    /// The clip origin y that shows `rect` inside `visible` minus its bottom `bottomObscured`, or
-    /// nil when it already shows. Below: scrolled up just enough (never so far its top leaves);
-    /// above: its top brought `margin` under the visible top.
+    /// The clip origin y that keeps the change's bottom above the card's top (`bottomObscured`
+    /// covers the visible bottom: card + inset + margin), or nil when it already is. The card
+    /// covers only the right part of the width, but a change's lines run under it, so the whole
+    /// change's BOTTOM must clear it. Below: scrolled up the minimum; a change taller than the
+    /// room above the card: its TOP at the visible top (never pushed out of view); above the
+    /// visible top: brought `margin` under it.
     static func revealOriginY(for rect: NSRect, visible: NSRect, bottomObscured: CGFloat, margin: CGFloat = 8) -> CGFloat? {
         let top = visible.minY
         let bottom = visible.maxY - bottomObscured
         if rect.minY >= top, rect.maxY <= bottom { return nil }
-        if rect.maxY > bottom, rect.minY >= top {
-            return max(0, min(visible.minY + (rect.maxY - bottom), rect.minY - margin))
-        }
-        return max(0, rect.minY - margin)
+        if rect.minY < top { return max(0, rect.minY - margin) }
+        let lift = rect.maxY - bottom
+        return max(0, min(top + lift, rect.minY))
     }
 
     static func scroll(_ scrollView: NSScrollView, toY y: CGFloat) {

@@ -381,8 +381,16 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 300, width: 50, height: 20), visible: visible, bottomObscured: 120), 140)
         // Above the visible top: brought just under it.
         XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 40, width: 50, height: 20), visible: visible, bottomObscured: 120), 32)
-        // Taller than the room: its top stays in view.
-        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 200, width: 50, height: 400), visible: visible, bottomObscured: 120), 192)
+        // Taller than the room above the card: its TOP at the visible top.
+        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 200, width: 50, height: 400), visible: visible, bottomObscured: 120), 200)
+        // A multi-line change in the lower half (a 4-item list, ~760pt view, card ~140pt): its
+        // WHOLE bottom must clear the card's top — not just its first line.
+        let tall = NSRect(x: 0, y: 0, width: 600, height: 760)
+        let list = NSRect(x: 40, y: 470, width: 520, height: 200)    // 470…670; card covers 620…760
+        XCTAssertEqual(S.revealOriginY(for: list, visible: tall, bottomObscured: 140), 50, "lifted so 670 sits at 620")
+        let firstLine = NSRect(x: 40, y: 470, width: 520, height: 24)
+        XCTAssertNil(S.revealOriginY(for: firstLine, visible: tall, bottomObscured: 140),
+                     "(the first line alone would not have scrolled at all — the old shortfall)")
         XCTAssertNil(S.revealOriginY(for: NSRect(x: 0, y: 380, width: 50, height: 10), visible: visible, bottomObscured: 0),
                      "no card measured yet: plain visibility")
     }
