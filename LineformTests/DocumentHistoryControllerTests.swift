@@ -185,128 +185,55 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertEqual(controller.display?.selectedID, second)
     }
 
-    /// An accepted AI change shows History only when the document had none before it
-    /// (`documentHadHistory` is read before recording). Nothing is remembered between documents
-    /// or in UserDefaults (the old once-ever flag is gone).
-    func testAIAcceptShowsHistoryOnlyWhenItIsTheDocumentsFirst() throws {
-        let accepted = "Alpha BETA gamma delta."
-        let doc = (text as NSString).replacingOccurrences(of: sentence, with: accepted)
-
+    /// AI actions are offered on every selection in normal writing — before 2026-11-13 a word
+    /// passage refused them on itself and inside itself (`isInsideWordPassage`), which is what hid
+    /// the AI items on "some words" of a line already rewritten. Only History mode refuses them.
+    func testAIIsOfferedOnAnySelectionOutsideHistoryMode() throws {
+        let doc = "Intro.\n\nThe quick brown fox jumps over it.\n\nOutro."
         let controller = DocumentHistoryController(store: NullPassageHistoryStore())
         controller.open(url: nil, text: doc)
-        var requested: [UUID] = []
-        controller.onRequestShowHistory = { id in
-            requested.append(id)
-            controller.showPassage(id, text: doc)
+        _ = try XCTUnwrap(controller.recordAccepted(range: range(of: "The quick brown fox jumps over it.", in: doc),
+                                                    original: "The fast brown fox jumps over it.",
+                                                    accepted: "The quick brown fox jumps over it.", text: doc))
+        _ = try XCTUnwrap(controller.recordAccepted(range: range(of: "quick brown", in: doc), original: "fast brown",
+                                                    accepted: "quick brown", text: doc))
+        let selections = [
+            ("a word inside a sentence passage", range(of: "jumps", in: doc)),
+            ("a word passage itself", range(of: "quick brown", in: doc)),
+            ("part of a word passage", range(of: "brown", in: doc)),
+            ("partly overlapping a passage", range(of: "brown fox", in: doc)),
+            ("containing passages", range(of: "Intro.\n\nThe quick brown fox jumps over it.", in: doc)),
+        ]
+        for (name, selection) in selections {
+            XCTAssertTrue(controller.allowsAIAction(on: selection), name)
         }
-        XCTAssertFalse(controller.hasHistory)
-        let first = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
-                                                            accepted: accepted, text: doc))
-        controller.introduceAfterAIAccept(first, documentHadHistory: false)
-        XCTAssertEqual(requested, [first])
-        XCTAssertTrue(controller.isHistoryModeActive)
-        XCTAssertEqual(controller.display?.selectedID, first)
-        controller.exitHistoryMode()
-
-        controller.introduceAfterAIAccept(first, documentHadHistory: true)
-        XCTAssertEqual(requested, [first], "the document already had History")
-        XCTAssertFalse(controller.isHistoryModeActive)
-
-        // No subscriber: nothing to do, nothing owed.
-        let unwired = DocumentHistoryController(store: NullPassageHistoryStore())
-        unwired.open(url: nil, text: doc)
-        unwired.introduceAfterAIAccept(first, documentHadHistory: false)
-        XCTAssertFalse(unwired.isHistoryModeActive)
+        XCTAssertEqual(controller.aiActionRange(for: range(of: "brown fox", in: doc)), range(of: "quick brown fox", in: doc))
+        XCTAssertTrue(controller.enterHistoryMode(text: doc))
+        XCTAssertFalse(controller.allowsAIAction(on: range(of: "jumps", in: doc)), "History mode never overlaps AI")
     }
 
-    /// A plain History entry selects the passage an AI accept left remembered — once — and the
-    /// memory goes on a document swap and on any entry with an explicit target.
-    func testPlainEntrySelectsTheRememberedPassageOnce() throws {
-        let accepted = "Alpha BETA gamma delta."
-        let doc = (text as NSString).replacingOccurrences(of: sentence, with: accepted)
+    /// Add Alternative…: the passage is shown with its alternative field already asked for; the
+    /// request is spent when the field opens, and never carried into a later History entry.
+    func testAddAlternativeAsksForTheField() throws {
         let controller = DocumentHistoryController(store: NullPassageHistoryStore())
-        controller.open(url: nil, text: doc)
-        let id = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
-                                                         accepted: accepted, text: doc))
-
-        // No memory: today's empty state.
-        XCTAssertTrue(controller.enterHistoryModeFromTab(text: doc))
-        XCTAssertNil(controller.display?.selectedID)
-        controller.exitHistoryMode()
-
-        controller.aiActionDidEnd(recorded: id, text: doc)
-        XCTAssertEqual(controller.rememberedPassageID, id)
-        XCTAssertTrue(controller.enterHistoryModeFromTab(text: doc))
-        XCTAssertEqual(controller.display?.selectedID, id)
-        XCTAssertNil(controller.rememberedPassageID)
-        controller.exitHistoryMode()
-        XCTAssertTrue(controller.enterHistoryModeFromTab(text: doc))
-        XCTAssertNil(controller.display?.selectedID, "spent once used")
-        controller.exitHistoryMode()
-
-        // An explicit target spends it.
-        controller.aiActionDidEnd(recorded: id, text: doc)
-        XCTAssertTrue(controller.showPassage(id, text: doc))
-        XCTAssertNil(controller.rememberedPassageID)
-        controller.exitHistoryMode()
-
-        // A passage that no longer locates: the empty state.
-        controller.aiActionDidEnd(recorded: UUID(), text: doc)
-        XCTAssertTrue(controller.enterHistoryModeFromTab(text: doc))
-        XCTAssertNil(controller.display?.selectedID)
-        controller.exitHistoryMode()
-
-        // A document swap forgets it.
-        controller.aiActionDidEnd(recorded: id, text: doc)
-        controller.open(url: nil, text: doc, documentID: UUID())
-        XCTAssertNil(controller.rememberedPassageID)
-    }
-
-    /// History on when an AI action starts: the selected passage is kept and History mode ends;
-    /// the action's end asks to show the recorded passage, else the one containing the change,
-    /// else the one selected before — the first that locates — or nothing. Abandon drops it.
-    func testAIActionInHistoryReturnsToAPassageThatLocates() throws {
-        let doc = text
-        let controller = DocumentHistoryController(store: NullPassageHistoryStore())
-        controller.open(url: nil, text: doc)
-        let first = try XCTUnwrap(controller.recordAccepted(range: range(of: sentence, in: doc), original: "Alpha beta.",
-                                                            accepted: sentence, text: doc))
-        let secondText = "Epsilon zeta eta theta."
-        let second = try XCTUnwrap(controller.recordAccepted(range: range(of: secondText, in: doc), original: "Epsilon.",
-                                                             accepted: secondText, text: doc))
+        controller.open(url: nil, text: text)
         var requested: [UUID] = []
         controller.onRequestShowHistory = { requested.append($0) }
+        let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertEqual(requested, [id])
+        XCTAssertTrue(controller.showPassage(id, text: text))
+        XCTAssertEqual(controller.sidebarModel.selectedPassageID, id)
+        XCTAssertTrue(controller.sidebarModel.opensAlternativeField)
+        controller.alternativeFieldDidOpen()
+        XCTAssertFalse(controller.sidebarModel.opensAlternativeField)
+        XCTAssertNil(controller.pendingAlternativeFieldID)
 
-        func startInHistory(on id: UUID) {
-            XCTAssertTrue(controller.showPassage(id, text: doc))
-            controller.aiActionWillStart()
-            XCTAssertFalse(controller.isHistoryModeActive)
-        }
-
-        startInHistory(on: first)
-        controller.aiActionWillStart() // Try Again's re-run: History is off, the context stays
-        controller.aiActionDidEnd(recorded: nil, text: doc)
-        XCTAssertEqual(requested, [first], "the passage selected before")
-        XCTAssertNil(controller.rememberedPassageID, "History comes back; nothing to remember")
-
-        startInHistory(on: first)
-        controller.aiActionDidEnd(recorded: second, text: doc)
-        XCTAssertEqual(requested.last, second, "the recorded passage first")
-
-        startInHistory(on: first)
-        controller.aiActionDidEnd(recorded: UUID(), changedRange: range(of: "zeta", in: doc), text: doc)
-        XCTAssertEqual(requested.last, second, "else the passage containing the change")
-
-        startInHistory(on: first)
-        let before = requested.count
-        controller.aiActionAbandoned()
-        controller.aiActionDidEnd(recorded: nil, text: doc)
-        XCTAssertEqual(requested.count, before, "abandoned: no return")
-
-        // Last: locating in a text without the passages drops them (as any locate does).
-        startInHistory(on: first)
-        controller.aiActionDidEnd(recorded: nil, text: "Nothing of either passage.")
-        XCTAssertEqual(requested.count, before, "nothing locates: History stays off")
+        // Left without opening it: the next entry does not reopen it.
+        let other = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertNotNil(controller.pendingAlternativeFieldID)
+        controller.exitHistoryMode()
+        XCTAssertNil(controller.pendingAlternativeFieldID)
+        _ = other
     }
 
     /// A passage that is not in the text is checked BEFORE History mode starts: nothing is

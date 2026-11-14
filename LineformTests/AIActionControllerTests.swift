@@ -340,46 +340,84 @@ final class AIActionControllerTests: XCTestCase {
     }
 
 
-    /// The accept that gives a document its FIRST History shows it (the editor opens the sidebar
-    /// focused on the passage); later accepts in the same document don't switch the sidebar. A
-    /// document with no History yet is shown again — the rule is per document, not once ever.
-    func testFirstAcceptInADocumentShowsHistory() async throws {
+    /// Editing is not History: an accept never opens History by itself (2026-11-13), not even a
+    /// document's first. Its passage is remembered for the writer's own next History-tab click.
+    func testAcceptNeverOpensHistory() async throws {
         let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
         var requested: [UUID] = []
-        var shownText: () -> String = { "" }
-        // As the editor does: the request shows History on the passage.
-        history.onRequestShowHistory = { id in
-            requested.append(id)
-            history.showPassage(id, text: shownText())
-        }
-        let (controller, surface, _) = make(historyDoc, replace(["big": "large", "stays": "remains"]), history: history)
-        shownText = { surface.string }
-        let sentence = range(of: "The big dog ran far away from home.", in: historyDoc)
+        history.onRequestShowHistory = { requested.append($0) }
+        let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
+        await runToCompletion(controller, .rewrite, range: range(of: "The big dog ran far away from home.", in: historyDoc),
+                              text: historyDoc)
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(requested, [])
+        XCTAssertFalse(history.isHistoryModeActive)
+        XCTAssertTrue(history.hasHistory)
+        let remembered = try XCTUnwrap(history.rememberedPassageID)
+        XCTAssertTrue(history.enterHistoryModeFromTab(text: surface.string))
+        XCTAssertEqual(history.display?.selectedID, remembered)
+    }
 
-        await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
+    /// A selection partly over a passage is widened to take it in, so the request carries the
+    /// whole passage and the accept never straddles (and drops) it.
+    func testPartialOverlapIsWidenedToThePassage() async throws {
+        let text = "Intro.\n\nThe quick brown fox jumps over it.\n\nOutro."
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: text)
+        let word = try XCTUnwrap(history.recordAccepted(range: range(of: "quick brown", in: text), original: "fast brown",
+                                                        accepted: "quick brown", text: text))
+        let (controller, surface, fake) = make(text, replace(["fox": "cat"]), history: history)
+        XCTAssertTrue(controller.isAvailable(for: range(of: "brown fox", in: text), text: text))
+        await runToCompletion(controller, .rewrite, range: range(of: "brown fox", in: text), text: text)
+        XCTAssertEqual(FakeAIClient.segments(in: try XCTUnwrap(fake.prompts.first)), ["quick brown fox"])
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(surface.string, "Intro.\n\nThe quick brown cat jumps over it.\n\nOutro.")
+        let kept = try XCTUnwrap(history.passage(word))
+        XCTAssertEqual(kept.versions.map(\.text), ["fast brown", "quick brown"], "the word passage keeps its versions")
+    }
+
+    /// Changing one word of a line already rewritten: offered, applied, and recorded as a child of
+    /// the line (a word inside a sentence passage); the line keeps its versions.
+    func testWordInsideARewrittenLineNestsUnderIt() async throws {
+        let text = "Intro.\n\nThe quick brown fox jumps over it.\n\nOutro."
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: text)
+        let line = try XCTUnwrap(history.recordAccepted(range: range(of: "The quick brown fox jumps over it.", in: text),
+                                                        original: "The fast brown fox jumps over it.",
+                                                        accepted: "The quick brown fox jumps over it.", text: text))
+        let (controller, surface, _) = make(text, replace(["jumps": "leaps"]), history: history)
+        XCTAssertTrue(controller.isAvailable(for: range(of: "jumps", in: text), text: text))
+        await runToCompletion(controller, .anotherWord, range: range(of: "jumps", in: text), text: text)
+        controller.handle(.acceptCurrent)
+        let word = try XCTUnwrap(history.rememberedPassageID)
+        XCTAssertNotEqual(word, line)
+        let child = try XCTUnwrap(history.passage(word))
+        XCTAssertEqual(child.parentID, line)
+        XCTAssertEqual(child.versions.map(\.text), ["jumps", "leaps"])
+        XCTAssertEqual(try XCTUnwrap(history.passage(line)).versions.count, 2)
+        XCTAssertTrue(surface.string.contains("leaps"))
+    }
+
+    /// Rewriting a sentence that contains a word passage keeps the word's versions, filed under
+    /// the sentence's original version.
+    func testRewritingAroundAPassageKeepsIt() async throws {
+        let text = "Intro.\n\nThe quick brown fox jumps over it.\n\nOutro."
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        history.open(url: nil, text: text)
+        let word = try XCTUnwrap(history.recordAccepted(range: range(of: "quick", in: text), original: "fast",
+                                                        accepted: "quick", text: text))
+        let (controller, surface, _) = make(text, FakeAIClient.revising { _, _ in "A swift fox leaps over it." }, history: history)
+        await runToCompletion(controller, .rewrite, range: range(of: "The quick brown fox jumps over it.", in: text), text: text)
+        _ = try session(controller)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(controller.state, .idle)
-        XCTAssertEqual(requested.count, 1, "the document's first History shows")
-        XCTAssertTrue(history.isHistoryModeActive)
-        XCTAssertEqual(history.display?.selectedID, requested.first)
-        history.exitHistoryMode()
-        XCTAssertTrue(history.hasHistory)
-
-        // The same document already has History: a later accept leaves the sidebar alone.
-        let later = surface.string
-        await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: later), text: later)
-        controller.handle(.acceptCurrent)
-        XCTAssertEqual(requested.count, 1)
-        XCTAssertFalse(history.isHistoryModeActive)
-
-        // Another document with no History: its first accept shows again.
-        let other = "Fresh stays here.\n\nThe big cat sat.\n"
-        history.open(url: nil, text: other)
-        surface.string = other
-        await runToCompletion(controller, .rewrite, range: range(of: "The big cat sat.", in: other), text: other)
-        controller.handle(.acceptCurrent)
-        XCTAssertEqual(requested.count, 2)
+        XCTAssertEqual(surface.string, "Intro.\n\nA swift fox leaps over it.\n\nOutro.")
+        let sentence = try XCTUnwrap(history.rememberedPassageID)
+        let kept = try XCTUnwrap(history.passage(word))
+        XCTAssertEqual(kept.versions.map(\.text), ["fast", "quick"])
+        XCTAssertEqual(kept.parentID, sentence)
+        XCTAssertEqual(kept.parentVersionIndex, 0)
     }
 
     /// Ruling: an accepted change whose selection spans several paragraphs records one passage
@@ -471,13 +509,15 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(surface.string, historyDoc)
     }
 
-    func testNotAvailableInsideWordPassageOrHistoryMode() {
+    /// Before 2026-11-13 a word passage refused AI on itself and inside itself; now only History
+    /// mode refuses it.
+    func testAvailableInsideWordPassageButNotInHistoryMode() {
         let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
         _ = history.handle(.add(range(of: "far", in: historyDoc)), text: historyDoc)
         let (controller, _, _) = make(historyDoc, .reply("{}"), history: history)
-        XCTAssertFalse(controller.isAvailable(for: range(of: "far", in: historyDoc), text: historyDoc))
-        XCTAssertFalse(controller.isAvailable(for: range(of: "a", in: "far").shifted(by: range(of: "far", in: historyDoc).location), text: historyDoc))
+        XCTAssertTrue(controller.isAvailable(for: range(of: "far", in: historyDoc), text: historyDoc))
+        XCTAssertTrue(controller.isAvailable(for: range(of: "a", in: "far").shifted(by: range(of: "far", in: historyDoc).location), text: historyDoc))
         XCTAssertTrue(controller.isAvailable(for: range(of: "Intro stays", in: historyDoc), text: historyDoc))
         XCTAssertTrue(controller.isAvailable(for: range(of: "The big dog ran far away", in: historyDoc), text: historyDoc),
                       "a selection containing the word passage is not inside it")

@@ -373,18 +373,85 @@ final class DocumentHistoryEngineTests: XCTestCase {
         XCTAssertEqual(engine.locateAll(in: text).map(\.rootID), [p, p, p])
     }
 
-    func testInsideWordPassageDetection() throws {
-        let text = "Intro paragraph sits here.\n\nFirst sentence is right here. Second sentence goes brightly here.\n\nOutro."
+    /// An AI action's range grows over any passage the selection only PARTLY covers (so the
+    /// accepted change never straddles one); inside, equal to or containing passages: unchanged.
+    func testAIActionRangeGrowsOverPartlyCoveredPassages() throws {
+        let text = "Intro.\n\nThe quick brown fox jumps over it.\n\nOutro."
         var engine = makeEngine()
-        _ = try XCTUnwrap(engine.add(range(of: "Second sentence goes brightly here.", in: text), author: .you, in: text))
-        let word = range(of: "brightly", in: text)
-        XCTAssertFalse(engine.isInsideWordPassage(word), "a sentence passage is not a word passage")
-        _ = try XCTUnwrap(engine.add(word, author: .you, in: text))
-        XCTAssertTrue(engine.isInsideWordPassage(word))
-        XCTAssertTrue(engine.isInsideWordPassage(NSRange(location: word.location + 2, length: 3)))
-        XCTAssertFalse(engine.isInsideWordPassage(NSRange(location: word.location - 1, length: word.length + 1)),
-                       "a selection reaching outside the word is not inside it")
-        XCTAssertFalse(engine.isInsideWordPassage(range(of: "Intro", in: text)))
+        let words = range(of: "quick brown", in: text)
+        _ = try XCTUnwrap(engine.recordAccepted(range: words, original: "fast brown", accepted: "quick brown", in: text))
+        XCTAssertEqual(engine.aiActionRange(for: words), words, "equal")
+        XCTAssertEqual(engine.aiActionRange(for: range(of: "brown", in: text)), range(of: "brown", in: text), "inside")
+        let sentence = range(of: "The quick brown fox jumps over it.", in: text)
+        XCTAssertEqual(engine.aiActionRange(for: sentence), sentence, "containing")
+        XCTAssertEqual(engine.aiActionRange(for: range(of: "brown fox", in: text)), range(of: "quick brown fox", in: text),
+                       "a partial overlap takes in the whole passage")
+        XCTAssertEqual(engine.aiActionRange(for: range(of: "Outro", in: text)), range(of: "Outro", in: text))
+    }
+
+    /// A change strictly inside a WORD passage (which cannot hold a child) becomes a new version
+    /// of that passage — its whole new text; the version it replaced keeps its author.
+    func testAcceptInsideAWordPassageAddsAVersionOfIt() throws {
+        var text = "Intro.\n\nThe quick brown fox jumps over it.\n\nOutro."
+        var engine = makeEngine()
+        let id = try XCTUnwrap(engine.recordAccepted(range: range(of: "quick brown", in: text), original: "fast brown",
+                                                     accepted: "quick brown", in: text))
+        let brown = range(of: "brown", in: text)
+        engine.beginSettingAside()
+        engine.applyEdit(brown, replacement: "tawny")
+        engine.endSettingAside()
+        text = (text as NSString).replacingCharacters(in: brown, with: "tawny")
+        XCTAssertEqual(engine.recordAccepted(range: range(of: "tawny", in: text), original: "brown", accepted: "tawny", in: text), id)
+        engine.finishSetAside()
+        let passage = try XCTUnwrap(engine.history.passages.first { $0.id == id })
+        XCTAssertEqual(passage.versions.map(\.text), ["fast brown", "quick brown", "quick tawny"])
+        XCTAssertEqual(passage.versions.map(\.author), [.you, .ai, .ai])
+        XCTAssertEqual(passage.currentIndex, 2)
+        XCTAssertEqual(engine.history.passages.count, 1)
+    }
+
+    /// Rewriting a sentence that CONTAINS a word passage keeps the word's history: the edit would
+    /// drop it, so it is set aside and filed under the sentence's original version — stepping the
+    /// sentence back shows it again.
+    func testAcceptCoveringAPassageKeepsItUnderTheOriginalVersion() throws {
+        var text = "Intro.\n\nThe quick brown fox jumps over it.\n\nOutro."
+        var engine = makeEngine()
+        let word = try XCTUnwrap(engine.recordAccepted(range: range(of: "quick", in: text), original: "fast",
+                                                       accepted: "quick", in: text))
+        let oldSentence = "The quick brown fox jumps over it."
+        let newSentence = "A swift fox leaps over it."
+        let sentenceRange = range(of: oldSentence, in: text)
+        engine.beginSettingAside()
+        engine.applyEdit(sentenceRange, replacement: newSentence)
+        engine.endSettingAside()
+        text = (text as NSString).replacingCharacters(in: sentenceRange, with: newSentence)
+        let sentence = try XCTUnwrap(engine.recordAccepted(range: range(of: newSentence, in: text), original: oldSentence,
+                                                           accepted: newSentence, in: text))
+        engine.finishSetAside()
+
+        let kept = try XCTUnwrap(engine.history.passages.first { $0.id == word }, "the word's history survives")
+        XCTAssertEqual(kept.versions.map(\.text), ["fast", "quick"])
+        XCTAssertEqual(kept.parentID, sentence)
+        XCTAssertEqual(kept.parentVersionIndex, 0, "filed under the version its text lives in")
+        XCTAssertFalse(engine.locateAll(in: text).contains { $0.id == word }, "hidden while the rewrite is current")
+
+        let back = try XCTUnwrap(engine.select(sentence, version: 0, in: text))
+        text = (text as NSString).replacingCharacters(in: back.range, with: back.replacement)
+        XCTAssertEqual(engine.locateAll(in: text).first { $0.id == word }?.range, range(of: "quick", in: text))
+    }
+
+    /// A covered passage the recording cannot file (nothing recorded) goes, as before.
+    func testUnfiledSetAsidePassageIsDroppedWhenRecordingFinishes() throws {
+        var engine = makeEngine()
+        let text = "Intro.\n\nThe quick brown fox.\n\nOutro."
+        let word = try XCTUnwrap(engine.recordAccepted(range: range(of: "quick", in: text), original: "fast",
+                                                       accepted: "quick", in: text))
+        engine.beginSettingAside()
+        engine.applyEdit(range(of: "quick brown", in: text), replacement: "slow red")
+        engine.endSettingAside()
+        XCTAssertTrue(engine.history.passages.contains { $0.id == word }, "kept while the accept is recorded")
+        engine.finishSetAside()
+        XCTAssertFalse(engine.history.passages.contains { $0.id == word })
     }
 
     func testRecordAcceptedStoresOriginalAndAIVersion() throws {

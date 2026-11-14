@@ -182,7 +182,11 @@ final class AIActionController: ObservableObject {
         let ns = text as NSString
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: ns.length))
         guard clamped.length > 0 else { return }
-        let selection = ns.rangeOfComposedCharacterSequences(for: clamped)
+        // Grown over any History passage the selection only partly covers: the accepted change
+        // then never straddles (and drops) a passage boundary.
+        let widened = history?.aiActionRange(for: clamped) ?? clamped
+        let selection = ns.rangeOfComposedCharacterSequences(
+            for: NSIntersectionRange(widened, NSRange(location: 0, length: ns.length)))
 
         let request: Request
         let pieces: [String]
@@ -263,7 +267,7 @@ final class AIActionController: ObservableObject {
         history?.aiActionAbandoned()
     }
 
-    /// History is about to open on a passage (Add to History, a document's first accepted change): History
+    /// History is about to open on a passage (Add Alternative…, a return after an AI action): History
     /// and AI never overlap. A request or review ends (keeping what was accepted); Mark's wash is
     /// dismissed. A message is left up — the first-accept show arrives just after a review
     /// ended, and dropping it then would lose a refusal.
@@ -416,7 +420,6 @@ final class AIActionController: ObservableObject {
         guard case .reviewing(var session) = state else { return nil }
         var firstRecorded: UUID?
         var changedRange: NSRange?
-        var introduction: (id: UUID, documentHadHistory: Bool)?
         for change in session.pending { session.reject(change.id) }
         reviewNotice = nil
         reviewProvider = nil
@@ -427,8 +430,6 @@ final class AIActionController: ObservableObject {
             let ns = text as NSString
             let range = session.selectionRange
             if range.location >= 0, NSMaxRange(range) <= ns.length {
-                // Read BEFORE recording: the accept that gives a document its first History shows it.
-                let documentHadHistory = history.hasHistory
                 let accepted = ns.substring(with: range)
                 changedRange = range
                 for passage in Self.acceptedPassages(original: session.originalSelection, accepted: accepted,
@@ -437,17 +438,13 @@ final class AIActionController: ObservableObject {
                                                     accepted: passage.accepted, text: text)
                     if firstRecorded == nil { firstRecorded = id }
                 }
-                // The accept that gives this document its first History shows it, focused on
-                // what it recorded; later accepts in the same document leave the sidebar alone.
-                if let firstRecorded { introduction = (firstRecorded, documentHadHistory) }
             }
         }
+        // Set-aside passages the recording could not file go now (2026-11-13: History never
+        // opens by itself after an accept — the remembered passage waits for the History tab).
+        if session.acceptedAny { history?.aiAcceptRecordingDidFinish() }
         editor?.announceAI(Self.reviewEndedMessage)
         if settlingHistory { settleHistory(recorded: firstRecorded, changedRange: changedRange) }
-        // After settling: a show on its own target spends any passage just remembered.
-        if let introduction {
-            history?.introduceAfterAIAccept(introduction.id, documentHadHistory: introduction.documentHadHistory)
-        }
         return session
     }
 
@@ -520,7 +517,13 @@ final class AIActionController: ObservableObject {
             reviewNotice = Self.structureRefusedMessage
             return true
         }
-        guard editor.applyAIEdits(edits, actionName: Self.acceptOneActionName) else { return false }
+        history?.aiAcceptWillApply()
+        let applied = editor.applyAIEdits(edits, actionName: Self.acceptOneActionName)
+        history?.aiAcceptDidApply()
+        guard applied else {
+            history?.aiAcceptRecordingDidFinish()
+            return false
+        }
         session = candidate
         return true
     }

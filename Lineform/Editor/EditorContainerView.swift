@@ -2636,6 +2636,7 @@ struct EditorContainerView: View {
     /// The sidebar's replacement field opened: until it closes, keys that reach the text view
     /// type nothing and leave nothing — they ask the field for focus (Esc closes it).
     private func historyReplacementFieldBegan() {
+        historyController.alternativeFieldDidOpen()
         guard let textView = historyController.editor as? LineformTextView else { return }
         textView.historyReplacementFieldIsOpen = true
         textView.historyReplacementFieldHandler = { request in

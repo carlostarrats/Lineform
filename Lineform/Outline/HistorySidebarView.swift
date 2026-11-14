@@ -9,6 +9,8 @@ struct HistorySidebarModel: Equatable {
     /// The passage the versions belong to. The replacement field is opened for ONE passage and
     /// closes when this changes (`HistoryReplacementFieldState.selectionChanged`).
     var selectedPassageID: UUID?
+    /// Add Alternative… from the editor: open the alternative field for this passage at once.
+    var opensAlternativeField: Bool = false
 }
 
 /// The sidebar's replacement field: open for exactly one passage. The level buttons take no
@@ -258,6 +260,10 @@ struct HistorySidebarView: View {
         .onChange(of: model.selectedPassageID) { _, id in
             if replacementField.selectionChanged(to: id) { onReplacementFieldEnded() }
         }
+        // Add Alternative…: History opened on the passage with its field already asked for —
+        // whether this view already existed (onChange) or was just built for it (onAppear).
+        .onAppear(perform: openAlternativeFieldIfRequested)
+        .onChange(of: model.opensAlternativeField) { _, _ in openAlternativeFieldIfRequested() }
         // Torn down while open (sidebar hidden, History still on): the editor must get its keys
         // back, or `historyReplacementFieldIsOpen` stays set and every key is refused.
         .onDisappear(perform: closeReplacementField)
@@ -351,6 +357,11 @@ struct HistorySidebarView: View {
                 HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
             }
         }
+    }
+
+    private func openAlternativeFieldIfRequested() {
+        guard model.opensAlternativeField, model.hasSelection, !replacementField.isOpen else { return }
+        if replacementField.open(for: model.selectedPassageID) { onReplacementFieldBegan() }
     }
 
     private func commitReplacement() {
