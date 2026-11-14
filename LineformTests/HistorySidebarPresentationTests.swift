@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import Lineform
 
 final class HistorySidebarPresentationTests: XCTestCase {
@@ -59,13 +60,52 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertTrue(source.contains(".contextMenu {\n            rowActionButtons()"))
     }
 
-    // MARK: - Exit, Add Replacement, hint (QA 1.8 follow-ups)
+    // MARK: - Exit, Add Alternative, hint (QA 1.8 follow-ups)
 
-    func testExitAndReplacementStrings() {
+    func testExitAndAlternativeStrings() {
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, "Exit")
-        XCTAssertEqual(HistorySidebarPresentation.addReplacementTitle, "Add Replacement")
+        XCTAssertEqual(HistorySidebarPresentation.addAlternativeTitle, "Add Alternative")
+        XCTAssertEqual(HistorySidebarPresentation.addAlternativeCommitLabel, "Add")
         XCTAssertEqual(HistorySidebarPresentation.replacementPlaceholder, "Type a replacement")
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, String(localized: "Exit"))
+        XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addAlternativeCommitSymbol,
+                                accessibilityDescription: nil))
+        // The typed text stops 6–8pt before the return button.
+        XCTAssertTrue((6...8).contains(HistorySidebarPresentation.commitButtonGap))
+    }
+
+    func testAlternativeStringsAreLocalized() throws {
+        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+            let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
+            for key in ["Add Alternative", "Add"] {
+                XCTAssertNotEqual(bundle.localizedString(forKey: key, value: nil, table: nil), key, "\(language): \(key)")
+            }
+        }
+    }
+
+    /// The field's return button is enabled only for text that would add something.
+    func testReturnButtonNeedsText() {
+        var field = HistoryReplacementFieldState()
+        XCTAssertFalse(field.canCommit, "closed")
+        XCTAssertTrue(field.open(for: UUID()))
+        XCTAssertFalse(field.canCommit, "empty")
+        field.draft = "  \n\t "
+        XCTAssertFalse(field.canCommit, "whitespace")
+        field.draft = " gentle "
+        XCTAssertTrue(field.canCommit)
+        _ = field.close()
+        XCTAssertFalse(field.canCommit)
+    }
+
+    /// Exit rides the History row of the tab picker, and only while History is on screen — the
+    /// History content draws no header, so "History" appears once.
+    func testExitSitsOnTheHistoryTabRowOnlyWhileHistoryIsShown() {
+        for tab in OutlineSidebarTab.allCases {
+            for effective in OutlineSidebarTab.allCases {
+                XCTAssertEqual(OutlineSidebarTab.showsHistoryExit(on: tab, effectiveTab: effective),
+                               tab == .history && effective == .history, "\(tab) \(effective)")
+            }
+        }
     }
 
     /// The hint sits on the empty-state text's 14pt inset (left-aligned, not centred).
@@ -89,7 +129,7 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(OutlineSidebarTab.historyModeTransition(isActive: false, selected: .history, previous: nil).selected, .outline)
     }
 
-    /// One capsule for Files' Change/Choose and History's Exit/Add Replacement: the colours are
+    /// One capsule for Files' Change/Choose and History's Exit/Add Alternative: the colours are
     /// the Files values, unchanged.
     @MainActor
     func testSidebarCapsuleColoursAreTheFilesValues() {

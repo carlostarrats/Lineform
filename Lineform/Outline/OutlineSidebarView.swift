@@ -54,6 +54,12 @@ enum OutlineSidebarTab: String, CaseIterable, Identifiable {
         return (tabAfterHistoryDisappears(selected: selected, previous: previous), nil)
     }
 
+    /// History's Exit capsule sits on the History row of the tab picker, and only while History
+    /// is the tab on screen.
+    static func showsHistoryExit(on tab: OutlineSidebarTab, effectiveTab: OutlineSidebarTab) -> Bool {
+        tab == .history && effectiveTab == .history
+    }
+
     static func visibleTabs(hasHistory: Bool) -> [OutlineSidebarTab] {
         hasHistory ? allCases : allCases.filter { $0 != .history }
     }
@@ -396,7 +402,7 @@ struct OutlineSidebarView: View {
     var onSelectHistoryLevel: (HistoryLevel) -> Void = { _ in }
     var onSelectHistoryVersion: (Int) -> Void = { _ in }
     var onDeleteHistoryVersion: (Int) -> Void = { _ in }
-    /// History's Exit capsule and its Add Replacement field (Return commits the typed text).
+    /// History's Exit (on the History tab row) and its Add Alternative field (Return commits the typed text).
     var onExitHistory: () -> Void = {}
     var onAddHistoryReplacement: (String, UUID) -> Void = { _, _ in }
     /// The replacement field closed (committed or cancelled): the editor takes the keys back.
@@ -542,7 +548,6 @@ struct OutlineSidebarView: View {
                 onSelectLevel: onSelectHistoryLevel,
                 onSelectVersion: onSelectHistoryVersion,
                 onDeleteVersion: onDeleteHistoryVersion,
-                onExit: onExitHistory,
                 onAddReplacement: onAddHistoryReplacement,
                 onReplacementFieldEnded: onHistoryReplacementFieldEnded,
                 onReplacementFieldBegan: onHistoryReplacementFieldBegan,
@@ -671,6 +676,15 @@ struct OutlineSidebarView: View {
                             if selectedTab != .history { tabBeforeHistory = nil }
                         }
                     )
+                    // Exit rides the History row itself (trailing edge) while History is the tab
+                    // on screen — History's content draws no header of its own, so the word
+                    // "History" appears once. An overlay, so the row keeps its geometry.
+                    .overlay(alignment: .trailing) {
+                        if OutlineSidebarTab.showsHistoryExit(on: tab, effectiveTab: effectiveTab) {
+                            Button(HistorySidebarPresentation.exitTitle, action: onExitHistory)
+                                .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
+                        }
+                    }
                 }
             }
             .padding(.bottom, Self.tabDividerGap)

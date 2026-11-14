@@ -22,6 +22,11 @@ struct HistoryReplacementFieldState: Equatable {
 
     var isOpen: Bool { passageID != nil }
 
+    /// The field's return button is enabled only for text that would add something.
+    var canCommit: Bool {
+        isOpen && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// False (and stays closed) when no passage is selected.
     mutating func open(for id: UUID?) -> Bool {
         guard let id else { return false }
@@ -103,7 +108,14 @@ enum HistorySidebarPresentation {
     static let hintText = String(localized: "Click to select · ← → switch version · Esc closes")
     static let deleteVersionTitle = String(localized: "Delete from History")
     static let exitTitle = String(localized: "Exit")
-    static let addReplacementTitle = String(localized: "Add Replacement")
+    static let addAlternativeTitle = String(localized: "Add Alternative")
+    /// The field's trailing return button (does what Return does).
+    static let addAlternativeCommitLabel = String(localized: "Add")
+    static let addAlternativeCommitSymbol = "arrow.turn.down.left"
+    /// The return button's diameter, and the gap the typed text keeps before it (the field scrolls
+    /// horizontally rather than running under the button).
+    static let commitButtonDiameter: CGFloat = 20
+    static let commitButtonGap: CGFloat = 7
     static let replacementPlaceholder = String(localized: "Type a replacement")
     /// The leading inset every line of History prose sits on: the empty-state text and the hint.
     static let textInset: CGFloat = 14
@@ -157,7 +169,6 @@ struct HistorySidebarView: View {
     var onSelectLevel: (HistoryLevel) -> Void
     var onSelectVersion: (Int) -> Void
     var onDeleteVersion: (Int) -> Void
-    var onExit: () -> Void = {}
     /// Return in the replacement field: the typed text and the passage the field was opened for
     /// (the controller refuses it when that is no longer the selection, trims it, and ignores an
     /// empty or unchanged one).
@@ -175,8 +186,8 @@ struct HistorySidebarView: View {
     @FocusState private var replacementFieldFocused: Bool
 
     var body: some View {
+        // No header: the tab picker's History row above carries the title and the Exit capsule.
         VStack(spacing: 0) {
-            header
             if model.hasSelection {
                 if HistorySidebarPresentation.showsLevelSwitcher(model.levels) {
                     levelSwitcher
@@ -198,7 +209,8 @@ struct HistorySidebarView: View {
                         replacementControl
                     }
                     .padding(.horizontal, HistorySidebarPresentation.rowLayout.containerPadding)
-                    .padding(.top, 8)
+                    // Straight under the tab divider when there is no level switcher above.
+                    .padding(.top, HistorySidebarPresentation.showsLevelSwitcher(model.levels) ? 8 : 12)
                     .padding(.bottom, 8)
                 }
             } else {
@@ -207,7 +219,8 @@ struct HistorySidebarView: View {
                     .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, HistorySidebarPresentation.textInset)
-                    .padding(.top, 6)
+                    // The Outline tab's gap under the divider.
+                    .padding(.top, OutlineSidebarView.tabDividerGap)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer(minLength: 0)
             }
@@ -237,42 +250,32 @@ struct HistorySidebarView: View {
         .onChange(of: replacementFieldSignal.cancel) { _, _ in closeReplacementField() }
     }
 
-    /// "History" with Exit on the right — the Files root row's geometry: 28pt tall, the capsule
-    /// 12pt in from the sidebar edge (6 content padding + 6 row trailing).
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text(OutlineSidebarTab.history.title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-                .lineLimit(1)
-                .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 0)
-            Button(HistorySidebarPresentation.exitTitle, action: onExit)
-                .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
-        }
-        .padding(.leading, HistorySidebarPresentation.textInset)
-        .padding(.trailing, OutlineSidebarView.filesContentHorizontalPadding + 6)
-        .frame(maxWidth: .infinity, minHeight: OutlineSidebarView.filesRootRowHeight,
-               maxHeight: OutlineSidebarView.filesRootRowHeight)
-        .padding(.top, 8)
-    }
-
-    /// Below the versions: the Add Replacement capsule, or — once clicked — the field it opens.
+    /// Below the versions: the Add Alternative capsule, or — once clicked — the field it opens.
     /// While the field has focus it owns the keys (arrows edit the text, Esc closes the field and
     /// leaves History on); Return adds the text as the passage's new current version.
     @ViewBuilder
     private var replacementControl: some View {
         if replacementField.isOpen {
-            TextField(
-                HistorySidebarPresentation.replacementPlaceholder,
-                text: $replacementField.draft,
-                prompt: Text(HistorySidebarPresentation.replacementPlaceholder)
-                    .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-            )
-            .textFieldStyle(.plain)
-            .font(.system(size: 13))
-            .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
-            .padding(.horizontal, 10)
+            HStack(spacing: HistorySidebarPresentation.commitButtonGap) {
+                TextField(
+                    HistorySidebarPresentation.replacementPlaceholder,
+                    text: $replacementField.draft,
+                    prompt: Text(HistorySidebarPresentation.replacementPlaceholder)
+                        .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome))
+                .focused($replacementFieldFocused)
+                .onSubmit(commitReplacement)
+                .onExitCommand(perform: closeReplacementField)
+                .frame(maxWidth: .infinity)
+                HistoryCommitButton(isEnabled: replacementField.canCommit,
+                                    usesDarkChrome: usesDarkChrome,
+                                    action: commitReplacement)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 4)
             .frame(height: 28)
             .background {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -284,9 +287,6 @@ struct HistorySidebarView: View {
                                   lineWidth: 1)
             }
             .padding(.horizontal, HistorySidebarPresentation.rowLayout.backgroundInset)
-            .focused($replacementFieldFocused)
-            .onSubmit(commitReplacement)
-            .onExitCommand(perform: closeReplacementField)
             .onChange(of: replacementFieldFocused) { _, focused in
                 // Clicking away (into the text, another passage) closes the field unsaved.
                 if !focused, replacementField.isOpen { closeReplacementField() }
@@ -295,7 +295,7 @@ struct HistorySidebarView: View {
                 HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
             }
         } else {
-            Button(HistorySidebarPresentation.addReplacementTitle) {
+            Button(HistorySidebarPresentation.addAlternativeTitle) {
                 if replacementField.open(for: model.selectedPassageID) { onReplacementFieldBegan() }
             }
             .buttonStyle(SidebarCapsuleButtonStyle(usesDarkChrome: usesDarkChrome, emphasis: .quiet))
@@ -325,7 +325,35 @@ struct HistorySidebarView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 10)
+        .padding(.top, 12)
+    }
+}
+
+/// The replacement field's trailing return button: a small circle with a return arrow that does
+/// what Return does. It takes no focus (clicking it must not blur the field first, which would
+/// close it unsaved), and it is disabled while the field is empty or whitespace.
+private struct HistoryCommitButton: View {
+    var isEnabled: Bool
+    var usesDarkChrome: Bool
+    var action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        let diameter = HistorySidebarPresentation.commitButtonDiameter
+        let ink = OutlineSidebarView.primaryTextColor(usesDarkChrome: usesDarkChrome)
+        Button(action: action) {
+            Image(systemName: HistorySidebarPresentation.addAlternativeCommitSymbol)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(ink.opacity(isEnabled ? 0.85 : 0.35))
+                .frame(width: diameter, height: diameter)
+                .background(Circle().fill(ink.opacity(isEnabled ? (isHovered ? 0.16 : 0.10) : 0.05)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .disabled(!isEnabled)
+        .onHover { isHovered = $0 }
+        .accessibilityLabel(HistorySidebarPresentation.addAlternativeCommitLabel)
     }
 }
 
