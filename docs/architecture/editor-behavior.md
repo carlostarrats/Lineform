@@ -715,10 +715,17 @@ shows passages with history and steps their versions. Spec:
   History row of the sidebar's TAB PICKER, shown only while History is the tab on screen
   (`OutlineSidebarTab.showsHistoryExit`, an overlay so the row keeps its geometry). History's
   content draws no header of its own (2026-11-13: the owner disliked "History" appearing twice);
-  it starts under the tab divider with the Outline tab's gap. Below
-  the versions, a centred **Add Alternative** capsule (renamed from "Add Replacement",
-  2026-11-13) swaps for a text field opened for ONE passage
-  (`HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`). The field
+  it starts under the tab divider with the Outline tab's gap. While a passage is selected, the
+  first row under the divider is a quiet section row (2026-11-13, replacing the centred
+  "Add Alternative" capsule): "Versions of selected text" on the left (11pt, the secondary text
+  colour, on the empty state's 14pt inset) and a borderless **Add +** on the right (AX label
+  "Add Alternative"). Its ink (`HistorySidebarPresentation.addButtonWhite`) is deliberately quieter
+  than the Exit capsule's label — lighter in light chrome, darker in dark — and hover brightens it;
+  `HistorySidebarPresentationTests` pins both that and ≥ 3:1 against the sidebar background
+  (`Theme.contrastRatio`). The empty state has no such row. Add opens a text field at the END of
+  the versions list (where the capsule was), for ONE passage
+  (the row's Add, pressed while the field is open, just refocuses it;
+  `HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`). The field
   carries a small circular return button at its trailing edge (`arrow.turn.down.left`, AX label
   "Add") that does exactly what Return does, disabled while the field is empty or whitespace
   (`canCommit`); it is `.focusable(false)`, so clicking it does not blur the field first (which
@@ -746,8 +753,8 @@ shows passages with history and steps their versions. Spec:
   closes the field. History's own edits pass (`isApplyingHistoryEdit`); ending History clears it.
   Because the refusal sits in `shouldChangeText`, it covers every whole-text command too: while the
   field is open, formatting commands, heading keys, list toggles, Insert/Reformat Table and Find &
-  Replace change nothing, and History stays on. Both
-  capsules and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
+  Replace change nothing, and History stays on. Exit
+  and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
   the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
   inset (`HistorySidebarPresentation.textInset`).
 - **A document's first AI accept shows History.** `AIActionController.endReview` reads
@@ -1143,8 +1150,17 @@ the app's one `AIConnectionStore.shared`).
   `AIStatusCard`: a running request (spinner in the default-app card's 26pt icon slot, "Rewriting
   with ChatGPT…", "Esc to cancel", ✕ cancels), a message (steps aside after 8 s) or Mark's count
   ("Esc clears marks"). `AIReviewCard`: "Rewrite ready" / "Trim ready" / "Cut ready" / "Proofread
-  ready", "Return to accept · Esc to reject", Reject (bordered) + Accept (prominent); Reject and ✕
-  send `.end`. Both HUG their content up to `AnnouncementCard.maximumWidth` through `AICardWidthCap`
+  ready" / "Word ready", "Return to accept · Esc to reject", then Try Again (a small bordered icon
+  button, `arrow.clockwise`, label and tooltip "Try Again"), Reject (bordered) + Accept
+  (prominent); Reject and ✕ send `.end`. **Try Again** (2026-11-13) sends `.retry`: only while
+  nothing is accepted, the controller ends the review (a reject — nothing was ever applied, so the
+  original is untouched) and runs the SAME action on the session's `selectionRange` again,
+  showing the normal progress card and then a new review. The retry's system prompt gains one
+  last line, `Give a different result than: {"segments":[…]}`, holding the reply segments of the
+  suggestion just discarded (`AIActionPrompt.editPrompt(_:segments:avoiding:)`; the user message is
+  unchanged, and the list is dropped if it no longer lines up with the segments). A retry that
+  comes back identical to the ORIGINAL gets the usual "returned the same text" message. No key
+  shortcut. Both HUG their content up to `AnnouncementCard.maximumWidth` through `AICardWidthCap`
   — `.frame(maxWidth:)` grows to the cap whenever the overlay offers more, which was the old review
   card's dead space. Checked offscreen (NSHostingView + cacheDisplay) in Light and Quiet-dark next
   to the default-app card, at 720pt and the 220pt minimum content width. While an AI card is up the
