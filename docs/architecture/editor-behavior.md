@@ -943,8 +943,9 @@ shows passages with history and steps their versions. Spec:
   faint". `HistoryPaletteTests` asserts every floor on every built-in theme (Quiet is Automatic
   Dark Mode's page), and `testOtherPassagesKeepAFillWhileOneIsFocused` renders the view and
   measures the drawn fill. All inks are temporary layout-manager attributes.
-- **Cursor.** In History mode the pointer is the pointing hand over any passage a click would
-  select (`historyCursor(at:)`, the same glyph hit-test as the click and hover) and the I-beam
+- **Cursor.** In History mode the pointer is the ARROW over any passage a click would
+  select (never the pointing hand: the owner wants only the arrow and the I-beam; the hover
+  highlight is what says a passage is clickable) (`historyCursor(at:)`, the same glyph hit-test as the click and hover) and the I-beam
   elsewhere. The History tracking area carries `.cursorUpdate`; `mouseMoved` sets the cursor AFTER
   `super` (which sets the I-beam) and `cursorUpdate` returns before `super` while History mode is
   on. Cursor rects are invalidated on entry and exit so leaving hands the I-beam back.

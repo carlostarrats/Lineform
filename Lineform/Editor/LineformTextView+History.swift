@@ -665,13 +665,15 @@ extension LineformTextView {
         return characterIndex < length ? characterIndex : nil
     }
 
-    /// The pointing hand over a passage History mode would select on click (`point` in view
-    /// coordinates); the I-beam everywhere else, and always outside History mode.
+    /// The arrow over a passage History mode would select on click (`point` in view coordinates);
+    /// the I-beam everywhere else, and always outside History mode. The owner wants only the two
+    /// system cursors here — no pointing hand: the passage's hover highlight already says it is
+    /// clickable.
     func historyCursor(at point: NSPoint) -> NSCursor {
         guard let display = historyDisplayStorage,
               let index = historyCharacterIndex(atViewPoint: point),
               display.innermostPassage(containing: index) != nil else { return .iBeam }
-        return .pointingHand
+        return .arrow
     }
 
     /// Sets History mode's cursor for `event`. Returns false outside History mode, leaving the

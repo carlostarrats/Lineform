@@ -552,7 +552,7 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(ratio, 1.15, "the other passage must stay visibly highlighted, was \(ratio)")
     }
 
-    func testHistoryCursorIsPointingHandOverPassagesOnly() throws {
+    func testHistoryCursorIsArrowOverPassagesOnly() throws {
         let textView = try laidOutTextView(sample)
         let overPassage = try point(over: 7, in: textView)
         let overUnchanged = try point(over: 12, in: textView)
@@ -560,12 +560,12 @@ final class LineformTextViewHistoryTests: XCTestCase {
 
         let changed = passage(NSRange(location: 6, length: 4))
         textView.historyDisplay = display([changed])
-        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.pointingHand)
+        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.arrow)
         XCTAssertTrue(textView.historyCursor(at: overUnchanged) === NSCursor.iBeam)
         XCTAssertTrue(textView.historyCursor(at: NSPoint(x: 690, y: 390)) === NSCursor.iBeam, "empty space")
 
         textView.historyDisplay = display([changed], selected: changed.id)
-        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.pointingHand, "focused too")
+        XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.arrow, "focused too")
 
         textView.historyDisplay = nil
         XCTAssertTrue(textView.historyCursor(at: overPassage) === NSCursor.iBeam)
