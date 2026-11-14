@@ -714,6 +714,15 @@ shows passages with history and steps their versions. Spec:
   hook. View ▸ History uses the
   same helper (it used to write the binding). The sidebar follows `isHistoryModeActive` onto its
   History tab and back to the tab it came from (`OutlineSidebarTab.historyModeTransition`).
+- **One left edge and one right margin (2026-11-13).** Row icons sit on the icon column,
+  `sidebarIconColumnLeading` 22 — the tab icons' 18pt frames (14 + 8), the Files rows' (6 + 12 + 4)
+  and now History's version rows (6 + 0 + 12 + 4; they were at 26). Lead and secondary text —
+  History's lead line, empty text and hint, Files' sort row, Markdown Basics' headings — start on
+  `sidebarLeadTextLeading` (= 22; History's text was at 14, Basics' headings at 24). Trailing
+  controls and row backgrounds end `sidebarTrailingInset` 12 from the edge: Exit (pulled 2pt past
+  the picker's 14pt inset), the Files Choose/Change capsule, row backgrounds, History's prose, and
+  Add +'s glyph (its hover pill reaches 6pt past). Pinned by
+  `HistorySidebarPresentationTests.testEveryTabSharesOneLeftEdgeAndRightMargin`.
 - **Shared lead-line spacing (2026-11-13).** Every sidebar tab puts its lead line
   `OutlineSidebarView.sidebarLeadLineTop` (20pt) under the tab divider and its first row or card
   `sidebarLeadToFirstRow` (12pt) under that — the Files tab's existing geometry (16pt padding + the
@@ -829,6 +838,28 @@ shows passages with history and steps their versions. Spec:
     passage does.
   - Kept refusals: the structure guard's (Markdown structure, line endings, control characters)
     are unchanged; History mode still refuses AI.
+- **Layered boxes and the overview (2026-11-13).** Every visible passage draws as a rounded box
+  (`HistoryPalette.layerCornerRadius` 3, the mockup's) in depth order
+  (`HistoryModeDisplay.layerDepths`: one more than the passages around it; a twin range's finer
+  level is inside), each depth one more layer (`layerFills`), all fills opaque composites:
+  - overview: `washFill(depth)` — 0.08, then `nestedTintAlpha` 0.05 per extra layer (three full
+    0.08 washes sit right at AA on Quiet, leaving no room for hover); hover `hoverFill(depth)` =
+    the passage's own wash + 0.07, so hover brightens just that box and its children still draw
+    over it;
+  - a passage selected (QA: the layering vanished here — every other passage was ONE flat
+    `focusOtherTint`): the selected passage is accent blue (`selectedFill`, 0.20 light / 0.30
+    dark); passages inside it add ink layers over the blue (`selectedChildFill`, 0.07 per
+    depth); every other passage, its parents included, `focusOtherFill(depth)` (0.10 stacked)
+    under `focusOtherInk(depth)`, measured on that depth's fill (applied outer first, so the
+    inner ink wins).
+  `HistoryPaletteTests.testLayeredFillsStayDistinctAndReadable` pins every theme: each depth
+  (1–3) darker than the one around it, full ink AA on wash/hover/selected/selected+nested (to
+  depth 2), focus-other ink ≥ 3:1 per depth.
+  **Back to the overview:** a click on ordinary text, or Esc, while a passage is selected sends
+  `.deselect` (History stays on, nothing selected, the sidebar shows its empty-state text); Esc
+  with nothing selected leaves History as before, and with the alternative field open Esc only
+  closes the field. The sidebar hint follows: "… · Esc deselects" while a passage is selected,
+  "… · Esc closes" otherwise.
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the
@@ -1071,7 +1102,9 @@ action does to the document. The two sections after it cover the text-view and o
   meaning, same part of speech, matching its capitalization. Never return the same word."; progress
   "Finding another word with <provider>…", review card "Word ready", the same one-change review.
 - **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
-  `HistoryPalette.tint`; the reply's 1-based sentence numbers are bounded before any `Int`
+  `HistoryPalette.markWash` (2026-11-13: an OPAQUE ink wash, 0.12 light / 0.20 dark — the
+  translucent History tint it used was barely visible on a dark page; `HistoryPaletteTests` pins it
+  further off the page than the History tint, ≥ 1.2:1, with the text AA); the reply's 1-based sentence numbers are bounded before any `Int`
   conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
 - **Messages use one/many, not a stringsdict.** "1 sentence marked" / "%lld sentences marked"
   are two catalog keys chosen by `count == 1`. ("1 change suggested" is now a fixed message: one
@@ -1169,7 +1202,12 @@ the app's one `AIConnectionStore.shared`).
   map it through the composition's `insertions` (separators, line breaks and replacements — text the
   document lacks — map to the document index they stand at, the end of the struck original); `originY(in:showing:offset:)` puts that
   character's line at the top. On make it is applied now and again on the next turn (once SwiftUI has
-  sized the scroll view); dismantle returns first responder to the editor.
+  sized the scroll view); dismantle returns first responder to the editor. **The offset may be
+  NEGATIVE** (2026-11-13): at rest at the top of a document the visible top is in the
+  `textContainerInset`, above the first line; `topAnchor` clamped that to 0, so the overlay opened
+  one inset (~28pt) lower and the whole document jumped up when a review started (and back when it
+  ended). `LineformTextViewAITests.testReviewScrollHandOverKeepsTheTopInset` round-trips visible tops
+  0, 10, 28 and 120 through `topAnchor`/`originY` on a windowless scroll view.
 - **Review styling is temporary attributes only.** `MarkdownSyntaxHighlighter.highlight` resets every
   storage attribute over its range, so nothing review-specific lives in the storage: strike, dimming
   and highlight are all layout-manager temporary attributes, cleared and re-added on every present.
