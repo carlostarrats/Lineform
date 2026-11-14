@@ -717,12 +717,20 @@ shows passages with history and steps their versions. Spec:
   content draws no header of its own (2026-11-13: the owner disliked "History" appearing twice);
   it starts under the tab divider with the Outline tab's gap. While a passage is selected, the
   first row under the divider is a quiet section row (2026-11-13, replacing the centred
-  "Add Alternative" capsule): "Versions of selected text" on the left (11pt, the secondary text
-  colour, on the empty state's 14pt inset) and a borderless **Add +** on the right (AX label
-  "Add Alternative"). Its ink (`HistorySidebarPresentation.addButtonWhite`) is deliberately quieter
-  than the Exit capsule's label — lighter in light chrome, darker in dark — and hover brightens it;
-  `HistorySidebarPresentationTests` pins both that and ≥ 3:1 against the sidebar background
-  (`Theme.contrastRatio`). The empty state has no such row. Add opens a text field at the END of
+  "Add Alternative" capsule): "Versions of selected text" with a borderless **Add +** on the same
+  line (AX label "Add Alternative"). **Nothing moves when a passage is selected:** the empty
+  state's "Click a highlighted passage…" and this label are the same view
+  (`leadLine(leadText(…))`: `leadTextFontSize` 12pt, the secondary text colour, the 14pt
+  `textInset`, `leadTextTopInset` = the tab divider gap), so selecting a passage swaps the text
+  in place; Add is an OVERLAY on the label, vertically centred on it, so it cannot move the line
+  (its pill's 6pt padding puts the glyph on the Exit capsule's trailing edge). Add's ink
+  (`HistorySidebarPresentation.addButtonWhite`) is deliberately quieter than the Exit capsule's
+  label — lighter in light chrome, darker in dark — and hover brightens it and draws a faint
+  capsule behind "Add +" (`addButtonHoverFillOpacity`: white 0.10 on dark, black 0.05 on light —
+  0.07 measured closer to Exit's solid capsule than the sidebar, so it was lowered).
+  `HistorySidebarPresentationTests` pins all of it: quieter than Exit, ≥ 3:1 on the sidebar and
+  on the hover pill (`Theme.contrastRatio`), the shared lead-line constants. The empty state has
+  no Add. The field's placeholder is "Type an alternative". Add opens a text field at the END of
   the versions list (where the capsule was), for ONE passage
   (the row's Add, pressed while the field is open, just refocuses it;
   `HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`). The field
@@ -757,6 +765,27 @@ shows passages with history and steps their versions. Spec:
   and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
   the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
   inset (`HistorySidebarPresentation.textInset`).
+- **History around an AI action (2026-11-13).** `AIActionController.run` calls
+  `DocumentHistoryController.aiActionWillStart()`; every end of the action — accept, reject,
+  Esc / ✕, cancel, a message (same text, nothing to change), an error, a skipped edit — calls
+  `aiActionDidEnd(recorded:changedRange:text:)` once (`settleHistory`).
+  - History mode ON when the action started: the selected passage is kept and History mode ends
+    (they never overlap). At the end History comes back through `onRequestShowHistory` (the
+    editor's deferred `showHistory(focusing:)`) on the passage the accept recorded, else the one
+    containing the changed range, else the one selected before — the first that locates; none →
+    History stays off. **Caveat:** AI is not offered in History mode today (`allowsAIAction`, and
+    History mode never holds a text selection), so this path is reachable only if that changes;
+    it is tested at the controller level.
+  - History mode OFF: an accept's recorded passage becomes `rememberedPassageID`; the next PLAIN
+    entry (`enterHistoryModeFromTab`: the History tab, View ▸ History) selects it if it locates,
+    instead of the empty state. Spent when used; cleared by `open`/`close` (a document swap) and by
+    any entry with an explicit target (`showPassage`: Add to History, a first-accept show). A
+    reject remembers nothing.
+  - Not settled (`aiActionAbandoned`): Try Again keeps the context for the re-run
+    (`endReview(settlingHistory: false)`); typing during a review, live reload / `abandon`,
+    `yieldToHistory` (History opening on its own target), and Mark's marks (History would dismiss
+    them) drop it. Without an editor nothing is located — `locateAll` drops passages it cannot
+    find, so it must only ever see the real text.
 - **A document's first AI accept shows History.** `AIActionController.endReview` reads
   `history.hasHistory` BEFORE recording, then hands the first passage it recorded to
   `introduceAfterAIAccept(_:documentHadHistory:)`. When the document had no History before that
