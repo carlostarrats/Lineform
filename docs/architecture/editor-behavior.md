@@ -711,9 +711,19 @@ shows passages with history and steps their versions. Spec:
   hook. View ▸ History uses the
   same helper (it used to write the binding). The sidebar follows `isHistoryModeActive` onto its
   History tab and back to the tab it came from (`OutlineSidebarTab.historyModeTransition`).
-- **Sidebar controls.** A "History" header row carries **Exit** (calls `exitHistoryMode()`); below
-  the versions, a centred **Add Replacement** capsule swaps for a text field opened for ONE passage
-  (`HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`): Return calls
+- **Sidebar controls.** **Exit** (calls `exitHistoryMode()`) sits at the trailing edge of the
+  History row of the sidebar's TAB PICKER, shown only while History is the tab on screen
+  (`OutlineSidebarTab.showsHistoryExit`, an overlay so the row keeps its geometry). History's
+  content draws no header of its own (2026-11-13: the owner disliked "History" appearing twice);
+  it starts under the tab divider with the Outline tab's gap. Below
+  the versions, a centred **Add Alternative** capsule (renamed from "Add Replacement",
+  2026-11-13) swaps for a text field opened for ONE passage
+  (`HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`). The field
+  carries a small circular return button at its trailing edge (`arrow.turn.down.left`, AX label
+  "Add") that does exactly what Return does, disabled while the field is empty or whitespace
+  (`canCommit`); it is `.focusable(false)`, so clicking it does not blur the field first (which
+  would close it unsaved). The typed text stops `commitButtonGap` (7pt) before it and scrolls
+  horizontally. Return (or the button) calls
   `addReplacement(_:for:)` with that passage, which the controller REFUSES when the selection has
   moved since. The field also closes when the selected passage id changes — the level buttons
   (Paragraph · Sentence · Word) take no focus from it, so without that a sentence-sized replacement
@@ -740,13 +750,14 @@ shows passages with history and steps their versions. Spec:
   capsules and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
   the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
   inset (`HistorySidebarPresentation.textInset`).
-- **First AI accept introduces History, once ever.** `AIActionController.endReview` hands the first
-  passage it recorded to `introduceAfterAIAccept(_:)`. When `Lineform.history.didIntroduceAfterAI`
-  is unset and someone is subscribed, it records the id as `pendingIntroID` and fires
-  `onRequestShowHistory`. The flag is spent only when `showPassage` then SUCCEEDS for that id (the
-  editor's handler runs a turn later) — with no subscriber, or a show that fails, the intro is still
-  owed. The AI test suites (no editor) never consume it, and never write to the test host's real
-  defaults.
+- **A document's first AI accept shows History.** `AIActionController.endReview` reads
+  `history.hasHistory` BEFORE recording, then hands the first passage it recorded to
+  `introduceAfterAIAccept(_:documentHadHistory:)`. When the document had no History before that
+  accept, it fires `onRequestShowHistory` (the editor opens the sidebar on History focused on the
+  passage, through `showHistory(focusing:)`); later accepts in the same document leave the sidebar
+  alone. The rule is per document (2026-11-13). Before, it was once EVER, app-wide, behind the
+  `Lineform.history.didIntroduceAfterAI` default — that key is no longer read or written (no
+  migration: an old value is simply ignored).
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the
@@ -974,6 +985,20 @@ action does to the document. The two sections after it cover the text-view and o
 - **Disconnect.** The controller observes `AIConnectionStore.connectedProvider`: a change away from
   the provider of a running request cancels it, and away from the provider a review came from
   abandons the review. Reconnecting the same provider (a new key) leaves both alone.
+- **A reply that changes nothing** (2026-11-13). Proofread says "No changes suggested." — finding
+  no errors is a legitimate answer. Trim, Cut in half, Rewrite and Another Word
+  (`AIAction.mustChangeText`) exist to change the text, so they never say that
+  (`AIActionController.unchangedMessage`): a reply whose segments equal the originals (edge
+  whitespace ignored) is "<provider> returned the same text. Try again." ("Your AI…" for Other,
+  the progress card's naming), and one whose revisions were all REFUSED by the structure guard is
+  the unusable-response message. The prompts also ask for it: Rewrite "always change the wording",
+  Trim "always remove at least some words", Cut in half and Another Word "never return … unchanged
+  / the same word". `scripts/ai-stub-server.py` honours the same contract (its `--self-check`
+  asserts it).
+- **Another Word** (2026-11-13) is an edit action like the others (`AIAction.anotherWord`, raw
+  value `anotherWord`): instruction "return one different word, or a very short phrase … same
+  meaning, same part of speech, matching its capitalization. Never return the same word."; progress
+  "Finding another word with <provider>…", review card "Word ready", the same one-change review.
 - **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
   `HistoryPalette.tint`; the reply's 1-based sentence numbers are bounded before any `Int`
   conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
@@ -1000,7 +1025,13 @@ action does to the document. The two sections after it cover the text-view and o
   Rewrite), Proofread, Mark ▸ (Weakest sentences, Long sentences). ABSENT, not disabled, unless
   `aiAvailabilityHandler` says yes for a non-empty selection — a whole-document structure
   analysis, so it is asked only when the menu is built. Both submenus carry
-  `MainMenuIconDecorator.excludedMenuIdentifier`.
+  `MainMenuIconDecorator.excludedMenuIdentifier`. The group is chosen by
+  `LineformTextContextMenuPresentation.aiMenuEntries` (2026-11-13): a SINGLE-WORD selection
+  (`isSingleWord`: trimmed, no whitespace inside, at least one letter) gets **Another Word** in
+  place of the Rewrite submenu, with Proofread; **Mark ▸ appears only when the selection touches
+  at least two sentences** (`AISentenceSplitter`, counted only for multi-word selections). There
+  is no no-selection case: the AI group needs a selection, so Mark never runs on the whole
+  document. AI actions have no main-menu entries.
 - **One decision = one ⌘Z.** `applyAIEdits` opens ONE undo group and runs every edit through
   `shouldChangeText → textStorage.replaceCharacters → didChangeText`, so History hears each edit
   from its single user-edit source in pre-change coordinates. `breakUndoCoalescing` and
