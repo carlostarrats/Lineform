@@ -31,8 +31,27 @@ final class HistorySidebarPresentationTests: XCTestCase {
     func testRowAccessibilityLabel() {
         let row = HistorySidebarRow(id: 1, text: "Hello", author: .ai, isCurrent: true)
         XCTAssertEqual(row.accessibilityLabel(position: 2, of: 3), "Hello, by AI, version 2 of 3")
-        let you = HistorySidebarRow(id: 0, text: "Hi", author: .you, isCurrent: false)
-        XCTAssertEqual(you.accessibilityLabel(position: 1, of: 3), "Hi, by you, version 1 of 3")
+        let you = HistorySidebarRow(id: 2, text: "Hi", author: .you, isCurrent: false)
+        XCTAssertEqual(you.accessibilityLabel(position: 3, of: 3), "Hi, by you, version 3 of 3")
+    }
+
+    /// The original (first) version is a page and says "original"; the writer's versions a pencil,
+    /// AI versions a sparkle.
+    func testOriginalVersionHasItsOwnIconAndLabel() throws {
+        let original = HistorySidebarRow(id: 0, text: "Hi", author: .you, isCurrent: false)
+        XCTAssertTrue(original.isOriginal)
+        XCTAssertEqual(original.symbolName, "doc.text")
+        XCTAssertEqual(original.accessibilityLabel(position: 1, of: 3), "Hi, original, version 1 of 3")
+        XCTAssertEqual(HistorySidebarRow(id: 1, text: "a", author: .you, isCurrent: false).symbolName, "pencil")
+        XCTAssertEqual(HistorySidebarRow(id: 1, text: "a", author: .ai, isCurrent: false).symbolName, "sparkles")
+        for name in ["doc.text", "pencil", "sparkles"] {
+            XCTAssertNotNil(NSImage(systemSymbolName: name, accessibilityDescription: nil), name)
+        }
+        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+            let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
+            let key = "%@, original, version %lld of %lld"
+            XCTAssertNotEqual(bundle.localizedString(forKey: key, value: nil, table: nil), key, language)
+        }
     }
 
     @MainActor
@@ -61,16 +80,16 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertTrue(source.contains(".contextMenu {\n            rowActionButtons()"))
     }
 
-    // MARK: - Exit, Add Alternative, hint (QA 1.8 follow-ups)
+    // MARK: - Exit, Add, replacement field, hint (QA 1.8 follow-ups)
 
     func testExitAndAlternativeStrings() {
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, "Exit")
-        XCTAssertEqual(HistorySidebarPresentation.addAlternativeTitle, "Add Alternative")
+        XCTAssertEqual(HistorySidebarPresentation.addAlternativeTitle, "Add Version")
         XCTAssertEqual(HistorySidebarPresentation.addAlternativeCommitLabel, "Add")
         XCTAssertEqual(HistorySidebarPresentation.addButtonTitle, "Add")
         XCTAssertEqual(HistorySidebarPresentation.versionsHeading, "Versions of selected text")
         XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addButtonSymbol, accessibilityDescription: nil))
-        XCTAssertEqual(HistorySidebarPresentation.replacementPlaceholder, "Type an alternative")
+        XCTAssertEqual(HistorySidebarPresentation.replacementPlaceholder, "Type a replacement")
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, String(localized: "Exit"))
         XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addAlternativeCommitSymbol,
                                 accessibilityDescription: nil))
@@ -81,7 +100,7 @@ final class HistorySidebarPresentationTests: XCTestCase {
     func testAlternativeStringsAreLocalized() throws {
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
-            for key in ["Add Alternative", "Add", "Versions of selected text", "Type an alternative",
+            for key in ["Add Version", "Add", "Versions of selected text", "Type a replacement", "Replace With…",
                         "Click to select · ← → switch version · Esc deselects"] {
                 XCTAssertNotEqual(bundle.localizedString(forKey: key, value: nil, table: nil), key, "\(language): \(key)")
             }
@@ -269,7 +288,7 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(OutlineSidebarTab.historyModeTransition(isActive: false, selected: .history, previous: nil).selected, .outline)
     }
 
-    /// One capsule for Files' Change/Choose and History's Exit/Add Alternative: the colours are
+    /// One capsule for Files' Change/Choose and History's Exit: the colours are
     /// the Files values, unchanged.
     @MainActor
     func testSidebarCapsuleColoursAreTheFilesValues() {

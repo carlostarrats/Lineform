@@ -267,7 +267,7 @@ final class AIActionController: ObservableObject {
         history?.aiActionAbandoned()
     }
 
-    /// History is about to open on a passage (Add Alternative…, a return after an AI action): History
+    /// History is about to open on a passage (Replace With…, a return after an AI action): History
     /// and AI never overlap. A request or review ends (keeping what was accepted); Mark's wash is
     /// dismissed. A message is left up — the first-accept show arrives just after a review
     /// ended, and dropping it then would lose a refusal.

@@ -212,7 +212,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertFalse(controller.allowsAIAction(on: range(of: "jumps", in: doc)), "History mode never overlaps AI")
     }
 
-    /// Add Alternative…: the passage is shown with its alternative field already asked for; the
+    /// Replace With…: the passage is shown with its alternative field already asked for; the
     /// request is spent when the field opens, and never carried into a later History entry.
     func testAddAlternativeAsksForTheField() throws {
         let controller = DocumentHistoryController(store: NullPassageHistoryStore())

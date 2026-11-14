@@ -423,7 +423,7 @@ struct OutlineSidebarView: View {
     var onSelectHistoryLevel: (HistoryLevel) -> Void = { _ in }
     var onSelectHistoryVersion: (Int) -> Void = { _ in }
     var onDeleteHistoryVersion: (Int) -> Void = { _ in }
-    /// History's Exit (on the History tab row) and its Add Alternative field (Return commits the typed text).
+    /// History's Exit (on the History tab row) and its replacement field (Return commits the typed text).
     var onExitHistory: () -> Void = {}
     var onAddHistoryReplacement: (String, UUID) -> Void = { _, _ in }
     /// The replacement field closed (committed or cancelled): the editor takes the keys back.

@@ -142,7 +142,7 @@ final class DocumentHistoryController: ObservableObject {
     /// (the History tab, View ▸ History) selects it. Cleared once used, on a document swap, and by
     /// any entry with an explicit target (`showPassage`).
     private(set) var rememberedPassageID: UUID?
-    /// Add Alternative… asked for the alternative field on this passage; spent when the field
+    /// Replace With… asked for the alternative field on this passage; spent when the field
     /// opens (`alternativeFieldDidOpen`), when History mode ends, and on a document swap.
     private(set) var pendingAlternativeFieldID: UUID?
 
@@ -497,7 +497,7 @@ final class DocumentHistoryController: ObservableObject {
     @discardableResult
     func add(_ range: NSRange, text: String) -> UUID? {
         guard let id = engine.add(range, author: .you, in: text) else { return nil }
-        // Add Alternative…: the sidebar opens its "Type an alternative" field for this passage as
+        // Replace With…: the sidebar opens its "Type a replacement" field for this passage as
         // soon as History shows it (`HistorySidebarModel.opensAlternativeField`).
         pendingAlternativeFieldID = id
         save()

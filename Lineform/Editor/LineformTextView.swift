@@ -2056,9 +2056,10 @@ enum LineformTextContextMenuPresentation {
     static let noGuessesTitle = String(localized: "No Guesses Found")
     /// Conditional: offered only for a non-empty selection the History controller accepts, so it
     /// is not part of `commandTitles(for:)` (the rows every menu carries).
-    /// Enters History on the selection with the "Type an alternative" field open (2026-11-13;
+    /// "Replace With…" (2026-11-14; was "Add Alternative…", before that "Add to History"): enters
+    /// History on the selection with the "Type a replacement" field open (2026-11-13;
     /// was "Add to History"). The ellipsis: the item asks for more input.
-    static let addToHistoryTitle = String(localized: "Add Alternative…")
+    static let addToHistoryTitle = String(localized: "Replace With…")
     /// The AI group's submenus. Conditional (connected, a selection with prose), so not part of
     /// `commandTitles(for:)` either.
     static let aiRewriteMenuTitle = String(localized: "Rewrite")
