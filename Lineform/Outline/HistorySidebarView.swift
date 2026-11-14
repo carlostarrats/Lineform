@@ -113,8 +113,20 @@ enum HistorySidebarPresentation {
     static let addButtonTitle = String(localized: "Add")
     static let addButtonSymbol = "plus"
     static let versionsHeading = String(localized: "Versions of selected text")
-    /// The section row's text size: the footer hint's.
+    /// The Add button's text size: the footer hint's.
     static let sectionFontSize: CGFloat = 11
+    /// The ONE line under the tab divider — the empty state's "Click a highlighted passage…" and
+    /// the selected passage's "Versions of selected text" — shares these, so selecting a passage
+    /// swaps the text in place: same font size, colour, inset and distance under the divider (the
+    /// Outline tab's gap, `OutlineSidebarView.tabDividerGap`).
+    static let leadTextFontSize: CGFloat = 12
+    static let leadTextTopInset: CGFloat = 16
+    /// The Add button's hover pill: a faint fill, quieter than the Exit capsule's solid grey.
+    /// White over dark chrome, black over light.
+    static func addButtonHoverFillOpacity(usesDarkChrome: Bool) -> CGFloat {
+        usesDarkChrome ? 0.10 : 0.05
+    }
+    static let addButtonHorizontalPadding: CGFloat = 6
 
     /// The section row's Add ink. Quieter than the Exit capsule's label (0.34 light / 0.98 dark):
     /// lighter in light chrome, darker in dark chrome; hover brightens it a little. Kept ≥ 3:1
@@ -129,7 +141,7 @@ enum HistorySidebarPresentation {
     /// horizontally rather than running under the button).
     static let commitButtonDiameter: CGFloat = 20
     static let commitButtonGap: CGFloat = 7
-    static let replacementPlaceholder = String(localized: "Type a replacement")
+    static let replacementPlaceholder = String(localized: "Type an alternative")
     /// The leading inset every line of History prose sits on: the empty-state text and the hint.
     static let textInset: CGFloat = 14
 
@@ -227,14 +239,7 @@ struct HistorySidebarView: View {
                     .padding(.bottom, 8)
                 }
             } else {
-                Text(HistorySidebarPresentation.emptySelectionText)
-                    .font(.system(size: 12))
-                    .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, HistorySidebarPresentation.textInset)
-                    // The Outline tab's gap under the divider.
-                    .padding(.top, OutlineSidebarView.tabDividerGap)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                leadLine(leadText(HistorySidebarPresentation.emptySelectionText))
                 Spacer(minLength: 0)
             }
 
@@ -263,28 +268,42 @@ struct HistorySidebarView: View {
         .onChange(of: replacementFieldSignal.cancel) { _, _ in closeReplacementField() }
     }
 
-    /// "Versions of selected text" on the left, a quiet "Add +" on the right: the first row under
-    /// the tab divider while a passage is selected. Add opens the field below the versions.
+    /// The lead line's text: the empty state's and the section row's label are the same view.
+    private func leadText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: HistorySidebarPresentation.leadTextFontSize))
+            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Places a lead line on the shared inset and distance under the divider.
+    private func leadLine<Content: View>(_ content: Content) -> some View {
+        content
+            .padding(.horizontal, HistorySidebarPresentation.textInset)
+            .padding(.top, HistorySidebarPresentation.leadTextTopInset)
+    }
+
+    /// "Versions of selected text" exactly where the empty state's text sits, with a quiet
+    /// "Add +" on the same line — an OVERLAY, vertically centred on the label, so it never moves
+    /// the label. Its pill's padding pushes the glyph to the Exit capsule's trailing edge.
     private var sectionRow: some View {
-        HStack(spacing: 8) {
-            Text(HistorySidebarPresentation.versionsHeading)
-                .font(.system(size: HistorySidebarPresentation.sectionFontSize))
-                .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+        leadLine(
+            leadText(HistorySidebarPresentation.versionsHeading)
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 0)
-            HistoryAddAlternativeButton(usesDarkChrome: usesDarkChrome) {
-                guard !replacementField.isOpen else {
-                    HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
-                    return
+                .padding(.trailing, 44)
+                .overlay(alignment: .trailing) {
+                    HistoryAddAlternativeButton(usesDarkChrome: usesDarkChrome) {
+                        guard !replacementField.isOpen else {
+                            HistorySidebarPresentation.requestReplacementFieldFocus { replacementFieldFocused = true }
+                            return
+                        }
+                        if replacementField.open(for: model.selectedPassageID) { onReplacementFieldBegan() }
+                    }
+                    .padding(.trailing, -HistorySidebarPresentation.addButtonHorizontalPadding)
                 }
-                if replacementField.open(for: model.selectedPassageID) { onReplacementFieldBegan() }
-            }
-        }
-        .padding(.leading, HistorySidebarPresentation.textInset)
-        // The button's own 4pt padding brings its glyph to the Exit capsule's trailing edge.
-        .padding(.trailing, OutlineSidebarView.pillHorizontalInset - 4)
-        .padding(.top, 10)
+        )
     }
 
     /// At the end of the versions: the field the section row's Add opens (nothing while closed).
@@ -360,8 +379,8 @@ struct HistorySidebarView: View {
     }
 }
 
-/// The section row's quiet "Add +": borderless, muted ink (`addButtonWhite`), spoken as
-/// "Add Alternative".
+/// The section row's quiet "Add +": borderless, muted ink (`addButtonWhite`) and, on hover, a
+/// faint capsule behind it (`addButtonHoverFillOpacity`); spoken as "Add Alternative".
 private struct HistoryAddAlternativeButton: View {
     var usesDarkChrome: Bool
     var action: () -> Void
@@ -377,9 +396,14 @@ private struct HistoryAddAlternativeButton: View {
             }
             .foregroundStyle(Color(nsColor: NSColor(calibratedWhite: HistorySidebarPresentation.addButtonWhite(
                 usesDarkChrome: usesDarkChrome, isHovered: isHovered), alpha: 1)))
-            .padding(.horizontal, 4)
+            .padding(.horizontal, HistorySidebarPresentation.addButtonHorizontalPadding)
             .padding(.vertical, 2)
-            .contentShape(Rectangle())
+            .background {
+                // The hover pill hugs "Add +".
+                Capsule().fill((usesDarkChrome ? Color.white : Color.black).opacity(
+                    isHovered ? HistorySidebarPresentation.addButtonHoverFillOpacity(usesDarkChrome: usesDarkChrome) : 0))
+            }
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .focusable(false)

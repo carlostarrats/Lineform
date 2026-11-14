@@ -69,7 +69,7 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(HistorySidebarPresentation.addButtonTitle, "Add")
         XCTAssertEqual(HistorySidebarPresentation.versionsHeading, "Versions of selected text")
         XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addButtonSymbol, accessibilityDescription: nil))
-        XCTAssertEqual(HistorySidebarPresentation.replacementPlaceholder, "Type a replacement")
+        XCTAssertEqual(HistorySidebarPresentation.replacementPlaceholder, "Type an alternative")
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, String(localized: "Exit"))
         XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addAlternativeCommitSymbol,
                                 accessibilityDescription: nil))
@@ -80,7 +80,7 @@ final class HistorySidebarPresentationTests: XCTestCase {
     func testAlternativeStringsAreLocalized() throws {
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
-            for key in ["Add Alternative", "Add", "Versions of selected text"] {
+            for key in ["Add Alternative", "Add", "Versions of selected text", "Type an alternative"] {
                 XCTAssertNotEqual(bundle.localizedString(forKey: key, value: nil, table: nil), key, "\(language): \(key)")
             }
         }
@@ -110,6 +110,48 @@ final class HistorySidebarPresentationTests: XCTestCase {
             let hover = HistorySidebarPresentation.addButtonWhite(usesDarkChrome: usesDarkChrome, isHovered: true)
             XCTAssertGreaterThan(Theme.contrastRatio(NSColor(calibratedWhite: hover, alpha: 1), background),
                                  Theme.contrastRatio(NSColor(calibratedWhite: rest, alpha: 1), background))
+        }
+    }
+
+    /// Selecting a passage swaps the lead line's text IN PLACE: the empty state and the section
+    /// row's label are one view (`leadLine(leadText(…))`) on shared constants — same size, colour,
+    /// inset and distance under the tab divider — and Add is an overlay, so it cannot move it.
+    @MainActor
+    func testEmptyStateAndSectionLabelShareOnePlace() throws {
+        XCTAssertEqual(HistorySidebarPresentation.leadTextTopInset, OutlineSidebarView.tabDividerGap)
+        XCTAssertEqual(HistorySidebarPresentation.leadTextFontSize, 12)
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Lineform/Outline/HistorySidebarView.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains("leadLine(leadText(HistorySidebarPresentation.emptySelectionText))"))
+        XCTAssertTrue(source.contains("leadLine(\n            leadText(HistorySidebarPresentation.versionsHeading)"))
+        XCTAssertTrue(source.contains(".overlay(alignment: .trailing) {\n                    HistoryAddAlternativeButton"))
+    }
+
+    /// The hover pill is a faint fill — quieter than the Exit capsule — and the hovered ink still
+    /// reads at ≥ 3:1 on it.
+    @MainActor
+    func testAddButtonHoverPillKeepsContrast() {
+        for usesDarkChrome in [false, true] {
+            let alpha = HistorySidebarPresentation.addButtonHoverFillOpacity(usesDarkChrome: usesDarkChrome)
+            XCTAssertGreaterThan(alpha, 0)
+            XCTAssertLessThanOrEqual(alpha, 0.12)
+            let background = (usesDarkChrome
+                ? OutlineSidebarView.darkBackgroundNSColor
+                : NSColor(calibratedWhite: OutlineSidebarView.lightBackgroundWhiteComponent, alpha: 1))
+                .usingColorSpace(.sRGB)!
+            let overlay: CGFloat = usesDarkChrome ? 1 : 0
+            func mix(_ c: CGFloat) -> CGFloat { c * (1 - alpha) + overlay * alpha }
+            let pill = NSColor(srgbRed: mix(background.redComponent), green: mix(background.greenComponent),
+                               blue: mix(background.blueComponent), alpha: 1)
+            let ink = NSColor(calibratedWhite: HistorySidebarPresentation.addButtonWhite(
+                usesDarkChrome: usesDarkChrome, isHovered: true), alpha: 1)
+            let ratio = Theme.contrastRatio(ink, pill)
+            XCTAssertGreaterThanOrEqual(ratio, 3, "dark \(usesDarkChrome): \(ratio):1 on the pill")
+            // Quieter than Exit: the pill sits closer to the sidebar than Exit's capsule does.
+            let exitFill = NSColor(calibratedWhite: SidebarCapsuleButtonStyle.backgroundWhite(
+                usesDarkChrome: usesDarkChrome, emphasis: .quiet, isHovered: false), alpha: 1)
+            XCTAssertLessThan(Theme.contrastRatio(pill, background), Theme.contrastRatio(exitFill, background))
         }
     }
 
