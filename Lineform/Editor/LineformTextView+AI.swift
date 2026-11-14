@@ -165,7 +165,7 @@ extension LineformTextView {
         let length = (string as NSString).length
         layoutManager.removeTemporaryAttribute(.backgroundColor, forCharacterRange: NSRange(location: 0, length: length))
         if !aiMarkRangesStorage.isEmpty {
-            let wash = HistoryPalette.tint(for: Theme.theme(for: appliedReadingProfile))
+            let wash = HistoryPalette.markWash(for: Theme.theme(for: appliedReadingProfile))
             for range in aiMarkRangesStorage {
                 let clamped = NSIntersectionRange(range, NSRange(location: 0, length: length))
                 guard clamped.length > 0 else { continue }

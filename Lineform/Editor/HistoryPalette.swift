@@ -35,6 +35,97 @@ enum HistoryPalette {
     static let deepRecededInkAlpha: CGFloat = 0.22
     static let deepRecededInkMinimumRatio: CGFloat = 2.0
 
+    // MARK: - Mark (2026-11-13)
+
+    /// Mark's sentences: an OPAQUE wash of the theme's ink, stronger on a dark page, where the
+    /// History tint (translucent, 0.08) was barely visible. At least as far off the page as the
+    /// History tint, with the text on it at AA (`HistoryPaletteTests`).
+    static let markWashAlphaLight: CGFloat = 0.12
+    static let markWashAlphaDark: CGFloat = 0.20
+
+    static func markWash(for theme: Theme) -> NSColor {
+        let alpha = theme.usesDarkChrome ? markWashAlphaDark : markWashAlphaLight
+        return opaqueFill(ink(of: theme).withAlphaComponent(alpha), for: theme)
+    }
+
+    // MARK: - Layers (2026-11-13)
+
+    /// Nested passages draw as LAYERED rounded boxes (the mockup's `.h .h`): each depth adds one
+    /// more layer of its tint, composited OPAQUE so what is drawn is exactly what the AA tests
+    /// measure. Deeper than this reuses the deepest layer.
+    static let maximumLayerDepth = 3
+    /// The boxes' corner radius (the mockup's 3px).
+    static let layerCornerRadius: CGFloat = 3
+    /// The selected passage: the system accent blue (the mockup's `.sel`), stronger on a dark page.
+    static let selectedAlphaLight: CGFloat = 0.20
+    static let selectedAlphaDark: CGFloat = 0.30
+    /// A passage nested INSIDE the selected one: one ink layer per depth over the blue, so it still
+    /// reads as its own box.
+    static let selectedChildTintAlpha: CGFloat = 0.07
+    /// Each nested wash past the first adds this much (the first is `tintAlpha`): three full
+    /// 0.08 washes sit right at AA on Quiet, leaving no room for hover to brighten a depth-3 box.
+    static let nestedTintAlpha: CGFloat = 0.05
+    /// Hover adds this over the passage's own wash, so it always brightens it.
+    static let hoverStepAlpha: CGFloat = 0.07
+
+    /// `alpha` stacked `depth` times (1…`maximumLayerDepth`).
+    static func layeredAlpha(_ alpha: CGFloat, depth: Int) -> CGFloat {
+        1 - pow(1 - alpha, CGFloat(min(max(depth, 1), maximumLayerDepth)))
+    }
+
+    /// Nothing selected: a passage at `depth` (1 = outermost) — `tint` stacked `depth` deep.
+    static func washFill(for theme: Theme, depth: Int) -> NSColor {
+        opaqueFill(ink(of: theme).withAlphaComponent(washAlpha(depth: depth)), for: theme)
+    }
+
+    /// The overview wash's alpha at `depth`: `tintAlpha`, then `nestedTintAlpha` per extra layer.
+    static func washAlpha(depth: Int) -> CGFloat {
+        1 - (1 - tintAlpha) * (1 - layeredAlpha(nestedTintAlpha, depth: depth - 1) * (depth > 1 ? 1 : 0))
+    }
+
+    /// The hovered passage at `depth`: its own wash plus `hoverStepAlpha`.
+    static func hoverFill(for theme: Theme, depth: Int) -> NSColor {
+        let alpha = 1 - (1 - washAlpha(depth: depth)) * (1 - hoverStepAlpha)
+        return opaqueFill(ink(of: theme).withAlphaComponent(alpha), for: theme)
+    }
+
+    /// A passage selected: every OTHER passage at `depth`, `focusOtherTintAlpha` stacked.
+    static func focusOtherFill(for theme: Theme, depth: Int) -> NSColor {
+        opaqueFill(ink(of: theme).withAlphaComponent(layeredAlpha(focusOtherTintAlpha, depth: depth)), for: theme)
+    }
+
+    /// The other passages' ink at `depth`, measured on that depth's fill (≥ 3:1).
+    static func focusOtherInk(for theme: Theme, depth: Int) -> NSColor {
+        theme.readableInk(
+            ink(of: theme).withAlphaComponent(focusOtherInkAlpha),
+            minimumRatio: focusOtherInkMinimumRatio,
+            on: focusOtherFill(for: theme, depth: depth)
+        )
+    }
+
+    /// The selected passage's box: accent blue over the page, opaque.
+    static func selectedFill(for theme: Theme) -> NSColor {
+        let alpha = theme.usesDarkChrome ? selectedAlphaDark : selectedAlphaLight
+        return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
+    }
+
+    /// A passage `depth` levels inside the selected one (1 = its direct child): ink layers over
+    /// the blue, opaque.
+    static func selectedChildFill(for theme: Theme, depth: Int) -> NSColor {
+        composite(ink(of: theme).withAlphaComponent(layeredAlpha(selectedChildTintAlpha, depth: depth)),
+                  over: selectedFill(for: theme))
+    }
+
+    /// `top` composited over the opaque `base`.
+    static func composite(_ top: NSColor, over base: NSColor) -> NSColor {
+        let t = top.usingColorSpace(.sRGB) ?? top
+        let b = base.usingColorSpace(.sRGB) ?? base
+        let alpha = t.alphaComponent
+        func blend(_ x: CGFloat, _ y: CGFloat) -> CGFloat { x + (y - x) * alpha }
+        return NSColor(srgbRed: blend(b.redComponent, t.redComponent), green: blend(b.greenComponent, t.greenComponent),
+                       blue: blend(b.blueComponent, t.blueComponent), alpha: 1)
+    }
+
     static func tint(for theme: Theme) -> NSColor {
         ink(of: theme).withAlphaComponent(tintAlpha)
     }

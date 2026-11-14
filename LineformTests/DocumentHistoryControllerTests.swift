@@ -236,6 +236,26 @@ final class DocumentHistoryControllerTests: XCTestCase {
         _ = other
     }
 
+    /// Deselect returns to the overview: History stays on, nothing selected; with nothing
+    /// selected it does nothing (Esc then leaves History, from the text view).
+    func testDeselectReturnsToTheOverview() throws {
+        let controller = DocumentHistoryController(store: NullPassageHistoryStore())
+        controller.open(url: nil, text: text)
+        let accepted = "Alpha BETA gamma delta."
+        let doc = (text as NSString).replacingOccurrences(of: sentence, with: accepted)
+        controller.open(url: nil, text: doc, documentID: UUID())
+        let id = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
+                                                         accepted: accepted, text: doc))
+        XCTAssertTrue(controller.showPassage(id, text: doc))
+        XCTAssertEqual(controller.display?.selectedID, id)
+        XCTAssertNil(controller.handle(.deselect, text: doc))
+        XCTAssertTrue(controller.isHistoryModeActive)
+        XCTAssertNil(controller.display?.selectedID)
+        XCTAssertFalse(controller.sidebarModel.hasSelection)
+        XCTAssertNil(controller.handle(.deselect, text: doc))
+        XCTAssertTrue(controller.isHistoryModeActive, "nothing selected: deselect does nothing")
+    }
+
     /// A passage that is not in the text is checked BEFORE History mode starts: nothing is
     /// entered (no wash, no sidebar on an inert History tab).
     func testShowPassageForAMissingPassageDoesNotEnterHistoryMode() throws {

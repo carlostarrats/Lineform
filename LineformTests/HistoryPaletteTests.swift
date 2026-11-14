@@ -67,6 +67,58 @@ final class HistoryPaletteTests: XCTestCase {
         }
     }
 
+    /// Layered boxes (2026-11-13): every depth (1–3) reads darker than the one around it, and the
+    /// text on it keeps its floor — full ink AA in the overview, on hover and inside the selected
+    /// passage; the focus-other ink ≥ 3:1 on its own depth's fill.
+    func testLayeredFillsStayDistinctAndReadable() {
+        for theme in Theme.builtIn {
+            let page = theme.backgroundColor
+            func offPage(_ c: NSColor) -> CGFloat { Theme.contrastRatio(c, page) }
+            for depth in 1...HistoryPalette.maximumLayerDepth {
+                let wash = HistoryPalette.washFill(for: theme, depth: depth)
+                let hover = HistoryPalette.hoverFill(for: theme, depth: depth)
+                let other = HistoryPalette.focusOtherFill(for: theme, depth: depth)
+                XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, wash), 4.5, "\(theme.name) wash \(depth)")
+                XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, hover), 4.5, "\(theme.name) hover \(depth)")
+                XCTAssertGreaterThanOrEqual(Theme.contrastRatio(HistoryPalette.focusOtherInk(for: theme, depth: depth), other),
+                                            3.0, "\(theme.name) other \(depth)")
+                XCTAssertGreaterThan(offPage(hover), offPage(wash), "\(theme.name): hover brightens depth \(depth)")
+                if depth > 1 {
+                    XCTAssertGreaterThan(offPage(wash), offPage(HistoryPalette.washFill(for: theme, depth: depth - 1)) * 1.02,
+                                         "\(theme.name): wash depth \(depth) distinct")
+                    XCTAssertGreaterThan(offPage(other), offPage(HistoryPalette.focusOtherFill(for: theme, depth: depth - 1)) * 1.02,
+                                         "\(theme.name): other depth \(depth) distinct")
+                }
+            }
+            XCTAssertEqual(HistoryPalette.washFill(for: theme, depth: 1), HistoryPalette.opaqueFill(HistoryPalette.tint(for: theme), for: theme))
+            let selected = HistoryPalette.selectedFill(for: theme)
+            XCTAssertGreaterThanOrEqual(offPage(selected), 1.15, theme.name)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, selected), 4.5, "\(theme.name) selected")
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(HistoryPalette.counterInk(for: theme), page), 4.5)
+            var previous = selected
+            for depth in 1...2 {
+                let child = HistoryPalette.selectedChildFill(for: theme, depth: depth)
+                XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, child), 4.5, "\(theme.name) selected+nested \(depth)")
+                XCTAssertGreaterThan(Theme.contrastRatio(child, previous), 1.03, "\(theme.name): nested box visible in the blue")
+                previous = child
+            }
+        }
+    }
+
+    /// Mark's wash is clearly visible on every theme — at least as far off the page as the History
+    /// tint (it was that tint, and barely visible in the dark), ≥ 1.2:1 — with the text on it AA.
+    func testMarkWashIsVisibleAndReadable() {
+        for theme in Theme.builtIn {
+            let page = theme.backgroundColor
+            let mark = HistoryPalette.markWash(for: theme)
+            XCTAssertEqual(mark.alphaComponent, 1, theme.name)
+            let tint = Self.flattened(HistoryPalette.tint(for: theme), over: page)
+            XCTAssertGreaterThan(Theme.contrastRatio(mark, page), Theme.contrastRatio(tint, page), theme.name)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(mark, page), 1.2, theme.name)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, mark), 4.5, theme.name)
+        }
+    }
+
     func testRecededInkStaysReadableOnEveryTheme() {
         for theme in Theme.builtIn {
             let receded = HistoryPalette.recededInk(for: theme)

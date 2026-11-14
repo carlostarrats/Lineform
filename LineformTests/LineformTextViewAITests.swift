@@ -379,7 +379,7 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(NSAttributedString(attributedString: storage), before, "the text storage is never touched")
         let wash = layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: 20, effectiveRange: nil) as? NSColor
         let theme = Theme.theme(for: textView.appliedReadingProfile)
-        XCTAssertEqual(wash, HistoryPalette.tint(for: theme))
+        XCTAssertEqual(wash, HistoryPalette.markWash(for: theme))
         XCTAssertNil(layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: 2, effectiveRange: nil))
 
         textView.aiMarkRanges = []

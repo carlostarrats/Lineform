@@ -39,6 +39,54 @@ struct HistoryModeDisplay: Equatable {
         guard let selectedID else { return nil }
         return passages.first { $0.id == selectedID }
     }
+
+    /// Each passage's nesting depth (1 = outermost): one more than the number of other passages
+    /// it sits inside. A passage sharing its parent's exact range is the deeper one (the finer
+    /// level; then the later id), so a chain always counts 1, 2, 3.
+    var layerDepths: [UUID: Int] {
+        func outer(_ a: LocatedPassage, contains b: LocatedPassage) -> Bool {
+            guard a.id != b.id, NSIntersectionRange(a.range, b.range) == b.range else { return false }
+            if a.range != b.range { return true }
+            return a.level != b.level ? a.level < b.level : a.id.uuidString < b.id.uuidString
+        }
+        var depths: [UUID: Int] = [:]
+        for passage in passages {
+            depths[passage.id] = 1 + passages.filter { outer($0, contains: passage) }.count
+        }
+        return depths
+    }
+
+    /// The fill each visible passage draws, in drawing order (outer first) — so nesting reads as
+    /// layered boxes in the overview AND while a passage is selected:
+    /// - nothing selected: the wash stacked to the passage's depth; the hovered one the hover fill
+    ///   at its depth;
+    /// - a passage selected: it is blue; passages inside it add ink layers over the blue; every
+    ///   other passage (its parents included) the stacked focus-other fill; the hovered one the
+    ///   hover fill.
+    func layerFills(for theme: Theme) -> [(passage: LocatedPassage, fill: NSColor)] {
+        let depths = layerDepths
+        let selected = selectedPassage
+        let selectedDepth = selected.flatMap { depths[$0.id] } ?? 0
+        return passages
+            .sorted { (depths[$0.id] ?? 1, $1.range.length) < (depths[$1.id] ?? 1, $0.range.length) }
+            .map { passage in
+                let depth = depths[passage.id] ?? 1
+                guard let selected else {
+                    return (passage, passage.id == hoveredID
+                        ? HistoryPalette.hoverFill(for: theme, depth: depth)
+                        : HistoryPalette.washFill(for: theme, depth: depth))
+                }
+                if passage.id == selected.id {
+                    return (passage, HistoryPalette.selectedFill(for: theme))
+                }
+                if depth > selectedDepth, NSIntersectionRange(selected.range, passage.range) == passage.range {
+                    return (passage, HistoryPalette.selectedChildFill(for: theme, depth: depth - selectedDepth))
+                }
+                return (passage, passage.id == hoveredID
+                    ? HistoryPalette.hoverFill(for: theme, depth: depth)
+                    : HistoryPalette.focusOtherFill(for: theme, depth: depth))
+            }
+    }
 }
 
 /// What the text view asks its controller to do while History is involved.
@@ -47,6 +95,8 @@ enum HistoryTextCommand: Equatable {
     case add(NSRange)
     /// A click on a passage with history.
     case select(UUID)
+    /// A click on ordinary text, or Esc, while a passage is selected: back to the overview.
+    case deselect
     /// ← / → : step the selected passage's versions.
     case step(Int)
     /// ↑ / ↓ : the keyboard path between passages.
@@ -219,11 +269,14 @@ extension LineformTextView {
             layoutManager.addTemporaryAttribute(.foregroundColor, value: gapInk, forCharacterRange: gap)
         }
         if let focused {
-            let otherInk = HistoryPalette.focusOtherInk(for: theme)
-            for other in display.passages where other.id != focused.id {
+            // Outer first, so each nested passage's ink (measured on its own, darker layer) wins.
+            let depths = display.layerDepths
+            for other in display.passages.filter({ $0.id != focused.id })
+                .sorted(by: { (depths[$0.id] ?? 1) < (depths[$1.id] ?? 1) }) {
                 let range = NSIntersectionRange(other.range, target)
                 guard range.length > 0 else { continue }
-                layoutManager.addTemporaryAttribute(.foregroundColor, value: otherInk, forCharacterRange: range)
+                let ink = HistoryPalette.focusOtherInk(for: theme, depth: depths[other.id] ?? 1)
+                layoutManager.addTemporaryAttribute(.foregroundColor, value: ink, forCharacterRange: range)
             }
             // The hovered passage is drawn on its opaque hover fill, which covers anything nested
             // in it, so its whole range takes the full ink — as the focused passage's does.
@@ -287,38 +340,25 @@ extension LineformTextView {
 
     // MARK: - Drawing
 
-    /// Nothing focused: a translucent wash behind every visible passage, outer first (a nested
-    /// passage reads as a deeper wash), and the hovered one drawn LAST and OPAQUE
-    /// (`HistoryPalette.opaqueFill`) so it replaces the washes beneath.
-    ///
-    /// A passage focused: every OTHER passage keeps a dimmed but clearly visible fill
-    /// (`focusOtherTint`, opaque, so nested ones never stack under the dimmed ink), the hovered
-    /// one the opaque hover fill (full strength), the focused passage none — it is carried by its
-    /// full ink and its counter. QA 1.8: with no fills here, the other passages vanished.
+    /// Every visible passage as a rounded box, outer first, each nesting depth one more layer
+    /// (`HistoryModeDisplay.layerFills`): in the overview and while a passage is selected — the
+    /// selected one blue with its nested passages as layers over it, its parents still boxes
+    /// around it. All fills are opaque composites, so the drawn pairs are the ones the AA tests
+    /// measure. The counter follows the selected passage.
     func drawHistoryIfNeeded() {
         guard let display = historyDisplayStorage else { return }
         let theme = Theme.theme(for: appliedReadingProfile)
         let visible = visibleCharacterRangeForLayoutPreservation()
-        func fill(_ passage: LocatedPassage, with color: NSColor) {
+        for (passage, color) in display.layerFills(for: theme) {
             let range = visible.map { NSIntersectionRange(passage.range, $0) } ?? passage.range
-            guard range.length > 0 else { return }
+            guard range.length > 0 else { continue }
             color.setFill()
             for rect in rectsForCharacterRange(range) {
-                rect.fill(using: .sourceOver)
+                NSBezierPath(roundedRect: rect, xRadius: HistoryPalette.layerCornerRadius,
+                             yRadius: HistoryPalette.layerCornerRadius).fill()
             }
         }
-        let focused = display.selectedPassage
-        let wash = focused == nil ? HistoryPalette.tint(for: theme) : HistoryPalette.focusOtherTint(for: theme)
-        for passage in display.passages
-            .filter({ $0.id != display.hoveredID && $0.id != focused?.id })
-            .sorted(by: { $0.range.length > $1.range.length }) {
-            fill(passage, with: wash)
-        }
-        if let hoveredID = display.hoveredID, hoveredID != focused?.id,
-           let hovered = display.passages.first(where: { $0.id == hoveredID }) {
-            fill(hovered, with: HistoryPalette.opaqueFill(HistoryPalette.hoverTint(for: theme), for: theme))
-        }
-        if let focused, let counter = display.counter {
+        if let focused = display.selectedPassage, let counter = display.counter {
             drawHistoryCounter(counter, after: focused.range, theme: theme)
         }
     }
@@ -423,6 +463,9 @@ extension LineformTextView {
         if let index = historyCharacterIndex(at: event),
            let passage = display.innermostPassage(containing: index) {
             historyCommandHandler?(.select(passage.id))
+        } else if display.selectedID != nil {
+            // Ordinary text: back to the overview.
+            historyCommandHandler?(.deselect)
         }
         return true
     }
@@ -463,7 +506,8 @@ extension LineformTextView {
         case #selector(NSResponder.moveDown(_:)):
             command = .moveSelection(1)
         case #selector(NSResponder.cancelOperation(_:)):
-            command = .exit
+            // Esc steps back one level: a selected passage → the overview; the overview → out.
+            command = historyDisplayStorage?.selectedID != nil ? .deselect : .exit
         default:
             // Every other caret or selection move (shift/option/command arrows, Home/End, page
             // keys) is swallowed: History mode never moves the caret.

@@ -158,6 +158,64 @@ final class LineformTextViewHistoryTests: XCTestCase {
         XCTAssertEqual(commands, [.exit])
     }
 
+    /// Esc steps back one level: with a passage selected it returns to the overview (deselect);
+    /// with the alternative field open it only closes the field.
+    func testEscapeDeselectsASelectedPassage() {
+        let textView = makeTextView()
+        let first = passage(NSRange(location: 0, length: 5))
+        textView.historyDisplay = display([first], selected: first.id)
+        var commands: [HistoryTextCommand] = []
+        textView.historyCommandHandler = { commands.append($0) }
+        textView.doCommand(by: #selector(NSResponder.cancelOperation(_:)))
+        XCTAssertEqual(commands, [.deselect])
+
+        var fieldRequests: [HistoryReplacementFieldRequest] = []
+        textView.historyReplacementFieldIsOpen = true
+        textView.historyReplacementFieldHandler = { fieldRequests.append($0) }
+        textView.doCommand(by: #selector(NSResponder.cancelOperation(_:)))
+        XCTAssertEqual(commands, [.deselect], "the field closes first")
+        XCTAssertEqual(fieldRequests, [.cancel])
+    }
+
+    /// Nested passages draw as layered boxes: depth counts the passages around each one (a twin
+    /// range: the finer level is inside), and each depth draws darker than the one around it — in
+    /// the overview and while a passage is selected.
+    func testNestedPassagesDrawAsLayers() throws {
+        let line = passage(NSRange(location: 0, length: 32), level: .sentence)
+        let midas = passage(NSRange(location: 20, length: 5), level: .word)
+        let twin = passage(NSRange(location: 20, length: 5), level: .word)
+        let other = passage(NSRange(location: 40, length: 6), level: .sentence)
+        var model = display([line, midas, other])
+        XCTAssertEqual(model.layerDepths[line.id], 1)
+        XCTAssertEqual(model.layerDepths[midas.id], 2)
+        XCTAssertEqual(model.layerDepths[other.id], 1)
+        XCTAssertEqual(display([line, midas, twin]).layerDepths.values.sorted(), [1, 2, 3])
+
+        for theme in Theme.builtIn {
+            func fill(_ id: UUID) throws -> NSColor { try XCTUnwrap(model.layerFills(for: theme).first { $0.passage.id == id }?.fill) }
+            func darker(_ inner: NSColor, than outer: NSColor) -> Bool {
+                Theme.contrastRatio(inner, theme.backgroundColor) > Theme.contrastRatio(outer, theme.backgroundColor)
+            }
+            model = display([line, midas, other])
+            XCTAssertEqual(model.layerFills(for: theme).map(\.passage.id).first, line.id, "outer first")
+            XCTAssertTrue(darker(try fill(midas.id), than: try fill(line.id)), "overview: \(theme.name)")
+            // Selecting the outer: blue, the inner still its own layer over the blue.
+            model = display([line, midas, other], selected: line.id)
+            XCTAssertEqual(try fill(line.id), HistoryPalette.selectedFill(for: theme))
+            XCTAssertEqual(try fill(midas.id), HistoryPalette.selectedChildFill(for: theme, depth: 1))
+            XCTAssertNotEqual(try fill(midas.id), try fill(line.id))
+            XCTAssertEqual(try fill(other.id), HistoryPalette.focusOtherFill(for: theme, depth: 1))
+            // Selecting the inner: blue inner, the outer a dim layer around it.
+            model = display([line, midas, other], selected: midas.id)
+            XCTAssertEqual(try fill(midas.id), HistoryPalette.selectedFill(for: theme))
+            XCTAssertEqual(try fill(line.id), HistoryPalette.focusOtherFill(for: theme, depth: 1))
+            // Hover brightens just that one, at its depth.
+            model = HistoryModeDisplay(passages: [line, midas, other], selectedID: nil, hoveredID: midas.id, counter: nil)
+            XCTAssertEqual(try fill(midas.id), HistoryPalette.hoverFill(for: theme, depth: 2))
+            XCTAssertEqual(try fill(line.id), HistoryPalette.washFill(for: theme, depth: 1))
+        }
+    }
+
     func testTypingInHistoryModeExitsThenTypes() {
         let textView = makeTextView()
         textView.historyDisplay = display([passage(NSRange(location: 0, length: 5))])

@@ -479,6 +479,12 @@ final class DocumentHistoryController: ObservableObject {
         case .moveSelection(let delta):
             moveSelection(by: delta)
             return nil
+        case .deselect:
+            // Back to the overview: History stays on, nothing selected.
+            guard isHistoryModeActive, selectedID != nil else { return nil }
+            selectedID = nil
+            publishMode()
+            return nil
         case .exit, .typedWhileInHistoryMode:
             return exitHistoryMode()
         }
