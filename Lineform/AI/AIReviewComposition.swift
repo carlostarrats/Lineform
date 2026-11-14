@@ -100,9 +100,42 @@ struct AIReviewComposition: Equatable {
                   change.parts.allSatisfy({ $0.offset >= 0 && $0.length >= 0 && $0.offset + $0.length <= range.length }) else { continue }
             let isAccepted = session.decisions[change.id] == .accepted
             var start: Int?
-            for part in change.parts.sorted(by: { $0.offset < $1.offset }) {
+            let sortedParts = change.parts.sorted(by: { $0.offset < $1.offset })
+            // A line whose prose is split by links, code spans or other inline structure into
+            // several CHANGED segments is shown whole: struck, then its whole new text stacked on a
+            // line of its own (2026-11-14 — interleaved pieces around a link were unreadable).
+            let stackedLines: [NSRange: [AIChange.Part]] = inline || isAccepted ? [:] : {
+                var byLine: [NSRange: [AIChange.Part]] = [:]
+                for part in sortedParts {
+                    guard let line = lineContent(at: range.location + part.offset, in: source) else { continue }
+                    byLine[line.content, default: []].append(part)
+                }
+                return byLine.filter { $0.value.count > 1 }
+            }()
+            var drawnLines = Set<NSRange>()
+            for part in sortedParts {
                 let partRange = NSRange(location: range.location + part.offset, length: part.length)
                 guard partRange.location >= cursor else { continue }
+                if let entry = stackedLines.first(where: { NSLocationInRange(partRange.location, $0.key) || $0.key.location == partRange.location }) {
+                    let content = entry.key
+                    guard !drawnLines.contains(content) else { continue }
+                    drawnLines.insert(content)
+                    guard content.location >= cursor else { continue }
+                    copyDocument(upTo: content.location)
+                    if start == nil { start = result.length }
+                    // The line's new text: its own text with every changed segment replaced.
+                    let newLine = NSMutableString(string: source.substring(with: content))
+                    for linePart in entry.value.sorted(by: { $0.offset > $1.offset }) {
+                        let local = NSRange(location: range.location + linePart.offset - content.location, length: linePart.length)
+                        newLine.replaceCharacters(in: local, with: linePart.replacement)
+                    }
+                    removed[change.id, default: []].append(NSRange(location: result.length, length: content.length))
+                    copyDocument(upTo: NSMaxRange(content))
+                    let marker = lineContent(at: content.location, in: source)?.marker ?? ""
+                    insert(MarkdownLineEnding.inForce(at: content.location, in: source).text + marker, isReplacement: false, id: change.id)
+                    insert(newLine as String, isReplacement: true, id: change.id)
+                    continue
+                }
                 copyDocument(upTo: partRange.location)
                 if start == nil { start = result.length }
                 if isAccepted {
@@ -221,6 +254,25 @@ struct AIReviewComposition: Equatable {
         }
         let bounds = Array(Set(starts.filter { $0 > 0 && $0 < text.length } + [0])).sorted() + [text.length]
         return zip(bounds, bounds.dropFirst()).map { NSRange(location: $0, length: $1 - $0) }
+    }
+
+    /// The prose of the line holding `location`: from just after its Markdown marker prefix (and a
+    /// leading BOM on the first line) to where its text ends, before the terminator; and that
+    /// prefix. Lines split on "\n" only (CLAUDE.md: never `getLineStart`).
+    static func lineContent(at location: Int, in text: NSString) -> (content: NSRange, marker: String)? {
+        guard location >= 0, location <= text.length else { return nil }
+        let newline = unichar(10), carriageReturn = unichar(13)
+        var lineStart = location
+        while lineStart > 0, text.character(at: lineStart - 1) != newline { lineStart -= 1 }
+        var lineEnd = location
+        while lineEnd < text.length, text.character(at: lineEnd) != newline { lineEnd += 1 }
+        if lineEnd > lineStart, text.character(at: lineEnd - 1) == carriageReturn { lineEnd -= 1 }
+        if lineStart == 0, text.length > 0, text.character(at: 0) == 0xFEFF { lineStart = 1 }
+        guard lineEnd >= lineStart else { return nil }
+        let line = text.substring(with: NSRange(location: lineStart, length: lineEnd - lineStart))
+        let markerLength = markerPrefix.firstMatch(in: line, range: NSRange(location: 0, length: (line as NSString).length))?.range.length ?? 0
+        let marker = (line as NSString).substring(to: markerLength)
+        return (NSRange(location: lineStart + markerLength, length: lineEnd - lineStart - markerLength), marker)
     }
 
     /// When `range` is ALL of a line's prose — from the line start (past a leading BOM on the

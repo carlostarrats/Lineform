@@ -234,6 +234,43 @@ final class AIReviewCompositionTests: XCTestCase {
         XCTAssertEqual(composition.string, "A one. B two. C three. B and C.\n")
     }
 
+    /// "More Casual" over list items whose prose is split by a link and a code span: a line with
+    /// more than one changed segment is shown WHOLE — struck, then its whole new line stacked below
+    /// with the marker repeated — never pieces interleaved around the link (2026-11-14).
+    func testLineSplitByLinksAndCodeIsShownWhole() throws {
+        let text = """
+        - Keep a log of overnight lows; the [frost chart](https://example.com/frost) is a good guide.
+        - Water at the `drip-line` in the evening, then mulch.
+
+        """
+        let ns = text as NSString
+        let segments = MarkdownStructureMap.proseSegments(in: text, selection: NSRange(location: 0, length: ns.length))
+        let revisions: [String?] = segments.map { segment in
+            switch segment.text {
+            case "Keep a log of overnight lows; the": return "Track overnight lows; the"
+            case "frost chart": return "local frost chart"
+            case "is a good guide.": return "is a handy guide."
+            case "in the evening, then mulch.": return "each evening, then mulch."
+            default: return segment.text
+            }
+        }
+        let change = try XCTUnwrap(AIChangeBuilder.change(segments: segments, revisions: revisions, in: text))
+        let review = AIReviewSession(action: .moreCasual, changes: [change], selectionRange: NSRange(location: 0, length: ns.length),
+                                     originalSelection: text)
+        let composition = AIReviewComposition.build(text: text, session: review)
+        XCTAssertEqual(substrings(composition.string, composition.removedRanges[0]),
+                       ["Keep a log of overnight lows; the [frost chart](https://example.com/frost) is a good guide.",
+                        "in the evening, then mulch."])
+        XCTAssertEqual(substrings(composition.string, composition.replacementRanges[0]),
+                       ["Track overnight lows; the [local frost chart](https://example.com/frost) is a handy guide.",
+                        "each evening, then mulch."])
+        XCTAssertTrue(composition.string.hasPrefix(
+            "- Keep a log of overnight lows; the [frost chart](https://example.com/frost) is a good guide.\n- Track overnight lows; the [local frost chart](https://example.com/frost) is a handy guide.\n"),
+            composition.string)
+        XCTAssertTrue(composition.string.contains("- Water at the `drip-line` in the evening, then mulch. each evening, then mulch."),
+                      "one changed segment on a line stays inline")
+    }
+
     func testStaleRangesAreSkippedNotCrashed() {
         let text = "short"
         let stale = AIChange(id: 0, range: NSRange(location: 40, length: 3), original: "big", replacement: "large")
