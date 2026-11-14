@@ -636,8 +636,11 @@ the commit message claimed. The fixture now measures the last line.
 
 ## History (2026-11-12)
 
-Per-passage version History: right-click a selection ▸ **Add to History** keeps the passage's
-current text as its original (alternatives are added in History; see below); History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
+Per-passage version History: right-click a selection ▸ **Add Alternative…** (was "Add to History",
+2026-11-13) keeps the passage's current text as its original, enters History focused on it AND
+opens the "Type an alternative" field with focus (`pendingAlternativeFieldID` →
+`HistorySidebarModel.opensAlternativeField`, spent by `alternativeFieldDidOpen`, cleared when History
+mode ends; leaving without adding still discards the one-version passage); History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
 shows passages with history and steps their versions. Spec:
 `docs/superpowers/specs/2026-11-12-bring-your-own-ai-design.md` §5–§6. Pieces:
 `PassageHistoryStore.swift` (store), `DocumentHistoryEngine` (passages, live ranges, versions),
@@ -698,7 +701,7 @@ shows passages with history and steps their versions. Spec:
   DEFERRED a runloop turn (the request fires from inside `add` and from the end of an AI review,
   which must finish first). It hands AI to `AIActionController.yieldToHistory()`: a request or
   review ends, Mark's wash is dismissed (History never opens under it), and a message stays (the
-  first-accept intro arrives just after a review ended; dropping it would lose a refusal). Then it
+  return after an AI action arrives just after a review ended; dropping it would lose a refusal). Then it
   switches to Write, calls `showPassage` — which checks the passage is in the text BEFORE entering
   History mode, so a stale id never leaves History on with nothing selected — and only if that
   succeeded opens the sidebar through `showSidebarIfHidden()` — AppKit's nil-targeted
@@ -711,6 +714,14 @@ shows passages with history and steps their versions. Spec:
   hook. View ▸ History uses the
   same helper (it used to write the binding). The sidebar follows `isHistoryModeActive` onto its
   History tab and back to the tab it came from (`OutlineSidebarTab.historyModeTransition`).
+- **Shared lead-line spacing (2026-11-13).** Every sidebar tab puts its lead line
+  `OutlineSidebarView.sidebarLeadLineTop` (20pt) under the tab divider and its first row or card
+  `sidebarLeadToFirstRow` (12pt) under that — the Files tab's existing geometry (16pt padding + the
+  sort row's 4pt inset; 8pt stack spacing + that inset). Outline (first heading row / empty text),
+  Files, Markdown Basics (first heading → first card; every section's heading → its cards) and
+  History (lead line → level switcher or first version) all read these, pinned by
+  `HistorySidebarPresentationTests.testEveryTabUsesTheSharedLeadLineSpacing`. History's lead line
+  takes the Files "Sort folders by" style (12pt medium, inactive-tab grey).
 - **Sidebar controls.** **Exit** (calls `exitHistoryMode()`) sits at the trailing edge of the
   History row of the sidebar's TAB PICKER, shown only while History is the tab on screen
   (`OutlineSidebarTab.showsHistoryExit`, an overlay so the row keeps its geometry). History's
@@ -779,21 +790,45 @@ shows passages with history and steps their versions. Spec:
   - History mode OFF: an accept's recorded passage becomes `rememberedPassageID`; the next PLAIN
     entry (`enterHistoryModeFromTab`: the History tab, View ▸ History) selects it if it locates,
     instead of the empty state. Spent when used; cleared by `open`/`close` (a document swap) and by
-    any entry with an explicit target (`showPassage`: Add to History, a first-accept show). A
+    any entry with an explicit target (`showPassage`: Add Alternative…, a return after an AI action). A
     reject remembers nothing.
   - Not settled (`aiActionAbandoned`): Try Again keeps the context for the re-run
     (`endReview(settlingHistory: false)`); typing during a review, live reload / `abandon`,
     `yieldToHistory` (History opening on its own target), and Mark's marks (History would dismiss
     them) drop it. Without an editor nothing is located — `locateAll` drops passages it cannot
     find, so it must only ever see the real text.
-- **A document's first AI accept shows History.** `AIActionController.endReview` reads
-  `history.hasHistory` BEFORE recording, then hands the first passage it recorded to
-  `introduceAfterAIAccept(_:documentHadHistory:)`. When the document had no History before that
-  accept, it fires `onRequestShowHistory` (the editor opens the sidebar on History focused on the
-  passage, through `showHistory(focusing:)`); later accepts in the same document leave the sidebar
-  alone. The rule is per document (2026-11-13). Before, it was once EVER, app-wide, behind the
-  `Lineform.history.didIntroduceAfterAI` default — that key is no longer read or written (no
-  migration: an old value is simply ignored).
+- **An AI accept never opens History** (2026-11-13: editing is not History; History is something
+  the writer chooses). The "document's first accept shows History" rule and
+  `introduceAfterAIAccept` are gone (it had replaced a once-ever rule behind the
+  `Lineform.history.didIntroduceAfterAI` default, which is not read either). What stays is the
+  remembered passage: the next History-tab click selects it.
+- **AI on any selection, and how an accept is recorded** (2026-11-13). `allowsAIAction` refuses
+  only in History mode; it used to refuse on and inside a `.word` passage
+  (`isInsideWordPassage`, spec §5's "nothing nests inside a word"), which is what hid the AI items
+  when the writer selected words of a line they had already rewritten (a ≤ 3-word accepted change
+  in one sentence classifies as `.word`). Now:
+  - **Partial overlap:** `AIActionController.run` widens the selection over any passage it partly
+    covers (`DocumentHistoryEngine.aiActionRange`, live ranges only, to a fixpoint), so the
+    accepted change never straddles a passage boundary — an edit across a boundary DROPS that
+    passage. The request then carries the whole passage.
+  - **Equal to a passage:** a new version of it (the live-range match, as before).
+  - **Inside a passage that can hold it** (a word inside a sentence/line, a sentence inside a
+    paragraph): a nested child, as before.
+  - **Strictly inside a passage that cannot** (inside a word, or the same level): a new version of
+    that passage — its whole new text, with its old whole text rebuilt by putting `original` back
+    at the change (`recordAccepted(inside:…)`); the version replaced keeps its author when it IS
+    that text.
+  - **Containing passages:** the accept's edits would drop them, so while it is applied
+    (`aiAcceptWillApply`/`aiAcceptDidApply` → `beginSettingAside`) a dropped passage is SET
+    ASIDE — versions kept, live range forgotten, skipped by `locateAll` — and `recordAccepted`
+    files it under the recorded passage at the version its text lives in (`fileSetAside`, matched
+    by its text appearing in that version), so stepping back shows it again. One the recording
+    cannot file (nothing recorded, or its text is in no recorded version) is dropped as before
+    when the recording finishes (`aiAcceptRecordingDidFinish`). Not covered: ⌘Z of the accept
+    still drops the recorded passage (and what was filed under it), as any edit covering a
+    passage does.
+  - Kept refusals: the structure guard's (Markdown structure, line endings, control characters)
+    are unchanged; History mode still refuses AI.
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the
@@ -902,7 +937,7 @@ shows passages with history and steps their versions. Spec:
   The formatting group (Title, Section, Bold, Italic, Code, Bulleted List, Link) is left out
   (`LineformTextContextMenuPresentation.showsFormattingCommands(for:isHistoryModeActive:)`, which
   `commandTitles(for:isHistoryModeActive:)` shares), because the writer is stepping versions, not
-  formatting. Add to History is left out too — explicitly, though the clamped caret already made
+  formatting. Add Alternative… is left out too — explicitly, though the clamped caret already made
   it unreachable — and the AI group was already absent (`allowsAIAction`). The ⌘B/⌘I keys and the
   Format menu are untouched: they still leave the mode and apply, as above.
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
@@ -939,7 +974,7 @@ action does to the document. The two sections after it cover the text-view and o
 - **State machine** (`AIActionController.State`): `idle → running(action, provider) →
   reviewing(session) | marking(ranges) | message(text) → idle`. `run` is a SILENT no-op unless
   connected, the selection is non-empty, nothing is running or under review, and History allows it
-  (`DocumentHistoryController.allowsAIAction`: not in History mode, not inside a `.word` passage).
+  (`DocumentHistoryController.allowsAIAction`: not in History mode).
   It then builds the request, checks `AILimits` (≤ 400 segments, ≤ 24,000 UTF-16 units of prose,
   else "Select less text"), and only THEN calls `resolvedConnection()` — the one Keychain read —
   and the client. A generation token makes any reply after cancel/abandon a no-op. Write mode only;
@@ -1044,11 +1079,6 @@ action does to the document. The two sections after it cover the text-view and o
   every shipped language (es, fr, de, ja, zh-Hans: ja/zh have one form, and 0 never reaches these
   strings — it becomes "No changes suggested." / "Nothing to mark."). A language with dual/few/many
   forms (Russian, Polish, Arabic) would need a real plural variation in the catalog.
-- **Known gap: word passages right after a whole-text write.** `allowsAIAction` reads History's
-  LIVE ranges only (it never searches text). `noteWholeTextReplacement()` invalidates them, so
-  between a whole-text write and the next locate, an action inside a `.word` passage is not
-  blocked. Live reload and open re-locate immediately, so the window is brief; the action itself is
-  still structure-safe — only the spec §5 "nothing nests inside a word" rule is briefly unenforced.
 - **Not hands-on verified yet** (owed in GUI QA): the struck/highlighted change, keys and cards on screen, dead keys and IME
   hand-off (ja, zh-Hans, ⌥E), Focus/ruler assists (not mirrored in the overlay, so they vanish
   during a review), VoiceOver, German consent label fit.
@@ -1057,7 +1087,7 @@ action does to the document. The two sections after it cover the text-view and o
 
 `LineformTextView+AI.swift`; the controller is `AIActionController` (Lineform/AI).
 
-- **Context menu.** After Paste and Add to History: separator, Rewrite ▸ (Trim, Cut in half,
+- **Context menu.** After Paste and Add Alternative…: separator, Rewrite ▸ (Trim, Cut in half,
   Rewrite), Proofread, Mark ▸ (Weakest sentences, Long sentences). ABSENT, not disabled, unless
   `aiAvailabilityHandler` says yes for a non-empty selection — a whole-document structure
   analysis, so it is asked only when the menu is built. Both submenus carry
