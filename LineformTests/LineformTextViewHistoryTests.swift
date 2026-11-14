@@ -345,16 +345,51 @@ final class LineformTextViewHistoryTests: XCTestCase {
     /// The counter starts `leadingGap` after the last glyph and ends `trailingGap` before the
     /// reserved space runs out, so it can never reach the next glyph.
     func testCounterFitsInsideItsReservedSpace() {
-        for text in ["1/2", "10/12", "99/99"] {
-            let x = HistoryCounterLayout.originX(afterGlyphEndingAt: 100)
-            XCTAssertEqual(x, 100 + HistoryCounterLayout.leadingGap)
-            XCTAssertLessThanOrEqual(x + HistoryCounterLayout.width(of: text),
-                                     100 + HistoryCounterLayout.reservedWidth(for: text) - HistoryCounterLayout.trailingGap)
+        for size: CGFloat in [9, 13, 17, 28] {
+            for text in ["1/2", "10/12", "99/99"] {
+                let x = HistoryCounterLayout.originX(afterGlyphEndingAt: 100)
+                XCTAssertEqual(x, 100 + HistoryCounterLayout.leadingGap)
+                XCTAssertLessThanOrEqual(x + HistoryCounterLayout.width(of: text, textSize: size),
+                                         100 + HistoryCounterLayout.reservedWidth(for: text, textSize: size)
+                                             - HistoryCounterLayout.trailingGap)
+            }
         }
         // Cap-aligned: the counter's cap top sits at the text's cap top.
-        let top = HistoryCounterLayout.top(baselineY: 100, textCapHeight: 12)
-        let font = HistoryCounterLayout.font
+        let font = HistoryCounterLayout.font(forTextSize: 17)
+        let top = HistoryCounterLayout.top(baselineY: 100, textCapHeight: 12, font: font)
         XCTAssertEqual(top + font.ascender - font.capHeight, 100 - 12, accuracy: 0.001)
+    }
+
+    /// Never below 11pt however small the body; proportional above that.
+    func testCounterHasAMinimumSize() {
+        XCTAssertEqual(HistoryCounterLayout.pointSize(forTextSize: 9), 11)
+        XCTAssertEqual(HistoryCounterLayout.pointSize(forTextSize: 12), 11)
+        XCTAssertEqual(HistoryCounterLayout.pointSize(forTextSize: 17), 13)
+        XCTAssertEqual(HistoryCounterLayout.pointSize(forTextSize: 28), 21)
+        XCTAssertEqual(HistoryCounterLayout.font(forTextSize: 9).pointSize, 11)
+    }
+
+    /// The counter sits outside every passage box: a box reaching past the passage's last glyph is
+    /// split around the counter's reserved space; boxes off that line are untouched.
+    func testCounterIsCarvedOutOfTheBoxes() {
+        let counter = NSRect(x: 104, y: 10, width: 20, height: 14)
+        let reserved: CGFloat = 27
+        let hole = HistoryCounterLayout.hole(around: counter, reservedWidth: reserved, rightToLeft: false)
+        XCTAssertEqual(hole, NSRect(x: 100, y: 10, width: 27, height: 14))
+        // The selected passage's last line ends at the counter's reserved space: trimmed.
+        XCTAssertEqual(HistoryCounterLayout.carving(NSRect(x: 20, y: 8, width: 107, height: 18), around: hole),
+                       [NSRect(x: 20, y: 8, width: 80, height: 18)])
+        // A parent box running on past it: split, the counter's room left on the page.
+        XCTAssertEqual(HistoryCounterLayout.carving(NSRect(x: 0, y: 8, width: 300, height: 18), around: hole),
+                       [NSRect(x: 0, y: 8, width: 100, height: 18), NSRect(x: 127, y: 8, width: 173, height: 18)])
+        // Another line: untouched.
+        let other = NSRect(x: 0, y: 40, width: 300, height: 18)
+        XCTAssertEqual(HistoryCounterLayout.carving(other, around: hole), [other])
+        // Right to left: the room opens on the counter's right (the glyph's left).
+        XCTAssertEqual(HistoryCounterLayout.hole(around: counter, reservedWidth: reserved, rightToLeft: true),
+                       NSRect(x: 101, y: 10, width: 27, height: 14))
+        XCTAssertTrue(HistoryCounterLayout.isRightToLeft(0x0646))
+        XCTAssertFalse(HistoryCounterLayout.isRightToLeft(0x0061))
     }
 
     private func laidOutTextView(_ text: String) throws -> LineformTextView {

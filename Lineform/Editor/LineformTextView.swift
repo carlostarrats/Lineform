@@ -2056,18 +2056,21 @@ enum LineformTextContextMenuPresentation {
     static let noGuessesTitle = String(localized: "No Guesses Found")
     /// Conditional: offered only for a non-empty selection the History controller accepts, so it
     /// is not part of `commandTitles(for:)` (the rows every menu carries).
-    /// Enters History on the selection with the "Type an alternative" field open (2026-11-13;
+    /// "Replace With…" (2026-11-14; was "Add Alternative…", before that "Add to History"): enters
+    /// History on the selection with the "Type a replacement" field open (2026-11-13;
     /// was "Add to History"). The ellipsis: the item asks for more input.
-    static let addToHistoryTitle = String(localized: "Add Alternative…")
+    static let addToHistoryTitle = String(localized: "Replace With…")
     /// The AI group's submenus. Conditional (connected, a selection with prose), so not part of
     /// `commandTitles(for:)` either.
     static let aiRewriteMenuTitle = String(localized: "Rewrite")
-    static let aiMarkMenuTitle = String(localized: "Mark")
+    /// "Find ▸ Weakest Sentences / Long Sentences" (2026-11-14; was "Mark").
+    static let aiMarkMenuTitle = String(localized: "Find")
 
     /// One row of the AI group: an action, or a submenu of actions.
     enum AIMenuEntry: Equatable {
         case action(AIAction)
-        case submenu(String, [AIAction])
+        /// A submenu of action groups, a separator between groups.
+        case submenu(String, [[AIAction]])
     }
 
     /// The AI group for a selection. A single word gets "Another Word" in place of the Rewrite
@@ -2080,9 +2083,9 @@ enum LineformTextContextMenuPresentation {
         guard !isSingleWord(selectedText) else {
             return [.action(.anotherWord), .action(.proofread)]
         }
-        var entries: [AIMenuEntry] = [.submenu(aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread)]
+        var entries: [AIMenuEntry] = [.submenu(aiRewriteMenuTitle, AIAction.rewriteMenuGroups), .action(.proofread)]
         if sentenceCount() >= 2 {
-            entries.append(.submenu(aiMarkMenuTitle, [.markWeakest, .markLong]))
+            entries.append(.submenu(aiMarkMenuTitle, [[.markWeakest, .markLong]]))
         }
         return entries
     }

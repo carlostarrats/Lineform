@@ -9,7 +9,7 @@ struct HistorySidebarModel: Equatable {
     /// The passage the versions belong to. The replacement field is opened for ONE passage and
     /// closes when this changes (`HistoryReplacementFieldState.selectionChanged`).
     var selectedPassageID: UUID?
-    /// Add Alternative… from the editor: open the alternative field for this passage at once.
+    /// Replace With… from the editor: open the alternative field for this passage at once.
     var opensAlternativeField: Bool = false
 }
 
@@ -77,8 +77,18 @@ struct HistorySidebarRow: Equatable, Identifiable {
             .joined(separator: " ")
     }
 
+    /// The ORIGINAL (the first version, where the passage started) is a page; the writer's own
+    /// versions a pencil; AI versions a sparkle (2026-11-14).
+    var isOriginal: Bool { id == 0 }
+
+    var symbolName: String {
+        if isOriginal { return "doc.text" }
+        return author == .you ? "pencil" : "sparkles"
+    }
+
     /// Spoken label for the row. `position` is 1-based.
     func accessibilityLabel(position: Int, of count: Int) -> String {
+        if isOriginal { return String(localized: "\(text), original, version \(position) of \(count)") }
         switch author {
         case .you: return String(localized: "\(text), by you, version \(position) of \(count)")
         case .ai: return String(localized: "\(text), by AI, version \(position) of \(count)")
@@ -115,7 +125,7 @@ enum HistorySidebarPresentation {
     static let deleteVersionTitle = String(localized: "Delete from History")
     static let exitTitle = String(localized: "Exit")
     /// The section row's Add button: its accessibility label (the visible text is "Add" + plus).
-    static let addAlternativeTitle = String(localized: "Add Alternative")
+    static let addAlternativeTitle = String(localized: "Add Version")
     static let addButtonTitle = String(localized: "Add")
     static let addButtonSymbol = "plus"
     static let versionsHeading = String(localized: "Versions of selected text")
@@ -147,7 +157,7 @@ enum HistorySidebarPresentation {
     /// horizontally rather than running under the button).
     static let commitButtonDiameter: CGFloat = 20
     static let commitButtonGap: CGFloat = 7
-    static let replacementPlaceholder = String(localized: "Type an alternative")
+    static let replacementPlaceholder = String(localized: "Type a replacement")
     /// The leading inset every line of History prose sits on (lead line, empty text, hint): the
     /// shared lead-text edge, `OutlineSidebarView.sidebarLeadTextLeading`.
     static let textInset: CGFloat = 22
@@ -272,7 +282,7 @@ struct HistorySidebarView: View {
         .onChange(of: model.selectedPassageID) { _, id in
             if replacementField.selectionChanged(to: id) { onReplacementFieldEnded() }
         }
-        // Add Alternative…: History opened on the passage with its field already asked for —
+        // Replace With…: History opened on the passage with its field already asked for —
         // whether this view already existed (onChange) or was just built for it (onAppear).
         .onAppear(perform: openAlternativeFieldIfRequested)
         .onChange(of: model.opensAlternativeField) { _, _ in openAlternativeFieldIfRequested() }
@@ -406,7 +416,7 @@ struct HistorySidebarView: View {
 }
 
 /// The section row's quiet "Add +": borderless, muted ink (`addButtonWhite`) and, on hover, a
-/// faint capsule behind it (`addButtonHoverFillOpacity`); spoken as "Add Alternative".
+/// faint capsule behind it (`addButtonHoverFillOpacity`); spoken as "Add Version".
 private struct HistoryAddAlternativeButton: View {
     var usesDarkChrome: Bool
     var action: () -> Void
@@ -522,7 +532,7 @@ private struct HistoryVersionRowView: View {
         let layout = HistorySidebarPresentation.rowLayout
         HStack(spacing: 0) {
             Color.clear.frame(width: layout.chevronSlotWidth)
-            Image(systemName: row.author == .you ? "pencil" : "sparkles")
+            Image(systemName: row.symbolName)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(foreground)
                 .frame(width: layout.iconWidth)

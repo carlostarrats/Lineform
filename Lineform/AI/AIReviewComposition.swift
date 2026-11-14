@@ -11,10 +11,17 @@ import Foundation
 /// is a whole line, the replacement starts on a line of its own (the document's own line ending,
 /// overlay only); otherwise it follows inline after `AIReviewSession.separator`.
 ///
-/// Decided changes contribute nothing: an accepted one is already in the document, a rejected
-/// one is simply the document. Text outside the pending changes is copied verbatim, so everything
-/// before the first change is byte-identical to the document and its lines line up with the
-/// editor underneath. Pure value logic; the overlay text view draws it.
+/// Decisions are applied only when the review ends (`AIReviewSession`), so an ACCEPTED change is
+/// drawn as its replacement in place of the document's text, plain; a rejected one is simply the
+/// document. Text outside the changes is copied verbatim, so everything before the first change is
+/// byte-identical to the document and its lines line up with the editor underneath.
+///
+/// Proofread (2026-11-14) draws every correction IN PLACE: the original word(s) struck, the fix
+/// right after on the same line — never on a line of its own. A Rewrite-family change is drawn at
+/// the smallest unit that changed: when the original and the replacement have the same number of
+/// sentences and some are unchanged, each changed sentence is struck with its replacement inline
+/// right after it; a whole replaced or restructured (merged / split) span keeps the whole-span
+/// display, a whole line stacked on a line of its own. Pure value logic; the overlay draws it.
 struct AIReviewComposition: Equatable {
     let string: String
     /// Change id → the struck originals, in `string` coordinates, in order. Absent for a pure
@@ -23,19 +30,23 @@ struct AIReviewComposition: Equatable {
     /// Change id → the highlighted replacements, in `string` coordinates, in order. Absent for a
     /// pure deletion.
     let replacementRanges: [Int: [NSRange]]
+    /// Change id → an ACCEPTED (not yet applied) change's replacement as drawn, plain.
+    var acceptedRanges: [Int: [NSRange]] = [:]
     /// Change id → the whole change as drawn, from its first part to its last.
     let changeRanges: [Int: NSRange]
     /// Change id → the change's range in the DOCUMENT the composition was built from.
     let documentRanges: [Int: NSRange]
     /// Text the overlay shows that the document does not have (separators, line breaks,
-    /// replacements), in order: where it sits in `string`, how long it is, and the document index
-    /// it stands at. Everything else in `string` is document text, one to one.
+    /// replacements), in order: where it sits in `string`, how long it is, the document index it
+    /// stands at, and how much document text it stands IN PLACE of (an accepted change hides its
+    /// original; 0 otherwise). Everything else in `string` is document text, one to one.
     let insertions: [Insertion]
 
     struct Insertion: Equatable {
         let overlayLocation: Int
         let length: Int
         let documentLocation: Int
+        var documentLength: Int = 0
     }
 
     static func build(text: String, session: AIReviewSession) -> AIReviewComposition {
@@ -43,10 +54,12 @@ struct AIReviewComposition: Equatable {
         let result = NSMutableString()
         var removed: [Int: [NSRange]] = [:]
         var replaced: [Int: [NSRange]] = [:]
+        var acceptedDrawn: [Int: [NSRange]] = [:]
         var whole: [Int: NSRange] = [:]
         var documentRanges: [Int: NSRange] = [:]
         var insertions: [Insertion] = []
         var cursor = 0
+        let inline = session.action.reviewsPerCorrection
 
         func copyDocument(upTo location: Int) {
             guard location > cursor else { return }
@@ -60,48 +73,135 @@ struct AIReviewComposition: Equatable {
             insertions.append(Insertion(overlayLocation: result.length, length: length, documentLocation: cursor))
             result.append(string)
         }
+        /// The struck original at `removedRange` (document coordinates), then the replacement.
+        func strike(_ removedRange: NSRange, with added: String, id: Int, stacksWholeLine: Bool) {
+            copyDocument(upTo: removedRange.location)
+            if removedRange.length > 0 {
+                removed[id, default: []].append(NSRange(location: result.length, length: removedRange.length))
+                copyDocument(upTo: NSMaxRange(removedRange))
+            }
+            let removedText = source.substring(with: removedRange)
+            if stacksWholeLine, removedRange.length > 0, !added.isEmpty, let marker = wholeLineMarker(removedRange, in: source) {
+                // The item's own marker repeats, so the replacement reads as the same item.
+                insert(MarkdownLineEnding.inForce(at: removedRange.location, in: source).text + marker,
+                       isReplacement: false, id: id)
+            } else {
+                insert(AIReviewSession.separator(between: removedText, and: added), isReplacement: false, id: id)
+            }
+            insert(added, isReplacement: true, id: id)
+        }
 
-        for change in session.pending.sorted(by: { ($0.range.location, $0.id) < ($1.range.location, $1.id) }) {
+        let shown = session.changes.filter { session.decisions[$0.id] != .rejected }
+        for change in shown.sorted(by: { ($0.range.location, $0.id) < ($1.range.location, $1.id) }) {
             let range = change.range
             // A stale or overlapping range (never expected: the session keeps them current) is
             // skipped rather than drawn wrong.
             guard range.location >= cursor, NSMaxRange(range) <= source.length,
                   change.parts.allSatisfy({ $0.offset >= 0 && $0.length >= 0 && $0.offset + $0.length <= range.length }) else { continue }
+            let isAccepted = session.decisions[change.id] == .accepted
             var start: Int?
-            for part in change.parts.sorted(by: { $0.offset < $1.offset }) {
+            let sortedParts = change.parts.sorted(by: { $0.offset < $1.offset })
+            // A line whose prose is split by links, code spans or other inline structure into
+            // several CHANGED segments is shown whole: struck, then its whole new text stacked on a
+            // line of its own (2026-11-14 — interleaved pieces around a link were unreadable).
+            let stackedLines: [NSRange: [AIChange.Part]] = inline || isAccepted ? [:] : {
+                var byLine: [NSRange: [AIChange.Part]] = [:]
+                for part in sortedParts {
+                    guard let line = lineContent(at: range.location + part.offset, in: source) else { continue }
+                    byLine[line.content, default: []].append(part)
+                }
+                return byLine.filter { $0.value.count > 1 }
+            }()
+            var drawnLines = Set<NSRange>()
+            for part in sortedParts {
                 let partRange = NSRange(location: range.location + part.offset, length: part.length)
                 guard partRange.location >= cursor else { continue }
+                if let entry = stackedLines.first(where: { NSLocationInRange(partRange.location, $0.key) || $0.key.location == partRange.location }) {
+                    let content = entry.key
+                    guard !drawnLines.contains(content) else { continue }
+                    drawnLines.insert(content)
+                    guard content.location >= cursor else { continue }
+                    copyDocument(upTo: content.location)
+                    if start == nil { start = result.length }
+                    // The line's new text: its own text with every changed segment replaced.
+                    let newLine = NSMutableString(string: source.substring(with: content))
+                    for linePart in entry.value.sorted(by: { $0.offset > $1.offset }) {
+                        let local = NSRange(location: range.location + linePart.offset - content.location, length: linePart.length)
+                        newLine.replaceCharacters(in: local, with: linePart.replacement)
+                    }
+                    removed[change.id, default: []].append(NSRange(location: result.length, length: content.length))
+                    copyDocument(upTo: NSMaxRange(content))
+                    let marker = lineContent(at: content.location, in: source)?.marker ?? ""
+                    insert(MarkdownLineEnding.inForce(at: content.location, in: source).text + marker, isReplacement: false, id: change.id)
+                    insert(newLine as String, isReplacement: true, id: change.id)
+                    continue
+                }
                 copyDocument(upTo: partRange.location)
                 if start == nil { start = result.length }
+                if isAccepted {
+                    // Accepted, not yet applied: the replacement stands in place of the original.
+                    let length = (part.replacement as NSString).length
+                    if length > 0 {
+                        acceptedDrawn[change.id, default: []].append(NSRange(location: result.length, length: length))
+                    }
+                    insertions.append(Insertion(overlayLocation: result.length, length: length,
+                                                documentLocation: cursor, documentLength: partRange.length))
+                    result.append(part.replacement)
+                    cursor = NSMaxRange(partRange)
+                    continue
+                }
                 // The document's own text, never `change.original`: what is struck is what is there.
                 let original = source.substring(with: partRange)
-                let differing = differingSpan(original: original, replacement: part.replacement)
-                let removedRange = NSRange(location: partRange.location + differing.original.location, length: differing.original.length)
-                let added = (part.replacement as NSString).substring(with: differing.replacement)
-                copyDocument(upTo: removedRange.location)
-                if removedRange.length > 0 {
-                    removed[change.id, default: []].append(NSRange(location: result.length, length: removedRange.length))
-                    copyDocument(upTo: NSMaxRange(removedRange))
-                }
-                let removedText = source.substring(with: removedRange)
-                if removedRange.length > 0, !added.isEmpty, let marker = wholeLineMarker(removedRange, in: source) {
-                    // The item's own marker repeats, so the replacement reads as the same item.
-                    insert(MarkdownLineEnding.inForce(at: removedRange.location, in: source).text + marker,
-                           isReplacement: false, id: change.id)
+                if inline {
+                    strike(partRange, with: part.replacement, id: change.id, stacksWholeLine: false)
+                } else if let pairs = changedSentencePairs(original: original, replacement: part.replacement) {
+                    for pair in pairs {
+                        strike(NSRange(location: partRange.location + pair.original.location, length: pair.original.length),
+                               with: (part.replacement as NSString).substring(with: pair.replacement),
+                               id: change.id, stacksWholeLine: false)
+                    }
                 } else {
-                    insert(AIReviewSession.separator(between: removedText, and: added), isReplacement: false, id: change.id)
+                    let differing = differingSpan(original: original, replacement: part.replacement)
+                    strike(NSRange(location: partRange.location + differing.original.location, length: differing.original.length),
+                           with: (part.replacement as NSString).substring(with: differing.replacement),
+                           id: change.id, stacksWholeLine: true)
                 }
-                insert(added, isReplacement: true, id: change.id)
                 copyDocument(upTo: NSMaxRange(partRange))
             }
             copyDocument(upTo: NSMaxRange(range))
             let first = start ?? result.length
-            whole[change.id] = NSRange(location: first, length: result.length - first)
+            if !isAccepted {
+                whole[change.id] = NSRange(location: first, length: result.length - first)
+            }
             documentRanges[change.id] = range
         }
         copyDocument(upTo: source.length)
-        return AIReviewComposition(string: result as String, removedRanges: removed, replacementRanges: replaced,
-                                   changeRanges: whole, documentRanges: documentRanges, insertions: insertions)
+        var composition = AIReviewComposition(string: result as String, removedRanges: removed, replacementRanges: replaced,
+                                              changeRanges: whole, documentRanges: documentRanges, insertions: insertions)
+        composition.acceptedRanges = acceptedDrawn
+        return composition
+    }
+
+    /// The changed sentences of a part, paired, when it can be shown sentence by sentence: the
+    /// original and the replacement tile into the SAME number of sentences and at least one is
+    /// unchanged. Each pair is the differing span of one changed sentence (shared edge whitespace
+    /// left out), in `original` and `replacement` coordinates. Nil when every sentence changed (a
+    /// whole replacement) or the counts differ (sentences merged or split — pairing them could
+    /// strike one sentence against another's replacement).
+    static func changedSentencePairs(original: String, replacement: String) -> [(original: NSRange, replacement: NSRange)]? {
+        let a = original as NSString, b = replacement as NSString
+        let tilesA = sentenceTiles(a), tilesB = sentenceTiles(b)
+        guard tilesA.count == tilesB.count, tilesA.count > 1 else { return nil }
+        var pairs: [(original: NSRange, replacement: NSRange)] = []
+        for (x, y) in zip(tilesA, tilesB) {
+            let sa = a.substring(with: x), sb = b.substring(with: y)
+            if sa.utf16.elementsEqual(sb.utf16) { continue }
+            let span = differingSpan(original: sa, replacement: sb)
+            pairs.append((NSRange(location: x.location + span.original.location, length: span.original.length),
+                          NSRange(location: y.location + span.replacement.location, length: span.replacement.length)))
+        }
+        guard !pairs.isEmpty, pairs.count < tilesA.count else { return nil }
+        return pairs
     }
 
     static let empty = AIReviewComposition(string: "", removedRanges: [:], replacementRanges: [:],
@@ -156,6 +256,25 @@ struct AIReviewComposition: Equatable {
         return zip(bounds, bounds.dropFirst()).map { NSRange(location: $0, length: $1 - $0) }
     }
 
+    /// The prose of the line holding `location`: from just after its Markdown marker prefix (and a
+    /// leading BOM on the first line) to where its text ends, before the terminator; and that
+    /// prefix. Lines split on "\n" only (CLAUDE.md: never `getLineStart`).
+    static func lineContent(at location: Int, in text: NSString) -> (content: NSRange, marker: String)? {
+        guard location >= 0, location <= text.length else { return nil }
+        let newline = unichar(10), carriageReturn = unichar(13)
+        var lineStart = location
+        while lineStart > 0, text.character(at: lineStart - 1) != newline { lineStart -= 1 }
+        var lineEnd = location
+        while lineEnd < text.length, text.character(at: lineEnd) != newline { lineEnd += 1 }
+        if lineEnd > lineStart, text.character(at: lineEnd - 1) == carriageReturn { lineEnd -= 1 }
+        if lineStart == 0, text.length > 0, text.character(at: 0) == 0xFEFF { lineStart = 1 }
+        guard lineEnd >= lineStart else { return nil }
+        let line = text.substring(with: NSRange(location: lineStart, length: lineEnd - lineStart))
+        let markerLength = markerPrefix.firstMatch(in: line, range: NSRange(location: 0, length: (line as NSString).length))?.range.length ?? 0
+        let marker = (line as NSString).substring(to: markerLength)
+        return (NSRange(location: lineStart + markerLength, length: lineEnd - lineStart - markerLength), marker)
+    }
+
     /// When `range` is ALL of a line's prose — from the line start (past a leading BOM on the
     /// document's first line), or from just after the line's
     /// Markdown marker prefix (`- `, `1. `, `> `, `- [ ] `, nested `> - `, with indentation), to
@@ -183,6 +302,11 @@ struct AIReviewComposition: Equatable {
     private static let markerPrefix = try! NSRegularExpression(
         pattern: #"^(?:[ \t]*(?:(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?|>[ \t]?))*"#)
 
+    /// The pending change drawn at overlay index `index`, if any (a click makes it current).
+    func changeID(at index: Int) -> Int? {
+        changeRanges.first { NSLocationInRange(index, $0.value) }?.key
+    }
+
     // MARK: - Index mapping (scroll hand-over between the editor and the overlay)
 
     /// The document index shown at overlay index `index`. Document text maps one to one; text
@@ -193,7 +317,7 @@ struct AIReviewComposition: Equatable {
         for insertion in insertions {
             if index < insertion.overlayLocation { break }
             if index < insertion.overlayLocation + insertion.length { return insertion.documentLocation }
-            shift += insertion.length
+            shift += insertion.length - insertion.documentLength
         }
         return index - shift
     }
@@ -203,7 +327,8 @@ struct AIReviewComposition: Equatable {
         var shift = 0
         for insertion in insertions {
             if insertion.documentLocation > index { break }
-            shift += insertion.length
+            if index < insertion.documentLocation + insertion.documentLength { return insertion.overlayLocation }
+            shift += insertion.length - insertion.documentLength
         }
         return index + shift
     }

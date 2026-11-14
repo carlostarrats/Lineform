@@ -23,8 +23,17 @@ final class AIActionPromptTests: XCTestCase {
     func testEditPromptsCarryTheirOwnInstruction() {
         XCTAssertTrue(AIActionPrompt.editPrompt(.cutInHalf, segments: ["x"]).system
             .hasSuffix("Make the passage about half as long. Keep the most important points. Never return the passage unchanged."))
-        XCTAssertTrue(AIActionPrompt.editPrompt(.rewrite, segments: ["x"]).system
-            .hasSuffix("Rewrite for clarity and flow. Keep the meaning and about the same length. Always change the wording: never return the passage unchanged."))
+        XCTAssertTrue(AIActionPrompt.editPrompt(.rephrase, segments: ["x"]).system
+            .hasSuffix("Say the same thing in different words. Keep the meaning and about the same length. Always change the wording: never return the passage unchanged."))
+        XCTAssertTrue(AIActionPrompt.editPrompt(.simplify, segments: ["x"]).system
+            .hasSuffix("Make the passage simpler: plainer words and shorter sentences. Keep the meaning. Never return the passage unchanged."))
+        XCTAssertTrue(AIActionPrompt.editPrompt(.moreFormal, segments: ["x"]).system
+            .hasSuffix("Make the tone more formal. Keep the meaning, the facts and about the same length. Never return the passage unchanged."))
+        XCTAssertTrue(AIActionPrompt.editPrompt(.moreCasual, segments: ["x"]).system
+            .hasSuffix("Make the tone more casual and conversational. Keep the meaning, the facts and about the same length. Never return the passage unchanged."))
+        for action in [AIAction.rephrase, .simplify, .moreFormal, .moreCasual] {
+            XCTAssertTrue(AIActionPrompt.editPrompt(action, segments: ["x"]).user.contains(#""action":"\#(action.rawValue)""#))
+        }
         XCTAssertTrue(AIActionPrompt.editPrompt(.proofread, segments: ["x"]).system
             .hasSuffix("Fix only spelling, typos, grammar slips and prose punctuation. Change nothing else."))
         XCTAssertTrue(AIActionPrompt.editPrompt(.cutInHalf, segments: ["x"]).user.contains(#""action":"cutInHalf""#))
@@ -37,8 +46,8 @@ final class AIActionPromptTests: XCTestCase {
     /// Try Again: the discarded suggestion's segments go on one last system line; the user
     /// message (what is sent of the document) is unchanged.
     func testEditPromptCanAskForADifferentResult() {
-        let plain = AIActionPrompt.editPrompt(.rewrite, segments: ["a b", "c"])
-        let retry = AIActionPrompt.editPrompt(.rewrite, segments: ["a b", "c"], avoiding: ["x y", "z"])
+        let plain = AIActionPrompt.editPrompt(.rephrase, segments: ["a b", "c"])
+        let retry = AIActionPrompt.editPrompt(.rephrase, segments: ["a b", "c"], avoiding: ["x y", "z"])
         XCTAssertEqual(retry.user, plain.user)
         XCTAssertEqual(retry.system, plain.system + "\n" + #"Give a different result than: {"segments":["x y","z"]}"#)
         XCTAssertFalse(plain.system.contains("Give a different result"))
@@ -58,15 +67,19 @@ final class AIActionPromptTests: XCTestCase {
 
     func testRawValuesAreStableIdentity() {
         XCTAssertEqual(AIAction.allCases.map(\.rawValue),
-                       ["trim", "cutInHalf", "rewrite", "proofread", "anotherWord", "weakestSentences", "longSentences"])
+                       ["trim", "cutInHalf", "rephrase", "simplify", "moreFormal", "moreCasual", "proofread", "anotherWord",
+                        "weakestSentences", "longSentences"])
         XCTAssertEqual(AIAction.allCases.filter(\.isMark), [.markWeakest, .markLong])
         // Proofread may legitimately find nothing; the others exist to change the text.
-        XCTAssertEqual(AIAction.allCases.filter(\.mustChangeText), [.trim, .cutInHalf, .rewrite, .anotherWord])
+        XCTAssertEqual(AIAction.allCases.filter(\.mustChangeText),
+                       [.trim, .cutInHalf, .rephrase, .simplify, .moreFormal, .moreCasual, .anotherWord])
     }
 
     func testEveryActionHasLocalizedTitle() throws {
-        let titles = ["Trim", "Cut in half", "Rewrite", "Proofread", "Another Word", "Weakest sentences", "Long sentences"]
-        let verbs = ["Trimming…", "Cutting…", "Rewriting…", "Proofreading…", "Finding another word…", "Marking…"]
+        let titles = ["Trim", "Cut in Half", "Rephrase", "Simplify", "More Formal", "More Casual", "Proofread", "Another Word",
+                      "Weakest Sentences", "Long Sentences"]
+        let verbs = ["Trimming…", "Cutting…", "Rephrasing…", "Simplifying…", "Making it more formal…", "Making it more casual…",
+                     "Proofreading…", "Finding another word…", "Finding sentences…"]
         XCTAssertEqual(AIAction.allCases.map(\.title), titles)
         XCTAssertEqual(Array(Set(AIAction.allCases.map(\.progressVerb))).sorted(), verbs.sorted())
         for language in Self.languages {

@@ -112,7 +112,6 @@ final class AIReviewTextView: NSTextView {
         for key in [NSAttributedString.Key.foregroundColor, .strikethroughStyle, .backgroundColor] {
             layoutManager.removeTemporaryAttribute(key, forCharacterRange: whole)
         }
-        let insertTint = HistoryPalette.reviewInsertTint(for: theme)
         for range in composition.removedRanges.values.joined() {
             let clamped = NSIntersectionRange(range, whole)
             guard clamped.length > 0 else { continue }
@@ -120,17 +119,24 @@ final class AIReviewTextView: NSTextView {
                                                   .strikethroughStyle: NSUnderlineStyle.single.rawValue],
                                                  forCharacterRange: clamped)
         }
-        for range in composition.replacementRanges.values.joined() {
-            let clamped = NSIntersectionRange(range, whole)
-            guard clamped.length > 0 else { continue }
-            layoutManager.addTemporaryAttribute(.backgroundColor, value: insertTint, forCharacterRange: clamped)
-            // The highlighter's inks are set against the page; on the tint a link (and, on Quiet,
-            // code) falls under AA. Re-ink just the runs that need it; body text keeps its ink.
-            textStorage.enumerateAttribute(.foregroundColor, in: clamped) { value, run, _ in
-                guard let ink = value as? NSColor else { return }
-                let onTint = HistoryPalette.reviewReplacementInk(ink, for: theme)
-                guard onTint !== ink else { return }
-                layoutManager.addTemporaryAttribute(.foregroundColor, value: onTint, forCharacterRange: run)
+        // The CURRENT change's replacement is on the full review highlight; with several pending
+        // (Proofread), the others are on a lighter one. Accepted ones are plain text.
+        for (id, ranges) in composition.replacementRanges {
+            let isCurrent = id == currentID || composition.replacementRanges.count == 1
+            let tint = isCurrent ? HistoryPalette.reviewInsertTint(for: theme) : HistoryPalette.reviewInsertOtherTint(for: theme)
+            for range in ranges {
+                let clamped = NSIntersectionRange(range, whole)
+                guard clamped.length > 0 else { continue }
+                layoutManager.addTemporaryAttribute(.backgroundColor, value: tint, forCharacterRange: clamped)
+                // The highlighter's inks are set against the page; on the tint a link (and, on
+                // Quiet, code) falls under AA. Re-ink just the runs that need it; body text keeps
+                // its ink.
+                textStorage.enumerateAttribute(.foregroundColor, in: clamped) { value, run, _ in
+                    guard let ink = value as? NSColor else { return }
+                    let onTint = HistoryPalette.reviewReplacementInk(ink, for: theme, on: tint)
+                    guard onTint !== ink else { return }
+                    layoutManager.addTemporaryAttribute(.foregroundColor, value: onTint, forCharacterRange: run)
+                }
             }
         }
         // A whole pass sizes the view now (the scroll hand-over reads line positions at once). A
@@ -231,9 +237,9 @@ final class AIReviewTextView: NSTextView {
     /// Delete (⌫). Forward Delete (⌦) is a function key, so it never hands off at all.
     static let deletionKeyCodes: Set<UInt16> = [51]
 
-    /// Return / Enter, Esc, ↑ / ↓ (scroll), Page Up/Down, Home and End belong to the review.
-    /// ← / → decide nothing (there is one change) and, as function keys, never hand off either.
-    static let reviewKeyCodes: Set<UInt16> = [125, 126, 36, 76, 53, 116, 121, 115, 119]
+    /// Return / Enter, Esc, ← / → (move between changes), ↑ / ↓ (scroll), Page Up/Down, Home and
+    /// End belong to the review.
+    static let reviewKeyCodes: Set<UInt16> = [125, 126, 123, 124, 36, 76, 53, 116, 121, 115, 119]
 
     /// Whether `event` ends the review and goes to the editor: any key but a review key, unless
     /// ⌘ or ⌃ is held (shortcuts stay with the menus and key bindings) or it is a function key
@@ -254,9 +260,12 @@ final class AIReviewTextView: NSTextView {
         case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertLineBreak(_:)):
             commandHandler?(.acceptCurrent)
         case #selector(NSResponder.cancelOperation(_:)):
-            // Rejects by ending: nothing pending is applied, and History records nothing unless
-            // something was accepted.
-            commandHandler?(.end)
+            // Rejects the current change (a one-change review then ends; Proofread moves on).
+            commandHandler?(.rejectCurrent)
+        case #selector(NSResponder.moveLeft(_:)):
+            commandHandler?(.move(-1))
+        case #selector(NSResponder.moveRight(_:)):
+            commandHandler?(.move(1))
         case #selector(NSResponder.moveUp(_:)):
             super.doCommand(by: #selector(NSResponder.scrollLineUp(_:)))
         case #selector(NSResponder.moveDown(_:)):
@@ -288,9 +297,18 @@ final class AIReviewTextView: NSTextView {
 
     // MARK: - Mouse
 
-    /// Clicks decide nothing: the overlay is not editable, selectable or clickable. The card
-    /// holds the buttons.
-    override func mouseDown(with event: NSEvent) {}
+    /// A click on a pending change makes it current (Proofread); nothing else is clickable — the
+    /// decisions are the card's, Return and Esc.
+    override func mouseDown(with event: NSEvent) {
+        guard let layoutManager, let container = textContainer else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        let inContainer = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        var fraction: CGFloat = 0
+        let glyph = layoutManager.glyphIndex(for: inContainer, in: container, fractionOfDistanceThroughGlyph: &fraction)
+        guard glyph < layoutManager.numberOfGlyphs else { return }
+        let index = layoutManager.characterIndexForGlyph(at: glyph)
+        if let id = composition.changeID(at: index) { commandHandler?(.select(id)) }
+    }
 
     /// The pointer stays an arrow over the overlay: nothing in it is text to edit or select.
     override func resetCursorRects() {
@@ -314,8 +332,15 @@ final class AIReviewTextView: NSTextView {
             String(localized: "Accept Change", bundle: bundle),
             String(localized: "Reject Change", bundle: bundle),
             String(localized: "End Review", bundle: bundle),
+            String(localized: "Accept All", bundle: bundle),
+            String(localized: "Next Change", bundle: bundle),
+            String(localized: "Previous Change", bundle: bundle),
         ]
     }
+
+    /// How many changes are still pending (set by the representable): Accept All and moving
+    /// between changes are offered only with two or more.
+    var pendingCount = 1
 
     override func accessibilityValue() -> String? {
         composition.string
@@ -327,6 +352,11 @@ final class AIReviewTextView: NSTextView {
         if let id = currentID {
             commands.append((titles[0], .accept(id)))
             commands.append((titles[1], .reject(id)))
+        }
+        if pendingCount > 1 {
+            commands.append((titles[3], .acceptAll))
+            commands.append((titles[4], .move(1)))
+            commands.append((titles[5], .move(-1)))
         }
         commands.append((titles[2], .end))
         return commands.map { title, command in

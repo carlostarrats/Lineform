@@ -636,9 +636,11 @@ the commit message claimed. The fixture now measures the last line.
 
 ## History (2026-11-12)
 
-Per-passage version History: right-click a selection ▸ **Add Alternative…** (was "Add to History",
-2026-11-13) keeps the passage's current text as its original, enters History focused on it AND
-opens the "Type an alternative" field with focus (`pendingAlternativeFieldID` →
+Per-passage version History: right-click a selection ▸ **Replace With…** (2026-11-14; was "Add
+Alternative…", before that "Add to History"; offered only when the edge-trimmed selection stays on
+one line and touches no front matter, fenced code or math — its field is one line,
+`DocumentHistoryController.canAdd`) keeps the passage's current text as its original, enters History focused on it AND
+opens the "Type a replacement" field with focus (`pendingAlternativeFieldID` →
 `HistorySidebarModel.opensAlternativeField`, spent by `alternativeFieldDidOpen`, cleared when History
 mode ends; leaving without adding still discards the one-version passage); History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
 shows passages with history and steps their versions. Spec:
@@ -738,7 +740,9 @@ shows passages with history and steps their versions. Spec:
   it starts under the tab divider with the Outline tab's gap. While a passage is selected, the
   first row under the divider is a quiet section row (2026-11-13, replacing the centred
   "Add Alternative" capsule): "Versions of selected text" with a borderless **Add +** on the same
-  line (AX label "Add Alternative"). **Nothing moves when a passage is selected:** the empty
+  line (AX label "Add Version", 2026-11-14). The version rows' icons: the ORIGINAL (first) version
+  is `doc.text` and is spoken "original" (`HistorySidebarRow.symbolName` / `isOriginal`,
+  2026-11-14); the writer's versions the pencil, AI versions the sparkle. **Nothing moves when a passage is selected:** the empty
   state's "Click a highlighted passage…" and this label are the same view
   (`leadLine(leadText(…))`: `leadTextFontSize` 12pt, the secondary text colour, the 14pt
   `textInset`, `leadTextTopInset` = the tab divider gap), so selecting a passage swaps the text
@@ -750,7 +754,7 @@ shows passages with history and steps their versions. Spec:
   0.07 measured closer to Exit's solid capsule than the sidebar, so it was lowered).
   `HistorySidebarPresentationTests` pins all of it: quieter than Exit, ≥ 3:1 on the sidebar and
   on the hover pill (`Theme.contrastRatio`), the shared lead-line constants. The empty state has
-  no Add. The field's placeholder is "Type an alternative". Add opens a text field at the END of
+  no Add. The field's placeholder is "Type a replacement" (2026-11-14). Add opens a text field at the END of
   the versions list (where the capsule was), for ONE passage
   (the row's Add, pressed while the field is open, just refocuses it;
   `HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`). The field
@@ -799,7 +803,7 @@ shows passages with history and steps their versions. Spec:
   - History mode OFF: an accept's recorded passage becomes `rememberedPassageID`; the next PLAIN
     entry (`enterHistoryModeFromTab`: the History tab, View ▸ History) selects it if it locates,
     instead of the empty state. Spent when used; cleared by `open`/`close` (a document swap) and by
-    any entry with an explicit target (`showPassage`: Add Alternative…, a return after an AI action). A
+    any entry with an explicit target (`showPassage`: Replace With…, a return after an AI action). A
     reject remembers nothing.
   - Not settled (`aiActionAbandoned`): Try Again keeps the context for the re-run
     (`endReview(settlingHistory: false)`); typing during a review, live reload / `abandon`,
@@ -894,7 +898,10 @@ shows passages with history and steps their versions. Spec:
   (they set the binding) still call `noteWholeTextReplacement()` / `engine.invalidateLiveRanges()`
   and passages are re-found literally: live reload, Convert to Plain Text / Restore Markdown, the
   Read-mode checkbox toggle, and image Reconnect. A new binding writer must do the same.
-- **Tracking is by live ranges.** Passages carry live ranges moved by every reported edit. Text is
+- **Tracking is by live ranges.** (A literal re-find treats a boundary next to a CJK ideograph,
+  kana or hangul character as a word boundary — those scripts have no spaces, and every Japanese
+  word passage was dropped on reload, 2026-11-14; `foo` / `foo_bar` stays protected for alphabetic
+  scripts.) Passages carry live ranges moved by every reported edit. Text is
   searched only when a document opens, after a reload, or after an invalidation, and only
   LITERALLY (the current version's exact text). Any doubt drops the passage: the failure mode is
   "history quietly disappears", never "the wrong text is replaced". Overlapping non-nested passages
@@ -950,8 +957,17 @@ shows passages with history and steps their versions. Spec:
   `super` (which sets the I-beam) and `cursorUpdate` returns before `super` while History mode is
   on. Cursor rects are invalidated on entry and exit so leaving hands the I-beam back.
 - **The counter** ("current/total", `HistoryCounter.text`) appears ONLY on the focused passage,
-  after its last non-whitespace glyph: 10pt medium tabular numerals (`HistoryCounterLayout`),
-  3pt after the glyph, cap-aligned with the text, full ink. Its room is RESERVED so it can never
+  and only when it has two or more versions (no "1/1" right after Replace With…, 2026-11-14).
+  In right-to-left text the room is reserved on the NEXT character (kern widens a glyph on its
+  visual right, so on the anchor it opened inside the passage) and widened by the ink overhang on
+  both sides; the counter sits left of the passage's last glyph
+  (`historyCounterReservation`). It is placed
+  after its last non-whitespace glyph: medium tabular numerals (`HistoryCounterLayout`) at 0.75×
+  the body size but never below 11pt (`minimumPointSize`; 2026-11-14 — a fixed 10pt was hard to
+  read at small sizes), 4pt after the glyph, cap-aligned with the text, in `counterInk`
+  (`readableInk`, AA on the PAGE, every theme). It sits OUTSIDE every passage box: its reserved
+  space is cut out of each box on its line (`HistoryCounterLayout.carving`), so it is drawn on the
+  page background, never on the selected passage's blue. Its room is RESERVED so it can never
   overlap text: extra `.kern` on that one character (`HistoryCounterSpacing`), written straight to
   the text storage the way the highlighter writes attributes — never through `shouldChangeText`,
   with undo registration disabled — and tagged with a marker holding the kern it replaced, so it
@@ -969,7 +985,7 @@ shows passages with history and steps their versions. Spec:
   The formatting group (Title, Section, Bold, Italic, Code, Bulleted List, Link) is left out
   (`LineformTextContextMenuPresentation.showsFormattingCommands(for:isHistoryModeActive:)`, which
   `commandTitles(for:isHistoryModeActive:)` shares), because the writer is stepping versions, not
-  formatting. Add Alternative… is left out too — explicitly, though the clamped caret already made
+  formatting. Replace With… is left out too — explicitly, though the clamped caret already made
   it unreachable — and the AI group was already absent (`allowsAIAction`). The ⌘B/⌘I keys and the
   Format menu are untouched: they still leave the mode and apply, as above.
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
@@ -1042,31 +1058,57 @@ action does to the document. The two sections after it cover the text-view and o
     control characters.
   - "Unchanged" is canonical equivalence (an NFC-only renormalisation of a segment is "no
     change", the writer's bytes kept); the stale-segment and stale-text checks are exact UTF-16.
-- **One change per action** (QA 1.8, spec "AI review: option A"). Whatever the writer selected —
-  a word, a sentence, several paragraphs; Trim, Cut in half, Rewrite or Proofread — is ONE
-  `AIChange` and ONE Accept / Reject decision (`AIChangeBuilder.change`). Build 38 diffed each
-  segment at word level (tokens, LCS, hunks) and offered every hunk as its own decision: a
-  one-sentence rewrite came back as three. That word-level diff is gone; do not bring it back to
-  split decisions. The change's `range` runs from the first CHANGED segment to the last (unchanged
+- **Rewrite family: one change per action** (QA 1.8, spec "AI review: option A"). Whatever the
+  writer selected — a word, a sentence, several paragraphs; Trim, Cut in Half, Rephrase, Simplify,
+  More Formal, More Casual, Another Word — is ONE `AIChange` and ONE Accept / Reject decision
+  (`AIChangeBuilder.change`). Build 38 split a REWRITE into word-level hunks, each its own
+  decision (a one-sentence rewrite came back as three); do not bring that back for the Rewrite
+  family. The change's `range` runs from the first CHANGED segment to the last (unchanged
   segments at the edges are outside it; one in the middle is kept verbatim); `replacement` is that
   span with each changed segment rewritten and the document's own text between segments —
   markers, CRLF — byte-for-byte. It is APPLIED as `parts`, one edit per changed segment
-  (`AIChange.edits`, descending), in one `applyAIEdits` call: the span crosses line endings, and
-  the text view refuses (skips) any AI edit that touches one.
-- **Verify the whole change.** The composed reply is verified when it arrives, and the change is
-  verified again against the CURRENT text when it is accepted (`verify(current, current+edits)`).
-  Before one-change-per-action, a SUBSET of a verified reply could change structure (`$5` → `5$`
-  diffed into a deletion and an insertion; accepting only the insertion gave `$5$`, which is
-  math) — verifying the whole change removes that class. A refused accept is marked rejected and,
-  as the only decision, ends the review with "That change would alter the Markdown, so it wasn't
-  applied." as the status message.
-- **Undo shape.** One decision = one `applyAIEdits` call = one undo group ("Accept Suggestion") =
-  one ⌘Z, however many segment edits it carries (descending order).
-- **Esc is reject-and-end.** `.end` (Esc, the card's Reject and ✕, a hand-off key) calls
-  `endReview()`, which explicitly marks every pending change rejected before ending: nothing pending
-  is applied, and History records nothing unless something was accepted. `endReview()` returns the
-  ended session so this is asserted. The multi-change APIs (move, keep-original, Accept/Reject
-  Remaining, position counter) were removed with option A — a review only ever holds one change.
+  (`AIChange.edits`, descending): the span crosses line endings, and the text view refuses
+  (skips) any AI edit that touches one.
+- **Proofread: one suggestion per correction** (2026-11-14, build 39 notes item 6 — a four-word
+  fix across a long paragraph used to strike the whole paragraph). The provider still returns one
+  revised string per segment; `AIWordDiff.corrections` diffs each against its segment at WORD
+  level: tokens tile the text (a run of word characters — whole `Character`s, so emoji and
+  combining marks never split, an apostrophe between letters kept: "don't" — a whitespace run, or
+  one other character), the shared prefix/suffix is skipped, an LCS (≤ 4M token pairs, else one
+  span) finds kept tokens, and every run of contiguous changed tokens is ONE correction ("teh  cat"
+  → "the cat" is one). Each correction is verified ON ITS OWN by the structure guard
+  (`structurePreservingCorrections`), since any subset may be accepted; one that fails is merged
+  with its neighbour in the same segment (a token MOVE, `$5` → `5$`, diffs into a deletion and an
+  insertion, and the insertion alone makes `$5$` math) and dropped only if no merge passes. Zero
+  corrections → "No changes suggested."; only refused revisions → the unusable-response message.
+  The review: "Proofread · 2 of 4"; Return accepts the current one and moves on, Esc rejects it
+  and moves on, ← / → move between pending ones (wrapping), a click on one makes it current, Accept
+  All (shown while 2+ remain) accepts the rest, ✕ ends keeping what was decided (undecided ones
+  rejected); the last decision ends the review.
+- **Decisions are applied together, at the end** (2026-11-14). `AIReviewSession` only RECORDS
+  decisions; `endReview` applies every accepted change's edits (`acceptedEdits`, descending, in
+  the coordinates the review was built from — nothing under the overlay moves while it is up) in
+  ONE `applyAIEdits` call: one undo group ("Accept Suggestion"), one ⌘Z, and one History version
+  per changed paragraph. The structure guard verifies the whole accepted result against the
+  CURRENT text first; a refusal applies nothing and shows "That change would alter the Markdown,
+  so it wasn't applied."; an edit the text view skipped ends with "That change couldn't be
+  applied…" and records nothing (what landed stays, one ⌘Z). Nothing accepted → nothing applied
+  or recorded. `reviewNotice` and the per-accept apply are gone.
+- **Hardening at the end** (2026-11-14). Before splicing, every accepted range must still read
+  its `original` (exact UTF-16), or nothing is applied and "The text changed…" shows. When the
+  editor is already GONE at the review's end — switching to Read tears the Write text view down
+  before `onChange(of: displayMode)` ends the review, and accepted Proofread decisions were
+  silently dropped — the edits go into the document through `AIActionController.documentFallback`
+  (set by the editor only around that call): one write, each edit reported to History first,
+  recorded once. That write is not on the text view's undo stack.
+- **Proofread tokens** (2026-11-14): canonically equal tokens are EQUAL (Swift `String ==`), so an
+  NFC reply to an NFD document is "No changes suggested" and never rewrites the writer's bytes;
+  CJK ideographs, kana and hangul are one token per character (`AIWordDiff.isIdeographic`), so a
+  one-particle fix is a one-character correction.
+- **Esc rejects the current change.** `.rejectCurrent` (Esc, the card's Reject): a one-change
+  review then ends; Proofread moves on. ✕ and a hand-off key send `.end`, which marks every
+  pending change rejected before applying what was accepted. `endReview()` returns the ended
+  session so this is asserted.
 - **History.** Recorded once, when the review ends (last decision, End/Esc, or typing), and only if
   something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
   records nothing.
@@ -1089,30 +1131,34 @@ action does to the document. The two sections after it cover the text-view and o
   the provider of a running request cancels it, and away from the provider a review came from
   abandons the review. Reconnecting the same provider (a new key) leaves both alone.
 - **A reply that changes nothing** (2026-11-13). Proofread says "No changes suggested." — finding
-  no errors is a legitimate answer. Trim, Cut in half, Rewrite and Another Word
+  no errors is a legitimate answer. Trim, Cut in Half, Rephrase, Simplify, More Formal, More
+  Casual and Another Word
   (`AIAction.mustChangeText`) exist to change the text, so they never say that
   (`AIActionController.unchangedMessage`): a reply whose segments equal the originals (edge
   whitespace ignored) is "<provider> returned the same text. Try again." ("Your AI…" for Other,
   the progress card's naming), and one whose revisions were all REFUSED by the structure guard is
-  the unusable-response message. The prompts also ask for it: Rewrite "always change the wording",
-  Trim "always remove at least some words", Cut in half and Another Word "never return … unchanged
-  / the same word". `scripts/ai-stub-server.py` honours the same contract (its `--self-check`
+  the unusable-response message. The prompts also ask for it: Rephrase "always change the wording",
+  Trim "always remove at least some words", Cut in Half, Simplify, More Formal, More Casual and
+  Another Word "never return … unchanged / the same word" (2026-11-14: Rephrase "say the same
+  thing in different words"; Simplify "plainer words and shorter sentences"; More Formal / More
+  Casual "shift the tone, keep the meaning, the facts and about the same length"). `scripts/ai-stub-server.py` honours the same contract (its `--self-check`
   asserts it).
 - **Another Word** (2026-11-13) is an edit action like the others (`AIAction.anotherWord`, raw
   value `anotherWord`): instruction "return one different word, or a very short phrase … same
   meaning, same part of speech, matching its capitalization. Never return the same word."; progress
   "Finding another word with <provider>…", review card "Word ready", the same one-change review.
-- **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
+- **Find** (the menu's "Find ▸ Weakest Sentences / Long Sentences"; "Mark" until 2026-11-14 —
+  the writer asks the AI to find sentences, not to mark them; `isMark`, `.marking` and the case
+  names predate the rename) changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
   `HistoryPalette.markWash` (2026-11-13: an OPAQUE ink wash, 0.12 light / 0.20 dark — the
   translucent History tint it used was barely visible on a dark page; `HistoryPaletteTests` pins it
   further off the page than the History tint, ≥ 1.2:1, with the text AA); the reply's 1-based sentence numbers are bounded before any `Int`
   conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
-- **Messages use one/many, not a stringsdict.** "1 sentence marked" / "%lld sentences marked"
-  are two catalog keys chosen by `count == 1`. ("1 change suggested" is now a fixed message: one
-  action is one change, so its plural key was removed.) That is correct for
-  every shipped language (es, fr, de, ja, zh-Hans: ja/zh have one form, and 0 never reaches these
-  strings — it becomes "No changes suggested." / "Nothing to mark."). A language with dual/few/many
-  forms (Russian, Polish, Arabic) would need a real plural variation in the catalog.
+- **Counted messages are real plural variations** (2026-11-14): "%lld sentences found" (Find)
+  and "%lld corrections suggested" (Proofread) carry `one`/`other` for es/fr/de and `other` for
+  ja/zh-Hans, as `LocalizationCatalogTests` requires. ("1 change suggested" is a fixed message: a
+  Rewrite-family action is one change.) 0 never reaches them — it becomes "No changes suggested."
+  / "No sentences found.".
 - **Not hands-on verified yet** (owed in GUI QA): the struck/highlighted change, keys and cards on screen, dead keys and IME
   hand-off (ja, zh-Hans, ⌥E), Focus/ruler assists (not mirrored in the overlay, so they vanish
   during a review), VoiceOver, German consent label fit.
@@ -1121,16 +1167,18 @@ action does to the document. The two sections after it cover the text-view and o
 
 `LineformTextView+AI.swift`; the controller is `AIActionController` (Lineform/AI).
 
-- **Context menu.** After Paste and Add Alternative…: separator, Rewrite ▸ (Trim, Cut in half,
-  Rewrite), Proofread, Mark ▸ (Weakest sentences, Long sentences). ABSENT, not disabled, unless
+- **Context menu.** After Paste and Replace With…: separator, Rewrite ▸ (Trim, Cut in Half, ─,
+  Rephrase, Simplify, More Formal, More Casual — `AIAction.rewriteMenuGroups`, 2026-11-14:
+  Rephrase replaced the directionless Rewrite), Proofread, Find ▸ (Weakest Sentences, Long
+  Sentences). ABSENT, not disabled, unless
   `aiAvailabilityHandler` says yes for a non-empty selection — a whole-document structure
   analysis, so it is asked only when the menu is built. Both submenus carry
   `MainMenuIconDecorator.excludedMenuIdentifier`. The group is chosen by
   `LineformTextContextMenuPresentation.aiMenuEntries` (2026-11-13): a SINGLE-WORD selection
   (`isSingleWord`: trimmed, no whitespace inside, at least one letter) gets **Another Word** in
-  place of the Rewrite submenu, with Proofread; **Mark ▸ appears only when the selection touches
+  place of the Rewrite submenu, with Proofread; **Find ▸ appears only when the selection touches
   at least two sentences** (`AISentenceSplitter`, counted only for multi-word selections). There
-  is no no-selection case: the AI group needs a selection, so Mark never runs on the whole
+  is no no-selection case: the AI group needs a selection, so Find never runs on the whole
   document. AI actions have no main-menu entries.
 - **One decision = one ⌘Z.** `applyAIEdits` opens ONE undo group and runs every edit through
   `shouldChangeText → textStorage.replaceCharacters → didChangeText`, so History hears each edit
@@ -1245,12 +1293,17 @@ the app's one `AIConnectionStore.shared`).
 - **Cards (QA 1.8).** One floating card in the BOTTOM-TRAILING corner of `editorContent` (an
   overlay, never a laid-out bar), at the default-app card's inset (16), corner (12), padding (h14
   v13), type (title 13 semibold, body 11.5) and ✕ (18×18, 9pt bold, −2 offsets, top-trailing).
-  `AIStatusCard`: a running request (spinner in the default-app card's 26pt icon slot, "Rewriting
-  with ChatGPT…", "Esc to cancel", ✕ cancels), a message (steps aside after 8 s) or Mark's count
-  ("Esc clears marks"). `AIReviewCard`: "Rewrite ready" / "Trim ready" / "Cut ready" / "Proofread
-  ready" / "Word ready", "Return to accept · Esc to reject", then Try Again (a small bordered icon
-  button, `arrow.clockwise`, label and tooltip "Try Again"), Reject (bordered) + Accept
-  (prominent); Reject and ✕ send `.end`. **Try Again** (2026-11-13) sends `.retry`: only while
+  `AIStatusCard`: a running request (spinner in the default-app card's 26pt icon slot,
+  "Rephrasing with ChatGPT…", "Making it more formal with Claude…", "Esc to cancel", ✕ cancels), a
+  message (steps aside after 8 s) or Find's count ("3 sentences found", "Esc clears highlights").
+  `AIReviewCard`: "Rephrase ready" / "Simpler version ready" / "More formal version ready" / "More
+  casual version ready" / "Trim ready" / "Cut ready" / "Word ready", "Return to accept · Esc to
+  reject"; Proofread "Proofread · 2 of 4", "Return to accept · Esc to reject · ← → to move"
+  (`title(for: session)`, `reviewHint(for:)`). Then Try Again (a small bordered icon button,
+  `arrow.clockwise`, label and tooltip "Try Again"), Reject (bordered), Accept All (Proofread,
+  2+ left; `offersAcceptAll`) + Accept (prominent). The row is a `ViewThatFits`: when it does not
+  fit (German with Accept All) Accept All drops to a row of its own rather than truncating. Reject
+  sends `.rejectCurrent`, ✕ `.end`. **Try Again** (2026-11-13) sends `.retry`: only while
   nothing is accepted, the controller ends the review (a reject — nothing was ever applied, so the
   original is untouched) and runs the SAME action on the session's `selectionRange` again,
   showing the normal progress card and then a new review. The retry's system prompt gains one
@@ -1267,10 +1320,31 @@ the app's one `AIConnectionStore.shared`).
   departure animate on `aiCardKind` from a persistent `ZStack`.
 - **Composition cache.** `AIReviewCompositionCache` rebuilds only when the session or the editor's
   text changes; the container body re-evaluates far more often.
-- **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
-  `AIActionController.reviewNotice`; with one change the refusal is always the last decision, so
-  the review ends and the notice becomes `state = .message` (the status card). The review card
-  never draws a notice.
+- **A refusal is seen, not only announced.** A refused accepted result (verified when the review
+  ends) becomes `state = .message` (the status card). The review card never draws a notice.
+- **The overlay draws decisions as they are made.** A pending change: original struck in the
+  receded ink, replacement highlighted — the CURRENT one on `reviewInsertTint`, the other pending
+  ones (Proofread) on the lighter `reviewInsertOtherTint` (0.07 light / 0.14 dark; AA-tested, links
+  re-inked on it). An accepted (not yet applied) change: its replacement, plain, in place of the
+  original — `AIReviewComposition.Insertion.documentLength` records the hidden original, so the
+  index mapping (scroll hand-over) stays exact. A rejected one: the document. Rewrite-family
+  changes are drawn at the SENTENCE that changed (`changedSentencePairs`: same sentence count and
+  not all changed → each changed sentence struck with its replacement inline after it); every
+  sentence changed, or sentences merged / split (Cut in Half), keeps the whole-span display (a
+  whole line stacked on its own line). Proofread corrections are always inline. A LINE whose prose
+  is split by links, code spans or other inline structure into several CHANGED segments is shown
+  whole (2026-11-14): the line's prose struck, then its whole new text stacked below with the
+  marker repeated (`AIReviewComposition.lineContent`) — interleaved pieces around a link were
+  unreadable. **The card never covers the current change**: the overlay knows the card's measured
+  height (`AIReviewCardHeightKey`, + inset + 8) and, when a review opens, the card is measured, or
+  the current correction changes, scrolls the LEAST amount that puts the change's BOTTOM above
+  the card's top (`revealOriginY`) — and not at all when it already is, so the no-jump fix holds.
+  The rect is the union of EVERY drawn range of the change (struck, replacements, stacked lines),
+  measured after laying the overlay out from the top: a first-line anchor and non-contiguous
+  layout's estimated heights left a multi-line change's last lines under the card. A change taller
+  than the room above the card is scrolled so its TOP sits at the visible top. The overlay takes
+  ← / → (`.move`) and a click on a pending change (`.select`); its accessibility actions add Accept
+  All and Next / Previous Change while 2+ are pending.
 - **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call
   `endAIForDocumentChange()` first, like typing). Before this the backstop refused the edit after the
   search state had already moved on. The representable also drops `isAIReviewActive`

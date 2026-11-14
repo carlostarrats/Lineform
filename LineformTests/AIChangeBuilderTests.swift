@@ -163,4 +163,73 @@ final class AIChangeBuilderTests: XCTestCase {
                        composed, "the whole-span replacement and the per-segment edits agree")
         XCTAssertTrue(MarkdownStructureGuard.verify(original: text, revised: composed))
     }
+
+    // MARK: - Proofread's word diff (2026-11-14)
+
+    private func fixes(_ original: String, _ revised: String) -> [String] {
+        AIWordDiff.corrections(original: original, revised: revised).map {
+            "\((original as NSString).substring(with: $0.range))→\($0.replacement)"
+        }
+    }
+
+    /// Applies the corrections (descending) and must give back the revision exactly.
+    private func assertRoundTrip(_ original: String, _ revised: String, file: StaticString = #filePath, line: UInt = #line) {
+        let corrections = AIWordDiff.corrections(original: original, revised: revised)
+        let result = NSMutableString(string: original)
+        for c in corrections.reversed() { result.replaceCharacters(in: c.range, with: c.replacement) }
+        XCTAssertEqual(result as String, revised, file: file, line: line)
+    }
+
+    func testWordDiffFindsEachCorrection() {
+        XCTAssertEqual(fixes("Teh cat sat on teh mat.", "The cat sat on the mat."), ["Teh→The", "teh→the"])
+        XCTAssertEqual(fixes("Same text.", "Same text."), [])
+        // Adjacent changed tokens are one correction ("teh  cat" → "the cat").
+        XCTAssertEqual(fixes("I saw teh  cat.", "I saw the cat."), ["teh  →the "])
+        // Punctuation-only fixes, an insertion, a deletion.
+        XCTAssertEqual(fixes("Hello world", "Hello, world"), ["→,"])
+        XCTAssertEqual(fixes("Wait , what?", "Wait, what?"), [" →"])
+        XCTAssertEqual(fixes("Its fine.", "It's fine."), ["Its→It's"])
+        // At the start and the end of the segment.
+        XCTAssertEqual(fixes("teh end", "the end"), ["teh→the"])
+        XCTAssertEqual(fixes("the ned", "the end"), ["ned→end"])
+        // Repeated words: the duplicate goes, the rest is kept.
+        XCTAssertEqual(fixes("the the cat", "the cat"), ["the →"])
+        for (a, b) in [("Teh cat sat on teh mat.", "The cat sat on the mat."), ("I saw teh  cat.", "I saw the cat."),
+                       ("Hello world", "Hello, world"), ("the the cat", "the cat"), ("a b c d", "x b y d"),
+                       ("", "New."), ("Gone.", "")] {
+            assertRoundTrip(a, b)
+        }
+    }
+
+    /// Whole Characters: an emoji, a combining mark or a CJK run is never split, and ranges are
+    /// UTF-16 offsets into the original.
+    func testWordDiffKeepsCharactersWhole() {
+        XCTAssertEqual(fixes("Great 👍🏽 job tday", "Great 👍🏽 job today"), ["tday→today"])
+        XCTAssertEqual(fixes("A cafe\u{301} au lait", "A café au lait"), [], "canonically equal: no correction")
+        XCTAssertEqual(fixes("Je suis allé a Paris.", "Je suis allé à Paris."), ["a→à"])
+        XCTAssertEqual(fixes("我爱北京", "我爱上海"), ["北京→上海"], "CJK per character; adjacent changes group")
+        XCTAssertEqual(fixes("学校へ行く", "学校に行く"), ["へ→に"])
+        assertRoundTrip("Great 👍🏽 job tday 👨‍👩‍👧", "Great 👍🏽 job today 👨‍👩‍👧")
+        let tokens = AIWordDiff.tokens("don't 👨‍👩‍👧 go")
+        XCTAssertEqual(tokens.map { ("don't 👨‍👩‍👧 go" as NSString).substring(with: $0) }, ["don't", " ", "👨‍👩‍👧", " ", "go"])
+    }
+
+    /// Corrections in DOCUMENT coordinates, through a CRLF line ending and a leading BOM (both
+    /// structure, outside the prose segments, so never inside a correction).
+    func testCorrectionsLandInDocumentCoordinates() throws {
+        let text = "\u{FEFF}Teh first line.\r\nA secnd line.\r\n"
+        let ns = text as NSString
+        let segments = MarkdownStructureMap.proseSegments(in: text, selection: NSRange(location: 0, length: ns.length))
+        let revisions: [String?] = segments.map {
+            $0.text.replacingOccurrences(of: "Teh", with: "The").replacingOccurrences(of: "secnd", with: "second")
+        }
+        let changes = AIWordDiff.corrections(segments: segments, revisions: revisions, in: text)
+        XCTAssertEqual(changes.map(\.id), [0, 1])
+        XCTAssertEqual(changes.map { ns.substring(with: $0.range) }, ["Teh", "secnd"])
+        XCTAssertEqual(changes.map(\.range), [ns.range(of: "Teh"), ns.range(of: "secnd")])
+        let applied = AIActionController.applying(changes.reversed().flatMap { $0.edits() }, to: text)
+        XCTAssertEqual(applied, "\u{FEFF}The first line.\r\nA second line.\r\n")
+        // A refused revision (nil) contributes no corrections.
+        XCTAssertEqual(AIWordDiff.corrections(segments: segments, revisions: [nil, revisions[1]], in: text).count, 1)
+    }
 }

@@ -85,15 +85,17 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertFalse(titles.contains(AIAction.anotherWord.title))
 
         let rewriteMenu = try XCTUnwrap(menu.items[rewrite].submenu)
-        XCTAssertEqual(rewriteMenu.items.map(\.title), ["Trim", "Cut in half", "Rewrite"])
+        XCTAssertEqual(rewriteMenu.items.map(\.title),
+                       ["Trim", "Cut in Half", "", "Rephrase", "Simplify", "More Formal", "More Casual"])
+        XCTAssertTrue(rewriteMenu.items[2].isSeparatorItem, "length group · direction group")
         XCTAssertEqual(rewriteMenu.identifier, MainMenuIconDecorator.excludedMenuIdentifier)
         let markMenu = try XCTUnwrap(menu.items[rewrite + 2].submenu)
-        XCTAssertEqual(markMenu.items.map(\.title), ["Weakest sentences", "Long sentences"])
+        XCTAssertEqual(markMenu.items.map(\.title), ["Weakest Sentences", "Long Sentences"])
         XCTAssertEqual(markMenu.identifier, MainMenuIconDecorator.excludedMenuIdentifier)
 
-        let actionItems = rewriteMenu.items + [menu.items[rewrite + 1]] + markMenu.items
+        let actionItems = rewriteMenu.items.filter { !$0.isSeparatorItem } + [menu.items[rewrite + 1]] + markMenu.items
         XCTAssertEqual(actionItems.compactMap { $0.representedObject as? AIAction },
-                       [.trim, .cutInHalf, .rewrite, .proofread, .markWeakest, .markLong])
+                       [.trim, .cutInHalf, .rephrase, .simplify, .moreFormal, .moreCasual, .proofread, .markWeakest, .markLong])
         for item in actionItems {
             XCTAssertEqual(item.action, #selector(LineformTextView.runAIAction(_:)))
             XCTAssertTrue(item.target === textView)
@@ -141,10 +143,11 @@ final class LineformTextViewAITests: XCTestCase {
                        [.action(.anotherWord), .action(.proofread)])
         XCTAssertEqual(counted, 0, "a single word never pays for the sentence split")
         XCTAssertEqual(P.aiMenuEntries(selectedText: "two words", sentenceCount: count(1)),
-                       [.submenu(P.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread)])
+                       [.submenu(P.aiRewriteMenuTitle, AIAction.rewriteMenuGroups), .action(.proofread)])
         XCTAssertEqual(P.aiMenuEntries(selectedText: "One. Two.", sentenceCount: count(2)),
-                       [.submenu(P.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread),
-                        .submenu(P.aiMarkMenuTitle, [.markWeakest, .markLong])])
+                       [.submenu(P.aiRewriteMenuTitle, AIAction.rewriteMenuGroups), .action(.proofread),
+                        .submenu(P.aiMarkMenuTitle, [[.markWeakest, .markLong]])])
+        XCTAssertEqual(AIAction.rewriteMenuGroups, [[.trim, .cutInHalf], [.rephrase, .simplify, .moreFormal, .moreCasual]])
 
         for word in ["word", "Word.", "don't", "e-mail", "Café,", " padded\n", "日本語"] {
             XCTAssertTrue(P.isSingleWord(word), word)
@@ -271,7 +274,7 @@ final class LineformTextViewAITests: XCTestCase {
             textView.delegate = vendor
             let controller = makeController(replacing: ["big": "large", "far": "near", "home": "here"])
             controller.editor = textView
-            controller.run(.rewrite, range: NSRange(location: 0, length: (text as NSString).length), text: text)
+            controller.run(.rephrase, range: NSRange(location: 0, length: (text as NSString).length), text: text)
             await controller.runTask?.value
             guard case .reviewing(let session) = controller.state else { return XCTFail("\(controller.state)") }
             XCTAssertEqual(session.changes.count, 1, "one decision for the whole selection")
@@ -300,7 +303,7 @@ final class LineformTextViewAITests: XCTestCase {
         let controller = makeController(replacing: ["big": "enormous", "far": "near"])
         controller.editor = textView
         controller.history = history
-        controller.run(.rewrite, range: range(of: "The big dog ran far away from home.", in: text), text: text)
+        controller.run(.rephrase, range: range(of: "The big dog ran far away from home.", in: text), text: text)
         await controller.runTask?.value
         controller.handle(.acceptCurrent)
         XCTAssertEqual(textView.string, "The enormous dog ran near away from home.\n\n\(later)")
@@ -367,6 +370,31 @@ final class LineformTextViewAITests: XCTestCase {
         }
     }
 
+    /// The current change is revealed above the review card — minimally, and not at all when it
+    /// already shows (the review must not make the document jump).
+    func testRevealKeepsTheChangeAboveTheCard() {
+        let visible = NSRect(x: 0, y: 100, width: 400, height: 300)   // shows 100…400
+        typealias S = AIReviewSurfaceRepresentable
+        XCTAssertNil(S.revealOriginY(for: NSRect(x: 0, y: 150, width: 50, height: 20), visible: visible, bottomObscured: 120),
+                     "visible above the card: no scroll")
+        // Under the card (card covers 280…400): scrolled up just enough to clear it.
+        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 300, width: 50, height: 20), visible: visible, bottomObscured: 120), 140)
+        // Above the visible top: brought just under it.
+        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 40, width: 50, height: 20), visible: visible, bottomObscured: 120), 32)
+        // Taller than the room above the card: its TOP at the visible top.
+        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 200, width: 50, height: 400), visible: visible, bottomObscured: 120), 200)
+        // A multi-line change in the lower half (a 4-item list, ~760pt view, card ~140pt): its
+        // WHOLE bottom must clear the card's top — not just its first line.
+        let tall = NSRect(x: 0, y: 0, width: 600, height: 760)
+        let list = NSRect(x: 40, y: 470, width: 520, height: 200)    // 470…670; card covers 620…760
+        XCTAssertEqual(S.revealOriginY(for: list, visible: tall, bottomObscured: 140), 50, "lifted so 670 sits at 620")
+        let firstLine = NSRect(x: 40, y: 470, width: 520, height: 24)
+        XCTAssertNil(S.revealOriginY(for: firstLine, visible: tall, bottomObscured: 140),
+                     "(the first line alone would not have scrolled at all — the old shortfall)")
+        XCTAssertNil(S.revealOriginY(for: NSRect(x: 0, y: 380, width: 50, height: 10), visible: visible, bottomObscured: 0),
+                     "no card measured yet: plain visibility")
+    }
+
     func testMarksAreTemporaryAttributesOnly() throws {
         let textView = makeTextView()
         textView.applyDefaultTypography()
@@ -406,7 +434,7 @@ final class LineformTextViewAITests: XCTestCase {
         let textView = makeTextView(text)
         let controller = makeController(replacing: ["big": "large"])
         controller.editor = textView
-        controller.run(.rewrite, range: NSRange(location: 0, length: (text as NSString).length), text: text)
+        controller.run(.rephrase, range: NSRange(location: 0, length: (text as NSString).length), text: text)
         await controller.runTask?.value
         guard case .reviewing = controller.state else { return XCTFail("expected a review") }
         textView.isAIReviewActive = true   // what the representable pushed for `.reviewing`
@@ -429,7 +457,7 @@ final class LineformTextViewAITests: XCTestCase {
             let textView = makeTextView(text)
             let controller = makeController(replacing: ["big": "large", "far": "near"])
             controller.editor = textView
-            controller.run(.rewrite, range: passage, text: text)
+            controller.run(.rephrase, range: passage, text: text)
             await controller.runTask?.value
             textView.setSelectedRange(passage)
             switch ending {
@@ -452,7 +480,7 @@ final class LineformTextViewAITests: XCTestCase {
             let textView = makeTextView(text)
             let controller = makeController(replacing: ["big": "large"])
             controller.editor = textView
-            controller.run(.rewrite, range: line, text: text)
+            controller.run(.rephrase, range: line, text: text)
             await controller.runTask?.value
             guard case .reviewing = controller.state else { return XCTFail("expected a review") }
             textView.isAIReviewActive = true

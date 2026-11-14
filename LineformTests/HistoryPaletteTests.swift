@@ -119,6 +119,30 @@ final class HistoryPaletteTests: XCTestCase {
         }
     }
 
+    /// The counter is drawn on the PAGE (outside the boxes): AA there on every theme.
+    func testCounterInkMeetsAAOnThePage() {
+        for theme in Theme.builtIn {
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(HistoryPalette.counterInk(for: theme), theme.backgroundColor),
+                                        4.5, theme.name)
+        }
+    }
+
+    /// Proofread's other pending corrections: a lighter wash than the current one, still off the
+    /// page, text AA on it (links re-inked like on the current tint).
+    func testOtherCorrectionsTintIsLighterAndReadable() {
+        for theme in Theme.builtIn {
+            let page = theme.backgroundColor
+            let current = HistoryPalette.reviewInsertTint(for: theme)
+            let other = HistoryPalette.reviewInsertOtherTint(for: theme)
+            XCTAssertGreaterThan(Theme.contrastRatio(current, page), Theme.contrastRatio(other, page), theme.name)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(other, page), 1.05, theme.name)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, other), 4.5, theme.name)
+            let link = HistoryPalette.reviewReplacementInk(NSColor.linkColor, for: theme, on: other)
+            XCTAssertGreaterThanOrEqual(Theme.contrastRatio(link, other),
+                                        min(4.5, Theme.contrastRatio(NSColor.linkColor, page)) - 0.01, theme.name)
+        }
+    }
+
     func testRecededInkStaysReadableOnEveryTheme() {
         for theme in Theme.builtIn {
             let receded = HistoryPalette.recededInk(for: theme)

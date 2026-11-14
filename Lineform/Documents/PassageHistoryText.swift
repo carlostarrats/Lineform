@@ -109,6 +109,26 @@ enum PassageHistoryText {
     /// `foo_bar`), or — when several occurrences qualify — a best score that does not lead the
     /// runner-up by `max(4, 25% of best)`. A tie never resolves to the first: replacing the wrong
     /// occurrence rewrites text the writer never selected, while dropping only loses history.
+    /// Han ideographs, kana and hangul: scripts written without spaces between words.
+    static func isIdeographic(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3040...0x30FF, 0x31F0...0x31FF, 0xFF66...0xFF9F,
+             0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF, 0x20000...0x3FFFF,
+             0x1100...0x11FF, 0x3130...0x318F, 0xAC00...0xD7AF:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether the character covering UTF-16 index `index` is ideographic (a surrogate pair is
+    /// read whole).
+    static func isIdeographic(at index: Int, in ns: NSString) -> Bool {
+        guard index >= 0, index < ns.length else { return false }
+        let range = ns.rangeOfComposedCharacterSequence(at: index)
+        return ns.substring(with: range).unicodeScalars.first.map(isIdeographic) ?? false
+    }
+
     static func locate(_ needle: String, before: String, after: String, in text: String, within scope: NSRange) -> NSRange? {
         let ns = text as NSString
         let needleLength = (needle as NSString).length
@@ -136,9 +156,15 @@ enum PassageHistoryText {
             // A code-unit match can land inside a composed character ("cafe" in "cafe\u{301}",
             // "👍" in "👍🏽") or mid-word ("he" in "the"). Replacing there corrupts text; skip it.
             if ns.rangeOfComposedCharacterSequences(for: found) != found { continue }
-            if startsWord, found.location > 0, isWordUnit(ns.character(at: found.location - 1)) { continue }
+            // Ideographic scripts (CJK, kana, hangul) have no spaces between words: a boundary next
+            // to one is a boundary (2026-11-14 — every Japanese word passage was dropped on reload).
+            // The `foo` / `foo_bar` protection stays for alphabetic scripts.
+            if startsWord, found.location > 0, isWordUnit(ns.character(at: found.location - 1)),
+               !isIdeographic(at: found.location, in: ns), !isIdeographic(at: found.location - 1, in: ns) { continue }
             if endsWord, found.location + found.length < ns.length,
-               isWordUnit(ns.character(at: found.location + found.length)) { continue }
+               isWordUnit(ns.character(at: found.location + found.length)),
+               !isIdeographic(at: found.location + found.length - 1, in: ns),
+               !isIdeographic(at: found.location + found.length, in: ns) { continue }
 
             var suffix = 0
             while suffix < beforeNS.length, found.location - 1 - suffix >= 0,

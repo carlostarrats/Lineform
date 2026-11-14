@@ -160,7 +160,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertTrue(controller.isHistoryModeActive)
         XCTAssertEqual(controller.display?.selectedID, id)
         XCTAssertEqual(controller.sidebarModel.versions.map(\.text), [sentence], "listed once, not twice")
-        XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 1, current: 0))
+        XCTAssertNil(controller.display?.counter, "one version: no 1/1")
 
         // Adding the same passage again adds nothing, but still asks to show it.
         XCTAssertEqual(controller.add(range(of: sentence, in: text), text: text), id)
@@ -212,7 +212,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertFalse(controller.allowsAIAction(on: range(of: "jumps", in: doc)), "History mode never overlaps AI")
     }
 
-    /// Add Alternative…: the passage is shown with its alternative field already asked for; the
+    /// Replace With…: the passage is shown with its alternative field already asked for; the
     /// request is spent when the field opens, and never carried into a later History entry.
     func testAddAlternativeAsksForTheField() throws {
         let controller = DocumentHistoryController(store: NullPassageHistoryStore())
@@ -254,6 +254,34 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertFalse(controller.sidebarModel.hasSelection)
         XCTAssertNil(controller.handle(.deselect, text: doc))
         XCTAssertTrue(controller.isHistoryModeActive, "nothing selected: deselect does nothing")
+    }
+
+    /// Replace With… on fresh text: one version, so no "1/1" counter until a replacement lands.
+    func testOneVersionPassageShowsNoCounter() throws {
+        let controller = DocumentHistoryController(store: NullPassageHistoryStore())
+        controller.open(url: nil, text: text)
+        let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertTrue(controller.showPassage(id, text: text))
+        XCTAssertEqual(controller.display?.selectedID, id)
+        XCTAssertNil(controller.display?.counter)
+        XCTAssertNotNil(controller.addReplacement("Alpha beta gamma.", for: id))
+        XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 2, current: 1))
+    }
+
+    /// Replace With… is honest about its one-line field: offered within one line of prose (a
+    /// word, a sentence, a list item's text), absent across paragraphs or blocks and on code,
+    /// front matter or math.
+    func testReplaceWithIsOfferedOnlyWhereOneLineCanReplace() {
+        let doc = "---\ntitle: x\n---\n\nFirst paragraph here. Second sentence.\n\n- A list item\n> A quote\n\n```\nlet x = 1\n```\n"
+        let controller = DocumentHistoryController(store: NullPassageHistoryStore())
+        controller.open(url: nil, text: doc)
+        XCTAssertTrue(controller.canAdd(range(of: "Second sentence.", in: doc), text: doc))
+        XCTAssertTrue(controller.canAdd(range(of: "First paragraph here. Second sentence.", in: doc), text: doc))
+        XCTAssertTrue(controller.canAdd(range(of: "list item", in: doc), text: doc))
+        XCTAssertFalse(controller.canAdd(range(of: "Second sentence.\n\n- A list item\n> A quote\n\n```\nlet x = 1", in: doc), text: doc),
+                       "several paragraphs and blocks")
+        XCTAssertFalse(controller.canAdd(range(of: "let x = 1", in: doc), text: doc), "fenced code")
+        XCTAssertFalse(controller.canAdd(range(of: "title: x", in: doc), text: doc), "front matter")
     }
 
     /// A passage that is not in the text is checked BEFORE History mode starts: nothing is
@@ -902,7 +930,10 @@ final class DocumentHistoryControllerTests: XCTestCase {
         textView.delegate = delegate
         controller.attach(textView)
         controller.open(url: a, text: text)
-        _ = controller.handle(.add(range(of: sentence, in: textView.string)), text: textView.string)
+        // Two versions, so focusing it shows (and reserves room for) a counter: a one-version
+        // passage shows none (2026-11-14).
+        controller.recordAccepted(range: range(of: sentence, in: textView.string), original: "Alpha beta.",
+                                  accepted: sentence, text: textView.string)
         textView.setSelectedRange(range(of: "beta", in: textView.string))
         delegate.manager.beginUndoGrouping()
         textView.insertText("BETA", replacementRange: NSRange(location: NSNotFound, length: 0))

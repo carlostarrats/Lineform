@@ -10,12 +10,42 @@ enum AIReviewCardPresentation {
         switch action {
         case .trim: return String(localized: "Trim ready", bundle: bundle)
         case .cutInHalf: return String(localized: "Cut ready", bundle: bundle)
-        case .rewrite: return String(localized: "Rewrite ready", bundle: bundle)
+        case .rephrase: return String(localized: "Rephrase ready", bundle: bundle)
+        case .simplify: return String(localized: "Simpler version ready", bundle: bundle)
+        case .moreFormal: return String(localized: "More formal version ready", bundle: bundle)
+        case .moreCasual: return String(localized: "More casual version ready", bundle: bundle)
         case .proofread: return String(localized: "Proofread ready", bundle: bundle)
         case .anotherWord: return String(localized: "Word ready", bundle: bundle)
         case .markWeakest, .markLong: return action.title
         }
     }
+
+    /// The card's label for a review: Proofread counts its corrections ("Proofread · 2 of 4");
+    /// every other action is one change ("Rephrase ready").
+    static func title(for session: AIReviewSession, bundle: Bundle = .main) -> String {
+        guard session.action.reviewsPerCorrection, let position = session.position else {
+            return title(for: session.action, bundle: bundle)
+        }
+        return String(localized: "Proofread · \(position.index) of \(position.count)", bundle: bundle)
+    }
+
+    /// Proofread's keys, on its card: ← / → move between corrections.
+    static func reviewHint(for session: AIReviewSession, bundle: Bundle = .main) -> String {
+        guard session.action.reviewsPerCorrection else { return reviewHint(bundle: bundle) }
+        return proofreadHint(bundle: bundle)
+    }
+
+    static func proofreadHint(bundle: Bundle = .main) -> String {
+        String(localized: "Return to accept · Esc to reject · ← → to move", bundle: bundle)
+    }
+
+    /// Accept All is offered only while two or more corrections are left.
+    static func offersAcceptAll(_ session: AIReviewSession) -> Bool {
+        session.action.reviewsPerCorrection && session.pending.count >= 2
+    }
+
+    static var acceptAllTitle: String { acceptAllTitle(bundle: .main) }
+    static func acceptAllTitle(bundle: Bundle) -> String { String(localized: "Accept All", bundle: bundle) }
 
     /// One change, one decision: Reject, then Accept (the prominent one, trailing).
     static var buttonTitles: (reject: String, accept: String) { buttonTitles(bundle: .main) }
@@ -40,20 +70,26 @@ enum AIReviewCardPresentation {
             switch action {
             case .trim: return String(localized: "Trimming with your AI…", bundle: bundle)
             case .cutInHalf: return String(localized: "Cutting with your AI…", bundle: bundle)
-            case .rewrite: return String(localized: "Rewriting with your AI…", bundle: bundle)
+            case .rephrase: return String(localized: "Rephrasing with your AI…", bundle: bundle)
+            case .simplify: return String(localized: "Simplifying with your AI…", bundle: bundle)
+            case .moreFormal: return String(localized: "Making it more formal with your AI…", bundle: bundle)
+            case .moreCasual: return String(localized: "Making it more casual with your AI…", bundle: bundle)
             case .proofread: return String(localized: "Proofreading with your AI…", bundle: bundle)
             case .anotherWord: return String(localized: "Finding another word with your AI…", bundle: bundle)
-            case .markWeakest, .markLong: return String(localized: "Marking with your AI…", bundle: bundle)
+            case .markWeakest, .markLong: return String(localized: "Finding sentences with your AI…", bundle: bundle)
             }
         }
         let name = provider.displayName
         switch action {
         case .trim: return String(localized: "Trimming with \(name)…", bundle: bundle)
         case .cutInHalf: return String(localized: "Cutting with \(name)…", bundle: bundle)
-        case .rewrite: return String(localized: "Rewriting with \(name)…", bundle: bundle)
+        case .rephrase: return String(localized: "Rephrasing with \(name)…", bundle: bundle)
+        case .simplify: return String(localized: "Simplifying with \(name)…", bundle: bundle)
+        case .moreFormal: return String(localized: "Making it more formal with \(name)…", bundle: bundle)
+        case .moreCasual: return String(localized: "Making it more casual with \(name)…", bundle: bundle)
         case .proofread: return String(localized: "Proofreading with \(name)…", bundle: bundle)
         case .anotherWord: return String(localized: "Finding another word with \(name)…", bundle: bundle)
-        case .markWeakest, .markLong: return String(localized: "Marking with \(name)…", bundle: bundle)
+        case .markWeakest, .markLong: return String(localized: "Finding sentences with \(name)…", bundle: bundle)
         }
     }
 
@@ -71,7 +107,7 @@ enum AIReviewCardPresentation {
     static func cancelHint(bundle: Bundle) -> String { String(localized: "Esc to cancel", bundle: bundle) }
 
     static var markHint: String { markHint(bundle: .main) }
-    static func markHint(bundle: Bundle) -> String { String(localized: "Esc clears marks", bundle: bundle) }
+    static func markHint(bundle: Bundle) -> String { String(localized: "Esc clears highlights", bundle: bundle) }
 
     static var closeTitle: String { String(localized: "Close") }
     static var reviewCardLabel: String { String(localized: "Suggested changes") }
@@ -114,6 +150,12 @@ struct AICardWidthCap: Layout {
     }
 }
 
+/// The review card's measured height, so the overlay can keep the current change above it.
+struct AIReviewCardHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 /// The ✕ every AI card carries, top-trailing: the announcement card's close button (18×18, 9pt
 /// bold xmark, −2 offsets). A real `Button`, so it has an AX identity of its own.
 private struct AICardCloseButton: View {
@@ -151,19 +193,25 @@ private struct AICardCloseButton: View {
 /// its explanation is the status card's message, never drawn here.
 struct AIReviewCard: View {
     let title: String
+    let hint: String
     let usesDarkChrome: Bool
     var onAccept: () -> Void
     var onReject: () -> Void
+    /// Proofread with two or more corrections left; nil hides the button.
+    var onAcceptAll: (() -> Void)?
     var onRetry: () -> Void
     var onClose: () -> Void
 
-    init(title: String, usesDarkChrome: Bool,
+    init(title: String, hint: String = AIReviewCardPresentation.reviewHint, usesDarkChrome: Bool,
          onAccept: @escaping () -> Void, onReject: @escaping () -> Void,
+         onAcceptAll: (() -> Void)? = nil,
          onRetry: @escaping () -> Void = {}, onClose: @escaping () -> Void) {
         self.title = title
+        self.hint = hint
         self.usesDarkChrome = usesDarkChrome
         self.onAccept = onAccept
         self.onReject = onReject
+        self.onAcceptAll = onAcceptAll
         self.onRetry = onRetry
         self.onClose = onClose
     }
@@ -176,34 +224,62 @@ struct AIReviewCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(AIReviewCardPresentation.reviewHint)
+                Text(hint)
                     .font(.system(size: 11.5))
                     .lineSpacing(2)
                     .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
-                    Button(action: onRetry) {
-                        Image(systemName: AIReviewCardPresentation.retrySymbol)
-                            .font(.system(size: 11, weight: .semibold))
+                // One row when it fits; otherwise (German, with Accept All) Accept All drops to a
+                // row of its own rather than squeezing or truncating the buttons.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        retryButton
+                        rejectButton(titles.reject)
+                        if let onAcceptAll { acceptAllButton(onAcceptAll) }
+                        acceptButton(titles.accept)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help(AIReviewCardPresentation.retryTitle)
-                    .accessibilityLabel(AIReviewCardPresentation.retryTitle)
-                    Button(titles.reject, action: onReject)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    Button(titles.accept, action: onAccept)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            retryButton
+                            rejectButton(titles.reject)
+                            acceptButton(titles.accept)
+                        }
+                        if let onAcceptAll { acceptAllButton(onAcceptAll) }
+                    }
                 }
                 .padding(.top, 5)
             }
             AICardCloseButton(usesDarkChrome: usesDarkChrome, action: onClose)
         }
         .modifier(AICardChrome(usesDarkChrome: usesDarkChrome))
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: AIReviewCardHeightKey.self, value: proxy.size.height)
+        })
         .accessibilityElement(children: .contain)
         .accessibilityLabel(AIReviewCardPresentation.reviewCardLabel)
+    }
+
+    private var retryButton: some View {
+        Button(action: onRetry) {
+            Image(systemName: AIReviewCardPresentation.retrySymbol)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help(AIReviewCardPresentation.retryTitle)
+        .accessibilityLabel(AIReviewCardPresentation.retryTitle)
+    }
+
+    private func rejectButton(_ title: String) -> some View {
+        Button(title, action: onReject).buttonStyle(.bordered).controlSize(.small).fixedSize()
+    }
+
+    private func acceptAllButton(_ action: @escaping () -> Void) -> some View {
+        Button(AIReviewCardPresentation.acceptAllTitle, action: action).buttonStyle(.bordered).controlSize(.small).fixedSize()
+    }
+
+    private func acceptButton(_ title: String) -> some View {
+        Button(title, action: onAccept).buttonStyle(.borderedProminent).controlSize(.small).fixedSize()
     }
 }
 

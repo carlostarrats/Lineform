@@ -57,7 +57,8 @@ final class AIReviewTextViewTests: XCTestCase {
         view.doCommand(by: #selector(NSResponder.insertNewline(_:)))
         view.doCommand(by: #selector(NSResponder.cancelOperation(_:)))
         view.insertText("x", replacementRange: NSRange(location: NSNotFound, length: 0))
-        XCTAssertEqual(commands, [.acceptCurrent, .end, .typed("x")], "← / → decide nothing: there is one change")
+        XCTAssertEqual(commands, [.move(1), .move(-1), .acceptCurrent, .rejectCurrent, .typed("x")],
+                       "← / → move between changes; Esc rejects the current one")
         XCTAssertEqual(view.string, composition().0.string, "typing never lands in the overlay")
     }
 
@@ -77,7 +78,7 @@ final class AIReviewTextViewTests: XCTestCase {
         view.keyDown(with: try key("\r", 36))
         view.keyDown(with: try key("\u{1b}", 53))
         view.keyDown(with: try key("q", 12))
-        XCTAssertEqual(commands, [.acceptCurrent, .end, .typed("q")])
+        XCTAssertEqual(commands, [.move(1), .move(-1), .acceptCurrent, .rejectCurrent, .typed("q")])
     }
 
     /// Option A: the original struck through in the receded ink, the replacement on the review
@@ -103,13 +104,16 @@ final class AIReviewTextViewTests: XCTestCase {
             }
         }
         XCTAssertFalse(composition.replacementRanges.isEmpty)
-        for range in composition.replacementRanges.values.flatMap({ $0 }) {
+        for (id, ranges) in composition.replacementRanges {
+            for range in ranges {
             for index in range.location..<NSMaxRange(range) {
+                // The current change on the full highlight; the other pending ones lighter.
                 XCTAssertEqual(layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor,
-                               HistoryPalette.reviewInsertTint(for: theme))
+                               id == 1 ? HistoryPalette.reviewInsertTint(for: theme) : HistoryPalette.reviewInsertOtherTint(for: theme))
                 XCTAssertNil(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil),
                              "the replacement keeps the normal ink")
                 XCTAssertNil(layoutManager.temporaryAttribute(.strikethroughStyle, atCharacterIndex: index, effectiveRange: nil))
+            }
             }
         }
         let plain = (composition.string as NSString).range(of: "night")
@@ -125,7 +129,7 @@ final class AIReviewTextViewTests: XCTestCase {
         let ns = doc as NSString
         let change = AIChange(id: 0, range: ns.range(of: "Old line here."), original: "Old line here.",
                               replacement: "See [the guide](guide.md) and `make test` now.")
-        let session = AIReviewSession(action: .rewrite, changes: [change],
+        let session = AIReviewSession(action: .rephrase, changes: [change],
                                       selectionRange: NSRange(location: 0, length: ns.length), originalSelection: doc)
         let composition = AIReviewComposition.build(text: doc, session: session)
         let shown = composition.string as NSString
@@ -152,7 +156,9 @@ final class AIReviewTextViewTests: XCTestCase {
     }
 
     /// Clicks decide nothing: there are no pills, and the original is no longer a keep toggle.
-    func testClicksDecideNothing() throws {
+    /// A click decides nothing; on a pending change it makes that change current (Proofread),
+    /// anywhere else it does nothing.
+    func testClicksSelectAChangeAndDecideNothing() throws {
         let (view, composition, _) = presented()
         var commands: [AIReviewCommand] = []
         view.commandHandler = { commands.append($0) }
@@ -160,17 +166,19 @@ final class AIReviewTextViewTests: XCTestCase {
         let container = try XCTUnwrap(view.textContainer)
         layoutManager.ensureLayout(for: container)
         let origin = view.textContainerOrigin
-        let targets = composition.removedRanges.values.flatMap { $0 } + composition.replacementRanges.values.flatMap { $0 }
-            + [(composition.string as NSString).range(of: "night")]
+        let ids = composition.changeRanges.keys.sorted()
+        let targets = ids.map { composition.changeRanges[$0]! } + [(composition.string as NSString).range(of: "night")]
         for range in targets {
             let rect = layoutManager.boundingRect(forGlyphRange: layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil),
                                                   in: container).offsetBy(dx: origin.x, dy: origin.y)
-            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: rect.midX, y: rect.midY),
+            // Window coordinates, as a real click carries them (the view is flipped).
+            let location = view.convert(NSPoint(x: rect.minX + 2, y: rect.midY), to: nil)
+            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: location,
                                                          modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
                                                          eventNumber: 0, clickCount: 1, pressure: 1))
             view.mouseDown(with: event)
         }
-        XCTAssertEqual(commands, [])
+        XCTAssertEqual(commands, ids.map { .select($0) }, "plain text selects nothing")
     }
 
     func testCustomActionsAreAcceptRejectAndEnd() throws {
@@ -179,9 +187,15 @@ final class AIReviewTextViewTests: XCTestCase {
         view.commandHandler = { commands.append($0) }
         let actions = view.accessibilityCustomActions() ?? []
         XCTAssertEqual(actions.map(\.name), ["Accept Change", "Reject Change", "End Review"])
-        XCTAssertEqual(actions.map(\.name), AIReviewTextView.accessibilityActionTitles())
         for action in actions { _ = action.handler?() }
         XCTAssertEqual(commands, [.accept(0), .reject(0), .end])
+        // Two or more pending (Proofread): Accept All and moving between changes too.
+        view.pendingCount = 3
+        commands = []
+        let many = view.accessibilityCustomActions() ?? []
+        XCTAssertEqual(many.map(\.name), ["Accept Change", "Reject Change", "Accept All", "Next Change", "Previous Change", "End Review"])
+        for action in many { _ = action.handler?() }
+        XCTAssertEqual(commands, [.accept(0), .reject(0), .acceptAll, .move(1), .move(-1), .end])
     }
 
     func testWithNoCurrentChangeOnlyEndIsOffered() {
@@ -241,8 +255,9 @@ final class AIReviewTextViewTests: XCTestCase {
         view.commandHandler = { commands.append($0) }
 
         view.keyDown(with: try key(String(UnicodeScalar(NSRightArrowFunctionKey)!), 124))
-        XCTAssertEqual(commands, [], "an arrow stays in the review and decides nothing")
+        XCTAssertEqual(commands, [.move(1)], "an arrow stays in the review and decides nothing")
         XCTAssertEqual(editor.string, text)
+        commands = []
 
         view.keyDown(with: try key("q", 12))
         XCTAssertEqual(commands, [.end], "the review ends first, synchronously")
@@ -285,7 +300,7 @@ final class AIReviewTextViewTests: XCTestCase {
         editor.string = text
         controller.editor = editor
         let passage = (text as NSString).range(of: "A very big day.")
-        controller.run(.rewrite, range: passage, text: text)
+        controller.run(.rephrase, range: passage, text: text)
         await controller.runTask?.value
         guard case .reviewing = controller.state else { return XCTFail("expected a review, got \(controller.state)") }
         editor.setSelectedRange(passage)
@@ -347,14 +362,12 @@ final class AIReviewTextViewTests: XCTestCase {
         let view = AIReviewTextView.make()
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
         view.present(AIReviewComposition.build(text: doc, session: session), currentID: session.currentID, profile: profile)
-        var text = doc
+        let text = doc
         for step in ["reject", "accept", "rejectLast"] {
             switch step {
             case "reject": session.reject(0)
             case "rejectLast": session.reject(2)
-            default:
-                let edit = try XCTUnwrap(session.accept(1).first)
-                text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+            default: session.accept(1)
             }
             let composition = AIReviewComposition.build(text: text, session: session)
             view.present(composition, currentID: session.currentID, profile: profile)
@@ -441,7 +454,7 @@ final class AIReviewTextViewTests: XCTestCase {
                                     replacement: String(repeating: "considerably larger ", count: 4)))
             searchFrom = NSMaxRange(range)
         }
-        let review = AIReviewSession(action: .rewrite, changes: changes,
+        let review = AIReviewSession(action: .rephrase, changes: changes,
                                      selectionRange: NSRange(location: 0, length: ns.length), originalSelection: document)
         let composition = AIReviewComposition.build(text: document, session: review)
 

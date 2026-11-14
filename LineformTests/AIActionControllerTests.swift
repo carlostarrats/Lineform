@@ -78,7 +78,7 @@ final class AIActionControllerTests: XCTestCase {
         let text = "The big dog ran far away."
         let (controller, surface, fake) = make(text, .reply("{}"), connected: false)
         XCTAssertFalse(controller.isAvailable(for: whole(text), text: text))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         XCTAssertEqual(factoryCalls, 0)
         XCTAssertTrue(fake.prompts.isEmpty)
         XCTAssertEqual(controller.state, .idle)
@@ -96,7 +96,7 @@ final class AIActionControllerTests: XCTestCase {
     func testRunProducesReviewWithOneChange() async throws {
         let text = "The big dog ran far away from home."
         let (controller, surface, fake) = make(text, replace(["big": "large", "far": "near", "home": "here"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         let review = try session(controller)
         XCTAssertEqual(review.changes.map(\.original), [text], "the whole selection is one decision")
         XCTAssertEqual(review.changes.map(\.replacement), ["The large dog ran near away from here."])
@@ -109,18 +109,135 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertFalse(controller.isAvailable(for: whole(text), text: text), "one action at a time")
     }
 
-    /// Proofread too: several word fixes in the selection are ONE change, accepted in one call.
-    func testProofreadIsAlsoOneChange() async throws {
+    /// Proofread is one suggestion per CORRECTION (2026-11-14): decisions are recorded as they
+    /// are made and applied together at the end — one apply call, one undo step.
+    func testProofreadReviewsEachCorrection() async throws {
         let text = "It works. It works."
         let (controller, surface, _) = make(text, replace(["works": "runs"]))
         await runToCompletion(controller, .proofread, range: whole(text), text: text)
-        XCTAssertEqual(try session(controller).changes.count, 1)
-        XCTAssertEqual(surface.announcements.last, "1 change suggested")
-        controller.handle(.accept(0))
+        let review = try session(controller)
+        XCTAssertEqual(review.changes.map(\.original), ["works", "works"])
+        XCTAssertEqual(review.changes.map(\.replacement), ["runs", "runs"])
+        XCTAssertEqual(surface.announcements.last, "2 corrections suggested")
+        XCTAssertEqual(review.position?.index, 1)
+
+        controller.handle(.acceptCurrent)
+        XCTAssertTrue(surface.editCalls.isEmpty, "nothing lands until the review ends")
+        XCTAssertEqual(try session(controller).position?.index, 2, "Return moves on")
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(controller.state, .idle, "the last decision ends the review")
         XCTAssertEqual(surface.string, "It runs. It runs.")
-        XCTAssertEqual(surface.editCalls.count, 1)
+        XCTAssertEqual(surface.editCalls.count, 1, "one apply")
+        XCTAssertEqual(surface.editCalls.first?.edits.count, 2)
         XCTAssertEqual(surface.editCalls.first?.actionName, "Accept Suggestion")
-        XCTAssertEqual(controller.state, .idle, "the one decision ends the review")
+    }
+
+    /// Esc / Reject rejects the current correction and moves on; ✕ ends, keeping what was
+    /// already accepted (undecided ones are rejected); ← / → and a click move between them.
+    func testProofreadRejectMoveAndEndKeepDecisions() async throws {
+        let text = "Teh cat and teh dog saw teh bird."
+        let (controller, surface, _) = make(text, replace(["teh": "the", "Teh": "The"]))
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        XCTAssertEqual(try session(controller).changes.count, 3)
+        controller.handle(.move(1))
+        XCTAssertEqual(try session(controller).position?.index, 2)
+        controller.handle(.move(-1))
+        controller.handle(.select(2))
+        XCTAssertEqual(try session(controller).position?.index, 3)
+        controller.handle(.rejectCurrent)
+        XCTAssertEqual(try session(controller).position?.index, 1, "Esc moves on (wrapping)")
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(try session(controller).position?.index, 2)
+        controller.handle(.end)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertEqual(surface.string, "The cat and teh dog saw teh bird.", "only the accepted one")
+        XCTAssertEqual(surface.editCalls.count, 1)
+    }
+
+    /// Read tears the Write editor down before the review ends: the accepted decisions go into
+    /// the document through the fallback — applied once, recorded in History — never lost.
+    func testAcceptedDecisionsSurviveTheEditorGoingAway() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        let text = "Teh cat and teh dog."
+        history.open(url: nil, text: text)
+        var document = text
+        var surface: FakeAIEditorSurface?
+        let controller: AIActionController
+        do {
+            let made = make(text, replace(["teh": "the", "Teh": "The"]), history: history)
+            controller = made.0
+            surface = made.1
+        }
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        XCTAssertNotNil(surface)
+        controller.handle(.acceptCurrent)
+        surface = nil   // the editor is gone (weak), as after the switch to Read
+        XCTAssertNil(controller.editor)
+        var applied = 0
+        controller.documentFallback = (text: { document }, apply: { edits in
+            applied += 1
+            for edit in edits { history.noteUserEdit(edit.range, replacement: edit.replacement) }
+            document = AIActionController.applying(edits, to: document)
+        })
+        controller.endReview()
+        XCTAssertEqual(applied, 1)
+        XCTAssertEqual(document, "The cat and teh dog.")
+        let recorded = try XCTUnwrap(history.rememberedPassageID)
+        XCTAssertEqual(history.passage(recorded)?.versions.map(\.text), ["Teh cat and teh dog.", "The cat and teh dog."])
+    }
+
+    /// A range that no longer reads what was reviewed: nothing is spliced, "text changed".
+    func testStaleAcceptedRangeAppliesNothing() async throws {
+        let text = "The cat sat on teh mat."
+        let (controller, surface, _) = make(text, replace(["teh": "the"]))
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        surface.string = "A cat sat on teh mat."
+        controller.handle(.acceptAll)
+        XCTAssertEqual(surface.string, "A cat sat on teh mat.")
+        XCTAssertTrue(surface.editCalls.isEmpty)
+        XCTAssertEqual(controller.state, .message(AIActionController.textChangedMessage))
+    }
+
+    /// Accept All accepts every remaining correction; all accepted corrections are ONE undo step
+    /// and ONE History version of the passage.
+    func testProofreadAcceptAllIsOneUndoAndOneHistoryRecord() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        let text = "Intro.\n\nTeh cat and teh dog.\n"
+        history.open(url: nil, text: text)
+        let (controller, surface, _) = make(text, replace(["teh": "the", "Teh": "The"]), history: history)
+        await runToCompletion(controller, .proofread, range: range(of: "Teh cat and teh dog.", in: text), text: text)
+        controller.handle(.acceptAll)
+        XCTAssertEqual(surface.string, "Intro.\n\nThe cat and the dog.\n")
+        XCTAssertEqual(surface.editCalls.count, 1)
+        let recorded = try XCTUnwrap(history.rememberedPassageID)
+        XCTAssertEqual(history.passage(recorded)?.versions.map(\.text), ["Teh cat and teh dog.", "The cat and the dog."])
+        XCTAssertEqual(try versions(history, text: surface.string).count, 2)
+    }
+
+    /// Rejecting every correction applies and records nothing.
+    func testProofreadRejectingEverythingRecordsNothing() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        let text = "Teh cat and teh dog."
+        history.open(url: nil, text: text)
+        let (controller, surface, _) = make(text, replace(["teh": "the", "Teh": "The"]), history: history)
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        controller.handle(.rejectCurrent)
+        controller.handle(.rejectCurrent)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertTrue(surface.editCalls.isEmpty)
+        XCTAssertFalse(history.hasHistory)
+    }
+
+    /// No difference: "No changes suggested". Fixes the structure guard refused: unusable.
+    func testProofreadWithNothingToFixOrOnlyRefusedFixes() async throws {
+        let text = "All is well here."
+        let (clean, cleanSurface, _) = make(text, replace([:]))
+        await runToCompletion(clean, .proofread, range: whole(text), text: text)
+        XCTAssertEqual(clean.state, .message("No changes suggested."))
+        let (refused, refusedSurface, _) = make(text, FakeAIClient.revising { _, segment in segment + " **bold**" })
+        await runToCompletion(refused, .proofread, range: whole(text), text: text)
+        XCTAssertEqual(refused.state, .message(AIClientError.unusableResponse.message))
+        withExtendedLifetime((cleanSurface, refusedSurface)) {}
     }
 
     /// A selection across list items is one change, applied as one call with one edit per item:
@@ -128,7 +245,7 @@ final class AIActionControllerTests: XCTestCase {
     func testMultiSegmentSelectionAcceptsAsOneCall() async throws {
         let text = "- alpha one\r\n- beta two\r\n"
         let (controller, surface, _) = make(text, replace(["one": "1", "two": "2"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         let review = try session(controller)
         XCTAssertEqual(review.changes.map(\.replacement), ["alpha 1\r\n- beta 2"])
         controller.handle(.acceptCurrent)
@@ -144,7 +261,7 @@ final class AIActionControllerTests: XCTestCase {
     func testAcceptIsOneEditCall() async throws {
         let text = "The big dog ran far away from home."
         let (controller, surface, _) = make(text, replace(["big": "large", "far": "near", "home": "here"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(surface.editCalls.count, 1)
         XCTAssertEqual(surface.editCalls.first?.edits.count, 1)
@@ -157,7 +274,7 @@ final class AIActionControllerTests: XCTestCase {
     func testEscapeEndsReviewLeavingTextUnchanged() async throws {
         let text = "The big dog ran far away from home."
         let (controller, surface, _) = make(text, replace(["big": "large"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         _ = try session(controller)
         controller.handle(.end)
         XCTAssertEqual(controller.state, .idle)
@@ -172,7 +289,7 @@ final class AIActionControllerTests: XCTestCase {
         let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
         let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
-        await runToCompletion(controller, .rewrite, range: range(of: "The big dog", in: historyDoc), text: historyDoc)
+        await runToCompletion(controller, .rephrase, range: range(of: "The big dog", in: historyDoc), text: historyDoc)
         let open = try session(controller)
         XCTAssertEqual(open.pending.count, 1)
         let ended = try XCTUnwrap(controller.endReview())
@@ -187,7 +304,7 @@ final class AIActionControllerTests: XCTestCase {
     func testTypingEndsReviewThenTypes() async throws {
         let text = "The big dog ran far away from home."
         let (controller, surface, _) = make(text, replace(["big": "large"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         controller.handle(.typed("x"))
         XCTAssertEqual(controller.state, .idle)
         XCTAssertEqual(surface.typed, ["x"])
@@ -213,7 +330,7 @@ final class AIActionControllerTests: XCTestCase {
         history.open(url: nil, text: historyDoc)
         let (controller, surface, _) = make(historyDoc, replace(["big": "large", "far": "near", "home": "here"]), history: history)
         let paragraph = range(of: "The big dog ran far away from home.", in: historyDoc)
-        await runToCompletion(controller, .rewrite, range: paragraph, text: historyDoc)
+        await runToCompletion(controller, .rephrase, range: paragraph, text: historyDoc)
         XCTAssertFalse(history.hasHistory, "History records once, when the review ends")
         controller.handle(.accept(0))
         XCTAssertEqual(controller.state, .idle)
@@ -223,6 +340,13 @@ final class AIActionControllerTests: XCTestCase {
         let rows = try versions(history, text: surface.string)
         XCTAssertEqual(rows.map(\.text), ["The big dog ran far away from home.", accepted])
         XCTAssertEqual(rows.map(\.author), [.you, .ai])
+    }
+
+    /// Find's count (2026-11-14; was "N sentences marked"): one plural key, per-language rules.
+    func testFindCountUsesPluralRules() throws {
+        XCTAssertEqual(AIActionController.markedMessage(1), "1 sentence found")
+        XCTAssertEqual(AIActionController.markedMessage(3), "3 sentences found")
+        XCTAssertEqual(AIActionController.nothingToMarkMessage, "No sentences found.")
     }
 
     // MARK: - History around an AI action (2026-11-13)
@@ -256,7 +380,7 @@ final class AIActionControllerTests: XCTestCase {
             var requested: [UUID] = []
             let (history, passage, text) = try historyInContext { requested.append($0) }
             let (controller, surface, _) = make(text, behavior, history: history)
-            await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+            await runToCompletion(controller, .rephrase, range: range(of: "Intro stays put.", in: text), text: text)
             end(controller)
             withExtendedLifetime(surface) {}
             XCTAssertEqual(requested, [passage], name)
@@ -265,7 +389,7 @@ final class AIActionControllerTests: XCTestCase {
         var requested: [UUID] = []
         let (history, passage, text) = try historyInContext { requested.append($0) }
         let (controller, surface, _) = make(text, .suspend, history: history)
-        controller.run(.rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+        controller.run(.rephrase, range: range(of: "Intro stays put.", in: text), text: text)
         controller.cancel()
         withExtendedLifetime(surface) {}
         XCTAssertEqual(requested, [passage], "cancel")
@@ -277,7 +401,7 @@ final class AIActionControllerTests: XCTestCase {
         var requested: [UUID] = []
         let (history, passage, text) = try historyInContext { requested.append($0) }
         let (controller, surface, _) = make(text, replace(["Intro": "Opening"]), history: history)
-        await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+        await runToCompletion(controller, .rephrase, range: range(of: "Intro stays put.", in: text), text: text)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(requested.count, 1)
         XCTAssertNotEqual(requested.first, passage)
@@ -292,7 +416,7 @@ final class AIActionControllerTests: XCTestCase {
         var requested: [UUID] = []
         let (history, passage, text) = try historyInContext { requested.append($0) }
         let (controller, surface, _) = make(text, replace(["Intro": "Opening"]), history: history)
-        await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: text), text: text)
+        await runToCompletion(controller, .rephrase, range: range(of: "Intro stays put.", in: text), text: text)
         controller.handle(.retry)
         await controller.runTask?.value
         XCTAssertEqual(requested, [], "the action is not over")
@@ -303,14 +427,14 @@ final class AIActionControllerTests: XCTestCase {
         var typedRequests: [UUID] = []
         let (typedHistory, _, typedText) = try historyInContext { typedRequests.append($0) }
         let (typing, _, _) = make(typedText, replace(["Intro": "Opening"]), history: typedHistory)
-        await runToCompletion(typing, .rewrite, range: range(of: "Intro stays put.", in: typedText), text: typedText)
+        await runToCompletion(typing, .rephrase, range: range(of: "Intro stays put.", in: typedText), text: typedText)
         typing.handle(.typed("x"))
         XCTAssertEqual(typedRequests, [])
 
         var yieldRequests: [UUID] = []
         let (yieldHistory, _, yieldText) = try historyInContext { yieldRequests.append($0) }
         let (yielding, _, _) = make(yieldText, replace(["Intro": "Opening"]), history: yieldHistory)
-        await runToCompletion(yielding, .rewrite, range: range(of: "Intro stays put.", in: yieldText), text: yieldText)
+        await runToCompletion(yielding, .rephrase, range: range(of: "Intro stays put.", in: yieldText), text: yieldText)
         yielding.yieldToHistory()
         yielding.handle(.end)
         XCTAssertEqual(yieldRequests, [])
@@ -326,11 +450,11 @@ final class AIActionControllerTests: XCTestCase {
         let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
         let sentence = range(of: "The big dog ran far away from home.", in: historyDoc)
 
-        await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
+        await runToCompletion(controller, .rephrase, range: sentence, text: historyDoc)
         controller.handle(.end)
         XCTAssertNil(history.rememberedPassageID, "a reject records and remembers nothing")
 
-        await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
+        await runToCompletion(controller, .rephrase, range: sentence, text: historyDoc)
         controller.handle(.acceptCurrent)
         let remembered = try XCTUnwrap(history.rememberedPassageID)
         XCTAssertFalse(history.isHistoryModeActive)
@@ -348,7 +472,7 @@ final class AIActionControllerTests: XCTestCase {
         var requested: [UUID] = []
         history.onRequestShowHistory = { requested.append($0) }
         let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
-        await runToCompletion(controller, .rewrite, range: range(of: "The big dog ran far away from home.", in: historyDoc),
+        await runToCompletion(controller, .rephrase, range: range(of: "The big dog ran far away from home.", in: historyDoc),
                               text: historyDoc)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(requested, [])
@@ -369,7 +493,7 @@ final class AIActionControllerTests: XCTestCase {
                                                         accepted: "quick brown", text: text))
         let (controller, surface, fake) = make(text, replace(["fox": "cat"]), history: history)
         XCTAssertTrue(controller.isAvailable(for: range(of: "brown fox", in: text), text: text))
-        await runToCompletion(controller, .rewrite, range: range(of: "brown fox", in: text), text: text)
+        await runToCompletion(controller, .rephrase, range: range(of: "brown fox", in: text), text: text)
         XCTAssertEqual(FakeAIClient.segments(in: try XCTUnwrap(fake.prompts.first)), ["quick brown fox"])
         controller.handle(.acceptCurrent)
         XCTAssertEqual(surface.string, "Intro.\n\nThe quick brown cat jumps over it.\n\nOutro.")
@@ -408,7 +532,7 @@ final class AIActionControllerTests: XCTestCase {
         let word = try XCTUnwrap(history.recordAccepted(range: range(of: "quick", in: text), original: "fast",
                                                         accepted: "quick", text: text))
         let (controller, surface, _) = make(text, FakeAIClient.revising { _, _ in "A swift fox leaps over it." }, history: history)
-        await runToCompletion(controller, .rewrite, range: range(of: "The quick brown fox jumps over it.", in: text), text: text)
+        await runToCompletion(controller, .rephrase, range: range(of: "The quick brown fox jumps over it.", in: text), text: text)
         _ = try session(controller)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(controller.state, .idle)
@@ -429,7 +553,7 @@ final class AIActionControllerTests: XCTestCase {
         let (controller, surface, _) = make(doc, replace(["big": "large", "far": "near"]), history: history)
         let start = range(of: "The big dog", in: doc).location
         let end = NSMaxRange(range(of: "far away.", in: doc))
-        await runToCompletion(controller, .rewrite, range: NSRange(location: start, length: end - start), text: doc)
+        await runToCompletion(controller, .rephrase, range: NSRange(location: start, length: end - start), text: doc)
         XCTAssertEqual(try session(controller).changes.count, 1, "one decision across paragraphs")
         controller.handle(.acceptCurrent)
         XCTAssertEqual(controller.state, .idle)
@@ -502,7 +626,7 @@ final class AIActionControllerTests: XCTestCase {
         let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
         let (controller, surface, _) = make(historyDoc, replace(["big": "large", "far": "near"]), history: history)
-        await runToCompletion(controller, .rewrite, range: range(of: "The big dog", in: historyDoc), text: historyDoc)
+        await runToCompletion(controller, .rephrase, range: range(of: "The big dog", in: historyDoc), text: historyDoc)
         controller.handle(.reject(0))
         XCTAssertEqual(controller.state, .idle)
         XCTAssertFalse(history.hasHistory)
@@ -523,7 +647,7 @@ final class AIActionControllerTests: XCTestCase {
                       "a selection containing the word passage is not inside it")
         XCTAssertTrue(history.enterHistoryMode(text: historyDoc))
         XCTAssertFalse(controller.isAvailable(for: range(of: "Intro stays", in: historyDoc), text: historyDoc))
-        controller.run(.rewrite, range: range(of: "Intro stays", in: historyDoc), text: historyDoc)
+        controller.run(.rephrase, range: range(of: "Intro stays", in: historyDoc), text: historyDoc)
         XCTAssertEqual(controller.state, .idle)
         XCTAssertEqual(factoryCalls, 0)
     }
@@ -533,7 +657,7 @@ final class AIActionControllerTests: XCTestCase {
     func testResponseDiscardedWhenTextChangedWhileRunning() async {
         let text = "The big dog ran far away from home."
         let (controller, surface, _) = make(text, replace(["big": "large"]))
-        controller.run(.rewrite, range: whole(text), text: text)
+        controller.run(.rephrase, range: whole(text), text: text)
         surface.string = text + " More."
         await controller.runTask?.value
         XCTAssertEqual(controller.state, .message("The text changed while Lineform was waiting. Nothing was changed."))
@@ -544,7 +668,7 @@ final class AIActionControllerTests: XCTestCase {
     func testRenormalizedTextCountsAsChanged() async {
         let text = "The cafe\u{301} was big."
         let (controller, surface, _) = make(text, replace(["big": "large"]))
-        controller.run(.rewrite, range: whole(text), text: text)
+        controller.run(.rephrase, range: whole(text), text: text)
         surface.string = "The caf\u{E9} was big."  // canonically equal, different UTF-16
         await controller.runTask?.value
         XCTAssertEqual(controller.state, .message("The text changed while Lineform was waiting. Nothing was changed."))
@@ -569,13 +693,13 @@ final class AIActionControllerTests: XCTestCase {
     func testClientErrorBecomesMessage() async {
         let text = "The big dog ran far away from home."
         let (controller, _, _) = make(text, .fail(.rateLimited))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         XCTAssertEqual(controller.state, .message(AIClientError.rateLimited.message))
         controller.dismissMessage()
         XCTAssertEqual(controller.state, .idle)
 
         let (garbled, garbledSurface, _) = make(text, .reply("not json"))
-        await runToCompletion(garbled, .rewrite, range: whole(text), text: text)
+        await runToCompletion(garbled, .rephrase, range: whole(text), text: text)
         XCTAssertEqual(garbled.state, .message(AIClientError.unusableResponse.message))
         XCTAssertEqual(garbledSurface.announcements.last, AIClientError.unusableResponse.message)
 
@@ -590,7 +714,7 @@ final class AIActionControllerTests: XCTestCase {
     func testIdenticalReplyToAChangingActionSaysTheAIReturnedTheSameText() async {
         let text = "The big dog ran far away from home."
         let word = range(of: "big", in: text)
-        for (action, selection) in [(AIAction.rewrite, whole(text)), (.trim, whole(text)),
+        for (action, selection) in [(AIAction.rephrase, whole(text)), (.trim, whole(text)),
                                     (.cutInHalf, whole(text)), (.anotherWord, word)] {
             // An identical reply, and one that differs only in edge whitespace.
             for behavior in [replace([:]), FakeAIClient.revising { _, segment in " \(segment) " }] {
@@ -601,7 +725,7 @@ final class AIActionControllerTests: XCTestCase {
                 XCTAssertEqual(surface.string, text)
             }
         }
-        XCTAssertEqual(AIActionController.unchangedMessage(for: .rewrite, provider: .other,
+        XCTAssertEqual(AIActionController.unchangedMessage(for: .rephrase, provider: .other,
                                                            segments: [], revisions: []),
                        "Your AI returned the same text. Try again.")
         XCTAssertEqual(AIActionController.unchangedMessage(for: .proofread, provider: .chatGPT,
@@ -653,7 +777,7 @@ final class AIActionControllerTests: XCTestCase {
             return String(decoding: try! JSONSerialization.data(withJSONObject: ["segments": revised]), as: UTF8.self)
         }
         let (controller, surface, _) = make(text, behavior)
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         _ = try session(controller)
         controller.handle(.retry)
         await controller.runTask?.value
@@ -689,7 +813,7 @@ final class AIActionControllerTests: XCTestCase {
         let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
         let (controller, surface, _) = make(historyDoc, replace(["big": "large", "far": "near"]), history: history)
-        await runToCompletion(controller, .rewrite, range: range(of: "The big dog ran far away from home.", in: historyDoc), text: historyDoc)
+        await runToCompletion(controller, .rephrase, range: range(of: "The big dog ran far away from home.", in: historyDoc), text: historyDoc)
         _ = try session(controller)
         controller.abandon()
         XCTAssertEqual(controller.state, .idle)
@@ -700,7 +824,7 @@ final class AIActionControllerTests: XCTestCase {
 
         // Abandon while running cancels the request.
         let (running, runningSurface, fake) = make(historyDoc, .suspend)
-        running.run(.rewrite, range: whole(historyDoc), text: historyDoc)
+        running.run(.rephrase, range: whole(historyDoc), text: historyDoc)
         let task = running.runTask
         while fake.prompts.isEmpty { await Task.yield() }
         running.abandon()
@@ -727,7 +851,7 @@ final class AIActionControllerTests: XCTestCase {
 
         let (empty, emptySurface, _) = make(text, .reply("{\"sentences\": []}"))
         await runToCompletion(empty, .markWeakest, range: whole(text), text: text)
-        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        XCTAssertEqual(empty.state, .message("No sentences found."))
         XCTAssertEqual(emptySurface.string, text)
     }
 
@@ -744,9 +868,9 @@ final class AIActionControllerTests: XCTestCase {
 
         let (empty, emptySurface, _) = make(text, .reply("{\"sentences\": []}"))
         await runToCompletion(empty, .markWeakest, range: whole(text), text: text)
-        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        XCTAssertEqual(empty.state, .message("No sentences found."))
         empty.yieldToHistory()
-        XCTAssertEqual(empty.state, .message("Nothing to mark."))
+        XCTAssertEqual(empty.state, .message("No sentences found."))
         XCTAssertEqual(emptySurface.string, text)
     }
 
@@ -755,7 +879,7 @@ final class AIActionControllerTests: XCTestCase {
     func testOversizedSelectionIsRefusedWithoutARequest() async {
         let long = String(repeating: "word ", count: 5_000) + "end."
         let (controller, surface, fake) = make(long, .reply("{}"))
-        await runToCompletion(controller, .rewrite, range: whole(long), text: long)
+        await runToCompletion(controller, .rephrase, range: whole(long), text: long)
         XCTAssertEqual(controller.state, .message("Select less text — about 4,000 words at most."))
         XCTAssertTrue(fake.prompts.isEmpty)
         XCTAssertEqual(factoryCalls, 0)
@@ -837,7 +961,7 @@ final class AIActionControllerTests: XCTestCase {
         let text = Self.fixture
         // Every segment mangled: nothing is admitted, nothing can be accepted.
         let (controller, surface, fake) = make(text, FakeAIClient.revising { Self.mangle($0, $1) })
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         XCTAssertGreaterThan(FakeAIClient.segments(in: try XCTUnwrap(fake.prompts.first)).count, 10)
         // Rewrite never says "No changes suggested": every revision was refused, so the reply was
         // unusable (it was not the same text).
@@ -851,7 +975,7 @@ final class AIActionControllerTests: XCTestCase {
         let (mixed, mixedSurface, _) = make(text, FakeAIClient.revising { index, segment in
             index.isMultiple(of: 2) ? Self.mangle(index / 2, segment) : segment + " indeed"
         })
-        await runToCompletion(mixed, .rewrite, range: whole(text), text: text)
+        await runToCompletion(mixed, .rephrase, range: whole(text), text: text)
         let review = try session(mixed)
         XCTAssertEqual(review.changes.count, 1)
         let parts = review.changes.flatMap(\.parts)
@@ -868,7 +992,7 @@ final class AIActionControllerTests: XCTestCase {
     func testHonestEditsApplyAndKeepStructure() async throws {
         let text = Self.fixture
         let (controller, surface, _) = make(text, replace(["prose": "writing", "item": "entry", "cell": "box", "quick": "swift"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         let review = try session(controller)
         XCTAssertEqual(review.changes.count, 1, "the whole selection is one decision")
         XCTAssertGreaterThan(review.changes[0].parts.count, 5)
@@ -879,9 +1003,10 @@ final class AIActionControllerTests: XCTestCase {
         assertStructureSurvives(surface.string)
     }
 
-    /// The whole change is verified, never a subset: `$5` → `5$` is a token move that word-level
-    /// hunks once split in two (one half alone re-pairing `$` into math). As one change it is
-    /// offered and accepted whole, and the structure survives.
+    /// `$5` → `5$` is a token move: the word diff splits it into a deletion and an insertion,
+    /// and the insertion alone re-pairs `$` into math. Proofread merges a correction that fails
+    /// the structure guard with its neighbour, so it is offered as ONE correction, accepted whole,
+    /// and the structure survives.
     func testAStructureMoveIsOneVerifiedChange() async throws {
         let text = "Price $5 or more today."
         let (controller, surface, _) = make(text, replace(["$5": "5$"]))
@@ -893,21 +1018,22 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertFalse(surface.announcements.contains(AIActionController.structureRefusedMessage))
     }
 
-    /// The accept-time verify still runs against the CURRENT text. A refusal must be SEEN, not
-    /// only announced: a refused accept is the only decision, so it becomes the controller's
-    /// message. (The review is read-only, so the text cannot really change under it; the fake
-    /// surface's text is changed here to reach the guard.)
+    /// The verify runs again, against the CURRENT text, when the accepted changes are applied at
+    /// the review's end. A refusal must be SEEN, not only announced: it becomes the controller's
+    /// message, and nothing is applied. (The review is read-only, so the text cannot really
+    /// change under it; the fake surface's text is changed here to reach the guard.)
     func testRefusedDecisionLeavesAVisibleNotice() async throws {
         let text = "Price 55 or more today."
         let shifted = "Price *5 or more today.*"   // the change's range now covers one `*` of a pair
 
         let (single, singleSurface, _) = make(text, replace(["more": "less"]))
-        await runToCompletion(single, .proofread, range: whole(text), text: text)
+        await runToCompletion(single, .rephrase, range: whole(text), text: text)
         singleSurface.string = shifted
         single.handle(.accept(0))
         XCTAssertTrue(singleSurface.editCalls.isEmpty)
-        XCTAssertEqual(single.state, .message(AIActionController.structureRefusedMessage))
-        XCTAssertNil(single.reviewNotice)
+        // The range no longer reads what was reviewed, so it is refused before the structure
+        // guard (2026-11-14): nothing is spliced, and the refusal is seen.
+        XCTAssertEqual(single.state, .message(AIActionController.textChangedMessage))
     }
 
     // MARK: - Final-review fixes
@@ -922,7 +1048,7 @@ final class AIActionControllerTests: XCTestCase {
 
         // Esc (End Review): nothing accepted, the end is where it was.
         let (esc, escSurface, _) = make(doc, replace(words))
-        await runToCompletion(esc, .rewrite, range: passage, text: doc)
+        await runToCompletion(esc, .rephrase, range: passage, text: doc)
         XCTAssertEqual(escSurface.collapsedSelections, [], "nothing collapses while the review is up")
         esc.handle(.end)
         XCTAssertEqual(escSurface.collapsedSelections, [NSMaxRange(passage)])
@@ -930,29 +1056,29 @@ final class AIActionControllerTests: XCTestCase {
         // The one decision: accepting it ends the review at the accepted text's end; rejecting
         // it at the passage's.
         let (pill, pillSurface, _) = make(doc, replace(words))
-        await runToCompletion(pill, .rewrite, range: passage, text: doc)
+        await runToCompletion(pill, .rephrase, range: passage, text: doc)
         pill.handle(.accept(0))
         XCTAssertEqual(pillSurface.collapsedSelections,
                        [NSMaxRange(range(of: "The large dog ran near away from here.", in: pillSurface.string))])
         let (rejected, rejectedSurface, _) = make(doc, replace(words))
-        await runToCompletion(rejected, .rewrite, range: passage, text: doc)
+        await runToCompletion(rejected, .rephrase, range: passage, text: doc)
         rejected.handle(.reject(0))
         XCTAssertEqual(rejectedSurface.collapsedSelections, [NSMaxRange(passage)])
 
         // A typed key: collapsed BEFORE the key is typed.
         let (typed, typedSurface, _) = make(doc, replace(words))
-        await runToCompletion(typed, .rewrite, range: passage, text: doc)
+        await runToCompletion(typed, .rephrase, range: passage, text: doc)
         typed.handle(.typed("x"))
         XCTAssertEqual(typedSurface.collapsedSelections, [NSMaxRange(passage)])
         XCTAssertEqual(typedSurface.typed, ["x"])
 
         // Abandon (reload) and a document swap's endReview + abandon.
         let (gone, goneSurface, _) = make(doc, replace(words))
-        await runToCompletion(gone, .rewrite, range: passage, text: doc)
+        await runToCompletion(gone, .rephrase, range: passage, text: doc)
         gone.abandon()
         XCTAssertEqual(goneSurface.collapsedSelections, [NSMaxRange(passage)])
         let (swap, swapSurface, _) = make(doc, replace(words))
-        await runToCompletion(swap, .rewrite, range: passage, text: doc)
+        await runToCompletion(swap, .rephrase, range: passage, text: doc)
         swap.endReview()
         swap.abandon()
         XCTAssertEqual(swapSurface.collapsedSelections, [NSMaxRange(passage)], "once, as the review leaves")
@@ -968,7 +1094,7 @@ final class AIActionControllerTests: XCTestCase {
         let passage = range(of: "The big dog ran far away from home.", in: historyDoc)
 
         let (single, singleSurface, _) = make(historyDoc, replace(["big": "large", "far": "near"]), history: history)
-        await runToCompletion(single, .rewrite, range: passage, text: historyDoc)
+        await runToCompletion(single, .rephrase, range: passage, text: historyDoc)
         singleSurface.skippedEditIndices = [0]
         single.handle(.accept(0))
         XCTAssertEqual(single.state, .message(AIActionController.editSkippedMessage))
@@ -985,7 +1111,7 @@ final class AIActionControllerTests: XCTestCase {
         let selection = NSRange(location: start, length: NSMaxRange(range(of: "Outro stays too.", in: historyDoc)) - start)
         for command in [AIReviewCommand.accept(0), .acceptCurrent] {
             let (multi, multiSurface, _) = make(historyDoc, replace(["big": "large", "too": "also"]), history: history)
-            await runToCompletion(multi, .rewrite, range: selection, text: historyDoc)
+            await runToCompletion(multi, .rephrase, range: selection, text: historyDoc)
             multiSurface.skippedEditIndices = [1]
             multi.handle(command)
             XCTAssertEqual(multi.state, .message(AIActionController.editSkippedMessage), "\(command)")
@@ -1005,7 +1131,7 @@ final class AIActionControllerTests: XCTestCase {
         let running = AIActionController(connectionStore: store) { _ in suspended }
         let runningSurface = FakeAIEditorSurface(text)
         running.editor = runningSurface
-        running.run(.rewrite, range: whole(text), text: text)
+        running.run(.rephrase, range: whole(text), text: text)
         let task = running.runTask
         while suspended.prompts.isEmpty { await Task.yield() }
         store.disconnect()
@@ -1019,7 +1145,7 @@ final class AIActionControllerTests: XCTestCase {
         let reviewing = AIActionController(connectionStore: store) { _ in replying }
         let surface = FakeAIEditorSurface(text)
         reviewing.editor = surface
-        await runToCompletion(reviewing, .rewrite, range: whole(text), text: text)
+        await runToCompletion(reviewing, .rephrase, range: whole(text), text: text)
         _ = try session(reviewing)
         XCTAssertNil(store.connect(.claude, key: "another-test-key"), "the same provider, a new key")
         _ = try session(reviewing)
@@ -1034,7 +1160,7 @@ final class AIActionControllerTests: XCTestCase {
     func testReturnAcceptsTheChangeWithNoArrowPress() async throws {
         let text = "The big dog ran far away from home."
         let (controller, surface, _) = make(text, replace(["big": "large", "far": "near", "home": "here"]))
-        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        await runToCompletion(controller, .rephrase, range: whole(text), text: text)
         XCTAssertEqual(try session(controller).currentID, 0)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(surface.string, "The large dog ran near away from here.")

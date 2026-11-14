@@ -142,7 +142,7 @@ final class DocumentHistoryController: ObservableObject {
     /// (the History tab, View ▸ History) selects it. Cleared once used, on a document swap, and by
     /// any entry with an explicit target (`showPassage`).
     private(set) var rememberedPassageID: UUID?
-    /// Add Alternative… asked for the alternative field on this passage; spent when the field
+    /// Replace With… asked for the alternative field on this passage; spent when the field
     /// opens (`alternativeFieldDidOpen`), when History mode ends, and on a document swap.
     private(set) var pendingAlternativeFieldID: UUID?
 
@@ -497,7 +497,7 @@ final class DocumentHistoryController: ObservableObject {
     @discardableResult
     func add(_ range: NSRange, text: String) -> UUID? {
         guard let id = engine.add(range, author: .you, in: text) else { return nil }
-        // Add Alternative…: the sidebar opens its "Type an alternative" field for this passage as
+        // Replace With…: the sidebar opens its "Type a replacement" field for this passage as
         // soon as History shows it (`HistorySidebarModel.opensAlternativeField`).
         pendingAlternativeFieldID = id
         save()
@@ -576,8 +576,18 @@ final class DocumentHistoryController: ObservableObject {
         return didProduce(edit, in: text, alwaysRefresh: true)
     }
 
+    /// Whether Replace With… is offered for `range`: what History can place AND what its one-line
+    /// replacement field can replace (2026-11-14 — it was offered for a selection spanning a list,
+    /// a quote and a fenced code block, which one typed line would have flattened). So: the
+    /// selection (edge-trimmed) stays within one line — one paragraph or block line — and touches
+    /// no front matter, fenced code or math.
     func canAdd(_ range: NSRange, text: String) -> Bool {
-        engine.canAdd(range, in: text)
+        let ns = text as NSString
+        let aligned = PassageHistoryText.aligned(range, in: text)
+        guard aligned.length > 0, NSMaxRange(aligned) <= ns.length,
+              ns.substring(with: aligned).rangeOfCharacter(from: .newlines) == nil,
+              MarkdownWritingToolsProtection.protectedRanges(in: ns, intersecting: aligned).isEmpty else { return false }
+        return engine.canAdd(range, in: text)
     }
 
     /// AI actions are offered on any selection in normal writing — inside, equal to, around or
@@ -842,7 +852,9 @@ final class DocumentHistoryController: ObservableObject {
         let newModel: HistorySidebarModel
         if isHistoryModeActive {
             let passage = selectedID.flatMap { id in engine.history.passages.first { $0.id == id } }
-            let counter = passage.map { HistoryCounter(count: $0.versions.count, current: $0.currentIndex) }
+            // No "1/1": a passage with one version (just added by Replace With…, nothing typed yet)
+            // has nothing to count (2026-11-14).
+            let counter = passage.flatMap { $0.versions.count > 1 ? HistoryCounter(count: $0.versions.count, current: $0.currentIndex) : nil }
             newDisplay = HistoryModeDisplay(passages: located, selectedID: selectedID, hoveredID: nil, counter: counter)
             if let passage {
                 let levels = engine.group(containing: passage.id)
