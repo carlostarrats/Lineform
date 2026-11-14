@@ -20,6 +20,33 @@ enum AIReviewCardPresentation {
         }
     }
 
+    /// The card's label for a review: Proofread counts its corrections ("Proofread · 2 of 4");
+    /// every other action is one change ("Rephrase ready").
+    static func title(for session: AIReviewSession, bundle: Bundle = .main) -> String {
+        guard session.action.reviewsPerCorrection, let position = session.position else {
+            return title(for: session.action, bundle: bundle)
+        }
+        return String(localized: "Proofread · \(position.index) of \(position.count)", bundle: bundle)
+    }
+
+    /// Proofread's keys, on its card: ← / → move between corrections.
+    static func reviewHint(for session: AIReviewSession, bundle: Bundle = .main) -> String {
+        guard session.action.reviewsPerCorrection else { return reviewHint(bundle: bundle) }
+        return proofreadHint(bundle: bundle)
+    }
+
+    static func proofreadHint(bundle: Bundle = .main) -> String {
+        String(localized: "Return to accept · Esc to reject · ← → to move", bundle: bundle)
+    }
+
+    /// Accept All is offered only while two or more corrections are left.
+    static func offersAcceptAll(_ session: AIReviewSession) -> Bool {
+        session.action.reviewsPerCorrection && session.pending.count >= 2
+    }
+
+    static var acceptAllTitle: String { acceptAllTitle(bundle: .main) }
+    static func acceptAllTitle(bundle: Bundle) -> String { String(localized: "Accept All", bundle: bundle) }
+
     /// One change, one decision: Reject, then Accept (the prominent one, trailing).
     static var buttonTitles: (reject: String, accept: String) { buttonTitles(bundle: .main) }
     static func buttonTitles(bundle: Bundle) -> (reject: String, accept: String) {
@@ -160,19 +187,25 @@ private struct AICardCloseButton: View {
 /// its explanation is the status card's message, never drawn here.
 struct AIReviewCard: View {
     let title: String
+    let hint: String
     let usesDarkChrome: Bool
     var onAccept: () -> Void
     var onReject: () -> Void
+    /// Proofread with two or more corrections left; nil hides the button.
+    var onAcceptAll: (() -> Void)?
     var onRetry: () -> Void
     var onClose: () -> Void
 
-    init(title: String, usesDarkChrome: Bool,
+    init(title: String, hint: String = AIReviewCardPresentation.reviewHint, usesDarkChrome: Bool,
          onAccept: @escaping () -> Void, onReject: @escaping () -> Void,
+         onAcceptAll: (() -> Void)? = nil,
          onRetry: @escaping () -> Void = {}, onClose: @escaping () -> Void) {
         self.title = title
+        self.hint = hint
         self.usesDarkChrome = usesDarkChrome
         self.onAccept = onAccept
         self.onReject = onReject
+        self.onAcceptAll = onAcceptAll
         self.onRetry = onRetry
         self.onClose = onClose
     }
@@ -185,26 +218,28 @@ struct AIReviewCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(MuseModalChrome.primaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(AIReviewCardPresentation.reviewHint)
+                Text(hint)
                     .font(.system(size: 11.5))
                     .lineSpacing(2)
                     .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
-                    Button(action: onRetry) {
-                        Image(systemName: AIReviewCardPresentation.retrySymbol)
-                            .font(.system(size: 11, weight: .semibold))
+                // One row when it fits; otherwise (German, with Accept All) Accept All drops to a
+                // row of its own rather than squeezing or truncating the buttons.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        retryButton
+                        rejectButton(titles.reject)
+                        if let onAcceptAll { acceptAllButton(onAcceptAll) }
+                        acceptButton(titles.accept)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help(AIReviewCardPresentation.retryTitle)
-                    .accessibilityLabel(AIReviewCardPresentation.retryTitle)
-                    Button(titles.reject, action: onReject)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    Button(titles.accept, action: onAccept)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            retryButton
+                            rejectButton(titles.reject)
+                            acceptButton(titles.accept)
+                        }
+                        if let onAcceptAll { acceptAllButton(onAcceptAll) }
+                    }
                 }
                 .padding(.top, 5)
             }
@@ -213,6 +248,29 @@ struct AIReviewCard: View {
         .modifier(AICardChrome(usesDarkChrome: usesDarkChrome))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(AIReviewCardPresentation.reviewCardLabel)
+    }
+
+    private var retryButton: some View {
+        Button(action: onRetry) {
+            Image(systemName: AIReviewCardPresentation.retrySymbol)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help(AIReviewCardPresentation.retryTitle)
+        .accessibilityLabel(AIReviewCardPresentation.retryTitle)
+    }
+
+    private func rejectButton(_ title: String) -> some View {
+        Button(title, action: onReject).buttonStyle(.bordered).controlSize(.small).fixedSize()
+    }
+
+    private func acceptAllButton(_ action: @escaping () -> Void) -> some View {
+        Button(AIReviewCardPresentation.acceptAllTitle, action: action).buttonStyle(.bordered).controlSize(.small).fixedSize()
+    }
+
+    private func acceptButton(_ title: String) -> some View {
+        Button(title, action: onAccept).buttonStyle(.borderedProminent).controlSize(.small).fixedSize()
     }
 }
 

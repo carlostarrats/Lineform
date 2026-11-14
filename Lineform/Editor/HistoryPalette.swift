@@ -171,6 +171,16 @@ enum HistoryPalette {
     static let reviewInsertAlphaLight: CGFloat = 0.14
     static let reviewInsertAlphaDark: CGFloat = 0.26
 
+    /// Proofread's OTHER pending corrections (the current one is on `reviewInsertTint`): a lighter
+    /// wash of the same blue, still visibly off the page, text AA on it.
+    static let reviewInsertOtherAlphaLight: CGFloat = 0.07
+    static let reviewInsertOtherAlphaDark: CGFloat = 0.14
+
+    static func reviewInsertOtherTint(for theme: Theme) -> NSColor {
+        let alpha = theme.usesDarkChrome ? reviewInsertOtherAlphaDark : reviewInsertOtherAlphaLight
+        return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
+    }
+
     static func reviewInsertTint(for theme: Theme) -> NSColor {
         let alpha = theme.usesDarkChrome ? reviewInsertAlphaDark : reviewInsertAlphaLight
         return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
@@ -182,8 +192,8 @@ enum HistoryPalette {
     /// light enough to fix that is still visible. Body text already reads on the tint and comes
     /// back as the same object; deliberately muted inks (Markdown markers) stay as muted as they
     /// were rather than being raised to AA.
-    static func reviewReplacementInk(_ ink: NSColor, for theme: Theme) -> NSColor {
-        let tint = reviewInsertTint(for: theme)
+    static func reviewReplacementInk(_ ink: NSColor, for theme: Theme, on tint: NSColor? = nil) -> NSColor {
+        let tint = tint ?? reviewInsertTint(for: theme)
         let target = min(4.5, Theme.contrastRatio(ink, theme.backgroundColor))
         guard Theme.contrastRatio(ink, tint) < target else { return ink }
         return theme.readableInk(ink, minimumRatio: target, on: tint)

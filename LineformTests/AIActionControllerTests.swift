@@ -109,18 +109,91 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertFalse(controller.isAvailable(for: whole(text), text: text), "one action at a time")
     }
 
-    /// Proofread too: several word fixes in the selection are ONE change, accepted in one call.
-    func testProofreadIsAlsoOneChange() async throws {
+    /// Proofread is one suggestion per CORRECTION (2026-11-14): decisions are recorded as they
+    /// are made and applied together at the end — one apply call, one undo step.
+    func testProofreadReviewsEachCorrection() async throws {
         let text = "It works. It works."
         let (controller, surface, _) = make(text, replace(["works": "runs"]))
         await runToCompletion(controller, .proofread, range: whole(text), text: text)
-        XCTAssertEqual(try session(controller).changes.count, 1)
-        XCTAssertEqual(surface.announcements.last, "1 change suggested")
-        controller.handle(.accept(0))
+        let review = try session(controller)
+        XCTAssertEqual(review.changes.map(\.original), ["works", "works"])
+        XCTAssertEqual(review.changes.map(\.replacement), ["runs", "runs"])
+        XCTAssertEqual(surface.announcements.last, "2 corrections suggested")
+        XCTAssertEqual(review.position?.index, 1)
+
+        controller.handle(.acceptCurrent)
+        XCTAssertTrue(surface.editCalls.isEmpty, "nothing lands until the review ends")
+        XCTAssertEqual(try session(controller).position?.index, 2, "Return moves on")
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(controller.state, .idle, "the last decision ends the review")
         XCTAssertEqual(surface.string, "It runs. It runs.")
-        XCTAssertEqual(surface.editCalls.count, 1)
+        XCTAssertEqual(surface.editCalls.count, 1, "one apply")
+        XCTAssertEqual(surface.editCalls.first?.edits.count, 2)
         XCTAssertEqual(surface.editCalls.first?.actionName, "Accept Suggestion")
-        XCTAssertEqual(controller.state, .idle, "the one decision ends the review")
+    }
+
+    /// Esc / Reject rejects the current correction and moves on; ✕ ends, keeping what was
+    /// already accepted (undecided ones are rejected); ← / → and a click move between them.
+    func testProofreadRejectMoveAndEndKeepDecisions() async throws {
+        let text = "Teh cat and teh dog saw teh bird."
+        let (controller, surface, _) = make(text, replace(["teh": "the", "Teh": "The"]))
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        XCTAssertEqual(try session(controller).changes.count, 3)
+        controller.handle(.move(1))
+        XCTAssertEqual(try session(controller).position?.index, 2)
+        controller.handle(.move(-1))
+        controller.handle(.select(2))
+        XCTAssertEqual(try session(controller).position?.index, 3)
+        controller.handle(.rejectCurrent)
+        XCTAssertEqual(try session(controller).position?.index, 1, "Esc moves on (wrapping)")
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(try session(controller).position?.index, 2)
+        controller.handle(.end)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertEqual(surface.string, "The cat and teh dog saw teh bird.", "only the accepted one")
+        XCTAssertEqual(surface.editCalls.count, 1)
+    }
+
+    /// Accept All accepts every remaining correction; all accepted corrections are ONE undo step
+    /// and ONE History version of the passage.
+    func testProofreadAcceptAllIsOneUndoAndOneHistoryRecord() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        let text = "Intro.\n\nTeh cat and teh dog.\n"
+        history.open(url: nil, text: text)
+        let (controller, surface, _) = make(text, replace(["teh": "the", "Teh": "The"]), history: history)
+        await runToCompletion(controller, .proofread, range: range(of: "Teh cat and teh dog.", in: text), text: text)
+        controller.handle(.acceptAll)
+        XCTAssertEqual(surface.string, "Intro.\n\nThe cat and the dog.\n")
+        XCTAssertEqual(surface.editCalls.count, 1)
+        let recorded = try XCTUnwrap(history.rememberedPassageID)
+        XCTAssertEqual(history.passage(recorded)?.versions.map(\.text), ["Teh cat and teh dog.", "The cat and the dog."])
+        XCTAssertEqual(try versions(history, text: surface.string).count, 2)
+    }
+
+    /// Rejecting every correction applies and records nothing.
+    func testProofreadRejectingEverythingRecordsNothing() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        let text = "Teh cat and teh dog."
+        history.open(url: nil, text: text)
+        let (controller, surface, _) = make(text, replace(["teh": "the", "Teh": "The"]), history: history)
+        await runToCompletion(controller, .proofread, range: whole(text), text: text)
+        controller.handle(.rejectCurrent)
+        controller.handle(.rejectCurrent)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertTrue(surface.editCalls.isEmpty)
+        XCTAssertFalse(history.hasHistory)
+    }
+
+    /// No difference: "No changes suggested". Fixes the structure guard refused: unusable.
+    func testProofreadWithNothingToFixOrOnlyRefusedFixes() async throws {
+        let text = "All is well here."
+        let (clean, cleanSurface, _) = make(text, replace([:]))
+        await runToCompletion(clean, .proofread, range: whole(text), text: text)
+        XCTAssertEqual(clean.state, .message("No changes suggested."))
+        let (refused, refusedSurface, _) = make(text, FakeAIClient.revising { _, segment in segment + " **bold**" })
+        await runToCompletion(refused, .proofread, range: whole(text), text: text)
+        XCTAssertEqual(refused.state, .message(AIClientError.unusableResponse.message))
+        withExtendedLifetime((cleanSurface, refusedSurface)) {}
     }
 
     /// A selection across list items is one change, applied as one call with one edit per item:
@@ -886,9 +959,10 @@ final class AIActionControllerTests: XCTestCase {
         assertStructureSurvives(surface.string)
     }
 
-    /// The whole change is verified, never a subset: `$5` → `5$` is a token move that word-level
-    /// hunks once split in two (one half alone re-pairing `$` into math). As one change it is
-    /// offered and accepted whole, and the structure survives.
+    /// `$5` → `5$` is a token move: the word diff splits it into a deletion and an insertion,
+    /// and the insertion alone re-pairs `$` into math. Proofread merges a correction that fails
+    /// the structure guard with its neighbour, so it is offered as ONE correction, accepted whole,
+    /// and the structure survives.
     func testAStructureMoveIsOneVerifiedChange() async throws {
         let text = "Price $5 or more today."
         let (controller, surface, _) = make(text, replace(["$5": "5$"]))
@@ -900,21 +974,20 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertFalse(surface.announcements.contains(AIActionController.structureRefusedMessage))
     }
 
-    /// The accept-time verify still runs against the CURRENT text. A refusal must be SEEN, not
-    /// only announced: a refused accept is the only decision, so it becomes the controller's
-    /// message. (The review is read-only, so the text cannot really change under it; the fake
-    /// surface's text is changed here to reach the guard.)
+    /// The verify runs again, against the CURRENT text, when the accepted changes are applied at
+    /// the review's end. A refusal must be SEEN, not only announced: it becomes the controller's
+    /// message, and nothing is applied. (The review is read-only, so the text cannot really
+    /// change under it; the fake surface's text is changed here to reach the guard.)
     func testRefusedDecisionLeavesAVisibleNotice() async throws {
         let text = "Price 55 or more today."
         let shifted = "Price *5 or more today.*"   // the change's range now covers one `*` of a pair
 
         let (single, singleSurface, _) = make(text, replace(["more": "less"]))
-        await runToCompletion(single, .proofread, range: whole(text), text: text)
+        await runToCompletion(single, .rephrase, range: whole(text), text: text)
         singleSurface.string = shifted
         single.handle(.accept(0))
         XCTAssertTrue(singleSurface.editCalls.isEmpty)
         XCTAssertEqual(single.state, .message(AIActionController.structureRefusedMessage))
-        XCTAssertNil(single.reviewNotice)
     }
 
     // MARK: - Final-review fixes

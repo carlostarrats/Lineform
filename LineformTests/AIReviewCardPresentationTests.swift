@@ -64,6 +64,39 @@ final class AIReviewCardPresentationTests: XCTestCase {
         }
     }
 
+    /// Proofread's card counts corrections and offers Accept All while two or more are left; a
+    /// Rewrite-family card is one decision.
+    @MainActor
+    func testProofreadCardCountsAndOffersAcceptAll() throws {
+        let text = "Teh cat and teh dog."
+        let ns = text as NSString
+        let changes = [AIChange(id: 0, range: ns.range(of: "Teh"), original: "Teh", replacement: "The"),
+                       AIChange(id: 1, range: ns.range(of: "teh"), original: "teh", replacement: "the")]
+        var proofread = AIReviewSession(action: .proofread, changes: changes,
+                                        selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
+        XCTAssertEqual(AIReviewCardPresentation.title(for: proofread), "Proofread · 1 of 2")
+        XCTAssertEqual(AIReviewCardPresentation.reviewHint(for: proofread), "Return to accept · Esc to reject · ← → to move")
+        XCTAssertTrue(AIReviewCardPresentation.offersAcceptAll(proofread))
+        proofread.accept(0)
+        XCTAssertEqual(AIReviewCardPresentation.title(for: proofread), "Proofread · 2 of 2")
+        XCTAssertFalse(AIReviewCardPresentation.offersAcceptAll(proofread), "one left")
+        let rephrase = AIReviewSession(action: .rephrase, changes: [changes[0]],
+                                       selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
+        XCTAssertEqual(AIReviewCardPresentation.title(for: rephrase), "Rephrase ready")
+        XCTAssertEqual(AIReviewCardPresentation.reviewHint(for: rephrase), "Return to accept · Esc to reject")
+        XCTAssertFalse(AIReviewCardPresentation.offersAcceptAll(rephrase))
+        XCTAssertEqual(AIReviewCardPresentation.acceptAllTitle, "Accept All")
+        for language in Self.languages {
+            let bundle = try bundle(language)
+            XCTAssertNotEqual(AIReviewCardPresentation.title(for: proofread, bundle: bundle), "Proofread · 2 of 2", language)
+            XCTAssertTrue(AIReviewCardPresentation.title(for: proofread, bundle: bundle).contains("2"), language)
+            XCTAssertNotEqual(AIReviewCardPresentation.proofreadHint(bundle: bundle), AIReviewCardPresentation.proofreadHint(), language)
+            XCTAssertNotEqual(AIReviewCardPresentation.acceptAllTitle(bundle: bundle), "Accept All", language)
+        }
+        XCTAssertEqual(AIActionController.correctionsSuggestedMessage(1), "1 correction suggested")
+        XCTAssertEqual(AIActionController.correctionsSuggestedMessage(4), "4 corrections suggested")
+    }
+
     func testReviewAndProgressTextAreLocalized() throws {
         for language in Self.languages {
             let bundle = try bundle(language)

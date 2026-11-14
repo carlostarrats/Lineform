@@ -171,19 +171,67 @@ final class AIReviewCompositionTests: XCTestCase {
         XCTAssertTrue(composition.string.hasSuffix(" day was had.\r\nEnd."), "text after the last change is identical too")
     }
 
-    func testDecidedChangesContributeNothing() {
-        var text = "a big day and a good night"
+    /// A rejected change is simply the document; an accepted one (applied only when the review
+    /// ends) stands as its replacement in place of the original, plain — and the index mapping
+    /// knows the original is hidden there.
+    func testDecidedChangesDrawAsTheirOutcome() {
+        let text = "a big day and a good night"
         var review = session(text, [change(0, "big", in: text, "large"), change(1, "good", in: text, "fine"),
                                     change(2, "night", in: text, "evening")])
-        let edit = try! XCTUnwrap(review.accept(0).first)
-        text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+        review.accept(0)
         review.reject(2)
         let composition = AIReviewComposition.build(text: text, session: review)
         XCTAssertEqual(composition.string, "a large day and a good fine night")
+        XCTAssertEqual(substrings(composition.string, composition.acceptedRanges[0]), ["large"])
+        XCTAssertNil(composition.changeRanges[0], "an accepted change is not clickable")
+        let ns = text as NSString
+        XCTAssertEqual(composition.overlayIndex(forDocumentIndex: ns.range(of: "day").location),
+                       (composition.string as NSString).range(of: "day").location)
+        XCTAssertEqual(composition.documentIndex(forOverlayIndex: (composition.string as NSString).range(of: "day").location),
+                       ns.range(of: "day").location)
         XCTAssertEqual(Array(composition.removedRanges.keys), [1])
         XCTAssertEqual(Array(composition.replacementRanges.keys), [1])
         XCTAssertEqual(substrings(composition.string, composition.removedRanges[1]), ["good"])
         XCTAssertEqual(substrings(composition.string, composition.changeRanges[1].map { [$0] }), ["good fine"])
+    }
+
+    /// Proofread draws each correction IN PLACE — struck original, the fix right after it on the
+    /// same line — even when the correction is a whole line's text.
+    func testProofreadCorrectionsAreInline() {
+        let text = "- teh\n- A secnd item.\n"
+        let changes = [change(0, "teh", in: text, "the"), change(1, "secnd", in: text, "second")]
+        let review = AIReviewSession(action: .proofread, changes: changes,
+                                     selectionRange: NSRange(location: 0, length: (text as NSString).length), originalSelection: text)
+        let composition = AIReviewComposition.build(text: text, session: review)
+        XCTAssertEqual(composition.string, "- teh the\n- A secnd second item.\n", "never on a line of its own")
+        XCTAssertEqual(substrings(composition.string, composition.removedRanges[0]), ["teh"])
+        XCTAssertEqual(substrings(composition.string, composition.replacementRanges[1]), ["second"])
+        XCTAssertEqual(composition.changeID(at: (composition.string as NSString).range(of: "second").location), 1)
+    }
+
+    /// A Rewrite-family change is shown at the smallest unit that changed: with the same number
+    /// of sentences, only the changed ones are struck, each with its replacement right after it.
+    func testRewriteShowsOnlyTheChangedSentencesInline() {
+        let text = "One stays. Two is old. Three stays. Four is old."
+        let replacement = "One stays. Two is new. Three stays. Four is new."
+        let composition = AIReviewComposition.build(text: text, session: session(text, [change(0, text, in: text, replacement)]))
+        XCTAssertEqual(substrings(composition.string, composition.removedRanges[0]), ["Two is old.", "Four is old."])
+        XCTAssertEqual(substrings(composition.string, composition.replacementRanges[0]), ["Two is new.", "Four is new."])
+        XCTAssertEqual(composition.string, "One stays. Two is old. Two is new. Three stays. Four is old. Four is new.")
+    }
+
+    /// Sentences merged or split (Cut in Half), or every one changed: the whole-span display, a
+    /// whole line stacked on a line of its own — never a sentence paired with another's replacement.
+    func testMergedSentencesFallBackToTheWholeSpan() {
+        XCTAssertNil(AIReviewComposition.changedSentencePairs(original: "A one. B two. C three.", replacement: "A one. B and C."))
+        XCTAssertNil(AIReviewComposition.changedSentencePairs(original: "A one. B two.", replacement: "X one. Y two."),
+                     "every sentence changed: a whole replacement")
+        let pairs = AIReviewComposition.changedSentencePairs(original: "A one. B two. C three.", replacement: "A one. B 2. C three.")
+        XCTAssertEqual(pairs?.count, 1)
+        let text = "A one. B two. C three.\n"
+        let composition = AIReviewComposition.build(text: text, session: session(text, [change(0, "A one. B two. C three.", in: text, "A one. B and C.")]))
+        XCTAssertEqual(substrings(composition.string, composition.removedRanges[0]), ["B two. C three."])
+        XCTAssertEqual(composition.string, "A one. B two. C three. B and C.\n")
     }
 
     func testStaleRangesAreSkippedNotCrashed() {

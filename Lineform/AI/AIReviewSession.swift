@@ -11,18 +11,21 @@ enum AIDecision: Equatable {
 }
 
 /// The state of reviewing one AI action's changes (spec §4.1). Pure value logic: nothing here
-/// touches the document. The controller applies the edits this returns.
+/// touches the document.
 ///
-/// Every change's `range` is kept in CURRENT document coordinates: an accepted change shifts the
-/// changes after it (and grows or shrinks `selectionRange`) by its length delta, so a later
-/// decision always aims at the text now on screen. An accepted change's range then covers the
-/// text that replaced it.
+/// Decisions are RECORDED here and applied together when the review ends (2026-11-14): every
+/// accepted change of one action is then ONE `applyAIEdits` call — one undo step — and one
+/// History record. So the document under the review never changes while it is up, and every
+/// change's `range` stays in the coordinates of the document the review was built from. A
+/// Rewrite-family action has one change (one decision); Proofread has one per correction.
 struct AIReviewSession: Equatable {
     let action: AIAction
     let originalSelection: String
     private(set) var changes: [AIChange]
     private(set) var decisions: [Int: AIDecision] = [:]
     private(set) var currentID: Int?
+    /// The reviewed selection, in the document the review was built from until the accepted
+    /// changes are applied (`shiftSelection`).
     private(set) var selectionRange: NSRange
 
     init(action: AIAction, changes: [AIChange], selectionRange: NSRange, originalSelection: String) {
@@ -34,25 +37,25 @@ struct AIReviewSession: Equatable {
     }
 
     var pending: [AIChange] { changes.filter { decisions[$0.id] == nil } }
+    var accepted: [AIChange] { changes.filter { decisions[$0.id] == .accepted } }
     var isFinished: Bool { pending.isEmpty }
     var acceptedAny: Bool { decisions.values.contains(.accepted) }
 
+    /// "2 of 4": the current change's 1-based position among all of them, and how many there are.
+    var position: (index: Int, count: Int)? {
+        guard let currentID, let index = changes.firstIndex(where: { $0.id == currentID }) else { return nil }
+        return (index + 1, changes.count)
+    }
+
     // MARK: - Decisions
 
-    /// Accepts `id`: the edits to apply, in DESCENDING location order in the current text (one
-    /// per changed segment of the change). Empty when it was already decided.
-    mutating func accept(_ id: Int) -> [AIReviewEdit] {
-        guard let index = changes.firstIndex(where: { $0.id == id }), decisions[id] == nil else { return [] }
+    /// Records `id` as accepted. False when it was already decided (or unknown).
+    @discardableResult
+    mutating func accept(_ id: Int) -> Bool {
+        guard changes.contains(where: { $0.id == id }), decisions[id] == nil else { return false }
         decisions[id] = .accepted
-        defer { advance(after: id) }
-        let edits = changes[index].edits()
-        let delta = Self.lengthDelta(of: edits)
-        for later in changes.indices where later > index {
-            changes[later].range.location += delta
-        }
-        changes[index].range.length += delta
-        selectionRange.length += delta
-        return edits
+        advance(after: id)
+        return true
     }
 
     mutating func reject(_ id: Int) {
@@ -61,9 +64,43 @@ struct AIReviewSession: Equatable {
         advance(after: id)
     }
 
-    // MARK: - Private
+    /// Accept All: every change still pending.
+    mutating func acceptAllPending() {
+        for change in pending { decisions[change.id] = .accepted }
+        currentID = nil
+    }
 
-    private static func lengthDelta(of edits: [AIReviewEdit]) -> Int {
+    /// ← / →: the previous or next PENDING change, wrapping. No-op with fewer than two pending.
+    mutating func move(by delta: Int) {
+        let open = pending
+        guard open.count > 1, delta != 0 else { return }
+        let index = currentID.flatMap { id in open.firstIndex { $0.id == id } } ?? 0
+        let next = ((index + delta) % open.count + open.count) % open.count
+        currentID = open[next].id
+    }
+
+    /// A click on a pending change makes it current.
+    mutating func select(_ id: Int) {
+        guard decisions[id] == nil, changes.contains(where: { $0.id == id }) else { return }
+        currentID = id
+    }
+
+    // MARK: - Applying
+
+    /// Every accepted change's edits, DESCENDING by location, each in the coordinates of the
+    /// document the review was built from — so applying them in order is exact (changes never
+    /// overlap).
+    var acceptedEdits: [AIReviewEdit] {
+        accepted.flatMap { $0.edits() }.sorted { $0.range.location > $1.range.location }
+    }
+
+    /// The selection moved by `delta` (what landed when the accepted edits were applied; they all
+    /// lie inside it).
+    mutating func shiftSelection(by delta: Int) {
+        selectionRange.length = max(0, selectionRange.length + delta)
+    }
+
+    static func lengthDelta(of edits: [AIReviewEdit]) -> Int {
         edits.reduce(0) { $0 + ($1.replacement as NSString).length - $1.range.length }
     }
 
@@ -73,6 +110,8 @@ struct AIReviewSession: Equatable {
               !last.isWhitespace, !first.isWhitespace else { return "" }
         return " "
     }
+
+    // MARK: - Private
 
     /// After a decision on `id`: the current change stays if it is still pending; otherwise the
     /// next pending change after `id`, wrapping to the first.

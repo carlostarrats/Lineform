@@ -2488,6 +2488,7 @@ struct EditorContainerView: View {
                 composition: aiCompositionCache.composition(text: aiController.editor?.string ?? document.text,
                                                             session: session),
                 currentID: session.currentID,
+                pendingCount: session.pending.count,
                 profile: displayProfile,
                 editor: aiController.editor as? NSTextView,
                 onCommand: { command in aiController.handle(command) }
@@ -2562,12 +2563,16 @@ struct EditorContainerView: View {
                              hint: AIReviewCardPresentation.markHint, showsProgress: false,
                              usesDarkChrome: usesDarkChrome, onClose: { aiController.dismissMarks() })
             case .reviewing(let session):
-                // One action, one change, one decision (spec "AI review: option A").
+                // A Rewrite-family action is one decision; Proofread one per correction, with
+                // "2 of 4", ← / → and Accept All (2+ left). ✕ ends, keeping what was decided.
                 AIReviewCard(
-                    title: AIReviewCardPresentation.title(for: session.action),
+                    title: AIReviewCardPresentation.title(for: session),
+                    hint: AIReviewCardPresentation.reviewHint(for: session),
                     usesDarkChrome: usesDarkChrome,
                     onAccept: { aiController.handle(.acceptCurrent) },
-                    onReject: { aiController.handle(.end) },
+                    onReject: { aiController.handle(.rejectCurrent) },
+                    onAcceptAll: AIReviewCardPresentation.offersAcceptAll(session)
+                        ? { aiController.handle(.acceptAll) } : nil,
                     onRetry: { aiController.handle(.retry) },
                     onClose: { aiController.handle(.end) }
                 )

@@ -14,6 +14,8 @@ import SwiftUI
 struct AIReviewSurfaceRepresentable: NSViewRepresentable {
     let composition: AIReviewComposition
     let currentID: Int?
+    /// Pending changes left (Accept All and ← / → are offered for two or more).
+    var pendingCount: Int = 1
     let profile: ReadingProfile
     /// The editor underneath. Weakly held by the coordinator; nil only in a transient state.
     let editor: NSTextView?
@@ -85,6 +87,7 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
         textView.commandHandler = { [weak coordinator = context.coordinator] command in
             coordinator?.onCommand?(command)
         }
+        textView.pendingCount = pendingCount
         if let editor { textView.matchGeometry(of: editor) }
         let key = (composition, currentID, profile)
         if let presented = context.coordinator.presented, presented == key { return }
