@@ -54,19 +54,34 @@ final class AIConnectionStoreTests: XCTestCase {
         XCTAssertFalse(store.isConnected)
     }
 
-    func testPlainHTTPAllowedOnlyForLocalHosts() throws {
+    func testPlainHTTPAllowedOnlyForLoopback() throws {
         XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "http://localhost:11434/v1").get().absoluteString,
                        "http://localhost:11434/v1/chat/completions")
+        XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "http://127.0.0.1:8765/v1").get().absoluteString,
+                       "http://127.0.0.1:8765/v1/chat/completions")
         XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "https://example.com/v1/chat/completions").get().absoluteString,
                        "https://example.com/v1/chat/completions")
         XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "http://192.168.1.5:1234/v1"), .failure(.insecureAddress))
         XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "http://[::1]:8080/v1").get().absoluteString,
                        "http://[::1]:8080/v1/chat/completions")
-        XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "http://printer.local:1234/v1").get().absoluteString,
-                       "http://printer.local:1234/v1/chat/completions")
+        // A `.local` name is another machine on the network, not this Mac: it needs https.
+        XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "http://printer.local:1234/v1"), .failure(.insecureAddress))
+        XCTAssertEqual(try AIEndpointValidation.chatCompletionsURL(from: "https://printer.local:1234/v1").get().absoluteString,
+                       "https://printer.local:1234/v1/chat/completions")
         XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "http://[2001:db8::1]:8080/v1"), .failure(.insecureAddress))
         XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "http://notlocal.example:80/v1"), .failure(.insecureAddress))
         XCTAssertEqual(AIEndpointValidation.chatCompletionsURL(from: "ftp://x"), .failure(.invalidAddress))
+    }
+
+    /// An `http://….local` address saved before plain http was limited to this Mac must not be
+    /// used: the stored connection is dropped rather than sent over plain http.
+    func testStoredPlainHTTPLocalEndpointIsNotResolved() {
+        let defaults = freshDefaults("storedlocal")
+        defaults.set(AIProvider.other.rawValue, forKey: AIConnectionStore.providerKey)
+        defaults.set("http://box.local:1234/v1/chat/completions", forKey: AIConnectionStore.otherEndpointKey)
+        let store = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
+        XCTAssertNil(store.resolvedConnection())
+        XCTAssertFalse(store.isConnected)
     }
 
     func testOtherConnectsWithoutAKey() {
@@ -87,13 +102,49 @@ final class AIConnectionStoreTests: XCTestCase {
         XCTAssertEqual(keychain.readCount, 0)
     }
 
-    func testResolvedConnectionUsesProviderDefaults() {
+    func testTierDefaultsToStandardAndPersistsPerProvider() {
+        let defaults = freshDefaults("tier")
+        let store = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
+        for provider in AIProvider.allCases {
+            XCTAssertEqual(store.tier(for: provider), .standard, "\(provider)")
+        }
+        store.setTier(.higherQuality, for: .chatGPT)
+        XCTAssertEqual(store.tier(for: .chatGPT), .higherQuality)
+        XCTAssertEqual(store.tier(for: .claude), .standard)
+        XCTAssertEqual(defaults.string(forKey: "Lineform.ai.tier.chatgpt"), "higherQuality")
+        let relaunched = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
+        XCTAssertEqual(relaunched.tier(for: .chatGPT), .higherQuality)
+        XCTAssertEqual(relaunched.tier(for: .google), .standard)
+    }
+
+    func testResolvedConnectionUsesTierModel() {
         let store = AIConnectionStore(defaults: freshDefaults("resolved"), keychain: InMemoryAIKeychain())
         XCTAssertNil(store.connect(.claude, key: "k"))
-        let resolved = store.resolvedConnection()
+        var resolved = store.resolvedConnection()
         XCTAssertEqual(resolved?.endpoint.absoluteString, "https://api.anthropic.com/v1/messages")
+        XCTAssertEqual(resolved?.model, "claude-haiku-5-5")
+        XCTAssertEqual(resolved?.apiKey, "k")
+        // Changing the tier while connected needs no new key.
+        store.setTier(.higherQuality, for: .claude)
+        resolved = store.resolvedConnection()
         XCTAssertEqual(resolved?.model, "claude-sonnet-5-5")
         XCTAssertEqual(resolved?.apiKey, "k")
+
+        XCTAssertNil(store.connect(.chatGPT, key: "k"))
+        XCTAssertEqual(store.resolvedConnection()?.model, "gpt-6-luna")
+        store.setTier(.higherQuality, for: .chatGPT)
+        XCTAssertEqual(store.resolvedConnection()?.model, "gpt-6.1-terra")
+
+        XCTAssertNil(store.connect(.google, key: "k"))
+        XCTAssertEqual(store.resolvedConnection()?.model, "gemini-3.5-flash-lite")
+        store.setTier(.higherQuality, for: .google)
+        XCTAssertEqual(store.resolvedConnection()?.model, "gemini-3.8-flash")
+    }
+
+    func testOtherHasNoTierModel() {
+        for tier in AIModelTier.allCases {
+            XCTAssertNil(AIProvider.other.model(for: tier))
+        }
     }
 
     func testFailedKeychainWriteLeavesTheExistingConnectionIntact() {

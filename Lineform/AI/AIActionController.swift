@@ -22,10 +22,16 @@ protocol AIEditorSurface: AnyObject {
     func announceAI(_ message: String)
 }
 
+/// One action is one change, so a review has one decision: accept it (by id, or the current change
+/// with Return), reject it (by id; the card's Reject, Esc and ✕ send `end`, which rejects what is
+/// pending), or type (end, then type).
 enum AIReviewCommand: Equatable {
-    case accept(Int), reject(Int), toggleKeep(Int)
-    case acceptCurrent, next, previous, acceptRemaining, rejectRemaining, end
+    case accept(Int), reject(Int)
+    case acceptCurrent, end
     case typed(String)
+    /// The card's Try Again: drop this suggestion (nothing was applied) and run the same action
+    /// on the same text again, asking for a different result.
+    case retry
 }
 
 /// Runs one AI action on a selection and holds its review (spec §4, §4.1, §4.3).
@@ -34,10 +40,11 @@ enum AIReviewCommand: Equatable {
 /// - No request unless connected AND the writer chose an action (`run`). The Keychain is read
 ///   then, once, through `resolvedConnection()`.
 /// - Nothing reaches the document until a change is accepted. Mark changes nothing.
-/// - Every decision's resulting text must keep the document's Markdown structure byte-for-byte
-///   (`MarkdownStructureGuard.verify`) or it is not applied. The whole reply was verified, but a
-///   SUBSET of its changes can still re-pair structure (`$5` → `5$` split in two, one half alone
-///   making `$5$` math), so each decision is verified on its own.
+/// - One action is ONE change (`AIChangeBuilder.change`): whatever was selected is a single
+///   Accept / Reject decision, applied as one edit per changed segment.
+/// - The decision's resulting text must keep the document's Markdown structure byte-for-byte
+///   (`MarkdownStructureGuard.verify`) or it is not applied. The whole change is verified when the
+///   reply arrives and again, against the current text, when it is accepted.
 /// - A reply for text that changed while the request ran is discarded (exact UTF-16 compare).
 /// - History records when the review ends, if anything was accepted (one passage per changed
 ///   paragraph). Live reload abandons
@@ -52,7 +59,7 @@ final class AIActionController: ObservableObject {
         case message(String)
     }
 
-    /// Leaving `.reviewing` — by ANY path (Esc, the card's buttons, the last pill, a typed key,
+    /// Leaving `.reviewing` — by ANY path (Esc, the card's buttons or ✕, Return, a typed key,
     /// a document swap, abandon, disconnect) — collapses the editor's selection to the end of the
     /// reviewed passage. This is the one choke point: the passage stays selected in the editor
     /// under the overlay, and a keystroke after the review would otherwise replace it.
@@ -64,10 +71,11 @@ final class AIActionController: ObservableObject {
             editor.collapseSelectionForAI(at: Self.caretEnd(of: ended.selectionRange, in: editor.string))
         }
     }
-    /// A refused decision's explanation, while the review it happened in goes on. Drawn on the
-    /// floating card (seen, not only announced); cleared by the next command, `endReview` and
-    /// `abandon`. A refusal that ends the review becomes `state = .message` instead.
-    @Published private(set) var reviewNotice: String?
+    /// A refused decision's explanation, carried from the refusal to the end of `handle`. With one
+    /// change per review the refusal is always the last decision, so it ends the review and becomes
+    /// `state = .message` (seen, not only announced). Cleared by the next command, `endReview` and
+    /// `abandon`. Never drawn on its own: nothing can show it while a review is still up.
+    private(set) var reviewNotice: String?
     weak var editor: AIEditorSurface?
     weak var history: DocumentHistoryController?
     private(set) var runTask: Task<Void, Never>?
@@ -78,6 +86,8 @@ final class AIActionController: ObservableObject {
     private var generation = 0
     /// Who answered the request the current review came from.
     private var reviewProvider: AIProvider?
+    /// The reply's segments behind the current review: Try Again asks for something different.
+    private var reviewRevisions: [String]?
     private var connectionObservation: AnyCancellable?
 
     init(connectionStore: AIConnectionStore,
@@ -116,14 +126,23 @@ final class AIActionController: ObservableObject {
     static var reviewEndedMessage: String { String(localized: "Review ended") }
     static var editSkippedMessage: String { String(localized: "That change couldn't be applied, so the review ended.") }
     static var acceptOneActionName: String { String(localized: "Accept Suggestion") }
-    static var acceptManyActionName: String { String(localized: "Accept Suggestions") }
 
-    static func changesSuggestedMessage(_ count: Int) -> String {
-        count == 1 ? String(localized: "1 change suggested") : String(localized: "\(count) changes suggested")
-    }
+    /// One action is one change, so a review always opens with exactly one.
+    static var changeSuggestedMessage: String { String(localized: "1 change suggested") }
 
-    static func positionMessage(_ current: Int, of total: Int) -> String {
-        String(localized: "Change \(current) of \(total)")
+    /// What a reply that changes nothing says. Proofread: "No changes suggested." (no errors is a
+    /// legitimate answer). An action that must change the text (`mustChangeText`) never says
+    /// that: a reply identical to the selection is "<AI> returned the same text. Try again.", and
+    /// one whose changes were all refused (structure, length) is an unusable response.
+    static func unchangedMessage(for action: AIAction, provider: AIProvider,
+                                 segments: [ProseSegment], revisions: [String]) -> String {
+        guard action.mustChangeText else { return noChangesMessage }
+        let identical = zip(segments, revisions).allSatisfy { segment, revision in
+            revision.trimmingCharacters(in: .whitespacesAndNewlines)
+                == segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return identical ? AIReviewCardPresentation.sameTextMessage(provider: provider)
+                         : AIClientError.unusableResponse.message
     }
 
     static func markedMessage(_ count: Int) -> String {
@@ -156,12 +175,18 @@ final class AIActionController: ObservableObject {
         case mark([AISentence])
     }
 
-    func run(_ action: AIAction, range: NSRange, text: String) {
+    /// `avoiding`: the segments of a suggestion just discarded by Try Again; the prompt asks for a
+    /// different result (`AIActionPrompt.editPrompt(_:segments:avoiding:)`).
+    func run(_ action: AIAction, range: NSRange, text: String, avoiding: [String]? = nil) {
         guard allowsRun(on: range) else { return }
         let ns = text as NSString
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: ns.length))
         guard clamped.length > 0 else { return }
-        let selection = ns.rangeOfComposedCharacterSequences(for: clamped)
+        // Grown over any History passage the selection only partly covers: the accepted change
+        // then never straddles (and drops) a passage boundary.
+        let widened = history?.aiActionRange(for: clamped) ?? clamped
+        let selection = ns.rangeOfComposedCharacterSequences(
+            for: NSIntersectionRange(widened, NSRange(location: 0, length: ns.length)))
 
         let request: Request
         let pieces: [String]
@@ -186,10 +211,16 @@ final class AIActionController: ObservableObject {
 
         let prompt: AIPrompt
         switch request {
-        case .edit: prompt = AIActionPrompt.editPrompt(action, segments: pieces)
+        case .edit:
+            // Only a list that still lines up with the segments being sent.
+            let avoid = avoiding?.count == pieces.count ? avoiding : nil
+            prompt = AIActionPrompt.editPrompt(action, segments: pieces, avoiding: avoid)
         case .mark: prompt = AIActionPrompt.markPrompt(action, sentences: pieces)
         }
         let client = clientFactory(connection)
+        // History mode on? Its selected passage is remembered and History mode ends; the action's
+        // end brings it back (`settleHistory`).
+        history?.aiActionWillStart()
         generation += 1
         let token = generation
         state = .running(action, connection.provider)
@@ -212,6 +243,17 @@ final class AIActionController: ObservableObject {
         guard case .running = state else { return }
         stopRequest()
         state = .idle
+        settleHistory(recorded: nil)
+    }
+
+    /// The action is over (no review, request or marks remain): History comes back on the passage
+    /// it was on when the action started, or remembers an accept's passage
+    /// (`DocumentHistoryController.aiActionDidEnd`).
+    private func settleHistory(recorded: UUID?, changedRange: NSRange? = nil) {
+        guard let history else { return }
+        // No editor, no text to locate in (locating in the wrong text would drop passages).
+        guard let editor else { return history.aiActionAbandoned() }
+        history.aiActionDidEnd(recorded: recorded, changedRange: changedRange, text: editor.string)
     }
 
     /// Live reload (or any wholesale text replacement): reload wins. Cancels a request, drops a
@@ -220,11 +262,27 @@ final class AIActionController: ObservableObject {
         stopRequest()
         reviewNotice = nil
         reviewProvider = nil
+        reviewRevisions = nil
         state = .idle
+        history?.aiActionAbandoned()
     }
 
-    func dismissReviewNotice() {
-        reviewNotice = nil
+    /// History is about to open on a passage (Add Alternative…, a return after an AI action): History
+    /// and AI never overlap. A request or review ends (keeping what was accepted); Mark's wash is
+    /// dismissed. A message is left up — the first-accept show arrives just after a review
+    /// ended, and dropping it then would lose a refusal.
+    func yieldToHistory() {
+        switch state {
+        case .running, .reviewing:
+            endReview(settlingHistory: false)
+            abandon()
+        case .marking:
+            dismissMarks()
+        case .idle, .message:
+            break
+        }
+        // History opens on its own target: it must not ALSO come back where it was.
+        history?.aiActionAbandoned()
     }
 
     func dismissMarks() {
@@ -250,6 +308,13 @@ final class AIActionController: ObservableObject {
                         snapshot: String, result: Result<String, AIClientError>) {
         guard token == generation, case .running(_, let provider) = state else { return }
         runTask = nil
+        defer {
+            switch state {
+            case .reviewing: break // the review's end settles History
+            case .marking: history?.aiActionAbandoned() // History would dismiss the marks at once
+            case .idle, .running, .message: settleHistory(recorded: nil)
+            }
+        }
         let reply: String
         switch result {
         case .failure(.cancelled):
@@ -281,18 +346,20 @@ final class AIActionController: ObservableObject {
                 return show(AIClientError.unusableResponse.message)
             }
             let admitted = MarkdownStructureGuard.admissibleRevisions(revisions, for: segments, in: snapshot)
-            let changes = AIChangeBuilder.changes(segments: segments, revisions: admitted, in: snapshot)
-            guard !changes.isEmpty else { return show(Self.noChangesMessage) }
-            let composed = Self.applying(changes.map { AIReviewEdit(range: $0.range, replacement: $0.replacement) }
-                .sorted { $0.range.location > $1.range.location }, to: snapshot)
-            guard MarkdownStructureGuard.verify(original: snapshot, revised: composed) else {
+            // ONE change for the whole selection: one Accept / Reject decision, however many
+            // segments (and whatever Markdown between them) it spans.
+            guard let change = AIChangeBuilder.change(segments: segments, revisions: admitted, in: snapshot) else {
+                return show(Self.unchangedMessage(for: action, provider: provider, segments: segments, revisions: revisions))
+            }
+            guard MarkdownStructureGuard.verify(original: snapshot, revised: Self.applying(change.edits(), to: snapshot)) else {
                 return show(AIClientError.unusableResponse.message)
             }
             let ns = snapshot as NSString
             reviewProvider = provider
-            state = .reviewing(AIReviewSession(action: action, changes: changes, selectionRange: selection,
+            reviewRevisions = revisions
+            state = .reviewing(AIReviewSession(action: action, changes: [change], selectionRange: selection,
                                                originalSelection: ns.substring(with: selection)))
-            editor.announceAI(Self.changesSuggestedMessage(changes.count))
+            editor.announceAI(Self.changeSuggestedMessage)
         }
     }
 
@@ -303,41 +370,32 @@ final class AIActionController: ObservableObject {
         reviewNotice = nil
         switch command {
         case .accept(let id):
-            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
+            let before = (editor.string as NSString).length
+            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session, lengthBefore: before) }
         case .acceptCurrent:
             // A change is current from the moment the review opens; the fallback only guards.
             guard let id = session.currentID ?? session.pending.first?.id else { return }
-            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session) }
+            let before = (editor.string as NSString).length
+            guard accept(id, in: &session, editor: editor) else { return endAfterSkippedEdit(session, lengthBefore: before) }
         case .reject(let id):
             session.reject(id)
-        case .toggleKeep(let id):
-            session.toggleKeep(id)
-            state = .reviewing(session)
-            return
-        case .next, .previous:
-            session.move(by: command == .next ? 1 : -1)
-        case .acceptRemaining:
-            var candidate = session
-            let edits = candidate.acceptRemaining()
-            if !edits.isEmpty {
-                guard isStructurePreserving(edits, in: editor.string) else {
-                    editor.announceAI(Self.structureRefusedMessage)
-                    reviewNotice = Self.structureRefusedMessage
-                    return
-                }
-                let before = (editor.string as NSString).length
-                guard editor.applyAIEdits(edits, actionName: edits.count == 1 ? Self.acceptOneActionName : Self.acceptManyActionName) else {
-                    return endAfterSkippedEdit(session, lengthBefore: before)
-                }
-            }
-            session = candidate
-        case .rejectRemaining:
-            session.rejectRemaining()
         case .end:
-            return endReview()
-        case .typed(let text):
             endReview()
+            return
+        case .typed(let text):
+            // Typing goes on writing: History must not reopen under the keystroke.
+            endReview(settlingHistory: false)
+            history?.aiActionAbandoned()
             editor.insertTypedText(text)
+            return
+        case .retry:
+            // Only before anything was accepted: the document then still holds the original
+            // text at the session's range (a review applies nothing until Accept).
+            guard !session.acceptedAny else { return }
+            let previous = reviewRevisions
+            // The action goes on: History stays settled-later (the re-run keeps its context).
+            endReview(settlingHistory: false)
+            run(session.action, range: session.selectionRange, text: editor.string, avoiding: previous)
             return
         }
         state = .reviewing(session)
@@ -347,20 +405,25 @@ final class AIActionController: ObservableObject {
             // A refusal that was the last decision: the review is gone, so the refusal is the
             // message the status card shows (already announced when it was refused).
             if let notice { state = .message(notice) }
-        } else {
-            let position = session.position
-            editor.announceAI(Self.positionMessage(position.current, of: position.total))
         }
     }
 
-    /// Ends the review: undecided changes are rejected (the text keeps them as they were). When
-    /// anything was accepted, History records the original plus the accepted result — one passage
-    /// per changed paragraph of the selection (`acceptedPassages`).
-    func endReview() {
-        guard case .reviewing(var session) = state else { return }
-        session.rejectRemaining()
+    /// Ends the review — Esc, ✕, the last decision, typing, a document swap. It is an explicit
+    /// REJECT of whatever is still pending: nothing pending is applied, and the text keeps it as it
+    /// was. When anything was accepted, History records the original plus the accepted result —
+    /// one passage per changed paragraph of the selection (`acceptedPassages`); otherwise nothing.
+    /// Returns the ended session (every change decided), nil when no review was up.
+    /// `settlingHistory` false: the action is not over (Try Again) or must not bring History back
+    /// (typing, History opening on its own target).
+    @discardableResult
+    func endReview(settlingHistory: Bool = true) -> AIReviewSession? {
+        guard case .reviewing(var session) = state else { return nil }
+        var firstRecorded: UUID?
+        var changedRange: NSRange?
+        for change in session.pending { session.reject(change.id) }
         reviewNotice = nil
         reviewProvider = nil
+        reviewRevisions = nil
         state = .idle
         if session.acceptedAny, let editor, let history {
             let text = editor.string
@@ -368,14 +431,21 @@ final class AIActionController: ObservableObject {
             let range = session.selectionRange
             if range.location >= 0, NSMaxRange(range) <= ns.length {
                 let accepted = ns.substring(with: range)
+                changedRange = range
                 for passage in Self.acceptedPassages(original: session.originalSelection, accepted: accepted,
                                                      at: range.location) {
-                    history.recordAccepted(range: passage.range, original: passage.original,
-                                           accepted: passage.accepted, text: text)
+                    let id = history.recordAccepted(range: passage.range, original: passage.original,
+                                                    accepted: passage.accepted, text: text)
+                    if firstRecorded == nil { firstRecorded = id }
                 }
             }
         }
+        // Set-aside passages the recording could not file go now (2026-11-13: History never
+        // opens by itself after an accept — the remembered passage waits for the History tab).
+        if session.acceptedAny { history?.aiAcceptRecordingDidFinish() }
         editor?.announceAI(Self.reviewEndedMessage)
+        if settlingHistory { settleHistory(recorded: firstRecorded, changedRange: changedRange) }
+        return session
     }
 
     /// What History records for an accepted selection: one passage per CHANGED paragraph
@@ -433,18 +503,27 @@ final class AIActionController: ObservableObject {
     /// False when the editor skipped the edit: the review must end (`endAfterSkippedEdit`).
     private func accept(_ id: Int, in session: inout AIReviewSession, editor: AIEditorSurface) -> Bool {
         var candidate = session
-        guard let edit = candidate.accept(id) else {
-            // Already decided, or a kept pure deletion (decided, nothing to write).
+        // One edit per changed segment of the change, all one decision: verified together, one
+        // `applyAIEdits` call, one undo group.
+        let edits = candidate.accept(id)
+        guard !edits.isEmpty else {
+            // Already decided.
             session = candidate
             return true
         }
-        guard isStructurePreserving([edit], in: editor.string) else {
+        guard isStructurePreserving(edits, in: editor.string) else {
             session.reject(id)
             editor.announceAI(Self.structureRefusedMessage)
             reviewNotice = Self.structureRefusedMessage
             return true
         }
-        guard editor.applyAIEdits([edit], actionName: Self.acceptOneActionName) else { return false }
+        history?.aiAcceptWillApply()
+        let applied = editor.applyAIEdits(edits, actionName: Self.acceptOneActionName)
+        history?.aiAcceptDidApply()
+        guard applied else {
+            history?.aiAcceptRecordingDidFinish()
+            return false
+        }
         session = candidate
         return true
     }
@@ -457,6 +536,7 @@ final class AIActionController: ObservableObject {
         reviewNotice = nil
         reviewProvider = nil
         show(Self.editSkippedMessage)
+        settleHistory(recorded: nil)
         guard let editor, let lengthBefore else { return }
         // The edits all lie inside the passage, so its end moved by however much did land.
         let moved = (editor.string as NSString).length - lengthBefore
@@ -486,7 +566,7 @@ final class AIActionController: ObservableObject {
     }
 
     /// Applies `edits` in order, each in the coordinates the previous one left.
-    static func applying(_ edits: [AIReviewEdit], to text: String) -> String {
+    nonisolated static func applying(_ edits: [AIReviewEdit], to text: String) -> String {
         let result = NSMutableString(string: text)
         for edit in edits {
             guard edit.range.location >= 0, NSMaxRange(edit.range) <= result.length else { continue }

@@ -62,7 +62,9 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         lock.lock(); defer { lock.unlock() }
         let key = FileIdentity.key(for: url)
         guard let entry = readIndex().first(where: { $0.pathKey == key }) else { return Self.empty }
-        return readHistory(entry.id)
+        // 1.8.0 stored every Add to History twice (a frozen copy plus an identical live version),
+        // and a one-version passage on disk is a History session that never ended.
+        return DocumentHistoryEngine.preparedForLoad(readHistory(entry.id))
     }
 
     func save(_ history: DocumentHistory, for url: URL) {

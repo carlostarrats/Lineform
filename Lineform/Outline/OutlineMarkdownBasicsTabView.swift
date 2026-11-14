@@ -49,13 +49,13 @@ struct OutlineMarkdownBasicsTabView: View {
                             isSelected: false,
                             isHovered: false
                         ))
-                        // Align the header with the box's syntax text (outer 14 + box inner 10 = 24),
-                        // which is also the shared icon column.
-                        .padding(.leading, 10)
+                        // The shared lead-text edge (22, the icon column's left), like every tab's
+                        // lead line.
+                        .padding(.leading, OutlineSidebarView.sidebarLeadTextLeading - OutlineSidebarView.pillHorizontalInset)
                         .padding(.trailing, OutlineSidebarView.pillHorizontalInset)
 
-                    // Breathing room between a header and the boxes it labels.
-                    Spacer().frame(height: 18)
+                    // The shared lead-line → first-row gap (every section, so they read alike).
+                    Spacer().frame(height: OutlineSidebarView.sidebarLeadToFirstRow)
 
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(section.rows) { row in
@@ -65,9 +65,8 @@ struct OutlineMarkdownBasicsTabView: View {
                 }
             }
             .padding(.horizontal, OutlineSidebarView.pillHorizontalInset)
-            // +4 matches the Files sort row's internal top padding, so the first line of text sits
-            // at the same y below the divider as the Files tab (both are size-12 medium).
-            .padding(.top, OutlineSidebarView.tabDividerGap + 4)
+            // The shared lead-line position: the first heading sits where every tab's lead line does.
+            .padding(.top, OutlineSidebarView.sidebarLeadLineTop)
             .padding(.bottom, 60)
             .frame(maxWidth: .infinity, alignment: .leading)
         }

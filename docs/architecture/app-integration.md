@@ -79,8 +79,8 @@ review; this is the connection, the wire, and the rules around them.
   disclosure and explicit permission — see `docs/release/app-store-release.md` §6. Do not shorten
   the label to a bare "Connect" or move the disclosure out of the button.
 - **Connecting sends nothing.** `connect`/`connectOther` validate locally, write the Keychain and
-  defaults, and return. The key is not tested — a bad key surfaces as "The key wasn't accepted" on
-  the first action. One connection at a time: connecting deletes every other provider's key.
+  defaults, and return. The key is not tested — a bad or expired key surfaces as "The key wasn't
+  accepted. It may have expired." on the first action. One connection at a time: connecting deletes every other provider's key.
   Disconnect deletes the key and the Other settings; an editor's request in flight is cancelled and a review from that provider abandoned (`AIActionController` observes `connectedProvider`).
 - **Keychain.** `SystemAIKeychain`: generic password, service `<bundle id>.ai`, account
   `AIProvider.rawValue`, `kSecAttrSynchronizable = false`, legacy file keychain (no
@@ -89,18 +89,39 @@ review; this is the connection, the wire, and the rules around them.
   with no `kSecReturnData`/attributes — so a connected provider whose item was deleted shows
   "Paste it again to reconnect" instead of a false "Connected". Never UserDefaults, never files;
   `AIConnection.description` redacts the key.
-- **Endpoints and models** (one constant each on `AIProvider`, verified when implemented):
-  - Claude: `https://api.anthropic.com/v1/messages`, `anthropic-version: 2026-10-21`, model
-    `claude-sonnet-5-5`, `x-api-key`. Raw HTTP, no SDK. Per the claude-api skill the body opts into
+- **Key guidance.** Under "Create an API key" each big-three pane says how to make a key that can
+  do as little as possible (`ConnectAIPresentation.keyGuidance`): ChatGPT — Restricted, Model
+  capabilities set to Request, everything else off; Claude and Google — a key just for Lineform
+  with a monthly spend limit. Other has none.
+- **Model tiers.** Each big-three provider has two tiers, `AIModelTier.standard` (default) and
+  `.higherQuality`, picked with a segmented control that shows the model ID under it (IDs are
+  verbatim, never localized; no cost text). Stored per provider as the raw value under
+  `Lineform.ai.tier.<provider.rawValue>`; changeable while connected, no key re-entry, takes effect
+  at the next action (`resolvedConnection()` reads it). `AIProvider.model(for:)` is the one table:
+  | Provider | Standard | Higher quality |
+  |---|---|---|
+  | Claude | `claude-haiku-5-5` | `claude-sonnet-5-5` |
+  | ChatGPT | `gpt-6-luna` | `gpt-6.1-terra` |
+  | Google | `gemini-3.5-flash-lite` | `gemini-3.8-flash` |
+  Verified 2026-11-13: OpenAI's model pages list `v1/chat/completions` as supported for both GPT
+  models; the Gemini IDs are the stable codes on Google's model list (aistudio.google.com/docs/models,
+  the redirect target of ai.google.dev/gemini-api/docs/models). Google's OpenAI-compatibility page
+  does not enumerate which models it serves — re-check if a Google request returns 404.
+- **Endpoints** (one constant each on `AIProvider`):
+  - Claude: `https://api.anthropic.com/v1/messages`, `anthropic-version: 2026-10-21`,
+    `x-api-key`. Raw HTTP, no SDK. Per the claude-api skill the body opts into
     server-side refusal fallbacks (`"fallbacks": "default"`, header
     `anthropic-beta: server-side-fallback-2026-07-01`); fallback targets stay on Anthropic, so no
     new recipient. Only `text` content blocks are read. `max_tokens` 16,000; no thinking, no
     temperature, no tools, no streaming. `stop_reason: max_tokens` is an unusable reply.
-  - ChatGPT: `https://api.openai.com/v1/chat/completions`, `gpt-5-mini`, `Authorization: Bearer`.
-  - Google: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`,
-    `gemini-2.5-flash` (Google's OpenAI-compatible endpoint, same client).
-  - Other: the typed address normalised to `…/chat/completions`. `http` only for `localhost`,
-    `127.0.0.1`, `[::1]` and `*.local`; `https` for anything else. No model typed → `"default"`.
+  - ChatGPT: `https://api.openai.com/v1/chat/completions`, `Authorization: Bearer`.
+  - Google: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
+    (Google's OpenAI-compatible endpoint, same client).
+  - Other: the typed address normalised to `…/chat/completions`. `http` only for this Mac —
+    `localhost`, `127.0.0.1`, `[::1]`; `https` for anything else, `*.local` included (another
+    machine on the network would see the key and the text in the clear). A stored address that no
+    longer meets the rule (an `http://….local` saved by 1.8) is dropped at init and refused by
+    `resolvedConnection()` (`AIEndpointValidation.isPermitted`), so Other reads as not connected. No model typed → `"default"`.
     Known minor: a query string on the typed address is dropped.
 - **Transport** (`URLSessionAITransport`): ephemeral session, no cookie storage, no URL cache;
   every redirect REFUSED (a redirect could carry the key to another host — a 3xx is an unusable
@@ -541,3 +562,14 @@ as ISO 15924 subtags — they are compared against BCP-47 tags, never displayed.
 - `LineformAppIntents.noteTitle(from:)` rejects only characters that cannot appear in filenames
   and preserves non-ASCII scripts. An ASCII allowlist collapses many languages to “New Note” and
   creates filename collisions.
+
+## Reading presets keep their own edits
+
+`ReadingProfileStore` holds one `activePresetID` (`Lineform.activeReadingPresetID`) and a per-preset
+override map (`Lineform.readingPresetOverrides`, JSON `[uuidString: ReadingProfile]`). `update(_:)` writes
+the edited profile into the active preset's slot; `applyPreset` loads the override if present, else the
+pristine preset. "Reset to Default" calls `resetCurrentPreset()`, which clears only the active preset's
+override (no active preset → `resetToDefault()`). The legacy `Lineform.activeReadingProfile` key is still
+written, and on first launch of this scheme it is filed into its matching preset's slot (by profile id,
+falling back to `matchingPresetID`). Overrides store the user's real profile; Automatic Dark Mode still
+derives its display profile on top of it. Card selection follows `activePresetID`, not profile equality.

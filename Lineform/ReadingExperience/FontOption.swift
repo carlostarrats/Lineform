@@ -21,14 +21,9 @@ struct FontOption: Equatable, Identifiable {
             name: String(localized: "System"),
             options: [
                 defaultOption,
-                FontOption(id: .newYork, name: "New York", familyName: "New York", source: .system)
-            ]
-        ),
-        FontOptionGroup(
-            name: String(localized: "Writing"),
-            options: [
+                FontOption(id: .newYork, name: "New York", familyName: "New York", source: .system),
                 // "Monospaced" describes the typeface's role; it is not a typeface NAME like "SF Pro",
-                // so unlike its siblings it localizes.
+                // so unlike its siblings it localizes. The id stays `.jetBrainsMono` (persisted).
                 FontOption(id: .jetBrainsMono, name: String(localized: "Monospaced"), familyName: ".AppleSystemUIFontMonospaced", source: .system)
             ]
         ),

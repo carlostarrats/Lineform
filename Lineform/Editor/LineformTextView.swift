@@ -119,6 +119,12 @@ final class LineformTextView: NSTextView {
     /// call: asked only when the context menu is built.
     var historyCanAddHandler: ((NSRange) -> Bool)?
     var historyCommandHandler: ((HistoryTextCommand) -> Void)?
+    /// History's sidebar replacement field is open. Its keys belong to the field: one that reaches
+    /// this view instead (focus did not land, or was clicked away) types nothing and leaves
+    /// nothing — it asks for the field's focus back (`.focus`), or Esc closes the field
+    /// (`.cancel`). Cleared whenever History mode ends.
+    var historyReplacementFieldIsOpen = false
+    var historyReplacementFieldHandler: ((HistoryReplacementFieldRequest) -> Void)?
     /// Every USER text change, before it lands, trimmed to its minimal changed span: the replaced
     /// range (pre-change coordinates) and the inserted string. Whole-text replacements (formatting,
     /// Find & Replace) and their undo/redo arrive here trimmed too. Not called for History's own
@@ -274,6 +280,8 @@ final class LineformTextView: NSTextView {
 
         super.mouseMoved(with: event)
         handleHistoryMouseMoved(event)
+        // After super, which sets the I-beam: History mode's pointing hand over passages wins.
+        _ = updateHistoryCursor(for: event)
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -300,6 +308,9 @@ final class LineformTextView: NSTextView {
         if refusesEditForAI(replacement: replacementString) {
             return false
         }
+        if refusesEditForHistoryReplacementField(replacement: replacementString) {
+            return false
+        }
         if refusesHistoryModeReplacement(affectedCharRange, replacement: replacementString) {
             return false
         }
@@ -324,6 +335,9 @@ final class LineformTextView: NSTextView {
 
     override func cursorUpdate(with event: NSEvent) {
         if isEventInsideFloatingControl(event) {
+            return
+        }
+        if updateHistoryCursor(for: event) {
             return
         }
 
@@ -2042,11 +2056,47 @@ enum LineformTextContextMenuPresentation {
     static let noGuessesTitle = String(localized: "No Guesses Found")
     /// Conditional: offered only for a non-empty selection the History controller accepts, so it
     /// is not part of `commandTitles(for:)` (the rows every menu carries).
-    static let addToHistoryTitle = String(localized: "Add to History")
+    /// Enters History on the selection with the "Type an alternative" field open (2026-11-13;
+    /// was "Add to History"). The ellipsis: the item asks for more input.
+    static let addToHistoryTitle = String(localized: "Add Alternative…")
     /// The AI group's submenus. Conditional (connected, a selection with prose), so not part of
     /// `commandTitles(for:)` either.
     static let aiRewriteMenuTitle = String(localized: "Rewrite")
     static let aiMarkMenuTitle = String(localized: "Mark")
+
+    /// One row of the AI group: an action, or a submenu of actions.
+    enum AIMenuEntry: Equatable {
+        case action(AIAction)
+        case submenu(String, [AIAction])
+    }
+
+    /// The AI group for a selection. A single word gets "Another Word" in place of the Rewrite
+    /// submenu (Trim / Cut in half / Rewrite make no sense for one word); Proofread is always
+    /// there; Mark only when the selection touches at least two sentences (marking "the weakest"
+    /// of one sentence is meaningless). `sentenceCount` is a closure so a single word never pays
+    /// for the sentence split. The AI group only exists for a non-empty selection, so there is
+    /// no whole-document case.
+    static func aiMenuEntries(selectedText: String, sentenceCount: () -> Int) -> [AIMenuEntry] {
+        guard !isSingleWord(selectedText) else {
+            return [.action(.anotherWord), .action(.proofread)]
+        }
+        var entries: [AIMenuEntry] = [.submenu(aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread)]
+        if sentenceCount() >= 2 {
+            entries.append(.submenu(aiMarkMenuTitle, [.markWeakest, .markLong]))
+        }
+        return entries
+    }
+
+    /// One word: once trimmed, no whitespace inside and at least one letter ("don't", "e-mail"
+    /// and "Café," count; "42" and "—" don't).
+    static func isSingleWord(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !trimmed.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) else {
+            return false
+        }
+        return trimmed.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+    }
 
     /// The single suggestion to offer for a misspelling, or none.
     ///

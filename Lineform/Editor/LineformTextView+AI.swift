@@ -165,7 +165,7 @@ extension LineformTextView {
         let length = (string as NSString).length
         layoutManager.removeTemporaryAttribute(.backgroundColor, forCharacterRange: NSRange(location: 0, length: length))
         if !aiMarkRangesStorage.isEmpty {
-            let wash = HistoryPalette.tint(for: Theme.theme(for: appliedReadingProfile))
+            let wash = HistoryPalette.markWash(for: Theme.theme(for: appliedReadingProfile))
             for range in aiMarkRangesStorage {
                 let clamped = NSIntersectionRange(range, NSRange(location: 0, length: length))
                 guard clamped.length > 0 else { continue }
@@ -184,9 +184,17 @@ extension LineformTextView {
         let selection = selectedRange()
         guard selection.length > 0, aiAvailabilityHandler?(selection) == true else { return }
         menu.addItem(.separator())
-        menu.addItem(aiSubmenuItem(LineformTextContextMenuPresentation.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]))
-        menu.addItem(aiActionItem(.proofread))
-        menu.addItem(aiSubmenuItem(LineformTextContextMenuPresentation.aiMarkMenuTitle, [.markWeakest, .markLong]))
+        let text = string
+        let entries = LineformTextContextMenuPresentation.aiMenuEntries(
+            selectedText: (text as NSString).substring(with: selection),
+            sentenceCount: { AISentenceSplitter.sentences(in: text, selection: selection).count }
+        )
+        for entry in entries {
+            switch entry {
+            case .action(let action): menu.addItem(aiActionItem(action))
+            case .submenu(let title, let actions): menu.addItem(aiSubmenuItem(title, actions))
+            }
+        }
     }
 
     private func aiActionItem(_ action: AIAction) -> NSMenuItem {

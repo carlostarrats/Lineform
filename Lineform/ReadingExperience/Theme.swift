@@ -110,8 +110,12 @@ struct Theme: Equatable, Identifiable {
     /// diagram/math fallback caption used the theme text at 0.6 alpha, below AA on four of five
     /// themes while being drawn SMALLER than body text. Blending toward the theme ink preserves
     /// the hue as far as the page allows instead of replacing it outright.
-    func readableInk(_ base: NSColor, minimumRatio: CGFloat = 4.5) -> NSColor {
-        let page = backgroundColor.usingColorSpace(.sRGB) ?? backgroundColor
+    ///
+    /// `surface` measures against something drawn ON the page instead (the AI review's opaque
+    /// replacement tint); it must itself carry the theme ink at `minimumRatio`.
+    func readableInk(_ base: NSColor, minimumRatio: CGFloat = 4.5, on surface: NSColor? = nil) -> NSColor {
+        let ground = surface ?? backgroundColor
+        let page = ground.usingColorSpace(.sRGB) ?? ground
         let ink = textColor.usingColorSpace(.sRGB) ?? textColor
         guard let source = base.usingColorSpace(.sRGB) else { return textColor }
 

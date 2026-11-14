@@ -215,13 +215,11 @@
 		1F00000100000000000004F7 /* AIReviewSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F7 /* AIReviewSession.swift */; };
 		1F00000100000000000004FD /* AIReviewComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FD /* AIReviewComposition.swift */; };
 		1F00000100000000000004FE /* AIReviewTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FE /* AIReviewTextView.swift */; };
-		1F00000100000000000004FF /* AIReviewPillCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FF /* AIReviewPillCell.swift */; };
 		1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */; };
 		1F0000010000000000000501 /* AIReviewCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000501 /* AIReviewCards.swift */; };
 		1F00000100000000000004F8 /* AIActionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F8 /* AIActionController.swift */; };
 		1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F9 /* AIReviewSessionTests.swift */; };
 		1F0000010000000000000502 /* AIReviewCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000502 /* AIReviewCompositionTests.swift */; };
-		1F0000010000000000000503 /* AIReviewPillCellTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000503 /* AIReviewPillCellTests.swift */; };
 		1F0000010000000000000504 /* AIReviewCardPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */; };
 		1F0000010000000000000505 /* AIReviewTextViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000505 /* AIReviewTextViewTests.swift */; };
 		1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FA /* AIActionControllerTests.swift */; };
@@ -487,13 +485,11 @@
 		1F00000200000000000004F7 /* AIReviewSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSession.swift; sourceTree = "<group>"; };
 		1F00000200000000000004FD /* AIReviewComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewComposition.swift; sourceTree = "<group>"; };
 		1F00000200000000000004FE /* AIReviewTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTextView.swift; sourceTree = "<group>"; };
-		1F00000200000000000004FF /* AIReviewPillCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewPillCell.swift; sourceTree = "<group>"; };
 		1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSurfaceRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000501 /* AIReviewCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCards.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F8 /* AIActionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionController.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F9 /* AIReviewSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSessionTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000502 /* AIReviewCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCompositionTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000503 /* AIReviewPillCellTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewPillCellTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCardPresentationTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000505 /* AIReviewTextViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTextViewTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004FA /* AIActionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionControllerTests.swift; sourceTree = "<group>"; };
@@ -606,7 +602,6 @@
 				1F00000200000000000004F7 /* AIReviewSession.swift */,
 				1F00000200000000000004FD /* AIReviewComposition.swift */,
 				1F00000200000000000004FE /* AIReviewTextView.swift */,
-				1F00000200000000000004FF /* AIReviewPillCell.swift */,
 				1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */,
 				1F0000020000000000000501 /* AIReviewCards.swift */,
 				1F00000200000000000004F8 /* AIActionController.swift */,
@@ -816,7 +811,6 @@
 				1F00000200000000000004F6 /* AIChangeBuilderTests.swift */,
 				1F00000200000000000004F9 /* AIReviewSessionTests.swift */,
 				1F0000020000000000000502 /* AIReviewCompositionTests.swift */,
-				1F0000020000000000000503 /* AIReviewPillCellTests.swift */,
 				1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */,
 				1F0000020000000000000505 /* AIReviewTextViewTests.swift */,
 				1F00000200000000000004FA /* AIActionControllerTests.swift */,
@@ -1131,7 +1125,6 @@
 				1F00000100000000000004F7 /* AIReviewSession.swift in Sources */,
 				1F00000100000000000004FD /* AIReviewComposition.swift in Sources */,
 				1F00000100000000000004FE /* AIReviewTextView.swift in Sources */,
-				1F00000100000000000004FF /* AIReviewPillCell.swift in Sources */,
 				1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */,
 				1F0000010000000000000501 /* AIReviewCards.swift in Sources */,
 				1F00000100000000000004F8 /* AIActionController.swift in Sources */,
@@ -1245,7 +1238,6 @@
 				1F00000100000000000004F6 /* AIChangeBuilderTests.swift in Sources */,
 				1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */,
 				1F0000010000000000000502 /* AIReviewCompositionTests.swift in Sources */,
-				1F0000010000000000000503 /* AIReviewPillCellTests.swift in Sources */,
 				1F0000010000000000000504 /* AIReviewCardPresentationTests.swift in Sources */,
 				1F0000010000000000000505 /* AIReviewTextViewTests.swift in Sources */,
 				1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */,
@@ -1465,7 +1457,7 @@
 				CODE_SIGN_ENTITLEMENTS = Lineform/LineformDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
@@ -1488,7 +1480,7 @@
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
@@ -1537,7 +1529,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
  				DEVELOPMENT_TEAM = "";
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1563,7 +1555,7 @@
 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;

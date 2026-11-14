@@ -26,9 +26,11 @@ final class PassageHistoryStoreTests: XCTestCase {
     }
 
     private func history(touched: Date = Date(timeIntervalSince1970: 1_000_000)) -> DocumentHistory {
-        let version = HistoryVersion(text: "Hello", author: .you, createdAt: touched)
+        // Two versions: a one-version passage is discarded on load.
+        let versions = [HistoryVersion(text: "Hi", author: .you, createdAt: touched),
+                        HistoryVersion(text: "Hello", author: .you, createdAt: touched)]
         let passage = HistoryPassage(
-            id: UUID(), level: .sentence, versions: [version], currentIndex: 0,
+            id: UUID(), level: .sentence, versions: versions, currentIndex: 1,
             parentID: nil, parentVersionIndex: nil,
             contextBefore: "before ", contextAfter: " after", lastTouched: touched)
         return DocumentHistory(passages: [passage])
@@ -43,6 +45,60 @@ final class PassageHistoryStoreTests: XCTestCase {
         let saved = history()
         store.save(saved, for: url("a.md"))
         XCTAssertEqual(store.load(for: url("a.md")), saved)
+    }
+
+    /// 1.8.0's Add to History stored the original twice (a frozen copy plus an identical live
+    /// version). Loading collapses adjacent identical versions, so the sidebar lists it once.
+    func testLoadCollapsesAdjacentDuplicateVersions() throws {
+        let store = makeStore()
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        let passage = HistoryPassage(
+            id: UUID(), level: .word,
+            versions: [HistoryVersion(text: "gentle", author: .you, createdAt: date),
+                       HistoryVersion(text: "gentle", author: .you, createdAt: date),
+                       HistoryVersion(text: "dangerous", author: .you, createdAt: date)],
+            currentIndex: 2, parentID: nil, parentVersionIndex: nil,
+            contextBefore: "The wind was ", contextAfter: " that night.", lastTouched: date)
+        store.save(DocumentHistory(passages: [passage]), for: url("a.md"))
+        let loaded = try XCTUnwrap(store.load(for: url("a.md")).passages.first)
+        XCTAssertEqual(loaded.versions.map(\.text), ["gentle", "dangerous"])
+        XCTAssertEqual(loaded.currentIndex, 1)
+    }
+
+    /// A one-version passage only exists while History mode is open on it, so one on disk (quit
+    /// while History was open, or 1.8.0's doubled Add once collapsed) is discarded on load; its
+    /// revised children move up to its parent. Two-version passages load untouched.
+    func testLoadDiscardsOneVersionPassages() throws {
+        let store = makeStore()
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        let passage = HistoryPassage(
+            id: UUID(), level: .word,
+            versions: [HistoryVersion(text: "gentle", author: .you, createdAt: date),
+                       HistoryVersion(text: "gentle", author: .you, createdAt: date)],
+            currentIndex: 1, parentID: nil, parentVersionIndex: nil,
+            contextBefore: "The wind was ", contextAfter: " that night.", lastTouched: date)
+        store.save(DocumentHistory(passages: [passage]), for: url("a.md"))
+        let kept = history().passages[0]
+        let unrevisedID = UUID()
+        let unrevised = HistoryPassage(
+            id: unrevisedID, level: .sentence,
+            versions: [HistoryVersion(text: "The wind was gentle that night.", author: .you, createdAt: date)],
+            currentIndex: 0, parentID: nil, parentVersionIndex: nil,
+            contextBefore: "", contextAfter: "", lastTouched: date)
+        let child = HistoryPassage(
+            id: UUID(), level: .word,
+            versions: [HistoryVersion(text: "calm", author: .you, createdAt: date),
+                       HistoryVersion(text: "gentle", author: .you, createdAt: date)],
+            currentIndex: 1, parentID: unrevisedID, parentVersionIndex: 0,
+            contextBefore: "The wind was ", contextAfter: " that night.", lastTouched: date)
+        store.save(DocumentHistory(passages: [passage, kept, unrevised, child]), for: url("a.md"))
+        let loaded = store.load(for: url("a.md"))
+        XCTAssertEqual(loaded.passages.map(\.id), [kept.id, child.id], "both one-version passages are gone")
+        XCTAssertEqual(loaded.passages.first, kept, "a two-version passage loads untouched")
+        let movedUp = try XCTUnwrap(loaded.passages.last)
+        XCTAssertNil(movedUp.parentID)
+        XCTAssertNil(movedUp.parentVersionIndex)
+        XCTAssertEqual(movedUp.versions.map(\.text), ["calm", "gentle"])
     }
 
     func testSavingEmptyHistoryRemovesItsFiles() throws {

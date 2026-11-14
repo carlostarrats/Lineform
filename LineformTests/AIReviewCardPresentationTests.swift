@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import Lineform
 
 final class AIReviewCardPresentationTests: XCTestCase {
@@ -11,22 +12,32 @@ final class AIReviewCardPresentationTests: XCTestCase {
         )
     }
 
-    func testButtonsSayAllUntilFirstDecisionThenRemaining() {
-        XCTAssertEqual(AIReviewCardPresentation.buttonTitles(hasDecided: false).accept, "Accept All")
-        XCTAssertEqual(AIReviewCardPresentation.buttonTitles(hasDecided: false).reject, "Reject All")
-        XCTAssertEqual(AIReviewCardPresentation.buttonTitles(hasDecided: true).accept, "Accept Remaining")
-        XCTAssertEqual(AIReviewCardPresentation.buttonTitles(hasDecided: true).reject, "Reject Remaining")
+    /// One decision per action (spec "AI review: option A"): a short label naming the action,
+    /// Reject and Accept — no counter, no Accept All / Reject All.
+    func testReviewCardSaysWhatIsReadyAndOffersOneDecision() {
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .rewrite), "Rewrite ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .trim), "Trim ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .cutInHalf), "Cut ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .proofread), "Proofread ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .anotherWord), "Word ready")
+        XCTAssertTrue(AIReviewCardPresentation.buttonTitles == ("Reject", "Accept"))
+        XCTAssertEqual(AIReviewCardPresentation.reviewHint, "Return to accept · Esc to reject")
+        XCTAssertEqual(AIReviewCardPresentation.retryTitle, "Try Again")
+        XCTAssertEqual(AIReviewCardPresentation.retrySymbol, "arrow.clockwise")
+        XCTAssertNotNil(NSImage(systemSymbolName: AIReviewCardPresentation.retrySymbol, accessibilityDescription: nil))
     }
 
-    func testPositionAndProgressText() {
-        XCTAssertEqual(AIReviewCardPresentation.positionText(current: 3, total: 7), "3 of 7")
+    func testProgressText() {
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .trim, provider: .claude), "Trimming with Claude…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .trim, provider: .other), "Trimming with your AI…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .proofread, provider: .chatGPT), "Proofreading with ChatGPT…")
         XCTAssertEqual(AIReviewCardPresentation.progressText(for: .markLong, provider: .google), "Marking with Google…")
+        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .anotherWord, provider: .chatGPT),
+                       "Finding another word with ChatGPT…")
+        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .anotherWord, provider: .other),
+                       "Finding another word with your AI…")
         XCTAssertEqual(AIReviewCardPresentation.cancelHint, "Esc to cancel")
         XCTAssertEqual(AIReviewCardPresentation.markHint, "Esc clears marks")
-        XCTAssertEqual(AIReviewCardPresentation.singleChangeHint, "Return to accept · Esc to dismiss")
         for action in AIAction.allCases {
             for provider in AIProvider.allCases where provider != .other {
                 XCTAssertTrue(AIReviewCardPresentation.progressText(for: action, provider: provider)
@@ -35,22 +46,33 @@ final class AIReviewCardPresentationTests: XCTestCase {
         }
     }
 
-    func testPositionAndProgressTextAreLocalized() throws {
+    /// A Rewrite / Trim / Cut in half / Another Word reply identical to the selection names who
+    /// answered, like the progress card ("Your AI" for Other, whose address is not a name).
+    func testSameTextMessageNamesTheProvider() {
+        XCTAssertEqual(AIReviewCardPresentation.sameTextMessage(provider: .chatGPT),
+                       "ChatGPT returned the same text. Try again.")
+        XCTAssertEqual(AIReviewCardPresentation.sameTextMessage(provider: .other),
+                       "Your AI returned the same text. Try again.")
+        for provider in AIProvider.allCases where provider != .other {
+            XCTAssertTrue(AIReviewCardPresentation.sameTextMessage(provider: provider).hasPrefix(provider.displayName))
+        }
+    }
+
+    func testReviewAndProgressTextAreLocalized() throws {
         for language in Self.languages {
             let bundle = try bundle(language)
-            let position = AIReviewCardPresentation.positionText(current: 3, total: 7, bundle: bundle)
-            XCTAssertNotEqual(position, "3 of 7", language)
-            XCTAssertTrue(position.contains("3") && position.contains("7"), "\(language): \(position)")
-            for hasDecided in [false, true] {
-                let titles = AIReviewCardPresentation.buttonTitles(hasDecided: hasDecided, bundle: bundle)
-                let english = AIReviewCardPresentation.buttonTitles(hasDecided: hasDecided)
-                XCTAssertNotEqual(titles.accept, english.accept, language)
-                XCTAssertNotEqual(titles.reject, english.reject, language)
+            for action in AIAction.allCases where !action.isMark {
+                XCTAssertNotEqual(AIReviewCardPresentation.title(for: action, bundle: bundle),
+                                  AIReviewCardPresentation.title(for: action), "\(language) \(action)")
             }
+            let titles = AIReviewCardPresentation.buttonTitles(bundle: bundle)
+            XCTAssertNotEqual(titles.accept, "Accept", language)
+            XCTAssertNotEqual(titles.reject, "Reject", language)
             XCTAssertNotEqual(AIReviewCardPresentation.cancelHint(bundle: bundle), "Esc to cancel", language)
+            XCTAssertNotEqual(AIReviewCardPresentation.retryTitle(bundle: bundle), "Try Again", language)
             XCTAssertNotEqual(AIReviewCardPresentation.markHint(bundle: bundle), "Esc clears marks", language)
-            let hint = AIReviewCardPresentation.singleChangeHint(bundle: bundle)
-            XCTAssertNotEqual(hint, "Return to accept · Esc to dismiss", language)
+            let hint = AIReviewCardPresentation.reviewHint(bundle: bundle)
+            XCTAssertNotEqual(hint, "Return to accept · Esc to reject", language)
             XCTAssertTrue(hint.contains("Return") && (hint.contains("Esc") || hint.contains("Échap")), "\(language): \(hint)")
             for action in AIAction.allCases {
                 for provider in AIProvider.allCases {
@@ -62,13 +84,19 @@ final class AIReviewCardPresentationTests: XCTestCase {
                     }
                 }
             }
-            for hasDecided in [false, true] {
-                let local = AIReviewTextView.accessibilityActionTitles(hasDecided: hasDecided, bundle: bundle)
-                let english = AIReviewTextView.accessibilityActionTitles(hasDecided: hasDecided)
-                XCTAssertEqual(local.count, english.count)
-                for (title, source) in zip(local, english) {
-                    XCTAssertNotEqual(title, source, "\(language): VoiceOver action untranslated")
+            for provider in AIProvider.allCases {
+                let local = AIReviewCardPresentation.sameTextMessage(provider: provider, bundle: bundle)
+                XCTAssertNotEqual(local, AIReviewCardPresentation.sameTextMessage(provider: provider),
+                                  "\(language) \(provider)")
+                if provider != .other {
+                    XCTAssertTrue(local.contains(provider.displayName), "\(language): \(local) lost the brand")
                 }
+            }
+            let local = AIReviewTextView.accessibilityActionTitles(bundle: bundle)
+            let english = AIReviewTextView.accessibilityActionTitles()
+            XCTAssertEqual(local.count, english.count)
+            for (title, source) in zip(local, english) {
+                XCTAssertNotEqual(title, source, "\(language): VoiceOver action untranslated")
             }
         }
     }

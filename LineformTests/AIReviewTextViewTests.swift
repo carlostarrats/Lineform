@@ -20,12 +20,12 @@ final class AIReviewTextViewTests: XCTestCase {
         return (AIReviewComposition.build(text: text, session: session), session)
     }
 
-    private func presented(currentID: Int? = 0, hasDecided: Bool = false) -> (AIReviewTextView, AIReviewComposition, [AIReviewCommand]) {
+    private func presented(currentID: Int? = 0) -> (AIReviewTextView, AIReviewComposition, [AIReviewCommand]) {
         let view = AIReviewTextView.make()
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
         view.textContainer?.containerSize = NSSize(width: 560, height: CGFloat.greatestFiniteMagnitude)
         let (composition, _) = composition()
-        view.present(composition, currentID: currentID, profile: profile, hasDecided: hasDecided)
+        view.present(composition, currentID: currentID, profile: profile)
         return (view, composition, [])
     }
 
@@ -57,7 +57,7 @@ final class AIReviewTextViewTests: XCTestCase {
         view.doCommand(by: #selector(NSResponder.insertNewline(_:)))
         view.doCommand(by: #selector(NSResponder.cancelOperation(_:)))
         view.insertText("x", replacementRange: NSRange(location: NSNotFound, length: 0))
-        XCTAssertEqual(commands, [.next, .previous, .acceptCurrent, .end, .typed("x")])
+        XCTAssertEqual(commands, [.acceptCurrent, .end, .typed("x")], "← / → decide nothing: there is one change")
         XCTAssertEqual(view.string, composition().0.string, "typing never lands in the overlay")
     }
 
@@ -77,79 +77,116 @@ final class AIReviewTextViewTests: XCTestCase {
         view.keyDown(with: try key("\r", 36))
         view.keyDown(with: try key("\u{1b}", 53))
         view.keyDown(with: try key("q", 12))
-        XCTAssertEqual(commands, [.next, .previous, .acceptCurrent, .end, .typed("q")])
+        XCTAssertEqual(commands, [.acceptCurrent, .end, .typed("q")])
     }
 
-    func testPresentDimsRemovedTextAndDrawsPills() throws {
+    /// Option A: the original struck through in the receded ink, the replacement on the review
+    /// highlight. All of it is drawing (layout-manager temporary attributes): the storage holds
+    /// only text, with no attachment anywhere.
+    func testPresentStrikesTheOriginalAndHighlightsTheReplacement() throws {
         let (view, composition, _) = presented(currentID: 1)
         let theme = Theme.theme(for: profile)
         XCTAssertEqual(view.string, composition.string)
         let storage = try XCTUnwrap(view.textStorage)
         let layoutManager = try XCTUnwrap(view.layoutManager)
-        for (id, index) in composition.pillIndices {
-            let attachment = try XCTUnwrap(storage.attribute(.attachment, at: index, effectiveRange: nil) as? NSTextAttachment)
-            let cell = try XCTUnwrap(attachment.attachmentCell as? AIReviewPillCell)
-            XCTAssertEqual(cell.changeID, id)
-            XCTAssertEqual(cell.isCurrent, id == 1)
-            XCTAssertEqual(cell.ink, id == 1 ? theme.textColor : HistoryPalette.recededInk(for: theme))
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
+            XCTAssertNil(value, "no pills")
         }
-        for (_, range) in composition.removedRanges {
-            let ink = layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: range.location, effectiveRange: nil)
-            XCTAssertEqual(ink as? NSColor, HistoryPalette.recededInk(for: theme))
+        XCTAssertFalse(composition.removedRanges.isEmpty)
+        for range in composition.removedRanges.values.flatMap({ $0 }) {
+            for index in range.location..<NSMaxRange(range) {
+                XCTAssertEqual(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor,
+                               HistoryPalette.recededInk(for: theme))
+                XCTAssertEqual(layoutManager.temporaryAttribute(.strikethroughStyle, atCharacterIndex: index, effectiveRange: nil) as? Int,
+                               NSUnderlineStyle.single.rawValue)
+                XCTAssertNil(layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: index, effectiveRange: nil))
+            }
         }
-        let replacement = (composition.string as NSString).range(of: "large")
-        XCTAssertNil(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: replacement.location, effectiveRange: nil),
-                     "insertions keep the normal ink")
+        XCTAssertFalse(composition.replacementRanges.isEmpty)
+        for range in composition.replacementRanges.values.flatMap({ $0 }) {
+            for index in range.location..<NSMaxRange(range) {
+                XCTAssertEqual(layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor,
+                               HistoryPalette.reviewInsertTint(for: theme))
+                XCTAssertNil(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil),
+                             "the replacement keeps the normal ink")
+                XCTAssertNil(layoutManager.temporaryAttribute(.strikethroughStyle, atCharacterIndex: index, effectiveRange: nil))
+            }
+        }
+        let plain = (composition.string as NSString).range(of: "night")
+        XCTAssertNil(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: plain.location, effectiveRange: nil))
+        XCTAssertNil(layoutManager.temporaryAttribute(.strikethroughStyle, atCharacterIndex: plain.location, effectiveRange: nil))
+        XCTAssertNil(layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: plain.location, effectiveRange: nil))
     }
 
-    func testClicksMapToCommands() throws {
+    /// A replacement's link and code are drawn readable ON the tint (≥ 4.5:1), on every theme —
+    /// not at the page's ratio, which the tint takes them under.
+    func testReplacementLinkAndCodeInksReadOnTheTint() throws {
+        let doc = "Old line here.\nAfter."
+        let ns = doc as NSString
+        let change = AIChange(id: 0, range: ns.range(of: "Old line here."), original: "Old line here.",
+                              replacement: "See [the guide](guide.md) and `make test` now.")
+        let session = AIReviewSession(action: .rewrite, changes: [change],
+                                      selectionRange: NSRange(location: 0, length: ns.length), originalSelection: doc)
+        let composition = AIReviewComposition.build(text: doc, session: session)
+        let shown = composition.string as NSString
+        for preset in ReadingPreset.builtIn {
+            let profile = preset.profile
+            let theme = Theme.theme(for: profile)
+            let tint = HistoryPalette.reviewInsertTint(for: theme)
+            let view = AIReviewTextView.make()
+            view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
+            view.present(composition, currentID: 0, profile: profile)
+            let layoutManager = try XCTUnwrap(view.layoutManager)
+            let storage = try XCTUnwrap(view.textStorage)
+            for needle in ["the guide", "make test"] {
+                let index = shown.range(of: needle).location
+                let drawn = (layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor)
+                    ?? (storage.attribute(.foregroundColor, at: index, effectiveRange: nil) as? NSColor)
+                let ratio = Theme.contrastRatio(try XCTUnwrap(drawn), tint)
+                XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(theme.name) \(needle) on the tint was \(ratio)")
+            }
+            let plain = shown.range(of: " now.").location
+            XCTAssertNil(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: plain, effectiveRange: nil),
+                         "\(theme.name): body text keeps the normal ink")
+        }
+    }
+
+    /// Clicks decide nothing: there are no pills, and the original is no longer a keep toggle.
+    func testClicksDecideNothing() throws {
         let (view, composition, _) = presented()
+        var commands: [AIReviewCommand] = []
+        view.commandHandler = { commands.append($0) }
         let layoutManager = try XCTUnwrap(view.layoutManager)
         let container = try XCTUnwrap(view.textContainer)
         layoutManager.ensureLayout(for: container)
         let origin = view.textContainerOrigin
-
-        let pill = try XCTUnwrap(composition.pillIndices[1])
-        var frame = layoutManager.boundingRect(forGlyphRange: layoutManager.glyphRange(forCharacterRange: NSRange(location: pill, length: 1), actualCharacterRange: nil), in: container)
-        frame = frame.offsetBy(dx: origin.x, dy: origin.y)
-        let outline = AIReviewPillCell.outlineRect(in: frame)
-        XCTAssertEqual(view.command(at: NSPoint(x: outline.minX + 6, y: frame.midY)), .accept(1))
-        XCTAssertEqual(view.command(at: NSPoint(x: outline.maxX - 6, y: frame.midY)), .reject(1))
-
-        let removed = try XCTUnwrap(composition.removedRanges[2])
-        var word = layoutManager.boundingRect(forGlyphRange: layoutManager.glyphRange(forCharacterRange: removed, actualCharacterRange: nil), in: container)
-        word = word.offsetBy(dx: origin.x, dy: origin.y)
-        XCTAssertEqual(view.command(at: NSPoint(x: word.midX, y: word.midY)), .toggleKeep(2))
-
-        let plain = (composition.string as NSString).range(of: "night")
-        var plainRect = layoutManager.boundingRect(forGlyphRange: layoutManager.glyphRange(forCharacterRange: plain, actualCharacterRange: nil), in: container)
-        plainRect = plainRect.offsetBy(dx: origin.x, dy: origin.y)
-        XCTAssertNil(view.command(at: NSPoint(x: plainRect.midX, y: plainRect.midY)))
+        let targets = composition.removedRanges.values.flatMap { $0 } + composition.replacementRanges.values.flatMap { $0 }
+            + [(composition.string as NSString).range(of: "night")]
+        for range in targets {
+            let rect = layoutManager.boundingRect(forGlyphRange: layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil),
+                                                  in: container).offsetBy(dx: origin.x, dy: origin.y)
+            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: rect.midX, y: rect.midY),
+                                                         modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                                                         eventNumber: 0, clickCount: 1, pressure: 1))
+            view.mouseDown(with: event)
+        }
+        XCTAssertEqual(commands, [])
     }
 
-    func testCustomActionsFollowDecisions() throws {
-        let (fresh, _, _) = presented(hasDecided: false)
-        let freshNames = (fresh.accessibilityCustomActions() ?? []).map(\.name)
-        XCTAssertEqual(freshNames, AIReviewTextView.accessibilityActionTitles(hasDecided: false))
-        XCTAssertTrue(freshNames.contains("Accept All"))
-        XCTAssertTrue(freshNames.contains("Reject All"))
-        XCTAssertTrue(freshNames.contains("Keep Removed Text"))
-
-        let (decided, _, _) = presented(hasDecided: true)
+    func testCustomActionsAreAcceptRejectAndEnd() throws {
+        let (view, _, _) = presented()
         var commands: [AIReviewCommand] = []
-        decided.commandHandler = { commands.append($0) }
-        let actions = decided.accessibilityCustomActions() ?? []
-        XCTAssertTrue(actions.map(\.name).contains("Accept Remaining"))
-        XCTAssertTrue(actions.map(\.name).contains("Reject Remaining"))
+        view.commandHandler = { commands.append($0) }
+        let actions = view.accessibilityCustomActions() ?? []
+        XCTAssertEqual(actions.map(\.name), ["Accept Change", "Reject Change", "End Review"])
+        XCTAssertEqual(actions.map(\.name), AIReviewTextView.accessibilityActionTitles())
         for action in actions { _ = action.handler?() }
-        XCTAssertEqual(commands, [.accept(0), .reject(0), .toggleKeep(0), .next, .previous,
-                                  .acceptRemaining, .rejectRemaining, .end])
+        XCTAssertEqual(commands, [.accept(0), .reject(0), .end])
     }
 
-    func testKeepIsOfferedOnlyWhenTheCurrentChangeRemovesText() {
+    func testWithNoCurrentChangeOnlyEndIsOffered() {
         let (view, _, _) = presented(currentID: nil)
-        XCTAssertFalse((view.accessibilityCustomActions() ?? []).map(\.name).contains("Accept Change"),
-                       "no current change, no per-change actions")
+        XCTAssertEqual((view.accessibilityCustomActions() ?? []).map(\.name), ["End Review"])
     }
 
     func testMatchGeometryCopiesTheEditorsLayout() throws {
@@ -204,11 +241,11 @@ final class AIReviewTextViewTests: XCTestCase {
         view.commandHandler = { commands.append($0) }
 
         view.keyDown(with: try key(String(UnicodeScalar(NSRightArrowFunctionKey)!), 124))
-        XCTAssertEqual(commands, [.next], "a review key stays in the review")
+        XCTAssertEqual(commands, [], "an arrow stays in the review and decides nothing")
         XCTAssertEqual(editor.string, text)
 
         view.keyDown(with: try key("q", 12))
-        XCTAssertEqual(commands, [.next, .end], "the review ends first, synchronously")
+        XCTAssertEqual(commands, [.end], "the review ends first, synchronously")
         XCTAssertFalse(editor.isAIReviewActive, "the backstop is down before the key arrives")
         XCTAssertEqual(view.string, composition().0.string, "nothing lands in the overlay")
 
@@ -222,7 +259,7 @@ final class AIReviewTextViewTests: XCTestCase {
         view.handOffEditor = plain
         view.keyDown(with: try key("q", 12))
         XCTAssertEqual(plain.string, "qabc")
-        XCTAssertEqual(commands, [.next, .end, .end])
+        XCTAssertEqual(commands, [.end, .end])
 
         // Without an editor to hand to, typing still ends the review through `insertText`.
         view.handOffEditor = nil
@@ -281,19 +318,22 @@ final class AIReviewTextViewTests: XCTestCase {
             let x = sa.attributes(at: index, effectiveRange: nil), y = sb.attributes(at: index, effectiveRange: nil)
             XCTAssertEqual(x[.foregroundColor] as? NSColor, y[.foregroundColor] as? NSColor, "\(label) ink at \(index)", file: file, line: line)
             XCTAssertEqual(x[.font] as? NSFont, y[.font] as? NSFont, "\(label) font at \(index)", file: file, line: line)
-            let pa = (x[.attachment] as? NSTextAttachment)?.attachmentCell as? AIReviewPillCell
-            let pb = (y[.attachment] as? NSTextAttachment)?.attachmentCell as? AIReviewPillCell
-            XCTAssertEqual(pa?.changeID, pb?.changeID, "\(label) pill at \(index)", file: file, line: line)
-            XCTAssertEqual(pa?.isCurrent, pb?.isCurrent, "\(label) current pill at \(index)", file: file, line: line)
+            XCTAssertNil(x[.attachment], "\(label) attachment at \(index)", file: file, line: line)
             let ta = a.layoutManager?.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
             let tb = b.layoutManager?.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
             XCTAssertEqual(ta, tb, "\(label) dimming at \(index)", file: file, line: line)
-            if x[.foregroundColor] as? NSColor != y[.foregroundColor] as? NSColor || pa?.isCurrent != pb?.isCurrent { return }
+            let sa = a.layoutManager?.temporaryAttribute(.strikethroughStyle, atCharacterIndex: index, effectiveRange: nil) as? Int
+            let sb = b.layoutManager?.temporaryAttribute(.strikethroughStyle, atCharacterIndex: index, effectiveRange: nil) as? Int
+            XCTAssertEqual(sa, sb, "\(label) strikethrough at \(index)", file: file, line: line)
+            let ba = a.layoutManager?.temporaryAttribute(.backgroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
+            let bb = b.layoutManager?.temporaryAttribute(.backgroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
+            XCTAssertEqual(ba, bb, "\(label) highlight at \(index)", file: file, line: line)
+            if x[.foregroundColor] as? NSColor != y[.foregroundColor] as? NSColor || ta != tb || sa != sb || ba != bb { return }
         }
     }
 
     /// Minor 8: a decision re-presents only the span that changed, and draws exactly what a
-    /// whole pass draws (highlighting, pills, dimming).
+    /// whole pass draws (highlighting, strikethrough, dimming, the replacement highlight).
     func testADecisionRedrawsOnlyItsSpanAndMatchesAWholePass() throws {
         let doc = "# A *big* title\n\nThe big dog ran `far` away from **home**.\n\n- A good item\n- Last one here"
         let ns = doc as NSString
@@ -308,19 +348,19 @@ final class AIReviewTextViewTests: XCTestCase {
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
         view.present(AIReviewComposition.build(text: doc, session: session), currentID: session.currentID, profile: profile)
         var text = doc
-        for step in ["reject", "keep", "accept"] {
+        for step in ["reject", "accept", "rejectLast"] {
             switch step {
             case "reject": session.reject(0)
-            case "keep": session.toggleKeep(2)
+            case "rejectLast": session.reject(2)
             default:
-                let edit = try XCTUnwrap(session.accept(1))
+                let edit = try XCTUnwrap(session.accept(1).first)
                 text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
             }
             let composition = AIReviewComposition.build(text: text, session: session)
-            view.present(composition, currentID: session.currentID, profile: profile, hasDecided: true)
+            view.present(composition, currentID: session.currentID, profile: profile)
             let fresh = AIReviewTextView.make()
             fresh.frame = view.frame
-            fresh.present(composition, currentID: session.currentID, profile: profile, hasDecided: true)
+            fresh.present(composition, currentID: session.currentID, profile: profile)
             try assertSameDrawing(view, fresh, step)
         }
     }
@@ -362,15 +402,15 @@ final class AIReviewTextViewTests: XCTestCase {
         session.reject(0)
         let decided = AIReviewComposition.build(text: big, session: session)
         let second = CFAbsoluteTimeGetCurrent()
-        view.present(decided, currentID: session.currentID, profile: profile, hasDecided: true)
+        view.present(decided, currentID: session.currentID, profile: profile)
         let decision = CFAbsoluteTimeGetCurrent() - second
         XCTAssertEqual(view.string, decided.string)
         XCTAssertLessThan(decision, whole / 5, "decision \(decision)s vs whole \(whole)s")
     }
 
-    func testSpokenValueLeavesOutThePills() {
+    func testSpokenValueIsTheComposition() {
         let (view, composition, _) = presented()
-        XCTAssertEqual(view.accessibilityValue(), composition.string.replacingOccurrences(of: "\u{FFFC}", with: ""))
+        XCTAssertEqual(view.accessibilityValue(), composition.string)
         XCTAssertFalse(view.accessibilityValue()?.contains("\u{FFFC}") ?? true)
     }
 

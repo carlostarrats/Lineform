@@ -24,7 +24,7 @@ struct ReadingExperienceInspector: View {
         "Highlights the current line while you write.",
         "Typewriter Mode",
         "Keeps the current line centered as you write.",
-        "Reset all to default",
+        "Reset to Default",
     ]
     static let resetTopSpacing: CGFloat = 20
     static let usesResetSeparator = false
@@ -134,8 +134,8 @@ struct ReadingExperienceInspector: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     InspectorControlRow {
-                        HoverFeedbackButton(String(localized: "Reset all to default")) {
-                            store.resetToDefault()
+                        HoverFeedbackButton(String(localized: "Reset to Default")) {
+                            store.resetCurrentPreset()
                         }
                     }
                 }
@@ -211,7 +211,7 @@ struct ReadingExperienceInspector: View {
             repeating: GridItem(.flexible(), spacing: 10),
             count: Self.presetGridColumnCount
         )
-        let selectedPresetID = ReadingPreset.matchingPresetID(for: store.activeProfile)
+        let selectedPresetID = store.activePresetID ?? ReadingPreset.matchingPresetID(for: store.activeProfile)
 
         return VStack(alignment: .leading, spacing: 10) {
             Text(Self.themeTitle)
@@ -336,7 +336,7 @@ private struct PickerRow<Content: View>: View {
     }
 }
 
-private struct ReadingPresetCard: View {
+struct ReadingPresetCard: View {
     var preset: ReadingPreset
     var isSelected: Bool
     var usesDarkChrome: Bool
@@ -373,7 +373,7 @@ private struct ReadingPresetCard: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? selectedStrokeColor : Color.black.opacity(0.08), lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? selectedStrokeColor : Color(nsColor: Self.unselectedStrokeColor(usesDarkChrome: usesDarkChrome)), lineWidth: isSelected ? 2 : 1)
             }
         }
         .buttonStyle(.plain)
@@ -383,6 +383,15 @@ private struct ReadingPresetCard: View {
             }
         }
         .accessibilityLabel(String(localized: "\(preset.title) reading theme"))
+    }
+
+    /// Edge for an unselected card. The popover's page is the active theme's colour, so under
+    /// Automatic Dark Mode a Quiet card (the same 0.19 grey) vanishes against a black stroke.
+    /// `usesDarkChrome` is threaded in, never read from the environment.
+    static func unselectedStrokeColor(usesDarkChrome: Bool) -> NSColor {
+        usesDarkChrome
+            ? NSColor.white.withAlphaComponent(0.18)
+            : NSColor.black.withAlphaComponent(0.08)
     }
 
     private var selectedStrokeColor: Color {

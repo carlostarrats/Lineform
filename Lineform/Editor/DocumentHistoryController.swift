@@ -134,6 +134,29 @@ final class DocumentHistoryController: ObservableObject {
     private var hasStoreEntry = false
     private var located: [LocatedPassage] = []
     private var selectedID: UUID?
+    /// History mode was on when an AI action started (`aiActionWillStart`): the passage that was
+    /// selected then. Settled by `aiActionDidEnd`, dropped by `aiActionAbandoned`.
+    private var aiResume: AIResume?
+    private struct AIResume { let selectedID: UUID? }
+    /// The passage an AI accept recorded while History was off: the next PLAIN entry into History
+    /// (the History tab, View ▸ History) selects it. Cleared once used, on a document swap, and by
+    /// any entry with an explicit target (`showPassage`).
+    private(set) var rememberedPassageID: UUID?
+    /// Add Alternative… asked for the alternative field on this passage; spent when the field
+    /// opens (`alternativeFieldDidOpen`), when History mode ends, and on a document swap.
+    private(set) var pendingAlternativeFieldID: UUID?
+
+    /// The stored passage `id`, or nil.
+    func passage(_ id: UUID) -> HistoryPassage? {
+        engine.history.passages.first { $0.id == id }
+    }
+
+    /// The sidebar opened the alternative field: the request is spent.
+    func alternativeFieldDidOpen() {
+        guard pendingAlternativeFieldID != nil else { return }
+        pendingAlternativeFieldID = nil
+        publishMode()
+    }
     /// The text when History mode was entered, and the text as History mode has left it.
     private var entryText: String?
     private var modeText: String?
@@ -141,6 +164,25 @@ final class DocumentHistoryController: ObservableObject {
     private var entryVersions: [UUID: Int] = [:]
     /// A version was deleted this session: indices no longer line up with `entryVersions`.
     private var sessionDeletedVersions = false
+
+    /// Fired after every successful Add to History (a new passage or one already there) with the
+    /// passage's id: the editor opens the sidebar on History focused on it (`showPassage`).
+    var onRequestShowHistory: ((UUID) -> Void)?
+    /// Who set `onRequestShowHistory`. The editor's handler captures the whole view (and through
+    /// it every `@StateObject`, this controller included), so the view clears it on disappear —
+    /// but only its OWN: a hierarchy rebuild can run the new view's appear before the old one's
+    /// disappear.
+    private var showHistoryHandlerOwner: UUID?
+    func setShowHistoryHandler(owner: UUID, _ handler: @escaping (UUID) -> Void) {
+        showHistoryHandlerOwner = owner
+        onRequestShowHistory = handler
+    }
+
+    func clearShowHistoryHandler(owner: UUID) {
+        guard showHistoryHandlerOwner == owner else { return }
+        showHistoryHandlerOwner = nil
+        onRequestShowHistory = nil
+    }
 
     /// Stores already pruned this app session (one entry in production: the shared store). Held
     /// weakly: an `ObjectIdentifier` of a freed store can be reused by a new one, which would then
@@ -246,6 +288,9 @@ final class DocumentHistoryController: ObservableObject {
         self.url = url
         self.documentID = documentID
         selectedID = nil
+        rememberedPassageID = nil
+        pendingAlternativeFieldID = nil
+        aiResume = nil
         var history = DocumentHistory(passages: [])
         if let url {
             pruneOnce()
@@ -268,6 +313,8 @@ final class DocumentHistoryController: ObservableObject {
         persist(text: text)
         url = nil
         documentID = nil
+        rememberedPassageID = nil
+        aiResume = nil
         hasStoreEntry = false
         engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: now)
         located = []
@@ -386,6 +433,7 @@ final class DocumentHistoryController: ObservableObject {
         let restoring = sessionDeletedVersions ? nil : entryVersions
         let exitVersions = currentVersions()
         resetModeState()
+        discardUnrevisedPassages()
         save()
         guard let editor else { return collapse }
         // The text view's manager is the tab's real stack again once the display is cleared.
@@ -418,13 +466,7 @@ final class DocumentHistoryController: ObservableObject {
     func handle(_ command: HistoryTextCommand, text: String) -> HistoryEdit? {
         switch command {
         case .add(let range):
-            guard engine.add(range, author: .you, in: text) != nil else { return nil }
-            save()
-            if isHistoryModeActive {
-                located = engine.locateAll(in: text)
-                publishMode()
-            }
-            refreshHasHistory()
+            add(range, text: text)
             return nil
         case .select(let id):
             guard isHistoryModeActive, located.contains(where: { $0.id == id }) else { return nil }
@@ -437,9 +479,73 @@ final class DocumentHistoryController: ObservableObject {
         case .moveSelection(let delta):
             moveSelection(by: delta)
             return nil
+        case .deselect:
+            // Back to the overview: History stays on, nothing selected.
+            guard isHistoryModeActive, selectedID != nil else { return nil }
+            selectedID = nil
+            publishMode()
+            return nil
         case .exit, .typedWhileInHistoryMode:
             return exitHistoryMode()
         }
+    }
+
+    /// Add to History: stores only the original (one version) and returns the passage — a new
+    /// one, or the passage already at that range (nothing is added to it). In History mode the
+    /// passage is focused at once; either way `onRequestShowHistory` asks the editor to show it.
+    /// Leaving History without a replacement discards it again (`discardUnrevisedPassages`).
+    @discardableResult
+    func add(_ range: NSRange, text: String) -> UUID? {
+        guard let id = engine.add(range, author: .you, in: text) else { return nil }
+        // Add Alternative…: the sidebar opens its "Type an alternative" field for this passage as
+        // soon as History shows it (`HistorySidebarModel.opensAlternativeField`).
+        pendingAlternativeFieldID = id
+        save()
+        if isHistoryModeActive {
+            located = engine.locateAll(in: text)
+            // Add never changes the text, so this version is what the session's undo restores —
+            // without it, ⌘Z after a replacement would leave the replacement current over the
+            // restored original and the next locate would drop the passage.
+            if entryVersions[id] == nil, let passage = engine.history.passages.first(where: { $0.id == id }) {
+                entryVersions[id] = passage.currentIndex
+            }
+            if located.contains(where: { $0.id == id }) { selectedID = id }
+            publishMode()
+        }
+        refreshHasHistory()
+        onRequestShowHistory?(id)
+        return id
+    }
+
+    /// Enters History mode (when it is not on already) focused on passage `id`. False when
+    /// History mode could not start or the passage is not in the text.
+    @discardableResult
+    func showPassage(_ id: UUID, text: String) -> Bool {
+        // An entry with an explicit target: a remembered AI passage is no longer wanted.
+        rememberedPassageID = nil
+        // Checked BEFORE History mode starts: a passage that is not in the text must not leave
+        // History on with nothing selected.
+        if !isHistoryModeActive {
+            guard engine.history.passages.contains(where: { $0.id == id }) else { return false }
+            located = engine.locateAll(in: text)
+        }
+        guard located.contains(where: { $0.id == id }), enterHistoryMode(text: text) else { return false }
+        selectedID = id
+        publishMode()
+        return true
+    }
+
+    /// The writer's own alternative for the selected passage: appended as a new version, made
+    /// current, and put in the document through the same undo-disabled path as a step, so the
+    /// session still collapses to one undo step on exit. Nil outside History mode, with nothing
+    /// selected, or when the trimmed text is empty or equals the current version. `passageID` is
+    /// the passage the field was opened for: when the selection moved since (a level button, a
+    /// click in the text), nothing is added — the text was written for another passage.
+    @discardableResult
+    func addReplacement(_ replacement: String, for passageID: UUID) -> HistoryEdit? {
+        guard isHistoryModeActive, let id = selectedID, id == passageID,
+              let text = editor?.string ?? modeText else { return nil }
+        return didProduce(engine.addReplacement(replacement, to: id, in: text), in: text)
     }
 
     func selectLevel(_ level: HistoryLevel) {
@@ -474,17 +580,97 @@ final class DocumentHistoryController: ObservableObject {
         engine.canAdd(range, in: text)
     }
 
-    /// AI actions are unavailable while History mode is on and inside a word-level passage (spec §5).
+    /// AI actions are offered on any selection in normal writing — inside, equal to, around or
+    /// across passages (2026-11-13; they used to be refused inside a word passage). Only History
+    /// mode refuses them (it never overlaps AI).
     func allowsAIAction(on range: NSRange) -> Bool {
-        !isHistoryModeActive && !engine.isInsideWordPassage(range)
+        !isHistoryModeActive
+    }
+
+    /// The range an AI action on `range` works on: grown over any passage it partly overlaps, so
+    /// the accepted change never straddles (and drops) a passage (`DocumentHistoryEngine.aiActionRange`).
+    func aiActionRange(for range: NSRange) -> NSRange {
+        engine.aiActionRange(for: range)
+    }
+
+    /// An accepted AI change is applied between these: a passage its edits would drop is set aside
+    /// (versions kept) for `recordAccepted` to file under the version its text lives in.
+    func aiAcceptWillApply() { engine.beginSettingAside() }
+    func aiAcceptDidApply() { engine.endSettingAside() }
+
+    /// The accept's recording is over: set-aside passages nothing could hold are dropped.
+    func aiAcceptRecordingDidFinish() {
+        engine.finishSetAside()
+        save()
+        refreshHasHistory()
     }
 
     /// An accepted AI change (plan 3). `text` is the text after the accept, already reported
     /// through `noteUserEdit`.
-    func recordAccepted(range: NSRange, original: String, accepted: String, text: String) {
-        guard engine.recordAccepted(range: range, original: original, accepted: accepted, in: text) != nil else { return }
+    /// Returns the passage it recorded, nil when nothing was.
+    @discardableResult
+    func recordAccepted(range: NSRange, original: String, accepted: String, text: String) -> UUID? {
+        guard let id = engine.recordAccepted(range: range, original: original, accepted: accepted, in: text) else { return nil }
         save()
         refreshHasHistory()
+        return id
+    }
+
+    /// A PLAIN entry into History (the History tab, View ▸ History): History mode with nothing
+    /// selected — or, when an AI accept left a remembered passage that still locates, that one
+    /// selected. The memory is spent either way.
+    @discardableResult
+    func enterHistoryModeFromTab(text: String) -> Bool {
+        let remembered = rememberedPassageID
+        rememberedPassageID = nil
+        pendingAlternativeFieldID = nil
+        guard enterHistoryMode(text: text) else { return false }
+        if let remembered, located.contains(where: { $0.id == remembered }) {
+            selectedID = remembered
+            publishMode()
+        }
+        return true
+    }
+
+    /// An AI request is about to start. When History mode is on, the passage selected now is
+    /// remembered (History and AI never overlap, so History mode ends here); `aiActionDidEnd`
+    /// returns to it. Called again by Try Again's re-run with History already off: an existing
+    /// context is kept.
+    func aiActionWillStart() {
+        guard isHistoryModeActive else { return }
+        aiResume = AIResume(selectedID: selectedID)
+        exitHistoryMode()
+    }
+
+    /// An AI action ended — accepted, rejected, Esc / ✕, cancelled, a message or an error.
+    /// `recorded`: the passage the accept recorded; `changedRange`: where the accepted change sits
+    /// in `text`. History was on when the action started → History mode comes back (through
+    /// `onRequestShowHistory`, as every editor-side show does) focused on `recorded`, else the
+    /// passage containing `changedRange`, else the passage selected before the action — the
+    /// first that still locates; none → History stays off. History was off → an accept's passage
+    /// is remembered for the next plain entry (`enterHistoryModeFromTab`).
+    func aiActionDidEnd(recorded: UUID?, changedRange: NSRange? = nil, text: String) {
+        guard let resume = aiResume else {
+            if let recorded { rememberedPassageID = recorded }
+            return
+        }
+        aiResume = nil
+        let candidates = engine.history.isEmpty ? [] : engine.locateAll(in: text)
+        let containing = changedRange.flatMap { range in
+            candidates.filter { NSIntersectionRange($0.range, range).length > 0 || $0.range.location == range.location }
+                .min { $0.range.length < $1.range.length }?.id
+        }
+        for id in [recorded, containing, resume.selectedID].compactMap({ $0 })
+        where candidates.contains(where: { $0.id == id }) {
+            onRequestShowHistory?(id)
+            return
+        }
+    }
+
+    /// The AI action ended in a way that must not bring History back (live reload, a document
+    /// swap, typing, History opening on its own target, Mark's marks): the context is dropped.
+    func aiActionAbandoned() {
+        aiResume = nil
     }
 
     // MARK: - Private
@@ -528,17 +714,28 @@ final class DocumentHistoryController: ObservableObject {
     private func endHistoryModeWithoutEdit() {
         guard isHistoryModeActive else { return }
         resetModeState()
+        discardUnrevisedPassages()
         save()
         editor?.historyDisplay = nil
     }
 
     private func resetModeState() {
         isHistoryModeActive = false
+        pendingAlternativeFieldID = nil
         entryText = nil
         modeText = nil
         entryVersions = [:]
         selectedID = nil
         publishMode()
+    }
+
+    /// Leaving History: a passage that was added and never given a replacement is discarded —
+    /// nothing was added. Accepted AI changes always have two versions and are never touched.
+    private func discardUnrevisedPassages() {
+        let discarded = Set(engine.discardUnrevisedPassages())
+        guard !discarded.isEmpty else { return }
+        located.removeAll { discarded.contains($0.id) }
+        refreshHasHistory()
     }
 
     private func currentVersions() -> [UUID: Int] {
@@ -660,7 +857,9 @@ final class DocumentHistoryController: ObservableObject {
                             isCurrent: index == passage.currentIndex
                         )
                     },
-                    hasSelection: true
+                    hasSelection: true,
+                    selectedPassageID: passage.id,
+                    opensAlternativeField: pendingAlternativeFieldID == passage.id
                 )
             } else {
                 newModel = HistorySidebarModel()

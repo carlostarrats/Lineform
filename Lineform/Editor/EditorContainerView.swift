@@ -76,6 +76,8 @@ struct EditorContainerView: View {
     /// swap (`registerReloadWatcher`), closed in `resetTransientDocumentState`. Nothing touches
     /// the store until a document is opened — never at launch.
     @StateObject private var historyController = DocumentHistoryController(store: DocumentHistoryController.sharedStore)
+    /// The editor's requests to History's open replacement field (refocus it, or close it).
+    @State private var historyReplacementFieldSignal = HistoryReplacementFieldSignal()
     /// AI actions and their review for the document on screen — one per editor. The connection
     /// store is the app's one connection; building this reads UserDefaults only (no Keychain, no
     /// network — those happen only when the writer chooses an action).
@@ -169,6 +171,11 @@ struct EditorContainerView: View {
                 onSelectHistoryLevel: { level in historyController.selectLevel(level) },
                 onSelectHistoryVersion: { index in selectHistoryVersion(index) },
                 onDeleteHistoryVersion: { index in deleteHistoryVersion(index) },
+                onExitHistory: { historyController.exitHistoryMode() },
+                onAddHistoryReplacement: { replacement, id in historyController.addReplacement(replacement, for: id) },
+                onHistoryReplacementFieldEnded: { historyReplacementFieldEnded() },
+                onHistoryReplacementFieldBegan: { historyReplacementFieldBegan() },
+                historyReplacementFieldSignal: historyReplacementFieldSignal,
                 isHistoryModeActive: historyController.isHistoryModeActive,
                 onSelectTab: { tab in selectSidebarTab(tab) },
                 fileBrowserStore: fileBrowserStore,
@@ -503,7 +510,8 @@ struct EditorContainerView: View {
             windowNumber: windowNumber,
             historyController: historyController,
             isKeyWindow: { activeWindow?.isKeyWindow == true },
-            toggleHistory: toggleHistoryFromMenu
+            toggleHistory: toggleHistoryFromMenu,
+            showHistory: { id in showHistory(focusing: id) }
         ))
         .modifier(AIActionModeHandlers(aiController: aiController, displayMode: $displayMode))
         .onChange(of: tabStore.selectedTabID) { _, newID in
@@ -1043,10 +1051,12 @@ struct EditorContainerView: View {
                             )
                         }
                     }
-                    // The AI's progress, message, Mark and review cards float at the bottom of
-                    // the CONTENT — never a laid-out bar, never at the top (the toolbar samples
-                    // the top edge).
-                    .overlay(alignment: .bottom) {
+                    // The AI's progress, message, Mark and review cards take the same
+                    // bottom-trailing corner and inset as the default-app card (which steps aside
+                    // while one is up) — never a laid-out bar, never at the top (the toolbar
+                    // samples the top edge). A persistent overlay of its own, so its card's
+                    // arrival and departure animate on `aiCardKind`.
+                    .overlay(alignment: .bottomTrailing) {
                         aiCard
                     }
 
@@ -2478,7 +2488,6 @@ struct EditorContainerView: View {
                 composition: aiCompositionCache.composition(text: aiController.editor?.string ?? document.text,
                                                             session: session),
                 currentID: session.currentID,
-                hasDecided: session.hasDecided,
                 profile: displayProfile,
                 editor: aiController.editor as? NSTextView,
                 onCommand: { command in aiController.handle(command) }
@@ -2496,8 +2505,8 @@ struct EditorContainerView: View {
         }
     }
 
-    /// The AI's one floating card: progress (Esc cancels), a message, Mark's count (Esc clears),
-    /// or the review's position and batch buttons — with a refused decision's notice on it.
+    /// The AI's one floating card, in the editor's bottom-trailing corner: progress (Esc cancels),
+    /// a message, Mark's count (Esc clears), or the review's one decision (Reject / Accept).
     /// Which AI card is up, so its arrival and departure animate (a change of text within one
     /// card does not).
     private var aiCardKind: Int {
@@ -2514,7 +2523,7 @@ struct EditorContainerView: View {
     private var aiCard: some View {
         // A persistent container, so the animation keyed on `aiCardKind` drives the insertion
         // and removal transitions of the card inside it.
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             aiCardContent
                 .padding(AnnouncementCard.edgeInset)
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
@@ -2553,22 +2562,15 @@ struct EditorContainerView: View {
                              hint: AIReviewCardPresentation.markHint, showsProgress: false,
                              usesDarkChrome: usesDarkChrome, onClose: { aiController.dismissMarks() })
             case .reviewing(let session):
-                if session.changes.count > 1 {
-                    AIReviewCard(
-                        position: session.position.current,
-                        total: session.position.total,
-                        hasDecided: session.hasDecided,
-                        notice: aiController.reviewNotice,
-                        usesDarkChrome: usesDarkChrome,
-                        onAcceptRemaining: { aiController.handle(.acceptRemaining) },
-                        onRejectRemaining: { aiController.handle(.rejectRemaining) }
-                    )
-                } else {
-                    // One change: no batch buttons, but the modal keys must be discoverable.
-                    AIStatusCard(text: aiController.reviewNotice ?? AIActionController.changesSuggestedMessage(1),
-                                 hint: AIReviewCardPresentation.singleChangeHint, showsProgress: false,
-                                 usesDarkChrome: usesDarkChrome, onClose: { aiController.handle(.end) })
-                }
+                // One action, one change, one decision (spec "AI review: option A").
+                AIReviewCard(
+                    title: AIReviewCardPresentation.title(for: session.action),
+                    usesDarkChrome: usesDarkChrome,
+                    onAccept: { aiController.handle(.acceptCurrent) },
+                    onReject: { aiController.handle(.end) },
+                    onRetry: { aiController.handle(.retry) },
+                    onClose: { aiController.handle(.end) }
+                )
             }
         }
     }
@@ -2593,7 +2595,7 @@ struct EditorContainerView: View {
         if displayMode != .write {
             displayMode = .write
         }
-        return historyController.enterHistoryMode(text: historyEditorText)
+        return historyController.enterHistoryModeFromTab(text: historyEditorText)
     }
 
     /// View ▸ History: enters History mode with the sidebar showing its History tab, or leaves it.
@@ -2603,9 +2605,59 @@ struct EditorContainerView: View {
             return
         }
         guard historyController.hasHistory else { return }
-        isShowingOutline = true
         // The sidebar follows `isHistoryModeActive` onto its History tab (and back afterwards).
-        _ = selectSidebarTab(.history)
+        guard selectSidebarTab(.history) else { return }
+        showSidebarIfHidden()
+    }
+
+    /// Add to History, and the first accepted AI review: History mode focused on passage `id`,
+    /// with the sidebar shown on its History tab (it follows `isHistoryModeActive`).
+    private func showHistory(focusing id: UUID) {
+        // History mode and AI never overlap: a request or review ends, Mark's wash is dismissed,
+        // and a message (the first-accept intro's) stays (`yieldToHistory`).
+        aiController.yieldToHistory()
+        if displayMode != .write {
+            displayMode = .write
+        }
+        guard historyController.showPassage(id, text: historyEditorText) else { return }
+        showSidebarIfHidden()
+        focusEditorForHistory()
+    }
+
+    /// Opens the sidebar the way its toolbar toggle does — AppKit's `toggleSidebar:`, so it slides
+    /// in — and only when it is hidden (a toggle on a shown sidebar would close it).
+    private func showSidebarIfHidden() {
+        guard !isShowingOutline else { return }
+        // Nil-targeted: reaches the KEY window's split view controller, which is the requesting
+        // window in every current trigger (a menu command, Add to History, an accepted review).
+        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+    }
+
+    /// The sidebar's replacement field opened: until it closes, keys that reach the text view
+    /// type nothing and leave nothing — they ask the field for focus (Esc closes it).
+    private func historyReplacementFieldBegan() {
+        historyController.alternativeFieldDidOpen()
+        guard let textView = historyController.editor as? LineformTextView else { return }
+        textView.historyReplacementFieldIsOpen = true
+        textView.historyReplacementFieldHandler = { request in
+            historyReplacementFieldSignal.send(request)
+        }
+    }
+
+    private func historyReplacementFieldEnded() {
+        let textView = historyController.editor as? LineformTextView
+        textView?.historyReplacementFieldIsOpen = false
+        // The handler captures this view; drop it with the field.
+        textView?.historyReplacementFieldHandler = nil
+        focusEditorForHistory()
+    }
+
+    /// History's keys (← → ↑ ↓ Esc) are the text view's: after the sidebar's replacement field
+    /// closes, or History opens from a menu, the editor takes first responder back.
+    private func focusEditorForHistory() {
+        guard let view = historyController.editor as? NSView, let window = view.window,
+              window.firstResponder !== view else { return }
+        window.makeFirstResponder(view)
     }
 
     private func selectHistoryVersion(_ index: Int) {
@@ -3194,9 +3246,26 @@ private struct HistoryMenuHandlers: ViewModifier {
     @ObservedObject var historyController: DocumentHistoryController
     let isKeyWindow: () -> Bool
     let toggleHistory: () -> Void
+    /// Add to History and the first accepted AI review ask to show History on a passage.
+    let showHistory: (UUID) -> Void
+
+    /// Identifies THIS view's show-History hook, so its disappear clears only its own.
+    @State private var handlerOwner = UUID()
 
     func body(content: Content) -> some View {
         content
+            .onAppear {
+                // Deferred a turn: the request fires from inside the controller's add / the AI
+                // review's end, which must finish before History mode starts.
+                historyController.setShowHistoryHandler(owner: handlerOwner) { id in
+                    DispatchQueue.main.async { showHistory(id) }
+                }
+            }
+            // The hook captures the whole editor view (every @StateObject, this controller
+            // included): a retain cycle until it is cleared.
+            .onDisappear {
+                historyController.clearShowHistoryHandler(owner: handlerOwner)
+            }
             .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.showHistory.name)) { notification in
                 guard let payload = notification.object as? LineformAppNotification.Payload,
                       payload.matches(windowNumber: windowNumber) else { return }

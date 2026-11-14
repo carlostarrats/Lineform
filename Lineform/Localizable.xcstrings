@@ -1855,6 +1855,166 @@
         }
       }
     },
+    "Choose Restricted, set Model capabilities to Request, and leave everything else off.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Choose Restricted, set Model capabilities to Request, and leave everything else off."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige Restricted, pon Model capabilities en Request y deja todo lo demás desactivado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez Restricted, réglez Model capabilities sur Request et laissez tout le reste désactivé."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle Restricted, setze Model capabilities auf Request und lass alles andere aus."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restricted を選び、Model capabilities を Request に設定し、ほかはすべてオフのままにしてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择 Restricted，将 Model capabilities 设为 Request，其他全部保持关闭。"
+          }
+        }
+      }
+    },
+    "Higher quality": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Higher quality"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mayor calidad"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qualité supérieure"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Höhere Qualität"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高品質"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更高质量"
+          }
+        }
+      }
+    },
+    "Make a key just for Lineform, and set a monthly spend limit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Make a key just for Lineform, and set a monthly spend limit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea una clave solo para Lineform y fija un límite de gasto mensual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créez une clé réservée à Lineform et fixez une limite de dépenses mensuelle."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstelle einen Schlüssel nur für Lineform und lege ein monatliches Ausgabenlimit fest."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform 専用のキーを作成し、月ごとの利用上限を設定してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为 Lineform 单独创建一个密钥，并设置每月支出上限。"
+          }
+        }
+      }
+    },
+    "Model": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Model"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modèle"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modell"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モデル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型"
+          }
+        }
+      }
+    },
     "Paragraph": {
       "localizations": {
         "de": {
@@ -1919,6 +2079,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "句子"
+          }
+        }
+      }
+    },
+    "Standard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Standard"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estándar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標準"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标准"
           }
         }
       }
@@ -8017,36 +8217,36 @@
         }
       }
     },
-    "Reset all to default": {
+    "Reset to Default": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle auf Standard zurücksetzen"
+            "value": "Auf Standard zurücksetzen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restablecer todo"
+            "value": "Restablecer a valores predeterminados"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout réinitialiser"
+            "value": "Rétablir les valeurs par défaut"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべてをデフォルトに戻す"
+            "value": "デフォルトに戻す"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部恢复默认"
+            "value": "恢复默认"
           }
         }
       }
@@ -10773,40 +10973,6 @@
         }
       }
     },
-    "Writing": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Schreiben"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escritura"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Écriture"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "執筆"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "写作"
-          }
-        }
-      }
-    },
     "iCloud is not available on this Mac.": {
       "localizations": {
         "de": {
@@ -11279,40 +11445,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@”已在另一个标签页中打开，覆盖保存会放弃该标签页的内容。请先关闭该标签页，或选取其他名称。"
-          }
-        }
-      }
-    },
-    "Add to History": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zum Verlauf hinzufügen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Añadir al historial"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajouter à l’historique"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "履歴に追加"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加到历史记录"
           }
         }
       }
@@ -12101,42 +12233,42 @@
         }
       }
     },
-    "The key wasn't accepted. Check it in Connect Your AI.": {
+    "The key wasn't accepted. It may have expired. Check it in Connect Your AI.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "The key wasn't accepted. Check it in Connect Your AI."
+            "value": "The key wasn't accepted. It may have expired. Check it in Connect Your AI."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La clave no fue aceptada. Compruébala en Conectar tu IA."
+            "value": "La clave no fue aceptada. Puede que haya caducado. Compruébala en Conectar tu IA."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La clé n’a pas été acceptée. Vérifiez-la dans Connecter votre IA."
+            "value": "La clé n’a pas été acceptée. Elle a peut-être expiré. Vérifiez-la dans Connecter votre IA."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Schlüssel wurde nicht akzeptiert. Prüfe ihn unter „KI verbinden“."
+            "value": "Der Schlüssel wurde nicht akzeptiert. Möglicherweise ist er abgelaufen. Prüfe ihn unter „KI verbinden“."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "キーが受け付けられませんでした。「AI を接続」で確認してください。"
+            "value": "キーが受け付けられませんでした。有効期限が切れている可能性があります。「AI を接続」で確認してください。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "密钥未被接受。请在“连接你的 AI”中检查。"
+            "value": "密钥未被接受。它可能已过期。请在“连接你的 AI”中检查。"
           }
         }
       }
@@ -14021,46 +14153,6 @@
         }
       }
     },
-    "Accept Suggestions": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Accept Suggestions"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceptar sugerencias"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accepter les suggestions"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vorschläge annehmen"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "提案を承認"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受建议"
-          }
-        }
-      }
-    },
     "1 change suggested": {
       "localizations": {
         "en": {
@@ -14097,86 +14189,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "建议了 1 处更改"
-          }
-        }
-      }
-    },
-    "%lld changes suggested": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%lld changes suggested"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld cambios sugeridos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld modifications suggérées"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Änderungen vorgeschlagen"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 件の変更を提案"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "建议了 %lld 处更改"
-          }
-        }
-      }
-    },
-    "Change %lld of %lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Change %lld of %lld"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cambio %1$lld de %2$lld"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modification %1$lld sur %2$lld"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Änderung %1$lld von %2$lld"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "変更 %1$lld / %2$lld"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "第 %1$lld 处更改，共 %2$lld 处"
           }
         }
       }
@@ -14261,202 +14273,282 @@
         }
       }
     },
-    "Accept All": {
+    "Trim ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Accept All"
+            "value": "Trim ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aceptar todo"
+            "value": "Recorte listo"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout accepter"
+            "value": "Élagage prêt"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle annehmen"
+            "value": "Kürzung bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべて承認"
+            "value": "削った案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部接受"
+            "value": "精简已就绪"
           }
         }
       }
     },
-    "Reject All": {
+    "Cut ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Reject All"
+            "value": "Cut ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rechazar todo"
+            "value": "Reducción lista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout refuser"
+            "value": "Réduction prête"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle ablehnen"
+            "value": "Halbierung bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべて却下"
+            "value": "半分にした案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部拒绝"
+            "value": "缩减已就绪"
           }
         }
       }
     },
-    "Accept Remaining": {
+    "Rewrite ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Accept Remaining"
+            "value": "Rewrite ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aceptar el resto"
+            "value": "Reescritura lista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accepter le reste"
+            "value": "Réécriture prête"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rest annehmen"
+            "value": "Umschreibung bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "残りを承認"
+            "value": "書き直し案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "接受其余"
+            "value": "改写已就绪"
           }
         }
       }
     },
-    "Reject Remaining": {
+    "Proofread ready": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Reject Remaining"
+            "value": "Proofread ready"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rechazar el resto"
+            "value": "Corrección lista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Refuser le reste"
+            "value": "Relecture prête"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rest ablehnen"
+            "value": "Korrektur bereit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "残りを却下"
+            "value": "校正案ができました"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "拒绝其余"
+            "value": "校对已就绪"
           }
         }
       }
     },
-    "%lld of %lld": {
+    "Reject": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "%lld of %lld"
+            "value": "Reject"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld de %2$lld"
+            "value": "Rechazar"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld sur %2$lld"
+            "value": "Refuser"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld von %2$lld"
+            "value": "Ablehnen"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld / %2$lld"
+            "value": "却下"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "第 %1$lld 处，共 %2$lld 处"
+            "value": "拒绝"
+          }
+        }
+      }
+    },
+    "Accept": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Accept"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceptar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annehmen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "承認"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受"
+          }
+        }
+      }
+    },
+    "Return to accept · Esc to reject": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Return to accept · Esc to reject"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return para aceptar · Esc para rechazar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return pour accepter · Échap pour refuser"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return zum Annehmen · Esc zum Ablehnen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Returnで適用 · Escで却下"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按 Return 接受 · 按 Esc 拒绝"
           }
         }
       }
@@ -14941,46 +15033,6 @@
         }
       }
     },
-    "Return to accept · Esc to dismiss": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Return to accept · Esc to dismiss"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Return para aceptar · Esc para descartar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Return pour accepter · Échap pour ignorer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Return zum Annehmen · Esc zum Verwerfen"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Returnで適用 · Escで閉じる"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按 Return 接受 · 按 Esc 关闭"
-          }
-        }
-      }
-    },
     "Suggested changes": {
       "localizations": {
         "en": {
@@ -15101,126 +15153,6 @@
         }
       }
     },
-    "Keep Removed Text": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Keep Removed Text"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conservar el texto eliminado"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Garder le texte supprimé"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entfernten Text behalten"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "削除されるテキストを残す"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保留删除的文本"
-          }
-        }
-      }
-    },
-    "Next Change": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Next Change"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cambio siguiente"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modification suivante"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nächste Änderung"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "次の変更"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下一处更改"
-          }
-        }
-      }
-    },
-    "Previous Change": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Previous Change"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cambio anterior"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modification précédente"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vorherige Änderung"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "前の変更"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上一处更改"
-          }
-        }
-      }
-    },
     "End Review": {
       "localizations": {
         "en": {
@@ -15257,6 +15189,528 @@
           "stringUnit": {
             "state": "translated",
             "value": "结束审阅"
+          }
+        }
+      }
+    },
+    "Exit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salir"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終了"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出"
+          }
+        }
+      }
+    },
+    "Add Alternative": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir alternativa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une variante"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternative hinzufügen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別案を追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加备选"
+          }
+        }
+      }
+    },
+    "Add": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinzufügen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加"
+          }
+        }
+      }
+    },
+    "Another Word": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otra palabra"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autre mot"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anderes Wort"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の単語"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "换个词"
+          }
+        }
+      }
+    },
+    "Finding another word…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando otra palabra…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche d’un autre mot…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anderes Wort wird gesucht…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の単語を探しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在找另一个词…"
+          }
+        }
+      }
+    },
+    "Word ready": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palabra lista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mot prêt"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wort bereit"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "単語の候補ができました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词语已就绪"
+          }
+        }
+      }
+    },
+    "Finding another word with your AI…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando otra palabra con tu IA…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche d’un autre mot avec votre IA…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anderes Wort wird mit deiner KI gesucht…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AIで別の単語を探しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在用你的 AI 找另一个词…"
+          }
+        }
+      }
+    },
+    "Finding another word with %@…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Finding another word with %@…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando otra palabra con %@…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche d’un autre mot avec %@…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anderes Wort wird mit %@ gesucht…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@で別の単語を探しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在用 %@ 找另一个词…"
+          }
+        }
+      }
+    },
+    "Your AI returned the same text. Try again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu IA devolvió el mismo texto. Inténtalo de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre IA a renvoyé le même texte. Réessayez."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine KI hat denselben Text geliefert. Versuche es noch einmal."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AIが同じテキストを返しました。もう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 AI 返回了相同的文本。请再试一次。"
+          }
+        }
+      }
+    },
+    "%@ returned the same text. Try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%@ returned the same text. Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ devolvió el mismo texto. Inténtalo de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a renvoyé le même texte. Réessayez."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat denselben Text geliefert. Versuche es noch einmal."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@が同じテキストを返しました。もう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 返回了相同的文本。请再试一次。"
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "やり直す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "Versions of selected text": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versiones del texto seleccionado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versions du texte sélectionné"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versionen des ausgewählten Texts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択したテキストのバージョン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选文本的版本"
+          }
+        }
+      }
+    },
+    "Type an alternative": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe una alternativa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez une variante"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternative eingeben"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別案を入力"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入备选内容"
+          }
+        }
+      }
+    },
+    "Add Alternative…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir alternativa…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une variante…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternative hinzufügen…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別案を追加…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加备选…"
+          }
+        }
+      }
+    },
+    "Click to select · ← → switch version · Esc deselects": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clic para elegir · ← → cambia de versión · Esc deselecciona"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cliquer pour choisir · ← → changer de version · Échap désélectionne"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicken zum Wählen · ← → Version wechseln · Esc hebt Auswahl auf"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリックで選択 · ← → でバージョン切替 · Esc で選択解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按选择 · ← → 切换版本 · Esc 取消选择"
           }
         }
       }

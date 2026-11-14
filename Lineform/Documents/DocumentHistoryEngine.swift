@@ -58,6 +58,14 @@ struct DocumentHistoryEngine {
     /// passage falls back to the literal search.
     private var syncedLength: Int?
 
+    /// True while an accepted AI change is applied (`beginSettingAside`). A passage that one of
+    /// its edits would DROP (the edit covers or straddles it) is set aside instead: its versions
+    /// are kept, its live range is forgotten, and `locateAll` neither searches for it nor drops
+    /// it, so `recordAccepted` can file it under the version its text lives in (2026-11-13:
+    /// rewriting a sentence that contained a word passage used to delete that word's history).
+    private(set) var isSettingAside = false
+    private(set) var setAside: Set<UUID> = []
+
     init(history: DocumentHistory, now: @escaping () -> Date) {
         self.history = history
         self.now = now
@@ -94,7 +102,53 @@ struct DocumentHistoryEngine {
                 lost.insert(id)
             }
         }
-        removeWithDescendants(lost)
+        if isSettingAside {
+            for id in lost {
+                liveRanges[id] = nil
+                liveTexts[id] = nil
+            }
+            setAside.formUnion(lost)
+        } else {
+            removeWithDescendants(lost)
+        }
+    }
+
+    /// An accepted AI change is about to be applied: dropped passages are set aside, not removed.
+    mutating func beginSettingAside() {
+        isSettingAside = true
+    }
+
+    /// The accepted change is applied; later edits drop as usual.
+    mutating func endSettingAside() {
+        isSettingAside = false
+    }
+
+    /// The accept's recording is over. A passage still set aside could not be filed anywhere (the
+    /// change was recorded nowhere, or nowhere containing its text): it goes, as before.
+    mutating func finishSetAside() {
+        isSettingAside = false
+        let leftover = setAside
+        setAside = []
+        removeWithDescendants(leftover)
+    }
+
+    /// Files set-aside passages whose text lies in `original` under passage `id`, at version
+    /// `version` (the one `original` is): stepping `id` back to it shows them again.
+    private mutating func fileSetAside(under id: UUID, version: Int, original: String) {
+        guard !setAside.isEmpty else { return }
+        let ancestry = Set(chain(to: id))
+        for i in history.passages.indices {
+            let passage = history.passages[i]
+            guard setAside.contains(passage.id), !ancestry.contains(passage.id),
+                  passage.parentID.map({ !setAside.contains($0) }) ?? true else { continue }
+            let text = passage.versions[passage.currentIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty, original.contains(text) else { continue }
+            history.passages[i].parentID = id
+            history.passages[i].parentVersionIndex = version
+            setAside.remove(passage.id)
+            // Its own set-aside descendants travel with it.
+            setAside.subtract(descendants(of: passage.id))
+        }
     }
 
     /// Forget every live range; the next `locateAll` re-finds every passage LITERALLY (by its last
@@ -215,7 +269,8 @@ struct DocumentHistoryEngine {
         while head < queue.count {
             let (id, scope, rootID, ancestors) = queue[head]
             head += 1
-            guard let index = history.passages.firstIndex(where: { $0.id == id }) else { continue }
+            guard let index = history.passages.firstIndex(where: { $0.id == id }),
+                  !setAside.contains(id) else { continue }
             let passage = history.passages[index]
             // Two passages that are not nested never share text: a range overlapping one already
             // located (other than an ancestor) is another passage's text, so this one is gone.
@@ -268,13 +323,24 @@ struct DocumentHistoryEngine {
                                          in: text, within: scope)
     }
 
-    /// True when `range` lies inside the live range of a `.word` passage (spec §5: nothing nests
-    /// inside a word, so AI actions are unavailable there). Live ranges only: never searches text.
-    func isInsideWordPassage(_ range: NSRange) -> Bool {
-        let levels = Dictionary(history.passages.map { ($0.id, $0.level) }, uniquingKeysWith: { first, _ in first })
-        return liveRanges.contains { id, live in
-            levels[id] == .word && range.location >= live.location && NSMaxRange(range) <= NSMaxRange(live)
+    /// The range an AI action works on for a selection of `range`: grown to cover every passage
+    /// it PARTLY overlaps (to a fixpoint), so the accepted change never straddles a passage
+    /// boundary — an edit across a boundary would drop that passage. A selection inside a passage,
+    /// equal to one, or containing whole passages is returned unchanged. Live ranges only: never
+    /// searches the text.
+    func aiActionRange(for range: NSRange) -> NSRange {
+        var result = range
+        var grew = true
+        while grew {
+            grew = false
+            for live in liveRanges.values {
+                let overlap = NSIntersectionRange(live, result)
+                guard overlap.length > 0, overlap != live, overlap != result else { continue }
+                result = NSUnionRange(result, live)
+                grew = true
+            }
         }
+        return result
     }
 
     // MARK: - Adding
@@ -310,23 +376,120 @@ struct DocumentHistoryEngine {
         return .new(level: level, range: r, parent: parent, contained: contained)
     }
 
+    /// Add to History stores ONLY the original: one version, which is the live text. Adding a
+    /// range that is already a passage adds nothing and returns that passage. A passage that never
+    /// gains a second version is discarded when History mode is left
+    /// (`discardUnrevisedPassages`): adding something and changing nothing keeps nothing.
     @discardableResult
     mutating func add(_ range: NSRange, author: HistoryAuthor, in text: String) -> UUID? {
         guard let placement = placement(for: range, in: text) else { return nil }
-        let date = now()
         switch placement {
         case .existing(let id):
-            guard let index = index(of: id) else { return nil }
-            let live = history.passages[index].versions[history.passages[index].currentIndex].text
-            appendLive(HistoryVersion(text: live, author: author, createdAt: date), toPassageAt: index)
             return id
         case let .new(level, r, parent, contained):
             let live = (text as NSString).substring(with: r)
             return insertPassage(level: level, range: r, versions: [
-                HistoryVersion(text: live, author: .you, createdAt: date),
-                HistoryVersion(text: live, author: author, createdAt: date),
+                HistoryVersion(text: live, author: author, createdAt: now()),
             ], parent: parent, contained: contained, in: text)
         }
+    }
+
+    /// The writer's own alternative for passage `id`: appended as a new version and made current,
+    /// so the returned edit puts it in the document. The typed text is made one line
+    /// (`singleLineReplacement`) and given the live passage's OWN leading/trailing whitespace (an
+    /// accepted "AI rewrite. " keeps its trailing space, so the next sentence does not run on).
+    /// Text equal (trimmed) to a version the passage already has is not appended: that version is
+    /// selected instead. Nil when the text is empty or equals the trimmed current version, or the
+    /// passage cannot be located.
+    /// Like `select`, the edit is applied verbatim and NOT reported through `applyEdit`.
+    mutating func addReplacement(_ replacement: String, to id: UUID, in text: String) -> HistoryEdit? {
+        let trimmed = Self.singleLineReplacement(replacement)
+        guard !trimmed.isEmpty,
+              let located = locateAll(in: text).first(where: { $0.id == id }),
+              let p = index(of: id) else { return nil }
+        // The current version IS the live text (locateAll just refreshed it).
+        let current = history.passages[p].currentIndex
+        let live = history.passages[p].versions[current].text
+        if let existing = history.passages[p].versions.firstIndex(where: {
+            $0.text.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed
+        }) {
+            guard existing != current else { return nil }
+            return select(id, version: existing, in: text)
+        }
+        let leading = String(live.prefix { $0.isWhitespace })
+        let trailing = live.allSatisfy(\.isWhitespace) ? "" : String(live.reversed().prefix { $0.isWhitespace }.reversed())
+        let text = leading + trimmed + trailing
+        history.passages[p].versions.append(HistoryVersion(text: text, author: .you, createdAt: now()))
+        history.passages[p].currentIndex = history.passages[p].versions.count - 1
+        history.passages[p].lastTouched = now()
+        // Children stay with the version they were made in; didProduce hides them.
+        let edit = HistoryEdit(range: located.range, replacement: text)
+        didProduce(edit, for: id)
+        return edit
+    }
+
+    /// The replacement field is one line. A pasted line terminator — `\r\n`, `\n`, `\r`, U+2028,
+    /// U+2029, U+0085 (any `Character.isNewline`) — and the whitespace around it become ONE space:
+    /// inserted verbatim it would put a bare LF into a CRLF file (`MarkdownLineEnding.inForce`)
+    /// or start new Markdown structure. Edges are trimmed; other interior whitespace is kept.
+    static func singleLineReplacement(_ replacement: String) -> String {
+        replacement
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    /// Removes every passage with exactly one version (added, never given a replacement) and
+    /// returns their ids. Their children are NOT removed: they move up to the discarded passage's
+    /// own parent, in the version it was made in. A one-version passage's only version is the
+    /// live text, so those children still sit exactly where that parent shows them.
+    @discardableResult
+    mutating func discardUnrevisedPassages() -> [UUID] {
+        var discarded: [UUID] = []
+        while let p = history.passages.firstIndex(where: { $0.versions.count == 1 }) {
+            let gone = history.passages[p]
+            for i in history.passages.indices where history.passages[i].parentID == gone.id {
+                history.passages[i].parentID = gone.parentID
+                history.passages[i].parentVersionIndex = gone.parentVersionIndex
+            }
+            history.passages.remove(at: p)
+            liveRanges[gone.id] = nil
+            liveTexts[gone.id] = nil
+            discarded.append(gone.id)
+        }
+        return discarded
+    }
+
+    /// What a stored history is when it is loaded: adjacent duplicates collapsed, then every
+    /// one-version passage discarded (children reparented, as on leaving History). A one-version
+    /// passage only exists while History mode is open on it, so one on disk is left over from a
+    /// session that never ended (quit while History was open) or from 1.8.0's doubled Add.
+    static func preparedForLoad(_ history: DocumentHistory) -> DocumentHistory {
+        var engine = DocumentHistoryEngine(history: collapsingAdjacentDuplicates(history), now: Date.init)
+        engine.discardUnrevisedPassages()
+        return engine.history
+    }
+
+    /// Adjacent versions with identical text collapse into one (children of the duplicate move to
+    /// its twin; a current duplicate becomes its twin). Applied when history is loaded: 1.8.0's
+    /// Add stored the original twice, which the sidebar then listed twice.
+    static func collapsingAdjacentDuplicates(_ history: DocumentHistory) -> DocumentHistory {
+        var engine = DocumentHistoryEngine(history: history, now: Date.init)
+        for p in engine.history.passages.indices {
+            var v = 1
+            while v < engine.history.passages[p].versions.count {
+                let versions = engine.history.passages[p].versions
+                if versions[v].text == versions[v - 1].text {
+                    if engine.history.passages[p].currentIndex == v { engine.history.passages[p].currentIndex = v - 1 }
+                    // Reparenting to the twin never removes a passage, so `p` stays valid.
+                    engine.removeVersion(at: v, ofPassageAt: p, reparentingTo: v - 1)
+                } else {
+                    v += 1
+                }
+            }
+        }
+        return engine.history
     }
 
     /// One accepted AI action = one passage: `[original(you), accepted(ai)]`. `text` is the text
@@ -353,9 +516,21 @@ struct DocumentHistoryEngine {
             history.passages[index].versions[current] = HistoryVersion(
                 text: original, author: stored.text == original ? stored.author : .you, createdAt: stored.createdAt)
             appendLive(HistoryVersion(text: accepted, author: .ai, createdAt: now()), toPassageAt: index)
+            fileSetAside(under: id, version: current, original: original)
             return id
         }
-        guard let placement = placement(for: range, in: text) else { return nil }
+        // The innermost passage strictly containing the change, read BEFORE any locate refreshes
+        // its stored text: a change it cannot hold as a child (inside a word, or the same level)
+        // becomes a new version of it — its whole new text.
+        let container = liveRanges
+            .filter { NSIntersectionRange($0.value, range) == range && $0.value != range && $0.value != trimmed }
+            .max { (chain(to: $0.key).count, $0.key.uuidString) < (chain(to: $1.key).count, $1.key.uuidString) }
+            .flatMap { entry in index(of: entry.key).map { (id: entry.key, stored: history.passages[$0].versions[history.passages[$0].currentIndex]) } }
+        guard let placement = placement(for: range, in: text) else {
+            guard let container else { return nil }
+            return recordAccepted(inside: container.id, stored: container.stored, range: range,
+                                  original: original, in: text)
+        }
         let date = now()
         switch placement {
         case .existing(let id):
@@ -363,13 +538,36 @@ struct DocumentHistoryEngine {
             let current = history.passages[index].currentIndex
             history.passages[index].versions[current].text = original
             appendLive(HistoryVersion(text: accepted, author: .ai, createdAt: date), toPassageAt: index)
+            fileSetAside(under: id, version: current, original: original)
             return id
         case let .new(level, r, parent, contained):
-            return insertPassage(level: level, range: r, versions: [
+            let id = insertPassage(level: level, range: r, versions: [
                 HistoryVersion(text: original, author: .you, createdAt: date),
                 HistoryVersion(text: accepted, author: .ai, createdAt: date),
             ], parent: parent, contained: contained, in: text)
+            fileSetAside(under: id, version: 0, original: original)
+            return id
         }
+    }
+
+    /// A change strictly inside passage `id` that cannot nest there: the passage gains a version.
+    /// Its old whole text is its new whole text with the change put back (`original` at `range`),
+    /// so nothing is guessed; the replaced version keeps its author when it IS that old text.
+    private mutating func recordAccepted(inside id: UUID, stored: HistoryVersion, range: NSRange,
+                                         original: String, in text: String) -> UUID? {
+        guard let located = locateAll(in: text).first(where: { $0.id == id }),
+              NSIntersectionRange(located.range, range) == range, let index = index(of: id) else { return nil }
+        let ns = text as NSString
+        let newWhole = ns.substring(with: located.range)
+        let local = NSRange(location: range.location - located.range.location, length: range.length)
+        let oldWhole = (newWhole as NSString).replacingCharacters(in: local, with: original)
+        guard oldWhole != newWhole else { return nil }
+        let current = history.passages[index].currentIndex
+        history.passages[index].versions[current] = HistoryVersion(
+            text: oldWhole, author: stored.text == oldWhole ? stored.author : .you, createdAt: stored.createdAt)
+        appendLive(HistoryVersion(text: newWhole, author: .ai, createdAt: now()), toPassageAt: index)
+        fileSetAside(under: id, version: current, original: oldWhole)
+        return id
     }
 
     private mutating func insertPassage(level: HistoryLevel, range: NSRange, versions: [HistoryVersion],
@@ -396,7 +594,9 @@ struct DocumentHistoryEngine {
 
     /// The current version becomes frozen at its index and `version` is appended as the new live
     /// one. Children visible in the live text move with it. Consecutive duplicate FROZEN versions
-    /// collapse (the live version always stays, even when it equals the last frozen one).
+    /// collapse (the live version always stays, even when it equals the last frozen one). Used by
+    /// accepted AI changes only: Add to History adds no version, and `addReplacement` replaces the
+    /// live text (so children stay with the version they were made in).
     private mutating func appendLive(_ version: HistoryVersion, toPassageAt index: Int) {
         let id = history.passages[index].id
         let oldCurrent = history.passages[index].currentIndex

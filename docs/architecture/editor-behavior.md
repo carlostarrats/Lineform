@@ -636,8 +636,11 @@ the commit message claimed. The fixture now measures the last line.
 
 ## History (2026-11-12)
 
-Per-passage version History: right-click a selection ▸ **Add to History** keeps the passage's
-current text as a version; History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
+Per-passage version History: right-click a selection ▸ **Add Alternative…** (was "Add to History",
+2026-11-13) keeps the passage's current text as its original, enters History focused on it AND
+opens the "Type an alternative" field with focus (`pendingAlternativeFieldID` →
+`HistorySidebarModel.opensAlternativeField`, spent by `alternativeFieldDidOpen`, cleared when History
+mode ends; leaving without adding still discards the one-version passage); History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
 shows passages with history and steps their versions. Spec:
 `docs/superpowers/specs/2026-11-12-bring-your-own-ai-design.md` §5–§6. Pieces:
 `PassageHistoryStore.swift` (store), `DocumentHistoryEngine` (passages, live ranges, versions),
@@ -662,6 +665,201 @@ shows passages with history and steps their versions. Spec:
   that store runs `reloadFromStore()`. `reloadFromStore` replaces the engine BEFORE leaving
   History mode, because leaving saves — the other order wrote the cleared history straight back
   (`SettingsClearHistoryTests.testClearHistoryCallsClearAll` catches it).
+- **Add stores only the original; replacements are the writer's (1.8 QA follow-ups, 2026-11-13).**
+  `DocumentHistoryEngine.add` creates ONE version (the live text, `currentIndex 0`); adding a range
+  that is already a passage adds nothing and returns that passage. 1.8.0 stored a frozen copy plus
+  an identical live version, so the sidebar listed every added word twice ("gentle", "gentle").
+  `addReplacement(_:to:in:)` appends the writer's own text, makes it current, and returns the
+  `HistoryEdit` that puts it in the document. The typed text is made single-line
+  (`singleLineReplacement`: line breaks, with the whitespace around them, collapse to one space) and
+  given the live passage's OWN leading/trailing whitespace, so an accepted "AI rewrite. " keeps the
+  space before the next sentence; it is nil when the text is empty or equals the trimmed current
+  version, and text equal (trimmed) to another existing version SELECTS that version instead of
+  appending a duplicate. The
+  controller's `addReplacement(_:for:)` applies the edit through the same undo-disabled `didProduce`
+  path as a step, so the session still collapses to one undo step on exit. Children stay with the
+  version they were made in (hidden, as on a step), unlike `appendLive`, which only accepted AI
+  changes use. **Leaving History mode (exit or `endHistoryModeWithoutEdit`) calls
+  `discardUnrevisedPassages()`**: every one-version passage goes ("if you don't do anything, and go
+  back, then it erases it, because nothing was added"). Accepted AI changes are ≥ 2 versions and are
+  kept. A discarded passage's children are NOT discarded with it: they are reparented to its parent
+  at its `parentVersionIndex` — its only version IS the live text, so they still sit exactly where
+  that parent shows them (removing them would silently delete revised history nested in an unrevised
+  sentence). `FilePassageHistoryStore.load` applies `DocumentHistoryEngine.preparedForLoad`:
+  adjacent duplicates collapse, then every one-version passage is discarded (same reparenting). A
+  one-version passage only exists while History mode is open on it, so one on disk is a session that
+  never ended (quit while History was open; quit skips persisting in History mode, but the add
+  already saved) or 1.8.0's doubled add. Accepted behaviour: an AI accept whose text is identical to
+  the original is stored as two equal versions, so on the next load it collapses to one and is
+  discarded — there was no change to keep. A passage added WHILE History mode is on records its
+  version in `entryVersions` (Add never changes the text), or ⌘Z after a replacement left the
+  replacement current over the restored original and the next locate dropped the passage. The
+  controller fires `onRequestShowHistory(id)` after every add; `showPassage(_:text:)` enters History
+  mode focused on it.
+- **Showing History (2026-11-13).** `EditorContainerView.showHistory(focusing:)` is the one path for
+  "open History on this passage": `HistoryMenuHandlers` subscribes it to `onRequestShowHistory`,
+  DEFERRED a runloop turn (the request fires from inside `add` and from the end of an AI review,
+  which must finish first). It hands AI to `AIActionController.yieldToHistory()`: a request or
+  review ends, Mark's wash is dismissed (History never opens under it), and a message stays (the
+  return after an AI action arrives just after a review ended; dropping it would lose a refusal). Then it
+  switches to Write, calls `showPassage` — which checks the passage is in the text BEFORE entering
+  History mode, so a stale id never leaves History on with nothing selected — and only if that
+  succeeded opens the sidebar through `showSidebarIfHidden()` — AppKit's nil-targeted
+  `toggleSidebar:` (so it slides; it reaches the key window, which is the requesting window in
+  every current trigger) and ONLY when hidden; a bare `isShowingOutline = true` write snaps the
+  column with no animation. The hook is set through `setShowHistoryHandler(owner:)` and cleared on
+  the view's disappear by `clearShowHistoryHandler(owner:)`: it captures the whole editor view —
+  every `@StateObject`, the controller included — so it is a retain cycle until cleared, and the
+  owner token keeps a hierarchy rebuild (new appear before old disappear) from clearing the live
+  hook. View ▸ History uses the
+  same helper (it used to write the binding). The sidebar follows `isHistoryModeActive` onto its
+  History tab and back to the tab it came from (`OutlineSidebarTab.historyModeTransition`).
+- **One left edge and one right margin (2026-11-13).** Row icons sit on the icon column,
+  `sidebarIconColumnLeading` 22 — the tab icons' 18pt frames (14 + 8), the Files rows' (6 + 12 + 4)
+  and now History's version rows (6 + 0 + 12 + 4; they were at 26). Lead and secondary text —
+  History's lead line, empty text and hint, Files' sort row, Markdown Basics' headings — start on
+  `sidebarLeadTextLeading` (= 22; History's text was at 14, Basics' headings at 24). Trailing
+  controls and row backgrounds end `sidebarTrailingInset` 12 from the edge: Exit (pulled 2pt past
+  the picker's 14pt inset), the Files Choose/Change capsule, row backgrounds, History's prose, and
+  Add +'s glyph (its hover pill reaches 6pt past). Pinned by
+  `HistorySidebarPresentationTests.testEveryTabSharesOneLeftEdgeAndRightMargin`.
+- **Shared lead-line spacing (2026-11-13).** Every sidebar tab puts its lead line
+  `OutlineSidebarView.sidebarLeadLineTop` (20pt) under the tab divider and its first row or card
+  `sidebarLeadToFirstRow` (12pt) under that — the Files tab's existing geometry (16pt padding + the
+  sort row's 4pt inset; 8pt stack spacing + that inset). Outline (first heading row / empty text),
+  Files, Markdown Basics (first heading → first card; every section's heading → its cards) and
+  History (lead line → level switcher or first version) all read these, pinned by
+  `HistorySidebarPresentationTests.testEveryTabUsesTheSharedLeadLineSpacing`. History's lead line
+  takes the Files "Sort folders by" style (12pt medium, inactive-tab grey).
+- **Sidebar controls.** **Exit** (calls `exitHistoryMode()`) sits at the trailing edge of the
+  History row of the sidebar's TAB PICKER, shown only while History is the tab on screen
+  (`OutlineSidebarTab.showsHistoryExit`, an overlay so the row keeps its geometry). History's
+  content draws no header of its own (2026-11-13: the owner disliked "History" appearing twice);
+  it starts under the tab divider with the Outline tab's gap. While a passage is selected, the
+  first row under the divider is a quiet section row (2026-11-13, replacing the centred
+  "Add Alternative" capsule): "Versions of selected text" with a borderless **Add +** on the same
+  line (AX label "Add Alternative"). **Nothing moves when a passage is selected:** the empty
+  state's "Click a highlighted passage…" and this label are the same view
+  (`leadLine(leadText(…))`: `leadTextFontSize` 12pt, the secondary text colour, the 14pt
+  `textInset`, `leadTextTopInset` = the tab divider gap), so selecting a passage swaps the text
+  in place; Add is an OVERLAY on the label, vertically centred on it, so it cannot move the line
+  (its pill's 6pt padding puts the glyph on the Exit capsule's trailing edge). Add's ink
+  (`HistorySidebarPresentation.addButtonWhite`) is deliberately quieter than the Exit capsule's
+  label — lighter in light chrome, darker in dark — and hover brightens it and draws a faint
+  capsule behind "Add +" (`addButtonHoverFillOpacity`: white 0.10 on dark, black 0.05 on light —
+  0.07 measured closer to Exit's solid capsule than the sidebar, so it was lowered).
+  `HistorySidebarPresentationTests` pins all of it: quieter than Exit, ≥ 3:1 on the sidebar and
+  on the hover pill (`Theme.contrastRatio`), the shared lead-line constants. The empty state has
+  no Add. The field's placeholder is "Type an alternative". Add opens a text field at the END of
+  the versions list (where the capsule was), for ONE passage
+  (the row's Add, pressed while the field is open, just refocuses it;
+  `HistoryReplacementFieldState`, keyed by `HistorySidebarModel.selectedPassageID`). The field
+  carries a small circular return button at its trailing edge (`arrow.turn.down.left`, AX label
+  "Add") that does exactly what Return does, disabled while the field is empty or whitespace
+  (`canCommit`); it is `.focusable(false)`, so clicking it does not blur the field first (which
+  would close it unsaved). The typed text stops `commitButtonGap` (7pt) before it and scrolls
+  horizontally. Return (or the button) calls
+  `addReplacement(_:for:)` with that passage, which the controller REFUSES when the selection has
+  moved since. The field also closes when the selected passage id changes — the level buttons
+  (Paragraph · Sentence · Word) take no focus from it, so without that a sentence-sized replacement
+  typed, then "Paragraph" clicked, then Return replaced the whole paragraph. The engine makes the
+  text one line (`singleLineReplacement`: every line terminator, `\r\n` `\n` `\r` U+2028 U+2029
+  U+0085, with the whitespace around it, becomes one space — a pasted LF would otherwise land bare
+  in a CRLF file or start new Markdown structure), ignores empty text and text equal to the current
+  version, and SELECTS an existing version whose trimmed text matches instead of appending a
+  duplicate. Esc (`onExitCommand`), focus loss, or the sidebar view disappearing (hidden while
+  History stays on) closes it unsaved; every close reports `onReplacementFieldEnded` exactly once,
+  so `historyReplacementFieldIsOpen` can never stay stuck. While the field is first responder it owns the
+  keys — ← → edit the text, Esc closes the FIELD, not History — and on close
+  `focusEditorForHistory()` makes the text view first responder again, so ← → step versions.
+  The field's focus is written a runloop turn AFTER it is inserted
+  (`HistorySidebarPresentation.requestReplacementFieldFocus`): a `@FocusState` write in the same
+  pass (a bare `.onAppear`) is routinely dropped on macOS. Backstop: while the field is open the
+  text view's `historyReplacementFieldIsOpen` is set, and any key that still reaches it — text
+  (`refusesEditForHistoryReplacementField`, in `shouldChangeText`) or a caret move — types nothing,
+  never leaves History, and asks the field for focus (`HistoryReplacementFieldSignal`); Esc there
+  closes the field. History's own edits pass (`isApplyingHistoryEdit`); ending History clears it.
+  Because the refusal sits in `shouldChangeText`, it covers every whole-text command too: while the
+  field is open, formatting commands, heading keys, list toggles, Insert/Reformat Table and Find &
+  Replace change nothing, and History stays on. Exit
+  and Files' Change/Choose are `SidebarCapsuleButtonStyle` (11pt medium, h10, 22pt tall,
+  the Files colours; `.quiet` / `.prominent`). The hint is left-aligned on the empty state's 14pt
+  inset (`HistorySidebarPresentation.textInset`).
+- **History around an AI action (2026-11-13).** `AIActionController.run` calls
+  `DocumentHistoryController.aiActionWillStart()`; every end of the action — accept, reject,
+  Esc / ✕, cancel, a message (same text, nothing to change), an error, a skipped edit — calls
+  `aiActionDidEnd(recorded:changedRange:text:)` once (`settleHistory`).
+  - History mode ON when the action started: the selected passage is kept and History mode ends
+    (they never overlap). At the end History comes back through `onRequestShowHistory` (the
+    editor's deferred `showHistory(focusing:)`) on the passage the accept recorded, else the one
+    containing the changed range, else the one selected before — the first that locates; none →
+    History stays off. **Caveat:** AI is not offered in History mode today (`allowsAIAction`, and
+    History mode never holds a text selection), so this path is reachable only if that changes;
+    it is tested at the controller level.
+  - History mode OFF: an accept's recorded passage becomes `rememberedPassageID`; the next PLAIN
+    entry (`enterHistoryModeFromTab`: the History tab, View ▸ History) selects it if it locates,
+    instead of the empty state. Spent when used; cleared by `open`/`close` (a document swap) and by
+    any entry with an explicit target (`showPassage`: Add Alternative…, a return after an AI action). A
+    reject remembers nothing.
+  - Not settled (`aiActionAbandoned`): Try Again keeps the context for the re-run
+    (`endReview(settlingHistory: false)`); typing during a review, live reload / `abandon`,
+    `yieldToHistory` (History opening on its own target), and Mark's marks (History would dismiss
+    them) drop it. Without an editor nothing is located — `locateAll` drops passages it cannot
+    find, so it must only ever see the real text.
+- **An AI accept never opens History** (2026-11-13: editing is not History; History is something
+  the writer chooses). The "document's first accept shows History" rule and
+  `introduceAfterAIAccept` are gone (it had replaced a once-ever rule behind the
+  `Lineform.history.didIntroduceAfterAI` default, which is not read either). What stays is the
+  remembered passage: the next History-tab click selects it.
+- **AI on any selection, and how an accept is recorded** (2026-11-13). `allowsAIAction` refuses
+  only in History mode; it used to refuse on and inside a `.word` passage
+  (`isInsideWordPassage`, spec §5's "nothing nests inside a word"), which is what hid the AI items
+  when the writer selected words of a line they had already rewritten (a ≤ 3-word accepted change
+  in one sentence classifies as `.word`). Now:
+  - **Partial overlap:** `AIActionController.run` widens the selection over any passage it partly
+    covers (`DocumentHistoryEngine.aiActionRange`, live ranges only, to a fixpoint), so the
+    accepted change never straddles a passage boundary — an edit across a boundary DROPS that
+    passage. The request then carries the whole passage.
+  - **Equal to a passage:** a new version of it (the live-range match, as before).
+  - **Inside a passage that can hold it** (a word inside a sentence/line, a sentence inside a
+    paragraph): a nested child, as before.
+  - **Strictly inside a passage that cannot** (inside a word, or the same level): a new version of
+    that passage — its whole new text, with its old whole text rebuilt by putting `original` back
+    at the change (`recordAccepted(inside:…)`); the version replaced keeps its author when it IS
+    that text.
+  - **Containing passages:** the accept's edits would drop them, so while it is applied
+    (`aiAcceptWillApply`/`aiAcceptDidApply` → `beginSettingAside`) a dropped passage is SET
+    ASIDE — versions kept, live range forgotten, skipped by `locateAll` — and `recordAccepted`
+    files it under the recorded passage at the version its text lives in (`fileSetAside`, matched
+    by its text appearing in that version), so stepping back shows it again. One the recording
+    cannot file (nothing recorded, or its text is in no recorded version) is dropped as before
+    when the recording finishes (`aiAcceptRecordingDidFinish`). Not covered: ⌘Z of the accept
+    still drops the recorded passage (and what was filed under it), as any edit covering a
+    passage does.
+  - Kept refusals: the structure guard's (Markdown structure, line endings, control characters)
+    are unchanged; History mode still refuses AI.
+- **Layered boxes and the overview (2026-11-13).** Every visible passage draws as a rounded box
+  (`HistoryPalette.layerCornerRadius` 3, the mockup's) in depth order
+  (`HistoryModeDisplay.layerDepths`: one more than the passages around it; a twin range's finer
+  level is inside), each depth one more layer (`layerFills`), all fills opaque composites:
+  - overview: `washFill(depth)` — 0.08, then `nestedTintAlpha` 0.05 per extra layer (three full
+    0.08 washes sit right at AA on Quiet, leaving no room for hover); hover `hoverFill(depth)` =
+    the passage's own wash + 0.07, so hover brightens just that box and its children still draw
+    over it;
+  - a passage selected (QA: the layering vanished here — every other passage was ONE flat
+    `focusOtherTint`): the selected passage is accent blue (`selectedFill`, 0.20 light / 0.30
+    dark); passages inside it add ink layers over the blue (`selectedChildFill`, 0.07 per
+    depth); every other passage, its parents included, `focusOtherFill(depth)` (0.10 stacked)
+    under `focusOtherInk(depth)`, measured on that depth's fill (applied outer first, so the
+    inner ink wins).
+  `HistoryPaletteTests.testLayeredFillsStayDistinctAndReadable` pins every theme: each depth
+  (1–3) darker than the one around it, full ink AA on wash/hover/selected/selected+nested (to
+  depth 2), focus-other ink ≥ 3:1 per depth.
+  **Back to the overview:** a click on ordinary text, or Esc, while a passage is selected sends
+  `.deselect` (History stays on, nothing selected, the sidebar shows its empty-state text); Esc
+  with nothing selected leaves History as before, and with the alternative field open Esc only
+  closes the field. The sidebar hint follows: "… · Esc deselects" while a passage is selected,
+  "… · Esc closes" otherwise.
 - **Normal writing draws nothing.** No counters, tints, or underlines outside History mode. The receded
   ink in History mode is a layout-manager TEMPORARY attribute; the text storage is never touched.
 - **One source of user edits.** `LineformTextView.shouldChangeText(in:replacementString:)` is the
@@ -730,14 +928,27 @@ shows passages with history and steps their versions. Spec:
   caret moved to its end). Only that: a first version refused every range-replacing edit and so
   silently threw away ⌘B/⌘I, ⌘0–⌘6, Insert/Reformat Table, Find & Replace and spelling
   corrections issued in History mode — those leave the mode and apply.
-- **History-mode visuals (2026-11-12, owner-approved "C + A").** Entering: unchanged text
-  receded (`recededInk`, ≥ 3.0:1), passages with history full ink on a gray wash (`tint`, hover
-  `hoverTint` drawn opaque); no counters, so NOTHING reflows on entry. Focus (a passage clicked):
-  no fills and no blue — the focused passage keeps the full ink, every other passage drops to
-  `focusOtherInk` (0.38, ≥ 2.5:1; the hovered one to `recededInk`, so it reads as clickable), and
-  unchanged text to `deepRecededInk` (0.22, ≥ 2.0:1). `HistoryPaletteTests` asserts the floors,
-  their order, and AA for the focused text and counter on every theme. All inks are temporary
-  layout-manager attributes.
+- **History-mode visuals (2026-11-12, owner-approved "C + A"; focus fills revised 2026-11-13
+  after 1.8 QA).** Entering: unchanged text receded (`recededInk`, ≥ 3.0:1), passages with history
+  full ink on a gray wash (`tint`, 0.08 — the lightest that clears 1.15:1 off the light pages while
+  three nested washes keep AA on Quiet; 0.09 does not), the hovered one on `hoverTint` (0.15) drawn
+  opaque; no counters, so NOTHING reflows on entry. Focus (a passage clicked): the focused passage
+  keeps the full ink and no fill; every OTHER passage stays visibly highlighted — `focusOtherTint`
+  (0.10, drawn OPAQUE so nested passages never stack under the dimmed ink, ≥ 1.15:1 off the page)
+  with `focusOtherInk` (0.38, raised by `readableInk` to ≥ 3:1 measured ON that tint); hovering
+  one brings it to full strength (full ink on the opaque hover fill); unchanged text drops to
+  `deepRecededInk` (0.22, ≥ 2.0:1). No blue. The first version drew NO fills while focused
+  ("focus is carried by the inks"), and QA found the other passages simply vanished into the page
+  once one was clicked; the owner's bar is "dark enough for accessibility … it can't be too
+  faint". `HistoryPaletteTests` asserts every floor on every built-in theme (Quiet is Automatic
+  Dark Mode's page), and `testOtherPassagesKeepAFillWhileOneIsFocused` renders the view and
+  measures the drawn fill. All inks are temporary layout-manager attributes.
+- **Cursor.** In History mode the pointer is the ARROW over any passage a click would
+  select (never the pointing hand: the owner wants only the arrow and the I-beam; the hover
+  highlight is what says a passage is clickable) (`historyCursor(at:)`, the same glyph hit-test as the click and hover) and the I-beam
+  elsewhere. The History tracking area carries `.cursorUpdate`; `mouseMoved` sets the cursor AFTER
+  `super` (which sets the I-beam) and `cursorUpdate` returns before `super` while History mode is
+  on. Cursor rects are invalidated on entry and exit so leaving hands the I-beam back.
 - **The counter** ("current/total", `HistoryCounter.text`) appears ONLY on the focused passage,
   after its last non-whitespace glyph: 10pt medium tabular numerals (`HistoryCounterLayout`),
   3pt after the glyph, cap-aligned with the text, full ink. Its room is RESERVED so it can never
@@ -758,7 +969,7 @@ shows passages with history and steps their versions. Spec:
   The formatting group (Title, Section, Bold, Italic, Code, Bulleted List, Link) is left out
   (`LineformTextContextMenuPresentation.showsFormattingCommands(for:isHistoryModeActive:)`, which
   `commandTitles(for:isHistoryModeActive:)` shares), because the writer is stepping versions, not
-  formatting. Add to History is left out too — explicitly, though the clamped caret already made
+  formatting. Add Alternative… is left out too — explicitly, though the clamped caret already made
   it unreachable — and the AI group was already absent (`allowsAIAction`). The ⌘B/⌘I keys and the
   Format menu are untouched: they still leave the mode and apply, as above.
 - **Edits go through the localized path** — `shouldChangeText` → `textStorage.replaceCharacters` →
@@ -795,7 +1006,7 @@ action does to the document. The two sections after it cover the text-view and o
 - **State machine** (`AIActionController.State`): `idle → running(action, provider) →
   reviewing(session) | marking(ranges) | message(text) → idle`. `run` is a SILENT no-op unless
   connected, the selection is non-empty, nothing is running or under review, and History allows it
-  (`DocumentHistoryController.allowsAIAction`: not in History mode, not inside a `.word` passage).
+  (`DocumentHistoryController.allowsAIAction`: not in History mode).
   It then builds the request, checks `AILimits` (≤ 400 segments, ≤ 24,000 UTF-16 units of prose,
   else "Select less text"), and only THEN calls `resolvedConnection()` — the one Keychain read —
   and the client. A generation token makes any reply after cancel/abandon a no-op. Write mode only;
@@ -815,8 +1026,8 @@ action does to the document. The two sections after it cover the text-view and o
   whole reply is "couldn't be used". (2) `MarkdownStructureGuard.admissibleRevisions` drops, per
   segment, any revision with a line terminator, a `Cc`, a `Cf` the original lacked, a different
   structure-punctuation sequence, or a different block signature. (3) The composed document must
-  `verify` against the original's whole-document signature, or nothing is offered. Then EVERY
-  decision is verified again on its own (below).
+  `verify` against the original's whole-document signature, or nothing is offered. Then the one
+  change is verified again when it is accepted (below).
 - **The structure rule, as built** (decisions paid for in review rounds — do not loosen):
   - Every `*`, `_` and `~` in the document is structure, paired or not. This closed a whole class of
     emphasis re-pairing bypasses; the cost is that the AI cannot fix a typo that touches one of them
@@ -829,21 +1040,38 @@ action does to the document. The two sections after it cover the text-view and o
     control the original segment did not contain is dropped. This also drops an AI's new emoji ZWJ
     sequence or Persian/Indic ZWNJ shaping — accepted as the price of never admitting invisible
     control characters.
-  - Token comparison in the diff is canonical-equivalence (an NFC-only renormalisation is "no
+  - "Unchanged" is canonical equivalence (an NFC-only renormalisation of a segment is "no
     change", the writer's bytes kept); the stale-segment and stale-text checks are exact UTF-16.
-- **Per-decision verify.** A subset of a verified reply can still change structure (`$5` → `5$`
-  diffs into a deletion and an insertion; accepting only the insertion gives `$5$`, which is math).
-  Each accept and each Accept Remaining runs `verify(current, current+edits)` first; a refused one is
-  marked rejected (single) or left pending (batch) and shows "That change would alter the Markdown,
-  so it wasn't applied." on the card.
-- **Undo shape.** One decision = one `applyAIEdits` call = one undo group = one ⌘Z. Accept Remaining
-  is ONE call, named "Accept Suggestions" ("Accept Suggestion" for one edit), its edits in
-  descending order in pre-batch coordinates.
+- **One change per action** (QA 1.8, spec "AI review: option A"). Whatever the writer selected —
+  a word, a sentence, several paragraphs; Trim, Cut in half, Rewrite or Proofread — is ONE
+  `AIChange` and ONE Accept / Reject decision (`AIChangeBuilder.change`). Build 38 diffed each
+  segment at word level (tokens, LCS, hunks) and offered every hunk as its own decision: a
+  one-sentence rewrite came back as three. That word-level diff is gone; do not bring it back to
+  split decisions. The change's `range` runs from the first CHANGED segment to the last (unchanged
+  segments at the edges are outside it; one in the middle is kept verbatim); `replacement` is that
+  span with each changed segment rewritten and the document's own text between segments —
+  markers, CRLF — byte-for-byte. It is APPLIED as `parts`, one edit per changed segment
+  (`AIChange.edits`, descending), in one `applyAIEdits` call: the span crosses line endings, and
+  the text view refuses (skips) any AI edit that touches one.
+- **Verify the whole change.** The composed reply is verified when it arrives, and the change is
+  verified again against the CURRENT text when it is accepted (`verify(current, current+edits)`).
+  Before one-change-per-action, a SUBSET of a verified reply could change structure (`$5` → `5$`
+  diffed into a deletion and an insertion; accepting only the insertion gave `$5$`, which is
+  math) — verifying the whole change removes that class. A refused accept is marked rejected and,
+  as the only decision, ends the review with "That change would alter the Markdown, so it wasn't
+  applied." as the status message.
+- **Undo shape.** One decision = one `applyAIEdits` call = one undo group ("Accept Suggestion") =
+  one ⌘Z, however many segment edits it carries (descending order).
+- **Esc is reject-and-end.** `.end` (Esc, the card's Reject and ✕, a hand-off key) calls
+  `endReview()`, which explicitly marks every pending change rejected before ending: nothing pending
+  is applied, and History records nothing unless something was accepted. `endReview()` returns the
+  ended session so this is asserted. The multi-change APIs (move, keep-original, Accept/Reject
+  Remaining, position counter) were removed with option A — a review only ever holds one change.
 - **History.** Recorded once, when the review ends (last decision, End/Esc, or typing), and only if
   something was accepted: one passage per CHANGED paragraph (`acceptedPassages`). `abandon()`
   records nothing.
 - **The selection after a review.** The reviewed passage stays selected in the editor under the
-  overlay. Whenever `state` leaves `.reviewing` — Esc, the card's buttons, the last pill, a typed
+  overlay. Whenever `state` leaves `.reviewing` — Esc, the card's buttons, Return, a typed
   key, a tab swap's `endReview`, `abandon`, disconnect — its `didSet` calls
   `collapseSelectionForAI(at: caretEnd(of: selectionRange))` (the session keeps that range
   shifted by every accept). `caretEnd` stops BEFORE trailing `\n` / `\r\n`: a triple-click selects
@@ -860,20 +1088,32 @@ action does to the document. The two sections after it cover the text-view and o
 - **Disconnect.** The controller observes `AIConnectionStore.connectedProvider`: a change away from
   the provider of a running request cancels it, and away from the provider a review came from
   abandons the review. Reconnecting the same provider (a new key) leaves both alone.
+- **A reply that changes nothing** (2026-11-13). Proofread says "No changes suggested." — finding
+  no errors is a legitimate answer. Trim, Cut in half, Rewrite and Another Word
+  (`AIAction.mustChangeText`) exist to change the text, so they never say that
+  (`AIActionController.unchangedMessage`): a reply whose segments equal the originals (edge
+  whitespace ignored) is "<provider> returned the same text. Try again." ("Your AI…" for Other,
+  the progress card's naming), and one whose revisions were all REFUSED by the structure guard is
+  the unusable-response message. The prompts also ask for it: Rewrite "always change the wording",
+  Trim "always remove at least some words", Cut in half and Another Word "never return … unchanged
+  / the same word". `scripts/ai-stub-server.py` honours the same contract (its `--self-check`
+  asserts it).
+- **Another Word** (2026-11-13) is an edit action like the others (`AIAction.anotherWord`, raw
+  value `anotherWord`): instruction "return one different word, or a very short phrase … same
+  meaning, same part of speech, matching its capitalization. Never return the same word."; progress
+  "Finding another word with <provider>…", review card "Word ready", the same one-change review.
 - **Mark** changes nothing: it shows `.marking(ranges)` as layout-manager temporary washes in
-  `HistoryPalette.tint`; the reply's 1-based sentence numbers are bounded before any `Int`
+  `HistoryPalette.markWash` (2026-11-13: an OPAQUE ink wash, 0.12 light / 0.20 dark — the
+  translucent History tint it used was barely visible on a dark page; `HistoryPaletteTests` pins it
+  further off the page than the History tint, ≥ 1.2:1, with the text AA); the reply's 1-based sentence numbers are bounded before any `Int`
   conversion, deduped, and capped at `max(1, ceil(n/3))`, lowest numbers kept.
-- **Messages use one/many, not a stringsdict.** "1 change suggested" / "%lld changes suggested"
-  (and the sentence-marked pair) are two catalog keys chosen by `count == 1`. That is correct for
+- **Messages use one/many, not a stringsdict.** "1 sentence marked" / "%lld sentences marked"
+  are two catalog keys chosen by `count == 1`. ("1 change suggested" is now a fixed message: one
+  action is one change, so its plural key was removed.) That is correct for
   every shipped language (es, fr, de, ja, zh-Hans: ja/zh have one form, and 0 never reaches these
   strings — it becomes "No changes suggested." / "Nothing to mark."). A language with dual/few/many
   forms (Russian, Polish, Arabic) would need a real plural variation in the catalog.
-- **Known gap: word passages right after a whole-text write.** `allowsAIAction` reads History's
-  LIVE ranges only (it never searches text). `noteWholeTextReplacement()` invalidates them, so
-  between a whole-text write and the next locate, an action inside a `.word` passage is not
-  blocked. Live reload and open re-locate immediately, so the window is brief; the action itself is
-  still structure-safe — only the spec §5 "nothing nests inside a word" rule is briefly unenforced.
-- **Not hands-on verified yet** (owed in GUI QA): pills/keys/cards on screen, dead keys and IME
+- **Not hands-on verified yet** (owed in GUI QA): the struck/highlighted change, keys and cards on screen, dead keys and IME
   hand-off (ja, zh-Hans, ⌥E), Focus/ruler assists (not mirrored in the overlay, so they vanish
   during a review), VoiceOver, German consent label fit.
 
@@ -881,11 +1121,17 @@ action does to the document. The two sections after it cover the text-view and o
 
 `LineformTextView+AI.swift`; the controller is `AIActionController` (Lineform/AI).
 
-- **Context menu.** After Paste and Add to History: separator, Rewrite ▸ (Trim, Cut in half,
+- **Context menu.** After Paste and Add Alternative…: separator, Rewrite ▸ (Trim, Cut in half,
   Rewrite), Proofread, Mark ▸ (Weakest sentences, Long sentences). ABSENT, not disabled, unless
   `aiAvailabilityHandler` says yes for a non-empty selection — a whole-document structure
   analysis, so it is asked only when the menu is built. Both submenus carry
-  `MainMenuIconDecorator.excludedMenuIdentifier`.
+  `MainMenuIconDecorator.excludedMenuIdentifier`. The group is chosen by
+  `LineformTextContextMenuPresentation.aiMenuEntries` (2026-11-13): a SINGLE-WORD selection
+  (`isSingleWord`: trimmed, no whitespace inside, at least one letter) gets **Another Word** in
+  place of the Rewrite submenu, with Proofread; **Mark ▸ appears only when the selection touches
+  at least two sentences** (`AISentenceSplitter`, counted only for multi-word selections). There
+  is no no-selection case: the AI group needs a selection, so Mark never runs on the whole
+  document. AI actions have no main-menu entries.
 - **One decision = one ⌘Z.** `applyAIEdits` opens ONE undo group and runs every edit through
   `shouldChangeText → textStorage.replaceCharacters → didChangeText`, so History hears each edit
   from its single user-edit source in pre-change coordinates. `breakUndoCoalescing` and
@@ -913,26 +1159,64 @@ the app's one `AIConnectionStore.shared`).
 - **The suggestions are an overlay, never the buffer.** While `state == .reviewing` in Write, an
   `AIReviewSurfaceRepresentable` (an `NSScrollView` + `AIReviewTextView`, a TextKit 1 stack like the
   editor's) lies exactly over the editor. It shows `AIReviewComposition`: for each PENDING change, the
-  document's own original (dimmed with a TEMPORARY `.foregroundColor` in `HistoryPalette.recededInk`,
-  unless kept), the replacement in the normal ink, then a U+FFFC carrying an `AIReviewPillCell`.
-  Decided changes contribute nothing. Everything before the first change is byte-identical to the
+  document's own original struck through and dimmed (TEMPORARY `.foregroundColor`
+  `HistoryPalette.recededInk` + `.strikethroughStyle` single), then the replacement on a
+  TEMPORARY `.backgroundColor` `HistoryPalette.reviewInsertTint` (the mockup's accent wash, returned
+  opaque; ≥ 1.15:1 off the page with AA text on it, pinned in `HistoryPaletteTests`). Decided changes
+  contribute nothing.
+- **Inks inside a replacement are measured against the TINT.** `readableInk` puts the link ink at
+  exactly 4.5:1 against the PAGE, so any visible tint takes it under AA (3.25:1 on Night; Quiet's
+  inline code also fell to 4.497:1). No tint light enough to fix that is still visible, so the tint
+  was NOT changed: `present` re-inks each storage foreground run in a replacement through
+  `HistoryPalette.reviewReplacementInk` (a temporary attribute), which keeps on the tint the
+  contrast the ink had on the page, up to AA (`Theme.readableInk(_:minimumRatio:on:)`). Body text
+  already passes and is left alone; muted Markdown markers stay as muted as they were.
+- **Option A, no pills (QA 1.8).** Build 38 put a ✓|✕ pill (a U+FFFC attachment) after every change
+  and made the struck original a click-to-keep toggle. Both are gone, with the pill's hit-testing,
+  ← / → navigation and the Keep / Next / Previous VoiceOver actions: one action is one change, decided
+  on the card or with Return (accept) / Esc (end = reject; nothing pending is applied). The overlay
+  takes no clicks and keeps an ARROW cursor (`resetCursorRects`, `cursorUpdate`, `mouseMoved`).
+  Temporary strikethrough was pixel-checked to draw (TextKit 1 documents temporary attributes as
+  "colours and underlines"; strikethrough is honoured too).
+- **Drawn from `parts`, sentence by sentence.** The composition walks `AIChange.parts`, never the
+  whole span: the span crosses list markers and line endings, which would otherwise be struck AND
+  repeated. Text between parts is copied once as document text. Inside a part,
+  `AIReviewComposition.differingSpan` drops identical leading/trailing SENTENCES
+  (`enumerateSubstrings(.bySentences)`, as `AISentenceSplitter`; exact UTF-16) and the whitespace the
+  two sides share at the remaining edges, so a paragraph whose middle sentence changed strikes that
+  sentence alone. When what differs is a whole physical line (starts at a line start, ends before its
+  terminator or at the end of the text), the replacement goes on its own line using
+  `MarkdownLineEnding.inForce` — overlay only, never written; otherwise it follows inline after
+  `AIReviewSession.separator`. "Whole line" also covers ALL of a line's prose after its Markdown
+  marker prefix (`- `, `1. `, `> `, `- [ ] `, nested `> - `, indented): the replacement line then
+  repeats that prefix so it reads as the same list/quote item (`wholeLineMarker`; overlay only, the
+  document edit is unchanged). A leading U+FEFF on the document's first line is skipped before
+  matching and never copied into the repeated marker. Prose before the change on the same line keeps
+  it inline. Everything before the first change is byte-identical to the
   document and `matchGeometry(of:)` copies the editor's inset, padding, container width, frame width
   and paragraph style, so its lines sit on the editor's.
 - **Scroll hand-over is by CHARACTER, never pixel y.** Past the first change the overlay is taller
-  than the document (it also shows removed text and pills), so a copied `bounds.origin.y` showed
+  than the document (it also shows the struck originals), so a copied `bounds.origin.y` showed
   other text — a visible jump on every Esc / last decision, and on make when the selection began
   above the viewport. `topAnchor(of:)` takes the first character of the top line (and the offset
   into it); `AIReviewComposition.overlayIndex(forDocumentIndex:)` / `documentIndex(forOverlayIndex:)`
-  map it (text a change adds maps to the change's end); `originY(in:showing:offset:)` puts that
+  map it through the composition's `insertions` (separators, line breaks and replacements — text the
+  document lacks — map to the document index they stand at, the end of the struck original); `originY(in:showing:offset:)` puts that
   character's line at the top. On make it is applied now and again on the next turn (once SwiftUI has
-  sized the scroll view); dismantle returns first responder to the editor.
-- **Highlight, THEN attach.** `MarkdownSyntaxHighlighter.highlight` resets every attribute over the
-  whole range, attachments included, so the pills are added after it.
+  sized the scroll view); dismantle returns first responder to the editor. **The offset may be
+  NEGATIVE** (2026-11-13): at rest at the top of a document the visible top is in the
+  `textContainerInset`, above the first line; `topAnchor` clamped that to 0, so the overlay opened
+  one inset (~28pt) lower and the whole document jumped up when a review started (and back when it
+  ended). `LineformTextViewAITests.testReviewScrollHandOverKeepsTheTopInset` round-trips visible tops
+  0, 10, 28 and 120 through `topAnchor`/`originY` on a windowless scroll view.
+- **Review styling is temporary attributes only.** `MarkdownSyntaxHighlighter.highlight` resets every
+  storage attribute over its range, so nothing review-specific lives in the storage: strike, dimming
+  and highlight are all layout-manager temporary attributes, cleared and re-added on every present.
 - **A decision redraws only its span.** The first `present` (and a profile change) is a whole pass.
   A decision's composition differs from the last only around the decided change, so `present`
   replaces just the differing UTF-16 span (`differingSpan`), re-tokenizes just its lines
   (`refreshTokens`; the analyzer is line-local, so this equals a whole pass — asserted), re-sets
-  every pill and the dimming, and does NOT `sizeToFit` (that lays out the whole document after the
+  the strike, dimming and highlight, and does NOT `sizeToFit` (that lays out the whole document after the
   span; background layout grows the view instead). It also never sets `font` / `textColor`, which
   rewrite the whole storage. Measured at 700 KB: whole pass ~600 ms (~500 ms of it the full layout,
   ~80 ms highlighting), a decision ~11 ms. The one-time ~600 ms when a review opens on a very large
@@ -955,25 +1239,38 @@ the app's one `AIConnectionStore.shared`).
   a plain text view stands in.
 - **Undo can't reach underneath.** The overlay's `undoManager` is an empty private one: ⌘Z during a
   review is disabled rather than popping the document's stack (Task 7's open concern).
-- **VoiceOver.** The overlay carries `accessibilityCustomActions` (Accept/Reject Change, Keep Removed
-  Text when the current change removes text, Next/Previous Change, Accept/Reject All → Remaining,
-  End Review); progress is announced by the controller, never written into an AX value.
-- **Cards.** One floating card at the BOTTOM of `editorContent` (an overlay, never a laid-out bar):
-  `AIStatusCard` for a running request (progress, "Esc to cancel", ✕ cancels), a message (steps aside
-  after 8 s) or Mark's count ("Esc clears marks"); `AIReviewCard` ("3 of 7", Accept All / Reject All
-  → Remaining after a decision) while a review has more than one change. A one-change review gets a
-  quiet `AIStatusCard` ("1 change suggested", "Return to accept · Esc to dismiss", ✕ ends the
-  review), so its modal keys are discoverable. While an AI card is up the
+- **VoiceOver.** The overlay carries `accessibilityCustomActions` — exactly Accept Change, Reject
+  Change (while a change is current) and End Review; its AX value is the composition as drawn.
+  Progress is announced by the controller, never written into an AX value.
+- **Cards (QA 1.8).** One floating card in the BOTTOM-TRAILING corner of `editorContent` (an
+  overlay, never a laid-out bar), at the default-app card's inset (16), corner (12), padding (h14
+  v13), type (title 13 semibold, body 11.5) and ✕ (18×18, 9pt bold, −2 offsets, top-trailing).
+  `AIStatusCard`: a running request (spinner in the default-app card's 26pt icon slot, "Rewriting
+  with ChatGPT…", "Esc to cancel", ✕ cancels), a message (steps aside after 8 s) or Mark's count
+  ("Esc clears marks"). `AIReviewCard`: "Rewrite ready" / "Trim ready" / "Cut ready" / "Proofread
+  ready" / "Word ready", "Return to accept · Esc to reject", then Try Again (a small bordered icon
+  button, `arrow.clockwise`, label and tooltip "Try Again"), Reject (bordered) + Accept
+  (prominent); Reject and ✕ send `.end`. **Try Again** (2026-11-13) sends `.retry`: only while
+  nothing is accepted, the controller ends the review (a reject — nothing was ever applied, so the
+  original is untouched) and runs the SAME action on the session's `selectionRange` again,
+  showing the normal progress card and then a new review. The retry's system prompt gains one
+  last line, `Give a different result than: {"segments":[…]}`, holding the reply segments of the
+  suggestion just discarded (`AIActionPrompt.editPrompt(_:segments:avoiding:)`; the user message is
+  unchanged, and the list is dropped if it no longer lines up with the segments). A retry that
+  comes back identical to the ORIGINAL gets the usual "returned the same text" message. No key
+  shortcut. Both HUG their content up to `AnnouncementCard.maximumWidth` through `AICardWidthCap`
+  — `.frame(maxWidth:)` grows to the cap whenever the overlay offers more, which was the old review
+  card's dead space. Checked offscreen (NSHostingView + cacheDisplay) in Light and Quiet-dark next
+  to the default-app card, at 720pt and the 220pt minimum content width. While an AI card is up the
   announcement / default-app card is hidden. `usesDarkChrome` is threaded. All floating cards
   (announcement, default app, AI) share ONE `FloatingCardChrome` modifier. The card's arrival and
   departure animate on `aiCardKind` from a persistent `ZStack`.
 - **Composition cache.** `AIReviewCompositionCache` rebuilds only when the session or the editor's
-  text changes; the container body re-evaluates far more often. The overlay's spoken value drops the
-  pills' U+FFFC (VoiceOver reaches them through the custom actions).
+  text changes; the container body re-evaluates far more often.
 - **A refusal is seen, not only announced.** A decision `MarkdownStructureGuard` refuses sets
-  `AIActionController.reviewNotice`, drawn on the review card (or alone on a status card for a
-  one-change review) and cleared by the next command; if the refusal was the last decision the
-  review ends and the refusal becomes `state = .message`.
+  `AIActionController.reviewNotice`; with one change the refusal is always the last decision, so
+  the review ends and the notice becomes `state = .message` (the status card). The review card
+  never draws a notice.
 - **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call
   `endAIForDocumentChange()` first, like typing). Before this the backstop refused the edit after the
   search state had already moved on. The representable also drops `isAIReviewActive`

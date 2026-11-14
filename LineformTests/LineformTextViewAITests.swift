@@ -64,7 +64,8 @@ final class LineformTextViewAITests: XCTestCase {
 
     func testContextMenuOffersAIGroupForSelection() throws {
         let textView = makeTextView()
-        let selection = NSRange(location: 6, length: 4)
+        // Two sentences, several words: the full group (Rewrite ▸, Proofread, Mark ▸).
+        let selection = NSRange(location: 6, length: 20)
         textView.setSelectedRange(selection)
         var asked: [NSRange] = []
         textView.aiAvailabilityHandler = { asked.append($0); return true }
@@ -81,6 +82,7 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertTrue(menu.items[rewrite - 1].isSeparatorItem)
         XCTAssertEqual(titles[rewrite + 1], AIAction.proofread.title)
         XCTAssertEqual(titles[rewrite + 2], LineformTextContextMenuPresentation.aiMarkMenuTitle)
+        XCTAssertFalse(titles.contains(AIAction.anotherWord.title))
 
         let rewriteMenu = try XCTUnwrap(menu.items[rewrite].submenu)
         XCTAssertEqual(rewriteMenu.items.map(\.title), ["Trim", "Cut in half", "Rewrite"])
@@ -98,6 +100,60 @@ final class LineformTextViewAITests: XCTestCase {
         }
     }
 
+    /// One word: "Another Word" replaces the Rewrite submenu; Proofread stays; no Mark (one
+    /// sentence). Choosing it runs `.anotherWord` on the selection.
+    func testSingleWordSelectionOffersAnotherWord() throws {
+        let textView = makeTextView()
+        let selection = NSRange(location: 6, length: 4) // "beta"
+        textView.setSelectedRange(selection)
+        textView.aiAvailabilityHandler = { _ in true }
+        var commands: [AITextCommand] = []
+        textView.aiCommandHandler = { commands.append($0) }
+        let menu = try XCTUnwrap(textView.menu(for: Self.contextMenuEvent()))
+        let titles = menu.items.map(\.title)
+        let another = try XCTUnwrap(titles.firstIndex(of: "Another Word"))
+        XCTAssertTrue(menu.items[another - 1].isSeparatorItem)
+        XCTAssertEqual(titles[another + 1], AIAction.proofread.title)
+        XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.aiRewriteMenuTitle))
+        XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.aiMarkMenuTitle))
+        let item = menu.items[another]
+        XCTAssertNil(item.submenu)
+        _ = textView.perform(try XCTUnwrap(item.action), with: item)
+        XCTAssertEqual(commands, [.run(.anotherWord, selection)])
+    }
+
+    /// Several words of ONE sentence: Rewrite ▸ and Proofread, but no Mark.
+    func testOneSentenceSelectionHasNoMark() throws {
+        let textView = makeTextView()
+        textView.setSelectedRange(NSRange(location: 0, length: 16)) // "Alpha beta gamma"
+        textView.aiAvailabilityHandler = { _ in true }
+        let titles = try XCTUnwrap(textView.menu(for: Self.contextMenuEvent())).items.map(\.title)
+        XCTAssertTrue(titles.contains(LineformTextContextMenuPresentation.aiRewriteMenuTitle))
+        XCTAssertTrue(titles.contains(AIAction.proofread.title))
+        XCTAssertFalse(titles.contains(LineformTextContextMenuPresentation.aiMarkMenuTitle))
+    }
+
+    func testAIMenuEntriesRule() {
+        typealias P = LineformTextContextMenuPresentation
+        var counted = 0
+        let count: (Int) -> () -> Int = { n in { counted += 1; return n } }
+        XCTAssertEqual(P.aiMenuEntries(selectedText: " word ", sentenceCount: count(1)),
+                       [.action(.anotherWord), .action(.proofread)])
+        XCTAssertEqual(counted, 0, "a single word never pays for the sentence split")
+        XCTAssertEqual(P.aiMenuEntries(selectedText: "two words", sentenceCount: count(1)),
+                       [.submenu(P.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread)])
+        XCTAssertEqual(P.aiMenuEntries(selectedText: "One. Two.", sentenceCount: count(2)),
+                       [.submenu(P.aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread),
+                        .submenu(P.aiMarkMenuTitle, [.markWeakest, .markLong])])
+
+        for word in ["word", "Word.", "don't", "e-mail", "Café,", " padded\n", "日本語"] {
+            XCTAssertTrue(P.isSingleWord(word), word)
+        }
+        for notWord in ["two words", "line\nbreak", "tab\there", "42", "—", "", "   ", "1.5"] {
+            XCTAssertFalse(P.isSingleWord(notWord), notWord)
+        }
+    }
+
     func testNoAIItemsForEmptySelection() throws {
         let textView = makeTextView()
         textView.setSelectedRange(NSRange(location: 3, length: 0))
@@ -111,7 +167,7 @@ final class LineformTextViewAITests: XCTestCase {
 
     func testChoosingAnItemSendsRun() throws {
         let textView = makeTextView()
-        let selection = NSRange(location: 6, length: 4)
+        let selection = NSRange(location: 6, length: 10) // "beta gamma"
         textView.setSelectedRange(selection)
         textView.aiAvailabilityHandler = { _ in true }
         var commands: [AITextCommand] = []
@@ -154,9 +210,9 @@ final class LineformTextViewAITests: XCTestCase {
         textView.applyAIEdits([
             AIReviewEdit(range: range(of: "epsilon", in: sample), replacement: "EPSILON"),
             AIReviewEdit(range: range(of: "beta", in: sample), replacement: "B"),
-        ], actionName: "Accept Suggestions")
+        ], actionName: "Accept Suggestion")
         XCTAssertEqual(textView.string, "Alpha B gamma. Delta EPSILON.")
-        XCTAssertEqual(vendor.manager.undoActionName, "Accept Suggestions")
+        XCTAssertEqual(vendor.manager.undoActionName, "Accept Suggestion")
 
         vendor.manager.undo()
         XCTAssertEqual(textView.string, sample, "one ⌘Z undoes the whole call")
@@ -173,7 +229,7 @@ final class LineformTextViewAITests: XCTestCase {
         textView.applyAIEdits([
             AIReviewEdit(range: range(of: "far", in: text), replacement: "near"),
             AIReviewEdit(range: range(of: "big", in: text), replacement: "large"),
-        ], actionName: "Accept Suggestions")
+        ], actionName: "Accept Suggestion")
         XCTAssertEqual(textView.string, "\u{FEFF}# Head\r\n\r\nThe large dog.\r\nIt ran near.\r\n")
         XCTAssertEqual(textView.string.unicodeScalars.first, "\u{FEFF}")
         XCTAssertEqual(textView.string.components(separatedBy: "\r\n").count, text.components(separatedBy: "\r\n").count)
@@ -186,7 +242,7 @@ final class LineformTextViewAITests: XCTestCase {
     func testApplyAIEditsSkipsStructureAndSplitCharacters() {
         let text = "\u{FEFF}A👍🏽b\r\nc"
         let textView = makeTextView(text)
-        XCTAssertTrue(textView.applyAIEdits([], actionName: "Accept Suggestions"))
+        XCTAssertTrue(textView.applyAIEdits([], actionName: "Accept Suggestion"))
         for (index, skipped) in [NSRange(location: 4, length: 2), NSRange(location: 7, length: 2)].enumerated() {
             XCTAssertFalse(textView.applyAIEdits([AIReviewEdit(range: skipped, replacement: "x")],
                                                  actionName: "Accept Suggestion"), "a skip is reported (\(index))")
@@ -196,35 +252,38 @@ final class LineformTextViewAITests: XCTestCase {
             AIReviewEdit(range: NSRange(location: 7, length: 2), replacement: ""),      // the CRLF
             AIReviewEdit(range: NSRange(location: 0, length: 1), replacement: ""),      // the BOM
             AIReviewEdit(range: NSRange(location: 1, length: 1), replacement: "a\n"),   // a newline in
-        ], actionName: "Accept Suggestions"))
+        ], actionName: "Accept Suggestion"))
         XCTAssertEqual(textView.string, text)
         XCTAssertTrue(textView.applyAIEdits([AIReviewEdit(range: NSRange(location: 1, length: 1), replacement: "Z")],
                                             actionName: "Accept Suggestion"))
         XCTAssertEqual(textView.string, "\u{FEFF}Z👍🏽b\r\nc")
     }
 
-    /// Accept → ⌘Z, and Accept Remaining → ⌘Z, through the real controller and the real text view.
-    func testAcceptAndAcceptRemainingAreOneUndoEachThroughTheController() async throws {
-        let text = "The big dog ran far away from home."
-        let vendor = UndoManagerVendor(groupsByEvent: false)
-        let textView = makeTextView(text)
-        textView.delegate = vendor
-        let controller = makeController(replacing: ["big": "large", "far": "near", "home": "here"])
-        controller.editor = textView
-        controller.run(.rewrite, range: NSRange(location: 0, length: (text as NSString).length), text: text)
-        await controller.runTask?.value
+    /// Accept → ⌘Z, by id and by Return, through the real controller and the real text view.
+    /// The selection spans two paragraphs, so its one change is applied as one edit per paragraph:
+    /// the real text view refuses any AI edit that touches a line ending, and none does.
+    func testAcceptIsOneUndoThroughTheController() async throws {
+        let text = "The big dog ran.\r\n\r\nIt went far away from home."
+        let accepted = "The large dog ran.\r\n\r\nIt went near away from here."
+        for command in [AIReviewCommand.accept(0), .acceptCurrent] {
+            let vendor = UndoManagerVendor(groupsByEvent: false)
+            let textView = makeTextView(text)
+            textView.delegate = vendor
+            let controller = makeController(replacing: ["big": "large", "far": "near", "home": "here"])
+            controller.editor = textView
+            controller.run(.rewrite, range: NSRange(location: 0, length: (text as NSString).length), text: text)
+            await controller.runTask?.value
+            guard case .reviewing(let session) = controller.state else { return XCTFail("\(controller.state)") }
+            XCTAssertEqual(session.changes.count, 1, "one decision for the whole selection")
 
-        controller.handle(.accept(0))
-        XCTAssertEqual(textView.string, "The large dog ran far away from home.")
-        controller.handle(.acceptRemaining)
-        XCTAssertEqual(textView.string, "The large dog ran near away from here.")
-        XCTAssertEqual(controller.state, .idle)
+            controller.handle(command)
+            XCTAssertEqual(textView.string, accepted, "\(command)")
+            XCTAssertEqual(controller.state, .idle)
 
-        vendor.manager.undo()
-        XCTAssertEqual(textView.string, "The large dog ran far away from home.", "Accept Remaining is one ⌘Z")
-        vendor.manager.undo()
-        XCTAssertEqual(textView.string, text, "one accept is one ⌘Z")
-        XCTAssertFalse(vendor.manager.canUndo)
+            vendor.manager.undo()
+            XCTAssertEqual(textView.string, text, "one decision is one ⌘Z (\(command))")
+            XCTAssertFalse(vendor.manager.canUndo)
+        }
     }
 
     /// The accept reaches History through the text view's one user-edit source, so a passage
@@ -243,7 +302,7 @@ final class LineformTextViewAITests: XCTestCase {
         controller.history = history
         controller.run(.rewrite, range: range(of: "The big dog ran far away from home.", in: text), text: text)
         await controller.runTask?.value
-        controller.handle(.acceptRemaining)
+        controller.handle(.acceptCurrent)
         XCTAssertEqual(textView.string, "The enormous dog ran near away from home.\n\n\(later)")
 
         XCTAssertTrue(history.enterHistoryMode(text: textView.string))
@@ -286,6 +345,28 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(textView.string, "Omega beta gamma. Delta epsilon.")
     }
 
+    /// The review overlay starts exactly where the editor is — including at rest at the top of a
+    /// document, where the visible top is in the top inset. Clamping that offset to 0 put the
+    /// overlay one inset lower: the document jumped up ~28pt when a review started.
+    func testReviewScrollHandOverKeepsTheTopInset() throws {
+        let textView = makeTextView(String(repeating: "Line of text here.\n", count: 80))
+        textView.textContainerInset = NSSize(width: 0, height: 28)
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        textView.frame = NSRect(x: 0, y: 0, width: 400, height: 300)
+        textView.isVerticallyResizable = true
+        textView.textContainer?.widthTracksTextView = true
+        scrollView.documentView = textView
+        textView.layoutManager?.ensureLayout(for: try XCTUnwrap(textView.textContainer))
+        textView.sizeToFit()
+
+        for top: CGFloat in [0, 10, 28, 120] {
+            AIReviewSurfaceRepresentable.scroll(scrollView, toY: top)
+            let anchor = try XCTUnwrap(AIReviewSurfaceRepresentable.topAnchor(of: textView))
+            let y = try XCTUnwrap(AIReviewSurfaceRepresentable.originY(in: textView, showing: anchor.index, offset: anchor.offset))
+            XCTAssertEqual(y, top, accuracy: 0.5, "visible top \(top) round-trips")
+        }
+    }
+
     func testMarksAreTemporaryAttributesOnly() throws {
         let textView = makeTextView()
         textView.applyDefaultTypography()
@@ -298,7 +379,7 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(NSAttributedString(attributedString: storage), before, "the text storage is never touched")
         let wash = layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: 20, effectiveRange: nil) as? NSColor
         let theme = Theme.theme(for: textView.appliedReadingProfile)
-        XCTAssertEqual(wash, HistoryPalette.tint(for: theme))
+        XCTAssertEqual(wash, HistoryPalette.markWash(for: theme))
         XCTAssertNil(layoutManager.temporaryAttribute(.backgroundColor, atCharacterIndex: 2, effectiveRange: nil))
 
         textView.aiMarkRanges = []
@@ -339,12 +420,12 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(textView.selectedRange(), NSRange(location: (text as NSString).length + 1, length: 0))
     }
 
-    /// Critical: Esc, Accept All and the last pill leave the caret at the passage's end — never the
-    /// passage selected, which the next keystroke would replace.
+    /// Critical: Esc, Accept and Reject leave the caret at the passage's end — never the passage
+    /// selected, which the next keystroke would replace.
     func testEndingAReviewCollapsesTheEditorSelection() async throws {
         let text = "Intro.\n\nThe big dog ran far away from home.\n\nOutro."
         let passage = range(of: "The big dog ran far away from home.", in: text)
-        for ending in ["esc", "acceptAll", "lastPill"] {
+        for ending in ["esc", "accept", "reject"] {
             let textView = makeTextView(text)
             let controller = makeController(replacing: ["big": "large", "far": "near"])
             controller.editor = textView
@@ -353,13 +434,11 @@ final class LineformTextViewAITests: XCTestCase {
             textView.setSelectedRange(passage)
             switch ending {
             case "esc": controller.handle(.end)
-            case "acceptAll": controller.handle(.acceptRemaining)
-            default:
-                controller.handle(.accept(0))
-                controller.handle(.reject(1))
+            case "accept": controller.handle(.acceptCurrent)
+            default: controller.handle(.reject(0))
             }
             XCTAssertEqual(controller.state, .idle, ending)
-            let end = NSMaxRange(range(of: ending == "esc" ? "from home." : "home.", in: textView.string))
+            let end = NSMaxRange(range(of: "from home.", in: textView.string))
             XCTAssertEqual(textView.selectedRange(), NSRange(location: end, length: 0), ending)
         }
     }

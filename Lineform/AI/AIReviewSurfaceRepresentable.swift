@@ -7,14 +7,13 @@ import SwiftUI
 /// On make it takes the editor's scroll position and the keyboard; on dismantle it hands both
 /// back — the editor scrolls to where the reader was in the overlay and becomes first responder
 /// again. The position is handed over by CHARACTER, never by pixel y: past the first change the
-/// overlay is taller than the document (it also shows the removed text and the pills), so the
+/// overlay is taller than the document (it also shows the struck originals), so the
 /// same y shows different text. The top line's first character is mapped through the
 /// composition (`documentIndex` / `overlayIndex`) and that character's line is put at the top. No SwiftUI accessibility modifiers: the overlay text view carries its own label, role
 /// and custom actions through AppKit.
 struct AIReviewSurfaceRepresentable: NSViewRepresentable {
     let composition: AIReviewComposition
     let currentID: Int?
-    let hasDecided: Bool
     let profile: ReadingProfile
     /// The editor underneath. Weakly held by the coordinator; nil only in a transient state.
     let editor: NSTextView?
@@ -22,7 +21,7 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
 
     final class Coordinator {
         weak var editor: NSTextView?
-        var presented: (AIReviewComposition, Int?, Bool, ReadingProfile)?
+        var presented: (AIReviewComposition, Int?, ReadingProfile)?
         var onCommand: ((AIReviewCommand) -> Void)?
     }
 
@@ -87,10 +86,10 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
             coordinator?.onCommand?(command)
         }
         if let editor { textView.matchGeometry(of: editor) }
-        let key = (composition, currentID, hasDecided, profile)
+        let key = (composition, currentID, profile)
         if let presented = context.coordinator.presented, presented == key { return }
         context.coordinator.presented = key
-        textView.present(composition, currentID: currentID, profile: profile, hasDecided: hasDecided)
+        textView.present(composition, currentID: currentID, profile: profile)
         if let editor { textView.matchGeometry(of: editor) }
     }
 
@@ -115,26 +114,31 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
     // MARK: - Scroll hand-over by character
 
     /// The first character of the line at the top of `textView`'s visible area, and how far the
-    /// visible top is below that line's top.
+    /// visible top is below that line's top. NEGATIVE while the visible top is still in the top
+    /// inset (above the first line): the editor at rest at the top of a document shows its
+    /// `textContainerInset`, and clamping that to 0 put the overlay one inset (~28pt) lower —
+    /// the whole document jumped up when a review started and back when it ended (2026-11-13).
     static func topAnchor(of textView: NSTextView) -> (index: Int, offset: CGFloat)? {
         guard let layoutManager = textView.layoutManager, let container = textView.textContainer,
               let clip = textView.enclosingScrollView?.contentView else { return nil }
-        let y = max(0, clip.bounds.minY - textView.textContainerOrigin.y)
-        let glyph = layoutManager.glyphIndex(for: NSPoint(x: 0, y: y), in: container)
+        let visibleTop = clip.bounds.minY - textView.textContainerOrigin.y
+        let glyph = layoutManager.glyphIndex(for: NSPoint(x: 0, y: max(0, visibleTop)), in: container)
         guard glyph < layoutManager.numberOfGlyphs else { return nil }
         var lineGlyphs = NSRange()
         let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: &lineGlyphs)
-        return (layoutManager.characterIndexForGlyph(at: lineGlyphs.location), max(0, y - line.minY))
+        let offset = visibleTop < line.minY ? visibleTop - line.minY : max(0, visibleTop - line.minY)
+        return (layoutManager.characterIndexForGlyph(at: lineGlyphs.location), offset)
     }
 
-    /// The clip-view origin y that puts `index`'s line at the top of `textView`, `offset` into it.
+    /// The clip-view origin y that puts `index`'s line at the top of `textView`, `offset` into it
+    /// (a negative offset shows that much of the space above the line — the top inset).
     static func originY(in textView: NSTextView, showing index: Int, offset: CGFloat) -> CGFloat? {
         guard let layoutManager = textView.layoutManager, let storage = textView.textStorage,
               storage.length > 0 else { return nil }
         let character = min(max(0, index), storage.length - 1)
         let glyph = layoutManager.glyphIndexForCharacter(at: character)
         let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-        return line.minY + min(offset, line.height) + textView.textContainerOrigin.y
+        return max(0, line.minY + min(offset, line.height) + textView.textContainerOrigin.y)
     }
 
     static func scroll(_ scrollView: NSScrollView, toY y: CGFloat) {

@@ -5,12 +5,18 @@ final class FontOptionTests: XCTestCase {
     func testFontOptionsAreGroupedForShortIntentionalPicker() {
         let groups = FontOption.groupedOptions.map(\.name)
 
-        XCTAssertEqual(groups, ["System", "Writing", "Reading & Accessibility"])
+        XCTAssertEqual(groups, [String(localized: "System"), String(localized: "Reading & Accessibility")])
         XCTAssertEqual(
             FontOption.groupedOptions.flatMap(\.options).map(\.id),
             [.sfPro, .newYork, .jetBrainsMono, .atkinsonHyperlegible, .openDyslexic, .comicSans]
         )
         XCTAssertFalse(FontOption.groupedOptions.flatMap(\.options).contains { $0.id == .lexend })
+    }
+
+    func testMonospacedIsInTheSystemGroupAndThereIsNoWritingGroup() {
+        let groups = FontOption.groupedOptions
+        XCTAssertEqual(groups.map(\.name), [String(localized: "System"), String(localized: "Reading & Accessibility")])
+        XCTAssertEqual(groups[0].options.map(\.id), [.sfPro, .newYork, .jetBrainsMono])
     }
 
     func testAppleFontsAreSystemSourcedNotBundled() throws {

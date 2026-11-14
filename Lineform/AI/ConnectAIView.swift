@@ -216,14 +216,59 @@ struct ConnectAIView: View {
                     .onSubmit(connect)
             }
         } else {
-            if let url = selection.createKeyURL {
-                Link(ConnectAIPresentation.createKeyTitle, destination: url)
-                    .font(.callout)
+            VStack(alignment: .leading, spacing: 4) {
+                if let url = selection.createKeyURL {
+                    Link(ConnectAIPresentation.createKeyTitle, destination: url)
+                        .font(.callout)
+                }
+                if let guidance = ConnectAIPresentation.keyGuidance(for: selection) {
+                    Text(guidance)
+                        .font(.callout)
+                        .foregroundStyle(secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("connectAI.keyGuidance")
+                }
             }
             labeledField(ConnectAIPresentation.keyLabel) {
                 SecureField(ConnectAIPresentation.keyLabel, text: $key)
                     .accessibilityIdentifier("connectAI.key")
                     .onSubmit(connect)
+            }
+            tierPicker
+        }
+    }
+
+    /// Standard or Higher quality, with the model that tier sends written under it. Model
+    /// names are provider identifiers and are shown verbatim. Changing it while connected
+    /// takes effect at the next action and needs no key.
+    @ViewBuilder
+    private var tierPicker: some View {
+        let provider = selection
+        if provider.model(for: .standard) != nil {
+            let tier = store.tier(for: provider)
+            labeledField(ConnectAIPresentation.modelTierLabel) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Picker(ConnectAIPresentation.modelTierLabel, selection: Binding(
+                        get: { store.tier(for: provider) },
+                        set: { store.setTier($0, for: provider) }
+                    )) {
+                        ForEach(AIModelTier.allCases) { tier in
+                            Text(tier.title).tag(tier)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .background(CursorRectView(cursor: .arrow))
+                    .accessibilityIdentifier("connectAI.tier")
+                    if let model = provider.model(for: tier) {
+                        Text(verbatim: model)
+                            .font(.caption)
+                            .foregroundStyle(secondaryText)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("connectAI.tierModel")
+                    }
+                }
             }
         }
     }
@@ -245,6 +290,7 @@ struct ConnectAIView: View {
         Label(ConnectAIPresentation.connectedText, systemImage: "checkmark.circle.fill")
             .font(.callout.weight(.semibold))
             .foregroundStyle(.green)
+        tierPicker
         if selection == .other, let endpoint = store.otherEndpoint {
             Text(verbatim: endpoint.absoluteString)
                 .font(.callout)
