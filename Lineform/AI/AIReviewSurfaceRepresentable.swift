@@ -114,26 +114,31 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
     // MARK: - Scroll hand-over by character
 
     /// The first character of the line at the top of `textView`'s visible area, and how far the
-    /// visible top is below that line's top.
+    /// visible top is below that line's top. NEGATIVE while the visible top is still in the top
+    /// inset (above the first line): the editor at rest at the top of a document shows its
+    /// `textContainerInset`, and clamping that to 0 put the overlay one inset (~28pt) lower —
+    /// the whole document jumped up when a review started and back when it ended (2026-11-13).
     static func topAnchor(of textView: NSTextView) -> (index: Int, offset: CGFloat)? {
         guard let layoutManager = textView.layoutManager, let container = textView.textContainer,
               let clip = textView.enclosingScrollView?.contentView else { return nil }
-        let y = max(0, clip.bounds.minY - textView.textContainerOrigin.y)
-        let glyph = layoutManager.glyphIndex(for: NSPoint(x: 0, y: y), in: container)
+        let visibleTop = clip.bounds.minY - textView.textContainerOrigin.y
+        let glyph = layoutManager.glyphIndex(for: NSPoint(x: 0, y: max(0, visibleTop)), in: container)
         guard glyph < layoutManager.numberOfGlyphs else { return nil }
         var lineGlyphs = NSRange()
         let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: &lineGlyphs)
-        return (layoutManager.characterIndexForGlyph(at: lineGlyphs.location), max(0, y - line.minY))
+        let offset = visibleTop < line.minY ? visibleTop - line.minY : max(0, visibleTop - line.minY)
+        return (layoutManager.characterIndexForGlyph(at: lineGlyphs.location), offset)
     }
 
-    /// The clip-view origin y that puts `index`'s line at the top of `textView`, `offset` into it.
+    /// The clip-view origin y that puts `index`'s line at the top of `textView`, `offset` into it
+    /// (a negative offset shows that much of the space above the line — the top inset).
     static func originY(in textView: NSTextView, showing index: Int, offset: CGFloat) -> CGFloat? {
         guard let layoutManager = textView.layoutManager, let storage = textView.textStorage,
               storage.length > 0 else { return nil }
         let character = min(max(0, index), storage.length - 1)
         let glyph = layoutManager.glyphIndexForCharacter(at: character)
         let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-        return line.minY + min(offset, line.height) + textView.textContainerOrigin.y
+        return max(0, line.minY + min(offset, line.height) + textView.textContainerOrigin.y)
     }
 
     static func scroll(_ scrollView: NSScrollView, toY y: CGFloat) {

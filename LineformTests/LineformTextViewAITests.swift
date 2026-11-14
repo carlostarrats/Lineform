@@ -345,6 +345,28 @@ final class LineformTextViewAITests: XCTestCase {
         XCTAssertEqual(textView.string, "Omega beta gamma. Delta epsilon.")
     }
 
+    /// The review overlay starts exactly where the editor is — including at rest at the top of a
+    /// document, where the visible top is in the top inset. Clamping that offset to 0 put the
+    /// overlay one inset lower: the document jumped up ~28pt when a review started.
+    func testReviewScrollHandOverKeepsTheTopInset() throws {
+        let textView = makeTextView(String(repeating: "Line of text here.\n", count: 80))
+        textView.textContainerInset = NSSize(width: 0, height: 28)
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        textView.frame = NSRect(x: 0, y: 0, width: 400, height: 300)
+        textView.isVerticallyResizable = true
+        textView.textContainer?.widthTracksTextView = true
+        scrollView.documentView = textView
+        textView.layoutManager?.ensureLayout(for: try XCTUnwrap(textView.textContainer))
+        textView.sizeToFit()
+
+        for top: CGFloat in [0, 10, 28, 120] {
+            AIReviewSurfaceRepresentable.scroll(scrollView, toY: top)
+            let anchor = try XCTUnwrap(AIReviewSurfaceRepresentable.topAnchor(of: textView))
+            let y = try XCTUnwrap(AIReviewSurfaceRepresentable.originY(in: textView, showing: anchor.index, offset: anchor.offset))
+            XCTAssertEqual(y, top, accuracy: 0.5, "visible top \(top) round-trips")
+        }
+    }
+
     func testMarksAreTemporaryAttributesOnly() throws {
         let textView = makeTextView()
         textView.applyDefaultTypography()
