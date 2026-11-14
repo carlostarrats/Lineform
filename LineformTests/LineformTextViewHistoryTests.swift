@@ -373,18 +373,23 @@ final class LineformTextViewHistoryTests: XCTestCase {
     /// split around the counter's reserved space; boxes off that line are untouched.
     func testCounterIsCarvedOutOfTheBoxes() {
         let counter = NSRect(x: 104, y: 10, width: 20, height: 14)
-        let glyphEnd: CGFloat = 100, reserved: CGFloat = 27
+        let reserved: CGFloat = 27
+        let hole = HistoryCounterLayout.hole(around: counter, reservedWidth: reserved, rightToLeft: false)
+        XCTAssertEqual(hole, NSRect(x: 100, y: 10, width: 27, height: 14))
         // The selected passage's last line ends at the counter's reserved space: trimmed.
-        XCTAssertEqual(HistoryCounterLayout.carving(NSRect(x: 20, y: 8, width: 107, height: 18), around: counter,
-                                                    glyphEndX: glyphEnd, reservedWidth: reserved),
+        XCTAssertEqual(HistoryCounterLayout.carving(NSRect(x: 20, y: 8, width: 107, height: 18), around: hole),
                        [NSRect(x: 20, y: 8, width: 80, height: 18)])
         // A parent box running on past it: split, the counter's room left on the page.
-        XCTAssertEqual(HistoryCounterLayout.carving(NSRect(x: 0, y: 8, width: 300, height: 18), around: counter,
-                                                    glyphEndX: glyphEnd, reservedWidth: reserved),
+        XCTAssertEqual(HistoryCounterLayout.carving(NSRect(x: 0, y: 8, width: 300, height: 18), around: hole),
                        [NSRect(x: 0, y: 8, width: 100, height: 18), NSRect(x: 127, y: 8, width: 173, height: 18)])
         // Another line: untouched.
         let other = NSRect(x: 0, y: 40, width: 300, height: 18)
-        XCTAssertEqual(HistoryCounterLayout.carving(other, around: counter, glyphEndX: glyphEnd, reservedWidth: reserved), [other])
+        XCTAssertEqual(HistoryCounterLayout.carving(other, around: hole), [other])
+        // Right to left: the room opens on the counter's right (the glyph's left).
+        XCTAssertEqual(HistoryCounterLayout.hole(around: counter, reservedWidth: reserved, rightToLeft: true),
+                       NSRect(x: 101, y: 10, width: 27, height: 14))
+        XCTAssertTrue(HistoryCounterLayout.isRightToLeft(0x0646))
+        XCTAssertFalse(HistoryCounterLayout.isRightToLeft(0x0061))
     }
 
     private func laidOutTextView(_ text: String) throws -> LineformTextView {

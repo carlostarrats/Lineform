@@ -49,7 +49,6 @@ final class AdversarialHistoryProbeTests: XCTestCase {
         XCTAssertEqual(engine.history.passages.first { $0.id == id }?.level, .word)
         XCTAssertTrue(engine.locateAll(in: text).contains { $0.id == id }, "found by live range")
         engine.invalidateLiveRanges()  // live reload, Convert to Plain Text, a checkbox toggle
-        XCTExpectFailure("PassageHistoryText.locate requires a non-letter before/after a word-edged needle; CJK text has none, so CJK word passages are dropped on every reload or reopen")
         XCTAssertTrue(engine.locateAll(in: text).contains { $0.id == id })
     }
 
@@ -60,7 +59,6 @@ final class AdversarialHistoryProbeTests: XCTestCase {
         let id = try XCTUnwrap(accept(&engine, &text, "東京", "大阪"))
         _ = engine.locateAll(in: text)
         var reopened = makeEngine(DocumentHistoryEngine.preparedForLoad(engine.history))
-        XCTExpectFailure("CJK word passages are lost when the document is reopened (same cause as the reload case)")
         XCTAssertTrue(reopened.locateAll(in: text).contains { $0.id == id })
     }
 
@@ -246,8 +244,8 @@ final class AdversarialHistoryProbeTests: XCTestCase {
         controller.open(url: nil, text: text)
         let id = try XCTUnwrap(controller.add(range(of: "Alpha beta gamma.", in: text), text: text))
         XCTAssertTrue(controller.showPassage(id, text: text))
-        // Observation: a just-added one-version passage shows the counter "1/1".
-        XCTAssertEqual(controller.display?.counter?.text, "1/1")
+        // Fixed 2026-11-14: a just-added one-version passage showed "1/1"; it now shows no counter.
+        XCTAssertNil(controller.display?.counter)
         XCTAssertEqual(controller.sidebarModel.versions.count, 1)
         XCTAssertTrue(controller.sidebarModel.versions[0].isOriginal)
     }
@@ -312,7 +310,6 @@ final class AdversarialHistoryProbeTests: XCTestCase {
                 rects.append("\(index): x \(rect.minX)…\(rect.maxX)")
             }
         }
-        XCTExpectFailure("historyCounterFrame places the counter at the last glyph's location + advance, i.e. to its RIGHT; in RTL text the reserved room is on the LEFT, so the counter is drawn over the passage's own last letters")
         XCTAssertTrue(overlaps.isEmpty, "counter frame x \(frame.minX)…\(frame.maxX) overlaps characters \(rects); passage = \(word)")
     }
 }

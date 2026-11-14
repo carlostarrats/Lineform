@@ -160,7 +160,7 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertTrue(controller.isHistoryModeActive)
         XCTAssertEqual(controller.display?.selectedID, id)
         XCTAssertEqual(controller.sidebarModel.versions.map(\.text), [sentence], "listed once, not twice")
-        XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 1, current: 0))
+        XCTAssertNil(controller.display?.counter, "one version: no 1/1")
 
         // Adding the same passage again adds nothing, but still asks to show it.
         XCTAssertEqual(controller.add(range(of: sentence, in: text), text: text), id)
@@ -254,6 +254,18 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertFalse(controller.sidebarModel.hasSelection)
         XCTAssertNil(controller.handle(.deselect, text: doc))
         XCTAssertTrue(controller.isHistoryModeActive, "nothing selected: deselect does nothing")
+    }
+
+    /// Replace With… on fresh text: one version, so no "1/1" counter until a replacement lands.
+    func testOneVersionPassageShowsNoCounter() throws {
+        let controller = DocumentHistoryController(store: NullPassageHistoryStore())
+        controller.open(url: nil, text: text)
+        let id = try XCTUnwrap(controller.add(range(of: sentence, in: text), text: text))
+        XCTAssertTrue(controller.showPassage(id, text: text))
+        XCTAssertEqual(controller.display?.selectedID, id)
+        XCTAssertNil(controller.display?.counter)
+        XCTAssertNotNil(controller.addReplacement("Alpha beta gamma.", for: id))
+        XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 2, current: 1))
     }
 
     /// A passage that is not in the text is checked BEFORE History mode starts: nothing is
@@ -902,7 +914,10 @@ final class DocumentHistoryControllerTests: XCTestCase {
         textView.delegate = delegate
         controller.attach(textView)
         controller.open(url: a, text: text)
-        _ = controller.handle(.add(range(of: sentence, in: textView.string)), text: textView.string)
+        // Two versions, so focusing it shows (and reserves room for) a counter: a one-version
+        // passage shows none (2026-11-14).
+        controller.recordAccepted(range: range(of: sentence, in: textView.string), original: "Alpha beta.",
+                                  accepted: sentence, text: textView.string)
         textView.setSelectedRange(range(of: "beta", in: textView.string))
         delegate.manager.beginUndoGrouping()
         textView.insertText("BETA", replacementRange: NSRange(location: NSNotFound, length: 0))

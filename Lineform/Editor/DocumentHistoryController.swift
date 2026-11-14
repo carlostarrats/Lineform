@@ -842,7 +842,9 @@ final class DocumentHistoryController: ObservableObject {
         let newModel: HistorySidebarModel
         if isHistoryModeActive {
             let passage = selectedID.flatMap { id in engine.history.passages.first { $0.id == id } }
-            let counter = passage.map { HistoryCounter(count: $0.versions.count, current: $0.currentIndex) }
+            // No "1/1": a passage with one version (just added by Replace With…, nothing typed yet)
+            // has nothing to count (2026-11-14).
+            let counter = passage.flatMap { $0.versions.count > 1 ? HistoryCounter(count: $0.versions.count, current: $0.currentIndex) : nil }
             newDisplay = HistoryModeDisplay(passages: located, selectedID: selectedID, hoveredID: nil, counter: counter)
             if let passage {
                 let levels = engine.group(containing: passage.id)
