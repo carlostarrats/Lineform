@@ -223,6 +223,8 @@
 		1F0000010000000000000504 /* AIReviewCardPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */; };
 		1F0000010000000000000505 /* AIReviewTextViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000505 /* AIReviewTextViewTests.swift */; };
 		1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FA /* AIActionControllerTests.swift */; };
+		1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */; };
+		1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */; };
 		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
 		1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CD /* PassageHistoryModel.swift */; };
 		1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CE /* PassageHistoryStore.swift */; };
@@ -493,6 +495,8 @@
 		1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCardPresentationTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000505 /* AIReviewTextViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTextViewTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004FA /* AIActionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionControllerTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialReviewProbeTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialHistoryProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CD /* PassageHistoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryModel.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CE /* PassageHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStore.swift; sourceTree = "<group>"; };
@@ -814,6 +818,8 @@
 				1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */,
 				1F0000020000000000000505 /* AIReviewTextViewTests.swift */,
 				1F00000200000000000004FA /* AIActionControllerTests.swift */,
+				1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */,
+				1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */,
 				1F00000200000000000004CF /* PassageHistoryStoreTests.swift */,
 				1F00000200000000000004D1 /* PassageHistoryTextTests.swift */,
 				1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */,
@@ -1241,6 +1247,8 @@
 				1F0000010000000000000504 /* AIReviewCardPresentationTests.swift in Sources */,
 				1F0000010000000000000505 /* AIReviewTextViewTests.swift in Sources */,
 				1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */,
+				1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */,
+				1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */,
 				1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */,
 				1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */,
 				1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */,
