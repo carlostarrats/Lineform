@@ -225,39 +225,46 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(rows.map(\.author), [.you, .ai])
     }
 
-    /// The first accepted review introduces History (the editor shows it, focused on the passage);
-    /// later accepts don't.
-    func testFirstAcceptIntroducesHistoryOnce() async throws {
-        let suite = "AIActionControllerTests.intro.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let history = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
+    /// The accept that gives a document its FIRST History shows it (the editor opens the sidebar
+    /// focused on the passage); later accepts in the same document don't switch the sidebar. A
+    /// document with no History yet is shown again — the rule is per document, not once ever.
+    func testFirstAcceptInADocumentShowsHistory() async throws {
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
         history.open(url: nil, text: historyDoc)
         var requested: [UUID] = []
         var shownText: () -> String = { "" }
-        // As the editor does: the request shows History on the passage (the flag is spent only
-        // when that succeeds).
+        // As the editor does: the request shows History on the passage.
         history.onRequestShowHistory = { id in
             requested.append(id)
             history.showPassage(id, text: shownText())
         }
-        let (controller, surface, _) = make(historyDoc, replace(["big": "large"]), history: history)
+        let (controller, surface, _) = make(historyDoc, replace(["big": "large", "stays": "remains"]), history: history)
         shownText = { surface.string }
         let sentence = range(of: "The big dog ran far away from home.", in: historyDoc)
 
         await runToCompletion(controller, .rewrite, range: sentence, text: historyDoc)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(controller.state, .idle)
-        XCTAssertEqual(requested.count, 1, "the first accept shows History")
+        XCTAssertEqual(requested.count, 1, "the document's first History shows")
         XCTAssertTrue(history.isHistoryModeActive)
-        XCTAssertTrue(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey))
+        XCTAssertEqual(history.display?.selectedID, requested.first)
         history.exitHistoryMode()
+        XCTAssertTrue(history.hasHistory)
 
-        // Once ever: a later accept shows nothing.
+        // The same document already has History: a later accept leaves the sidebar alone.
         let later = surface.string
         await runToCompletion(controller, .rewrite, range: range(of: "Intro stays put.", in: later), text: later)
         controller.handle(.acceptCurrent)
         XCTAssertEqual(requested.count, 1)
+        XCTAssertFalse(history.isHistoryModeActive)
+
+        // Another document with no History: its first accept shows again.
+        let other = "Fresh stays here.\n\nThe big cat sat.\n"
+        history.open(url: nil, text: other)
+        surface.string = other
+        await runToCompletion(controller, .rewrite, range: range(of: "The big cat sat.", in: other), text: other)
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(requested.count, 2)
     }
 
     /// Ruling: an accepted change whose selection spans several paragraphs records one passage

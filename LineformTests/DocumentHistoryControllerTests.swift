@@ -185,56 +185,38 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertEqual(controller.display?.selectedID, second)
     }
 
-    /// The first accepted AI review shows History once, ever; later accepts (in this controller
-    /// or any other sharing the defaults) don't. Nothing is consumed while no one can show it.
-    func testFirstAIAcceptRequestsHistoryOnlyOnce() throws {
-        let suite = "DocumentHistoryControllerTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+    /// An accepted AI change shows History only when the document had none before it
+    /// (`documentHadHistory` is read before recording). Nothing is remembered between documents
+    /// or in UserDefaults (the old once-ever flag is gone).
+    func testAIAcceptShowsHistoryOnlyWhenItIsTheDocumentsFirst() throws {
         let accepted = "Alpha BETA gamma delta."
         let doc = (text as NSString).replacingOccurrences(of: sentence, with: accepted)
 
-        let unwired = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
-        unwired.open(url: nil, text: doc)
-        let unseen = try XCTUnwrap(unwired.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
-                                                          accepted: accepted, text: doc))
-        unwired.introduceAfterAIAccept(unseen)
-        XCTAssertFalse(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey),
-                       "no one could show History, so the intro is still owed")
-
-        let controller = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
+        let controller = DocumentHistoryController(store: NullPassageHistoryStore())
         controller.open(url: nil, text: doc)
         var requested: [UUID] = []
-        var showText = "Nothing of the passage is in this text."
         controller.onRequestShowHistory = { id in
             requested.append(id)
-            controller.showPassage(id, text: showText)
+            controller.showPassage(id, text: doc)
         }
+        XCTAssertFalse(controller.hasHistory)
         let first = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
                                                             accepted: accepted, text: doc))
-        controller.introduceAfterAIAccept(first)
+        controller.introduceAfterAIAccept(first, documentHadHistory: false)
         XCTAssertEqual(requested, [first])
-        XCTAssertFalse(controller.isHistoryModeActive)
-        XCTAssertFalse(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey),
-                       "History could not be shown, so the intro is still owed")
-
-        // (A passage that cannot be found in the text is dropped; the next accept records anew.)
-        showText = doc
-        let second = try XCTUnwrap(controller.recordAccepted(range: range(of: accepted, in: doc), original: sentence,
-                                                             accepted: accepted, text: doc))
-        controller.introduceAfterAIAccept(second)
-        XCTAssertEqual(requested, [first, second])
         XCTAssertTrue(controller.isHistoryModeActive)
-        XCTAssertEqual(controller.display?.selectedID, second)
-        XCTAssertTrue(defaults.bool(forKey: DocumentHistoryController.didIntroduceAfterAIKey))
-        XCTAssertEqual(DocumentHistoryController.didIntroduceAfterAIKey, "Lineform.history.didIntroduceAfterAI")
-        requested = []
+        XCTAssertEqual(controller.display?.selectedID, first)
+        controller.exitHistoryMode()
 
-        controller.introduceAfterAIAccept(first)
-        let other = DocumentHistoryController(store: NullPassageHistoryStore(), defaults: defaults)
-        other.onRequestShowHistory = { requested.append($0) }
-        other.introduceAfterAIAccept(first)
-        XCTAssertEqual(requested, [], "once ever")
+        controller.introduceAfterAIAccept(first, documentHadHistory: true)
+        XCTAssertEqual(requested, [first], "the document already had History")
+        XCTAssertFalse(controller.isHistoryModeActive)
+
+        // No subscriber: nothing to do, nothing owed.
+        let unwired = DocumentHistoryController(store: NullPassageHistoryStore())
+        unwired.open(url: nil, text: doc)
+        unwired.introduceAfterAIAccept(first, documentHadHistory: false)
+        XCTAssertFalse(unwired.isHistoryModeActive)
     }
 
     /// A passage that is not in the text is checked BEFORE History mode starts: nothing is

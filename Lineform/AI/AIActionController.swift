@@ -222,9 +222,9 @@ final class AIActionController: ObservableObject {
         state = .idle
     }
 
-    /// History is about to open on a passage (Add to History, the first-accept intro): History
+    /// History is about to open on a passage (Add to History, a document's first accepted change): History
     /// and AI never overlap. A request or review ends (keeping what was accepted); Mark's wash is
-    /// dismissed. A message is left up — the first-accept intro arrives just after a review
+    /// dismissed. A message is left up — the first-accept show arrives just after a review
     /// ended, and dropping it then would lose a refusal.
     func yieldToHistory() {
         switch state {
@@ -359,6 +359,8 @@ final class AIActionController: ObservableObject {
             let ns = text as NSString
             let range = session.selectionRange
             if range.location >= 0, NSMaxRange(range) <= ns.length {
+                // Read BEFORE recording: the accept that gives a document its first History shows it.
+                let documentHadHistory = history.hasHistory
                 let accepted = ns.substring(with: range)
                 var firstRecorded: UUID?
                 for passage in Self.acceptedPassages(original: session.originalSelection, accepted: accepted,
@@ -367,8 +369,11 @@ final class AIActionController: ObservableObject {
                                                     accepted: passage.accepted, text: text)
                     if firstRecorded == nil { firstRecorded = id }
                 }
-                // The first accepted review ever shows History, focused on what it recorded.
-                if let firstRecorded { history.introduceAfterAIAccept(firstRecorded) }
+                // The accept that gives this document its first History shows it, focused on
+                // what it recorded; later accepts in the same document leave the sidebar alone.
+                if let firstRecorded {
+                    history.introduceAfterAIAccept(firstRecorded, documentHadHistory: documentHadHistory)
+                }
             }
         }
         editor?.announceAI(Self.reviewEndedMessage)

@@ -127,7 +127,6 @@ final class DocumentHistoryController: ObservableObject {
 
     private let store: PassageHistoryPersisting
     private let now: () -> Date
-    private let defaults: UserDefaults
     private var engine: DocumentHistoryEngine
     private var documentID: UUID?
     /// Whether the store holds (or may hold) an entry for `url`. Without one, an empty history is
@@ -151,10 +150,6 @@ final class DocumentHistoryController: ObservableObject {
     /// but only its OWN: a hierarchy rebuild can run the new view's appear before the old one's
     /// disappear.
     private var showHistoryHandlerOwner: UUID?
-    /// The first-accept intro asked to show this passage; the once-ever flag is spent only when
-    /// `showPassage` actually shows it (the editor's handler runs a turn later).
-    private var pendingIntroID: UUID?
-
     func setShowHistoryHandler(owner: UUID, _ handler: @escaping (UUID) -> Void) {
         showHistoryHandlerOwner = owner
         onRequestShowHistory = handler
@@ -165,10 +160,6 @@ final class DocumentHistoryController: ObservableObject {
         showHistoryHandlerOwner = nil
         onRequestShowHistory = nil
     }
-
-    /// Set once the first accepted AI review has shown History (`introduceAfterAIAccept`). App-wide
-    /// and never reset: later accepts don't open the sidebar.
-    static let didIntroduceAfterAIKey = "Lineform.history.didIntroduceAfterAI"
 
     /// Stores already pruned this app session (one entry in production: the shared store). Held
     /// weakly: an `ObjectIdentifier` of a freed store can be reused by a new one, which would then
@@ -194,10 +185,9 @@ final class DocumentHistoryController: ObservableObject {
     private var lifecycleObservations: [AnyCancellable] = []
 
     init(store: PassageHistoryPersisting, now: @escaping () -> Date = Date.init,
-         notificationCenter: NotificationCenter = .default, defaults: UserDefaults = .standard) {
+         notificationCenter: NotificationCenter = .default) {
         self.store = store
         self.now = now
-        self.defaults = defaults
         engine = DocumentHistoryEngine(history: DocumentHistory(passages: []), now: now)
         clearAllObservation = notificationCenter
             .publisher(for: Self.didClearAllNotification, object: store)
@@ -494,8 +484,6 @@ final class DocumentHistoryController: ObservableObject {
     /// History mode could not start or the passage is not in the text.
     @discardableResult
     func showPassage(_ id: UUID, text: String) -> Bool {
-        let intro = pendingIntroID == id
-        if intro { pendingIntroID = nil }
         // Checked BEFORE History mode starts: a passage that is not in the text must not leave
         // History on with nothing selected.
         if !isHistoryModeActive {
@@ -505,7 +493,6 @@ final class DocumentHistoryController: ObservableObject {
         guard located.contains(where: { $0.id == id }), enterHistoryMode(text: text) else { return false }
         selectedID = id
         publishMode()
-        if intro { defaults.set(true, forKey: Self.didIntroduceAfterAIKey) }
         return true
     }
 
@@ -570,14 +557,15 @@ final class DocumentHistoryController: ObservableObject {
         return id
     }
 
-    /// An AI review ended with passage `id` recorded. The first time ever, History is shown
-    /// focused on it — so the writer learns it exists — through `onRequestShowHistory`. The
-    /// once-ever flag is spent only when `showPassage` then shows it (the editor's handler runs a
-    /// turn later): with no one listening, or a show that fails, the intro is still owed.
-    func introduceAfterAIAccept(_ id: UUID) {
-        guard !defaults.bool(forKey: Self.didIntroduceAfterAIKey), let onRequestShowHistory else { return }
-        pendingIntroID = id
-        onRequestShowHistory(id)
+    /// An AI review ended with passage `id` recorded. When that accept gave the document its
+    /// FIRST History (`documentHadHistory` false — read before recording), History is shown
+    /// focused on it through `onRequestShowHistory`, so the writer sees where the change went.
+    /// Later accepts in the same document don't switch the sidebar. (Until 2026-11-13 this
+    /// happened once ever, app-wide, behind the `Lineform.history.didIntroduceAfterAI` default;
+    /// that key is no longer read.)
+    func introduceAfterAIAccept(_ id: UUID, documentHadHistory: Bool) {
+        guard !documentHadHistory else { return }
+        onRequestShowHistory?(id)
     }
 
     // MARK: - Private
