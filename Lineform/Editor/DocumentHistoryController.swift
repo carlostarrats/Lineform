@@ -576,8 +576,18 @@ final class DocumentHistoryController: ObservableObject {
         return didProduce(edit, in: text, alwaysRefresh: true)
     }
 
+    /// Whether Replace With… is offered for `range`: what History can place AND what its one-line
+    /// replacement field can replace (2026-11-14 — it was offered for a selection spanning a list,
+    /// a quote and a fenced code block, which one typed line would have flattened). So: the
+    /// selection (edge-trimmed) stays within one line — one paragraph or block line — and touches
+    /// no front matter, fenced code or math.
     func canAdd(_ range: NSRange, text: String) -> Bool {
-        engine.canAdd(range, in: text)
+        let ns = text as NSString
+        let aligned = PassageHistoryText.aligned(range, in: text)
+        guard aligned.length > 0, NSMaxRange(aligned) <= ns.length,
+              ns.substring(with: aligned).rangeOfCharacter(from: .newlines) == nil,
+              MarkdownWritingToolsProtection.protectedRanges(in: ns, intersecting: aligned).isEmpty else { return false }
+        return engine.canAdd(range, in: text)
     }
 
     /// AI actions are offered on any selection in normal writing — inside, equal to, around or

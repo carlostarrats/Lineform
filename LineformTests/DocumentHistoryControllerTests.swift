@@ -268,6 +268,22 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertEqual(controller.display?.counter, HistoryCounter(count: 2, current: 1))
     }
 
+    /// Replace With… is honest about its one-line field: offered within one line of prose (a
+    /// word, a sentence, a list item's text), absent across paragraphs or blocks and on code,
+    /// front matter or math.
+    func testReplaceWithIsOfferedOnlyWhereOneLineCanReplace() {
+        let doc = "---\ntitle: x\n---\n\nFirst paragraph here. Second sentence.\n\n- A list item\n> A quote\n\n```\nlet x = 1\n```\n"
+        let controller = DocumentHistoryController(store: NullPassageHistoryStore())
+        controller.open(url: nil, text: doc)
+        XCTAssertTrue(controller.canAdd(range(of: "Second sentence.", in: doc), text: doc))
+        XCTAssertTrue(controller.canAdd(range(of: "First paragraph here. Second sentence.", in: doc), text: doc))
+        XCTAssertTrue(controller.canAdd(range(of: "list item", in: doc), text: doc))
+        XCTAssertFalse(controller.canAdd(range(of: "Second sentence.\n\n- A list item\n> A quote\n\n```\nlet x = 1", in: doc), text: doc),
+                       "several paragraphs and blocks")
+        XCTAssertFalse(controller.canAdd(range(of: "let x = 1", in: doc), text: doc), "fenced code")
+        XCTAssertFalse(controller.canAdd(range(of: "title: x", in: doc), text: doc), "front matter")
+    }
+
     /// A passage that is not in the text is checked BEFORE History mode starts: nothing is
     /// entered (no wash, no sidebar on an inert History tab).
     func testShowPassageForAMissingPassageDoesNotEnterHistoryMode() throws {
