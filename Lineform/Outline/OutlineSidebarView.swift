@@ -143,6 +143,19 @@ struct OutlineSidebarView: View {
     /// Matches the Markdown Basics section header exactly: size 12 medium, inactive-tab grey,
     /// same leading x (pillHorizontalInset + 10) and same y below the divider (tabDividerGap + 4).
     static let emptyStateFontSize: CGFloat = 12
+    /// Every tab's lead line — Outline's first heading row or empty text, Files' "Sort folders by",
+    /// Markdown Basics' first heading, History's "Versions of selected text" / empty text — sits
+    /// this far under the tab divider, and the first row or card below it this far under the lead
+    /// line, so switching tabs never shifts either (2026-11-13). The values are the Files tab's,
+    /// which already looked balanced: its 16pt top padding + the sort row's 4pt inset, and 8pt
+    /// stack spacing + that 4pt inset.
+    static let sidebarLeadLineTop: CGFloat = 20
+    static let sidebarLeadToFirstRow: CGFloat = 12
+    /// The Files sort row's own vertical inset (its hover target), subtracted from both gaps.
+    static let filesSortRowVerticalPadding: CGFloat = 4
+    /// The small secondary lead-line label (Files' "Sort folders by", History's lead line): 12pt
+    /// medium in the inactive-tab grey.
+    static let sidebarLeadLabelFontSize: CGFloat = 12
     static let titleShowsIcon = false
     static let usesSubtleGradientBackground = false
     static let usesThemeIndependentLightChrome = false
@@ -730,7 +743,7 @@ struct OutlineSidebarView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, Self.pillHorizontalInset + 10)
                 .padding(.trailing, Self.pillHorizontalInset)
-                .padding(.top, Self.tabDividerGap + 4)
+                .padding(.top, Self.sidebarLeadLineTop)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             ScrollView {
@@ -747,7 +760,7 @@ struct OutlineSidebarView: View {
                     }
                 }
                 .padding(.horizontal, Self.pillHorizontalInset)
-                .padding(.top, Self.tabDividerGap)
+                .padding(.top, Self.sidebarLeadLineTop)
             }
             .scrollContentBackground(.hidden)
         }
@@ -2064,7 +2077,8 @@ private struct OutlineFileBrowserView: View {
         // "Show Hidden Folders" now lives in the View menu (⌘⇧.), so the Files tab is just
         // the file tree — no in-sidebar toggle chrome.
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
+            LazyVStack(alignment: .leading,
+                       spacing: OutlineSidebarView.sidebarLeadToFirstRow - OutlineSidebarView.filesSortRowVerticalPadding) {
                 globalSortRow
 
                 if iCloudRootIsVisible {
@@ -2074,7 +2088,7 @@ private struct OutlineFileBrowserView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OutlineSidebarView.filesContentHorizontalPadding)
-            .padding(.top, OutlineSidebarView.tabDividerGap)
+            .padding(.top, OutlineSidebarView.sidebarLeadLineTop - OutlineSidebarView.filesSortRowVerticalPadding)
             .padding(.bottom, 14)
         }
         .scrollContentBackground(.hidden)
@@ -2097,7 +2111,7 @@ private struct OutlineFileBrowserView: View {
                 Image(systemName: "arrow.up.arrow.down")
                     .font(.system(size: 10, weight: .semibold))
                 Text(String(localized: "Sort folders by: \(globalSortOrder.wrappedValue.title)"))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: OutlineSidebarView.sidebarLeadLabelFontSize, weight: .medium))
             }
             // Same quiet grey as the inactive tabs above, darkening on hover.
             .foregroundStyle(OutlineSidebarView.tabTextColor(
@@ -2112,7 +2126,7 @@ private struct OutlineFileBrowserView: View {
         // Align the sort icon to the shared icon column (content inset 6 + 18 = 24).
         .padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)
         .padding(.trailing, 6)
-        .padding(.vertical, 4)
+        .padding(.vertical, OutlineSidebarView.filesSortRowVerticalPadding)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) {
                 isSortHovered = hovering

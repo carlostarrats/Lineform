@@ -122,7 +122,7 @@ enum HistorySidebarPresentation {
     /// swaps the text in place: same font size, colour, inset and distance under the divider (the
     /// Outline tab's gap, `OutlineSidebarView.tabDividerGap`).
     static let leadTextFontSize: CGFloat = 12
-    static let leadTextTopInset: CGFloat = 16
+    static let leadTextTopInset: CGFloat = 20
     /// The Add button's hover pill: a faint fill, quieter than the Exit capsule's solid grey.
     /// White over dark chrome, black over light.
     static func addButtonHoverFillOpacity(usesDarkChrome: Bool) -> CGFloat {
@@ -237,7 +237,8 @@ struct HistorySidebarView: View {
                         replacementControl
                     }
                     .padding(.horizontal, HistorySidebarPresentation.rowLayout.containerPadding)
-                    .padding(.top, 6)
+                    .padding(.top, HistorySidebarPresentation.showsLevelSwitcher(model.levels)
+                             ? 6 : OutlineSidebarView.sidebarLeadToFirstRow)
                     .padding(.bottom, 8)
                 }
             } else {
@@ -277,8 +278,9 @@ struct HistorySidebarView: View {
     /// The lead line's text: the empty state's and the section row's label are the same view.
     private func leadText(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: HistorySidebarPresentation.leadTextFontSize))
-            .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
+            // The Files "Sort folders by" style: 12pt medium, the inactive-tab grey.
+            .font(.system(size: HistorySidebarPresentation.leadTextFontSize, weight: .medium))
+            .foregroundStyle(OutlineSidebarView.tabTextColor(usesDarkChrome: usesDarkChrome, isSelected: false, isHovered: false))
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -386,7 +388,8 @@ struct HistorySidebarView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 6)
+        // The shared lead-line → first-row gap.
+        .padding(.top, OutlineSidebarView.sidebarLeadToFirstRow)
     }
 }
 

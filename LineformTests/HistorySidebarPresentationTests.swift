@@ -118,7 +118,7 @@ final class HistorySidebarPresentationTests: XCTestCase {
     /// inset and distance under the tab divider — and Add is an overlay, so it cannot move it.
     @MainActor
     func testEmptyStateAndSectionLabelShareOnePlace() throws {
-        XCTAssertEqual(HistorySidebarPresentation.leadTextTopInset, OutlineSidebarView.tabDividerGap)
+        XCTAssertEqual(HistorySidebarPresentation.leadTextTopInset, OutlineSidebarView.sidebarLeadLineTop)
         XCTAssertEqual(HistorySidebarPresentation.leadTextFontSize, 12)
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -126,6 +126,37 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertTrue(source.contains("leadLine(leadText(HistorySidebarPresentation.emptySelectionText))"))
         XCTAssertTrue(source.contains("leadLine(\n            leadText(HistorySidebarPresentation.versionsHeading)"))
         XCTAssertTrue(source.contains(".overlay(alignment: .trailing) {\n                    HistoryAddAlternativeButton"))
+    }
+
+    /// Every sidebar tab puts its lead line and its first row at the same two shared distances, so
+    /// switching tabs never shifts either (source-level: no window in the default plan).
+    @MainActor
+    func testEveryTabUsesTheSharedLeadLineSpacing() throws {
+        XCTAssertEqual(OutlineSidebarView.sidebarLeadLineTop, 20)
+        XCTAssertEqual(OutlineSidebarView.sidebarLeadToFirstRow, 12)
+        XCTAssertEqual(HistorySidebarPresentation.leadTextTopInset, OutlineSidebarView.sidebarLeadLineTop)
+        XCTAssertEqual(HistorySidebarPresentation.leadTextFontSize, OutlineSidebarView.sidebarLeadLabelFontSize)
+        func source(_ name: String) throws -> String {
+            try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("Lineform/Outline/\(name)"), encoding: .utf8)
+        }
+        let sidebar = try source("OutlineSidebarView.swift")
+        // Outline: empty text and the heading list.
+        XCTAssertEqual(sidebar.components(separatedBy: ".padding(.top, Self.sidebarLeadLineTop)").count - 1, 2)
+        // Files: the sort row's own inset taken out of both gaps.
+        XCTAssertTrue(sidebar.contains(".padding(.top, OutlineSidebarView.sidebarLeadLineTop - OutlineSidebarView.filesSortRowVerticalPadding)"))
+        XCTAssertTrue(sidebar.contains("spacing: OutlineSidebarView.sidebarLeadToFirstRow - OutlineSidebarView.filesSortRowVerticalPadding"))
+        XCTAssertTrue(sidebar.contains(".padding(.vertical, OutlineSidebarView.filesSortRowVerticalPadding)"))
+        XCTAssertTrue(sidebar.contains(".font(.system(size: OutlineSidebarView.sidebarLeadLabelFontSize, weight: .medium))"))
+        // Markdown Basics.
+        let basics = try source("OutlineMarkdownBasicsTabView.swift")
+        XCTAssertTrue(basics.contains(".padding(.top, OutlineSidebarView.sidebarLeadLineTop)"))
+        XCTAssertTrue(basics.contains("Spacer().frame(height: OutlineSidebarView.sidebarLeadToFirstRow)"))
+        // History: the lead line, then the first row (level switcher or versions).
+        let history = try source("HistorySidebarView.swift")
+        XCTAssertTrue(history.contains(".padding(.top, HistorySidebarPresentation.leadTextTopInset)"))
+        XCTAssertTrue(history.contains(".padding(.top, OutlineSidebarView.sidebarLeadToFirstRow)"))
+        XCTAssertTrue(history.contains("? 6 : OutlineSidebarView.sidebarLeadToFirstRow)"))
     }
 
     /// The hover pill is a faint fill — quieter than the Exit capsule — and the hovered ink still
