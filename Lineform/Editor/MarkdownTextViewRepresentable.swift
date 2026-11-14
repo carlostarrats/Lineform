@@ -418,7 +418,7 @@ final class Coordinator: NSObject, NSTextViewDelegate {
         lastSyncedText = value
     }
 
-    init(
+    @MainActor init(
         text: Binding<String>,
         textFormat: Binding<LineformTextFormat>,
         plainTextConversion: Binding<MarkdownPlainTextConversion?>,

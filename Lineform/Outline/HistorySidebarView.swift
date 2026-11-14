@@ -159,7 +159,10 @@ enum HistorySidebarPresentation {
     /// macOS — the editor keeps first responder and the keystrokes meant for the field would
     /// reach the document.
     static func requestReplacementFieldFocus(
-        schedule: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) },
+        schedule: (@escaping () -> Void) -> Void = { work in
+            let box = MainQueueWork(run: work)
+            DispatchQueue.main.async { box.run() }
+        },
         _ focus: @escaping () -> Void
     ) {
         schedule(focus)
@@ -571,4 +574,11 @@ private struct HistoryVersionRowView: View {
             }
         }
     }
+}
+
+/// Carries a focus request onto the main queue. It is created and run on the main thread only,
+/// so the unchecked Sendable conformance is sound; it exists to keep the Release build free of
+/// the non-Sendable-closure warning.
+private struct MainQueueWork: @unchecked Sendable {
+    let run: () -> Void
 }
