@@ -34,6 +34,16 @@ final class AIActionPromptTests: XCTestCase {
         XCTAssertEqual(another.user, #"{"action":"anotherWord","segments":["big"]}"#)
     }
 
+    /// Try Again: the discarded suggestion's segments go on one last system line; the user
+    /// message (what is sent of the document) is unchanged.
+    func testEditPromptCanAskForADifferentResult() {
+        let plain = AIActionPrompt.editPrompt(.rewrite, segments: ["a b", "c"])
+        let retry = AIActionPrompt.editPrompt(.rewrite, segments: ["a b", "c"], avoiding: ["x y", "z"])
+        XCTAssertEqual(retry.user, plain.user)
+        XCTAssertEqual(retry.system, plain.system + "\n" + #"Give a different result than: {"segments":["x y","z"]}"#)
+        XCTAssertFalse(plain.system.contains("Give a different result"))
+    }
+
     func testMarkPromptNumbersNothingItself() throws {
         let prompt = AIActionPrompt.markPrompt(.markWeakest, sentences: ["One.", "Two."])
         let object = try decode(prompt.user)

@@ -23,6 +23,11 @@ enum AIReviewCardPresentation {
         (String(localized: "Reject", bundle: bundle), String(localized: "Accept", bundle: bundle))
     }
 
+    /// The card's Try Again icon button (label and tooltip): the same action again, on the same text.
+    static var retryTitle: String { retryTitle(bundle: .main) }
+    static func retryTitle(bundle: Bundle) -> String { String(localized: "Try Again", bundle: bundle) }
+    static let retrySymbol = "arrow.clockwise"
+
     /// The review's modal keys, on the card so they are discoverable.
     static var reviewHint: String { reviewHint(bundle: .main) }
     static func reviewHint(bundle: Bundle) -> String {
@@ -141,7 +146,7 @@ private struct AICardCloseButton: View {
 }
 
 /// The review card, in the bottom-right corner while a review is up: what is ready ("Rewrite
-/// ready"), the keys, then Reject and Accept; ✕ ends the review (= reject, like Esc). One action
+/// ready"), the keys, then Try Again (an icon button), Reject and Accept; ✕ ends the review (= reject, like Esc). One action
 /// is one change, so there is no counter and no batch button. A refused accept ends the review, so
 /// its explanation is the status card's message, never drawn here.
 struct AIReviewCard: View {
@@ -149,14 +154,17 @@ struct AIReviewCard: View {
     let usesDarkChrome: Bool
     var onAccept: () -> Void
     var onReject: () -> Void
+    var onRetry: () -> Void
     var onClose: () -> Void
 
     init(title: String, usesDarkChrome: Bool,
-         onAccept: @escaping () -> Void, onReject: @escaping () -> Void, onClose: @escaping () -> Void) {
+         onAccept: @escaping () -> Void, onReject: @escaping () -> Void,
+         onRetry: @escaping () -> Void = {}, onClose: @escaping () -> Void) {
         self.title = title
         self.usesDarkChrome = usesDarkChrome
         self.onAccept = onAccept
         self.onReject = onReject
+        self.onRetry = onRetry
         self.onClose = onClose
     }
 
@@ -174,6 +182,14 @@ struct AIReviewCard: View {
                     .foregroundStyle(MuseModalChrome.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
+                    Button(action: onRetry) {
+                        Image(systemName: AIReviewCardPresentation.retrySymbol)
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(AIReviewCardPresentation.retryTitle)
+                    .accessibilityLabel(AIReviewCardPresentation.retryTitle)
                     Button(titles.reject, action: onReject)
                         .buttonStyle(.bordered)
                         .controlSize(.small)

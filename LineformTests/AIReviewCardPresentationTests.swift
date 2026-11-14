@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import Lineform
 
 final class AIReviewCardPresentationTests: XCTestCase {
@@ -21,6 +22,9 @@ final class AIReviewCardPresentationTests: XCTestCase {
         XCTAssertEqual(AIReviewCardPresentation.title(for: .anotherWord), "Word ready")
         XCTAssertTrue(AIReviewCardPresentation.buttonTitles == ("Reject", "Accept"))
         XCTAssertEqual(AIReviewCardPresentation.reviewHint, "Return to accept · Esc to reject")
+        XCTAssertEqual(AIReviewCardPresentation.retryTitle, "Try Again")
+        XCTAssertEqual(AIReviewCardPresentation.retrySymbol, "arrow.clockwise")
+        XCTAssertNotNil(NSImage(systemSymbolName: AIReviewCardPresentation.retrySymbol, accessibilityDescription: nil))
     }
 
     func testProgressText() {
@@ -65,6 +69,7 @@ final class AIReviewCardPresentationTests: XCTestCase {
             XCTAssertNotEqual(titles.accept, "Accept", language)
             XCTAssertNotEqual(titles.reject, "Reject", language)
             XCTAssertNotEqual(AIReviewCardPresentation.cancelHint(bundle: bundle), "Esc to cancel", language)
+            XCTAssertNotEqual(AIReviewCardPresentation.retryTitle(bundle: bundle), "Try Again", language)
             XCTAssertNotEqual(AIReviewCardPresentation.markHint(bundle: bundle), "Esc clears marks", language)
             let hint = AIReviewCardPresentation.reviewHint(bundle: bundle)
             XCTAssertNotEqual(hint, "Return to accept · Esc to reject", language)

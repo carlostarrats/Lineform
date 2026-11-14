@@ -99,7 +99,39 @@ def mangle(seg):
     return seg + " **bold** # head `code` | pipe \\* star\nnext [x](y)"
 
 
-def result_for(payload):
+AVOID = re.compile(r"Give a different result than: (\{.*\})\s*$", re.DOTALL)
+
+
+def avoided_segments(system):
+    """The segments a Try Again asks to differ from (the last line of the system prompt), or None."""
+    m = AVOID.search(system or "")
+    if not m:
+        return None
+    try:
+        segments = json.loads(m.group(1)).get("segments")
+    except Exception:
+        return None
+    return segments if isinstance(segments, list) else None
+
+
+def differ(action, seg, out):
+    """A second answer for a Try Again whose first answer was `out`: another wording where the
+    stub knows one (punctuation untouched), else `out` unchanged."""
+    if action == "rewrite":
+        m = WORD.search(out)
+        return out[: m.end()] + " simply" + out[m.end():] if m else out
+    if action == "trim":
+        words = out.split()
+        plain = [i for i in range(1, len(words)) if PURE_WORD.match(words[i])]
+        return " ".join(words[:plain[-1]] + words[plain[-1] + 1:]) if len(plain) > 1 else out
+    if action == "anotherWord":
+        m = WORD.search(seg)
+        if m and out != seg[: m.start()] + match_case(m.group(0), "alternative") + seg[m.end():]:
+            return seg[: m.start()] + match_case(m.group(0), "alternative") + seg[m.end():]
+    return out
+
+
+def result_for(payload, system=""):
     action = payload.get("action", "")
     segments = payload.get("segments", [])
     if action in ("weakestSentences", "longSentences"):
@@ -117,6 +149,9 @@ def result_for(payload):
     fn = {"trim": trim, "cutInHalf": cut_in_half, "rewrite": rewrite, "proofread": proofread,
           "anotherWord": another_word}.get(action)
     out = [fn(s) if fn else s for s in segments]
+    avoid = avoided_segments(system)
+    if avoid is not None and len(avoid) == len(out):
+        out = [differ(action, seg, o) if o == a else o for seg, o, a in zip(segments, out, avoid)]
     return {"segments": out}
 
 
@@ -140,6 +175,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body = json.loads(raw)
             user = [m for m in body["messages"] if m.get("role") == "user"][-1]["content"]
+            system = "\n".join(m.get("content", "") for m in body["messages"] if m.get("role") == "system")
             payload = json.loads(user)
         except Exception:
             print("request: unparseable", flush=True)
@@ -150,7 +186,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.args.junk:
             content = "Sure! Here you go."
         else:
-            result = result_for(payload)
+            result = result_for(payload, system)
             if self.args.mangle and "segments" in result:
                 result["segments"] = [mangle(s) for s in result["segments"]]
             content = json.dumps(result)
@@ -198,6 +234,19 @@ def self_check():
     for seg in ("zebra", "other", "Other"):
         out = result_for({"action": "anotherWord", "segments": [seg]})["segments"][0]
         assert out.lower() != seg.lower() and len(out.split()) == 1, (seg, out)
+    # Try Again: the system prompt's last line names the rejected answer; the stub differs where
+    # it can, and never breaks the reply contract.
+    first = result_for({"action": "rewrite", "segments": ["A big day."]})
+    retry_system = "You edit prose.\nGive a different result than: " + json.dumps(first)
+    again = result_for({"action": "rewrite", "segments": ["A big day."]}, retry_system)["segments"][0]
+    assert again not in ("A big day.", "A large day."), again
+    word = result_for({"action": "anotherWord", "segments": ["big"]},
+                      'x\nGive a different result than: {"segments": ["large"]}')
+    assert word == {"segments": ["alternative"]}, word
+    for action in ("trim", "cutInHalf", "proofread"):
+        reply = result_for({"action": action, "segments": ["one two three four five"]},
+                           'x\nGive a different result than: {"segments": ["one two three four five"]}')
+        assert len(reply["segments"]) == 1, reply
     for action in ("trim", "cutInHalf", "rewrite", "proofread", "anotherWord"):
         reply = result_for({"action": action, "segments": ["one two", "three"]})
         assert set(reply) == {"segments"} and len(reply["segments"]) == 2, reply

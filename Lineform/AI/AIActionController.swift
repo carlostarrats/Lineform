@@ -29,6 +29,9 @@ enum AIReviewCommand: Equatable {
     case accept(Int), reject(Int)
     case acceptCurrent, end
     case typed(String)
+    /// The card's Try Again: drop this suggestion (nothing was applied) and run the same action
+    /// on the same text again, asking for a different result.
+    case retry
 }
 
 /// Runs one AI action on a selection and holds its review (spec §4, §4.1, §4.3).
@@ -83,6 +86,8 @@ final class AIActionController: ObservableObject {
     private var generation = 0
     /// Who answered the request the current review came from.
     private var reviewProvider: AIProvider?
+    /// The reply's segments behind the current review: Try Again asks for something different.
+    private var reviewRevisions: [String]?
     private var connectionObservation: AnyCancellable?
 
     init(connectionStore: AIConnectionStore,
@@ -170,7 +175,9 @@ final class AIActionController: ObservableObject {
         case mark([AISentence])
     }
 
-    func run(_ action: AIAction, range: NSRange, text: String) {
+    /// `avoiding`: the segments of a suggestion just discarded by Try Again; the prompt asks for a
+    /// different result (`AIActionPrompt.editPrompt(_:segments:avoiding:)`).
+    func run(_ action: AIAction, range: NSRange, text: String, avoiding: [String]? = nil) {
         guard allowsRun(on: range) else { return }
         let ns = text as NSString
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: ns.length))
@@ -200,7 +207,10 @@ final class AIActionController: ObservableObject {
 
         let prompt: AIPrompt
         switch request {
-        case .edit: prompt = AIActionPrompt.editPrompt(action, segments: pieces)
+        case .edit:
+            // Only a list that still lines up with the segments being sent.
+            let avoid = avoiding?.count == pieces.count ? avoiding : nil
+            prompt = AIActionPrompt.editPrompt(action, segments: pieces, avoiding: avoid)
         case .mark: prompt = AIActionPrompt.markPrompt(action, sentences: pieces)
         }
         let client = clientFactory(connection)
@@ -234,6 +244,7 @@ final class AIActionController: ObservableObject {
         stopRequest()
         reviewNotice = nil
         reviewProvider = nil
+        reviewRevisions = nil
         state = .idle
     }
 
@@ -317,6 +328,7 @@ final class AIActionController: ObservableObject {
             }
             let ns = snapshot as NSString
             reviewProvider = provider
+            reviewRevisions = revisions
             state = .reviewing(AIReviewSession(action: action, changes: [change], selectionRange: selection,
                                                originalSelection: ns.substring(with: selection)))
             editor.announceAI(Self.changeSuggestedMessage)
@@ -346,6 +358,14 @@ final class AIActionController: ObservableObject {
             endReview()
             editor.insertTypedText(text)
             return
+        case .retry:
+            // Only before anything was accepted: the document then still holds the original
+            // text at the session's range (a review applies nothing until Accept).
+            guard !session.acceptedAny else { return }
+            let previous = reviewRevisions
+            endReview()
+            run(session.action, range: session.selectionRange, text: editor.string, avoiding: previous)
+            return
         }
         state = .reviewing(session)
         if session.isFinished {
@@ -368,6 +388,7 @@ final class AIActionController: ObservableObject {
         for change in session.pending { session.reject(change.id) }
         reviewNotice = nil
         reviewProvider = nil
+        reviewRevisions = nil
         state = .idle
         if session.acceptedAny, let editor, let history {
             let text = editor.string

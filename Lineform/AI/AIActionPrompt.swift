@@ -22,9 +22,17 @@ enum AIActionPrompt {
         return modelInstruction
     }
 
-    static func editPrompt(_ action: AIAction, segments: [String]) -> AIPrompt {
-        AIPrompt(system: editSystem + "\n" + instruction(for: action),
-                 user: json(["action": action.rawValue, "segments": segments]))
+    /// Try Again's extra line, followed by the discarded suggestion as `{"segments": [...]}`.
+    static let differentResultInstruction = "Give a different result than: "
+
+    /// `avoiding`: the segments of the suggestion the writer just discarded with Try Again (same
+    /// count and order as `segments`); the model is asked for a different result.
+    static func editPrompt(_ action: AIAction, segments: [String], avoiding: [String]? = nil) -> AIPrompt {
+        var system = editSystem + "\n" + instruction(for: action)
+        if let avoiding {
+            system += "\n" + differentResultInstruction + json(["segments": avoiding])
+        }
+        return AIPrompt(system: system, user: json(["action": action.rawValue, "segments": segments]))
     }
 
     static func markPrompt(_ action: AIAction, sentences: [String]) -> AIPrompt {

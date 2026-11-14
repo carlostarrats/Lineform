@@ -454,6 +454,66 @@ final class AIActionControllerTests: XCTestCase {
                        "No changes suggested.")
     }
 
+    /// Try Again drops the suggestion (nothing was applied), re-runs the SAME action on the SAME
+    /// text, and asks for a different result than the one just discarded.
+    func testRetryRerunsTheSameActionAskingForADifferentResult() async throws {
+        let text = "Intro.\n\nThe big dog ran far away from home.\n"
+        let sentence = range(of: "The big dog ran far away from home.", in: text)
+        let behavior = FakeAIClient.Behavior.respond { prompt in
+            let word = prompt.system.contains("Give a different result than:") ? "huge" : "large"
+            let revised = FakeAIClient.segments(in: prompt).map { $0.replacingOccurrences(of: "big", with: word) }
+            return String(decoding: try! JSONSerialization.data(withJSONObject: ["segments": revised]), as: UTF8.self)
+        }
+        let (controller, surface, fake) = make(text, behavior)
+        await runToCompletion(controller, .trim, range: sentence, text: text)
+        XCTAssertEqual(try session(controller).changes.map(\.replacement), ["The large dog ran far away from home."])
+
+        controller.handle(.retry)
+        guard case .running(.trim, _) = controller.state else {
+            return XCTFail("expected the progress state, got \(controller.state)")
+        }
+        XCTAssertEqual(surface.string, text, "the original is untouched while retrying")
+        XCTAssertTrue(surface.editCalls.isEmpty)
+        await controller.runTask?.value
+
+        XCTAssertEqual(fake.prompts.count, 2)
+        XCTAssertEqual(FakeAIClient.segments(in: fake.prompts[1]), FakeAIClient.segments(in: fake.prompts[0]))
+        XCTAssertTrue(fake.prompts[1].system.hasSuffix(
+            #"Give a different result than: {"segments":["The large dog ran far away from home."]}"#))
+        let retried = try session(controller)
+        XCTAssertEqual(retried.action, .trim)
+        XCTAssertEqual(retried.selectionRange, sentence)
+        XCTAssertEqual(retried.changes.map(\.replacement), ["The huge dog ran far away from home."])
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(surface.string, "Intro.\n\nThe huge dog ran far away from home.\n")
+    }
+
+    /// A retry that comes back identical to the ORIGINAL says so, like any first try.
+    func testRetryReturningTheOriginalSaysSameText() async throws {
+        let text = "The big dog ran far away from home."
+        let behavior = FakeAIClient.Behavior.respond { prompt in
+            let segments = FakeAIClient.segments(in: prompt)
+            let revised = prompt.system.contains("Give a different result than:")
+                ? segments : segments.map { $0.replacingOccurrences(of: "big", with: "large") }
+            return String(decoding: try! JSONSerialization.data(withJSONObject: ["segments": revised]), as: UTF8.self)
+        }
+        let (controller, surface, _) = make(text, behavior)
+        await runToCompletion(controller, .rewrite, range: whole(text), text: text)
+        _ = try session(controller)
+        controller.handle(.retry)
+        await controller.runTask?.value
+        XCTAssertEqual(controller.state, .message("Claude returned the same text. Try again."))
+        XCTAssertEqual(surface.string, text)
+    }
+
+    func testRetryOutsideAReviewDoesNothing() async {
+        let text = "The big dog ran far away from home."
+        let (controller, _, fake) = make(text, replace(["big": "large"]))
+        controller.handle(.retry)
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertTrue(fake.prompts.isEmpty)
+    }
+
     /// Another Word flows through the same one-change review as Rewrite: the word is struck,
     /// its replacement offered, Return accepts it.
     func testAnotherWordIsOneReviewedChange() async throws {

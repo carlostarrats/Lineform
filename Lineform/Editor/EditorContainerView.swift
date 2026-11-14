@@ -2568,6 +2568,7 @@ struct EditorContainerView: View {
                     usesDarkChrome: usesDarkChrome,
                     onAccept: { aiController.handle(.acceptCurrent) },
                     onReject: { aiController.handle(.end) },
+                    onRetry: { aiController.handle(.retry) },
                     onClose: { aiController.handle(.end) }
                 )
             }
