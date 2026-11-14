@@ -150,6 +150,12 @@ struct AICardWidthCap: Layout {
     }
 }
 
+/// The review card's measured height, so the overlay can keep the current change above it.
+struct AIReviewCardHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 /// The ✕ every AI card carries, top-trailing: the announcement card's close button (18×18, 9pt
 /// bold xmark, −2 offsets). A real `Button`, so it has an AX identity of its own.
 private struct AICardCloseButton: View {
@@ -246,6 +252,9 @@ struct AIReviewCard: View {
             AICardCloseButton(usesDarkChrome: usesDarkChrome, action: onClose)
         }
         .modifier(AICardChrome(usesDarkChrome: usesDarkChrome))
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: AIReviewCardHeightKey.self, value: proxy.size.height)
+        })
         .accessibilityElement(children: .contain)
         .accessibilityLabel(AIReviewCardPresentation.reviewCardLabel)
     }

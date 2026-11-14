@@ -84,6 +84,8 @@ struct EditorContainerView: View {
     @StateObject private var aiController = AIActionController(connectionStore: .shared)
     /// The review overlay's composition, rebuilt only when the session or the text changes.
     @State private var aiCompositionCache = AIReviewCompositionCache()
+    /// The review card's height (measured), so the overlay keeps the current change above it.
+    @State private var aiReviewCardHeight: CGFloat = 0
     @StateObject private var speechController = SpeechController()
     @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
@@ -2502,6 +2504,8 @@ struct EditorContainerView: View {
                                                             session: session),
                 currentID: session.currentID,
                 pendingCount: session.pending.count,
+                // Card + its inset + a little air: the current change is revealed above it.
+                bottomObscured: aiReviewCardHeight > 0 ? aiReviewCardHeight + AnnouncementCard.edgeInset + 8 : 0,
                 profile: displayProfile,
                 editor: aiController.editor as? NSTextView,
                 onCommand: { command in aiController.handle(command) }
@@ -2542,6 +2546,7 @@ struct EditorContainerView: View {
                 .padding(AnnouncementCard.edgeInset)
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
         }
+        .onPreferenceChange(AIReviewCardHeightKey.self) { aiReviewCardHeight = $0 }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: 0.24), reduceMotion: reduceMotion),
             value: aiCardKind

@@ -370,6 +370,23 @@ final class LineformTextViewAITests: XCTestCase {
         }
     }
 
+    /// The current change is revealed above the review card — minimally, and not at all when it
+    /// already shows (the review must not make the document jump).
+    func testRevealKeepsTheChangeAboveTheCard() {
+        let visible = NSRect(x: 0, y: 100, width: 400, height: 300)   // shows 100…400
+        typealias S = AIReviewSurfaceRepresentable
+        XCTAssertNil(S.revealOriginY(for: NSRect(x: 0, y: 150, width: 50, height: 20), visible: visible, bottomObscured: 120),
+                     "visible above the card: no scroll")
+        // Under the card (card covers 280…400): scrolled up just enough to clear it.
+        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 300, width: 50, height: 20), visible: visible, bottomObscured: 120), 140)
+        // Above the visible top: brought just under it.
+        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 40, width: 50, height: 20), visible: visible, bottomObscured: 120), 32)
+        // Taller than the room: its top stays in view.
+        XCTAssertEqual(S.revealOriginY(for: NSRect(x: 0, y: 200, width: 50, height: 400), visible: visible, bottomObscured: 120), 192)
+        XCTAssertNil(S.revealOriginY(for: NSRect(x: 0, y: 380, width: 50, height: 10), visible: visible, bottomObscured: 0),
+                     "no card measured yet: plain visibility")
+    }
+
     func testMarksAreTemporaryAttributesOnly() throws {
         let textView = makeTextView()
         textView.applyDefaultTypography()

@@ -16,6 +16,9 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
     let currentID: Int?
     /// Pending changes left (Accept All and ← / → are offered for two or more).
     var pendingCount: Int = 1
+    /// How much of the overlay's bottom the review card covers (its height + inset + margin): the
+    /// current change is revealed above it.
+    var bottomObscured: CGFloat = 0
     let profile: ReadingProfile
     /// The editor underneath. Weakly held by the coordinator; nil only in a transient state.
     let editor: NSTextView?
@@ -25,6 +28,8 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
         weak var editor: NSTextView?
         var presented: (AIReviewComposition, Int?, ReadingProfile)?
         var onCommand: ((AIReviewCommand) -> Void)?
+        /// The card's covered height last revealed against (it is measured after the overlay is made).
+        var revealedObscured: CGFloat = 0
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -50,11 +55,16 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
         // Start where the reader is: the editor's top character, mapped into the overlay. Applied
         // now and again on the next turn, once SwiftUI has given the scroll view its real size.
         let anchor = editor.flatMap(Self.topAnchor(of:))
+        let bottomObscured = bottomObscured
         let showAnchor = { [weak textView, weak scrollView] in
-            guard let textView, let scrollView, let anchor,
-                  let y = Self.originY(in: textView, showing: textView.composition.overlayIndex(forDocumentIndex: anchor.index),
-                                       offset: anchor.offset) else { return }
-            Self.scroll(scrollView, toY: y)
+            guard let textView, let scrollView else { return }
+            if let anchor,
+               let y = Self.originY(in: textView, showing: textView.composition.overlayIndex(forDocumentIndex: anchor.index),
+                                    offset: anchor.offset) {
+                Self.scroll(scrollView, toY: y)
+            }
+            // Then, only if the card would cover it, the minimal scroll that shows the change.
+            Self.revealCurrentChange(of: textView, in: scrollView, bottomObscured: bottomObscured)
         }
         showAnchor()
         DispatchQueue.main.async { [weak textView] in
@@ -72,8 +82,11 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
         textView.handOffEditor = editor
         let previousCurrent = context.coordinator.presented?.1
         update(textView, in: scrollView, context: context)
-        if previousCurrent != currentID, let range = textView.currentChangeRange {
-            textView.scrollRangeToVisible(range)
+        if previousCurrent != currentID || context.coordinator.revealedObscured != bottomObscured {
+            // A new current change, or the card's height just measured: reveal it above the card
+            // (nothing moves when it already shows).
+            context.coordinator.revealedObscured = bottomObscured
+            Self.revealCurrentChange(of: textView, in: scrollView, bottomObscured: bottomObscured)
         }
         if let window = textView.window, window.firstResponder !== textView, window.firstResponder === editor {
             // The overlay owns the keyboard during review (the editor is read-only beneath it).
@@ -142,6 +155,33 @@ struct AIReviewSurfaceRepresentable: NSViewRepresentable {
         let glyph = layoutManager.glyphIndexForCharacter(at: character)
         let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
         return max(0, line.minY + min(offset, line.height) + textView.textContainerOrigin.y)
+    }
+
+    /// Scrolls the least amount that shows the current change ABOVE the review card (2026-11-14:
+    /// the card covered a change near the bottom). Nothing moves when it is already visible — the
+    /// review must not make the document jump.
+    static func revealCurrentChange(of textView: AIReviewTextView, in scrollView: NSScrollView, bottomObscured: CGFloat) {
+        guard let range = textView.currentChangeRange, let layoutManager = textView.layoutManager,
+              let container = textView.textContainer else { return }
+        layoutManager.ensureLayout(forCharacterRange: range)
+        let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: container)
+            .offsetBy(dx: textView.textContainerOrigin.x, dy: textView.textContainerOrigin.y)
+        guard let y = revealOriginY(for: rect, visible: scrollView.contentView.bounds, bottomObscured: bottomObscured) else { return }
+        scroll(scrollView, toY: y)
+    }
+
+    /// The clip origin y that shows `rect` inside `visible` minus its bottom `bottomObscured`, or
+    /// nil when it already shows. Below: scrolled up just enough (never so far its top leaves);
+    /// above: its top brought `margin` under the visible top.
+    static func revealOriginY(for rect: NSRect, visible: NSRect, bottomObscured: CGFloat, margin: CGFloat = 8) -> CGFloat? {
+        let top = visible.minY
+        let bottom = visible.maxY - bottomObscured
+        if rect.minY >= top, rect.maxY <= bottom { return nil }
+        if rect.maxY > bottom, rect.minY >= top {
+            return max(0, min(visible.minY + (rect.maxY - bottom), rect.minY - margin))
+        }
+        return max(0, rect.minY - margin)
     }
 
     static func scroll(_ scrollView: NSScrollView, toY y: CGFloat) {

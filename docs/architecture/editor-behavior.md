@@ -637,7 +637,9 @@ the commit message claimed. The fixture now measures the last line.
 ## History (2026-11-12)
 
 Per-passage version History: right-click a selection ▸ **Replace With…** (2026-11-14; was "Add
-Alternative…", before that "Add to History") keeps the passage's current text as its original, enters History focused on it AND
+Alternative…", before that "Add to History"; offered only when the edge-trimmed selection stays on
+one line and touches no front matter, fenced code or math — its field is one line,
+`DocumentHistoryController.canAdd`) keeps the passage's current text as its original, enters History focused on it AND
 opens the "Type a replacement" field with focus (`pendingAlternativeFieldID` →
 `HistorySidebarModel.opensAlternativeField`, spent by `alternativeFieldDidOpen`, cleared when History
 mode ends; leaving without adding still discards the one-version passage); History mode (the sidebar's History tab, or **View ▸ History**, ⌘Y)
@@ -896,7 +898,10 @@ shows passages with history and steps their versions. Spec:
   (they set the binding) still call `noteWholeTextReplacement()` / `engine.invalidateLiveRanges()`
   and passages are re-found literally: live reload, Convert to Plain Text / Restore Markdown, the
   Read-mode checkbox toggle, and image Reconnect. A new binding writer must do the same.
-- **Tracking is by live ranges.** Passages carry live ranges moved by every reported edit. Text is
+- **Tracking is by live ranges.** (A literal re-find treats a boundary next to a CJK ideograph,
+  kana or hangul character as a word boundary — those scripts have no spaces, and every Japanese
+  word passage was dropped on reload, 2026-11-14; `foo` / `foo_bar` stays protected for alphabetic
+  scripts.) Passages carry live ranges moved by every reported edit. Text is
   searched only when a document opens, after a reload, or after an invalidation, and only
   LITERALLY (the current version's exact text). Any doubt drops the passage: the failure mode is
   "history quietly disappears", never "the wrong text is replaced". Overlapping non-nested passages
@@ -952,6 +957,11 @@ shows passages with history and steps their versions. Spec:
   `super` (which sets the I-beam) and `cursorUpdate` returns before `super` while History mode is
   on. Cursor rects are invalidated on entry and exit so leaving hands the I-beam back.
 - **The counter** ("current/total", `HistoryCounter.text`) appears ONLY on the focused passage,
+  and only when it has two or more versions (no "1/1" right after Replace With…, 2026-11-14).
+  In right-to-left text the room is reserved on the NEXT character (kern widens a glyph on its
+  visual right, so on the anchor it opened inside the passage) and widened by the ink overhang on
+  both sides; the counter sits left of the passage's last glyph
+  (`historyCounterReservation`). It is placed
   after its last non-whitespace glyph: medium tabular numerals (`HistoryCounterLayout`) at 0.75×
   the body size but never below 11pt (`minimumPointSize`; 2026-11-14 — a fixed 10pt was hard to
   read at small sizes), 4pt after the glyph, cap-aligned with the text, in `counterInk`
@@ -1084,6 +1094,17 @@ action does to the document. The two sections after it cover the text-view and o
   so it wasn't applied."; an edit the text view skipped ends with "That change couldn't be
   applied…" and records nothing (what landed stays, one ⌘Z). Nothing accepted → nothing applied
   or recorded. `reviewNotice` and the per-accept apply are gone.
+- **Hardening at the end** (2026-11-14). Before splicing, every accepted range must still read
+  its `original` (exact UTF-16), or nothing is applied and "The text changed…" shows. When the
+  editor is already GONE at the review's end — switching to Read tears the Write text view down
+  before `onChange(of: displayMode)` ends the review, and accepted Proofread decisions were
+  silently dropped — the edits go into the document through `AIActionController.documentFallback`
+  (set by the editor only around that call): one write, each edit reported to History first,
+  recorded once. That write is not on the text view's undo stack.
+- **Proofread tokens** (2026-11-14): canonically equal tokens are EQUAL (Swift `String ==`), so an
+  NFC reply to an NFD document is "No changes suggested" and never rewrites the writer's bytes;
+  CJK ideographs, kana and hangul are one token per character (`AIWordDiff.isIdeographic`), so a
+  one-particle fix is a one-character correction.
 - **Esc rejects the current change.** `.rejectCurrent` (Esc, the card's Reject): a one-change
   review then ends; Proofread moves on. ✕ and a hand-off key send `.end`, which marks every
   pending change rejected before applying what was accepted. `endReview()` returns the ended
@@ -1310,7 +1331,14 @@ the app's one `AIConnectionStore.shared`).
   changes are drawn at the SENTENCE that changed (`changedSentencePairs`: same sentence count and
   not all changed → each changed sentence struck with its replacement inline after it); every
   sentence changed, or sentences merged / split (Cut in Half), keeps the whole-span display (a
-  whole line stacked on its own line). Proofread corrections are always inline. The overlay takes
+  whole line stacked on its own line). Proofread corrections are always inline. A LINE whose prose
+  is split by links, code spans or other inline structure into several CHANGED segments is shown
+  whole (2026-11-14): the line's prose struck, then its whole new text stacked below with the
+  marker repeated (`AIReviewComposition.lineContent`) — interleaved pieces around a link were
+  unreadable. **The card never covers the current change**: the overlay knows the card's measured
+  height (`AIReviewCardHeightKey`, + inset + 8) and, when a review opens, the card is measured, or
+  the current correction changes, scrolls the LEAST amount that shows the change above the card
+  (`revealOriginY`) — and not at all when it already shows, so the no-jump fix holds. The overlay takes
   ← / → (`.move`) and a click on a pending change (`.select`); its accessibility actions add Accept
   All and Next / Previous Change while 2+ are pending.
 - **Find & Replace ends the review** (`replaceCurrentMatch` / `replaceAllMatches` call
