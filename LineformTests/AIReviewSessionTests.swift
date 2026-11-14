@@ -11,7 +11,7 @@ final class AIReviewSessionTests: XCTestCase {
     private func threeChanges() -> AIReviewSession {
         let text = "The big dog ran far away."
         let ns = text as NSString
-        return AIReviewSession(action: .rewrite, changes: [
+        return AIReviewSession(action: .rephrase, changes: [
             change(0, ns.range(of: "big").location, "big", "large"),
             change(1, ns.range(of: "ran").location, "ran", "sprinted"),
             change(2, ns.range(of: " away").location, " away", ""),
@@ -68,7 +68,7 @@ final class AIReviewSessionTests: XCTestCase {
         let ns = text as NSString
         let segments = MarkdownStructureMap.proseSegments(in: text, selection: NSRange(location: 0, length: ns.length))
         let change = try XCTUnwrap(AIChangeBuilder.change(segments: segments, revisions: ["alpha 1", "beta 2"], in: text))
-        var session = AIReviewSession(action: .rewrite, changes: [change],
+        var session = AIReviewSession(action: .rephrase, changes: [change],
                                       selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
         let edits = session.accept(0)
         XCTAssertEqual(edits.map(\.range), [ns.range(of: "beta two"), ns.range(of: "alpha one")])

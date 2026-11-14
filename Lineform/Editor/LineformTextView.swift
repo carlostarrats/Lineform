@@ -2069,7 +2069,8 @@ enum LineformTextContextMenuPresentation {
     /// One row of the AI group: an action, or a submenu of actions.
     enum AIMenuEntry: Equatable {
         case action(AIAction)
-        case submenu(String, [AIAction])
+        /// A submenu of action groups, a separator between groups.
+        case submenu(String, [[AIAction]])
     }
 
     /// The AI group for a selection. A single word gets "Another Word" in place of the Rewrite
@@ -2082,9 +2083,9 @@ enum LineformTextContextMenuPresentation {
         guard !isSingleWord(selectedText) else {
             return [.action(.anotherWord), .action(.proofread)]
         }
-        var entries: [AIMenuEntry] = [.submenu(aiRewriteMenuTitle, [.trim, .cutInHalf, .rewrite]), .action(.proofread)]
+        var entries: [AIMenuEntry] = [.submenu(aiRewriteMenuTitle, AIAction.rewriteMenuGroups), .action(.proofread)]
         if sentenceCount() >= 2 {
-            entries.append(.submenu(aiMarkMenuTitle, [.markWeakest, .markLong]))
+            entries.append(.submenu(aiMarkMenuTitle, [[.markWeakest, .markLong]]))
         }
         return entries
     }

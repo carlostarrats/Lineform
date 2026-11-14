@@ -6,11 +6,13 @@
   Connect Your AI > Other > http://127.0.0.1:8765/v1, no key.
 
 The last user message is JSON, as Lineform's AIActionPrompt builds it:
-  edit actions  {"action": "trim|cutInHalf|rewrite|proofread|anotherWord", "segments": [...]}
+  edit actions  {"action": "trim|cutInHalf|rephrase|simplify|moreFormal|moreCasual|proofread|anotherWord",
+                 "segments": [...]}   ("rewrite", the pre-2026-11-14 name of rephrase, is still answered)
                 -> {"segments": [...]}       (one revised string per segment, same order)
   Mark actions  {"action": "weakestSentences|longSentences", "sentences": [...]}
                 -> {"sentences": [n, ...]}   (1-based sentence numbers, as AIResponseParser reads)
-Replies are deterministic, and like the prompts ask, rewrite / trim (more than three words) /
+Replies are deterministic, and like the prompts ask, rephrase / simplify / moreFormal / moreCasual /
+trim (more than three words) /
 anotherWord never return a segment unchanged. Flags: --mangle (inject Markdown/line breaks into every segment),
 --delay SECONDS, --status CODE, --junk (non-JSON reply), --self-check (assert the reply contract
 above and exit). Logs action and item count per request, never text.
@@ -91,6 +93,37 @@ def rewrite(seg):
     return out
 
 
+def insert_after_first_word(seg, word):
+    m = WORD.search(seg)
+    return seg[: m.end()] + " " + word + seg[m.end():] if m else seg
+
+
+SIMPLER = {"utilize": "use", "commence": "start", "approximately": "about", "purchase": "buy",
+           "sufficient": "enough", "assist": "help", "demonstrate": "show", "large": "big"}
+FORMAL = {"get": "obtain", "big": "substantial", "kids": "children", "buy": "purchase", "help": "assist",
+          "start": "commence", "show": "demonstrate", "about": "approximately"}
+CASUAL = {v: k for k, v in FORMAL.items()}
+
+
+def swap_words(seg, table, fallback):
+    """Every word in `table` swapped (case kept); with none, `fallback` goes in after the first
+    word. Punctuation is never added or removed (the app's structure guard)."""
+    out = WORD.sub(lambda m: match_case(m.group(0), table.get(m.group(0).lower(), m.group(0))), seg)
+    return out if out != seg else insert_after_first_word(seg, fallback)
+
+
+def simplify(seg):
+    return swap_words(seg, SIMPLER, "simply")
+
+
+def more_formal(seg):
+    return swap_words(seg, FORMAL, "indeed")
+
+
+def more_casual(seg):
+    return swap_words(seg, CASUAL, "really")
+
+
 def proofread(seg):
     return re.sub(r"\bteh\b", "the", seg).replace(" ,", ",")
 
@@ -117,7 +150,7 @@ def avoided_segments(system):
 def differ(action, seg, out):
     """A second answer for a Try Again whose first answer was `out`: another wording where the
     stub knows one (punctuation untouched), else `out` unchanged."""
-    if action == "rewrite":
+    if action in ("rewrite", "rephrase", "simplify", "moreFormal", "moreCasual"):
         m = WORD.search(out)
         return out[: m.end()] + " simply" + out[m.end():] if m else out
     if action == "trim":
@@ -146,7 +179,8 @@ def result_for(payload, system=""):
             if count > best_count:
                 best, best_count = i, count
         return {"sentences": [best]}
-    fn = {"trim": trim, "cutInHalf": cut_in_half, "rewrite": rewrite, "proofread": proofread,
+    fn = {"trim": trim, "cutInHalf": cut_in_half, "rewrite": rewrite, "rephrase": rewrite,
+          "simplify": simplify, "moreFormal": more_formal, "moreCasual": more_casual, "proofread": proofread,
           "anotherWord": another_word}.get(action)
     out = [fn(s) if fn else s for s in segments]
     avoid = avoided_segments(system)
@@ -247,7 +281,16 @@ def self_check():
         reply = result_for({"action": action, "segments": ["one two three four five"]},
                            'x\nGive a different result than: {"segments": ["one two three four five"]}')
         assert len(reply["segments"]) == 1, reply
-    for action in ("trim", "cutInHalf", "rewrite", "proofread", "anotherWord"):
+    # The direction group always changes the text, punctuation untouched.
+    for action in ("rephrase", "simplify", "moreFormal", "moreCasual"):
+        for seg in ("The cat sat on the mat.", "We utilize kids to help.", "Hi"):
+            out = result_for({"action": action, "segments": [seg]})["segments"][0]
+            assert out != seg, (action, seg, out)
+            assert re.sub(r"[A-Za-z ]", "", out) == re.sub(r"[A-Za-z ]", "", seg), (action, seg, out)
+    assert result_for({"action": "simplify", "segments": ["We utilize it."]}) == {"segments": ["We use it."]}
+    assert result_for({"action": "moreFormal", "segments": ["Get help."]}) == {"segments": ["Obtain assist."]}
+    for action in ("trim", "cutInHalf", "rewrite", "rephrase", "simplify", "moreFormal", "moreCasual",
+                   "proofread", "anotherWord"):
         reply = result_for({"action": action, "segments": ["one two", "three"]})
         assert set(reply) == {"segments"} and len(reply["segments"]) == 2, reply
     print("self-check: ok", flush=True)

@@ -177,7 +177,8 @@ extension LineformTextView {
 
     // MARK: - Context menu
 
-    /// Rewrite ▸ Trim · Cut in half · Rewrite; Proofread; Mark ▸ Weakest · Long — for a
+    /// Rewrite ▸ Trim · Cut in Half · ─ · Rephrase · Simplify · More Formal · More Casual (or
+    /// Another Word for one word); Proofread; Find ▸ Weakest · Long (2+ sentences) — for a
     /// non-empty selection the controller accepts. ABSENT, not disabled, otherwise. The handler
     /// does whole-document structure analysis, so it is asked HERE, when the menu is built.
     func addAIItemsIfAvailable(to menu: NSMenu) {
@@ -204,11 +205,14 @@ extension LineformTextView {
         return item
     }
 
-    private func aiSubmenuItem(_ title: String, _ actions: [AIAction]) -> NSMenuItem {
+    private func aiSubmenuItem(_ title: String, _ groups: [[AIAction]]) -> NSMenuItem {
         let submenu = NSMenu(title: title)
         // Keeps `MainMenuIconDecorator` off it, like the context menu itself.
         submenu.identifier = MainMenuIconDecorator.excludedMenuIdentifier
-        for action in actions { submenu.addItem(aiActionItem(action)) }
+        for (index, group) in groups.enumerated() {
+            if index > 0 { submenu.addItem(.separator()) }
+            for action in group { submenu.addItem(aiActionItem(action)) }
+        }
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.submenu = submenu
         return item

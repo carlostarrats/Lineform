@@ -15,7 +15,13 @@ final class AIReviewCardPresentationTests: XCTestCase {
     /// One decision per action (spec "AI review: option A"): a short label naming the action,
     /// Reject and Accept — no counter, no Accept All / Reject All.
     func testReviewCardSaysWhatIsReadyAndOffersOneDecision() {
-        XCTAssertEqual(AIReviewCardPresentation.title(for: .rewrite), "Rewrite ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .rephrase), "Rephrase ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .simplify), "Simpler version ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .moreFormal), "More formal version ready")
+        XCTAssertEqual(AIReviewCardPresentation.title(for: .moreCasual), "More casual version ready")
+        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .moreFormal, provider: .chatGPT),
+                       "Making it more formal with ChatGPT…")
+        XCTAssertEqual(AIReviewCardPresentation.progressText(for: .simplify, provider: .other), "Simplifying with your AI…")
         XCTAssertEqual(AIReviewCardPresentation.title(for: .trim), "Trim ready")
         XCTAssertEqual(AIReviewCardPresentation.title(for: .cutInHalf), "Cut ready")
         XCTAssertEqual(AIReviewCardPresentation.title(for: .proofread), "Proofread ready")

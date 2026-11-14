@@ -9,7 +9,7 @@ final class AIReviewCompositionTests: XCTestCase {
     }
 
     private func session(_ text: String, _ changes: [AIChange]) -> AIReviewSession {
-        AIReviewSession(action: .rewrite, changes: changes,
+        AIReviewSession(action: .rephrase, changes: changes,
                         selectionRange: NSRange(location: 0, length: (text as NSString).length),
                         originalSelection: text)
     }

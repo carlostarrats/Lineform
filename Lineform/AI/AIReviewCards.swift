@@ -10,7 +10,10 @@ enum AIReviewCardPresentation {
         switch action {
         case .trim: return String(localized: "Trim ready", bundle: bundle)
         case .cutInHalf: return String(localized: "Cut ready", bundle: bundle)
-        case .rewrite: return String(localized: "Rewrite ready", bundle: bundle)
+        case .rephrase: return String(localized: "Rephrase ready", bundle: bundle)
+        case .simplify: return String(localized: "Simpler version ready", bundle: bundle)
+        case .moreFormal: return String(localized: "More formal version ready", bundle: bundle)
+        case .moreCasual: return String(localized: "More casual version ready", bundle: bundle)
         case .proofread: return String(localized: "Proofread ready", bundle: bundle)
         case .anotherWord: return String(localized: "Word ready", bundle: bundle)
         case .markWeakest, .markLong: return action.title
@@ -40,7 +43,10 @@ enum AIReviewCardPresentation {
             switch action {
             case .trim: return String(localized: "Trimming with your AI…", bundle: bundle)
             case .cutInHalf: return String(localized: "Cutting with your AI…", bundle: bundle)
-            case .rewrite: return String(localized: "Rewriting with your AI…", bundle: bundle)
+            case .rephrase: return String(localized: "Rephrasing with your AI…", bundle: bundle)
+            case .simplify: return String(localized: "Simplifying with your AI…", bundle: bundle)
+            case .moreFormal: return String(localized: "Making it more formal with your AI…", bundle: bundle)
+            case .moreCasual: return String(localized: "Making it more casual with your AI…", bundle: bundle)
             case .proofread: return String(localized: "Proofreading with your AI…", bundle: bundle)
             case .anotherWord: return String(localized: "Finding another word with your AI…", bundle: bundle)
             case .markWeakest, .markLong: return String(localized: "Finding sentences with your AI…", bundle: bundle)
@@ -50,7 +56,10 @@ enum AIReviewCardPresentation {
         switch action {
         case .trim: return String(localized: "Trimming with \(name)…", bundle: bundle)
         case .cutInHalf: return String(localized: "Cutting with \(name)…", bundle: bundle)
-        case .rewrite: return String(localized: "Rewriting with \(name)…", bundle: bundle)
+        case .rephrase: return String(localized: "Rephrasing with \(name)…", bundle: bundle)
+        case .simplify: return String(localized: "Simplifying with \(name)…", bundle: bundle)
+        case .moreFormal: return String(localized: "Making it more formal with \(name)…", bundle: bundle)
+        case .moreCasual: return String(localized: "Making it more casual with \(name)…", bundle: bundle)
         case .proofread: return String(localized: "Proofreading with \(name)…", bundle: bundle)
         case .anotherWord: return String(localized: "Finding another word with \(name)…", bundle: bundle)
         case .markWeakest, .markLong: return String(localized: "Finding sentences with \(name)…", bundle: bundle)

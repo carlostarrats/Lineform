@@ -125,7 +125,7 @@ final class AIReviewTextViewTests: XCTestCase {
         let ns = doc as NSString
         let change = AIChange(id: 0, range: ns.range(of: "Old line here."), original: "Old line here.",
                               replacement: "See [the guide](guide.md) and `make test` now.")
-        let session = AIReviewSession(action: .rewrite, changes: [change],
+        let session = AIReviewSession(action: .rephrase, changes: [change],
                                       selectionRange: NSRange(location: 0, length: ns.length), originalSelection: doc)
         let composition = AIReviewComposition.build(text: doc, session: session)
         let shown = composition.string as NSString
@@ -285,7 +285,7 @@ final class AIReviewTextViewTests: XCTestCase {
         editor.string = text
         controller.editor = editor
         let passage = (text as NSString).range(of: "A very big day.")
-        controller.run(.rewrite, range: passage, text: text)
+        controller.run(.rephrase, range: passage, text: text)
         await controller.runTask?.value
         guard case .reviewing = controller.state else { return XCTFail("expected a review, got \(controller.state)") }
         editor.setSelectedRange(passage)
@@ -441,7 +441,7 @@ final class AIReviewTextViewTests: XCTestCase {
                                     replacement: String(repeating: "considerably larger ", count: 4)))
             searchFrom = NSMaxRange(range)
         }
-        let review = AIReviewSession(action: .rewrite, changes: changes,
+        let review = AIReviewSession(action: .rephrase, changes: changes,
                                      selectionRange: NSRange(location: 0, length: ns.length), originalSelection: document)
         let composition = AIReviewComposition.build(text: document, session: review)
 
