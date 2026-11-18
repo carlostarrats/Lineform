@@ -113,7 +113,10 @@ final class LineformTextView: NSTextView {
     /// value is a no-op (like `setSearchHighlights`). See `LineformTextView+History.swift`.
     var historyDisplay: HistoryModeDisplay? {
         get { historyDisplayStorage }
-        set { applyHistoryDisplay(newValue) }
+        set {
+            if newValue != nil { hideSelectionToolbar() }
+            applyHistoryDisplay(newValue)
+        }
     }
     /// Whether "Add to History" may be offered for a selection. Backed by an O(document) engine
     /// call: asked only when the context menu is built.
@@ -145,12 +148,18 @@ final class LineformTextView: NSTextView {
         get { aiMarkRangesStorage }
         set { applyAIMarkRanges(newValue) }
     }
-    var isAIRequestRunning = false
+    var isAIRequestRunning = false {
+        didSet { if isAIRequestRunning { hideSelectionToolbar() } }
+    }
     /// While a review is shown the document is read-only (its own accepts excepted).
-    var isAIReviewActive = false
+    var isAIReviewActive = false {
+        didSet { if isAIReviewActive { hideSelectionToolbar() } }
+    }
     // Storage for `LineformTextView+AI.swift`. Not for use elsewhere.
     var aiMarkRangesStorage: [NSRange] = []
     var isApplyingAIEdit = false
+    /// The selection toolbar (`LineformTextView+SelectionToolbar.swift`). Not for use elsewhere.
+    var selectionToolbarStorage: SelectionToolbarController?
     private var activeSearchHighlightRange: NSRange?
     private var scrollOriginBeforeTypewriterMode: NSPoint?
     private var pendingDeferredVisualLayoutAnchor: VisualLayoutAnchor?
@@ -292,7 +301,7 @@ final class LineformTextView: NSTextView {
     /// History mode's arrow keys and Esc. Hooked HERE, never in `keyDown` — `keyDown` runs before
     /// input-method handling and would swallow keys mid-composition.
     override func doCommand(by selector: Selector) {
-        if handleHistoryCommand(selector) || handleAICommand(selector) {
+        if handleHistoryCommand(selector) || handleSelectionToolbarCommand(selector) || handleAICommand(selector) {
             return
         }
         super.doCommand(by: selector)
@@ -387,6 +396,7 @@ final class LineformTextView: NSTextView {
             refreshAIMarks()
         }
         refreshReadingAssists()
+        refreshSelectionToolbarIfVisible()
     }
 
     static func selectedTextAttributes(usesDarkChrome: Bool) -> [NSAttributedString.Key: Any] {
@@ -580,6 +590,7 @@ final class LineformTextView: NSTextView {
         refreshHistoryRecededInkAfterScrollIfNeeded()
         scheduleVisibleTokensRefreshAfterScroll()
         scheduleVisibleTopRangeReportAfterScroll()
+        refreshSelectionToolbarIfVisible()
     }
 
     func refreshReadingAssists() {
@@ -1078,6 +1089,7 @@ final class LineformTextView: NSTextView {
     override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting stillSelectingFlag: Bool) {
         super.setSelectedRanges(historyClampedSelection(ranges) ?? ranges, affinity: affinity,
                                 stillSelecting: stillSelectingFlag)
+        selectionToolbarSelectionDidChange(stillSelecting: stillSelectingFlag)
     }
 
     /// History mode hides the caret (`hidesInsertionPointForHistory`).
@@ -1467,10 +1479,18 @@ final class LineformTextView: NSTextView {
             return false
         }
 
-        return EditorFloatingControlHitTestRegistry.contains(
-            windowPoint: event.locationInWindow,
-            in: window
-        )
+        if EditorFloatingControlHitTestRegistry.contains(windowPoint: event.locationInWindow, in: window) {
+            return true
+        }
+        // The selection toolbar / comment card is a subview: its own cursors (arrow, open hand,
+        // the note's I-beam) win. Without this the editor re-asserted its I-beam on every move and
+        // the grip's hand flickered.
+        if let hosting = selectionToolbarStorage?.hostingView, hosting.superview === self {
+            let local = hosting.convert(event.locationInWindow, from: nil)
+            let inset = SelectionToolbarHostingView.shadowInset
+            return hosting.bounds.insetBy(dx: inset, dy: inset).contains(local)
+        }
+        return false
     }
 
     private func drawEmptyStatePlaceholderIfNeeded() {

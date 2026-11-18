@@ -21,26 +21,46 @@ enum AIActionPrompt {
         case .anotherWord: modelInstruction = "The passage is a single word. Return one different word, or a very short phrase, that could replace it: same meaning, same part of speech, matching its capitalization. Never return the same word."
         case .markWeakest: modelInstruction = "Choose the weakest sentences: vague, flat or unclear."
         case .markLong: modelInstruction = "Choose sentences too long to read comfortably."
+        case .custom: modelInstruction = "Change the passage the way the writer's note asks. Never return the passage unchanged."
         }
         return modelInstruction
     }
+
+    /// Added when the writer typed a note in the selection toolbar's comment card. The note travels
+    /// in the user JSON (`note`), never spliced into the system text.
+    static let noteInstruction = "The request includes the writer's note about this passage. Follow it."
 
     /// Try Again's extra line, followed by the discarded suggestion as `{"segments": [...]}`.
     static let differentResultInstruction = "Give a different result than: "
 
     /// `avoiding`: the segments of the suggestion the writer just discarded with Try Again (same
     /// count and order as `segments`); the model is asked for a different result.
-    static func editPrompt(_ action: AIAction, segments: [String], avoiding: [String]? = nil) -> AIPrompt {
+    static func editPrompt(_ action: AIAction, segments: [String], avoiding: [String]? = nil,
+                           note: String? = nil) -> AIPrompt {
+        let note = trimmedNote(note)
         var system = editSystem + "\n" + instruction(for: action)
+        if note != nil { system += "\n" + noteInstruction }
         if let avoiding {
             system += "\n" + differentResultInstruction + json(["segments": avoiding])
         }
-        return AIPrompt(system: system, user: json(["action": action.rawValue, "segments": segments]))
+        var user: [String: Any] = ["action": action.rawValue, "segments": segments]
+        if let note { user["note"] = note }
+        return AIPrompt(system: system, user: json(user))
     }
 
-    static func markPrompt(_ action: AIAction, sentences: [String]) -> AIPrompt {
-        AIPrompt(system: markSystem + "\n" + instruction(for: action),
-                 user: json(["action": action.rawValue, "sentences": sentences]))
+    static func markPrompt(_ action: AIAction, sentences: [String], note: String? = nil) -> AIPrompt {
+        let note = trimmedNote(note)
+        var system = markSystem + "\n" + instruction(for: action)
+        if note != nil { system += "\n" + noteInstruction }
+        var user: [String: Any] = ["action": action.rawValue, "sentences": sentences]
+        if let note { user["note"] = note }
+        return AIPrompt(system: system, user: json(user))
+    }
+
+    /// A note of only whitespace is no note.
+    static func trimmedNote(_ note: String?) -> String? {
+        guard let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     private static func json(_ object: [String: Any]) -> String {

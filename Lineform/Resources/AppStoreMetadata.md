@@ -14,7 +14,7 @@ Lineform is the free, native Markdown editor for Mac for people who want focused
 
 Read and Preview render tables, task checkboxes, callouts, fenced code with syntax highlighting, Mermaid diagrams, LaTeX math, and images stored on your Mac — all drawn natively, with no web view. Images at a web address are never downloaded. Documents export to HTML, PDF, Styled PDF, and Rich Text, print natively, preview in Finder through Quick Look, and can be read aloud.
 
-Want AI help? Connect your own Claude, ChatGPT, Google, or local model with your own API key, then right-click a selection to trim it, cut it in half, rewrite it, proofread it, or mark its weakest and longest sentences — every suggestion reviewed before it touches your file, and your Markdown structure never changed. Lineform sends only the text you act on, directly to the provider you choose.
+Want AI help? Connect your own Claude, ChatGPT, Google, or local model with your own API key, then right-click a selection to trim it, cut it in half, rewrite it, proofread it, or mark its weakest and longest sentences — or tell it in your own words what to change — every suggestion reviewed before it touches your file, and your Markdown structure never changed. Lineform sends only the text you act on, directly to the provider you choose.
 
 No account, no analytics, no document upload. No AI built in. Connect your own if you want it.
 

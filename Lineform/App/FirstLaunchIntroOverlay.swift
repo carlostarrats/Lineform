@@ -30,16 +30,11 @@ enum LineformLaunchDefaults {
         #endif
     }
 
-    /// Lineform always launches to a clean slate: macOS never reopens the previous
-    /// session's document windows. Without this, a document restored from an earlier
-    /// session — often from a workspace the user has since navigated away from — reappears
-    /// as a lone tab, and because the tab bar only shows with 2+ tabs there is no tab UI to
-    /// close it, so it feels "stuck." Starting clean means quit/relaunch opens a fresh
-    /// untitled document instead. (The first-release migration side effects in
-    /// `prepareForLaunch` are unrelated and preserved.)
-    static func shouldRestoreApplicationState(defaults: UserDefaults = .standard) -> Bool {
-        false
-    }
+    // Lineform always launches to a clean slate: macOS never reopens the previous session's
+    // document windows. This is enforced per window (`ChromeView` sets `isRestorable = false`),
+    // NOT by a delegate hook: the `applicationShouldRestoreApplicationState` that used to sit
+    // here is not an `NSApplicationDelegate` method on macOS, so it was never called and quit →
+    // relaunch reopened the last document whenever macOS kept windows (2026-11-17).
 
     @discardableResult
     static func migrateFirstPublicReleaseDefaultsIfNeeded(
@@ -124,10 +119,6 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
 
         firstLaunchIntroPresenter.openUntitledDocumentAfterDismiss()
         return false
-    }
-
-    func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
-        LineformLaunchDefaults.shouldRestoreApplicationState()
     }
 
     func applicationShouldHandleReopen(

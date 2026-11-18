@@ -199,7 +199,8 @@ service changes.
       - **Nothing is shared before it.** No request at launch, on opening the window, or on Connect
         itself (the key is not tested). AI menu items do not exist until connected.
       - **Each send is user-initiated.** A request happens only when the writer selects text and
-        chooses Rewrite / Proofread / Mark, and only that selection's prose is sent. Bundled
+        chooses Rewrite / Proofread / Mark, or sends a comment from the selection toolbar, and only that
+        selection's prose (plus the comment the writer typed) is sent. Bundled
         Privacy.md and Help.md describe what, to whom, when, the Keychain, and Disconnect.
       - **Conclusion:** no per-action prompt is required by the text of 5.1.2(i); the guideline asks
         for clear disclosure and explicit permission *before* sharing, which the consent label gives
@@ -209,8 +210,9 @@ service changes.
       - **Review note to paste:** "Lineform has no built-in AI. Optionally, the user can connect
         their own AI provider (Lineform ▸ Connect Your AI…) with their own API key, stored in the
         Keychain. The Connect button states which company will receive the text. Nothing is sent on
-        connect. Afterwards, only the prose of a selection the user right-clicks and chooses an AI
-        action for is sent, directly from the Mac to that provider; the developer operates no
+        connect. Afterwards, only the prose of a selection the user chooses an AI action for (from the
+        right-click menu, or the selection toolbar's comment card, with the comment the user typed)
+        is sent, directly from the Mac to that provider; the developer operates no
         server and receives nothing. To test without an account, choose Other and point it at a
         local OpenAI-compatible server (e.g. Ollama at http://localhost:11434/v1)."
 

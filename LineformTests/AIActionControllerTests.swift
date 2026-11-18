@@ -1207,4 +1207,101 @@ final class AIActionControllerTests: XCTestCase {
 
 private extension NSRange {
     func shifted(by offset: Int) -> NSRange { NSRange(location: location + offset, length: length) }
+
+}
+
+@MainActor
+extension AIActionControllerTests {
+    // MARK: - The selection toolbar's comment (a note, with or without an action)
+
+    func testCustomWithoutANoteSendsNothing() async {
+        let text = "The big dog ran far away."
+        let (controller, _, fake) = make(text, replace(["big": "large"]))
+        controller.run(.custom, range: whole(text), text: text, note: "   ")
+        await controller.runTask?.value
+        XCTAssertTrue(fake.prompts.isEmpty)
+        XCTAssertEqual(controller.state, .idle)
+    }
+
+    func testCustomWithANoteIsAnOrdinaryReview() async throws {
+        let text = "The big dog ran far away."
+        let (controller, surface, fake) = make(text, replace(["big": "friendly"]))
+        controller.run(.custom, range: whole(text), text: text, note: "make it warmer")
+        await controller.runTask?.value
+        let prompt = try XCTUnwrap(fake.prompts.first)
+        XCTAssertTrue(prompt.user.contains(#""note":"make it warmer""#))
+        XCTAssertTrue(prompt.user.contains(#""action":"custom""#))
+        XCTAssertEqual(try session(controller).changes.map(\.replacement), ["The friendly dog ran far away."])
+        XCTAssertEqual(surface.string, text, "nothing changes until it is accepted")
+        controller.handle(.acceptCurrent)
+        XCTAssertEqual(surface.string, "The friendly dog ran far away.")
+    }
+
+    func testAnActionCarriesTheNoteAndTryAgainKeepsIt() async throws {
+        let text = "The big dog ran far away."
+        let (controller, surface, fake) = make(text, replace(["big": "large"]))
+        controller.run(.trim, range: whole(text), text: text, note: "keep the dog")
+        await controller.runTask?.value
+        XCTAssertTrue(try XCTUnwrap(fake.prompts.first).user.contains(#""note":"keep the dog""#))
+        _ = try session(controller)
+        controller.handle(.retry)
+        await controller.runTask?.value
+        XCTAssertEqual(fake.prompts.count, 2)
+        XCTAssertTrue(fake.prompts[1].user.contains(#""note":"keep the dog""#), "Try Again sends the same note")
+        XCTAssertTrue(fake.prompts[1].user.contains(#""action":"trim""#))
+        withExtendedLifetime(surface) {}
+    }
+
+    func testTheContextMenuSendsNoNote() async throws {
+        let text = "The big dog ran far away."
+        let (controller, surface, fake) = make(text, replace(["big": "large"]))
+        controller.run(.trim, range: whole(text), text: text, note: "earlier note")
+        await controller.runTask?.value
+        controller.handle(.end)
+        controller.run(.trim, range: whole(text), text: text)
+        await controller.runTask?.value
+        XCTAssertFalse(try XCTUnwrap(fake.prompts.last).user.contains("note"), "a later run without a note forgets it")
+        withExtendedLifetime(surface) {}
+    }
+
+    /// Every option in the comment card's Action menu, sent WITH a note, the way the card sends it:
+    /// the request names the action and carries the note, and the result is that action's normal
+    /// outcome (a review to accept, or Find's highlighted sentences).
+    func testEveryCommentCardActionCarriesItsNote() async throws {
+        let passage = "We cut it back to one list. Teh testing showed people started faster."
+        let menus: [(String, [AIAction])] = [
+            (passage, SelectionToolbarPresentation.actionGroups(selectedText: passage, sentenceCount: { 2 }).flatMap { $0 }),
+            ("big", SelectionToolbarPresentation.actionGroups(selectedText: "big", sentenceCount: { 1 }).flatMap { $0 }),
+        ]
+        var covered = Set<AIAction>()
+        for (text, actions) in menus {
+            for action in actions {
+                let behavior = FakeAIClient.Behavior.respond { prompt in
+                    if prompt.user.contains(#""sentences""#) { return #"{"sentences": [1]}"# }
+                    let revised = FakeAIClient.segments(in: prompt).map { segment in
+                        segment == "big" ? "vast" : "Honestly, " + segment.replacingOccurrences(of: "Teh", with: "The")
+                    }
+                    return String(decoding: try! JSONSerialization.data(withJSONObject: ["segments": revised]), as: UTF8.self)
+                }
+                let (controller, surface, fake) = make(text, behavior)
+                let note = "note for \(action.rawValue)"
+                controller.run(action, range: whole(text), text: text, note: note)
+                await controller.runTask?.value
+                let prompt = try XCTUnwrap(fake.prompts.first, "\(action) sent nothing")
+                XCTAssertTrue(prompt.user.contains(#""action":"\#(action.rawValue)""#), "\(action)")
+                XCTAssertTrue(prompt.user.contains(#""note":"\#(note)""#), "\(action) lost its note")
+                if action.isMark {
+                    guard case .marking = controller.state else { return XCTFail("\(action): \(controller.state)") }
+                } else {
+                    XCTAssertFalse(try session(controller).changes.isEmpty, "\(action)")
+                    // Proofread reviews correction by correction: accept them all, then finish.
+                    controller.handle(action.reviewsPerCorrection ? .acceptAll : .acceptCurrent)
+                    if case .reviewing = controller.state { controller.handle(.end) }
+                    XCTAssertNotEqual(surface.string, text, "\(action) accepted nothing")
+                }
+                covered.insert(action)
+            }
+        }
+        XCTAssertEqual(covered, Set(AIAction.allCases), "every action is reachable from the comment card")
+    }
 }

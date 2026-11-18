@@ -930,6 +930,11 @@ struct WindowChromeReader: NSViewRepresentable {
         private var appearanceObservation: NSKeyValueObservation?
 
         override func viewWillMove(toWindow newWindow: NSWindow?) {
+            // Lineform always launches clean: a document window is never part of macOS's saved
+            // window state, so no restoration path (Quit and Keep Windows, the system's "Close
+            // windows when quitting" turned off, relaunch after restart/login, an app killed by
+            // an update) can reopen the previous session's files. See `LineformLaunchDefaults`.
+            newWindow?.isRestorable = false
             if #available(macOS 26.0, *),
                let newWindow,
                !newWindow.isVisible,

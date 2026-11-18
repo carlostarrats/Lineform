@@ -2,8 +2,9 @@ import AppKit
 
 /// What the text view asks the AI controller to do.
 enum AITextCommand: Equatable {
-    /// An action chosen from the context menu, for this selection.
-    case run(AIAction, NSRange)
+    /// An action chosen from the context menu or the selection toolbar's comment card, for this
+    /// selection. `note`: what the writer typed in the comment card (nil from the context menu).
+    case run(AIAction, NSRange, note: String?)
     /// Esc while a request runs.
     case cancel
     /// Esc, or a real edit, while Mark's sentences are shown.
@@ -222,6 +223,6 @@ extension LineformTextView {
         guard let action = (sender as? NSMenuItem)?.representedObject as? AIAction else { return }
         let range = selectedRange()
         guard range.length > 0 else { return }
-        aiCommandHandler?(.run(action, range))
+        aiCommandHandler?(.run(action, range, note: nil))
     }
 }

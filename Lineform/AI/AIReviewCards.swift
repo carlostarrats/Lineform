@@ -17,6 +17,7 @@ enum AIReviewCardPresentation {
         case .proofread: return String(localized: "Proofread ready", bundle: bundle)
         case .anotherWord: return String(localized: "Word ready", bundle: bundle)
         case .markWeakest, .markLong: return action.title
+        case .custom: return String(localized: "Suggestion ready", bundle: bundle)
         }
     }
 
@@ -77,6 +78,7 @@ enum AIReviewCardPresentation {
             case .proofread: return String(localized: "Proofreading with your AI…", bundle: bundle)
             case .anotherWord: return String(localized: "Finding another word with your AI…", bundle: bundle)
             case .markWeakest, .markLong: return String(localized: "Finding sentences with your AI…", bundle: bundle)
+            case .custom: return String(localized: "Working with your AI…", bundle: bundle)
             }
         }
         let name = provider.displayName
@@ -90,6 +92,7 @@ enum AIReviewCardPresentation {
         case .proofread: return String(localized: "Proofreading with \(name)…", bundle: bundle)
         case .anotherWord: return String(localized: "Finding another word with \(name)…", bundle: bundle)
         case .markWeakest, .markLong: return String(localized: "Finding sentences with \(name)…", bundle: bundle)
+        case .custom: return String(localized: "Working with \(name)…", bundle: bundle)
         }
     }
 

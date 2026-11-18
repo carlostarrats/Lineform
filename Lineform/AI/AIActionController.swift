@@ -98,6 +98,9 @@ final class AIActionController: ObservableObject {
     private var reviewProvider: AIProvider?
     /// The reply's segments behind the current review: Try Again asks for something different.
     private var reviewRevisions: [String]?
+    /// The writer's note for the request behind the current run or review (the selection toolbar's
+    /// comment). Try Again sends it again.
+    private var reviewNote: String?
     private var connectionObservation: AnyCancellable?
 
     init(connectionStore: AIConnectionStore,
@@ -236,8 +239,11 @@ final class AIActionController: ObservableObject {
 
     /// `avoiding`: the segments of a suggestion just discarded by Try Again; the prompt asks for a
     /// different result (`AIActionPrompt.editPrompt(_:segments:avoiding:)`).
-    func run(_ action: AIAction, range: NSRange, text: String, avoiding: [String]? = nil) {
+    func run(_ action: AIAction, range: NSRange, text: String, avoiding: [String]? = nil, note: String? = nil) {
         guard allowsRun(on: range) else { return }
+        let note = AIActionPrompt.trimmedNote(note)
+        // Custom IS the note: without one there is nothing to ask.
+        guard action != .custom || note != nil else { return }
         let ns = text as NSString
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: ns.length))
         guard clamped.length > 0 else { return }
@@ -273,9 +279,10 @@ final class AIActionController: ObservableObject {
         case .edit:
             // Only a list that still lines up with the segments being sent.
             let avoid = avoiding?.count == pieces.count ? avoiding : nil
-            prompt = AIActionPrompt.editPrompt(action, segments: pieces, avoiding: avoid)
-        case .mark: prompt = AIActionPrompt.markPrompt(action, sentences: pieces)
+            prompt = AIActionPrompt.editPrompt(action, segments: pieces, avoiding: avoid, note: note)
+        case .mark: prompt = AIActionPrompt.markPrompt(action, sentences: pieces, note: note)
         }
+        reviewNote = note
         let client = clientFactory(connection)
         // History mode on? Its selected passage is remembered and History mode ends; the action's
         // end brings it back (`settleHistory`).
@@ -481,7 +488,7 @@ final class AIActionController: ObservableObject {
             let previous = reviewRevisions
             // The action goes on: History stays settled-later (the re-run keeps its context).
             endReview(settlingHistory: false)
-            run(session.action, range: session.selectionRange, text: editor.string, avoiding: previous)
+            run(session.action, range: session.selectionRange, text: editor.string, avoiding: previous, note: reviewNote)
             return
         }
         state = .reviewing(session)

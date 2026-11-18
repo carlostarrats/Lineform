@@ -18,6 +18,9 @@ enum AIAction: String, CaseIterable {
     case anotherWord
     case markWeakest = "weakestSentences"
     case markLong = "longSentences"
+    /// The selection toolbar's comment with no action picked: the writer's note IS the instruction.
+    /// Never on the context menu (it has nowhere to type a note).
+    case custom
 
     var title: String {
         switch self {
@@ -31,6 +34,7 @@ enum AIAction: String, CaseIterable {
         case .anotherWord: return String(localized: "Another Word")
         case .markWeakest: return String(localized: "Weakest Sentences")
         case .markLong: return String(localized: "Long Sentences")
+        case .custom: return String(localized: "Custom")
         }
     }
 
@@ -51,7 +55,7 @@ enum AIAction: String, CaseIterable {
     /// stays for Proofread, where finding no errors is a legitimate answer.
     var mustChangeText: Bool {
         switch self {
-        case .trim, .cutInHalf, .rephrase, .simplify, .moreFormal, .moreCasual, .anotherWord: return true
+        case .trim, .cutInHalf, .rephrase, .simplify, .moreFormal, .moreCasual, .anotherWord, .custom: return true
         case .proofread, .markWeakest, .markLong: return false
         }
     }
@@ -70,6 +74,7 @@ enum AIAction: String, CaseIterable {
         case .proofread: return String(localized: "Proofreading…")
         case .anotherWord: return String(localized: "Finding another word…")
         case .markWeakest, .markLong: return String(localized: "Finding sentences…")
+        case .custom: return String(localized: "Working…")
         }
     }
 }

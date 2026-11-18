@@ -43,6 +43,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
     private static let exemptDeclarations: [String: String] = [
         "AIActionPrompt.swift|differentResultInstruction":
             "Try Again's line in the system prompt sent to the AI model, never drawn. Pinned by AIActionPromptTests, like modelInstruction.",
+        "AIActionPrompt.swift|noteInstruction":
+            "The selection toolbar's note line in the system prompt sent to the AI model, never drawn. Pinned by AIActionPromptTests, like modelInstruction.",
         "AIActionPrompt.swift|modelInstruction":
             "Per-action instructions sent to the AI model, never drawn. Pinned verbatim by the plan and AIActionPromptTests; the writer's language travels in the document text itself.",
         "AppCommands.swift|allEnglishTitleKeys":

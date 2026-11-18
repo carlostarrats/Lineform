@@ -199,7 +199,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         textView.aiCommandHandler = { [weak aiController, weak textView] command in
             guard let aiController, let textView else { return }
             switch command {
-            case let .run(action, range): aiController.run(action, range: range, text: textView.string)
+            case let .run(action, range, note): aiController.run(action, range: range, text: textView.string, note: note)
             case .cancel: aiController.cancel()
             case .dismissMarks: aiController.dismissMarks()
             }

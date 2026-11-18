@@ -121,7 +121,7 @@ final class LineformTextViewAITests: XCTestCase {
         let item = menu.items[another]
         XCTAssertNil(item.submenu)
         _ = textView.perform(try XCTUnwrap(item.action), with: item)
-        XCTAssertEqual(commands, [.run(.anotherWord, selection)])
+        XCTAssertEqual(commands, [.run(.anotherWord, selection, note: nil)])
     }
 
     /// Several words of ONE sentence: Rewrite ▸ and Proofread, but no Mark.
@@ -179,7 +179,7 @@ final class LineformTextViewAITests: XCTestCase {
         let rewrite = try XCTUnwrap(menu.items.first { $0.title == LineformTextContextMenuPresentation.aiRewriteMenuTitle }?.submenu)
         let trim = try XCTUnwrap(rewrite.items.first)
         _ = textView.perform(try XCTUnwrap(trim.action), with: trim)
-        XCTAssertEqual(commands, [.run(.trim, selection)])
+        XCTAssertEqual(commands, [.run(.trim, selection, note: nil)])
     }
 
     // MARK: - Keys

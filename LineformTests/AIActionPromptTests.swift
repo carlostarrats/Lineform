@@ -68,18 +68,18 @@ final class AIActionPromptTests: XCTestCase {
     func testRawValuesAreStableIdentity() {
         XCTAssertEqual(AIAction.allCases.map(\.rawValue),
                        ["trim", "cutInHalf", "rephrase", "simplify", "moreFormal", "moreCasual", "proofread", "anotherWord",
-                        "weakestSentences", "longSentences"])
+                        "weakestSentences", "longSentences", "custom"])
         XCTAssertEqual(AIAction.allCases.filter(\.isMark), [.markWeakest, .markLong])
         // Proofread may legitimately find nothing; the others exist to change the text.
         XCTAssertEqual(AIAction.allCases.filter(\.mustChangeText),
-                       [.trim, .cutInHalf, .rephrase, .simplify, .moreFormal, .moreCasual, .anotherWord])
+                       [.trim, .cutInHalf, .rephrase, .simplify, .moreFormal, .moreCasual, .anotherWord, .custom])
     }
 
     func testEveryActionHasLocalizedTitle() throws {
         let titles = ["Trim", "Cut in Half", "Rephrase", "Simplify", "More Formal", "More Casual", "Proofread", "Another Word",
-                      "Weakest Sentences", "Long Sentences"]
+                      "Weakest Sentences", "Long Sentences", "Custom"]
         let verbs = ["Trimming…", "Cutting…", "Rephrasing…", "Simplifying…", "Making it more formal…", "Making it more casual…",
-                     "Proofreading…", "Finding another word…", "Finding sentences…"]
+                     "Proofreading…", "Finding another word…", "Finding sentences…", "Working…"]
         XCTAssertEqual(AIAction.allCases.map(\.title), titles)
         XCTAssertEqual(Array(Set(AIAction.allCases.map(\.progressVerb))).sorted(), verbs.sorted())
         for language in Self.languages {
@@ -93,5 +93,37 @@ final class AIActionPromptTests: XCTestCase {
                 XCTAssertFalse(value.isEmpty, "\(language): \(key)")
             }
         }
+    }
+
+    // MARK: - The writer's note (selection toolbar comment card)
+
+    func testANoteTravelsInTheUserJSONWithItsOwnSystemLine() throws {
+        let prompt = AIActionPrompt.editPrompt(.cutInHalf, segments: ["x"], note: "  keep the budget part ")
+        let object = try decode(prompt.user)
+        XCTAssertEqual(object["note"] as? String, "keep the budget part", "trimmed")
+        XCTAssertEqual(object["action"] as? String, "cutInHalf")
+        XCTAssertTrue(prompt.system.hasSuffix("\n" + AIActionPrompt.noteInstruction))
+        XCTAssertFalse(prompt.system.contains("keep the budget part"), "the note never enters the system text")
+    }
+
+    func testNoNoteChangesNothing() {
+        for note in [nil, "", "  \n "] as [String?] {
+            XCTAssertEqual(AIActionPrompt.editPrompt(.trim, segments: ["a"], note: note).user, #"{"action":"trim","segments":["a"]}"#)
+            XCTAssertFalse(AIActionPrompt.editPrompt(.trim, segments: ["a"], note: note).system.contains(AIActionPrompt.noteInstruction))
+        }
+    }
+
+    func testCustomAsksForWhatTheNoteSays() throws {
+        let prompt = AIActionPrompt.editPrompt(.custom, segments: ["x"], note: "warmer")
+        XCTAssertTrue(prompt.system.contains("Change the passage the way the writer's note asks. Never return the passage unchanged."))
+        XCTAssertEqual(try decode(prompt.user)["action"] as? String, "custom")
+    }
+
+    func testMarkPromptCarriesANote() throws {
+        let prompt = AIActionPrompt.markPrompt(.markWeakest, sentences: ["A.", "B."], note: "focus on the verbs")
+        XCTAssertEqual(try decode(prompt.user)["note"] as? String, "focus on the verbs")
+        XCTAssertTrue(prompt.system.hasSuffix(AIActionPrompt.noteInstruction))
+        XCTAssertEqual(AIActionPrompt.markPrompt(.markWeakest, sentences: ["A."]).user,
+                       #"{"action":"weakestSentences","sentences":["A."]}"#)
     }
 }

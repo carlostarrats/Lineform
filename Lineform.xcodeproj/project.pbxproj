@@ -186,6 +186,8 @@
 		1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000143 /* EditorChromeAndControls.swift */; };
 		1F0000010000000000000144 /* MarkdownHeadingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000144 /* MarkdownHeadingParser.swift */; };
 		1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000148 /* EditorFloatingControlSupport.swift */; };
+		1F0000010000000000000506 /* SelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000506 /* SelectionToolbar.swift */; };
+		1F0000010000000000000507 /* LineformTextView+SelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */; };
 		1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C5 /* AnnouncementFeed.swift */; };
 		1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C6 /* AnnouncementFetcher.swift */; };
 		1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C7 /* AnnouncementStore.swift */; };
@@ -210,6 +212,7 @@
 		1F00000100000000000004F3 /* AISentenceSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F3 /* AISentenceSplitter.swift */; };
 		1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EB /* ConnectAIPresentationTests.swift */; };
 		1F00000100000000000004F4 /* AIActionPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F4 /* AIActionPromptTests.swift */; };
+		1F0000010000000000000508 /* SelectionToolbarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000508 /* SelectionToolbarTests.swift */; };
 		1F00000100000000000004F5 /* AIResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F5 /* AIResponseParserTests.swift */; };
 		1F00000100000000000004F6 /* AIChangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F6 /* AIChangeBuilderTests.swift */; };
 		1F00000100000000000004F7 /* AIReviewSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F7 /* AIReviewSession.swift */; };
@@ -458,6 +461,8 @@
 		1F0000020000000000000143 /* EditorChromeAndControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorChromeAndControls.swift; sourceTree = "<group>"; };
 		1F0000020000000000000144 /* MarkdownHeadingParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingParser.swift; sourceTree = "<group>"; };
 		1F0000020000000000000148 /* EditorFloatingControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFloatingControlSupport.swift; sourceTree = "<group>"; };
+		1F0000020000000000000506 /* SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SelectionToolbar.swift"; sourceTree = "<group>"; };
+		1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+SelectionToolbar.swift"; sourceTree = "<group>"; };
 		1F00000200000000000004C5 /* AnnouncementFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFeed.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C6 /* AnnouncementFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFetcher.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C7 /* AnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementStore.swift; sourceTree = "<group>"; };
@@ -482,6 +487,7 @@
 		1F00000200000000000004F3 /* AISentenceSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISentenceSplitter.swift; sourceTree = "<group>"; };
 		1F00000200000000000004EB /* ConnectAIPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIPresentationTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F4 /* AIActionPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionPromptTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000508 /* SelectionToolbarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolbarTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F5 /* AIResponseParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponseParserTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F6 /* AIChangeBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChangeBuilderTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F7 /* AIReviewSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSession.swift; sourceTree = "<group>"; };
@@ -654,6 +660,8 @@
  				1F0000020000000000000143 /* EditorChromeAndControls.swift */,
  				1F00000200000000000004C8 /* AnnouncementCard.swift */,
  				1F0000020000000000000148 /* EditorFloatingControlSupport.swift */,
+				1F0000020000000000000506 /* SelectionToolbar.swift */,
+				1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */,
  				1F0000020000000000000074 /* EditorDisplayMode.swift */,
  				1F00000200000000000003A1 /* DocumentTab.swift */,
  				1F00000200000000000003A2 /* EditorTabStore.swift */,
@@ -811,6 +819,7 @@
 				1F00000200000000000004E7 /* AIClientTests.swift */,
 				1F00000200000000000004EB /* ConnectAIPresentationTests.swift */,
 				1F00000200000000000004F4 /* AIActionPromptTests.swift */,
+				1F0000020000000000000508 /* SelectionToolbarTests.swift */,
 				1F00000200000000000004F5 /* AIResponseParserTests.swift */,
 				1F00000200000000000004F6 /* AIChangeBuilderTests.swift */,
 				1F00000200000000000004F9 /* AIReviewSessionTests.swift */,
@@ -1186,6 +1195,8 @@
 				1F0000010000000000000231 /* DiagramLog.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
 				1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */,
+				1F0000010000000000000506 /* SelectionToolbar.swift in Sources */,
+				1F0000010000000000000507 /* LineformTextView+SelectionToolbar.swift in Sources */,
 				1F0000010000000000000142 /* EditorPresentation.swift in Sources */,
 				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
 				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
@@ -1240,6 +1251,7 @@
 				1F00000100000000000004E7 /* AIClientTests.swift in Sources */,
 				1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */,
 				1F00000100000000000004F4 /* AIActionPromptTests.swift in Sources */,
+				1F0000010000000000000508 /* SelectionToolbarTests.swift in Sources */,
 				1F00000100000000000004F5 /* AIResponseParserTests.swift in Sources */,
 				1F00000100000000000004F6 /* AIChangeBuilderTests.swift in Sources */,
 				1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */,

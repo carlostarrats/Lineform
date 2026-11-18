@@ -1199,6 +1199,98 @@ action does to the document. The two sections after it cover the text-view and o
   original and accepted lines pair up). Before this, a multi-paragraph accept recorded one passage
   spanning the paragraphs.
 
+## Selection toolbar and the AI comment card (2026-11-17)
+
+`Lineform/Editor/SelectionToolbar.swift` (views, `SelectionToolbarPresentation`) and
+`LineformTextView+SelectionToolbar.swift` (showing, placing, commands). Mockup of the agreed design:
+`docs/superpowers/specs/2026-11-17-selection-toolbar-mockup.html`.
+
+- **What it is.** A floating card over a text selection in the editor: Comment (only while an AI is
+  connected) · Heading ▾ (Title ⌘1, Section ⌘2, Heading 3–6, Body ⌘0) · Bold · Italic ·
+  Strikethrough · Code · List ▾ (Bulleted ⇧⌘8, Numbered ⇧⌘7, Blockquote) · Link. Every command is
+  the Format menu's own selector sent to the text view; right-click and the Format menu are
+  unchanged and remain the keyboard/VoiceOver route. Plain-text documents get no formatting
+  buttons (and no bar at all without an AI). The two menus are native `NSMenu`s popped under their
+  button, key equivalents shown (grey, right-aligned — the menu's own rendering).
+- **When it shows.** `setSelectedRanges` → `selectionToolbarSelectionDidChange`. Mid-drag
+  (`stillSelecting`) it hides; once a selection settles it shows — but only for a selection the
+  WRITER made here: a left-mouse event inside this view's visible rect, or a key while this view is
+  first responder (`isUserSelectionEvent`). Find, an outline jump, undo and other programmatic
+  selections never summon it. It hides when the selection collapses (a click, typing), on Esc
+  (`doCommand`, after History's handling and before the AI's), in History mode, while an AI request
+  runs or a review is up, while marks are shown, and during IME composition. Selecting is not
+  typing, so it never interrupts writing.
+- **It holds still (2026-11-17, after hand-testing).** Placed ONCE, when a new selection settles;
+  never re-placed after that — not by a formatting command, a scroll or a theme change (a theme
+  change only re-inks it). A formatting command runs with `isAdjustingSelection` set and the bar
+  then adopts the resulting selection as its `anchorRange`: commands rewrite the text and move the
+  selection programmatically, sometimes through an empty selection, which used to hide and re-show
+  the bar (a visible flash) and re-place it over the new text (it "moved with the text").
+- **Dragging.** The bar and the card drag by any part that is not a control (a `DragGesture` on the
+  root, minimum distance 3). The move is computed in SCREEN space from the press point, recovered
+  as `NSEvent.mouseLocation − translation` on the first change (the gesture is recognised a few
+  points in, and the view moves under the pointer, so its own coordinates would drift); the
+  release applies the final position too, or a fast drag stopped short. Kept inside the text view.
+- **Drag grip.** The comment card shows Apple's drag-handle symbol (`line.3.horizontal`, small,
+  30% ink) in its top-right corner as the "you can move this" hint, with a 26 × 26 pt grab target
+  (the corner, not just the glyph), an open-hand cursor and a "Drag to move" tooltip. The note keeps
+  fully clear of it on the right (its I-beam must not overlap the hand). SF Symbols has no six-dot
+  grip (`circle.grid.2x3` does not exist). The editor's `cursorUpdate`/`mouseMoved` stand down over
+  the card (`isEventInsideFloatingControl` includes the toolbar's hosting view): otherwise the
+  editor re-asserted its I-beam on every move and the hand flickered.
+- **The card grows only downward.** `SelectionToolbarHostingView.pinnedTop`: NSHostingView re-sizes
+  itself when the note wraps and moved its origin too, so the card grew up AND down. Every explicit
+  placement goes through `move(to:)`, which pins the top edge; any other origin change keeps it. The
+  root is also pinned to the top of the hosting view, so the frame catching up one pass later
+  never shows the content centred.
+- **Opening the comment card in place.** The card is measured BEFORE the switch on a throwaway
+  `NSHostingView`, its frame set, then the mode changes — so the bar stays on screen until the card
+  replaces it at the same centre, growing upward from the bar's bottom edge when the bar sat above
+  the selection (`placedAbove`), downward from its top edge otherwise. Switching first and placing
+  on the next runloop showed the old frame with the new content, a blank, then a jump below.
+- **Placement.** A subview of the text view (so it scrolls with its text). Centred over the selection's FIRST line, 8 pt above it; below the LAST line when
+  there is no room above inside the visible rect; always clamped into the visible rect
+  (`SelectionToolbarPresentation.origin`, unit-tested). The last line is laid out only when the
+  bar cannot sit above the first — a Select All on a long document would otherwise force layout of
+  everything. The hosting view's size comes from `intrinsicContentSize`: with `sizingOptions = []`
+  its `fittingSize` read 0 × 0 on first show and the bar landed half over the selected line.
+  Menu anchors are button frames in a NAMED coordinate space on the root view; `.global` is not the
+  hosting view's space and put the menus at the far side of the window.
+- **Comment card.** Replaces the bar in place: the AI's name chip ("Your AI" for Other), a note
+  field ("What should change?"), an **Action** pop-up (Custom, then the context menu's AI group with
+  its own rules — one word: Another Word + Proofread; Find only for two or more sentences — shown
+  flat, so Find's items read "Find Weakest Sentences" / "Find Long Sentences"), and Send. Return
+  sends, Esc closes (and gives the selection back). Custom needs a note; any other action may be
+  sent with or without one. It sends `AITextCommand.run(action, anchorRange, note:)` against the
+  range the bar was shown for, then the ordinary review takes over (nothing changes until Accept).
+- **The note wraps, under the chip.** The note is a plain `NSTextView` (`SelectionNoteTextView`),
+  not a SwiftUI `TextField`: a `TextField` cannot indent only its first line, so wrapped lines
+  started under the first line's text and left an empty column below the AI chip. Now the first
+  line is indented by the chip's width (`firstLineHeadIndent`, the chip overlaid on it) and wrapped
+  lines run back to the card's left edge. Only the FIRST paragraph is indented: a line added with
+  ⇧/⌥Return starts at the left edge too (`applyIndent` re-styles after every change, since a new
+  paragraph inherits the indent of the one it split from). The chip is deliberately small and quiet
+  (11 pt medium, a faint accent fill) so it does not out-weigh the note. Up to ten lines, then it scrolls; a long note wraps
+  instead of running off to the right. Return sends; ⌥Return or ⇧Return adds a line; Esc closes —
+  all in `doCommand(by:)`, never `keyDown`. Its ink is pinned to the card's appearance (AppKit
+  colours resolve against the view's appearance, not SwiftUI's colour scheme). The hosting view reports content
+  size changes (`SelectionToolbarHostingView.onSizeChange`, from `invalidateIntrinsicContentSize`)
+  and the card keeps its TOP edge and grows downward, moving up only if it would pass the bottom of
+  the visible text. Return still sends; ⌥Return adds a line.
+- **Selection while the card has focus.** The note field takes first responder, and AppKit paints
+  an inactive selection OVER layout-manager temporary attributes, so a held highlight alone stayed
+  faint grey. The live selection is collapsed while the card is open (guarded by
+  `isAdjustingSelection` so the toolbar does not react to its own change) and the passage carries
+  the ACTIVE selection colour as a temporary `.backgroundColor`; Esc restores the selection.
+- **Cursor.** The bar and the card's button row carry `CursorRectView(cursor: .arrow)` (the same
+  fix as the floating cards and Settings); the note field keeps its I-beam. Synthetic pointer moves
+  in automation do not produce cursor updates, so this is verified by hand, not by a test.
+- **The note on the wire.** `AIActionPrompt.editPrompt` / `markPrompt` take `note:`: trimmed,
+  sent as `"note"` in the user JSON (never spliced into the system text), plus one system line
+  (`noteInstruction`). `AIAction.custom` ("Change the passage the way the writer's note asks") is
+  an edit action that must change the text; `AIActionController.run` sends nothing for Custom
+  without a note, and Try Again resends the same note (`reviewNote`).
+
 ## AI review overlay and cards (2026-11-12)
 
 `Lineform/AI/AIReview*.swift`, wired in `EditorContainerView` (one `AIActionController` per editor,
