@@ -772,6 +772,11 @@ final class EditorDrawerMotionHostedTests: XCTestCase {
         // "Show sidebar on launch" default (which is on).
         let settings = LineformSettingsStore(defaults: defaults)
         settings.showSidebarOnLaunch = false
+        // Automatic Dark Mode (on by default) draws every light theme with Quiet's page while the
+        // Mac is in Dark Mode: on a dark Mac the theme stress test then never crossed the
+        // light <-> Quiet boundary it exists for, and asserted light pages that were never drawn.
+        // Pinned off so these tests behave the same whatever the machine's appearance.
+        settings.automaticDarkMode = false
         let editor = EditorContainerView(
             document: Binding(
                 get: { document },
