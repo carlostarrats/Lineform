@@ -65,6 +65,7 @@ enum ManualSaveIntentMonitor {
 
 enum AppMenuConfiguration {
     static let aboutCommandTitle = String(localized: "About Lineform")
+    static let checkForUpdatesCommandTitle = String(localized: "Check for Updates…")
     static let settingsCommandTitle = String(localized: "Settings…")
     static let connectAICommandTitle = String(localized: "Connect Your AI…")
     /// MUST match `MARKETING_VERSION` in the project. This is a hand-maintained string, so it
@@ -163,6 +164,7 @@ enum AppMenuConfiguration {
     static let allEnglishTitleKeys: [String] = [
         // Application menu
         "About Lineform",
+        "Check for Updates…",
         "Settings…",
         "Connect Your AI…",
         "Privacy Policy",
@@ -437,6 +439,12 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .appInfo) {
             Button(AppMenuConfiguration.aboutCommandTitle) {
                 NSApp.orderFrontStandardAboutPanel(options: AppMenuConfiguration.aboutPanelOptions())
+            }
+
+            // One App Store lookup, only when chosen (never at launch), then an app-modal
+            // alert, so it works with no window open.
+            Button(AppMenuConfiguration.checkForUpdatesCommandTitle) {
+                Task { await AppUpdateCommand.shared.run() }
             }
 
             Divider()

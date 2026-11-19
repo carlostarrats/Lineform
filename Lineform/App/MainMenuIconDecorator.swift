@@ -398,6 +398,7 @@ enum MainMenuIconDecorator {
     static let symbolsByTitle: [String: String] = [
         // Application menu
         "about": "info.circle",
+        "check for updates": "arrow.down.circle",
         "settings": "gearshape",
         "connect your ai": "sparkles",
         "privacy policy": "hand.raised",
