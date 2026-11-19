@@ -6959,36 +6959,36 @@
         }
       }
     },
-    "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request.": {
+    "Occasional news about new versions, checked once a day. Nothing about you or your documents is sent. When off, Lineform makes no automatic network request.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gelegentliche Neuigkeiten zu neuen Versionen, einmal täglich abgerufen. Es werden keine personenbezogenen Daten gesendet oder erfasst. Wenn diese Option deaktiviert ist, stellt Lineform keine Netzwerkanfrage."
+            "value": "Gelegentliche Neuigkeiten zu neuen Versionen, einmal täglich abgerufen. Es werden keine Daten über dich oder deine Dokumente gesendet. Wenn diese Option deaktiviert ist, stellt Lineform keine automatische Netzwerkanfrage."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Noticias ocasionales sobre versiones nuevas, consultadas una vez al día. No se envía ni se recopila ningún dato personal. Cuando está desactivado, Lineform no realiza ninguna solicitud de red."
+            "value": "Noticias ocasionales sobre versiones nuevas, consultadas una vez al día. No se envía nada sobre ti ni sobre tus documentos. Cuando está desactivado, Lineform no realiza ninguna solicitud de red automática."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Informations occasionnelles sur les nouvelles versions, vérifiées une fois par jour. Aucune donnée personnelle n’est envoyée ni collectée. Lorsque l’option est désactivée, Lineform n’effectue aucune requête réseau."
+            "value": "Informations occasionnelles sur les nouvelles versions, vérifiées une fois par jour. Aucune information sur vous ni sur vos documents n’est envoyée. Lorsque l’option est désactivée, Lineform n’effectue aucune requête réseau automatique."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しいバージョンに関するお知らせを1日1回確認します。個人データの送信も収集も行いません。オフにすると、Lineformはネットワークに接続しません。"
+            "value": "新しいバージョンに関するお知らせを1日1回確認します。あなたや書類に関する情報は送信しません。オフにすると、Lineformは自動ではネットワークに接続しません。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "偶尔发布的新版本消息，每天检查一次。不会发送或收集任何个人数据。关闭后，Lineform 不会发出任何网络请求。"
+            "value": "偶尔发布的新版本消息，每天检查一次。不会发送任何关于你或你的文稿的信息。关闭后，Lineform 不会自动发出任何网络请求。"
           }
         }
       }
