@@ -228,6 +228,7 @@ Important directories:
 - `Lineform/Outline`: Markdown heading parser and outline sidebar UI.
 - `Lineform/ReadingExperience`: reading profiles, presets, themes, fonts, and reading experience controls.
 - `Lineform/Resources`: bundled privacy/help/release/accessibility docs.
+- `Packages/LineformCore`: the AppKit-free shared package (see Shared package below).
 - `LineformTests`: XCTest coverage for app behavior, editor behavior, reading experience, and Markdown handling.
 - `docs`: deeper project docs, including implementation specs and plans.
 
@@ -238,6 +239,45 @@ load-bearing detail, moved out so this one stays scannable and cheap to load eve
 touch an area, read its file first and update it in the same change — that is where new decisions,
 rejected alternatives, and "do not retry this" notes belong. Keep only rules that apply *always* in
 this file.
+
+## Shared package (LineformCore)
+
+`Packages/LineformCore` is a local Swift package (macOS 14 / iOS 26, Swift 6, no dependencies) that
+the app links statically. It holds the AppKit-free logic: Markdown parsing and HTML rendering
+(`Markdown/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
+profiles and speech (`ReadingExperience/`), History and save status (`Documents/`), the AI model,
+clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in
+`Packages/LineformCore/Tests/LineformCoreTests`. Some pure-looking files stay in the app
+(`MarkdownSyntaxTokens`, `MarkdownSpellCheckRegions`, `MarkdownStructureMap`, `AIActionController`,
+`AISentenceSplitter`, `DocumentHistoryController`) because they depend on an AppKit app type
+(directly or through `MarkdownSyntaxHighlighter`, `LineformTextView` or the History editor types).
+The list and the reasons are in `docs/notes/shared-package-baseline.md`.
+
+- **Purity.** Nothing in the package imports AppKit, SwiftUI, Cocoa, UIKit or WebKit, or uses an
+  app type. `PackagePurityTests` enforces the import rule for `LineformCore` and
+  `LineformCoreTestSupport`. If a file needs an app type, split the pure part out. Never add a
+  dependency from the package to the app.
+- **Access control.** Make `public` only what the app uses. That includes an explicit `public init`
+  for every struct the app constructs, because memberwise inits are internal. A public type loses
+  its implicit `Sendable`, so add it where Swift 6 needs it. No `@_exported`, `@_spi` or `open`.
+- **Strings.** In the package, `String(localized:)` takes `bundle: .module`. A public default
+  argument uses `Bundle.lineformCore`, because it cannot name the internal `.module`. Package keys live in
+  the package catalog (`Sources/LineformCore/Resources/Localizable.xcstrings`, all six languages).
+  Move keys with `scripts/move-strings.py`. Use `--keep-in-app` when app code still uses the key:
+  it then stays in both catalogs, and `LocalizationCatalogTests` requires the two entries to be
+  identical. Per-language tests for package strings read `.lproj` folders from
+  `Bundle.lineformCore`.
+- **Gates.** `swift test --package-path Packages/LineformCore`, then the default plan (it also runs
+  `LineformCoreTests`), then the hosted plan when the change calls for it (see Verification
+  Commands). Run `xcodebuild clean` after changing the package catalog, or the app tests can read
+  a stale bundle.
+- Do not link `LineformCoreTestSupport` into `LineformTests`. It makes Xcode build `LineformCore`
+  as a dynamic framework, and the package's resource-bundle lookup breaks. `LineformTests`
+  compiles `AITestDoubles.swift` through a file reference instead.
+- The app's Debug build compiles at `-O`, because the target sets no `SWIFT_OPTIMIZATION_LEVEL`.
+  SwiftPM builds the package's Debug at `-Onone`. So moved code is slower in Debug only, and
+  `MarkdownSpellCheckPerformanceTests`' Debug ratio reads differently from an optimised build.
+  Measure performance with Release optimiser settings (method in the baseline note, § Task 4).
 
 ## iCloud Storage
 

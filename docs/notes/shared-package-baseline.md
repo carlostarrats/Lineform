@@ -55,6 +55,49 @@ average 0.003 s, values 0.002810, 0.002837, 0.002827, 0.002813, 0.002973.)
 
 To compare later: `grep -E "measured|\[perf\]"` over the default-plan `xcodebuild test` log.
 
+### After the move (Task 11, for comparison with the above)
+
+Recorded at the end of the plan (Task 11 tree: `c196a8c` plus docs and the `Package.swift` change
+below). Same Mac, Xcode not running.
+
+| Gate | Baseline (`0c94147`) | After the move |
+|---|---|---|
+| `swift test --package-path Packages/LineformCore` | 1 | 519 passed |
+| Default plan (after `xcodebuild clean`) | 1982 + 1 | 1991 passed (LineformTests 1472 + LineformCoreTests 519), 0 failed |
+| Unique tests | 1983 | 1991 (1983 + 4 History compatibility tests in Task 7 + 4 drift guards in Task 10) |
+| Hosted plan | 25 passed, 1 known failure | 26 of 26 passed |
+| Archive (`-configuration Release archive`) | not run | ARCHIVE SUCCEEDED, 91 s, signed by the owner's certificate |
+
+Default plan, Debug with coverage: `[perf] checkableRanges 7.546 ms/call vs whole-document 79.051
+ms/call — 10.5×` (floor 4×). This number is higher than the baseline's 5.6× because the package
+builds at `-Onone` in Debug (see Task 4). It is not a regression.
+
+Optimised timings. The method is Task 4's: Debug with `SWIFT_OPTIMIZATION_LEVEL=-O`,
+`SWIFT_COMPILATION_MODE=wholemodule`, code coverage off, separate DerivedData, baseline worktree and
+head run interleaved. The table shows 3 runs each, a median of 15 `measure` samples, and a median
+of 3 `[perf]` lines (ms):
+
+| Measurement | `0c94147` | After the move |
+|---|---|---|
+| LargeDocumentStatistics | 0.702 | 0.700 |
+| LargeOutlineParsing | 0.382 | 0.369 |
+| LargePreviewRendering | 60.8 | 60.5 |
+| LargeSyntaxHighlighting | 4.22 | 4.22 |
+| RepeatedLargePreviewApply | 0.034 | 0.028 |
+| ReturnOnAListLine | 2.79 | 2.79 |
+| spell `checkableRanges` (hot path) | 1.08 | 1.22 (see below) |
+| spell whole-document reference | 24.0 | 24.1 |
+| LayoutReentrancy apply typography (s) | 0.172 | 0.171 |
+
+**The spell hot-path row varies from build to build. The move did not slow it.** One unchanged
+source tree (`c196a8c`, the same worktree) was built twice into two fresh DerivedData folders. Run
+interleaved, the two builds measured 1.034, 1.038 and 1.044 ms, and 1.220, 1.197 and 1.217 ms.
+The values cluster near ~1.05 and ~1.21. Some single builds gave both: one
+`beaeb5c` build measured 1.224, 1.219 and 1.052, and one `a73d9bb` build measured 1.15 and 1.04. The
+Task 4 and Task 7 builds measured 1.03 to 1.11. The likely cause is code layout or alignment
+around a 1 ms loop. No source change in this plan is behind it. All other rows are within ±4% of the baseline, so `@inlinable`
+was not added.
+
 ## Package placeholder string (Task 1 → Task 3)
 
 The package catalog holds one placeholder key, `LineformCore placeholder`, with explicit
@@ -553,3 +596,32 @@ file stays whole) and `AppUpdateCommandTests` (`AppUpdateCommand`); both gained
 
 Gates: package 517, app 1470, default plan 1987 unique. Hosted plan: 26 of 26 passed (the
 known `EditorDrawerMotionHostedTests` timing failure passed this run).
+
+## Task 10: drift guards
+
+Tests only (no move): `PackagePurityTests` (no UI-framework import in `LineformCore` or
+`LineformCoreTestSupport`), `LocalizationCatalogTests.testKeysInBothCatalogsCarryIdenticalLocalizations`,
+`LocalizationSourceSweepTests.testNoSwiftFileNameAppearsInBothSourceRoots`, and a name comment in
+`MarkdownReferenceTests`. Gates: package 519, app 1472, 1991 unique.
+
+## Task 11: close-out
+
+- Docs: each `Lineform/...` path to a moved file in `docs/architecture/*.md` now points to its
+  package path. Files that stayed keep their app paths. `Claude.md` and `AGENTS.md` have a new
+  "Shared package (LineformCore)" section with the same text.
+- The `editor-behavior.md` claim "Debug measures ~3.6× slower than Release" is corrected (the app's
+  Debug was already `-O`). The same claim remains in a code comment in
+  `LineformTests/MarkdownSpellCheckPerformanceTests.swift`, left for a follow-up because this
+  plan changes no code for it. The same claim also remains in the dated note
+  `docs/notes/2026-07-26-spell-check-probe-findings.md`, kept as a historical record.
+- `Package.swift`: the unused `LineformCoreTestSupport` `.library` product was dropped. Nothing
+  referenced it: `LineformCoreTests` depends on the target, and `LineformTests` compiles
+  `AITestDoubles.swift` by file reference. A comment on the target says why it must not be linked
+  into `LineformTests`. The package, default and hosted gates all pass with it dropped.
+- Archive contents: `Lineform.app` (1.8.0 build 41, unchanged); `Contents/PlugIns/LineformQuickLook.appex`;
+  `Contents/Resources/Metadata.appintents`; and
+  `Contents/Resources/LineformCore_LineformCore.bundle`, with `de`, `en`, `es`, `fr`, `ja` and
+  `zh-Hans` `.lproj` folders (`ja` has 167 strings plus the stringsdict). There is no
+  `Contents/Frameworks`, and `otool -L` lists no LineformCore, so `LineformCore` is linked
+  statically. The archive was moved out of the repo after checking.
+
