@@ -349,7 +349,7 @@ public let markdownLineTrimCharacters = CharacterSet.whitespaces
 
 /// The UTF-8 byte-order mark, as one UTF-16 unit. Only line 1 of a document can carry one; every
 /// line-structure scan skips it there so the editor and the renderer agree about a BOM'd file.
-public let markdownByteOrderMark = UInt16(0xFEFF)
+let markdownByteOrderMark = UInt16(0xFEFF)
 
 /// Markdown source split into the lines every renderer reads, plus each line's range in the
 /// ORIGINAL text.

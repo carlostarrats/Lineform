@@ -253,7 +253,7 @@ public enum MathDelimiters {
 
     /// Absolute `NSRange`s (including delimiters) of inline math within a line, offset into the
     /// enclosing text. Used to protect math from Writing Tools.
-    public static func inlineMathRanges(in line: String, lineOffset: Int) -> [NSRange] {
+    static func inlineMathRanges(in line: String, lineOffset: Int) -> [NSRange] {
         inlineSpans(in: line).map {
             NSRange(location: $0.range.location + lineOffset, length: $0.range.length)
         }

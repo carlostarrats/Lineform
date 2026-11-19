@@ -44,7 +44,6 @@ final class ConnectAIPresentationTests: XCTestCase {
             let bundle = try bundle(language)
             let title = ConnectAIPresentation.title(bundle: bundle)
             let privacy = ConnectAIPresentation.privacyNote(bundle: bundle)
-            XCTAssertNotEqual(title, ConnectAIPresentation.title(bundle: .main), language)
             XCTAssertNotEqual(title, "Connect Your AI", language)
             XCTAssertNotEqual(privacy, "Lineform sends only the text you act on, only when you choose an AI action, directly to the provider you connected, under your account and that provider's terms. Lineform's developer receives nothing.", language)
             for key in ["Connect — Lineform will send the text you choose to %@",

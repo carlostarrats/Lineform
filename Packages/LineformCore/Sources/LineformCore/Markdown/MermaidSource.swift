@@ -13,7 +13,7 @@ public enum MermaidFence {
     }
 
     /// True when a trimmed line is any closing/opening fence delimiter.
-    public static func isFenceDelimiter(_ trimmedLine: String) -> Bool {
+    static func isFenceDelimiter(_ trimmedLine: String) -> Bool {
         trimmedLine.hasPrefix("```") || trimmedLine.hasPrefix("~~~")
     }
 
