@@ -19,3 +19,6 @@ docs/appcast.generated.xml
 .asc/export/
 .asc/reports/
 .asc/metadata/review/
+
+# SwiftPM build output of the local packages (swift build / swift test).
+Packages/*/.build/

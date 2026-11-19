@@ -24,6 +24,13 @@
         "identifier" : "1F0000050000000000000002",
         "name" : "LineformTests"
       }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Packages\/LineformCore",
+        "identifier" : "LineformCoreTests",
+        "name" : "LineformCoreTests"
+      }
     }
   ],
   "version" : 1

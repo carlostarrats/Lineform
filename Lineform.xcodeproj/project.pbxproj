@@ -245,6 +245,7 @@
 		1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
 		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
+		1F00000100000000000005C3 /* LineformCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000005C2 /* LineformCore */; };
 		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
 		1F00000100000000000003A2 /* EditorTabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A2 /* EditorTabStore.swift */; };
 		1F00000100000000000003A3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A3 /* TabBarView.swift */; };
@@ -547,6 +548,7 @@
 		1F0000310000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		1F0000310000000000000002 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		1F0000310000000000000003 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
+		1F00000200000000000005C4 /* LineformCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = LineformCore; path = Packages/LineformCore; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -556,6 +558,7 @@
 			files = (
 				1F0000010000000000000203 /* BeautifulMermaid in Frameworks */,
 				1F00000100000000000002A1 /* SwiftMath in Frameworks */,
+				1F00000100000000000005C3 /* LineformCore in Frameworks */,
 				1F00000100000000000004B0 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -583,6 +586,7 @@
  				1F0000070000000000000002 /* Lineform */,
  				1F0000070000000000000003 /* LineformTests */,
  				1F0000070000000000000005 /* LineformQuickLook */,
+				1F00000200000000000005C4 /* LineformCore */,
  				1F0000070000000000000004 /* Products */,
  			);
  			sourceTree = "<group>";
@@ -960,6 +964,7 @@
 			packageProductDependencies = (
 				1F0000130000000000000002 /* BeautifulMermaid */,
 				1F00001300000000000002A2 /* SwiftMath */,
+				1F00001300000000000005C2 /* LineformCore */,
 			);
 			productName = Lineform;
 			productReference = 1F0000020000000000000004 /* Lineform.app */;
@@ -1041,6 +1046,7 @@
 			packageReferences = (
 				1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */,
 				1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */,
+				1F00001400000000000005C1 /* XCLocalSwiftPackageReference "Packages/LineformCore" */,
 			);
 			productRefGroup = 1F0000070000000000000004 /* Products */;
 			projectDirPath = "";
@@ -1665,6 +1671,13 @@
  		};
  /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		1F00001400000000000005C1 /* XCLocalSwiftPackageReference "Packages/LineformCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/LineformCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1694,6 +1707,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */;
 			productName = SwiftMath;
+		};
+		1F00001300000000000005C2 /* LineformCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LineformCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
