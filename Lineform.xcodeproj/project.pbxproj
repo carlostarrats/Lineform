@@ -69,6 +69,9 @@
 		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
 		1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000324 /* TestPlanGuardTests.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
+		1F00003A0000000000000013 /* HistoryUndoCollapse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000014 /* HistoryUndoCollapse.swift */; };
+		1F00003A0000000000000011 /* DocumentSaveStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000012 /* DocumentSaveStatus.swift */; };
+		1F00003A000000000000000F /* FileIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000010 /* FileIdentity.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
 		1F0000170000000000000001 /* MermaidTypeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */; };
 		1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000180000000000000002 /* MermaidPieChartTests.swift */; };
@@ -117,6 +120,7 @@
 		1F0000010000000000000017 /* ReadingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000017 /* ReadingProfile.swift */; };
 		1F0000010000000000000031 /* MarkdownRangeAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */; };
 		1F0000010000000000000032 /* MarkdownSyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */; };
+		1F00003A0000000000000007 /* MarkdownSyntaxTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000008 /* MarkdownSyntaxTokens.swift */; };
 		1F0000010000000000000033 /* MarkdownFormattingCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000033 /* MarkdownFormattingCommand.swift */; };
 		1F0000010000000000000084 /* MarkdownListContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000084 /* MarkdownListContinuation.swift */; };
 		1F00000100000000000004B9 /* MarkdownHeadingEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B9 /* MarkdownHeadingEditing.swift */; };
@@ -133,6 +137,7 @@
 		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
 		1F0000010000000000000122 /* LineformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000122 /* LineformColors.swift */; };
 		1F0000010000000000000052 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000052 /* Theme.swift */; };
+		1F00003A0000000000000009 /* ThemeID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A000000000000000A /* ThemeID.swift */; };
 		1F0000010000000000000053 /* ReadingPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000053 /* ReadingPreset.swift */; };
 		1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000054 /* ReadingProfileStore.swift */; };
 		1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000055 /* ReadingExperiencePopover.swift */; };
@@ -143,6 +148,8 @@
 		1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */; };
 		1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */; };
 		1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000078 /* OutlineSidebarView.swift */; };
+		1F00003A000000000000000D /* UbiquitousItemDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A000000000000000E /* UbiquitousItemDownloader.swift */; };
+		1F00003A000000000000000B /* OutlineFileTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A000000000000000C /* OutlineFileTree.swift */; };
 		1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D8 /* HistorySidebarView.swift */; };
 		1F000001000000000000032A /* MarkdownReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032A /* MarkdownReference.swift */; };
 		1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032B /* MarkdownReferenceTests.swift */; };
@@ -153,6 +160,9 @@
 		1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */; };
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000230 /* MermaidRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000230 /* MermaidRendering.swift */; };
+		1F00003A0000000000000005 /* MathDelimiters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000006 /* MathDelimiters.swift */; };
+		1F00003A0000000000000003 /* MermaidPieChartModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000004 /* MermaidPieChartModel.swift */; };
+		1F00003A0000000000000001 /* MermaidSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000002 /* MermaidSource.swift */; };
 		1F0000160000000000000001 /* MermaidPieChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000160000000000000002 /* MermaidPieChart.swift */; };
 		1F0000190000000000000001 /* CodeHighlighting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000190000000000000002 /* CodeHighlighting.swift */; };
 		1F00001D0000000000000001 /* ImageResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001D0000000000000002 /* ImageResolver.swift */; };
@@ -227,6 +237,7 @@
 		1F00000100000000000004FE /* AIReviewTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FE /* AIReviewTextView.swift */; };
 		1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */; };
 		1F0000010000000000000501 /* AIReviewCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000501 /* AIReviewCards.swift */; };
+		1F00003A0000000000000015 /* AIReviewCardPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000016 /* AIReviewCardPresentation.swift */; };
 		1F00000100000000000004F8 /* AIActionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F8 /* AIActionController.swift */; };
 		1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F9 /* AIReviewSessionTests.swift */; };
 		1F0000010000000000000502 /* AIReviewCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000502 /* AIReviewCompositionTests.swift */; };
@@ -351,6 +362,9 @@
 		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000324 /* TestPlanGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlanGuardTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000014 /* HistoryUndoCollapse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryUndoCollapse.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000012 /* DocumentSaveStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentSaveStatus.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000010 /* FileIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIdentity.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
 		1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidTypeClassifierTests.swift; sourceTree = "<group>"; };
 		1F0000180000000000000002 /* MermaidPieChartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChartTests.swift; sourceTree = "<group>"; };
@@ -405,6 +419,7 @@
 		1F0000020000000000000017 /* ReadingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfile.swift; sourceTree = "<group>"; };
 		1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRangeAnalyzer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSyntaxHighlighter.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000008 /* MarkdownSyntaxTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSyntaxTokens.swift; sourceTree = "<group>"; };
 		1F0000020000000000000033 /* MarkdownFormattingCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommand.swift; sourceTree = "<group>"; };
 		1F0000020000000000000084 /* MarkdownListContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownListContinuation.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B9 /* MarkdownHeadingEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingEditing.swift; sourceTree = "<group>"; };
@@ -421,6 +436,7 @@
 		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
 		1F0000020000000000000122 /* LineformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformColors.swift; sourceTree = "<group>"; };
 		1F0000020000000000000052 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		1F00003A000000000000000A /* ThemeID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeID.swift; sourceTree = "<group>"; };
 		1F0000020000000000000053 /* ReadingPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPreset.swift; sourceTree = "<group>"; };
 		1F0000020000000000000054 /* ReadingProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStore.swift; sourceTree = "<group>"; };
 		1F0000020000000000000055 /* ReadingExperiencePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingExperiencePopover.swift; sourceTree = "<group>"; };
@@ -434,6 +450,8 @@
 		1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRenderer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000078 /* OutlineSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarView.swift; sourceTree = "<group>"; };
+		1F00003A000000000000000E /* UbiquitousItemDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UbiquitousItemDownloader.swift; sourceTree = "<group>"; };
+		1F00003A000000000000000C /* OutlineFileTree.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileTree.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D8 /* HistorySidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarView.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarPresentationTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032A /* MarkdownReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReference.swift; sourceTree = "<group>"; };
@@ -445,6 +463,9 @@
 		1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtection.swift; sourceTree = "<group>"; };
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000230 /* MermaidRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRendering.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000006 /* MathDelimiters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathDelimiters.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000004 /* MermaidPieChartModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChartModel.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000002 /* MermaidSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidSource.swift; sourceTree = "<group>"; };
 		1F0000160000000000000002 /* MermaidPieChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChart.swift; sourceTree = "<group>"; };
 		1F0000190000000000000002 /* CodeHighlighting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeHighlighting.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B0 /* MathRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRendering.swift; sourceTree = "<group>"; };
@@ -510,6 +531,7 @@
 		1F00000200000000000004FE /* AIReviewTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTextView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSurfaceRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000501 /* AIReviewCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCards.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000016 /* AIReviewCardPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCardPresentation.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F8 /* AIActionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionController.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F9 /* AIReviewSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSessionTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000502 /* AIReviewCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCompositionTests.swift; sourceTree = "<group>"; };
@@ -632,6 +654,7 @@
 				1F00000200000000000004FE /* AIReviewTextView.swift */,
 				1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */,
 				1F0000020000000000000501 /* AIReviewCards.swift */,
+				1F00003A0000000000000016 /* AIReviewCardPresentation.swift */,
 				1F00000200000000000004F8 /* AIActionController.swift */,
 			);
 			path = AI;
@@ -664,6 +687,9 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000013 /* LineformDocument.swift */,
+				1F00003A0000000000000014 /* HistoryUndoCollapse.swift */,
+				1F00003A0000000000000012 /* DocumentSaveStatus.swift */,
+				1F00003A0000000000000010 /* FileIdentity.swift */,
 				1F0000020000000000000210 /* DocumentReloadPolicy.swift */,
 				1F0000020000000000000211 /* DocumentReloadController.swift */,
 				1F00000200000000000004CD /* PassageHistoryModel.swift */,
@@ -707,6 +733,7 @@
 				1F0000280000000000000002 /* SaveAsExport.swift */,
 				1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */,
 				1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */,
+				1F00003A0000000000000008 /* MarkdownSyntaxTokens.swift */,
 				1F0000020000000000000033 /* MarkdownFormattingCommand.swift */,
 				1F0000020000000000000084 /* MarkdownListContinuation.swift */,
 				1F00000200000000000004C4 /* MarkdownLineEnding.swift */,
@@ -729,6 +756,7 @@
 				1F0000020000000000000051 /* FontOption.swift */,
 				1F0000020000000000000122 /* LineformColors.swift */,
 				1F0000020000000000000052 /* Theme.swift */,
+				1F00003A000000000000000A /* ThemeID.swift */,
 				1F0000020000000000000053 /* ReadingPreset.swift */,
 				1F0000020000000000000054 /* ReadingProfileStore.swift */,
 				1F0000020000000000000055 /* ReadingExperiencePopover.swift */,
@@ -749,6 +777,9 @@
 				1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */,
 				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
 				1F0000020000000000000230 /* MermaidRendering.swift */,
+				1F00003A0000000000000006 /* MathDelimiters.swift */,
+				1F00003A0000000000000004 /* MermaidPieChartModel.swift */,
+				1F00003A0000000000000002 /* MermaidSource.swift */,
 				1F0000160000000000000002 /* MermaidPieChart.swift */,
 				1F0000190000000000000002 /* CodeHighlighting.swift */,
 				1F00000200000000000002B0 /* MathRendering.swift */,
@@ -775,6 +806,8 @@
 				1F0000020000000000000075 /* MarkdownOutlineParser.swift */,
 				1F0000020000000000000301 /* OutlineFileSortOrder.swift */,
 				1F0000020000000000000078 /* OutlineSidebarView.swift */,
+				1F00003A000000000000000E /* UbiquitousItemDownloader.swift */,
+				1F00003A000000000000000C /* OutlineFileTree.swift */,
 				1F00000200000000000004D8 /* HistorySidebarView.swift */,
 				1F000002000000000000032A /* MarkdownReference.swift */,
 				1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */,
@@ -1118,6 +1151,9 @@
 				1F0000010000000000000320 /* LineformSettings.swift in Sources */,
 				1F0000010000000000000321 /* SettingsView.swift in Sources */,
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
+				1F00003A0000000000000013 /* HistoryUndoCollapse.swift in Sources */,
+				1F00003A0000000000000011 /* DocumentSaveStatus.swift in Sources */,
+				1F00003A000000000000000F /* FileIdentity.swift in Sources */,
 				1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */,
 				1F0000010000000000000211 /* DocumentReloadController.swift in Sources */,
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
@@ -1133,6 +1169,7 @@
 				1F0000010000000000000017 /* ReadingProfile.swift in Sources */,
 				1F0000010000000000000031 /* MarkdownRangeAnalyzer.swift in Sources */,
 				1F0000010000000000000032 /* MarkdownSyntaxHighlighter.swift in Sources */,
+				1F00003A0000000000000007 /* MarkdownSyntaxTokens.swift in Sources */,
 				1F0000010000000000000033 /* MarkdownFormattingCommand.swift in Sources */,
 				1F0000010000000000000084 /* MarkdownListContinuation.swift in Sources */,
 				1F00000100000000000004C4 /* MarkdownLineEnding.swift in Sources */,
@@ -1172,6 +1209,7 @@
 				1F00000100000000000004FE /* AIReviewTextView.swift in Sources */,
 				1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */,
 				1F0000010000000000000501 /* AIReviewCards.swift in Sources */,
+				1F00003A0000000000000015 /* AIReviewCardPresentation.swift in Sources */,
 				1F00000100000000000004F8 /* AIActionController.swift in Sources */,
 				1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */,
 				1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */,
@@ -1183,6 +1221,7 @@
 				1F0000010000000000000051 /* FontOption.swift in Sources */,
 				1F0000010000000000000122 /* LineformColors.swift in Sources */,
 				1F0000010000000000000052 /* Theme.swift in Sources */,
+				1F00003A0000000000000009 /* ThemeID.swift in Sources */,
 				1F0000010000000000000053 /* ReadingPreset.swift in Sources */,
 				1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */,
 				1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */,
@@ -1211,6 +1250,9 @@
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
 				1F0000010000000000000230 /* MermaidRendering.swift in Sources */,
+				1F00003A0000000000000005 /* MathDelimiters.swift in Sources */,
+				1F00003A0000000000000003 /* MermaidPieChartModel.swift in Sources */,
+				1F00003A0000000000000001 /* MermaidSource.swift in Sources */,
 				1F0000160000000000000001 /* MermaidPieChart.swift in Sources */,
 				1F0000190000000000000001 /* CodeHighlighting.swift in Sources */,
 				1F00001D0000000000000001 /* ImageResolver.swift in Sources */,
@@ -1231,6 +1273,8 @@
 				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
 				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
+				1F00003A000000000000000D /* UbiquitousItemDownloader.swift in Sources */,
+				1F00003A000000000000000B /* OutlineFileTree.swift in Sources */,
 				1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */,
 				1F000001000000000000032A /* MarkdownReference.swift in Sources */,
 				1F000001000000000000032D /* OutlineMarkdownBasicsTabView.swift in Sources */,

@@ -66,3 +66,39 @@ moved key resolves to its Japanese translation through `Bundle.module`.
 The hosted failure above (`EditorDrawerMotionHostedTests` theme-switch stress: 21.1 s in the full
 run and 15.7 s alone, against a 15.0 s limit) already exists at `0c94147`. It is not caused by
 this plan.
+
+## Task 2: split pure types out of AppKit files
+
+Eleven new files, each importing only Foundation (`DocumentSaveStatus.swift` also imports Combine
+for `ObservableObject`/`@Published`). Every declaration was cut verbatim; the only edit is
+`MarkdownSyntaxHighlighter.analyzer` widened from `private` to internal (see below). Gates
+unchanged: package 1, default plan 1983, combined 1984.
+
+Taken along because a listed type's signature needs them (pure, same file order):
+`MermaidDiagramKind` (the return type of `MermaidTypeClassifier.classify`) into
+`MermaidSource.swift`; `MathStyle` (a stored property of `MathSpan`) into `MathDelimiters.swift`;
+`OutlineFileRootState` (a stored property of `OutlineFileRoot`) into `OutlineFileTree.swift`;
+the `#if DEBUG` `DocumentSaveStatus.testInstance()` extension (it calls the `private init`, so it
+must share the file).
+
+`CacheBudgets.swift` was not created: `DiagramCacheBudget`, `MathCacheBudget` and
+`ImageCacheBudget` (in `Preview/DiagramCardStyle.swift`) are referenced only by the AppKit image
+providers and `DiagramCardAndCacheTests`, never by pure code, so the plan's condition is not met.
+Task 3's `CacheBudgets` entry therefore has no file to move.
+
+### Stays until the platform-layer plan
+
+- `Editor/MarkdownSyntaxTokens.swift`: `scopedTokenRange(visibleRange:margin:in:)` and
+  `tokens(in:scope:)` sit in an `extension MarkdownSyntaxHighlighter`, because `tokens(in:scope:)`
+  is an instance method (it reads the highlighter's `analyzer`) and both must stay reachable under
+  their current names. The extension imports only Foundation, but `MarkdownSyntaxHighlighter` is
+  the AppKit class, so this file cannot move into `LineformCore` until the highlighter is split in
+  the platform-layer plan. The "pure token types" (`MarkdownTokenKind`, `MarkdownTokenRange`)
+  were already in the pure `MarkdownRangeAnalyzer.swift`; nothing else to split.
+- Left in their AppKit files because they take or return AppKit types: `MermaidHexColor`,
+  `MermaidImageOrientation`, `MermaidRenderOutcome`, `MermaidPieRenderer`,
+  `MathImageOrientation`, `MathRenderOutcome`, `RasterImageCost`, and the image providers.
+- Pure but not in Task 2's list, so left where they are: `MermaidCacheKey`, `MathBlockPolicy`,
+  `MathCacheKey` (CryptoKit + CGFloat), `OutlineFileTreeFlatRow`,
+  `SecurityScopedResourceAccessing`/`URLSecurityScopedResourceAccessor`,
+  `MarkdownSyntaxHighlighter.range(_:covers:)`.
