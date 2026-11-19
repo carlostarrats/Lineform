@@ -93,3 +93,94 @@ enum AppStoreLookup {
         return url
     }
 }
+
+/// Runs one Check for Updates lookup. Behind a protocol so the command is testable
+/// without touching the network — no test may make a real request.
+protocol AppUpdateChecking: Sendable {
+    /// Never throws: every failure (offline, timeout, bad status, captive portal, unusable
+    /// payload, app missing from the listing) is `.failed`, reported as "couldn't check".
+    func check(currentVersion: String) async -> AppUpdateCheckResult
+}
+
+/// Asks Apple's public lookup for this app's current App Store version. Runs only when
+/// the writer chooses Check for Updates — never at launch, never on a timer.
+///
+/// Privacy shape, the same as `AnnouncementFetcher`: a plain GET with no body, no
+/// cookies, no credentials, and no identifiers. The only query is the app's own public
+/// bundle id (and the Mac catalog); deliberately no `country`/locale parameter, so the
+/// request says nothing about the writer.
+struct AppStoreUpdateChecker: AppUpdateChecking {
+    /// The Release bundle id, fixed. Never `Bundle.main.bundleIdentifier`: Debug builds
+    /// are `com.lineform.app.debug`, which has no store listing.
+    static let storeBundleID = "com.lineform.app"
+
+    static let timeout: TimeInterval = 10
+
+    /// Checked by hand on 2026-11-18: this form (with `entity=macSoftware`) returns
+    /// `resultCount` 1, `kind` "mac-software", version 1.8.0, and a `trackViewUrl` on
+    /// apps.apple.com — the Mac listing — so it is the form used.
+    static var lookupURL: URL {
+        URL(string: "https://itunes.apple.com/lookup?bundleId=\(storeBundleID)&entity=macSoftware")!
+    }
+
+    private let lookupURL: URL
+    private let session: URLSession
+
+    init(lookupURL: URL = AppStoreUpdateChecker.lookupURL, session: URLSession? = nil) {
+        self.lookupURL = lookupURL
+        self.session = session ?? URLSession(configuration: Self.makeConfiguration())
+    }
+
+    /// The configuration actually in use, for tests.
+    var sessionConfiguration: URLSessionConfiguration { session.configuration }
+
+    /// Ephemeral configuration: no cookie storage survives, cookies are neither sent nor
+    /// accepted, no on-disk cache. Exposed so tests can run the shipping configuration
+    /// over a stub transport.
+    static func makeConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpShouldSetCookies = false
+        configuration.allowsCellularAccess = true
+        return configuration
+    }
+
+    func check(currentVersion: String) async -> AppUpdateCheckResult {
+        let listing = await fetchBody().flatMap(AppStoreLookup.decode(_:))
+        return AppStoreLookup.result(listing: listing, currentVersion: currentVersion)
+    }
+
+    /// Stream the response and abort the moment it exceeds the payload ceiling. The size
+    /// is counted as bytes arrive, never taken from `expectedContentLength`, which is
+    /// server-supplied and untrusted.
+    private func fetchBody() async -> Data? {
+        var request = URLRequest(url: lookupURL)
+        request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (stream, response) = try await session.bytes(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+
+            // Apple serves this endpoint as `text/javascript; charset=utf-8` (seen by hand
+            // on 2026-11-18), so accept JSON or JavaScript. Anything else — a captive
+            // portal's HTML page with status 200 — is refused before it is buffered.
+            let contentType = http.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+            guard contentType.contains("json") || contentType.contains("javascript") else { return nil }
+
+            var data = Data()
+            data.reserveCapacity(min(AppStoreLookup.maximumPayloadBytes, 16 * 1024))
+            for try await byte in stream {
+                data.append(byte)
+                if data.count > AppStoreLookup.maximumPayloadBytes { return nil }
+            }
+            return data
+        } catch {
+            // Offline, DNS failure, timeout, TLS failure, cancellation: all "couldn't check".
+            return nil
+        }
+    }
+}
