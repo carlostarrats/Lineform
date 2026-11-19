@@ -63,6 +63,7 @@
 		1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C9 /* AnnouncementTests.swift */; };
 		1F00000100000000000007A2 /* AppUpdateCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A2 /* AppUpdateCheckTests.swift */; };
 		1F00000100000000000007A3 /* AppUpdateCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */; };
+		1F00000100000000000007A5 /* AppUpdatePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */; };
 		1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CA /* TestDefaultsSupport.swift */; };
 		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
 		1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000324 /* TestPlanGuardTests.swift */; };
@@ -192,6 +193,7 @@
 		1F0000010000000000000507 /* LineformTextView+SelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */; };
 		1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C5 /* AnnouncementFeed.swift */; };
 		1F00000100000000000007A1 /* AppUpdateCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A1 /* AppUpdateCheck.swift */; };
+		1F00000100000000000007A4 /* AppUpdatePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A4 /* AppUpdatePresentation.swift */; };
 		1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C6 /* AnnouncementFetcher.swift */; };
 		1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C7 /* AnnouncementStore.swift */; };
 		1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C8 /* AnnouncementCard.swift */; };
@@ -340,6 +342,7 @@
 		1F00000200000000000004C9 /* AnnouncementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000007A2 /* AppUpdateCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheckTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheckerTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePresentationTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CA /* TestDefaultsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDefaultsSupport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000324 /* TestPlanGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlanGuardTests.swift; sourceTree = "<group>"; };
@@ -470,6 +473,7 @@
 		1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+SelectionToolbar.swift"; sourceTree = "<group>"; };
 		1F00000200000000000004C5 /* AnnouncementFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFeed.swift; sourceTree = "<group>"; };
 		1F00000200000000000007A1 /* AppUpdateCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheck.swift; sourceTree = "<group>"; };
+		1F00000200000000000007A4 /* AppUpdatePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePresentation.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C6 /* AnnouncementFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFetcher.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C7 /* AnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementStore.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C8 /* AnnouncementCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementCard.swift; sourceTree = "<group>"; };
@@ -641,6 +645,7 @@
 				1F00000200000000000004C7 /* AnnouncementStore.swift */,
 				1F00000200000000000004CB /* AppReviewPromptStore.swift */,
 				1F00000200000000000007A1 /* AppUpdateCheck.swift */,
+				1F00000200000000000007A4 /* AppUpdatePresentation.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
 			);
 			path = App;
@@ -822,6 +827,7 @@
 				1F00000200000000000004C9 /* AnnouncementTests.swift */,
 				1F00000200000000000007A2 /* AppUpdateCheckTests.swift */,
 				1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */,
+				1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */,
 				1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */,
 				1F00000200000000000004E1 /* AITestDoubles.swift */,
 				1F00000200000000000004E2 /* AIConnectionStoreTests.swift */,
@@ -1130,6 +1136,7 @@
 				1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */,
 				1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */,
 				1F00000100000000000007A1 /* AppUpdateCheck.swift in Sources */,
+				1F00000100000000000007A4 /* AppUpdatePresentation.swift in Sources */,
 				1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */,
 				1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */,
 				1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */,
@@ -1257,6 +1264,7 @@
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
 				1F00000100000000000007A2 /* AppUpdateCheckTests.swift in Sources */,
 				1F00000100000000000007A3 /* AppUpdateCheckerTests.swift in Sources */,
+				1F00000100000000000007A5 /* AppUpdatePresentationTests.swift in Sources */,
 				1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */,
 				1F00000100000000000004E1 /* AITestDoubles.swift in Sources */,
 				1F00000100000000000004E2 /* AIConnectionStoreTests.swift in Sources */,
