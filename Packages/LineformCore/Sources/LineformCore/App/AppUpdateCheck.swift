@@ -5,7 +5,7 @@ import Foundation
 /// `failed` is deliberately distinct from `upToDate`: a lookup that learned nothing
 /// (offline, captive portal, app missing from the listing) must say "couldn't check",
 /// never claim the writer is current.
-enum AppUpdateCheckResult: Equatable {
+public enum AppUpdateCheckResult: Equatable, Sendable {
     case upToDate(current: String)
     case updateAvailable(current: String, latest: String, storeURL: URL)
     case failed
@@ -99,7 +99,7 @@ enum AppStoreLookup {
 
 /// Runs one Check for Updates lookup. Behind a protocol so the command is testable
 /// without touching the network — no test may make a real request.
-protocol AppUpdateChecking: Sendable {
+public protocol AppUpdateChecking: Sendable {
     /// Never throws: every failure (offline, timeout, bad status, captive portal, unusable
     /// payload, app missing from the listing) is `.failed`, reported as "couldn't check".
     func check(currentVersion: String) async -> AppUpdateCheckResult
@@ -113,7 +113,7 @@ protocol AppUpdateChecking: Sendable {
 /// bundle id (and the Mac catalog). The request adds no locale or country parameter of
 /// its own (URLSession still sends its standard User-Agent and Accept-Language headers,
 /// as for the announcement check).
-struct AppStoreUpdateChecker: AppUpdateChecking {
+public struct AppStoreUpdateChecker: AppUpdateChecking {
     /// The Release bundle id, fixed. Never `Bundle.main.bundleIdentifier`: Debug builds
     /// are `com.lineform.app.debug`, which has no store listing.
     static let storeBundleID = "com.lineform.app"
@@ -123,14 +123,14 @@ struct AppStoreUpdateChecker: AppUpdateChecking {
     /// Checked by hand on 2026-11-18: this form (with `entity=macSoftware`) returns
     /// `resultCount` 1, `kind` "mac-software", version 1.8.0, and a `trackViewUrl` on
     /// apps.apple.com — the Mac listing — so it is the form used.
-    static var lookupURL: URL {
+    public static var lookupURL: URL {
         URL(string: "https://itunes.apple.com/lookup?bundleId=\(storeBundleID)&entity=macSoftware")!
     }
 
     private let lookupURL: URL
     private let session: URLSession
 
-    init(lookupURL: URL = AppStoreUpdateChecker.lookupURL, session: URLSession? = nil) {
+    public init(lookupURL: URL = AppStoreUpdateChecker.lookupURL, session: URLSession? = nil) {
         self.lookupURL = lookupURL
         self.session = session ?? URLSession(configuration: Self.makeConfiguration())
     }
@@ -151,7 +151,7 @@ struct AppStoreUpdateChecker: AppUpdateChecking {
         return configuration
     }
 
-    func check(currentVersion: String) async -> AppUpdateCheckResult {
+    public func check(currentVersion: String) async -> AppUpdateCheckResult {
         let listing = await fetchBody().flatMap(AppStoreLookup.decode(_:))
         return AppStoreLookup.result(listing: listing, currentVersion: currentVersion)
     }

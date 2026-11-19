@@ -516,3 +516,40 @@ app types or read app source): `AIActionControllerTests`, `AIChangeBuilderTests`
 app-bundle helper for `AIReviewTextView.accessibilityActionTitles`, whose keys stay in the app.
 
 Gates: package 495, app 1492, default plan 1987, so unique tests are still 1987.
+
+## Task 9: app-level pure logic moved into LineformCore
+
+Moved verbatim into `Packages/LineformCore/Sources/LineformCore/App/`: `AnnouncementFeed`,
+`AnnouncementFetcher`, `AppUpdateCheck`, `AppUpdatePresentation`. `swift build` passed with the
+group on the first try; nothing split. `AnnouncementStore`, `AppReviewPromptStore`,
+`AppUpdateCommand`, `SystemMenuItemTitles` and `DocumentTab` stay in the app, as planned.
+
+Diff beyond moves: `public` on what the app uses (`Announcement` and its `id`, `title`, `body`,
+`actionLabel`, `actionURL`, `appliesTo`; `AnnouncementFeed.decode`/`encode`;
+`AnnouncementFetching`; `AnnouncementFetcher` with `defaultFeedURL`, `init`, `fetch`;
+`AppUpdateCheckResult`; `AppUpdateChecking`; `AppStoreUpdateChecker` with `lookupURL`, `init`,
+`check`; `AppUpdatePresentation` with its five properties and `init`). `Sendable` on
+`Announcement` and `AppUpdateCheckResult` (a public type loses its implicit conformance; the app
+tests' `actor FakeAnnouncementFetcher` and `Sendable` checkers failed without it).
+`AppUpdatePresentation.init(result:bundle:)` now defaults to `.lineformCore` instead of `.main`
+(public default, Task 3 pattern). `AnnouncementStore`, `AppUpdateCommand` and `AnnouncementCard`
+gained `import LineformCore`. No other edits; `AppStoreUpdateChecker.storeBundleID` is still the
+fixed "com.lineform.app" (never `Bundle.main`), and no moved file reads `Bundle.main`.
+The Debug-only `LINEFORM_ANNOUNCEMENT_FEED_JSON` seam is still under `#if DEBUG`: the string is in
+the Debug app binary and absent from the Release one.
+
+Strings: 9 keys. Moved 7 ("Lineform is up to date", "Version %@ is the latest version.",
+"A new version of Lineform is available", "Version %1$@ is on the App Store. You have version
+%2$@.", "Open App Store", "Couldn't check for updates", "Check your internet connection and try
+again."). Copied with `--keep-in-app`: "OK" (`EditorContainerView` alerts) and "Not Now"
+(`AnnouncementCard`). Both catalogs pass the byte-identical round-trip check.
+
+Tests moved (22): `AppUpdateCheckTests` (9), `AppUpdateCheckerTests` (9, now using
+`LineformCoreTestSupport`'s `StubURLProtocol`), `AppUpdatePresentationTests` (4, per-language
+`.lproj` now from `Bundle.lineformCore`). Stay: `AnnouncementTests` (one file holding both
+`AnnouncementFeedTests` and `AnnouncementStoreTests`; it exercises `AnnouncementStore`, so the
+file stays whole) and `AppUpdateCommandTests` (`AppUpdateCommand`); both gained
+`@testable import LineformCore`.
+
+Gates: package 517, app 1470, default plan 1987 unique. Hosted plan: 26 of 26 passed (the
+known `EditorDrawerMotionHostedTests` timing failure passed this run).

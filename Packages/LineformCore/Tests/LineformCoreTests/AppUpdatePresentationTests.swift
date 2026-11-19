@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 /// The alert text for each Check for Updates outcome. Runs under the default test plan's
 /// `en`/`US`; the per-language test resolves through each `.lproj` so a key that drifted
@@ -11,7 +11,7 @@ final class AppUpdatePresentationTests: XCTestCase {
 
     private func bundle(_ language: String) throws -> Bundle {
         try XCTUnwrap(
-            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
             "\(language).lproj missing from the test host"
         )
     }

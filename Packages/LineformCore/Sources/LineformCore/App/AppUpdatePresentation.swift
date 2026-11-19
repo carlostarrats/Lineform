@@ -4,17 +4,17 @@ import Foundation
 /// AppKit code so it can be tested without a window. Every string is chrome and
 /// localizes; "Lineform" and "App Store" stay as they are in every language.
 /// Foundation-only so it can move to a shared package.
-struct AppUpdatePresentation: Equatable {
-    let title: String
-    let message: String
-    let primaryButton: String
+public struct AppUpdatePresentation: Equatable {
+    public let title: String
+    public let message: String
+    public let primaryButton: String
     /// Nil when the alert has a single button.
-    let secondaryButton: String?
+    public let secondaryButton: String?
     /// Non-nil only for `updateAvailable`: the page the primary button opens.
-    let storeURL: URL?
+    public let storeURL: URL?
 
-    /// `bundle` selects the `.lproj` (tests pass one per language); the app uses `.main`.
-    init(result: AppUpdateCheckResult, bundle: Bundle = .main) {
+    /// `bundle` selects the `.lproj` (tests pass one per language); the app uses the default, `.lineformCore`.
+    public init(result: AppUpdateCheckResult, bundle: Bundle = .lineformCore) {
         switch result {
         case .upToDate(let current):
             title = String(localized: "Lineform is up to date", bundle: bundle)

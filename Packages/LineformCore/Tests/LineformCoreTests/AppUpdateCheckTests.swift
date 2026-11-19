@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class AppUpdateCheckTests: XCTestCase {
     private func json(_ s: String) -> Data { Data(s.utf8) }

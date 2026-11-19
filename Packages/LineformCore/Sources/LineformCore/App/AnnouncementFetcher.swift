@@ -3,7 +3,7 @@ import Foundation
 /// Fetches the raw announcement feed. Behind a protocol so `AnnouncementStore` is
 /// testable without touching the network — no test in either plan may make a real
 /// request.
-protocol AnnouncementFetching: Sendable {
+public protocol AnnouncementFetching: Sendable {
     /// Returns validated announcements, or **nil** when nothing could be learned —
     /// offline, timeout, bad status, unusable payload. An empty ARRAY is different: it
     /// means the feed was read successfully and the publisher is showing nothing.
@@ -22,7 +22,7 @@ protocol AnnouncementFetching: Sendable {
 /// no identifiers of any kind. Nothing distinguishes one user's request from another's
 /// beyond what any web request unavoidably carries. Because there is nothing to
 /// collect, the App Privacy label stays "Data Not Collected".
-struct AnnouncementFetcher: AnnouncementFetching {
+public struct AnnouncementFetcher: AnnouncementFetching {
     /// The static feed, served next to the marketing site's `index.html` on Cloudflare.
     ///
     /// Builds up to 1.5.0 shipped with the old `lineform-site.vercel.app` host, which today
@@ -30,7 +30,7 @@ struct AnnouncementFetcher: AnnouncementFetching {
     /// stop reaching the feed for good — they fail soft (a failed fetch is nil, "learned
     /// nothing", so the cache and the screen are left alone), but they never see another
     /// announcement. Cut a release carrying this URL before deleting it.
-    static let defaultFeedURL = URL(string: "https://lineform.app/announcements.json")!
+    public static let defaultFeedURL = URL(string: "https://lineform.app/announcements.json")!
 
     /// Short enough that a hung or throttled server never keeps a background task
     /// alive behind the user; there is no retry, the next launch is the retry.
@@ -39,7 +39,7 @@ struct AnnouncementFetcher: AnnouncementFetching {
     private let feedURL: URL
     private let session: URLSession
 
-    init(feedURL: URL = AnnouncementFetcher.defaultFeedURL, session: URLSession? = nil) {
+    public init(feedURL: URL = AnnouncementFetcher.defaultFeedURL, session: URLSession? = nil) {
         self.feedURL = feedURL
         self.session = session ?? Self.makeSession()
     }
@@ -57,7 +57,7 @@ struct AnnouncementFetcher: AnnouncementFetching {
         return URLSession(configuration: configuration)
     }
 
-    func fetch() async -> [Announcement]? {
+    public func fetch() async -> [Announcement]? {
         #if DEBUG
         // QA seam (Debug only, same family as LINEFORM_DUMP_MAIN_MENU): inject feed JSON
         // straight from the environment so the card can be exercised in a real window

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import LineformCore
 
 /// Owns the announcement lifecycle: when to check, what to show, what's been dismissed.
 ///

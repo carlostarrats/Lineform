@@ -7,22 +7,22 @@ import Foundation
 /// compromised or mistyped file a way to draw arbitrary UI inside the editor.
 /// Everything here is length-bounded and control-character-free by construction:
 /// `AnnouncementFeed.decode` is the only way to build one from bytes.
-struct Announcement: Equatable, Identifiable {
+public struct Announcement: Equatable, Identifiable, Sendable {
     /// Dismissal key. Stable forever; never reuse an id for different content, or
     /// anyone who dismissed the old one silently never sees the new one.
-    let id: String
-    let title: String
-    let body: String
+    public let id: String
+    public let title: String
+    public let body: String
     /// Present only when `actionURL` is too — the pair is validated together, so a
     /// button can never render without a destination (or a destination go unclickable).
-    let actionLabel: String?
-    let actionURL: URL?
+    public let actionLabel: String?
+    public let actionURL: URL?
     /// Lowest app version this is meant for. Nil means "any version".
     let minAppVersion: String?
 
     /// Whether this announcement should be shown to a build reporting `appVersion`.
     /// Stops "update to 1.6" reaching someone already on 1.7.
-    func appliesTo(appVersion: String) -> Bool {
+    public func appliesTo(appVersion: String) -> Bool {
         guard let minAppVersion else { return true }
         return AnnouncementFeed.compareVersions(appVersion, minAppVersion) != .orderedAscending
     }
@@ -35,7 +35,7 @@ struct Announcement: Equatable, Identifiable {
 /// oversized UI. Validation is per-entry and lenient at the feed level — one bad
 /// entry is skipped, it does not discard the entries around it, because the alternative
 /// is that a single typo silently kills the whole channel.
-enum AnnouncementFeed {
+public enum AnnouncementFeed {
     /// Hard ceiling on the response body. The real file is a few hundred bytes; this is
     /// generous enough to never bite and small enough that a redirect to something huge
     /// can't be buffered into memory.
@@ -91,7 +91,7 @@ enum AnnouncementFeed {
     /// malformed deploy silently pull a live announcement off every user's screen.
     ///
     /// Never throws: a broken feed is not an error the user should ever learn about.
-    static func decode(_ data: Data) -> [Announcement]? {
+    public static func decode(_ data: Data) -> [Announcement]? {
         guard data.count <= maximumPayloadBytes else { return nil }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return nil }
         guard payload.version == supportedVersion else { return nil }
@@ -105,7 +105,7 @@ enum AnnouncementFeed {
     /// in `UserDefaults` can be read back through `decode` and re-validated by exactly
     /// the same rules. Encoding to a different shape would mean a second validator, and
     /// two validators of one format always drift.
-    static func encode(_ announcements: [Announcement]) -> Data? {
+    public static func encode(_ announcements: [Announcement]) -> Data? {
         let entries: [[String: Any]] = announcements.map { announcement in
             var entry: [String: Any] = [
                 "id": announcement.id,

@@ -48,9 +48,6 @@
 		1F0000010000000000000321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000321 /* SettingsView.swift */; };
 		1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000322 /* LineformSettingsTests.swift */; };
 		1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C9 /* AnnouncementTests.swift */; };
-		1F00000100000000000007A2 /* AppUpdateCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A2 /* AppUpdateCheckTests.swift */; };
-		1F00000100000000000007A3 /* AppUpdateCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */; };
-		1F00000100000000000007A5 /* AppUpdatePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */; };
 		1F00000100000000000007A7 /* AppUpdateCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A7 /* AppUpdateCommandTests.swift */; };
 		1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CA /* TestDefaultsSupport.swift */; };
 		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
@@ -136,11 +133,7 @@
 		1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000148 /* EditorFloatingControlSupport.swift */; };
 		1F0000010000000000000506 /* SelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000506 /* SelectionToolbar.swift */; };
 		1F0000010000000000000507 /* LineformTextView+SelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */; };
-		1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C5 /* AnnouncementFeed.swift */; };
-		1F00000100000000000007A1 /* AppUpdateCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A1 /* AppUpdateCheck.swift */; };
-		1F00000100000000000007A4 /* AppUpdatePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A4 /* AppUpdatePresentation.swift */; };
 		1F00000100000000000007A6 /* AppUpdateCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A6 /* AppUpdateCommand.swift */; };
-		1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C6 /* AnnouncementFetcher.swift */; };
 		1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C7 /* AnnouncementStore.swift */; };
 		1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C8 /* AnnouncementCard.swift */; };
 		1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CB /* AppReviewPromptStore.swift */; };
@@ -244,9 +237,6 @@
 		1F0000020000000000000321 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000322 /* LineformSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettingsTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C9 /* AnnouncementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A2 /* AppUpdateCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheckTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheckerTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePresentationTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000007A7 /* AppUpdateCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCommandTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CA /* TestDefaultsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDefaultsSupport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
@@ -333,11 +323,7 @@
 		1F0000020000000000000148 /* EditorFloatingControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFloatingControlSupport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000506 /* SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SelectionToolbar.swift"; sourceTree = "<group>"; };
 		1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+SelectionToolbar.swift"; sourceTree = "<group>"; };
-		1F00000200000000000004C5 /* AnnouncementFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFeed.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A1 /* AppUpdateCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheck.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A4 /* AppUpdatePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePresentation.swift; sourceTree = "<group>"; };
 		1F00000200000000000007A6 /* AppUpdateCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCommand.swift; sourceTree = "<group>"; };
-		1F00000200000000000004C6 /* AnnouncementFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFetcher.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C7 /* AnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementStore.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C8 /* AnnouncementCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementCard.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CB /* AppReviewPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStore.swift; sourceTree = "<group>"; };
@@ -462,12 +448,8 @@
 				1F0000020000000000000036 /* AppCommands.swift */,
 				1F00000200000000000004B1 /* MainMenuIconDecorator.swift */,
 				1F0000320000000000000011 /* SystemMenuItemTitles.swift */,
-				1F00000200000000000004C5 /* AnnouncementFeed.swift */,
-				1F00000200000000000004C6 /* AnnouncementFetcher.swift */,
 				1F00000200000000000004C7 /* AnnouncementStore.swift */,
 				1F00000200000000000004CB /* AppReviewPromptStore.swift */,
-				1F00000200000000000007A1 /* AppUpdateCheck.swift */,
-				1F00000200000000000007A4 /* AppUpdatePresentation.swift */,
 				1F00000200000000000007A6 /* AppUpdateCommand.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
 			);
@@ -603,9 +585,6 @@
 				1F0000020000000000000044 /* ReadingProfileStoreTests.swift */,
 				1F0000020000000000000322 /* LineformSettingsTests.swift */,
 				1F00000200000000000004C9 /* AnnouncementTests.swift */,
-				1F00000200000000000007A2 /* AppUpdateCheckTests.swift */,
-				1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */,
-				1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */,
 				1F00000200000000000007A7 /* AppUpdateCommandTests.swift */,
 				1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */,
 				1F00000200000000000004E1 /* AIEditorTestDoubles.swift */,
@@ -877,11 +856,7 @@
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
 				1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */,
 				1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */,
-				1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */,
-				1F00000100000000000007A1 /* AppUpdateCheck.swift in Sources */,
-				1F00000100000000000007A4 /* AppUpdatePresentation.swift in Sources */,
 				1F00000100000000000007A6 /* AppUpdateCommand.swift in Sources */,
-				1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */,
 				1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */,
 				1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */,
 				1F00000100000000000004E8 /* ConnectAIView.swift in Sources */,
@@ -958,9 +933,6 @@
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
-				1F00000100000000000007A2 /* AppUpdateCheckTests.swift in Sources */,
-				1F00000100000000000007A3 /* AppUpdateCheckerTests.swift in Sources */,
-				1F00000100000000000007A5 /* AppUpdatePresentationTests.swift in Sources */,
 				1F00000100000000000007A7 /* AppUpdateCommandTests.swift in Sources */,
 				1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */,
 				1F00000100000000000004E1 /* AIEditorTestDoubles.swift in Sources */,

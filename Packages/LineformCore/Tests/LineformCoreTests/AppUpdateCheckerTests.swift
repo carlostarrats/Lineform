@@ -1,5 +1,6 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
+import LineformCoreTestSupport
 
 /// Every test here runs over `StubURLProtocol` (or the local `FailingURLProtocol`); none
 /// makes a real network request.

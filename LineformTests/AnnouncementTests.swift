@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Feed validation, version comparison, and store lifecycle.
 ///

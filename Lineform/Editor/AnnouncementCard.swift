@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// The announcement card: a small floating card at the bottom-trailing corner of the
 /// EDITOR CONTENT (not the shell — hanging it off the content is what keeps it from

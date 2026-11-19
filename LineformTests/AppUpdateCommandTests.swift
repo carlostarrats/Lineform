@@ -1,6 +1,7 @@
 import os
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// The Check for Updates command, with the alert and NSWorkspace injected: the default test
 /// plan must never construct an `NSAlert` (it is a window), and no test here makes a request.
