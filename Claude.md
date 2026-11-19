@@ -267,7 +267,9 @@ The list and the reasons are in `docs/notes/shared-package-baseline.md`.
   it then stays in both catalogs, and `LocalizationCatalogTests` requires the two entries to be
   identical. Per-language tests for package strings read `.lproj` folders from
   `Bundle.lineformCore`.
-- **Gates.** `swift test --package-path Packages/LineformCore`, then the default plan (it also runs
+- **Gates.** `xcodebuild test -scheme LineformCore -destination 'platform=macOS'` from
+  `Packages/LineformCore` (not `swift test`: some toolchains' command-line SwiftPM does not
+  compile the `.xcstrings` catalog, so the per-language tests fail), then the default plan (it also runs
   `LineformCoreTests`), then the hosted plan when the change calls for it (see Verification
   Commands). Run `xcodebuild clean` after changing the package catalog, or the app tests can read
   a stale bundle.

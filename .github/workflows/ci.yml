@@ -15,10 +15,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Lineform.xcodeproj -scheme Lineform
-      # The shared LineformCore package on its own, with SwiftPM: proves it builds and its
-      # tests pass without the app (the future iPhone app links the same package).
+      # The shared LineformCore package on its own: proves it builds and its tests pass
+      # without the app (the future iPhone app links the same package). Run through
+      # xcodebuild, not `swift test`: the runner's command-line SwiftPM does not compile the
+      # package's Localizable.xcstrings into .lproj folders, so the per-language tests fail
+      # there while the app (built by xcodebuild) ships the translations correctly.
       - name: Test LineformCore package
-        run: swift test --package-path Packages/LineformCore
+        working-directory: Packages/LineformCore
+        run: xcodebuild test -scheme LineformCore -destination 'platform=macOS'
       # The same package for iOS: catches macOS-only API or an import that would break the
       # future iPhone app before it exists.
       - name: Build LineformCore for iOS
