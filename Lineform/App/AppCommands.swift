@@ -153,7 +153,7 @@ enum AppMenuConfiguration {
     /// are localization-catalog keys and a catalog lookup is an exact string match.
     ///
     /// `MainMenuIconDecorator` reads this to learn each row's LOCALIZED title: its icon
-    /// table is keyed by normalized English, so without the localized alias ~108 menu
+    /// table is keyed by normalized English, so without the localized alias ~110 menu
     /// rows lose their SF Symbol in every non-English locale — invisibly, since nothing
     /// in the English build changes. Completeness is asserted by
     /// `MainMenuIconDecoratorTests.testConfiguredCommandTitlesAllHaveIcons`, not remembered.
