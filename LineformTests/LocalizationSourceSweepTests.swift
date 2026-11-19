@@ -66,6 +66,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
     private static let exemptLiterals: [String: String] = [
         // Identifiers and paths.
         "AnnouncementFetcher.swift|Accept": "HTTP request header field name.",
+        "AppUpdateCheck.swift|Accept": "HTTP request header field name.",
         "OutlineSidebarView.swift|Lineform": "The app name — never translated (plan Global Constraints).",
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "BundledFontRegistrar.swift|Fonts": "Bundle subdirectory name.",

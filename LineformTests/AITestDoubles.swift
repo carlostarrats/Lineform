@@ -66,12 +66,17 @@ final class StubURLProtocol: URLProtocol {
     /// When set, the stub answers with a 302 to this URL. Every request URL is recorded.
     nonisolated(unsafe) static var redirectTo: URL?
     nonisolated(unsafe) static var requestedURLs: [URL] = []
+    /// Every request in full (headers, method, body or body stream), alongside `requestedURLs`.
+    nonisolated(unsafe) static var requestedRequests: [URLRequest] = []
+    /// The Content-Type of the scripted reply.
+    nonisolated(unsafe) static var contentType = "application/json"
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         Self.requestedURLs.append(request.url!)
+        Self.requestedRequests.append(request)
         if let target = Self.redirectTo, request.url != target {
             let redirect = HTTPURLResponse(url: request.url!, statusCode: 302, httpVersion: "HTTP/1.1",
                                            headerFields: ["Location": target.absoluteString])!
@@ -81,7 +86,7 @@ final class StubURLProtocol: URLProtocol {
             client?.urlProtocolDidFinishLoading(self)
             return
         }
-        var headers = ["Content-Type": "application/json"]
+        var headers = ["Content-Type": Self.contentType]
         if let declared = Self.declaredLength { headers["Content-Length"] = String(declared) }
         let response = HTTPURLResponse(url: request.url!, statusCode: Self.status,
                                        httpVersion: "HTTP/1.1", headerFields: headers)!

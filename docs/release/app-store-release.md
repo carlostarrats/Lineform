@@ -151,6 +151,10 @@ The App Privacy answer is **Data Not Collected**:
 - The app has no account, analytics, telemetry, advertising identifier, or document upload.
 - Announcements are an optional once-a-day GET of a static public JSON file. The request has no
   body, query string, identifier, or cookie, and the Settings switch prevents the request itself.
+- Check for Updates is a user-initiated GET of
+  `https://itunes.apple.com/lookup?bundleId=com.lineform.app&entity=macSoftware`, made only when the
+  user chooses Lineform ▸ Check for Updates…. It uses an ephemeral session with no cookies and no
+  identifier, and nothing from it is stored, so Data Not Collected stands.
 - Diagram failures remain local and cannot be submitted from the app.
 - **Bring-your-own AI does not change this answer (checked 2026-11-12).** With an AI
   connected, the prose of a selection the writer acts on goes from the writer's Mac DIRECTLY to the
@@ -183,7 +187,8 @@ service changes.
 - [ ] Claims match `README.md`, `POSITIONING_AND_MARKETING.md`, bundled Help, and the actual build.
 - [ ] Use **free** and **source-available**, never “open source” (PolyForm Shield 1.0.0).
 - [ ] Do not describe a CLI or app-managed updates; neither exists.
-- [ ] Explain the announcements request if App Review asks why `network.client` is present.
+- [ ] Explain the announcements request and the user-initiated Check for Updates lookup if App
+      Review asks why `network.client` is present.
 - [ ] Claims say "No AI built in. Connect your own if you want it." — never "no AI" or "No AI
       inside" (bring-your-own AI ships).
 - [ ] **App Review 5.1.2(i) — third-party AI (checked 2026-11-12).** Wording checked at

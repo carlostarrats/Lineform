@@ -36,7 +36,7 @@ struct SettingsModal: View {
     static let iCloudUnavailableNote = String(localized: "iCloud is not available on this Mac.")
     static let iCloudEnabledNote = String(localized: "Hides iCloud in Lineform's sidebar. Saving a new document starts outside Lineform iCloud; you can still choose iCloud.")
     static let announcementsTitle = String(localized: "In-app notifications")
-    static let announcementsNote = String(localized: "Occasional news about new versions, checked once a day. No personal data is sent or collected. When off, Lineform makes no network request.")
+    static let announcementsNote = String(localized: "Occasional news about new versions, checked once a day. Nothing about you or your documents is sent. When off, Lineform makes no automatic network request.")
     static let defaultMarkdownTitle = String(localized: "Default Markdown app")
     static let defaultMarkdownNote = String(localized: "Double-clicking .md and .markdown files will open them in Lineform.")
     static let defaultMarkdownActiveNote = String(localized: "Lineform opens Markdown files when you double-click them.")

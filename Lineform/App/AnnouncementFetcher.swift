@@ -14,7 +14,8 @@ protocol AnnouncementFetching: Sendable {
     func fetch() async -> [Announcement]?
 }
 
-/// The only network call in the app.
+/// The app's only AUTOMATIC network request. Every other request is user-initiated:
+/// an AI action the writer chose, or Lineform ▸ Check for Updates… (`AppStoreUpdateChecker`).
 ///
 /// Privacy shape, which is the point of the feature: a plain GET of a static file.
 /// No request body, no query string, no custom headers, no cookies, no credentials,

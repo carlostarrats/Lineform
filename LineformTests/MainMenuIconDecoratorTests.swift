@@ -32,6 +32,7 @@ final class MainMenuIconDecoratorTests: XCTestCase {
     func testConfiguredCommandTitlesAllHaveIcons() {
         let titles = [
             AppMenuConfiguration.aboutCommandTitle,
+            AppMenuConfiguration.checkForUpdatesCommandTitle,
             AppMenuConfiguration.settingsCommandTitle,
             AppMenuConfiguration.connectAICommandTitle,
             AppMenuConfiguration.privacyPolicyCommandTitle,
@@ -70,6 +71,21 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             XCTAssertNotNil(MainMenuIconDecorator.localizedAliases(languageCode: language)["history"],
                             "\(language): View ▸ History has no localized title to match")
+        }
+    }
+
+    /// Lineform ▸ Check for Updates… is a SwiftUI `Button`, so it resolves by title — in every
+    /// shipped locale, which needs its English key (real "…", U+2026) in `allEnglishTitleKeys`.
+    func testCheckForUpdatesMenuItemHasIcon() {
+        XCTAssertEqual(AppMenuConfiguration.checkForUpdatesCommandTitle, "Check for Updates\u{2026}")
+        XCTAssertEqual(MainMenuIconDecorator.normalizedTitle("Check for Updates…"), "check for updates")
+        XCTAssertEqual(MainMenuIconDecorator.symbolsByTitle["check for updates"], "arrow.down.circle")
+        XCTAssertTrue(AppMenuConfiguration.allEnglishTitleKeys.contains("Check for Updates\u{2026}"))
+        let item = NSMenuItem(title: AppMenuConfiguration.checkForUpdatesCommandTitle, action: nil, keyEquivalent: "")
+        XCTAssertEqual(MainMenuIconDecorator.symbolName(for: item), "arrow.down.circle")
+        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+            XCTAssertNotNil(MainMenuIconDecorator.localizedAliases(languageCode: language)["check for updates"],
+                            "\(language): Check for Updates has no localized title to match")
         }
     }
 
