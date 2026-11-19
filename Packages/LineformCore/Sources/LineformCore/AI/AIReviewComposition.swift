@@ -1,5 +1,4 @@
 import Foundation
-import LineformCore
 
 /// What the review overlay shows (spec "AI review: option A"): the document's text with every
 /// PENDING change spliced in — the original struck through and dimmed, then the replacement on a
@@ -23,18 +22,18 @@ import LineformCore
 /// sentences and some are unchanged, each changed sentence is struck with its replacement inline
 /// right after it; a whole replaced or restructured (merged / split) span keeps the whole-span
 /// display, a whole line stacked on a line of its own. Pure value logic; the overlay draws it.
-struct AIReviewComposition: Equatable {
-    let string: String
+public struct AIReviewComposition: Equatable, Sendable {
+    public let string: String
     /// Change id → the struck originals, in `string` coordinates, in order. Absent for a pure
     /// insertion.
-    let removedRanges: [Int: [NSRange]]
+    public let removedRanges: [Int: [NSRange]]
     /// Change id → the highlighted replacements, in `string` coordinates, in order. Absent for a
     /// pure deletion.
-    let replacementRanges: [Int: [NSRange]]
+    public let replacementRanges: [Int: [NSRange]]
     /// Change id → an ACCEPTED (not yet applied) change's replacement as drawn, plain.
     var acceptedRanges: [Int: [NSRange]] = [:]
     /// Change id → the whole change as drawn, from its first part to its last.
-    let changeRanges: [Int: NSRange]
+    public let changeRanges: [Int: NSRange]
     /// Change id → the change's range in the DOCUMENT the composition was built from.
     let documentRanges: [Int: NSRange]
     /// Text the overlay shows that the document does not have (separators, line breaks,
@@ -205,7 +204,7 @@ struct AIReviewComposition: Equatable {
         return pairs
     }
 
-    static let empty = AIReviewComposition(string: "", removedRanges: [:], replacementRanges: [:],
+    public static let empty = AIReviewComposition(string: "", removedRanges: [:], replacementRanges: [:],
                                            changeRanges: [:], documentRanges: [:], insertions: [])
 
     // MARK: - Sentences that differ
@@ -304,7 +303,7 @@ struct AIReviewComposition: Equatable {
         pattern: #"^(?:[ \t]*(?:(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?|>[ \t]?))*"#)
 
     /// The pending change drawn at overlay index `index`, if any (a click makes it current).
-    func changeID(at index: Int) -> Int? {
+    public func changeID(at index: Int) -> Int? {
         changeRanges.first { NSLocationInRange(index, $0.value) }?.key
     }
 
@@ -313,7 +312,7 @@ struct AIReviewComposition: Equatable {
     /// The document index shown at overlay index `index`. Document text maps one to one; text
     /// the document does not have (a separator, a line break, a replacement) maps to the document
     /// index it stands at — the end of the struck original before it.
-    func documentIndex(forOverlayIndex index: Int) -> Int {
+    public func documentIndex(forOverlayIndex index: Int) -> Int {
         var shift = 0
         for insertion in insertions {
             if index < insertion.overlayLocation { break }
@@ -324,7 +323,7 @@ struct AIReviewComposition: Equatable {
     }
 
     /// The overlay index showing document index `index` (the inverse of `documentIndex`).
-    func overlayIndex(forDocumentIndex index: Int) -> Int {
+    public func overlayIndex(forDocumentIndex index: Int) -> Int {
         var shift = 0
         for insertion in insertions {
             if insertion.documentLocation > index { break }
@@ -338,12 +337,14 @@ struct AIReviewComposition: Equatable {
 /// Builds the review composition only when the session or the editor's text changed — the
 /// container's body is re-evaluated far more often than either. A reference type, so a lookup
 /// from inside `body` mutates no SwiftUI state.
-final class AIReviewCompositionCache {
+public final class AIReviewCompositionCache {
     private var key: (text: String, session: AIReviewSession)?
     private var value: AIReviewComposition?
     private(set) var buildCount = 0
 
-    func composition(text: String, session: AIReviewSession) -> AIReviewComposition {
+    public init() {}
+
+    public func composition(text: String, session: AIReviewSession) -> AIReviewComposition {
         if let key, let value, key.session == session, key.text == text { return value }
         let built = AIReviewComposition.build(text: text, session: session)
         key = (text, session)

@@ -1,5 +1,6 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
+import LineformCoreTestSupport
 
 @MainActor
 final class AIConnectionStoreTests: XCTestCase {

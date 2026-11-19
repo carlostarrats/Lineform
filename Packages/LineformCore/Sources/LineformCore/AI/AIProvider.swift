@@ -8,21 +8,21 @@ enum AIWireProtocol: Equatable {
 
 /// The four ways a writer can connect an AI. The raw values are persisted identity
 /// (UserDefaults, Keychain account names) and are never localized.
-enum AIProvider: String, CaseIterable, Codable, Identifiable {
+public enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     case claude
     case chatGPT = "chatgpt"
     case google
     case other
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
     /// Brand names are not translated; only "Other" is.
-    var displayName: String {
+    public var displayName: String {
         switch self {
         case .claude: return "Claude"
         case .chatGPT: return "ChatGPT"
         case .google: return "Google"
-        case .other: return String(localized: "Other")
+        case .other: return String(localized: "Other", bundle: .module)
         }
     }
 
@@ -35,7 +35,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    var createKeyURL: URL? {
+    public var createKeyURL: URL? {
         switch self {
         case .claude: return URL(string: "https://platform.claude.com/settings/keys")
         case .chatGPT: return URL(string: "https://platform.openai.com/api-keys")
@@ -60,7 +60,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     /// The model each tier sends. Verified 2026-11-13 against the providers' own model lists:
     /// both OpenAI models support `v1/chat/completions`, and the Gemini IDs are the stable
     /// codes on Google's model page (used through its OpenAI-compatible endpoint).
-    func model(for tier: AIModelTier) -> String? {
+    public func model(for tier: AIModelTier) -> String? {
         switch (self, tier) {
         case (.claude, .standard): return "claude-haiku-5-5"
         case (.claude, .higherQuality): return "claude-sonnet-5-5"
@@ -79,23 +79,23 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
 
 /// Which of a provider's two models a writer chose. The raw values are persisted identity
 /// (UserDefaults) and are never localized; `title` is the chrome.
-enum AIModelTier: String, CaseIterable, Identifiable {
+public enum AIModelTier: String, CaseIterable, Identifiable {
     case standard
     case higherQuality
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
-        case .standard: return String(localized: "Standard")
-        case .higherQuality: return String(localized: "Higher quality")
+        case .standard: return String(localized: "Standard", bundle: .module)
+        case .higherQuality: return String(localized: "Higher quality", bundle: .module)
         }
     }
 }
 
 /// Everything an action needs to make one request. Resolved at action time only.
-struct AIConnection: Equatable {
-    let provider: AIProvider
+public struct AIConnection: Equatable, Sendable {
+    public let provider: AIProvider
     let endpoint: URL
     let model: String
     let apiKey: String?
@@ -103,10 +103,10 @@ struct AIConnection: Equatable {
 
 extension AIConnection: CustomStringConvertible, CustomDebugStringConvertible {
     /// Never includes the key, so logging or string-interpolating a connection cannot leak it.
-    var description: String {
+    public var description: String {
         "AIConnection(provider: \(provider.rawValue), endpoint: \(endpoint.absoluteString), "
             + "model: \(model), apiKey: \(apiKey == nil ? "none" : "<redacted>"))"
     }
 
-    var debugDescription: String { description }
+    public var debugDescription: String { description }
 }

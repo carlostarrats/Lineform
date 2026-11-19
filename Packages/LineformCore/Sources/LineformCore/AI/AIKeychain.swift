@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Storage for API keys. Production uses the Keychain; tests use an in-memory double.
-protocol AIKeychain: AnyObject {
+public protocol AIKeychain: AnyObject {
     func readKey(for provider: AIProvider) -> String?
     /// Whether an item exists, without reading the secret. Used by Connect Your AI to show a
     /// provider whose key went missing as needing to reconnect.

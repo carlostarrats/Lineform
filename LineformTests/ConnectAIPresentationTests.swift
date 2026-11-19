@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 @MainActor
 final class ConnectAIPresentationTests: XCTestCase {
@@ -7,7 +8,7 @@ final class ConnectAIPresentationTests: XCTestCase {
 
     private func bundle(_ language: String) throws -> Bundle {
         try XCTUnwrap(
-            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
             "\(language).lproj missing from the test host"
         )
     }

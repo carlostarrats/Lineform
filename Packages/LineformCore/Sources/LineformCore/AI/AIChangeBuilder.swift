@@ -1,5 +1,4 @@
 import Foundation
-import LineformCore
 
 /// One suggested change, in DOCUMENT UTF-16 coordinates. `range` always sits on
 /// composed-character boundaries.
@@ -13,22 +12,22 @@ import LineformCore
 /// `parts` are the changed segments inside it. A decision is APPLIED as one edit per part
 /// (`edits`), never as the whole span: the span can cross line endings, and the text view
 /// refuses any AI edit that touches one (structure). A part never contains a line terminator.
-struct AIChange: Equatable, Identifiable {
+public struct AIChange: Equatable, Identifiable {
     /// One changed segment. `offset` is from `range.location`, in UTF-16 units of `original`.
-    struct Part: Equatable {
+    public struct Part: Equatable {
         let offset: Int
         let length: Int
         let replacement: String
     }
 
-    let id: Int
-    var range: NSRange
-    let original: String
-    let replacement: String
+    public let id: Int
+    public var range: NSRange
+    public let original: String
+    public let replacement: String
     let parts: [Part]
 
     /// Without `parts`, the change is one part covering its whole range.
-    init(id: Int, range: NSRange, original: String, replacement: String, parts: [Part]? = nil) {
+    public init(id: Int, range: NSRange, original: String, replacement: String, parts: [Part]? = nil) {
         self.id = id
         self.range = range
         self.original = original
@@ -39,7 +38,7 @@ struct AIChange: Equatable, Identifiable {
     /// The edits that apply this change at its CURRENT `range`, in DESCENDING location order,
     /// each in the coordinates of the text before any of them — so applying them in order is
     /// exact.
-    func edits() -> [AIReviewEdit] {
+    public func edits() -> [AIReviewEdit] {
         parts.reversed().map { part in
             AIReviewEdit(range: NSRange(location: range.location + part.offset, length: part.length),
                          replacement: part.replacement)
@@ -53,8 +52,8 @@ struct AIChange: Equatable, Identifiable {
 /// canonically equal to its text (`String ==`): an AI that answers in NFC for an NFD document
 /// changes nothing the writer can see, and the writer's own bytes are kept. Unchanged segments at
 /// either edge are outside the change; one between changed segments is kept verbatim.
-enum AIChangeBuilder {
-    static func change(segments: [ProseSegment], revisions: [String?], in text: String) -> AIChange? {
+public enum AIChangeBuilder {
+    public static func change(segments: [ProseSegment], revisions: [String?], in text: String) -> AIChange? {
         let ns = text as NSString
         var changed: [(range: NSRange, revision: String)] = []
         for (index, segment) in segments.enumerated() where index < revisions.count {
@@ -92,7 +91,7 @@ enum AIChangeBuilder {
 /// Proofread's corrections (2026-11-14): the provider still returns one revised string per prose
 /// segment, and each segment is diffed against it at WORD level, so a paragraph with four fixed
 /// words becomes four suggestions rather than one rewritten paragraph.
-enum AIWordDiff {
+public enum AIWordDiff {
     /// `text` as tokens tiling it, in UTF-16 ranges: a run of word characters (letters, digits,
     /// combining marks — whole `Character`s, so an accented letter or an emoji is never split —
     /// with an apostrophe between two word characters kept inside the word: "don't"), a run of
@@ -213,7 +212,7 @@ enum AIWordDiff {
     /// Proofread's changes for `segments` and their admitted revisions: one `AIChange` per
     /// correction, in document coordinates, ids from 0 in document order. A segment whose
     /// revision was refused, or that no longer matches `text`, contributes none.
-    static func corrections(segments: [ProseSegment], revisions: [String?], in text: String) -> [AIChange] {
+    public static func corrections(segments: [ProseSegment], revisions: [String?], in text: String) -> [AIChange] {
         let ns = text as NSString
         var changes: [AIChange] = []
         for (index, segment) in segments.enumerated() where index < revisions.count {

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class AIActionPromptTests: XCTestCase {
     private static let languages = ["es", "fr", "de", "ja", "zh-Hans"]
@@ -84,7 +84,7 @@ final class AIActionPromptTests: XCTestCase {
         XCTAssertEqual(Array(Set(AIAction.allCases.map(\.progressVerb))).sorted(), verbs.sorted())
         for language in Self.languages {
             let bundle = try XCTUnwrap(
-                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
                 "\(language).lproj missing from the test host"
             )
             for key in titles + verbs {

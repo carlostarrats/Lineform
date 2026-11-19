@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 @testable import Lineform
+@testable import LineformCore
 
 /// The selection toolbar's pure decisions (`SelectionToolbarPresentation`). Showing, hiding and
 /// placement against a live text view were checked by hand in the running app.

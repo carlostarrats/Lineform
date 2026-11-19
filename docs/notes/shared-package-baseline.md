@@ -102,6 +102,17 @@ Task 3's `CacheBudgets` entry therefore has no file to move.
   `MathCacheKey` (CryptoKit + CGFloat), `OutlineFileTreeFlatRow`,
   `SecurityScopedResourceAccessing`/`URLSecurityScopedResourceAccessor`,
   `MarkdownSyntaxHighlighter.range(_:covers:)`.
+- Task 8: `AI/AIActionController.swift`, `AI/AISentenceSplitter.swift` and
+  `Editor/DocumentHistoryController.swift`. The first two call `MarkdownStructureMap`
+  (`proseSegments(in:selection:)`, `SourceModel`, `edgeTrimmed`), which stays in the app because
+  it uses the AppKit `MarkdownSyntaxHighlighter` (Task 4). `DocumentHistoryController` also uses
+  app types: `attach(_:)`/`detach(_:)` take `LineformTextView`, and it uses `HistoryEditorSurface`,
+  `HistoryModeDisplay`, `HistoryCounter` and `HistoryTextCommand` (declared in the AppKit file
+  `LineformTextView+History.swift`) and `HistorySidebarModel`/`HistorySidebarRow` (declared in the
+  SwiftUI file `HistorySidebarView.swift`). The plan said its two lifecycle observers
+  (`NSWindow.willCloseNotification`, `NSApplication.willTerminateNotification`) were its only AppKit
+  use; that was wrong. The controller was not changed, so its lifecycle wiring is as before and
+  there is no `DocumentHistoryControllerLifecycleTests` (no behaviour moved).
 
 ## Task 3: Markdown core moved into LineformCore
 
@@ -428,3 +439,80 @@ Tests moved (88): `PassageHistoryStoreTests` (17), `PassageHistoryTextTests` (20
 `DocumentHistoryEngineTests` (51); only the import changed. `DocumentReloadPolicyTests` stays (it
 also tests the app's `ProportionalScrollMath`). New: `PassageHistoryStoreCompatibilityTests` (4).
 Gates: package 451, app 1536, default plan 1987, so unique tests are 1983 + 4 new = 1987.
+
+## Task 8: AI moved into LineformCore
+
+Fifteen files moved verbatim into `Packages/LineformCore/Sources/LineformCore/AI/`: `AIAction`,
+`AIActionPrompt`, `AIProvider`, `AIClient`, `AnthropicMessagesClient`, `OpenAICompatibleClient`,
+`AIHTTPTransport`, `AIKeychain`, `AIConnectionStore`, `AIResponseParser`, `AIChangeBuilder`,
+`AIReviewComposition`, `AIReviewSession`, `ConnectAIPresentation` and `AIReviewCardPresentation`.
+`AIActionController`, `AISentenceSplitter` and `DocumentHistoryController` stay in the app (see
+"Stays until the platform-layer plan" above). The `import LineformCore` lines in
+`AIChangeBuilder` and `AIReviewComposition` were removed (self-import).
+
+Split (Task 2 pattern): `ProseSegment` (two stored properties, `range` and `text`) was cut
+verbatim from the top of the app's `Editor/MarkdownStructureMap.swift` into its own Foundation-only
+file, `AI/ProseSegment.swift`, because `AIChangeBuilder` takes it. It gained a `public init(range:text:)`
+(memberwise label and order); `MarkdownStructureMap` and the tests construct it.
+
+Edits beyond `public`:
+- `Sendable` on `AIProvider`, `AIConnection`, `AIAction`, `AIPrompt` and `AIReviewComposition`
+  (a public type loses its implicit conformance: the clients are `Sendable` structs holding an
+  `AIConnection`, `AIAction.rewriteMenuGroups` and `AIReviewComposition.empty` are global lets, and
+  `AIActionController` sends an `AIPrompt` across isolation).
+- Explicit `public init`s, same labels and order as before: `ProseSegment`, `AIChange` (its
+  nested `Part` became public because the init's default parameter names it), `AIReviewSession`
+  (already explicit; made public), `AIReviewCompositionCache` (`public init() {}`),
+  `URLSessionAITransport` (already explicit; made public).
+- Strings: every `String(localized:)` without a bundle gained `bundle: .module`. The functions
+  that take `bundle: Bundle = .main` (so tests can pass a per-language bundle) now default to
+  `.module`, or `.lineformCore` where the function is public (a public default argument cannot
+  name the internal `Bundle.module`; `Bundle.lineformCore` is `.module`), and the
+  `static var x: String { x(bundle: .main) }` wrappers pass `.module`.
+- `AIKeychain.swift` is unchanged apart from `public`: `SystemAIKeychain.init(service:)` still
+  defaults to `(Bundle.main.bundleIdentifier ?? "com.lineform.app") + ".ai"`. It is evaluated in
+  the running process, so `Bundle.main` is still the app and the Keychain service is still
+  `<bundle id>.ai` (Review Focus 2). `SystemAIKeychain` itself stays internal (only
+  `AIConnectionStore.shared` constructs it). `AIConnectionStore`'s UserDefaults keys and the
+  Keychain account names (provider raw values) did not change.
+- The consent button strings in `ConnectAIPresentation.connectButtonTitle` are unchanged apart from
+  `bundle: .module`.
+
+Strings: 99 keys. Moved: 95. Copied with `--keep-in-app` because app code still uses them:
+"Custom" (`SelectionToolbar`), "Accept All" (`AIReviewTextView`), "Close"
+(`ReadingExperiencePopover`, `EditorChromeAndControls`) and "Suggested changes"
+(`AIReviewTextView`). The script warned that the `en` stringUnit of most AI keys is in state
+`new`; that was already so in the app catalog. Both catalogs pass the byte-identical round-trip
+check. `LocalizationSourceSweepTests`' allowlist entries (`AIProvider.swift|Claude`,
+`AIActionPrompt.swift|modelInstruction`, ...) key on the file name, which did not change; the sweep passes.
+
+Test doubles: `LineformTests/AITestDoubles.swift` moved to
+`Packages/LineformCore/Sources/LineformCoreTestSupport/AITestDoubles.swift`, a non-test library
+target (product `LineformCoreTestSupport`) that `LineformCoreTests` depends on. Its doubles
+(`InMemoryAIKeychain`, `FakeAITransport`, `StubURLProtocol`, `FakeAIClient`, `SplitMix64`)
+became public (with `public init()` on `InMemoryAIKeychain`); `AIKeychain`, `AIHTTPTransport` and
+`AIPrompt.user` became public for them. `FakeAIEditorSurface` conforms to `AIEditorSurface` (in
+`AIActionController`, which stays) and holds a `DocumentHistoryController`, so it moved verbatim
+into a new app test file, `LineformTests/AIEditorTestDoubles.swift`.
+`LineformTests` does NOT link the `LineformCoreTestSupport` product. Linking it made Xcode turn
+`LineformCore` from a static object into a dynamic `LineformCore.framework` embedded in
+`Lineform.app/Contents/Frameworks` (the test bundle and the app would otherwise each hold a copy),
+and `LineformCoreTests` then crashed with "unable to find bundle named LineformCore_LineformCore".
+Instead the one file is also compiled into `LineformTests` through a project file reference
+(`SOURCE_ROOT`-relative path to the package file), so there is still one copy of the source and
+the app keeps linking `LineformCore` statically.
+
+Tests moved (44): `AIActionPromptTests` (10), `AIClientTests` (15), `AIConnectionStoreTests` (14),
+`AIResponseParserTests` (5). `AIActionPromptTests` reads the per-language `.lproj` from
+`Bundle.lineformCore` instead of `Bundle.main`; otherwise only the imports changed. Stay (use
+app types or read app source): `AIActionControllerTests`, `AIChangeBuilderTests`
+(`MarkdownStructureMap`, `AISentenceSplitter`), `AIReviewCompositionTests` and
+`AIReviewSessionTests` (`MarkdownStructureMap`), `AIReviewCardPresentationTests`
+(`AIActionController`, `AIReviewTextView`), `ConnectAIPresentationTests` (reads
+`ConnectAIView.swift`), `AIReviewTextViewTests`, `LineformTextViewAITests`,
+`AdversarialReviewProbeTests`, `SelectionToolbarTests`. `AIReviewCardPresentationTests` and
+`ConnectAIPresentationTests` now load their per-language bundles from `Bundle.lineformCore`
+(the moved keys are no longer in the app's `.lproj`); `AIReviewCardPresentationTests` keeps an
+app-bundle helper for `AIReviewTextView.accessibilityActionTitles`, whose keys stay in the app.
+
+Gates: package 495, app 1492, default plan 1987, so unique tests are still 1987.

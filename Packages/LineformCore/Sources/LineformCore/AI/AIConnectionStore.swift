@@ -1,21 +1,21 @@
 import Foundation
 
-enum AIConnectError: Error, Equatable {
+public enum AIConnectError: Error, Equatable {
     case missingKey
     case invalidAddress
     case insecureAddress
     case keychainFailed
 
-    var message: String {
+    public var message: String {
         switch self {
         case .missingKey:
-            return String(localized: "Paste your API key first.")
+            return String(localized: "Paste your API key first.", bundle: .module)
         case .invalidAddress:
-            return String(localized: "Enter an address that starts with http:// or https://.")
+            return String(localized: "Enter an address that starts with http:// or https://.", bundle: .module)
         case .insecureAddress:
-            return String(localized: "Plain http:// is only allowed for a server on this Mac. Use https:// for other addresses.")
+            return String(localized: "Plain http:// is only allowed for a server on this Mac. Use https:// for other addresses.", bundle: .module)
         case .keychainFailed:
-            return String(localized: "Lineform couldn't save the key in your Keychain.")
+            return String(localized: "Lineform couldn't save the key in your Keychain.", bundle: .module)
         }
     }
 }
@@ -65,8 +65,8 @@ enum AIEndpointValidation {
 /// The one active AI connection. Init reads UserDefaults only; the Keychain is read once,
 /// by `resolvedConnection()`, when a writer chooses an action.
 @MainActor
-final class AIConnectionStore: ObservableObject {
-    static let shared = AIConnectionStore(defaults: .standard, keychain: SystemAIKeychain())
+public final class AIConnectionStore: ObservableObject {
+    public static let shared = AIConnectionStore(defaults: .standard, keychain: SystemAIKeychain())
 
     static let providerKey = "Lineform.ai.provider"
     static let otherEndpointKey = "Lineform.ai.otherEndpoint"
@@ -75,14 +75,14 @@ final class AIConnectionStore: ObservableObject {
     static let tierKeyPrefix = "Lineform.ai.tier"
     static func tierKey(for provider: AIProvider) -> String { [tierKeyPrefix, provider.rawValue].joined(separator: ".") }
 
-    @Published private(set) var connectedProvider: AIProvider?
-    private(set) var otherEndpoint: URL?
+    @Published public private(set) var connectedProvider: AIProvider?
+    public private(set) var otherEndpoint: URL?
     private(set) var otherModel: String?
 
     private let defaults: UserDefaults
     private let keychain: AIKeychain
 
-    var isConnected: Bool { connectedProvider != nil }
+    public var isConnected: Bool { connectedProvider != nil }
 
     init(defaults: UserDefaults, keychain: AIKeychain) {
         self.defaults = defaults
@@ -100,18 +100,18 @@ final class AIConnectionStore: ObservableObject {
     }
 
     /// The writer's model tier for a provider; `.standard` until they choose otherwise.
-    func tier(for provider: AIProvider) -> AIModelTier {
+    public func tier(for provider: AIProvider) -> AIModelTier {
         defaults.string(forKey: Self.tierKey(for: provider)).flatMap(AIModelTier.init(rawValue:)) ?? .standard
     }
 
     /// Takes effect at the next action; the key is untouched.
-    func setTier(_ tier: AIModelTier, for provider: AIProvider) {
+    public func setTier(_ tier: AIModelTier, for provider: AIProvider) {
         guard tier != self.tier(for: provider) else { return }
         objectWillChange.send()
         defaults.set(tier.rawValue, forKey: Self.tierKey(for: provider))
     }
 
-    func connect(_ provider: AIProvider, key: String) -> AIConnectError? {
+    public func connect(_ provider: AIProvider, key: String) -> AIConnectError? {
         guard provider != .other else { return .invalidAddress }
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .missingKey }
@@ -123,7 +123,7 @@ final class AIConnectionStore: ObservableObject {
         return nil
     }
 
-    func connectOther(address: String, key: String?, model: String?) -> AIConnectError? {
+    public func connectOther(address: String, key: String?, model: String?) -> AIConnectError? {
         let endpoint: URL
         switch AIEndpointValidation.chatCompletionsURL(from: address) {
         case .failure(let error): return error
@@ -150,7 +150,7 @@ final class AIConnectionStore: ObservableObject {
         return nil
     }
 
-    func disconnect() {
+    public func disconnect() {
         deleteKeys(except: nil)
         clearOther()
         defaults.removeObject(forKey: Self.providerKey)
@@ -159,7 +159,7 @@ final class AIConnectionStore: ObservableObject {
 
     /// The only Keychain read. Returns nil when disconnected, or when a big-three key has
     /// gone missing from the Keychain.
-    func resolvedConnection() -> AIConnection? {
+    public func resolvedConnection() -> AIConnection? {
         guard let provider = connectedProvider else { return nil }
         let key = keychain.readKey(for: provider)
         if provider == .other {
@@ -175,7 +175,7 @@ final class AIConnectionStore: ObservableObject {
     /// True when the store says a big-three provider is connected but its key is gone from
     /// the Keychain (deleted in Keychain Access, or a restored defaults file). Checks the
     /// item's presence only — the key itself is never read here.
-    func connectedKeyIsMissing() -> Bool {
+    public func connectedKeyIsMissing() -> Bool {
         guard let provider = connectedProvider, provider != .other else { return false }
         return !keychain.hasKey(for: provider)
     }

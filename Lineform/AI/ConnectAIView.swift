@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import LineformCore
 
 /// Connect Your AI — opened from Lineform ▸ Connect Your AI…, presented exactly like Settings:
 /// a `MuseModalChrome` card over a `MuseModalScrim` inside the main document window

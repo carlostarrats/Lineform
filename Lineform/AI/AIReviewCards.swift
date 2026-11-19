@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// The AI cards' padding and width cap, then the shared `FloatingCardChrome` — the default-app
 /// card's metrics exactly (h14 v13, corner 12), so the cards in the bottom-right corner match.

@@ -1,6 +1,6 @@
 import Foundation
 
-protocol AIHTTPTransport: Sendable {
+public protocol AIHTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
 
@@ -32,12 +32,12 @@ private final class RefuseRedirectDelegate: NSObject, URLSessionTaskDelegate {
 /// The only code that talks to the network for AI. Ephemeral session: no cookies, no cache, no
 /// credential storage. Reads the body as it arrives and stops the moment it passes the limit;
 /// `expectedContentLength` is never trusted.
-final class URLSessionAITransport: AIHTTPTransport, @unchecked Sendable {
+public final class URLSessionAITransport: AIHTTPTransport, @unchecked Sendable {
     let sessionConfiguration: URLSessionConfiguration
     private let session: URLSession
     private let byteLimit: Int
 
-    init(byteLimit: Int = AILimits.maxResponseBytes,
+    public init(byteLimit: Int = AILimits.maxResponseBytes,
          configuration: URLSessionConfiguration = .ephemeral) {
         configuration.httpCookieStorage = nil
         configuration.urlCache = nil
@@ -56,7 +56,7 @@ final class URLSessionAITransport: AIHTTPTransport, @unchecked Sendable {
     /// must not turn into `.responseTooLarge`.
     private static let errorBodyLimit = 4_096
 
-    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    public func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         do {
             let (bytes, response) = try await session.bytes(for: request)
             guard let http = response as? HTTPURLResponse else { throw AIClientError.unusableResponse }

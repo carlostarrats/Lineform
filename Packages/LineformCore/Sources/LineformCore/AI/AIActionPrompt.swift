@@ -2,7 +2,7 @@ import Foundation
 
 /// The exact instructions sent for each AI action. The model is told nothing about the
 /// document beyond the prose pieces themselves; Markdown structure never leaves the app.
-enum AIActionPrompt {
+public enum AIActionPrompt {
     static let editSystem = "You edit prose for a writer. The user message is JSON with an action and a list of segments: consecutive pieces of one passage. Markdown formatting between segments was removed and will be restored by the app. Reply with JSON only, in the form {\"segments\": [...]}, with exactly the same number of strings in the same order. Never add Markdown, line breaks, quotes around the passage, or commentary. Keep the writer's language and voice."
 
     static let markSystem = "You review prose for a writer. The user message is JSON with an action and a numbered list of sentences (the first is 1). Reply with JSON only, in the form {\"sentences\": [numbers]}. Choose at most a third of them."
@@ -35,7 +35,7 @@ enum AIActionPrompt {
 
     /// `avoiding`: the segments of the suggestion the writer just discarded with Try Again (same
     /// count and order as `segments`); the model is asked for a different result.
-    static func editPrompt(_ action: AIAction, segments: [String], avoiding: [String]? = nil,
+    public static func editPrompt(_ action: AIAction, segments: [String], avoiding: [String]? = nil,
                            note: String? = nil) -> AIPrompt {
         let note = trimmedNote(note)
         var system = editSystem + "\n" + instruction(for: action)
@@ -48,7 +48,7 @@ enum AIActionPrompt {
         return AIPrompt(system: system, user: json(user))
     }
 
-    static func markPrompt(_ action: AIAction, sentences: [String], note: String? = nil) -> AIPrompt {
+    public static func markPrompt(_ action: AIAction, sentences: [String], note: String? = nil) -> AIPrompt {
         let note = trimmedNote(note)
         var system = markSystem + "\n" + instruction(for: action)
         if note != nil { system += "\n" + noteInstruction }
@@ -58,7 +58,7 @@ enum AIActionPrompt {
     }
 
     /// A note of only whitespace is no note.
-    static func trimmedNote(_ note: String?) -> String? {
+    public static func trimmedNote(_ note: String?) -> String? {
         guard let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
         return trimmed
     }

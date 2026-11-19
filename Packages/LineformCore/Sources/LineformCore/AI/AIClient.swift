@@ -1,22 +1,22 @@
 import Foundation
 
 /// One request to the connected AI: a system instruction and one user message.
-struct AIPrompt: Equatable {
+public struct AIPrompt: Equatable, Sendable {
     let system: String
-    let user: String
+    public let user: String
 }
 
 /// Hard limits for everything sent to or read from an AI.
-enum AILimits {
-    static let maxResponseBytes = 262_144
-    static let maxProseUTF16 = 24_000
-    static let maxSegments = 400
+public enum AILimits {
+    public static let maxResponseBytes = 262_144
+    public static let maxProseUTF16 = 24_000
+    public static let maxSegments = 400
     static let requestTimeout: TimeInterval = 60
     static let resourceTimeout: TimeInterval = 120
     static let anthropicMaxTokens = 16_000
 }
 
-enum AIClientError: Error, Equatable {
+public enum AIClientError: Error, Equatable {
     case unauthorized
     case rateLimited
     case modelNotFound
@@ -30,28 +30,28 @@ enum AIClientError: Error, Equatable {
     case cancelled
 
     /// Chrome text for the failure card. Empty for `.cancelled`: the writer asked for it.
-    var message: String {
+    public var message: String {
         switch self {
         case .unauthorized:
-            return String(localized: "The key wasn't accepted. It may have expired. Check it in Connect Your AI.")
+            return String(localized: "The key wasn't accepted. It may have expired. Check it in Connect Your AI.", bundle: .module)
         case .modelNotFound:
-            return String(localized: "The server didn't recognise the model. Enter a model name in Connect Your AI.")
+            return String(localized: "The server didn't recognise the model. Enter a model name in Connect Your AI.", bundle: .module)
         case .refused:
-            return String(localized: "The AI declined this request.")
+            return String(localized: "The AI declined this request.", bundle: .module)
         case .unusableResponse:
-            return String(localized: "The AI's reply couldn't be used. Nothing was changed.")
+            return String(localized: "The AI's reply couldn't be used. Nothing was changed.", bundle: .module)
         case .offline:
-            return String(localized: "Couldn't reach the AI. Check your connection.")
+            return String(localized: "Couldn't reach the AI. Check your connection.", bundle: .module)
         case .connectionFailed:
-            return String(localized: "Couldn't make a secure connection to the AI. Check the address in Connect Your AI.")
+            return String(localized: "Couldn't make a secure connection to the AI. Check the address in Connect Your AI.", bundle: .module)
         case .timedOut:
-            return String(localized: "The AI took too long to answer.")
+            return String(localized: "The AI took too long to answer.", bundle: .module)
         case .rateLimited:
-            return String(localized: "The AI is busy or your usage limit was reached. Try again later.")
+            return String(localized: "The AI is busy or your usage limit was reached. Try again later.", bundle: .module)
         case .server(let status):
-            return String(localized: "The AI service returned an error (\(status)).")
+            return String(localized: "The AI service returned an error (\(status)).", bundle: .module)
         case .responseTooLarge:
-            return String(localized: "The AI's reply was too large to use.")
+            return String(localized: "The AI's reply was too large to use.", bundle: .module)
         case .cancelled:
             return ""
         }
@@ -69,13 +69,13 @@ enum AIClientError: Error, Equatable {
     }
 }
 
-protocol AIClient: Sendable {
+public protocol AIClient: Sendable {
     /// Returns the model's plain text reply. Never rendered as Markdown or HTML.
     func complete(_ prompt: AIPrompt) async throws -> String
 }
 
-enum AIClientFactory {
-    static func client(for connection: AIConnection,
+public enum AIClientFactory {
+    public static func client(for connection: AIConnection,
                        transport: AIHTTPTransport = URLSessionAITransport()) -> AIClient {
         switch connection.provider.wireProtocol {
         case .anthropicMessages:

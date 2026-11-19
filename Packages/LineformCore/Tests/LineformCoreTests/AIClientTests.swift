@@ -1,5 +1,6 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
+import LineformCoreTestSupport
 
 final class AIClientTests: XCTestCase {
     private let prompt = AIPrompt(system: "be brief", user: "hello")

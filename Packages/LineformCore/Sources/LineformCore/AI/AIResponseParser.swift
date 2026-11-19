@@ -2,11 +2,11 @@ import Foundation
 
 /// Reads an AI reply. The reply is untrusted: anything unexpected is refused (nil), never
 /// repaired, and nothing here can trap on junk input.
-enum AIResponseParser {
+public enum AIResponseParser {
     /// The revised segments, or nil unless the reply's JSON object carries `segments` as an
     /// array of exactly `expectedCount` strings. Tolerates code fences and preambles by reading
     /// from the first `{` to the last `}`.
-    static func segments(from reply: String, expectedCount: Int) -> [String]? {
+    public static func segments(from reply: String, expectedCount: Int) -> [String]? {
         guard let object = jsonObject(in: reply),
               let array = object["segments"] as? [Any],
               array.count == expectedCount else { return nil }
@@ -22,7 +22,7 @@ enum AIResponseParser {
     /// 0-based indices of the marked sentences: deduped, sorted, in range, and capped at
     /// `max(1, ⌈sentenceCount / 3⌉)` (the first ones kept). The model numbers from 1. nil when
     /// the reply has no `sentences` array.
-    static func sentenceIndices(from reply: String, sentenceCount: Int) -> [Int]? {
+    public static func sentenceIndices(from reply: String, sentenceCount: Int) -> [Int]? {
         guard let object = jsonObject(in: reply),
               let array = object["sentences"] as? [Any] else { return nil }
         guard sentenceCount > 0 else { return [] }
