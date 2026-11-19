@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 /// Pins the rule the first version of document-language voice selection broke: the user's own
 /// Spoken Content voice wins unless the document is positively in a different language. Everything

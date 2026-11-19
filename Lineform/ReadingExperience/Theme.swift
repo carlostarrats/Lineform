@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import LineformCore
 
 /// The Mac's own Light/Dark appearance, for Automatic Dark Mode. Read from
 /// `NSApp.effectiveAppearance`, which follows System Settings because Lineform never sets

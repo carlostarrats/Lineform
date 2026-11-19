@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class ReadingPresetTests: XCTestCase {
     func testBuiltInPresetsAreCuratedInExpectedOrder() {

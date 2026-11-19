@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// The body font faces an export preset may pin. System/bundled only — no new fonts.
 enum ExportFontFace: String, Equatable, CaseIterable {

@@ -1,7 +1,7 @@
 import Foundation
 
-enum ReadingAssistRangeResolver {
-    static func focusRange(in text: String, selectedRange: NSRange, mode: FocusMode) -> NSRange? {
+public enum ReadingAssistRangeResolver {
+    public static func focusRange(in text: String, selectedRange: NSRange, mode: FocusMode) -> NSRange? {
         let textLength = (text as NSString).length
         guard textLength > 0 else {
             return nil
@@ -36,7 +36,7 @@ enum ReadingAssistRangeResolver {
         return NSRange(location: start, length: max(0, end - start))
     }
 
-    static func sentenceRange(in text: String, containing location: Int) -> NSRange {
+    public static func sentenceRange(in text: String, containing location: Int) -> NSRange {
         let nsText = text as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)
         var match = nsText.lineRange(for: NSRange(location: location, length: 0))

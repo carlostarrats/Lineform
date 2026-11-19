@@ -1,8 +1,8 @@
 import Foundation
 
-struct ReadingPreset: Equatable, Identifiable {
-    var id: UUID { profile.id }
-    var profile: ReadingProfile
+public struct ReadingPreset: Equatable, Identifiable, Sendable {
+    public var id: UUID { profile.id }
+    public var profile: ReadingProfile
 
     static let original = ReadingPreset(profile: .original)
 
@@ -195,7 +195,7 @@ struct ReadingPreset: Equatable, Identifiable {
         adaptiveReadabilityEnabled: false
     ))
 
-    static let builtIn: [ReadingPreset] = [
+    public static let builtIn: [ReadingPreset] = [
         .original,
         .quiet,
         .paper,
@@ -209,19 +209,19 @@ struct ReadingPreset: Equatable, Identifiable {
     /// stored user data and break the equality-based preset match. The `OutlineSidebarTab`
     /// treatment: identity stays put, a separate `title` localizes. Keyed off the profile's
     /// stable UUID rather than its name, so the mapping cannot drift with the copy.
-    var title: String {
+    public var title: String {
         switch profile.id {
-        case Self.original.profile.id: return String(localized: "Original")
-        case Self.quiet.profile.id: return String(localized: "Quiet")
-        case Self.paper.profile.id: return String(localized: "Paper")
-        case Self.code.profile.id: return String(localized: "Code")
-        case Self.calm.profile.id: return String(localized: "Calm")
-        case Self.focus.profile.id: return String(localized: "Focus")
+        case Self.original.profile.id: return String(localized: "Original", bundle: .module)
+        case Self.quiet.profile.id: return String(localized: "Quiet", bundle: .module)
+        case Self.paper.profile.id: return String(localized: "Paper", bundle: .module)
+        case Self.code.profile.id: return String(localized: "Code", bundle: .module)
+        case Self.calm.profile.id: return String(localized: "Calm", bundle: .module)
+        case Self.focus.profile.id: return String(localized: "Focus", bundle: .module)
         default: return profile.name
         }
     }
 
-    static func matchingPresetID(for profile: ReadingProfile) -> UUID? {
+    public static func matchingPresetID(for profile: ReadingProfile) -> UUID? {
         builtIn.first { preset in
             var presetProfile = preset.profile
             presetProfile.applyTheme(profile.themeID)

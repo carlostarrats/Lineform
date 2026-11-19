@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 struct DebouncedMarkdownPreviewView: View {
     let text: String

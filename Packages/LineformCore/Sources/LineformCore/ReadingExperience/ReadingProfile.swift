@@ -1,6 +1,6 @@
 import Foundation
 
-enum FontID: String, Codable, Equatable, CaseIterable {
+public enum FontID: String, Codable, Equatable, CaseIterable, Sendable {
     case sfPro
     case newYork
     case jetBrainsMono
@@ -10,7 +10,7 @@ enum FontID: String, Codable, Equatable, CaseIterable {
     case comicSans
 }
 
-enum FocusMode: String, Codable, Equatable, CaseIterable {
+public enum FocusMode: String, Codable, Equatable, CaseIterable, Sendable {
     case off
     case currentLine
     case currentSentence
@@ -30,23 +30,23 @@ enum FocusMode: String, Codable, Equatable, CaseIterable {
     }
 }
 
-struct ReadingProfile: Codable, Equatable, Identifiable {
-    var id: UUID
+public struct ReadingProfile: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
     var name: String
-    var fontID: FontID
-    var themeID: ThemeID
-    var fontSize: Double
-    var lineHeightMultiple: Double
-    var paragraphSpacing: Double
-    var letterSpacing: Double
-    var columnWidth: Double
-    var marginWidth: Double
-    var insertionPointWidth: Double
+    public var fontID: FontID
+    public var themeID: ThemeID
+    public var fontSize: Double
+    public var lineHeightMultiple: Double
+    public var paragraphSpacing: Double
+    public var letterSpacing: Double
+    public var columnWidth: Double
+    public var marginWidth: Double
+    public var insertionPointWidth: Double
     var focusMode: FocusMode
-    var typewriterModeEnabled: Bool
-    var readingRulerEnabled: Bool
+    public var typewriterModeEnabled: Bool
+    public var readingRulerEnabled: Bool
     var reduceMarkdownNoise: Bool
-    var highContrastEnabled: Bool
+    public var highContrastEnabled: Bool
     var reduceMotionEnabled: Bool
     var adaptiveReadabilityEnabled: Bool
 
@@ -64,7 +64,7 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
     /// field stay the preset's own. This is a display-time copy: the stored profile keeps the
     /// user's theme (so the picker still shows their selection and Light Mode restores it), and
     /// export/print deliberately use the stored profile, never this one.
-    func displayProfile(automaticDarkMode: Bool, systemIsDark: Bool) -> ReadingProfile {
+    public func displayProfile(automaticDarkMode: Bool, systemIsDark: Bool) -> ReadingProfile {
         guard automaticDarkMode, systemIsDark,
               !Self.automaticDarkModeExemptThemes.contains(themeID) else {
             return self
@@ -77,20 +77,20 @@ struct ReadingProfile: Codable, Equatable, Identifiable {
     // MARK: - Column width range
 
     /// Narrowest reading column the slider allows.
-    static let columnWidthMinimum: Double = 460
+    public static let columnWidthMinimum: Double = 460
     /// Slider maximum. The top of the slider (at or above `columnWidthFullThreshold`) means **Full**
     /// width — the reading column fills to the margins on any window size — rather than a fixed
     /// pixel width. Fixed widths run from the minimum up to just below the threshold.
-    static let columnWidthMaximum: Double = 1200
+    public static let columnWidthMaximum: Double = 1200
     /// At or above this, the column is "Full" (unbounded → clamps to the margins), not a fixed width.
     static let columnWidthFullThreshold: Double = 1160
 
     /// Whether a stored column width means "Full width" (fill to the margins) rather than a fixed px.
-    static func isFullWidthColumn(_ columnWidth: Double) -> Bool {
+    public static func isFullWidthColumn(_ columnWidth: Double) -> Bool {
         columnWidth >= columnWidthFullThreshold
     }
 
-    static let original = ReadingProfile(
+    public static let original = ReadingProfile(
         id: UUID(uuidString: "1C7B19CC-A1ED-4828-8F77-94B6769F7260")!,
         name: "Original",
         fontID: .sfPro,

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 @MainActor
 final class SpeechControllerTests: XCTestCase {

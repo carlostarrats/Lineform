@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 struct ReadingExperienceInspector: View {
     @ObservedObject var store: ReadingProfileStore

@@ -308,3 +308,54 @@ Tests: `CrossFileSearchResolverTests`, `CrossFileSearchModelTests`, `QuickOpenIn
 use app types. They already had `@testable import LineformCore`.
 
 Gates: package 287, app 1696, default plan 1983, so unique tests are still 1983.
+
+## Task 6: reading model and speech moved into LineformCore
+
+Ten files moved verbatim into `Packages/LineformCore/Sources/LineformCore/ReadingExperience/`:
+`ThemeID`, `ReadingProfile` (with `FontID` and `FocusMode`), `ReadingPreset`,
+`ReadingProfileStore`, `SpeechController` (with `SystemSpeechSynthesizer`),
+`SpeechLanguageDetector`, `SpeechTextExtractor`, `SpeechVoiceResolver`, `BundledFontRegistrar`,
+and `ReadingAssistRangeResolver` (from `Lineform/Editor/`, deferred from Task 4 because it takes
+`FocusMode`). Nothing imports AppKit or SwiftUI and nothing uses an app type, so nothing was split
+or left behind. `SpeechController` uses only `AVSpeechSynthesizer`, which iOS also has; there is
+no `NSSpeechSynthesizer`. `Theme`, `FontOption`, `LineformColors` and `ReadingExperiencePopover`
+are AppKit/SwiftUI and stay in the app.
+
+Edits beyond `public`:
+- `Sendable` on `ThemeID`, `FontID`, `FocusMode`, `ReadingProfile` and `ReadingPreset`. A public
+  type loses the implicit conformance an internal one had, and the package's own `static let`
+  presets, `ReadingProfile.original` and `automaticDarkModeExemptThemes` fail Swift 6 checks
+  without it.
+- `public` on `ThemeID.init(from:)`/`encode(to:)`, on every `SystemSpeechSynthesizer` member that
+  witnesses `SpeechSynthesizing`, and on its four `AVSpeechSynthesizerDelegate` methods (the
+  compiler requires it; the methods stay the delegate witnesses, so didFinish/didPause/didContinue
+  still arrive). `SystemSpeechSynthesizer` and `SpeechSynthesizing` are public only because the
+  public `SpeechController.init(synthesizer:)` uses them as its default argument and parameter type.
+- Internal still: `SpeechLanguageDetector`, `SpeechVoiceResolver`, `SpeechVoiceCandidate`,
+  `SpeechVoiceDecision`, `FocusMode.displayName`, the unused `ReadingProfile` fields
+  (`name`, `focusMode`, `reduceMarkdownNoise`, `reduceMotionEnabled`,
+  `adaptiveReadabilityEnabled`), and the store's defaults-key constants.
+
+Persisted identifiers (Review Focus 2): unchanged. `ReadingProfileStore` keeps
+`UserDefaults.standard`, the storage key `Lineform.activeReadingProfile`,
+`Lineform.activeReadingPresetID` and `Lineform.readingPresetOverrides`. `ReadingProfile` has no
+`CodingKeys` (synthesized from unchanged property names); the raw values of `ThemeID`, `FontID`
+and `FocusMode` and `ThemeID`'s legacy `"lowLight"` decode did not change.
+
+Fonts (Review Focus 3): `BundledFontRegistrar.registerFonts(bundle: Bundle = .main)` is unchanged.
+A default argument is evaluated in the caller, and `Bundle.main` is the running process's bundle
+in any module, so `LineformApp`'s call still reads `Lineform.app/Contents/Resources/Fonts`. The
+font files did not move. `FontOptionTests` (stays; it uses the app's `FontOption`) registers with
+the default and resolves Atkinson Hyperlegible and OpenDyslexic in the test host.
+
+Strings: 7 keys. Moved: "Original", "Quiet", "Paper", "Calm", "Focus" (`ReadingPreset.title`).
+Copied with `--keep-in-app`: "Code" (`AppCommands`, `LineformTextView`, `SelectionToolbar`) and
+"Image" (`MarkdownPreviewRenderer`).
+
+Tests moved (72): `ReadingAssistRangeResolverTests`, `ReadingProfileTests`,
+`SpeechControllerTests`, `SpeechLanguageDetectorTests`, `SpeechTextExtractorTests`,
+`SpeechVoiceResolverTests`, `ReadingAssistPreferenceTests`; only the import changed. Stay (use app
+types): `ReadingPresetTests`, `ReadingProfileStoreTests`, `ThemeTests`, `FontOptionTests` and
+others, which gained `@testable import LineformCore`.
+
+Gates: package 359, app 1624, default plan 1983, so unique tests are still 1983.

@@ -1,11 +1,10 @@
 import Foundation
-import LineformCore
 
 /// Pure conversion from document markdown into a clean spoken string for `SpeechController`.
 /// Reuses `markdownBlocks(in:)` and a focused inline-marker-stripping pass so bold/italic/
 /// code/link/image punctuation is removed but the words remain, and code / math / mermaid /
 /// thematic-rule blocks are skipped entirely (not readable long-form prose). No AV dependency.
-enum SpeechTextExtractor {
+public enum SpeechTextExtractor {
     // Uses `MarkdownInlineSyntax` — the one definition every emitter scans with — rather than a
     // private copy. These were copied constants until the intraword-underscore fix had to be made
     // in three places at once: spoken text said "maketestfile" for `make_test_file` long after
@@ -18,7 +17,7 @@ enum SpeechTextExtractor {
     private static let imageRegex = MarkdownInlineSyntax.image
     private static let linkRegex = MarkdownInlineSyntax.link
 
-    static func spokenText(from markdown: String) -> String {
+    public static func spokenText(from markdown: String) -> String {
         // CR-stripped: read-aloud must skip a CRLF file's code fences, and an unclosed fence
         // would otherwise swallow (and silence) the rest of the document.
         let lines = markdownSourceLines(in: markdown).lines
@@ -150,7 +149,7 @@ enum SpeechTextExtractor {
             return stripInlineMarkers(trimmedAlt)
         }
         let filename = imageFilename(from: path)
-        return filename.isEmpty ? String(localized: "Image") : filename
+        return filename.isEmpty ? String(localized: "Image", bundle: .module) : filename
     }
 
     // MARK: - Inline token scan
@@ -203,7 +202,7 @@ enum SpeechTextExtractor {
             // App-synthesized, not lifted from the document: the same role as
             // MarkdownPreviewRenderer's placeholder, and read in the system voice's language
             // (SpeechController sets no `AVSpeechUtterance.voice`).
-            replacement = filename.isEmpty ? String(localized: "Image") : filename
+            replacement = filename.isEmpty ? String(localized: "Image", bundle: .module) : filename
         }
         return Token(range: match.range, replacement: replacement)
     }

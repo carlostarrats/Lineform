@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 @main
 struct LineformApp: App {

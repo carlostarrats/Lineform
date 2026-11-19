@@ -1,13 +1,13 @@
 import Foundation
 
-enum ThemeID: String, Codable, Equatable, CaseIterable {
+public enum ThemeID: String, Codable, Equatable, CaseIterable, Sendable {
     case system
     case paper
     case calm
     case quiet
     case night
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
 
@@ -27,7 +27,7 @@ enum ThemeID: String, Codable, Equatable, CaseIterable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
     }

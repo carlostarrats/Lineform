@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-final class ReadingProfileStore: ObservableObject {
+public final class ReadingProfileStore: ObservableObject {
     private static let legacyOriginalColumnWidth = 680.0
     private let defaults: UserDefaults
     private let storageKey: String
@@ -9,7 +9,7 @@ final class ReadingProfileStore: ObservableObject {
     static let activePresetIDKey = "Lineform.activeReadingPresetID"
     static let overridesKey = "Lineform.readingPresetOverrides"
 
-    @Published var activeProfile: ReadingProfile {
+    @Published public var activeProfile: ReadingProfile {
         didSet {
             persist(activeProfile)
         }
@@ -17,7 +17,7 @@ final class ReadingProfileStore: ObservableObject {
 
     /// The built-in preset whose slot the active profile belongs to. Edits are
     /// written into that preset's override so each preset keeps its own.
-    @Published private(set) var activePresetID: UUID? {
+    @Published public private(set) var activePresetID: UUID? {
         didSet {
             if let id = activePresetID {
                 defaults.set(id.uuidString, forKey: Self.activePresetIDKey)
@@ -29,7 +29,7 @@ final class ReadingProfileStore: ObservableObject {
 
     private var overrides: [UUID: ReadingProfile]
 
-    init(defaults: UserDefaults = .standard, storageKey: String = "Lineform.activeReadingProfile") {
+    public init(defaults: UserDefaults = .standard, storageKey: String = "Lineform.activeReadingProfile") {
         self.defaults = defaults
         self.storageKey = storageKey
         let profile = Self.restore(from: defaults, key: storageKey)
@@ -60,7 +60,7 @@ final class ReadingProfileStore: ObservableObject {
         activeProfile = profile
     }
 
-    func applyPreset(_ preset: ReadingPreset) {
+    public func applyPreset(_ preset: ReadingPreset) {
         activePresetID = preset.id
         activeProfile = overrides[preset.id] ?? preset.profile
     }
@@ -73,7 +73,7 @@ final class ReadingProfileStore: ObservableObject {
 
     /// Drops the active preset's edits and restores its pristine profile;
     /// other presets keep theirs. With no active preset, resets to the default.
-    func resetCurrentPreset() {
+    public func resetCurrentPreset() {
         guard
             let id = activePresetID,
             let preset = ReadingPreset.builtIn.first(where: { $0.id == id })
@@ -86,7 +86,7 @@ final class ReadingProfileStore: ObservableObject {
         activeProfile = preset.profile
     }
 
-    func update(_ mutate: (inout ReadingProfile) -> Void) {
+    public func update(_ mutate: (inout ReadingProfile) -> Void) {
         var profile = activeProfile
         mutate(&profile)
         activeProfile = profile
