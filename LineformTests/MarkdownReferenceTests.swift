@@ -1,21 +1,25 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class MarkdownReferenceTests: XCTestCase {
     private static let languages = ["en", "es", "fr", "de", "ja", "zh-Hans"]
 
+    /// The reference's strings live in LineformCore's catalog, so its `.lproj` folders answer. Xcode
+    /// emits no `en.lproj` there (English is the development language and the key is the English
+    /// text), so English falls back to the test host's `en.lproj`, which holds none of these keys
+    /// and so returns the key — the same bundle these tests used before the strings moved.
     private func bundle(_ language: String) throws -> Bundle {
-        try XCTUnwrap(
-            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
-            "\(language).lproj missing from the test host"
-        )
+        let path = Bundle.lineformCore.path(forResource: language, ofType: "lproj")
+            ?? (language == "en" ? Bundle.main.path(forResource: language, ofType: "lproj") : nil)
+        return try XCTUnwrap(path.flatMap(Bundle.init(path:)), "\(language).lproj missing from LineformCore's bundle")
     }
 
-    /// Explicitly the ENGLISH rendering. `.main` is NOT the fix — `MarkdownReference.sections`
-    /// is *defined* as `sections(in: .main)`, so on a Mac or CI runner configured for German
-    /// `.main` resolves German and every English-asserting test below fails. The built app's
-    /// `en.lproj` carries no `Localizable.strings`, so a lookup there returns the key — which
-    /// is the English text.
+    /// Explicitly the ENGLISH rendering. `.module` is NOT the fix — `MarkdownReference.sections`
+    /// is *defined* as `sections(in: .module)`, so on a Mac or CI runner configured for German
+    /// `.module` resolves German and every English-asserting test below fails. The English
+    /// bundle carries none of these keys, so a lookup there returns the key — which is the
+    /// English text.
     private func englishBundle() throws -> Bundle { try bundle("en") }
 
     func testSectionsCoverEveryGroupAndAreNonEmpty() throws {
@@ -199,7 +203,7 @@ final class MarkdownReferenceTests: XCTestCase {
     }
 
     func testSectionsInMainBundleMatchTheDefaultProperty() {
-        XCTAssertEqual(MarkdownReference.sections(in: .main), MarkdownReference.sections)
+        XCTAssertEqual(MarkdownReference.sections(in: .lineformCore), MarkdownReference.sections)
     }
 
     private func germanBundle() throws -> Bundle { try bundle("de") }
@@ -366,7 +370,7 @@ final class MarkdownReferenceTests: XCTestCase {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Lineform/Localizable.xcstrings")
+            .appendingPathComponent("Packages/LineformCore/Sources/LineformCore/Resources/Localizable.xcstrings")
         let root = try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? [String: Any]
         let strings = root?["strings"] as? [String: [String: Any]] ?? [:]
         var out: [String: [String: String]] = [:]

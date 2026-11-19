@@ -1,29 +1,29 @@
 import Foundation
 
 /// One slice of a mermaid `pie` chart. `value` is always > 0 (parser rejects otherwise).
-struct MermaidPieSlice: Equatable {
-    let label: String
-    let value: Double
+public struct MermaidPieSlice: Equatable {
+    public let label: String
+    public let value: Double
 }
 
 /// Parsed mermaid `pie` chart. Always has >= 1 slice and a positive total.
-struct MermaidPieModel: Equatable {
-    let title: String?
-    let slices: [MermaidPieSlice]
+public struct MermaidPieModel: Equatable {
+    public let title: String?
+    public let slices: [MermaidPieSlice]
 
     var total: Double { slices.reduce(0) { $0 + $1.value } }
 
     /// This slice's share of the whole (0...1).
-    func fraction(of slice: MermaidPieSlice) -> Double {
+    public func fraction(of slice: MermaidPieSlice) -> Double {
         total > 0 ? slice.value / total : 0
     }
 }
 
 /// Parses mermaid `pie` syntax into a drawable model. Pure; no rendering.
-enum MermaidPieChart {
+public enum MermaidPieChart {
     /// Returns nil for anything unrenderable (not a pie, no slices, or any non-positive /
     /// non-numeric value) so the caller degrades to the clean captioned fallback.
-    static func parse(_ source: String) -> MermaidPieModel? {
+    public static func parse(_ source: String) -> MermaidPieModel? {
         var lines = MermaidSource.significantLines(source)
         guard let header = lines.first, header.lowercased().hasPrefix("pie") else { return nil }
         lines.removeFirst()
@@ -59,7 +59,7 @@ enum MermaidPieChart {
 
     /// Upper bound on a renderable slice value (see `parse`). Far above any real chart and far
     /// below `Double(Int.max)`, so the legend's `Int` conversions cannot trap.
-    static let maximumSliceValue: Double = 1e15
+    public static let maximumSliceValue: Double = 1e15
 
     /// `pie [showData] [title <text>]` → the title text, or nil.
     private static func parseTitle(fromHeader header: String) -> String? {

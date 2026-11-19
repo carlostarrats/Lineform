@@ -19,7 +19,10 @@ The script fails loudly, and writes nothing, when a key is missing from the app 
 an entry lacks any of en, es, fr, de, ja, zh-Hans, or when the package catalog already holds a
 different entry under the same key. In this catalog many keys have no explicit "en"
 localization because the key itself is the English text; a missing "en" is therefore treated
-as satisfied by the key. The five other languages must be present.
+as satisfied by the key. The five other languages must be present, and each localization that
+is present must carry a non-empty stringUnit value or a "variations" object. A localization
+whose stringUnit state is anything other than "translated" is moved but reported as a warning.
+A key marked "shouldTranslate": false is moved without the language check.
 
 Formatting is preserved as written: key order, 2-space indentation, the file's own
 key/value separator (" : " as Xcode writes it, or ": "), Xcode's blank line inside empty
@@ -34,6 +37,7 @@ Standard library only.
 import argparse
 import json
 import os
+import re
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,7 +57,7 @@ class Catalog:
             self.raw = handle.read()
         text = self.raw.decode("utf-8")
         self.data = json.loads(text, object_pairs_hook=dict)  # dicts keep file order
-        self.separator = " : " if '" : ' in text else ": "
+        self.separator = detect_separator(text)
         self.trailing_newline = text.endswith("\n")
 
     def serialize(self):
@@ -68,6 +72,19 @@ class Catalog:
         with open(temp, "wb") as handle:
             handle.write(data)
         os.replace(temp, self.path)
+
+
+SEPARATOR_PROBE_LINES = 20
+KEY_LINE = re.compile(r'^\s*"(?:[^"\\]|\\.)*"( : |: )')
+
+
+def detect_separator(text):
+    """Read the separator from the file's own first key lines, never from string values."""
+    for line in text.splitlines()[:SEPARATOR_PROBE_LINES]:
+        match = KEY_LINE.match(line)
+        if match:
+            return match.group(1)
+    return " : "  # Xcode's own spelling, for a file with no key line near the top
 
 
 def encode(value, level, separator):
@@ -123,10 +140,27 @@ def read_keys(path):
     return keys
 
 
-def missing_languages(entry):
+def check_languages(entry):
+    """Return (problems, warnings) for the required localizations of one catalog entry."""
+    if entry.get("shouldTranslate") is False:
+        return [], []
     localizations = entry.get("localizations", {})
-    # The key is the English text, so an absent "en" localization is satisfied by the key.
-    return [lang for lang in REQUIRED_LANGUAGES if lang != "en" and lang not in localizations]
+    problems, warnings = [], []
+    for lang in REQUIRED_LANGUAGES:
+        if lang not in localizations:
+            # The key is the English text, so an absent "en" localization is satisfied by the key.
+            if lang != "en":
+                problems.append(f"lacks {lang}")
+            continue
+        localization = localizations[lang]
+        unit = localization.get("stringUnit")
+        has_value = isinstance(unit, dict) and isinstance(unit.get("value"), str) and unit["value"] != ""
+        has_variations = isinstance(localization.get("variations"), dict) and bool(localization["variations"])
+        if not (has_value or has_variations):
+            problems.append(f"{lang} has no stringUnit value or variations")
+        if isinstance(unit, dict) and unit.get("state") != "translated":
+            warnings.append(f"{lang} state is {unit.get('state')!r}")
+    return problems, warnings
 
 
 def roundtrip_check(path):
@@ -147,18 +181,22 @@ def move(keys, keep_in_app, app_path, package_path):
         sys.exit(f"error: {app_path} has no \"strings\" object")
 
     errors = []
+    warnings = []
     for key in keys:
         if key not in app_strings:
             errors.append(f"missing from app catalog: {key!r}")
             continue
         entry = app_strings[key]
-        missing = missing_languages(entry)
-        if missing:
-            errors.append(f"{key!r} lacks localizations: {', '.join(missing)}")
+        problems, entry_warnings = check_languages(entry)
+        if problems:
+            errors.append(f"{key!r}: {'; '.join(problems)}")
+        warnings.extend(f"{key!r}: {line}" for line in entry_warnings)
         if key in package_strings and package_strings[key] != entry:
             errors.append(f"{key!r} already in the package catalog with different content")
     if errors:
         sys.exit("error: nothing was written.\n" + "\n".join("  " + line for line in errors))
+    for line in warnings:
+        print(f"warning: {line}", file=sys.stderr)
 
     wanted = set(keys)
     for key in [k for k in app_strings if k in wanted]:  # app-catalog order

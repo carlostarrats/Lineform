@@ -3,7 +3,7 @@ import Foundation
 /// One `![alt](path)` reference in a document that could not be resolved to a readable local
 /// image file (either missing, or existing but outside every granted sandbox scope — the two are
 /// indistinguishable under the sandbox, so both surface here).
-struct UnresolvedImageReference: Equatable {
+public struct UnresolvedImageReference: Equatable {
     let path: String
     let range: NSRange
 }
@@ -19,8 +19,8 @@ struct UnresolvedImageReference: Equatable {
 /// fence) always renders as the inline placeholder, so granting access to it would accomplish
 /// nothing; the prompt would be misleading. Scoping to `.image` blocks keeps the prompt honest: it
 /// offers access exactly for the images that would otherwise render as placeholders.
-enum ImageExportPreflight {
-    static func unresolvedLocalReferences(in text: String, documentDirectory: URL?) -> [UnresolvedImageReference] {
+public enum ImageExportPreflight {
+    public static func unresolvedLocalReferences(in text: String, documentDirectory: URL?) -> [UnresolvedImageReference] {
         // Ranges come from the original text so a grant prompt names the right bytes.
         let source = markdownSourceLines(in: text)
         var result: [UnresolvedImageReference] = []

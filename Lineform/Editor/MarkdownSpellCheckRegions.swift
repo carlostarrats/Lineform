@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// The sub-ranges of a document that should be spell-checked: everything except the Markdown
 /// regions where a "misspelling" is not a misspelling.

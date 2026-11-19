@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class CodeSyntaxHighlighterTests: XCTestCase {
     private let highlighter = CodeSyntaxHighlighter()

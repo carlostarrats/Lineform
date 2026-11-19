@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import LineformCore
 
 /// Draws a `MermaidPieModel` as an upright NSImage: title, pie circle, and a legend.
 ///

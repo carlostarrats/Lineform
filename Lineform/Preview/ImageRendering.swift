@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import LineformCore
 
 /// Stable, compact cache key for a downscaled image attachment: url + modification date +
 /// fitted box + scale (mirrors `MermaidCacheKey`). Two different files at the same key would

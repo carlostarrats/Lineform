@@ -14,16 +14,16 @@ import Foundation
 /// picture is generated from the `$$…$$` / ```mermaid source at export time. They come from an
 /// injected provider, which is also what keeps this file free of AppKit so its tests stay in the
 /// default test plan.
-enum MarkdownHTMLRenderer {
+public enum MarkdownHTMLRenderer {
 
     /// A picture the app generates rather than one the user pointed at.
-    enum GeneratedImage: Equatable {
+    public enum GeneratedImage: Equatable {
         case math(latex: String)
         case mermaid(source: String)
     }
 
     /// PNG bytes for a generated image, or `nil` to fall back to emitting the source as text.
-    typealias GeneratedImageProvider = (GeneratedImage) -> Data?
+    public typealias GeneratedImageProvider = (GeneratedImage) -> Data?
 
     // MARK: Escaping
 
@@ -446,7 +446,7 @@ enum MarkdownHTMLRenderer {
     /// no `<link>`, no `<script>`, no web fonts. The page is neutral light with a readable
     /// measure — the reader's theme is deliberately not carried, matching the rule that an
     /// exported PDF is always the white page.
-    static func html(for text: String, title: String, generatedImage: @escaping GeneratedImageProvider) -> String {
+    public static func html(for text: String, title: String, generatedImage: @escaping GeneratedImageProvider) -> String {
         """
         <!doctype html>
         <html>

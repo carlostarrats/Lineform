@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// The "a new construct without a protection rule fails" gate. `MarkdownStructureMap`'s
 /// `protection(of:)` switches are exhaustive with no `default`, so a new `MarkdownTokenKind` or

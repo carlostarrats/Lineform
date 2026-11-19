@@ -1,6 +1,7 @@
 import AppKit
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// The companion sweep to `MarkdownRobustnessTests`.
 ///

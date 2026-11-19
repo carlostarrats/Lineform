@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 enum MarkdownWritingToolsProtection {
     static func ignoredRanges(in text: String, enclosingRange: NSRange) -> [NSRange] {

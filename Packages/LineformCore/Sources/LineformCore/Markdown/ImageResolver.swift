@@ -1,7 +1,7 @@
 import Foundation
 
 /// Classification of an image reference found in a Markdown document.
-enum ImageReferenceKind: Equatable {
+public enum ImageReferenceKind: Equatable {
     case localFile(URL)
     case remote
     case unresolved
@@ -10,14 +10,14 @@ enum ImageReferenceKind: Equatable {
 /// Classifies an image path from the document into local-file / remote / unresolved.
 /// Never touches the network — remote detection is a pure string test, and local
 /// resolution only checks the filesystem for existence + a restricted image UTI.
-enum ImageResolver {
+public enum ImageResolver {
     /// Explicit allow-list of common raster image extensions. Used as the primary gate
     /// so classification is deterministic in tests regardless of the host's UTI database.
     private static let imageExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "heic", "heif", "tiff", "tif", "bmp", "webp", "svg"
     ]
 
-    static func resolve(path: String, documentDirectory: URL?) -> ImageReferenceKind {
+    public static func resolve(path: String, documentDirectory: URL?) -> ImageReferenceKind {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .unresolved }
 

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class DiagramLogTests: XCTestCase {
     private func entry(hash: String, error: String = "err", count: Int = 1) -> DiagramLogEntry {

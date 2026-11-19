@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class ImageResolverTests: XCTestCase {
     private var tempDirectoryURL: URL!

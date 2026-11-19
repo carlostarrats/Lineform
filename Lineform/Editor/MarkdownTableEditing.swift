@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// A GFM pipe table located in the source text: the block's character range, the range of each
 /// of its lines, the parsed table, and the indentation its lines share.

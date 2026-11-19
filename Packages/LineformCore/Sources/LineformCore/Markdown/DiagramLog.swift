@@ -55,17 +55,18 @@ enum DiagramLog {
 }
 
 /// Abstracts failure recording so the preview renderer is testable without touching disk.
-protocol DiagramFailureLogging: AnyObject {
+public protocol DiagramFailureLogging: AnyObject {
     func record(source: String, error: String, appVersion: String)
 }
 
 /// A no-op failure log (used by the back-compat renderer convenience and by tests).
-final class NullDiagramFailureLog: DiagramFailureLogging {
-    func record(source: String, error: String, appVersion: String) {}
+public final class NullDiagramFailureLog: DiagramFailureLogging {
+    public init() {}
+    public func record(source: String, error: String, appVersion: String) {}
 }
 
 /// Persists the deduped diagram log as JSON under Application Support. Failure-tolerant.
-final class DiagramLogStore: DiagramFailureLogging {
+public final class DiagramLogStore: DiagramFailureLogging {
     private let directory: URL
     private let fileManager: FileManager
     /// Hash+error pairs already written this session: repeated failures of the same source
@@ -74,9 +75,9 @@ final class DiagramLogStore: DiagramFailureLogging {
     /// Cap on the in-memory dedup set so a long editing session can't grow it without bound.
     private let maxRecordedThisSession = 500
 
-    init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        self.directory = DiagramLog.directory(home: fileManager.homeDirectoryForCurrentUser)
+        self.directory = DiagramLog.directory(home: URL(fileURLWithPath: NSHomeDirectory()))
     }
 
     private var fileURL: URL { directory.appendingPathComponent("log.json") }
@@ -89,7 +90,7 @@ final class DiagramLogStore: DiagramFailureLogging {
         return decoded
     }
 
-    func record(source: String, error: String, appVersion: String) {
+    public func record(source: String, error: String, appVersion: String) {
         let now = Date()
         let hash = DiagramLog.sourceHash(source)
         let sessionKey = "\(hash)\n\(error)"

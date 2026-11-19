@@ -9,7 +9,7 @@ import Foundation
 /// unchanged per-line logic (heading / inline-with-math / fenced-code), and mermaid / display-math
 /// blocks carry only what the renderer needs to reproduce its current output (the inner source and
 /// the closing line index, `nil` when the block was never closed and is flushed at end-of-document).
-enum MarkdownBlock: Equatable {
+public enum MarkdownBlock: Equatable {
     /// A maximal run of ordinary lines (body, headings, and fenced code), rendered per line exactly
     /// as before. The range is over the original line indices so block-spacing lookups and the
     /// "newline after every line except the last" rule are reproduced unchanged.
@@ -72,22 +72,22 @@ enum MarkdownImageLine {
 }
 
 /// Per-column text alignment for a table, read from the delimiter row's colons.
-enum MarkdownTableAlignment: Equatable {
+public enum MarkdownTableAlignment: Equatable {
     case left, center, right
 }
 
 /// A parsed GFM pipe table: header cells, per-column alignment, and body rows. Every row is padded
 /// or truncated to the column count so rendering is uniform even for malformed input.
-struct MarkdownTable: Equatable {
-    var headers: [String]
-    var alignments: [MarkdownTableAlignment]
-    var rows: [[String]]
+public struct MarkdownTable: Equatable {
+    public var headers: [String]
+    public var alignments: [MarkdownTableAlignment]
+    public var rows: [[String]]
 
-    var columnCount: Int { alignments.count }
+    public var columnCount: Int { alignments.count }
 }
 
 /// Pure GFM pipe-table parsing: delimiter-row detection, cell splitting, alignment, and assembly.
-enum MarkdownTableParser {
+public enum MarkdownTableParser {
     /// A candidate table row: non-empty and containing a pipe. (GFM multi-column rows use pipes.)
     /// Trims with `markdownLineTrimCharacters`, not `.whitespaces`, because this parser has TWO
     /// callers reading different text. The renderer feeds it lines from `markdownSourceLines`,
@@ -96,7 +96,7 @@ enum MarkdownTableParser {
     /// header line still begins with U+FEFF: `hasPrefix("|")` was then false, the leading pipe was
     /// not dropped, the header yielded one cell too many, and `locate` returned nil. Reformat
     /// became a silent no-op and Tab inserted a LITERAL TAB into the table row.
-    static func looksLikeRow(_ line: String) -> Bool {
+    public static func looksLikeRow(_ line: String) -> Bool {
         let trimmed = line.trimmingCharacters(in: markdownLineTrimCharacters)
         return !trimmed.isEmpty && trimmed.contains("|")
     }
@@ -104,7 +104,7 @@ enum MarkdownTableParser {
     /// A delimiter row: it must contain a pipe (a bare `---` with no pipe is a setext/thematic
     /// break, never a 1-column table delimiter), and every cell is dashes with optional
     /// leading/trailing colons (`:--`, `--:`, `:-:`, `---`).
-    static func isDelimiterRow(_ line: String) -> Bool {
+    public static func isDelimiterRow(_ line: String) -> Bool {
         guard line.contains("|") else { return false }
         let cellStrings = cells(in: line)
         guard !cellStrings.isEmpty else { return false }
@@ -115,7 +115,7 @@ enum MarkdownTableParser {
 
     /// Split a row into trimmed cell strings, dropping the optional outer pipes. Escaped `\|` is a
     /// known limitation (v1 splits on every pipe).
-    static func cells(in row: String) -> [String] {
+    public static func cells(in row: String) -> [String] {
         var trimmed = row.trimmingCharacters(in: markdownLineTrimCharacters)
         if trimmed.hasPrefix("|") { trimmed.removeFirst() }
         if trimmed.hasSuffix("|") { trimmed.removeLast() }
@@ -134,7 +134,7 @@ enum MarkdownTableParser {
 
     /// Assemble a table from its header, delimiter, and body lines. Columns are defined by the
     /// delimiter row; every row is padded/truncated to that width.
-    static func parse(header: String, delimiter: String, body: [String]) -> MarkdownTable {
+    public static func parse(header: String, delimiter: String, body: [String]) -> MarkdownTable {
         let alignments = cells(in: delimiter).map(alignment(of:))
         let columns = alignments.count
         let headers = fit(cells(in: header), to: columns)
@@ -155,24 +155,24 @@ enum MarkdownTableParser {
 /// number to display (`nil` for bullets). Ordinals are resolved during grouping so `1.` / `1.` /
 /// `1.` renders as 1, 2, 3 and nested levels count independently. A task item (`- [ ]` / `- [x]`)
 /// carries `checkbox`, and its display `text` has the `[ ]`/`[x]` marker stripped.
-struct MarkdownListItem: Equatable {
-    var text: String
-    var indentLevel: Int
-    var ordinal: Int?
-    var checkbox: MarkdownCheckbox?
+public struct MarkdownListItem: Equatable {
+    public var text: String
+    public var indentLevel: Int
+    public var ordinal: Int?
+    public var checkbox: MarkdownCheckbox?
 }
 
 /// A rendered task checkbox: whether it is checked, and the exact `NSRange` of the `[ ]`/`[x]`
 /// marker in the source document (UTF-16) so a click can toggle that precise span.
-struct MarkdownCheckbox: Equatable {
-    var isChecked: Bool
-    var sourceRange: NSRange
+public struct MarkdownCheckbox: Equatable {
+    public var isChecked: Bool
+    public var sourceRange: NSRange
 
     /// Whether a list item's text is a GFM task marker, and — if so — its checked state and the
     /// remaining text after the marker. Matches `[ ]`, `[x]`, or `[X]` that is followed by
     /// whitespace-then-text or nothing (end of line). `- [x](link)` is NOT a task — GFM requires
     /// whitespace after the bracket — so it stays a normal bullet.
-    static func detect(in text: String) -> (isChecked: Bool, remaining: String)? {
+    public static func detect(in text: String) -> (isChecked: Bool, remaining: String)? {
         let ns = text as NSString
         guard let match = detectRegex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else {
             return nil
@@ -188,18 +188,18 @@ struct MarkdownCheckbox: Equatable {
 
 /// List-item line parsing: `-` / `*` / `+` bullets and `1.` / `1)` numbers, with a leading-indent
 /// nesting level. Pure syntax; ordinal resolution happens in the grouping pass.
-enum MarkdownList {
-    struct Parsed: Equatable {
+public enum MarkdownList {
+    public struct Parsed: Equatable {
         var indentLevel: Int
-        var ordered: Bool
-        var text: String
+        public var ordered: Bool
+        public var text: String
         /// UTF-16 column in the line where the item text begins (just past the marker + whitespace).
-        var textColumn: Int
+        public var textColumn: Int
     }
 
     private static let regex = try! NSRegularExpression(pattern: #"^([ \t]*)([-*+]|[0-9]{1,9}[.)])[ \t]+(.*)$"#)
 
-    static func parse(_ line: String) -> Parsed? {
+    public static func parse(_ line: String) -> Parsed? {
         let ns = line as NSString
         guard let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else {
             return nil
@@ -216,15 +216,15 @@ enum MarkdownList {
 
 /// One line of a blockquote: its nesting depth (number of `>` markers) and the text after the
 /// markers are stripped.
-struct MarkdownQuoteLine: Equatable {
-    var depth: Int
-    var text: String
+public struct MarkdownQuoteLine: Equatable {
+    public var depth: Int
+    public var text: String
 }
 
 /// Blockquote line parsing: a line is quoted when, after optional leading whitespace, it starts
 /// with `>`. Nested `> >` / `>>` raise the depth; one optional space after each marker is consumed.
-enum MarkdownBlockquote {
-    static func quoteLine(_ line: String) -> MarkdownQuoteLine? {
+public enum MarkdownBlockquote {
+    public static func quoteLine(_ line: String) -> MarkdownQuoteLine? {
         var rest = Substring(line)
         while rest.first == " " || rest.first == "\t" { rest = rest.dropFirst() }
         guard rest.first == ">" else { return nil }
@@ -240,11 +240,11 @@ enum MarkdownBlockquote {
 
 /// The 5 GitHub-standard callout kinds. Raw values are the lowercased marker types matched
 /// case-insensitively against `> [!TYPE]`.
-enum CalloutKind: String, Equatable {
+public enum CalloutKind: String, Equatable {
     case note, tip, important, warning, caution
 
     /// The default title shown when the marker line carries no custom title.
-    var displayName: String {
+    public var displayName: String {
         switch self {
         case .note: return "Note"
         case .tip: return "Tip"
@@ -255,7 +255,7 @@ enum CalloutKind: String, Equatable {
     }
 
     /// The monochrome SF Symbol drawn in the title row (tinted to the ink tone, never colored).
-    var symbolName: String {
+    public var symbolName: String {
         switch self {
         case .note: return "info.circle"
         case .tip: return "lightbulb"
@@ -268,7 +268,7 @@ enum CalloutKind: String, Equatable {
 
 /// Pure callout-marker classifier. Operates on the FIRST quote line's already-stripped text
 /// (markers removed by `MarkdownBlockquote.quoteLine`), so it sees `[!NOTE]` / `[!NOTE] Title`.
-enum MarkdownCallout {
+public enum MarkdownCallout {
     // Anchored at the start of the stripped text: `[!TYPE]` then optional whitespace + title.
     // Type is 1+ letters; the trailing `.*` captures a custom title (may be empty/whitespace).
     private static let regex = try! NSRegularExpression(pattern: #"^\[!([A-Za-z]+)\][ \t]*(.*)$"#)
@@ -276,7 +276,7 @@ enum MarkdownCallout {
     /// Returns `(kind, title)` when `firstQuoteText` is `[!TYPE]` (optionally `[!TYPE] Custom title`)
     /// with a KNOWN type. `title` is the trimmed remainder, or `nil` when absent/empty. Unknown type,
     /// missing `!`, empty type (`[!]`), or any other shape → `nil` (caller keeps it a blockquote).
-    static func parse(firstQuoteText: String) -> (kind: CalloutKind, title: String?)? {
+    public static func parse(firstQuoteText: String) -> (kind: CalloutKind, title: String?)? {
         let ns = firstQuoteText as NSString
         guard let match = regex.firstMatch(in: firstQuoteText, range: NSRange(location: 0, length: ns.length)) else {
             return nil
@@ -292,7 +292,7 @@ enum MarkdownCallout {
 /// Thematic-break (horizontal-rule) detection, kept separate so its two gotchas are explicit:
 /// a leading `---` opening front matter and a `---` directly under paragraph text (a setext
 /// heading underline) are NOT rules.
-enum MarkdownHorizontalRule {
+public enum MarkdownHorizontalRule {
     /// Whether a trimmed line is a thematic-break candidate by syntax alone (3+ of the same
     /// `-` / `*` / `_`, spaces allowed), returning the marker character.
     static func candidate(_ trimmed: String) -> Character? {
@@ -306,7 +306,7 @@ enum MarkdownHorizontalRule {
 
     /// Whether the line at `index` is a real thematic break, given the surrounding lines. Only `-`
     /// carries the front-matter / setext ambiguity; `*` and `_` are always rules when they match.
-    static func isRule(lines: [String], index: Int) -> Bool {
+    public static func isRule(lines: [String], index: Int) -> Bool {
         guard let marker = candidate(lines[index].trimmingCharacters(in: .whitespaces)) else {
             return false
         }
@@ -343,13 +343,13 @@ enum MarkdownHorizontalRule {
 /// failed their prefix tests and a BOM'd file's first heading, front matter, and code fence
 /// simply did not exist. Like `\r`, it is trimmed from what detectors READ and still counted in
 /// every range, so the byte is never rewritten out of the user's file.
-let markdownLineTrimCharacters = CharacterSet.whitespaces
+public let markdownLineTrimCharacters = CharacterSet.whitespaces
     .union(CharacterSet(charactersIn: "\r"))
     .union(CharacterSet(charactersIn: "\u{FEFF}"))
 
 /// The UTF-8 byte-order mark, as one UTF-16 unit. Only line 1 of a document can carry one; every
 /// line-structure scan skips it there so the editor and the renderer agree about a BOM'd file.
-let markdownByteOrderMark = UInt16(0xFEFF)
+public let markdownByteOrderMark = UInt16(0xFEFF)
 
 /// Markdown source split into the lines every renderer reads, plus each line's range in the
 /// ORIGINAL text.
@@ -362,16 +362,16 @@ let markdownByteOrderMark = UInt16(0xFEFF)
 /// block. Tables, rules, and callouts failed the same way. Ranges keep the raw lengths so
 /// checkbox toggling, image reconnect, code copy, and the cross-mode scroll restore still point
 /// at the right bytes.
-struct MarkdownSourceLines {
+public struct MarkdownSourceLines {
     /// Line text with any CRLF `\r` — and, on line 1 only, a leading byte-order mark — removed.
-    let lines: [String]
+    public let lines: [String]
     /// UTF-16 range of each line in the original text, INCLUDING a `\r` it no longer carries and
     /// EXCLUDING a leading byte-order mark it no longer carries. `location` is always the offset
     /// of the line's first real character.
-    let ranges: [NSRange]
+    public let ranges: [NSRange]
 }
 
-func markdownSourceLines(in text: String) -> MarkdownSourceLines {
+public func markdownSourceLines(in text: String) -> MarkdownSourceLines {
     var lines: [String] = []
     var ranges: [NSRange] = []
     var location = 0
@@ -401,7 +401,7 @@ func markdownSourceLines(in text: String) -> MarkdownSourceLines {
 /// fence). A plain code fence is consumed wholesale (opening → closing) into its own `.fencedCode`
 /// block before any inner line is inspected, so `$$` / `---` / `>` / `|` lines inside it are never
 /// re-parsed as math/rule/quote/table. Pure — no AppKit, no rendering.
-func markdownBlocks(in lines: [String], lineRanges: [NSRange]? = nil) -> [MarkdownBlock] {
+public func markdownBlocks(in lines: [String], lineRanges: [NSRange]? = nil) -> [MarkdownBlock] {
     var blocks: [MarkdownBlock] = []
     var linesStart: Int?
     var index = 0
@@ -624,8 +624,8 @@ private func resolveListItems(
 /// Pure toggle of a task checkbox in the source text: swaps `[ ]`↔`[x]` at `range`, returning the
 /// new text — or `nil` when `range` does not hold a `[ ]`/`[x]` marker (a stale range after an
 /// external edit), so the caller can safely ignore it.
-enum CheckboxToggle {
-    static func toggledText(in text: String, at range: NSRange) -> String? {
+public enum CheckboxToggle {
+    public static func toggledText(in text: String, at range: NSRange) -> String? {
         let ns = text as NSString
         guard range.location >= 0, NSMaxRange(range) <= ns.length, range.length == 3 else { return nil }
         let current = ns.substring(with: range)

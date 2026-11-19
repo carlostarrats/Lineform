@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Probes for the classes of defect that static reading keeps missing in this codebase: a
 /// construct the editor and the renderer define twice and disagree about, a transform whose

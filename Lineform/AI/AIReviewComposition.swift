@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// What the review overlay shows (spec "AI review: option A"): the document's text with every
 /// PENDING change spliced in — the original struck through and dimmed, then the replacement on a

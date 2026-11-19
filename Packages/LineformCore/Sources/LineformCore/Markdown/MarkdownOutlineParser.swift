@@ -1,14 +1,16 @@
 import Foundation
 
-struct MarkdownOutlineItem: Equatable, Identifiable {
-    var id: String { "\(lineNumber)-\(title)" }
-    var level: Int
-    var title: String
+public struct MarkdownOutlineItem: Equatable, Identifiable {
+    public var id: String { "\(lineNumber)-\(title)" }
+    public var level: Int
+    public var title: String
     var lineNumber: Int
-    var characterRange: NSRange
+    public var characterRange: NSRange
 }
 
-struct MarkdownOutlineParser {
+public struct MarkdownOutlineParser {
+    public init() {}
+
     /// Headings the renderer treats as prose, in document order.
     ///
     /// Fence state is tracked with `MermaidFence`, the same CommonMark matching
@@ -28,7 +30,7 @@ struct MarkdownOutlineParser {
     /// Lines come from `markdownSourceLines(in:)` — the one splitter every renderer uses — so a
     /// CRLF file's fences close here exactly as they do on screen. `characterRange` still excludes
     /// the `\r` (it spans the line's own text, as the scroll restore expects).
-    func items(in text: String) -> [MarkdownOutlineItem] {
+    public func items(in text: String) -> [MarkdownOutlineItem] {
         var items: [MarkdownOutlineItem] = []
         let source = markdownSourceLines(in: text)
         var openMarker: (character: Character, length: Int)?

@@ -11,8 +11,20 @@ final class LocalizationCatalogTests: XCTestCase {
             .deletingLastPathComponent()          // repo root
     }
 
+    /// "Localizable" is the app catalog plus the LineformCore package catalog, which holds the
+    /// strings that moved with their code, so every gate below still covers them. A key kept in
+    /// both carries the same entry in each.
     private func catalog(_ name: String) throws -> [String: [String: Any]] {
-        let url = repoRoot().appendingPathComponent("Lineform/\(name).xcstrings")
+        var strings = try strings(at: "Lineform/\(name).xcstrings")
+        if name == "Localizable" {
+            let package = try self.strings(at: "Packages/LineformCore/Sources/LineformCore/Resources/Localizable.xcstrings")
+            strings.merge(package) { app, _ in app }
+        }
+        return strings
+    }
+
+    private func strings(at path: String) throws -> [String: [String: Any]] {
+        let url = repoRoot().appendingPathComponent(path)
         let data = try Data(contentsOf: url)
         let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         return try XCTUnwrap(root["strings"] as? [String: [String: Any]])

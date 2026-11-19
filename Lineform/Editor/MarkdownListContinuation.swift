@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// Decides what a Return keypress should do on a Markdown list-like line: continue the
 /// construct, end it, or stay out of the way.

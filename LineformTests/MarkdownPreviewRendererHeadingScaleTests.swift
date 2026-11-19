@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Coverage for the `headingScale` parameter threaded into `MarkdownPreviewRenderer.render(...)`
 /// (Task 2 of the PDF Export Typographic Themes plan). `headingScale` is not a `ReadingProfile`

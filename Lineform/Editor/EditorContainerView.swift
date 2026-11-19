@@ -1,6 +1,7 @@
 import SwiftUI
 import StoreKit
 import UniformTypeIdentifiers
+import LineformCore
 
 struct SplitScrollJumpPlan: Equatable {
     let editorRange: NSRange

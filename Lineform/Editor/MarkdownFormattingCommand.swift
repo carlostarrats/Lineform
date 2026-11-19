@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 struct MarkdownEdit: Equatable {
     var text: String

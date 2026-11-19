@@ -5,16 +5,16 @@ import Foundation
 /// Ranges are UTF-16 `NSRange`s so they map directly onto `NSAttributedString` runs. Operates on the
 /// WHOLE fenced-block body — multi-line strings/comments are fine (this is a bounded block, NOT the
 /// line-local Write highlighter).
-enum CodeTokenKind: Equatable {
+public enum CodeTokenKind: Equatable {
     case keyword, string, comment, number, type, plain
 }
 
-struct CodeToken: Equatable {
-    let range: NSRange
-    let kind: CodeTokenKind
+public struct CodeToken: Equatable {
+    public let range: NSRange
+    public let kind: CodeTokenKind
 }
 
-protocol CodeSyntaxHighlighting {
+public protocol CodeSyntaxHighlighting {
     /// Non-overlapping token ranges for `source` in `language` (in order). Empty for unknown or
     /// absent languages (caller then renders monospace-only).
     func tokens(for source: String, language: String) -> [CodeToken]
@@ -225,8 +225,10 @@ enum ScriptScanner {
 }
 
 /// The shipped tokenizer: normalizes the language then dispatches to the right grammar/scanner.
-struct CodeSyntaxHighlighter: CodeSyntaxHighlighting {
-    func tokens(for source: String, language: String) -> [CodeToken] {
+public struct CodeSyntaxHighlighter: CodeSyntaxHighlighting {
+    public init() {}
+
+    public func tokens(for source: String, language: String) -> [CodeToken] {
         guard let lang = CodeLanguageResolver.resolve(language) else { return [] }
         switch lang {
         case .swift: return ScriptScanner.tokens(source: source, grammar: .swift)

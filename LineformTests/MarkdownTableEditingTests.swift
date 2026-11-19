@@ -1,6 +1,7 @@
 import AppKit
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class MarkdownTableEditingTests: XCTestCase {
     private let simple = """

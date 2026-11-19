@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Guards the load-bearing performance constraint: the spell-check range computation runs as the
 /// user types, so it must never acquire a whole-document pass.

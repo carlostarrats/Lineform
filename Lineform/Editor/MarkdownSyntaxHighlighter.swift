@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 final class MarkdownSyntaxHighlighter {
     static let lightThemeInlineCodeColor = NSColor(srgbRed: 0.0, green: 0.32, blue: 0.68, alpha: 1)

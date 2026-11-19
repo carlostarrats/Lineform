@@ -8,12 +8,12 @@ import Foundation
 /// never saw as a heading — or leaves one the outline cannot see. Both now accept the same
 /// shape: up to three columns of leading space, one to six `#`, then a space, a tab, or the end
 /// of the line.
-enum MarkdownHeadingParser {
+public enum MarkdownHeadingParser {
     /// CommonMark allows an ATX heading to be indented by up to three spaces; a fourth column
     /// makes it an indented code block, which `MarkdownHeadingEditing.classify` also refuses.
     private static let maximumIndentColumns = 3
 
-    static func heading(in line: String) -> (level: Int, title: String)? {
+    public static func heading(in line: String) -> (level: Int, title: String)? {
         let nsLine = line as NSString
         let space = UInt16(UnicodeScalar(" ").value)
         let tab = UInt16(UnicodeScalar("\t").value)

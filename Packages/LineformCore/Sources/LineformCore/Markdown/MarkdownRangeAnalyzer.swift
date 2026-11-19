@@ -1,6 +1,6 @@
 import Foundation
 
-enum MarkdownTokenKind: String, Hashable, CaseIterable {
+public enum MarkdownTokenKind: String, Hashable, CaseIterable, Sendable {
     case headingMarker
     case listMarker
     case checkbox
@@ -15,12 +15,19 @@ enum MarkdownTokenKind: String, Hashable, CaseIterable {
     case imageDestination
 }
 
-struct MarkdownTokenRange: Equatable, Hashable {
-    var kind: MarkdownTokenKind
-    var range: NSRange
+public struct MarkdownTokenRange: Equatable, Hashable {
+    public var kind: MarkdownTokenKind
+    public var range: NSRange
+
+    public init(kind: MarkdownTokenKind, range: NSRange) {
+        self.kind = kind
+        self.range = range
+    }
 }
 
-struct MarkdownRangeAnalyzer {
+public struct MarkdownRangeAnalyzer {
+    public init() {}
+
     // `\u{FEFF}?` on every line-anchored pattern. `\s` does not match a byte-order mark, so on
     // line 1 of a Notepad-authored file the editor drew no heading, list, or blockquote styling at
     // all — a gap the BOM sweep WIDENED, because the outline and the renderer now do see that
@@ -48,7 +55,7 @@ struct MarkdownRangeAnalyzer {
     // Also line-local (no `\n` in any class).
     private static let imageRegex = try? NSRegularExpression(pattern: #"(?<!\\)!\[([^\]\n]*)\]\(([^\)\n]+)\)"#)
 
-    func ranges(in text: String) -> [MarkdownTokenRange] {
+    public func ranges(in text: String) -> [MarkdownTokenRange] {
         var tokens: [MarkdownTokenRange] = []
         let nsText = text as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)

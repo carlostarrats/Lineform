@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// Pure text helpers for passage History. Every NSRange here is a UTF-16 offset into the ORIGINAL
 /// text (CRLF and a leading BOM included), never into a stripped copy.

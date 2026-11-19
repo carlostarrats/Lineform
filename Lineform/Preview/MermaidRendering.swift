@@ -1,6 +1,7 @@
 import AppKit
 import BeautifulMermaid
 import CryptoKit
+import LineformCore
 
 /// Converts an NSColor to a `#rrggbb` hex string for BeautifulMermaid's two-color mono theme.
 enum MermaidHexColor {

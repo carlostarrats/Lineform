@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// Setting the ATX heading level of the lines a selection touches.
 ///

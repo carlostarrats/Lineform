@@ -8,8 +8,8 @@ import Foundation
 /// only `\]` closes. Every consumer that tracks block state across lines (`markdownBlocks`, the
 /// outline, Writing Tools protection, Convert to Plain Text) holds the OPENING `Delimiter` and asks
 /// `isClosing(_:of:)`, so a stray `\]` never closes a `$$` block or the reverse.
-enum MathBlockFence {
-    enum Delimiter: Equatable {
+public enum MathBlockFence {
+    public enum Delimiter: Equatable {
         case dollars    // $$ … $$
         case brackets   // \[ … \]
 
@@ -21,7 +21,7 @@ enum MathBlockFence {
     /// `$$` or exactly `\[`. A fenced block is ALWAYS math — the explicit-rule heuristic for
     /// backslash delimiters (`MathDelimiters.backslashContentIsMath`) applies only to spans that
     /// open and close on one line, where `\[`/`\(` may just be escaped prose punctuation.
-    static func opening(_ trimmedLine: String) -> Delimiter? {
+    public static func opening(_ trimmedLine: String) -> Delimiter? {
         switch trimmedLine.trimmingCharacters(in: .whitespaces) {
         case "$$": return .dollars
         case "\\[": return .brackets
@@ -30,7 +30,7 @@ enum MathBlockFence {
     }
 
     /// True when a trimmed line closes a block opened with `delimiter`.
-    static func isClosing(_ trimmedLine: String, of delimiter: Delimiter) -> Bool {
+    public static func isClosing(_ trimmedLine: String, of delimiter: Delimiter) -> Bool {
         trimmedLine.trimmingCharacters(in: .whitespaces) == delimiter.closing
     }
 
@@ -42,7 +42,7 @@ enum MathBlockFence {
     /// The bracket form is decided by `MathDelimiters.inlineSpans` itself — the line is a block
     /// exactly when the inline scanner finds ONE display span covering all of it — so the block
     /// path and the inline path cannot disagree about escapes, closers, or the prose rule.
-    static func singleLineBlock(_ trimmedLine: String) -> String? {
+    public static func singleLineBlock(_ trimmedLine: String) -> String? {
         let t = trimmedLine.trimmingCharacters(in: .whitespaces)
         if t.hasPrefix("\\[") {
             let spans = MathDelimiters.inlineSpans(in: t)
@@ -60,10 +60,10 @@ enum MathBlockFence {
 /// One inline-math span found in a line: its `NSRange` (UTF-16, including the delimiters), the
 /// LaTeX between the delimiters, and whether it is inline (`$…$`, `\(…\)`) or display
 /// (`$$…$$`, `\[…\]`) math.
-struct MathSpan: Equatable {
-    let range: NSRange
-    let latex: String
-    let style: MathStyle
+public struct MathSpan: Equatable {
+    public let range: NSRange
+    public let latex: String
+    public let style: MathStyle
 }
 
 /// Finds inline math spans in a single line using pandoc/GitHub `$` rules so that ordinary
@@ -79,7 +79,7 @@ struct MathSpan: Equatable {
 /// `(`. The explicit rule that resolves it is `backslashContentIsMath`: a backslash span that
 /// closes on the same line is math unless its content reads as prose, so `see \(note\)` stays
 /// the escaped text "see (note)" while `where \( x \) is` renders an equation.
-enum MathDelimiters {
+public enum MathDelimiters {
     /// The explicit rule for whether a same-line `\(…\)` / `\[…\]` span is math or escaped
     /// prose punctuation. Math when the trimmed content is non-empty AND either
     ///
@@ -109,7 +109,7 @@ enum MathDelimiters {
 
     private static let latexSignals: Set<Character> = ["\\", "^", "_", "{", "}", "="]
 
-    static func inlineSpans(in line: String) -> [MathSpan] {
+    public static func inlineSpans(in line: String) -> [MathSpan] {
         let chars = Array(line)
         let n = chars.count
 
@@ -253,11 +253,11 @@ enum MathDelimiters {
 
     /// Absolute `NSRange`s (including delimiters) of inline math within a line, offset into the
     /// enclosing text. Used to protect math from Writing Tools.
-    static func inlineMathRanges(in line: String, lineOffset: Int) -> [NSRange] {
+    public static func inlineMathRanges(in line: String, lineOffset: Int) -> [NSRange] {
         inlineSpans(in: line).map {
             NSRange(location: $0.range.location + lineOffset, length: $0.range.length)
         }
     }
 }
 
-enum MathStyle { case inline, display }
+public enum MathStyle { case inline, display }

@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// Drag-and-drop and paste of an image into the Write-mode editor. On drop/paste of an image file
 /// (or raw PNG/TIFF data), the image is written next to the document (in an `images/` subfolder,

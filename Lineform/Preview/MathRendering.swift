@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import SwiftMath
+import LineformCore
 
 /// Makes a rendered math `NSImage` orientation-stable across graphics contexts.
 ///

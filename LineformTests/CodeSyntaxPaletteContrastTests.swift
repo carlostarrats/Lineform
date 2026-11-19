@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 @testable import Lineform
+@testable import LineformCore
 
 final class CodeSyntaxPaletteContrastTests: XCTestCase {
     /// Every colored token role must clear WCAG AA (4.5:1) against every built-in theme's code

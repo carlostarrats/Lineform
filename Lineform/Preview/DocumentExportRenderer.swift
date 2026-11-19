@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// Stages a file write so an interrupted or failed producer can never damage the destination.
 ///

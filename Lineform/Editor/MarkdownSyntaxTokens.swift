@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 extension MarkdownSyntaxHighlighter {
     /// Expands `visibleRange` by `margin` characters on each side, snaps the result out to

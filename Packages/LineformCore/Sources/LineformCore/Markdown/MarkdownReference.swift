@@ -4,8 +4,8 @@ import Foundation
 /// is testable and independent of the view. Copy is deliberately terse for the
 /// narrow sidebar column — in EVERY language, since the column does not get wider
 /// in German (see MarkdownReferenceTests.testExplanationsStayConciseInEveryLanguage).
-struct MarkdownReference {
-    struct Row: Identifiable, Equatable {
+public struct MarkdownReference {
+    public struct Row: Identifiable, Equatable {
         /// A stable identity that does NOT depend on translated text. Left nil, it falls back to
         /// `syntax` — safe for the 24 literal-syntax rows, which are document content and never
         /// localize. The five LABEL rows (`rendersSyntaxAsCode == false`) localize their syntax and
@@ -13,16 +13,16 @@ struct MarkdownReference {
         /// string.
         /// `testEveryIdentityIsStableAcrossLanguages` asserts this in both directions.
         var identifier: String?
-        var syntax: String
-        var explanation: String
+        public var syntax: String
+        public var explanation: String
         /// Most rows render `syntax` in a monospaced "code" style. A few (e.g. "Block Spacing",
         /// and the `Tab`/`Return` keycaps) are a plain label, not literal syntax. This is the one
         /// predicate the whole row hangs off: a label row's `syntax` cell is app chrome, so it
         /// localizes and it offers no copy button; a code row's is document content, so it never
         /// localizes and it does.
-        var rendersSyntaxAsCode: Bool = true
+        public var rendersSyntaxAsCode: Bool = true
 
-        var id: String { identifier ?? syntax }
+        public var id: String { identifier ?? syntax }
 
         /// The string this row puts on the pasteboard, or nil when it has nothing to offer.
         ///
@@ -47,7 +47,7 @@ struct MarkdownReference {
         ///
         /// nil for the five LABEL rows, exactly like `copyableSyntax` — they have no copy button and
         /// must have no copy action either.
-        func copyAffordance(in bundle: Bundle = .main) -> CopyAffordance? {
+        public func copyAffordance(in bundle: Bundle = .lineformCore) -> CopyAffordance? {
             guard let syntax = copyableSyntax else { return nil }
             // Localized HERE, at the definition site: the label is a `String`, so `Button(label)` /
             // `Label(label, systemImage:)` take SwiftUI's verbatim overload and would ship English
@@ -63,30 +63,30 @@ struct MarkdownReference {
         /// explicit bundle for the per-language tests — and because a `String` property passed to
         /// `.accessibilityLabel(_:)` takes SwiftUI's verbatim overload, which shipped this phrase
         /// in English however complete the catalog was.
-        func accessibilityLabel(in bundle: Bundle = .main) -> String {
+        public func accessibilityLabel(in bundle: Bundle = .lineformCore) -> String {
             String(localized: "\(explanation) Syntax: \(syntax)", bundle: bundle)
         }
     }
 
     /// The copy affordance's two halves, produced only by `Row.copyAffordance()`.
-    struct CopyAffordance: Equatable {
+    public struct CopyAffordance: Equatable {
         /// The literal Markdown written to the pasteboard.
-        let text: String
+        public let text: String
         /// The localized name spoken by VoiceOver and shown in the actions rotor.
-        let label: String
+        public let label: String
     }
 
-    struct Section: Identifiable, Equatable {
+    public struct Section: Identifiable, Equatable {
         /// Stable identity. Every section title localizes, so `id` can never be derived from it.
-        var id: String
-        var title: String
-        var rows: [Row]
+        public var id: String
+        public var title: String
+        public var rows: [Row]
     }
 
     /// Resolved against an explicit bundle so the tests can assert a non-English rendering.
     /// `String(localized:…locale:)` cannot do this — `locale:` formats interpolated values, it
     /// does not choose the .lproj. See `testLanguageResolutionComesFromTheBundleNotTheLocale`.
-    static func sections(in bundle: Bundle = .main) -> [Section] {
+    static func sections(in bundle: Bundle = .module) -> [Section] {
         [
         Section(id: "basics", title: String(localized: "Markdown Basics", bundle: bundle), rows: [
             Row(syntax: "# Title", explanation: String(localized: "Top-level heading. ⌘1 sets it, ⌘0 clears it.", bundle: bundle)),
@@ -145,5 +145,5 @@ struct MarkdownReference {
     }
 
     /// Every existing reader keeps working, so this refactor is not a churn event.
-    static var sections: [Section] { sections() }
+    public static var sections: [Section] { sections() }
 }

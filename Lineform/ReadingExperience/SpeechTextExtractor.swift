@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// Pure conversion from document markdown into a clean spoken string for `SpeechController`.
 /// Reuses `markdownBlocks(in:)` and a focused inline-marker-stripping pass so bold/italic/

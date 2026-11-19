@@ -102,3 +102,32 @@ Task 3's `CacheBudgets` entry therefore has no file to move.
   `MathCacheKey` (CryptoKit + CGFloat), `OutlineFileTreeFlatRow`,
   `SecurityScopedResourceAccessing`/`URLSecurityScopedResourceAccessor`,
   `MarkdownSyntaxHighlighter.range(_:covers:)`.
+
+## Task 3: Markdown core moved into LineformCore
+
+Seventeen files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Markdown/`
+(`MarkdownBlockGrouping`, `MarkdownInlineSyntax`, `MarkdownHTMLRenderer`, `CodeHighlighting`,
+`ImageResolver`, `ImageLinkRewrite`, `ImageExportPreflight`, `ImageFit`, `DiagramLog`,
+`MermaidSource`, `MermaidPieChartModel`, `MathDelimiters`, `MarkdownHeadingParser`,
+`MarkdownOutlineParser`, `MarkdownReference`, `MarkdownRangeAnalyzer`, `MarkdownLineEnding`).
+The placeholder `LineformCore.swift` and its catalog key are gone. Nothing in the group needed an
+app type, so nothing was split or left behind for that reason.
+
+Not moved: `CacheBudgets` (no file; see Task 2) and `Editor/MarkdownSyntaxTokens.swift` (an
+extension of the AppKit `MarkdownSyntaxHighlighter`; see "Stays until the platform-layer plan").
+
+Edits beyond `public`: explicit `public init`s (`MarkdownTokenRange(kind:range:)`, and empty ones
+for `MarkdownRangeAnalyzer`, `MarkdownOutlineParser`, `CodeSyntaxHighlighter`,
+`NullDiagramFailureLog`); `Sendable` on `MarkdownTokenKind` (a public type loses the implicit
+conformance an internal one had, and the app's `static let Set<MarkdownTokenKind>` needs it);
+`DiagramLogStore` uses `URL(fileURLWithPath: NSHomeDirectory())` (same path on macOS, sandboxed or
+not); `MarkdownReference`'s bundle defaults are `.module` (`sections(in:)`, internal) and
+`.lineformCore` for the two public row methods, because a public default argument cannot name the
+internal `Bundle.module`. `Bundle.lineformCore` (new, `LineformCoreBundle.swift`) is that public
+alias.
+
+Strings: 41 distinct keys (42 call sites; "Spelling" is used twice). 38 moved; "Markdown Basics",
+"Block Spacing" and "Search" are also used by app code, so they were copied and stay in the app
+catalog too. Xcode emits no `en.lproj` for the package bundle (the development language needs no
+table without plurals); resolution still picks `en` for an English-first user, exactly like the
+app bundle (checked with `Bundle.preferredLocalizations` against the built bundle).

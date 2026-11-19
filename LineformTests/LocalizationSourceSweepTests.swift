@@ -334,25 +334,36 @@ final class LocalizationSourceSweepTests: XCTestCase {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     }
 
+    /// The app's sources and the shared `LineformCore` package's, which code moved out of `Lineform/`.
+    private static let sourceRoots = ["Lineform", "Packages/LineformCore/Sources/LineformCore"]
+
     private static func swiftSources() throws -> [Source] {
-        let root = repoRoot().appendingPathComponent("Lineform")
         let manager = FileManager.default
-        guard let walker = manager.enumerator(at: root, includingPropertiesForKeys: nil) else {
-            XCTFail("could not enumerate \(root.path)")
-            return []
-        }
         var out: [Source] = []
-        for case let url as URL in walker where url.pathExtension == "swift" {
-            out.append(Source(name: url.lastPathComponent, text: try String(contentsOf: url, encoding: .utf8)))
+        for path in sourceRoots {
+            let root = repoRoot().appendingPathComponent(path)
+            guard let walker = manager.enumerator(at: root, includingPropertiesForKeys: nil) else {
+                XCTFail("could not enumerate \(root.path)")
+                return []
+            }
+            for case let url as URL in walker where url.pathExtension == "swift" {
+                out.append(Source(name: url.lastPathComponent, text: try String(contentsOf: url, encoding: .utf8)))
+            }
         }
         return out.sorted { $0.name < $1.name }
     }
 
+    /// Keys of the app catalog and the package catalog (moved strings live in the latter).
     private static func catalogKeys() throws -> Set<String> {
-        let url = repoRoot().appendingPathComponent("Lineform/Localizable.xcstrings")
-        let json = try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? [String: Any]
-        let strings = json?["strings"] as? [String: Any] ?? [:]
-        return Set(strings.keys)
+        var keys: Set<String> = []
+        for path in ["Lineform/Localizable.xcstrings",
+                     "Packages/LineformCore/Sources/LineformCore/Resources/Localizable.xcstrings"] {
+            let url = repoRoot().appendingPathComponent(path)
+            let json = try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? [String: Any]
+            let strings = json?["strings"] as? [String: Any] ?? [:]
+            keys.formUnion(strings.keys)
+        }
+        return keys
     }
 
     /// A deliberately small Swift lexer: it has to skip comments and multi-line literals, and

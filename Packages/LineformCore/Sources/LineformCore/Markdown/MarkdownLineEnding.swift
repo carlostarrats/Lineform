@@ -13,14 +13,14 @@ import Foundation
 /// `MarkdownListContinuation` were both built to avoid. Reading the terminator of the line the
 /// caret is on costs one line's length, and in a file with mixed endings it also gives the better
 /// answer — continue the convention of the text you are actually writing in.
-enum MarkdownLineEnding: String, Equatable {
+public enum MarkdownLineEnding: String, Equatable {
     case lf = "\n"
     case crlf = "\r\n"
 
-    var text: String { rawValue }
+    public var text: String { rawValue }
 
     /// UTF-16 length of the terminator, for callers positioning a caret past one.
-    var length: Int { self == .crlf ? 2 : 1 }
+    public var length: Int { self == .crlf ? 2 : 1 }
 
     private static let newline = UInt16(UnicodeScalar("\n").value)
     private static let carriageReturn = UInt16(UnicodeScalar("\r").value)
@@ -29,7 +29,7 @@ enum MarkdownLineEnding: String, Equatable {
     /// that is the last line and has none — the terminator of the line before it. An empty or
     /// single-line document has no evidence either way and answers `.lf`, which is what a new
     /// document should use.
-    static func inForce(at location: Int, in text: NSString) -> MarkdownLineEnding {
+    public static func inForce(at location: Int, in text: NSString) -> MarkdownLineEnding {
         let clamped = min(max(location, 0), text.length)
 
         var index = clamped

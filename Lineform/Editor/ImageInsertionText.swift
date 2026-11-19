@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// Pure text transforms for inserting an own-line `![](path)` image link, extracted from
 /// `LineformTextView+ImageInsertion` so the placement rules — which the drag/drop geometry chooses

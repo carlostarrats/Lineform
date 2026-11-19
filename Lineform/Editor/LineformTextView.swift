@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import LineformCore
 
 /// Direct AppKit-to-AppKit bridge for Split scrolling. The bounds notification from one pane
 /// moves the other pane in the same event turn; routing this through SwiftUI state makes Preview
