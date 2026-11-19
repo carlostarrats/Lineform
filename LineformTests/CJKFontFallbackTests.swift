@@ -2,6 +2,7 @@ import AppKit
 import CoreText
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Lineform declares NO `.cascadeList` anywhere. CJK reaches a face through CoreText's implicit
 /// substitution, which is locale-informed AND metric-compatible with the primary face.

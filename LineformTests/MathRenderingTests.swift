@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 @testable import Lineform
+@testable import LineformCore
 
 final class MathRenderingTests: XCTestCase {
     // MARK: - Block fence

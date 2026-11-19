@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 enum EditorReadingLayout {
     static func textColumnMaxWidth(for profile: ReadingProfile) -> CGFloat {

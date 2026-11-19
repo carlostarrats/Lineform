@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// The sidebar Markdown Basics tab: reference items from every section are shown as tinted rows
 /// with their syntax and explanation, plus a small copy button that copies the literal syntax string.

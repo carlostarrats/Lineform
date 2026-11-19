@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import LineformCore
 
 /// The editor as an AI action sees it. The text view implements it: `applyAIEdits` goes through
 /// the normal edit path (`shouldChangeText` → `textStorage.replaceCharacters` → `didChangeText`)

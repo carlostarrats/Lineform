@@ -1,11 +1,5 @@
 import Foundation
-
-/// A run of prose an AI action may revise, in DOCUMENT UTF-16 coordinates. `text` carries no
-/// leading or trailing whitespace — edge whitespace stays in the document and is never sent.
-struct ProseSegment: Equatable {
-    let range: NSRange
-    let text: String
-}
+import LineformCore
 
 /// What part of a Markdown document is prose and what is structure, for AI edits.
 ///

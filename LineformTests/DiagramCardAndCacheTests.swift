@@ -1,6 +1,7 @@
 import AppKit
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Task 3a (memory-sized cache), Task 3b (transparent background + fixed ink), and the resize
 /// refit nit — the pure, deterministic pieces of the 2026-07-04 diagram/render bundle.

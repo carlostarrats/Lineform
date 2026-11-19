@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Guards the load-bearing performance constraint: the spell-check range computation runs as the
 /// user types, so it must never acquire a whole-document pass.
@@ -16,11 +17,13 @@ import XCTest
 /// ceiling back.
 ///
 /// **This test runs in DEBUG**, because the Release configuration carries the iCloud entitlement
-/// and cannot be test-built without real signing. Debug measures roughly **3.6× slower** than the
-/// optimized build that ships (measured 2026-07-26: the dominant prefix-scan loop takes 6.99 ms at
-/// `-Onone` against 1.95 ms at `-O` for the same 730 KB input). Both sides of the ratio pay that
-/// tax, which is a further reason the ratio is the honest measurement. Do not "fix" a Debug reading
-/// by assuming it is what users feel.
+/// and cannot be test-built without real signing. The app's Debug build already compiles at `-O`
+/// (the target sets no `SWIFT_OPTIMIZATION_LEVEL`), but SwiftPM builds the `LineformCore` package's
+/// Debug at `-Onone`. Since the move into the package (2026-11) the package code this test calls
+/// runs unoptimised in Debug, so the Debug ratio reads higher than before the move (5.7× → 10.7×)
+/// and still differs from an optimized build (~23×). (The older "~3.6× slower" figure compared
+/// `-Onone` with `-O` for this loop.) Do not "fix" a Debug reading by assuming it is what users
+/// feel; measure with Release optimiser settings (`docs/notes/shared-package-baseline.md` § Task 4).
 ///
 /// See `docs/superpowers/specs/2026-07-26-live-spell-check-design.md` and
 /// `docs/notes/2026-07-26-spell-check-probe-findings.md`.

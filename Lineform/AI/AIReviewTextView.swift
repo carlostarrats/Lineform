@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// The review overlay (spec "AI review: option A"): a read-only text view laid exactly over the
 /// editor while a review is up, showing `AIReviewComposition` — the original struck through in

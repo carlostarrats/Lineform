@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import LineformCore
 
 /// The Mac's own Light/Dark appearance, for Automatic Dark Mode. Read from
 /// `NSApp.effectiveAppearance`, which follows System Settings because Lineform never sets
@@ -27,39 +28,6 @@ final class SystemAppearanceMonitor: ObservableObject {
     private static func currentIsDark() -> Bool {
         guard let appearance = NSApp?.effectiveAppearance else { return false }
         return appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-    }
-}
-
-enum ThemeID: String, Codable, Equatable, CaseIterable {
-    case system
-    case paper
-    case calm
-    case quiet
-    case night
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let rawValue = try container.decode(String.self)
-
-        switch rawValue {
-        case ThemeID.system.rawValue:
-            self = .system
-        case ThemeID.paper.rawValue:
-            self = .paper
-        case ThemeID.calm.rawValue:
-            self = .calm
-        case ThemeID.quiet.rawValue:
-            self = .quiet
-        case ThemeID.night.rawValue, "lowLight":
-            self = .night
-        default:
-            self = .system
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
     }
 }
 

@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// Approximate RGBA byte footprint of an image's backing raster (pixels × 4). Used as the
 /// `NSCache` cost so the diagram/equation caches are bounded by MEMORY, not a flat count — a

@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 enum EditorStatusFormatter {
     struct LastSavedDisplay: Equatable {

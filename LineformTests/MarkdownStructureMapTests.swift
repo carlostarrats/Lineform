@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// The AI-edit safety layer: what is prose (may be sent and revised) and what is Markdown
 /// structure (never sent, never changed). Wrong offsets here write into the user's file, so the

@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// Lineform ▸ Check for Updates…: one App Store lookup, then one alert. Runs ONLY when the
 /// user chooses the command — nothing calls it at launch or on a timer.

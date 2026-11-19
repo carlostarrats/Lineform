@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// The review overlay's text view, without a window (window-hosted checks belong in
 /// LineformHosted; the controller does the hands-on pass).

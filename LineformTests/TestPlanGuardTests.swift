@@ -11,6 +11,12 @@ import XCTest
 final class TestPlanGuardTests: XCTestCase {
     private struct Plan: Decodable {
         struct Target: Decodable {
+            struct Reference: Decodable {
+                var containerPath: String
+                var name: String
+            }
+
+            var target: Reference
             var skippedTests: [String]?
             var selectedTests: [String]?
         }
@@ -30,6 +36,31 @@ final class TestPlanGuardTests: XCTestCase {
     func testHostedQuarantineListsStayComplementaryAndReal() throws {
         let defaultPlan = try loadPlan(named: "Lineform.xctestplan")
         let hostedPlan = try loadPlan(named: "LineformHosted.xctestplan")
+
+        // The default plan (⌘U and CI) runs the app's tests AND the LineformCore package's
+        // tests. The hosted plan runs only the quarantined app classes: the package tests are
+        // pure, so they belong in the default plan, and listing that target in the hosted plan
+        // with no selectedTests would run all of it there as well.
+        let packageTests = "LineformCoreTests"
+        XCTAssertEqual(
+            defaultPlan.testTargets.map(\.target.name).sorted(),
+            ["LineformCoreTests", "LineformTests"],
+            "Lineform.xctestplan must run both the app tests and the LineformCore package tests."
+        )
+        XCTAssertEqual(
+            defaultPlan.testTargets.first { $0.target.name == packageTests }?.target.containerPath,
+            "container:Packages/LineformCore",
+            "LineformCoreTests must be referenced from the local package container."
+        )
+        XCTAssertEqual(
+            hostedPlan.testTargets.map(\.target.name),
+            ["LineformTests"],
+            "LineformHosted.xctestplan runs only the quarantined hosted-window app classes."
+        )
+        XCTAssertNil(
+            defaultPlan.testTargets.first { $0.target.name == packageTests }?.skippedTests,
+            "The quarantine list belongs on LineformTests; LineformCoreTests skips nothing."
+        )
 
         let skipped = Set(defaultPlan.testTargets.flatMap { $0.skippedTests ?? [] })
         let selected = Set(hostedPlan.testTargets.flatMap { $0.selectedTests ?? [] })

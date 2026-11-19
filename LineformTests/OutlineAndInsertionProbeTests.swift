@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// The third probe file, chosen the same way as `RobustnessProbeTests`: ask which surfaces the
 /// previous sweeps *omit*, not whether the code reads correctly.

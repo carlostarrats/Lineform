@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import LineformCore
 
 /// Intercepts a document window's close so that multiple custom tabs are not lost when
 /// only the active document is asked to save. If any tab besides the active one has unsaved

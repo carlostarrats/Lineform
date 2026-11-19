@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import LineformCore
 
 /// What clicking a file in the sidebar (or ⌘K, or a search result) should do. Split out as a pure
 /// value so all four branches are testable — `openSidebarFile` lives on a `View` and can't be

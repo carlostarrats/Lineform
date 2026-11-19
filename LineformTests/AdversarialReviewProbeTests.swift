@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// An AI client that holds every request until the test releases it (or the task is cancelled), so
 /// a test can change the world between request and reply.

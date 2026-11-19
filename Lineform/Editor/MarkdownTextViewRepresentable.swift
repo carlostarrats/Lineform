@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import LineformCore
 
 struct MarkdownTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String

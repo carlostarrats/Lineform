@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import LineformCore
 
 /// The floating toolbar over a text selection in the editor (2026-11-17), and the comment card it
 /// turns into: one-click formatting, plus — only while an AI is connected — a comment to that AI.

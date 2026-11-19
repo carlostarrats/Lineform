@@ -1,6 +1,7 @@
 import AppKit
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// A stub provider that returns a fixed image for any URL, so the export wiring can be proven
 /// without decoding a real image file (ImageResolver only checks existence + extension).

@@ -82,16 +82,17 @@ Mac-conventional place and flagged that — moving it is one line in `AppCommand
   App Store page opens only when the writer chooses **Open App Store**; `presentAlert` only reports which
   button was chosen and never touches `NSWorkspace`.
 - **File split:** `AppUpdateCheck.swift` (lookup, validation, version decision, `AppStoreUpdateChecker`)
-  and `AppUpdatePresentation.swift` (alert text, six languages) are Foundation-only so they can move to a
-  shared package; `AppUpdateCommand.swift` is the AppKit half, with the checker, alert, and URL opener
+  and `AppUpdatePresentation.swift` (alert text, six languages) are Foundation-only and live in the shared
+  package (`Packages/LineformCore/Sources/LineformCore/App/`); `AppUpdateCommand.swift` is the AppKit half, with the checker, alert, and URL opener
   injected.
 - **No test may hit the network.** Checker tests go through `StubURLProtocol`
-  (`LineformTests/AITestDoubles.swift`); command tests inject a fake checker and a `present` closure, so
+  (`Packages/LineformCore/Sources/LineformCoreTestSupport/AITestDoubles.swift`); command tests inject a fake checker and a `present` closure, so
   the default plan never builds an `NSAlert`.
 
 ## Bring your own AI (2026-11-12)
 
-`Lineform/AI/`. What an action does to the document is in `editor-behavior.md` § AI actions and
+`Packages/LineformCore/Sources/LineformCore/AI/` (model, prompts, clients, Keychain, review composition) and
+`Lineform/AI/` (`AIActionController`, `AISentenceSplitter`, the review and Connect views). What an action does to the document is in `editor-behavior.md` § AI actions and
 review; this is the connection, the wire, and the rules around them.
 
 - **Connect Your AI modal.** Lineform ▸ Connect Your AI… (after Settings…, `sparkles` icon) opens
@@ -281,7 +282,7 @@ borderless/screen-saver-level nature, is the constraint (its native button local
 hand-maintained coupling is the `data-l10n-id` attributes in
 `Lineform/Resources/FirstLaunchIntro/index.html`: a new or renamed id has to be added on both sides.
 
-**CJK word counting** (`Lineform/Editor/DocumentStatistics.swift`): the status bar switches from a word
+**CJK word counting** (`Packages/LineformCore/Sources/LineformCore/Editor/DocumentStatistics.swift`): the status bar switches from a word
 count to a character count when text `isPredominantlyCJK` — a **content-based**, not locale-based,
 decision (`counts.hanKana * 2 > counts.wordForming`), so it applies correctly to a CJK document opened
 under any app language and leaves a non-CJK document alone under a CJK app language. Hangul is
@@ -354,10 +355,11 @@ profile identities for item 5. The catalog grew 264 → 300 keys.
 
 **`String(localized:…locale:)` cannot select an `.lproj`** — its `locale:` argument formats
 interpolated values, nothing more. Anything that must be *asserted* per language resolves through
-`Bundle.main.path(forResource: languageCode, ofType: "lproj")` → `Bundle(path:)`, which is why
+`Bundle.main.path(forResource: languageCode, ofType: "lproj")` → `Bundle(path:)` (`Bundle.lineformCore`
+in place of `Bundle.main` for a string that lives in the package catalog), which is why
 `MarkdownReference.sections(in bundle:)` and `Row.accessibilityLabel(in bundle:)`
-(`Lineform/Outline/MarkdownReference.swift`) take a bundle at all, defaulting to `.main` so no
-production call site changed. `MarkdownReferenceTests.testLanguageResolutionComesFromTheBundleNotTheLocale`
+(`Packages/LineformCore/Sources/LineformCore/Markdown/MarkdownReference.swift`) take a bundle at all, defaulting to the package's own
+bundle (`.module`, or its public alias `Bundle.lineformCore`) so no production call site changed. `MarkdownReferenceTests.testLanguageResolutionComesFromTheBundleNotTheLocale`
 pins the distinction; the English-asserting tests resolve through an explicit `en.lproj` bundle
 rather than `.main`, so the suite survives being run on a non-English Mac.
 
@@ -510,7 +512,7 @@ decode: a pre-existing divergence, unchanged.
 
 `AVSpeechUtterance` with no `voice` follows the **UI** language, so a Japanese-UI user reading an
 English document heard English spoken by a Japanese voice. `SpeechLanguageDetector`
-(`Lineform/ReadingExperience/SpeechLanguageDetector.swift`) runs `NLLanguageRecognizer` over the
+(`Packages/LineformCore/Sources/LineformCore/ReadingExperience/SpeechLanguageDetector.swift`) runs `NLLanguageRecognizer` over the
 extracted spoken text and returns a BCP-47 code, or nil. The `SpeechSynthesizing` seam widened to
 `speak(_:languageCode:)` so the protocol, `SystemSpeechSynthesizer`, `SpeechController.startSpeaking`
 and `FakeSynthesizer` move together — and the fake still models the SHIPPING stop/pause semantics
@@ -541,7 +543,7 @@ because that initializer picks an arbitrary region for a bare tag. Measured on t
 `fr` → fr-CA Amélie (fr-FR Thomas installed), `zh-Hant` → zh-CN Tingting (zh-TW Meijia installed),
 `en` → en-US Samantha, `pt` → pt-BR, `nl` → nl-BE.
 
-`SpeechVoiceResolver` (`Lineform/ReadingExperience/SpeechVoiceResolver.swift`) is the pure decision:
+`SpeechVoiceResolver` (`Packages/LineformCore/Sources/LineformCore/ReadingExperience/SpeechVoiceResolver.swift`) is the pure decision:
 detected language + `AVSpeechSynthesisVoice.currentLanguageCode()` + `Locale.current.region` +
 `speechVoices()` → `.keepSystemDefault` / `.voice(identifier:)` / `.language(_:)`. Two rules:
 

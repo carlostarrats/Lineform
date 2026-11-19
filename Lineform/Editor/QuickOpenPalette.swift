@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// The ⌘K "Jump to File" palette: a centered modal card with a search field over a
 /// live-filtered, keyboard-navigable list of every file the sidebar's store has scanned.

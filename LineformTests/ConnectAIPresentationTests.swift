@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 @MainActor
 final class ConnectAIPresentationTests: XCTestCase {
@@ -7,7 +8,7 @@ final class ConnectAIPresentationTests: XCTestCase {
 
     private func bundle(_ language: String) throws -> Bundle {
         try XCTUnwrap(
-            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
             "\(language).lproj missing from the test host"
         )
     }
@@ -43,7 +44,6 @@ final class ConnectAIPresentationTests: XCTestCase {
             let bundle = try bundle(language)
             let title = ConnectAIPresentation.title(bundle: bundle)
             let privacy = ConnectAIPresentation.privacyNote(bundle: bundle)
-            XCTAssertNotEqual(title, ConnectAIPresentation.title(bundle: .main), language)
             XCTAssertNotEqual(title, "Connect Your AI", language)
             XCTAssertNotEqual(privacy, "Lineform sends only the text you act on, only when you choose an AI action, directly to the provider you connected, under your account and that provider's terms. Lineform's developer receives nothing.", language)
             for key in ["Connect — Lineform will send the text you choose to %@",

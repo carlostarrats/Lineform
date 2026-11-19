@@ -1,0 +1,640 @@
+import Foundation
+
+/// A structural grouping of the document's lines, produced in a single pass so the preview
+/// renderer can render block-by-block instead of re-deriving block boundaries inline. This is the
+/// seam new block constructs (horizontal rule, blockquote, list, table) hang off — each becomes a
+/// new case here plus a matching emitter in `MarkdownPreviewRenderer`.
+///
+/// The existing constructs are preserved **exactly**: `.lines` runs are rendered by the renderer's
+/// unchanged per-line logic (heading / inline-with-math / fenced-code), and mermaid / display-math
+/// blocks carry only what the renderer needs to reproduce its current output (the inner source and
+/// the closing line index, `nil` when the block was never closed and is flushed at end-of-document).
+public enum MarkdownBlock: Equatable {
+    /// A maximal run of ordinary lines (body, headings, and fenced code), rendered per line exactly
+    /// as before. The range is over the original line indices so block-spacing lookups and the
+    /// "newline after every line except the last" rule are reproduced unchanged.
+    case lines(Range<Int>)
+    /// A whole-line display block `$$…$$`, rendered as one centered equation at `lineIndex`.
+    case singleLineMath(latex: String, lineIndex: Int)
+    /// A fenced display-math block delimited by lines that are exactly `$$`. `closingIndex` is the
+    /// index of the closing `$$` line, or `nil` when the block ran to end-of-document unclosed.
+    case fencedMath(latex: String, closingIndex: Int?)
+    /// A ```mermaid fenced block. `closingIndex` is the index of the closing fence, or `nil` when it
+    /// ran to end-of-document unclosed.
+    case mermaid(source: String, closingIndex: Int?)
+    /// A thematic break (`---` / `***` / `___` on its own line) rendered as a quiet divider.
+    /// `lineIndex` is the original line so the trailing-newline rule is reproduced.
+    case horizontalRule(lineIndex: Int)
+    /// A contiguous run of `>`-quoted lines (markers stripped, per-line nesting depth kept).
+    /// `lastLineIndex` is the last original line the block covers, for the trailing-newline rule.
+    case blockquote(lines: [MarkdownQuoteLine], lastLineIndex: Int)
+    /// A blockquote whose first line is a GitHub callout marker (`> [!TYPE]`). `title` is the optional
+    /// custom title from the marker line; `body` is the remaining quote lines (markers stripped).
+    /// `lastLineIndex` is the last original line the block covers, for the trailing-newline rule.
+    case callout(kind: CalloutKind, title: String?, body: [MarkdownQuoteLine], lastLineIndex: Int)
+    /// A contiguous run of list items (bulleted and/or numbered), with resolved ordinals and
+    /// nesting levels. `lastLineIndex` is the last original line the block covers.
+    case list(items: [MarkdownListItem], lastLineIndex: Int)
+    /// A GFM pipe table (header + delimiter + body rows). `lastLineIndex` is the last covered line.
+    case table(MarkdownTable, lastLineIndex: Int)
+    /// A plain ``` / ~~~ fenced code block (NOT mermaid — that is routed separately above).
+    /// `language` is the fence's info tag (lowercased first word, "" when absent), `body` is the
+    /// inner lines joined by "\n", `openingIndex` is the opening fence line, and `closingIndex` is
+    /// the closing fence line or `nil` when the block ran to end-of-document unclosed.
+    case fencedCode(language: String, body: String, openingIndex: Int, closingIndex: Int?)
+    /// A line whose ENTIRE trimmed content is a single `![alt](path)` image (own-line image).
+    /// Mid-text images (text before/after) never produce this case — they stay in `.lines` and
+    /// flow through the existing inline `imageToken` placeholder. `sourceRange` spans the WHOLE
+    /// source line (UTF-16), including any surrounding whitespace, so Reconnect's rewrite can
+    /// re-verify the exact `![…](…)` substring inside it. `lineIndex` is the original line index,
+    /// for the trailing-newline rule (mirrors `.horizontalRule`).
+    case image(alt: String, path: String, sourceRange: NSRange, lineIndex: Int)
+}
+
+/// Pure detection of a line that is solely a single `![alt](path)` image, with no other text.
+enum MarkdownImageLine {
+    private static let wholeLineImageRegex = try! NSRegularExpression(
+        pattern: #"^!\[([^\]\n]*)\]\(([^\)\n]+)\)$"#
+    )
+
+    /// Returns `(alt, path)` when the TRIMMED line is entirely one image reference, else `nil`.
+    static func wholeLineImage(_ line: String) -> (alt: String, path: String)? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let nsTrimmed = trimmed as NSString
+        guard let match = wholeLineImageRegex.firstMatch(
+            in: trimmed,
+            range: NSRange(location: 0, length: nsTrimmed.length)
+        ) else { return nil }
+        let alt = nsTrimmed.substring(with: match.range(at: 1))
+        let path = nsTrimmed.substring(with: match.range(at: 2))
+        return (alt, path)
+    }
+}
+
+/// Per-column text alignment for a table, read from the delimiter row's colons.
+public enum MarkdownTableAlignment: Equatable {
+    case left, center, right
+}
+
+/// A parsed GFM pipe table: header cells, per-column alignment, and body rows. Every row is padded
+/// or truncated to the column count so rendering is uniform even for malformed input.
+public struct MarkdownTable: Equatable {
+    public var headers: [String]
+    public var alignments: [MarkdownTableAlignment]
+    public var rows: [[String]]
+
+    public var columnCount: Int { alignments.count }
+}
+
+/// Pure GFM pipe-table parsing: delimiter-row detection, cell splitting, alignment, and assembly.
+public enum MarkdownTableParser {
+    /// A candidate table row: non-empty and containing a pipe. (GFM multi-column rows use pipes.)
+    /// Trims with `markdownLineTrimCharacters`, not `.whitespaces`, because this parser has TWO
+    /// callers reading different text. The renderer feeds it lines from `markdownSourceLines`,
+    /// which has already stripped the `\r` and a line-0 BOM — so the wider set changes nothing
+    /// there. `MarkdownTableEditing.locate` feeds it RAW document text, where a BOM'd file's
+    /// header line still begins with U+FEFF: `hasPrefix("|")` was then false, the leading pipe was
+    /// not dropped, the header yielded one cell too many, and `locate` returned nil. Reformat
+    /// became a silent no-op and Tab inserted a LITERAL TAB into the table row.
+    public static func looksLikeRow(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: markdownLineTrimCharacters)
+        return !trimmed.isEmpty && trimmed.contains("|")
+    }
+
+    /// A delimiter row: it must contain a pipe (a bare `---` with no pipe is a setext/thematic
+    /// break, never a 1-column table delimiter), and every cell is dashes with optional
+    /// leading/trailing colons (`:--`, `--:`, `:-:`, `---`).
+    public static func isDelimiterRow(_ line: String) -> Bool {
+        guard line.contains("|") else { return false }
+        let cellStrings = cells(in: line)
+        guard !cellStrings.isEmpty else { return false }
+        return cellStrings.allSatisfy { cell in
+            delimiterCellRegex.firstMatch(in: cell, range: NSRange(location: 0, length: (cell as NSString).length)) != nil
+        }
+    }
+
+    /// Split a row into trimmed cell strings, dropping the optional outer pipes. Escaped `\|` is a
+    /// known limitation (v1 splits on every pipe).
+    public static func cells(in row: String) -> [String] {
+        var trimmed = row.trimmingCharacters(in: markdownLineTrimCharacters)
+        if trimmed.hasPrefix("|") { trimmed.removeFirst() }
+        if trimmed.hasSuffix("|") { trimmed.removeLast() }
+        return trimmed.components(separatedBy: "|").map { $0.trimmingCharacters(in: markdownLineTrimCharacters) }
+    }
+
+    static func alignment(of delimiterCell: String) -> MarkdownTableAlignment {
+        let hasLeading = delimiterCell.hasPrefix(":")
+        let hasTrailing = delimiterCell.hasSuffix(":")
+        switch (hasLeading, hasTrailing) {
+        case (true, true): return .center
+        case (false, true): return .right
+        default: return .left
+        }
+    }
+
+    /// Assemble a table from its header, delimiter, and body lines. Columns are defined by the
+    /// delimiter row; every row is padded/truncated to that width.
+    public static func parse(header: String, delimiter: String, body: [String]) -> MarkdownTable {
+        let alignments = cells(in: delimiter).map(alignment(of:))
+        let columns = alignments.count
+        let headers = fit(cells(in: header), to: columns)
+        let rows = body.map { fit(cells(in: $0), to: columns) }
+        return MarkdownTable(headers: headers, alignments: alignments, rows: rows)
+    }
+
+    private static func fit(_ cells: [String], to columns: Int) -> [String] {
+        if cells.count == columns { return cells }
+        if cells.count > columns { return Array(cells.prefix(columns)) }
+        return cells + Array(repeating: "", count: columns - cells.count)
+    }
+
+    private static let delimiterCellRegex = try! NSRegularExpression(pattern: #"^:?-+:?$"#)
+}
+
+/// One rendered list item: its text, its nesting level, and — for numbered items — the sequential
+/// number to display (`nil` for bullets). Ordinals are resolved during grouping so `1.` / `1.` /
+/// `1.` renders as 1, 2, 3 and nested levels count independently. A task item (`- [ ]` / `- [x]`)
+/// carries `checkbox`, and its display `text` has the `[ ]`/`[x]` marker stripped.
+public struct MarkdownListItem: Equatable {
+    public var text: String
+    public var indentLevel: Int
+    public var ordinal: Int?
+    public var checkbox: MarkdownCheckbox?
+}
+
+/// A rendered task checkbox: whether it is checked, and the exact `NSRange` of the `[ ]`/`[x]`
+/// marker in the source document (UTF-16) so a click can toggle that precise span.
+public struct MarkdownCheckbox: Equatable {
+    public var isChecked: Bool
+    public var sourceRange: NSRange
+
+    /// Whether a list item's text is a GFM task marker, and — if so — its checked state and the
+    /// remaining text after the marker. Matches `[ ]`, `[x]`, or `[X]` that is followed by
+    /// whitespace-then-text or nothing (end of line). `- [x](link)` is NOT a task — GFM requires
+    /// whitespace after the bracket — so it stays a normal bullet.
+    public static func detect(in text: String) -> (isChecked: Bool, remaining: String)? {
+        let ns = text as NSString
+        guard let match = detectRegex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else {
+            return nil
+        }
+        let mark = ns.substring(with: match.range(at: 1))
+        let remainingRange = match.range(at: 2)
+        let remaining = remainingRange.location == NSNotFound ? "" : ns.substring(with: remainingRange)
+        return (isChecked: mark.lowercased() == "x", remaining: remaining)
+    }
+
+    private static let detectRegex = try! NSRegularExpression(pattern: #"^\[([ xX])\](?:[ \t]+(.*))?$"#)
+}
+
+/// List-item line parsing: `-` / `*` / `+` bullets and `1.` / `1)` numbers, with a leading-indent
+/// nesting level. Pure syntax; ordinal resolution happens in the grouping pass.
+public enum MarkdownList {
+    public struct Parsed: Equatable {
+        var indentLevel: Int
+        public var ordered: Bool
+        public var text: String
+        /// UTF-16 column in the line where the item text begins (just past the marker + whitespace).
+        public var textColumn: Int
+    }
+
+    private static let regex = try! NSRegularExpression(pattern: #"^([ \t]*)([-*+]|[0-9]{1,9}[.)])[ \t]+(.*)$"#)
+
+    public static func parse(_ line: String) -> Parsed? {
+        let ns = line as NSString
+        guard let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else {
+            return nil
+        }
+        let indentText = ns.substring(with: match.range(at: 1))
+        let marker = ns.substring(with: match.range(at: 2))
+        let text = ns.substring(with: match.range(at: 3))
+        // Tabs count as two columns; every two columns of leading space is one nesting level.
+        let width = indentText.reduce(0) { $0 + ($1 == "\t" ? 2 : 1) }
+        let ordered = marker.first.map { $0.isNumber } ?? false
+        return Parsed(indentLevel: width / 2, ordered: ordered, text: text, textColumn: match.range(at: 3).location)
+    }
+}
+
+/// One line of a blockquote: its nesting depth (number of `>` markers) and the text after the
+/// markers are stripped.
+public struct MarkdownQuoteLine: Equatable {
+    public var depth: Int
+    public var text: String
+}
+
+/// Blockquote line parsing: a line is quoted when, after optional leading whitespace, it starts
+/// with `>`. Nested `> >` / `>>` raise the depth; one optional space after each marker is consumed.
+public enum MarkdownBlockquote {
+    public static func quoteLine(_ line: String) -> MarkdownQuoteLine? {
+        var rest = Substring(line)
+        while rest.first == " " || rest.first == "\t" { rest = rest.dropFirst() }
+        guard rest.first == ">" else { return nil }
+        var depth = 0
+        while rest.first == ">" {
+            depth += 1
+            rest = rest.dropFirst()
+            if rest.first == " " { rest = rest.dropFirst() }
+        }
+        return MarkdownQuoteLine(depth: depth, text: String(rest))
+    }
+}
+
+/// The 5 GitHub-standard callout kinds. Raw values are the lowercased marker types matched
+/// case-insensitively against `> [!TYPE]`.
+public enum CalloutKind: String, Equatable {
+    case note, tip, important, warning, caution
+
+    /// The default title shown when the marker line carries no custom title.
+    public var displayName: String {
+        switch self {
+        case .note: return "Note"
+        case .tip: return "Tip"
+        case .important: return "Important"
+        case .warning: return "Warning"
+        case .caution: return "Caution"
+        }
+    }
+
+    /// The monochrome SF Symbol drawn in the title row (tinted to the ink tone, never colored).
+    public var symbolName: String {
+        switch self {
+        case .note: return "info.circle"
+        case .tip: return "lightbulb"
+        case .important: return "exclamationmark.circle"
+        case .warning: return "exclamationmark.triangle"
+        case .caution: return "exclamationmark.octagon"
+        }
+    }
+}
+
+/// Pure callout-marker classifier. Operates on the FIRST quote line's already-stripped text
+/// (markers removed by `MarkdownBlockquote.quoteLine`), so it sees `[!NOTE]` / `[!NOTE] Title`.
+public enum MarkdownCallout {
+    // Anchored at the start of the stripped text: `[!TYPE]` then optional whitespace + title.
+    // Type is 1+ letters; the trailing `.*` captures a custom title (may be empty/whitespace).
+    private static let regex = try! NSRegularExpression(pattern: #"^\[!([A-Za-z]+)\][ \t]*(.*)$"#)
+
+    /// Returns `(kind, title)` when `firstQuoteText` is `[!TYPE]` (optionally `[!TYPE] Custom title`)
+    /// with a KNOWN type. `title` is the trimmed remainder, or `nil` when absent/empty. Unknown type,
+    /// missing `!`, empty type (`[!]`), or any other shape → `nil` (caller keeps it a blockquote).
+    public static func parse(firstQuoteText: String) -> (kind: CalloutKind, title: String?)? {
+        let ns = firstQuoteText as NSString
+        guard let match = regex.firstMatch(in: firstQuoteText, range: NSRange(location: 0, length: ns.length)) else {
+            return nil
+        }
+        let typeText = ns.substring(with: match.range(at: 1)).lowercased()
+        guard let kind = CalloutKind(rawValue: typeText) else { return nil }
+        let rawTitle = match.range(at: 2).location == NSNotFound ? "" : ns.substring(with: match.range(at: 2))
+        let trimmed = rawTitle.trimmingCharacters(in: .whitespaces)
+        return (kind: kind, title: trimmed.isEmpty ? nil : trimmed)
+    }
+}
+
+/// Thematic-break (horizontal-rule) detection, kept separate so its two gotchas are explicit:
+/// a leading `---` opening front matter and a `---` directly under paragraph text (a setext
+/// heading underline) are NOT rules.
+public enum MarkdownHorizontalRule {
+    /// Whether a trimmed line is a thematic-break candidate by syntax alone (3+ of the same
+    /// `-` / `*` / `_`, spaces allowed), returning the marker character.
+    static func candidate(_ trimmed: String) -> Character? {
+        let compact = trimmed.filter { !$0.isWhitespace }
+        guard compact.count >= 3, let first = compact.first, "-*_".contains(first),
+              compact.allSatisfy({ $0 == first }) else {
+            return nil
+        }
+        return first
+    }
+
+    /// Whether the line at `index` is a real thematic break, given the surrounding lines. Only `-`
+    /// carries the front-matter / setext ambiguity; `*` and `_` are always rules when they match.
+    public static func isRule(lines: [String], index: Int) -> Bool {
+        guard let marker = candidate(lines[index].trimmingCharacters(in: .whitespaces)) else {
+            return false
+        }
+        guard marker == "-" else { return true }
+        // A leading `---` opens YAML front matter, not a divider.
+        if index == 0 { return false }
+        // `---` immediately under a non-blank PARAGRAPH line is a setext heading underline. Lines
+        // that are their own block above it — a heading, a fence, a blockquote, or a list item —
+        // don't form a setext heading, so `---` after them is still a real rule.
+        let previous = lines[index - 1]
+        let previousTrimmed = previous.trimmingCharacters(in: .whitespaces)
+        if !previousTrimmed.isEmpty
+            && !previousTrimmed.hasPrefix("#")
+            && !MermaidFence.isFenceDelimiter(previousTrimmed)
+            && MarkdownBlockquote.quoteLine(previous) == nil
+            && MarkdownList.parse(previous) == nil {
+            return false
+        }
+        return true
+    }
+}
+
+/// Group already-split lines into blocks. Mirrors the detection order of the original renderer loop
+/// What line-oriented Markdown code trims from a line: `CharacterSet.whitespaces` plus `\r`.
+///
+/// Lines are split on `\n` throughout this app, so the only newline a line can carry is the `\r`
+/// of a CRLF ending — and `.whitespaces` does NOT contain it (that is `.whitespacesAndNewlines`).
+/// Code that reads RAW document text, where offsets matter and `markdownSourceLines(in:)` cannot
+/// be used, trims with this instead. `\n` is deliberately absent: a line cannot contain one.
+///
+/// U+FEFF is in the set for the same reason `\r` is: it is a property of the file's ENCODING, not
+/// of its content. A UTF-8 byte-order mark — what Windows Notepad writes at the head of a `.md` —
+/// sits invisibly before the first character of line 1, so `# Title`, `---`, and ` ``` ` all
+/// failed their prefix tests and a BOM'd file's first heading, front matter, and code fence
+/// simply did not exist. Like `\r`, it is trimmed from what detectors READ and still counted in
+/// every range, so the byte is never rewritten out of the user's file.
+public let markdownLineTrimCharacters = CharacterSet.whitespaces
+    .union(CharacterSet(charactersIn: "\r"))
+    .union(CharacterSet(charactersIn: "\u{FEFF}"))
+
+/// The UTF-8 byte-order mark, as one UTF-16 unit. Only line 1 of a document can carry one; every
+/// line-structure scan skips it there so the editor and the renderer agree about a BOM'd file.
+let markdownByteOrderMark = UInt16(0xFEFF)
+
+/// Markdown source split into the lines every renderer reads, plus each line's range in the
+/// ORIGINAL text.
+///
+/// The `\r` of a CRLF line ending is removed from `lines` but still counted in `ranges`. That
+/// split is the whole point: every detector in this file compares against `\n`-shaped text —
+/// `trimmingCharacters(in: .whitespaces)` does not strip `\r`, and neither do the table,
+/// checkbox, and list regexes — so on a Windows-authored file a closing ` ``` ` read as
+/// ` ```\r `, no fence ever closed, and the rest of the document was swallowed into one code
+/// block. Tables, rules, and callouts failed the same way. Ranges keep the raw lengths so
+/// checkbox toggling, image reconnect, code copy, and the cross-mode scroll restore still point
+/// at the right bytes.
+public struct MarkdownSourceLines {
+    /// Line text with any CRLF `\r` — and, on line 1 only, a leading byte-order mark — removed.
+    public let lines: [String]
+    /// UTF-16 range of each line in the original text, INCLUDING a `\r` it no longer carries and
+    /// EXCLUDING a leading byte-order mark it no longer carries. `location` is always the offset
+    /// of the line's first real character.
+    public let ranges: [NSRange]
+}
+
+public func markdownSourceLines(in text: String) -> MarkdownSourceLines {
+    var lines: [String] = []
+    var ranges: [NSRange] = []
+    var location = 0
+    for (index, raw) in text.components(separatedBy: "\n").enumerated() {
+        let rawLength = (raw as NSString).length
+        var line = raw.hasSuffix("\r") ? String(raw.dropLast()) : raw
+        // A byte-order mark can only precede the very first character of the file. It is removed
+        // from the line for the same reason the `\r` is, but — unlike the `\r`, which trails —
+        // it sits BEFORE the line's content, so the range must start past it. Every consumer
+        // reads `location` as "where this line's text begins"; counting the BOM there would aim
+        // the outline's scroll-to-heading one unit short on line 1 of a BOM'd file.
+        var start = location
+        var length = rawLength
+        if index == 0, line.hasPrefix("\u{FEFF}") {
+            line.removeFirst()
+            start += 1
+            length -= 1
+        }
+        ranges.append(NSRange(location: start, length: length))
+        lines.append(line)
+        location += rawLength + 1
+    }
+    return MarkdownSourceLines(lines: lines, ranges: ranges)
+}
+
+/// (single-line `$$…$$`, then a `$$` fence, then a ```mermaid fence, then a plain ``` / ~~~ code
+/// fence). A plain code fence is consumed wholesale (opening → closing) into its own `.fencedCode`
+/// block before any inner line is inspected, so `$$` / `---` / `>` / `|` lines inside it are never
+/// re-parsed as math/rule/quote/table. Pure — no AppKit, no rendering.
+public func markdownBlocks(in lines: [String], lineRanges: [NSRange]? = nil) -> [MarkdownBlock] {
+    var blocks: [MarkdownBlock] = []
+    var linesStart: Int?
+    var index = 0
+
+    // UTF-16 offset where each line begins in the joined source, so a task checkbox's marker can
+    // be given its exact source range for click-to-toggle. `lineRanges` carries the true offsets
+    // when the caller split a CRLF document through `markdownSourceLines(in:)` — the `\r` it
+    // removed still occupies a UTF-16 unit in the file, so recomputing from the stripped line
+    // lengths would drift by one per line. Without it, lines are assumed to be `\n`-joined.
+    let lineStartOffsets: [Int]
+    if let lineRanges, lineRanges.count == lines.count {
+        lineStartOffsets = lineRanges.map(\.location)
+    } else {
+        var offsets = [Int](repeating: 0, count: lines.count)
+        var runningOffset = 0
+        for i in lines.indices {
+            offsets[i] = runningOffset
+            runningOffset += (lines[i] as NSString).length + 1
+        }
+        lineStartOffsets = offsets
+    }
+
+    func flushLines(upTo end: Int) {
+        if let start = linesStart, start < end {
+            blocks.append(.lines(start..<end))
+        }
+        linesStart = nil
+    }
+
+    while index < lines.count {
+        let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+
+        if let inner = MathBlockFence.singleLineBlock(trimmed) {
+            flushLines(upTo: index)
+            blocks.append(.singleLineMath(latex: inner, lineIndex: index))
+            index += 1
+            continue
+        }
+
+        if let delimiter = MathBlockFence.opening(trimmed) {
+            flushLines(upTo: index)
+            var body: [String] = []
+            var cursor = index + 1
+            var closing: Int?
+            while cursor < lines.count {
+                if MathBlockFence.isClosing(lines[cursor].trimmingCharacters(in: .whitespaces), of: delimiter) {
+                    closing = cursor
+                    break
+                }
+                body.append(lines[cursor])
+                cursor += 1
+            }
+            blocks.append(.fencedMath(latex: body.joined(separator: "\n"), closingIndex: closing))
+            index = (closing ?? lines.count - 1) + 1
+            continue
+        }
+
+        if MermaidFence.isMermaidOpening(trimmed) {
+            flushLines(upTo: index)
+            let marker = MermaidFence.openingMarker(trimmed)
+            var body: [String] = []
+            var cursor = index + 1
+            var closing: Int?
+            while cursor < lines.count {
+                if let marker,
+                   MermaidFence.isClosingFence(lines[cursor].trimmingCharacters(in: .whitespaces), matching: marker) {
+                    closing = cursor
+                    break
+                }
+                body.append(lines[cursor])
+                cursor += 1
+            }
+            blocks.append(.mermaid(source: body.joined(separator: "\n"), closingIndex: closing))
+            index = (closing ?? lines.count - 1) + 1
+            continue
+        }
+
+        if let marker = MermaidFence.openingMarker(trimmed) {
+            // A plain code fence: consume to its matching closing fence (same delimiter char, run
+            // length >= the opener's) as its own block so it renders through appendCodeBlock
+            // (highlighting + copy pill), parallel to mermaid/math routing. Matching the delimiter
+            // keeps an inner `~~~` (or literal fence-like code line) from truncating the block.
+            flushLines(upTo: index)
+            let language = CodeFence.language(fromOpening: trimmed)
+            var body: [String] = []
+            var cursor = index + 1
+            var closing: Int?
+            while cursor < lines.count {
+                if MermaidFence.isClosingFence(lines[cursor].trimmingCharacters(in: .whitespaces), matching: marker) {
+                    closing = cursor
+                    break
+                }
+                body.append(lines[cursor])
+                cursor += 1
+            }
+            blocks.append(.fencedCode(
+                language: language,
+                body: body.joined(separator: "\n"),
+                openingIndex: index,
+                closingIndex: closing
+            ))
+            index = (closing ?? lines.count - 1) + 1
+            continue
+        }
+
+        if index + 1 < lines.count,
+           MarkdownTableParser.looksLikeRow(lines[index]),
+           MarkdownTableParser.isDelimiterRow(lines[index + 1]),
+           // GFM requires the header and delimiter rows to have the same column count. This gate
+           // also keeps a pipe-containing line above a bare `---` (a setext heading / rule) from
+           // being mis-read as a 1-column table.
+           MarkdownTableParser.cells(in: lines[index]).count == MarkdownTableParser.cells(in: lines[index + 1]).count {
+            flushLines(upTo: index)
+            var cursor = index + 2
+            var body: [String] = []
+            while cursor < lines.count, MarkdownTableParser.looksLikeRow(lines[cursor]) {
+                body.append(lines[cursor])
+                cursor += 1
+            }
+            let table = MarkdownTableParser.parse(header: lines[index], delimiter: lines[index + 1], body: body)
+            blocks.append(.table(table, lastLineIndex: cursor - 1))
+            index = cursor
+            continue
+        }
+
+        if MarkdownHorizontalRule.isRule(lines: lines, index: index) {
+            flushLines(upTo: index)
+            blocks.append(.horizontalRule(lineIndex: index))
+            index += 1
+            continue
+        }
+
+        if let firstQuote = MarkdownBlockquote.quoteLine(lines[index]) {
+            flushLines(upTo: index)
+            var quoteLines = [firstQuote]
+            var cursor = index + 1
+            while cursor < lines.count, let quote = MarkdownBlockquote.quoteLine(lines[cursor]) {
+                quoteLines.append(quote)
+                cursor += 1
+            }
+            if let firstText = quoteLines.first?.text,
+               let callout = MarkdownCallout.parse(firstQuoteText: firstText) {
+                blocks.append(.callout(
+                    kind: callout.kind,
+                    title: callout.title,
+                    body: Array(quoteLines.dropFirst()),
+                    lastLineIndex: cursor - 1
+                ))
+            } else {
+                blocks.append(.blockquote(lines: quoteLines, lastLineIndex: cursor - 1))
+            }
+            index = cursor
+            continue
+        }
+
+        if let firstItem = MarkdownList.parse(lines[index]) {
+            flushLines(upTo: index)
+            var parsed = [firstItem]
+            var cursor = index + 1
+            while cursor < lines.count, let item = MarkdownList.parse(lines[cursor]) {
+                parsed.append(item)
+                cursor += 1
+            }
+            let items = resolveListItems(parsed, firstLineIndex: index, lineStartOffsets: lineStartOffsets)
+            blocks.append(.list(items: items, lastLineIndex: cursor - 1))
+            index = cursor
+            continue
+        }
+
+        if let (alt, path) = MarkdownImageLine.wholeLineImage(lines[index]) {
+            flushLines(upTo: index)
+            let sourceRange = NSRange(location: lineStartOffsets[index], length: (lines[index] as NSString).length)
+            blocks.append(.image(alt: alt, path: path, sourceRange: sourceRange, lineIndex: index))
+            index += 1
+            continue
+        }
+
+        if linesStart == nil {
+            linesStart = index
+        }
+        index += 1
+    }
+
+    flushLines(upTo: lines.count)
+    return blocks
+}
+
+/// Resolve a run of parsed list items into rendered items: numbered items count sequentially
+/// within their nesting level (so `1.` `1.` `1.` renders as 1, 2, 3) with re-entering a deeper
+/// level restarting its counter; an unordered item whose text is a `[ ]`/`[x]` task marker becomes
+/// a checkbox (marker stripped from the text, no ordinal) carrying the marker's source range.
+/// `firstLineIndex` is the source line index of the first item; items are contiguous after it.
+private func resolveListItems(
+    _ parsed: [MarkdownList.Parsed],
+    firstLineIndex: Int,
+    lineStartOffsets: [Int]
+) -> [MarkdownListItem] {
+    var counters: [Int: Int] = [:]
+    return parsed.enumerated().map { offset, item in
+        counters = counters.filter { $0.key <= item.indentLevel }
+
+        var checkbox: MarkdownCheckbox?
+        var displayText = item.text
+        if !item.ordered, let detected = MarkdownCheckbox.detect(in: item.text) {
+            let lineIndex = firstLineIndex + offset
+            let markerLocation = lineStartOffsets[lineIndex] + item.textColumn
+            checkbox = MarkdownCheckbox(isChecked: detected.isChecked, sourceRange: NSRange(location: markerLocation, length: 3))
+            displayText = detected.remaining
+        }
+
+        var ordinal: Int?
+        if item.ordered {
+            counters[item.indentLevel, default: 0] += 1
+            ordinal = counters[item.indentLevel]
+        }
+        return MarkdownListItem(text: displayText, indentLevel: item.indentLevel, ordinal: ordinal, checkbox: checkbox)
+    }
+}
+
+/// Pure toggle of a task checkbox in the source text: swaps `[ ]`↔`[x]` at `range`, returning the
+/// new text — or `nil` when `range` does not hold a `[ ]`/`[x]` marker (a stale range after an
+/// external edit), so the caller can safely ignore it.
+public enum CheckboxToggle {
+    public static func toggledText(in text: String, at range: NSRange) -> String? {
+        let ns = text as NSString
+        guard range.location >= 0, NSMaxRange(range) <= ns.length, range.length == 3 else { return nil }
+        let current = ns.substring(with: range)
+        let toggled: String
+        switch current {
+        case "[ ]": toggled = "[x]"
+        case "[x]", "[X]": toggled = "[ ]"
+        default: return nil
+        }
+        return ns.replacingCharacters(in: range, with: toggled)
+    }
+}

@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 struct DocumentTab: Identifiable, Equatable {
     let id: UUID

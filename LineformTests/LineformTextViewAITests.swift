@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 @testable import Lineform
+@testable import LineformCore
 
 /// AI actions in the text view, without a window (default test plan: no NSWindow).
 @MainActor

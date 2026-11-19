@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class AIReviewCompositionTests: XCTestCase {
     private func change(_ id: Int, _ needle: String, in text: String, _ replacement: String) -> AIChange {

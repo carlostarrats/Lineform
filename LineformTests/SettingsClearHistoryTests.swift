@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Settings ▸ Clear History: the strings, and that confirming empties the store and every open
 /// editor's History without anything writing the cleared history back.

@@ -53,6 +53,12 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "An English-pinned inventory of the drawer's controls, asserted by ReadingProfileStoreTests. The labels actually drawn are separate String(localized:) constants.",
     ]
 
+    /// `File.swift|key` — `String(localized:)` keys deliberately absent from their root's catalog.
+    private static let exemptLocalizationKeys: [String: String] = [
+        "WindowCloseController.swift|Lineform could not remove discarded draft at %@: %@":
+            "An NSLog format string, never drawn. It resolves to the English key, which is what the log should say.",
+    ]
+
     /// Calls whose string argument is a programmer-facing diagnostic, never UI.
     private static let exemptCallees: [String: String] = [
         "fatalError": "Programmer-facing trap message.",
@@ -184,15 +190,32 @@ final class LocalizationSourceSweepTests: XCTestCase {
         let sources = try Self.swiftSources()
         XCTAssertGreaterThan(sources.count, 60, "the source sweep found almost no files — it has gone blind")
 
-        let catalogKeys = try Self.catalogKeys()
-        XCTAssertGreaterThan(catalogKeys.count, 200, "the catalog read back almost empty — the scan would pass vacuously")
+        let catalogKeysByRoot = try Self.catalogKeysByRoot()
+        for root in Self.sourceRoots {
+            XCTAssertGreaterThan(catalogKeysByRoot[root]?.count ?? 0, 100,
+                                 "\(root)'s catalog read back almost empty — the scan would pass vacuously")
+        }
 
         var scannedDisplayLiterals = 0
+        var checkedLocalizationKeys = 0
         var failures: [String] = []
 
         for source in sources {
             if Self.exemptFiles[source.name] != nil { continue }
+            // Each root resolves strings from its OWN bundle (the app's from `Bundle.main`, the
+            // package's from `.module`), so a key only in the other catalog shows English silently.
+            let catalogKeys = catalogKeysByRoot[source.root] ?? []
             for literal in Self.literals(in: source.text) {
+                // `String(localized: "key", …)`: the key must be in this root's catalog. An
+                // interpolated key extracts under `%@`/`%lld`, which this scan cannot rebuild.
+                if literal.isLocalizationKey, !literal.isInterpolated {
+                    checkedLocalizationKeys += 1
+                    if !catalogKeys.contains(literal.text),
+                       Self.exemptLocalizationKeys["\(source.name)|\(literal.text)"] == nil {
+                        failures.append("\(source.name):\(literal.line): String(localized: \"\(literal.text)\") is not "
+                                        + "a key in \(Self.catalogPaths[source.root] ?? source.root)")
+                    }
+                }
                 guard Self.isDisplayCopy(literal.text) else { continue }
                 if literal.isLocalized { scannedDisplayLiterals += 1; continue }
                 if literal.isEnumRawValue { continue }
@@ -209,7 +232,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
                     // this scan cannot reconstruct exactly; the completeness gate covers those.
                     if literal.isInterpolated { continue }
                     if !catalogKeys.contains(literal.text) {
-                        failures.append("\(site): \(callee)(\"\(literal.text)\") is not a key in Localizable.xcstrings")
+                        failures.append("\(site): \(callee)(\"\(literal.text)\") is not a key in "
+                                        + (Self.catalogPaths[source.root] ?? source.root))
                     }
                 } else {
                     failures.append(
@@ -221,6 +245,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
             }
         }
 
+        XCTAssertGreaterThan(checkedLocalizationKeys, 300,
+                             "almost no String(localized:) keys were found — the key check has gone blind")
         XCTAssertGreaterThan(scannedDisplayLiterals, 150,
                              "the display-copy filter matched almost nothing — the scan has gone blind")
         XCTAssertEqual(failures, [], "un-localized user-facing literals:\n" + failures.joined(separator: "\n"))
@@ -237,7 +263,11 @@ final class LocalizationSourceSweepTests: XCTestCase {
 
         var seenLiterals: Set<String> = []
         var seenDeclarations: Set<String> = []
+        var seenLocalizationKeys: Set<String> = []
         for source in sources {
+            for literal in Self.literals(in: source.text) where literal.isLocalizationKey {
+                seenLocalizationKeys.insert("\(source.name)|\(literal.text)")
+            }
             for literal in Self.literals(in: source.text) where !literal.isLocalized {
                 seenLiterals.insert("\(source.name)|\(literal.text)")
                 if let declaration = literal.declaration {
@@ -247,6 +277,9 @@ final class LocalizationSourceSweepTests: XCTestCase {
         }
         for entry in Self.exemptLiterals.keys {
             XCTAssertTrue(seenLiterals.contains(entry), "exemptLiterals: \(entry) matches nothing — delete it")
+        }
+        for entry in Self.exemptLocalizationKeys.keys {
+            XCTAssertTrue(seenLocalizationKeys.contains(entry), "exemptLocalizationKeys: \(entry) matches nothing — delete it")
         }
         for entry in Self.exemptDeclarations.keys {
             XCTAssertTrue(seenDeclarations.contains(entry), "exemptDeclarations: \(entry) matches nothing — delete it")
@@ -313,11 +346,35 @@ final class LocalizationSourceSweepTests: XCTestCase {
         }
     }
 
+    /// The allowlists key files by name alone ("File.swift|key"). With two roots scanned, a name
+    /// in both would make an entry ambiguous, so no name may appear in both.
+    func testNoSwiftFileNameAppearsInBothSourceRoots() throws {
+        var namesByRoot: [Set<String>] = []
+        for path in Self.sourceRoots {
+            let root = Self.repoRoot().appendingPathComponent(path)
+            let walker = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            var names: Set<String> = []
+            for case let url as URL in walker where url.pathExtension == "swift" {
+                names.insert(url.lastPathComponent)
+            }
+            XCTAssertFalse(names.isEmpty, "\(path) holds no Swift files; the root is wrong")
+            namesByRoot.append(names)
+        }
+        for (i, a) in namesByRoot.enumerated() {
+            for b in namesByRoot[(i + 1)...] {
+                XCTAssertEqual(a.intersection(b).sorted(), [],
+                               "these file names are in more than one source root")
+            }
+        }
+    }
+
     // MARK: - Scanning
 
     private struct Source {
         let name: String
         let text: String
+        /// The entry of `sourceRoots` the file was found under.
+        let root: String
     }
 
     private struct Literal {
@@ -328,31 +385,54 @@ final class LocalizationSourceSweepTests: XCTestCase {
         let isLocalized: Bool
         let isInterpolated: Bool
         let isEnumRawValue: Bool
+        /// The literal straight after `localized:` in `String(localized:` or
+        /// `AttributedString(localized:` — the catalog key.
+        let isLocalizationKey: Bool
     }
 
     private static func repoRoot() -> URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     }
 
+    /// The app's sources and the shared `LineformCore` package's, which code moved out of `Lineform/`.
+    private static let sourceRoots = ["Lineform", "Packages/LineformCore/Sources/LineformCore"]
+
     private static func swiftSources() throws -> [Source] {
-        let root = repoRoot().appendingPathComponent("Lineform")
         let manager = FileManager.default
-        guard let walker = manager.enumerator(at: root, includingPropertiesForKeys: nil) else {
-            XCTFail("could not enumerate \(root.path)")
-            return []
-        }
         var out: [Source] = []
-        for case let url as URL in walker where url.pathExtension == "swift" {
-            out.append(Source(name: url.lastPathComponent, text: try String(contentsOf: url, encoding: .utf8)))
+        for path in sourceRoots {
+            let root = repoRoot().appendingPathComponent(path)
+            guard let walker = manager.enumerator(at: root, includingPropertiesForKeys: nil) else {
+                XCTFail("could not enumerate \(root.path)")
+                return []
+            }
+            for case let url as URL in walker where url.pathExtension == "swift" {
+                out.append(Source(name: url.lastPathComponent, text: try String(contentsOf: url, encoding: .utf8),
+                                  root: path))
+            }
         }
         return out.sorted { $0.name < $1.name }
     }
 
-    private static func catalogKeys() throws -> Set<String> {
-        let url = repoRoot().appendingPathComponent("Lineform/Localizable.xcstrings")
-        let json = try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? [String: Any]
-        let strings = json?["strings"] as? [String: Any] ?? [:]
-        return Set(strings.keys)
+    /// Each source root's own catalog. App code resolves strings from the app catalog and package
+    /// code from the package catalog (moved strings live there), so neither may borrow the
+    /// other's keys. A key both use is kept in both, and then passes for both.
+    private static let catalogPaths: [String: String] = [
+        "Lineform": "Lineform/Localizable.xcstrings",
+        "Packages/LineformCore/Sources/LineformCore":
+            "Packages/LineformCore/Sources/LineformCore/Resources/Localizable.xcstrings",
+    ]
+
+    private static func catalogKeysByRoot() throws -> [String: Set<String>] {
+        var out: [String: Set<String>] = [:]
+        for root in sourceRoots {
+            let path = try XCTUnwrap(catalogPaths[root], "\(root) has no catalog in catalogPaths")
+            let url = repoRoot().appendingPathComponent(path)
+            let json = try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? [String: Any]
+            let strings = json?["strings"] as? [String: Any] ?? [:]
+            out[root] = Set(strings.keys)
+        }
+        return out
     }
 
     /// A deliberately small Swift lexer: it has to skip comments and multi-line literals, and
@@ -363,7 +443,9 @@ final class LocalizationSourceSweepTests: XCTestCase {
         var out: [Literal] = []
 
         struct Frame { let isCall: Bool; let callee: String?; let isLocalized: Bool }
-        struct OpenString { let start: Int; var body: String; let depth: Int; var interpolated: Bool }
+        struct OpenString {
+            let start: Int; var body: String; let depth: Int; var interpolated: Bool; var isLocalizationKey = false
+        }
 
         var frames: [Frame] = []
         var strings: [OpenString] = []
@@ -431,7 +513,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
                         declaration: declaration,
                         isLocalized: frames.contains(where: \.isLocalized),
                         isInterpolated: open.interpolated,
-                        isEnumRawValue: lastWords.suffix(2).first == "case" && sawEquals
+                        isEnumRawValue: lastWords.suffix(2).first == "case" && sawEquals,
+                        isLocalizationKey: open.isLocalizationKey
                     ))
                     index += 1
                     continue
@@ -464,7 +547,14 @@ final class LocalizationSourceSweepTests: XCTestCase {
                 continue
             }
             if c == "\"" {
-                strings.append(OpenString(start: index, body: "", depth: frames.count, interpolated: false))
+                // The key: directly inside a `String(localized:` frame, right after `localized:`.
+                var j = index - 1
+                while j >= 0, chars[j] == " " || chars[j] == "\t" || chars[j] == "\n" { j -= 1 }
+                let label = "localized:"
+                let isKey = frames.last.map { $0.isCall && $0.isLocalized && ($0.callee == "String" || $0.callee == "AttributedString") } == true
+                    && j + 1 >= label.count && String(chars[(j + 1 - label.count)...j]) == label
+                strings.append(OpenString(start: index, body: "", depth: frames.count, interpolated: false,
+                                          isLocalizationKey: isKey))
                 index += 1
                 continue
             }

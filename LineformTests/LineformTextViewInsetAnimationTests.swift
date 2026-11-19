@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// The horizontal-inset animation runs on a REPEATING `Timer(target: self)`, which retains the
 /// text view. Anything that leaves that timer scheduled leaks the view, its layout manager, and

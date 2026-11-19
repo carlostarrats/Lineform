@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// The focused passage's version counter, drawn after its last glyph: "current/total", e.g.
 /// "2/3". `current` is zero-based.

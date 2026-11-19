@@ -8,20 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		1F0000010000000000000001 /* LineformDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000001 /* LineformDocumentTests.swift */; };
-		1F0000010000000000000002 /* ReadingProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000002 /* ReadingProfileTests.swift */; };
-		1F0000010000000000000021 /* MarkdownRangeAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000021 /* MarkdownRangeAnalyzerTests.swift */; };
 		1F0000010000000000000327 /* ScopedSyntaxHighlightingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */; };
 		1F0000010000000000000329 /* LargeDocumentLayoutReentrancyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */; };
-		1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */; };
 		1F0000010000000000000085 /* MarkdownListContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000085 /* MarkdownListContinuationTests.swift */; };
 		1F00000100000000000004BA /* MarkdownHeadingEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004BA /* MarkdownHeadingEditingTests.swift */; };
-		1F00000100000000000004B4 /* MarkdownTableEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B4 /* MarkdownTableEditingTests.swift */; };
-		1F00000100000000000004C4 /* MarkdownLineEnding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C4 /* MarkdownLineEnding.swift */; };
 		1F00000100000000000004C0 /* MarkdownRobustnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */; };
 		1F00002E0000000000000001 /* RobustnessProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002E0000000000000002 /* RobustnessProbeTests.swift */; };
 		1F0000300000000000000001 /* InteropProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000300000000000000002 /* InteropProbeTests.swift */; };
 		1F00002F0000000000000001 /* OutlineAndInsertionProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002F0000000000000002 /* OutlineAndInsertionProbeTests.swift */; };
-		1F00000100000000000004B6 /* MarkdownHTMLRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */; };
 		1F00000100000000000004B7 /* ExportMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B7 /* ExportMenuTests.swift */; };
 1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */; };
 1F00000100000000000004ED /* MarkdownStructureMapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004ED /* MarkdownStructureMapTests.swift */; };
@@ -31,19 +25,12 @@
 		1F0000320000000000000021 /* LocalizationCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000320000000000000031 /* LocalizationCatalogTests.swift */; };
 		1F0000330000000000000021 /* LocalizationSourceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */; };
 		1F0000340000000000000021 /* CJKFontFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000340000000000000031 /* CJKFontFallbackTests.swift */; };
-		1F0000350000000000000001 /* SpeechLanguageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000011 /* SpeechLanguageDetector.swift */; };
-		1F0000360000000000000001 /* SpeechVoiceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000360000000000000011 /* SpeechVoiceResolver.swift */; };
-		1F0000350000000000000021 /* SpeechLanguageDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000031 /* SpeechLanguageDetectorTests.swift */; };
-		1F0000360000000000000021 /* SpeechVoiceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000360000000000000031 /* SpeechVoiceResolverTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
 		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
 		1F0000010000000000000043 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000043 /* ThemeTests.swift */; };
 		1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000044 /* ReadingProfileStoreTests.swift */; };
-		1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */; };
-		1F0000010000000000000062 /* ReadingAssistPreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */; };
 		1F0000010000000000000063 /* AppCommandNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000063 /* AppCommandNotificationTests.swift */; };
-		1F0000010000000000000071 /* MarkdownOutlineParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000071 /* MarkdownOutlineParserTests.swift */; };
 		1F0000010000000000000072 /* MarkdownPreviewRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */; };
 		1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000073 /* EditorDisplayModeTests.swift */; };
 		1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */; };
@@ -61,45 +48,25 @@
 		1F0000010000000000000321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000321 /* SettingsView.swift */; };
 		1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000322 /* LineformSettingsTests.swift */; };
 		1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C9 /* AnnouncementTests.swift */; };
-		1F00000100000000000007A2 /* AppUpdateCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A2 /* AppUpdateCheckTests.swift */; };
-		1F00000100000000000007A3 /* AppUpdateCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */; };
-		1F00000100000000000007A5 /* AppUpdatePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */; };
 		1F00000100000000000007A7 /* AppUpdateCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A7 /* AppUpdateCommandTests.swift */; };
 		1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CA /* TestDefaultsSupport.swift */; };
 		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
 		1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000324 /* TestPlanGuardTests.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
-		1F0000170000000000000001 /* MermaidTypeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */; };
 		1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000180000000000000002 /* MermaidPieChartTests.swift */; };
-		1F00001A0000000000000001 /* CodeSyntaxHighlighterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001A0000000000000002 /* CodeSyntaxHighlighterTests.swift */; };
 		1F00001B0000000000000001 /* CodeSyntaxPaletteContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */; };
-		1F00001C0000000000000001 /* MarkdownCalloutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001C0000000000000002 /* MarkdownCalloutTests.swift */; };
-		1F00001E0000000000000001 /* ImageResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001E0000000000000002 /* ImageResolverTests.swift */; };
-		1F00002A0000000000000001 /* ImageExportPreflightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002A0000000000000002 /* ImageExportPreflightTests.swift */; };
 		1F00002B0000000000000001 /* ExportFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002B0000000000000002 /* ExportFormatTests.swift */; };
-		1F0000200000000000000001 /* ImageFitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000200000000000000002 /* ImageFitTests.swift */; };
 		1F0000220000000000000001 /* ImageAttachmentProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000220000000000000002 /* ImageAttachmentProviderTests.swift */; };
-		1F0000240000000000000001 /* ImageLinkRewriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000240000000000000002 /* ImageLinkRewriteTests.swift */; };
-		1F00002D0000000000000001 /* ImageInsertionTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002D0000000000000002 /* ImageInsertionTextTests.swift */; };
 		1F0000260000000000000001 /* MarkdownPreviewRendererHeadingScaleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */; };
-		1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */; };
 		1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000326 /* DocumentExportRendererTests.swift */; };
 		1F00000100000000000004A7 /* ExportTypographyPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A7 /* ExportTypographyPreset.swift */; };
 		1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */; };
-		1F00000100000000000004AB /* SpeechTextExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AB /* SpeechTextExtractor.swift */; };
-		1F00000100000000000004AC /* SpeechTextExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AC /* SpeechTextExtractorTests.swift */; };
-		1F00000100000000000004AD /* SpeechController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AD /* SpeechController.swift */; };
-		1F00000100000000000004AE /* SpeechControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004AE /* SpeechControllerTests.swift */; };
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
-		1F0000010000000000000233 /* DiagramLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000233 /* DiagramLogTests.swift */; };
-		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
 		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
-		1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000301 /* OutlineFileSortOrder.swift */; };
 		1F0000010000000000000302 /* DirectoryEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000302 /* DirectoryEventMonitor.swift */; };
 		1F0000010000000000000303 /* SidebarFileActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000303 /* SidebarFileActions.swift */; };
-		1F0000010000000000000311 /* OutlineFileSortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */; };
 		1F0000010000000000000312 /* SidebarFileActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000312 /* SidebarFileActionsTests.swift */; };
 		1F0000010000000000000313 /* AppCommandsSidebarFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */; };
 		1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */; };
@@ -114,18 +81,10 @@
 		1F00000100000000000004D4 /* HistoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D4 /* HistoryPalette.swift */; };
 		1F0000270000000000000001 /* LineformTextView+ImageInsertion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */; };
 		1F0000280000000000000001 /* SaveAsExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000280000000000000002 /* SaveAsExport.swift */; };
-		1F0000010000000000000017 /* ReadingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000017 /* ReadingProfile.swift */; };
-		1F0000010000000000000031 /* MarkdownRangeAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */; };
 		1F0000010000000000000032 /* MarkdownSyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */; };
-		1F0000010000000000000033 /* MarkdownFormattingCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000033 /* MarkdownFormattingCommand.swift */; };
-		1F0000010000000000000084 /* MarkdownListContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000084 /* MarkdownListContinuation.swift */; };
-		1F00000100000000000004B9 /* MarkdownHeadingEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B9 /* MarkdownHeadingEditing.swift */; };
-		1F00000100000000000004B3 /* MarkdownTableEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B3 /* MarkdownTableEditing.swift */; };
-		1F00000100000000000004B5 /* MarkdownHTMLRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B5 /* MarkdownHTMLRenderer.swift */; };
-		1F00000100000000000004B8 /* MarkdownInlineSyntax.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B8 /* MarkdownInlineSyntax.swift */; };
+		1F00003A0000000000000007 /* MarkdownSyntaxTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000008 /* MarkdownSyntaxTokens.swift */; };
 1F0000010000000000000086 /* MarkdownSpellCheckRegions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000086 /* MarkdownSpellCheckRegions.swift */; };
 1F00000100000000000004EC /* MarkdownStructureMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EC /* MarkdownStructureMap.swift */; };
-		1F0000010000000000000034 /* DocumentStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000034 /* DocumentStatistics.swift */; };
 		1F0000010000000000000036 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000036 /* AppCommands.swift */; };
 		1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B1 /* MainMenuIconDecorator.swift */; };
 		1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000320000000000000011 /* SystemMenuItemTitles.swift */; };
@@ -133,40 +92,25 @@
 		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
 		1F0000010000000000000122 /* LineformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000122 /* LineformColors.swift */; };
 		1F0000010000000000000052 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000052 /* Theme.swift */; };
-		1F0000010000000000000053 /* ReadingPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000053 /* ReadingPreset.swift */; };
-		1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000054 /* ReadingProfileStore.swift */; };
 		1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000055 /* ReadingExperiencePopover.swift */; };
-		1F0000010000000000000064 /* ReadingAssistRangeResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000064 /* ReadingAssistRangeResolver.swift */; };
 		1F0000010000000000000065 /* LineformAppNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000065 /* LineformAppNotification.swift */; };
-		1F0000010000000000000074 /* EditorDisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000074 /* EditorDisplayMode.swift */; };
-		1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000075 /* MarkdownOutlineParser.swift */; };
 		1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */; };
 		1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */; };
 		1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000078 /* OutlineSidebarView.swift */; };
 		1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D8 /* HistorySidebarView.swift */; };
-		1F000001000000000000032A /* MarkdownReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032A /* MarkdownReference.swift */; };
 		1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032B /* MarkdownReferenceTests.swift */; };
 		1F000001000000000000032C /* OutlineSidebarTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032C /* OutlineSidebarTabTests.swift */; };
 		1F0000010000000000000330 /* EditorTabStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000330 /* EditorTabStoreTests.swift */; };
 		1F000001000000000000032D /* OutlineMarkdownBasicsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */; };
 		1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032E /* OutlineInfoContrastTests.swift */; };
-		1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */; };
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000230 /* MermaidRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000230 /* MermaidRendering.swift */; };
 		1F0000160000000000000001 /* MermaidPieChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000160000000000000002 /* MermaidPieChart.swift */; };
-		1F0000190000000000000001 /* CodeHighlighting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000190000000000000002 /* CodeHighlighting.swift */; };
-		1F00001D0000000000000001 /* ImageResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001D0000000000000002 /* ImageResolver.swift */; };
-		1F0000290000000000000001 /* ImageExportPreflight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000290000000000000002 /* ImageExportPreflight.swift */; };
-		1F00001F0000000000000001 /* ImageFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001F0000000000000002 /* ImageFit.swift */; };
 		1F0000210000000000000001 /* ImageRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000210000000000000002 /* ImageRendering.swift */; };
-		1F0000230000000000000001 /* ImageLinkRewrite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000230000000000000002 /* ImageLinkRewrite.swift */; };
-		1F00002C0000000000000001 /* ImageInsertionText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002C0000000000000002 /* ImageInsertionText.swift */; };
 		1F00000100000000000002B0 /* MathRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B0 /* MathRendering.swift */; };
 		1F00000100000000000002B1 /* DiagramCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B1 /* DiagramCardStyle.swift */; };
-		1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */; };
 		1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000325 /* DocumentExportRenderer.swift */; };
 		1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */; };
-		1F0000010000000000000231 /* DiagramLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000231 /* DiagramLog.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
 		1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */; };
 		1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */; };
@@ -182,48 +126,23 @@
 		1F0000010000000000000114 /* AccessibilityNutritionLabel.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000114 /* AccessibilityNutritionLabel.md */; };
 		1F0000010000000000000115 /* ReleaseReadiness.md in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000115 /* ReleaseReadiness.md */; };
 		1F0000010000000000000120 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000120 /* Fonts */; };
-		1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000121 /* BundledFontRegistrar.swift */; };
 		1F0000010000000000000131 /* FirstLaunchIntro in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000131 /* FirstLaunchIntro */; };
-		1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000140 /* EditorSearchResolver.swift */; };
 		1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000141 /* EditorStatusPresentation.swift */; };
 		1F0000010000000000000142 /* EditorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000142 /* EditorPresentation.swift */; };
 		1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000143 /* EditorChromeAndControls.swift */; };
-		1F0000010000000000000144 /* MarkdownHeadingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000144 /* MarkdownHeadingParser.swift */; };
 		1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000148 /* EditorFloatingControlSupport.swift */; };
 		1F0000010000000000000506 /* SelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000506 /* SelectionToolbar.swift */; };
 		1F0000010000000000000507 /* LineformTextView+SelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */; };
-		1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C5 /* AnnouncementFeed.swift */; };
-		1F00000100000000000007A1 /* AppUpdateCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A1 /* AppUpdateCheck.swift */; };
-		1F00000100000000000007A4 /* AppUpdatePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A4 /* AppUpdatePresentation.swift */; };
 		1F00000100000000000007A6 /* AppUpdateCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000007A6 /* AppUpdateCommand.swift */; };
-		1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C6 /* AnnouncementFetcher.swift */; };
 		1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C7 /* AnnouncementStore.swift */; };
 		1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004C8 /* AnnouncementCard.swift */; };
 		1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CB /* AppReviewPromptStore.swift */; };
-		1F00000100000000000004DE /* AIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004DE /* AIProvider.swift */; };
-		1F00000100000000000004DF /* AIConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004DF /* AIConnectionStore.swift */; };
-		1F00000100000000000004E0 /* AIKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E0 /* AIKeychain.swift */; };
-		1F00000100000000000004E1 /* AITestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AITestDoubles.swift */; };
-		1F00000100000000000004E2 /* AIConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E2 /* AIConnectionStoreTests.swift */; };
-		1F00000100000000000004E3 /* AIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E3 /* AIClient.swift */; };
-		1F00000100000000000004E4 /* AIHTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E4 /* AIHTTPTransport.swift */; };
-		1F00000100000000000004E5 /* AnthropicMessagesClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E5 /* AnthropicMessagesClient.swift */; };
-		1F00000100000000000004E6 /* OpenAICompatibleClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E6 /* OpenAICompatibleClient.swift */; };
-		1F00000100000000000004E7 /* AIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E7 /* AIClientTests.swift */; };
+		1F00000100000000000004E1 /* AIEditorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AIEditorTestDoubles.swift */; };
 		1F00000100000000000004E8 /* ConnectAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E8 /* ConnectAIView.swift */; };
-		1F00000100000000000004E9 /* ConnectAIPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E9 /* ConnectAIPresentation.swift */; };
-		1F00000100000000000004EF /* AIAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EF /* AIAction.swift */; };
-		1F00000100000000000004F0 /* AIActionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F0 /* AIActionPrompt.swift */; };
-		1F00000100000000000004F1 /* AIResponseParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F1 /* AIResponseParser.swift */; };
-		1F00000100000000000004F2 /* AIChangeBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F2 /* AIChangeBuilder.swift */; };
 		1F00000100000000000004F3 /* AISentenceSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F3 /* AISentenceSplitter.swift */; };
 		1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EB /* ConnectAIPresentationTests.swift */; };
-		1F00000100000000000004F4 /* AIActionPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F4 /* AIActionPromptTests.swift */; };
 		1F0000010000000000000508 /* SelectionToolbarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000508 /* SelectionToolbarTests.swift */; };
-		1F00000100000000000004F5 /* AIResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F5 /* AIResponseParserTests.swift */; };
 		1F00000100000000000004F6 /* AIChangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F6 /* AIChangeBuilderTests.swift */; };
-		1F00000100000000000004F7 /* AIReviewSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F7 /* AIReviewSession.swift */; };
-		1F00000100000000000004FD /* AIReviewComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FD /* AIReviewComposition.swift */; };
 		1F00000100000000000004FE /* AIReviewTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FE /* AIReviewTextView.swift */; };
 		1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */; };
 		1F0000010000000000000501 /* AIReviewCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000501 /* AIReviewCards.swift */; };
@@ -236,27 +155,16 @@
 		1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */; };
 		1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */; };
 		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
-		1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CD /* PassageHistoryModel.swift */; };
-		1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CE /* PassageHistoryStore.swift */; };
-		1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CF /* PassageHistoryStoreTests.swift */; };
-		1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D0 /* PassageHistoryText.swift */; };
-		1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D1 /* PassageHistoryTextTests.swift */; };
-		1F00000100000000000004D2 /* DocumentHistoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D2 /* DocumentHistoryEngine.swift */; };
-		1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
 		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
+		1F00000100000000000005C3 /* LineformCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000005C2 /* LineformCore */; };
+		1F00000100000000000008C3 /* AITestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000008C3 /* AITestDoubles.swift */; };
 		1F00000100000000000003A1 /* DocumentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A1 /* DocumentTab.swift */; };
 		1F00000100000000000003A2 /* EditorTabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A2 /* EditorTabStore.swift */; };
 		1F00000100000000000003A3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A3 /* TabBarView.swift */; };
 		1F00000100000000000003A4 /* WindowCloseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A4 /* WindowCloseController.swift */; };
 		1F00000100000000000003A5 /* SaveAndCloseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */; };
-		1F00000100000000000003A6 /* QuickOpenIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A6 /* QuickOpenIndex.swift */; };
-		1F00000100000000000003A7 /* QuickOpenIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A7 /* QuickOpenIndexTests.swift */; };
 		1F00000100000000000003A8 /* QuickOpenPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A8 /* QuickOpenPalette.swift */; };
-		1F00000100000000000003B1 /* CrossFileSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B1 /* CrossFileSearchResolver.swift */; };
-		1F00000100000000000003B2 /* CrossFileSearchResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */; };
-		1F00000100000000000003B3 /* CrossFileSearchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B3 /* CrossFileSearchModel.swift */; };
-		1F00000100000000000003B4 /* CrossFileSearchModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */; };
 		1F00000100000000000004A6 /* QuickLookMarkdownRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */; };
 		1F00000100000000000003B5 /* CrossFileSearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */; };
 		1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */; };
@@ -287,20 +195,14 @@
 
 /* Begin PBXFileReference section */
 		1F0000020000000000000001 /* LineformDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocumentTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000002 /* ReadingProfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000021 /* MarkdownRangeAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRangeAnalyzerTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopedSyntaxHighlightingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeDocumentLayoutReentrancyTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommandTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000085 /* MarkdownListContinuationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownListContinuationTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004BA /* MarkdownHeadingEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingEditingTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004B4 /* MarkdownTableEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTableEditingTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004C4 /* MarkdownLineEnding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownLineEnding.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRobustnessTests.swift; sourceTree = "<group>"; };
 		1F00002E0000000000000002 /* RobustnessProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobustnessProbeTests.swift; sourceTree = "<group>"; };
 		1F0000300000000000000002 /* InteropProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteropProbeTests.swift; sourceTree = "<group>"; };
 		1F00002F0000000000000002 /* OutlineAndInsertionProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineAndInsertionProbeTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHTMLRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B7 /* ExportMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportMenuTests.swift; sourceTree = "<group>"; };
 1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckRegionsTests.swift; sourceTree = "<group>"; };
 1F00000200000000000004ED /* MarkdownStructureMapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownStructureMapTests.swift; sourceTree = "<group>"; };
@@ -310,19 +212,12 @@
 		1F0000320000000000000031 /* LocalizationCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationCatalogTests.swift; sourceTree = "<group>"; };
 		1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationSourceSweepTests.swift; sourceTree = "<group>"; };
 		1F0000340000000000000031 /* CJKFontFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CJKFontFallbackTests.swift; sourceTree = "<group>"; };
-		1F0000350000000000000011 /* SpeechLanguageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechLanguageDetector.swift; sourceTree = "<group>"; };
-		1F0000360000000000000011 /* SpeechVoiceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechVoiceResolver.swift; sourceTree = "<group>"; };
-		1F0000350000000000000031 /* SpeechLanguageDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechLanguageDetectorTests.swift; sourceTree = "<group>"; };
-		1F0000360000000000000031 /* SpeechVoiceResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechVoiceResolverTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000043 /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000044 /* ReadingProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStoreTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistRangeResolverTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistPreferenceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000063 /* AppCommandNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommandNotificationTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000071 /* MarkdownOutlineParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownOutlineParserTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRendererTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000073 /* EditorDisplayModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDisplayModeTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtectionTests.swift; sourceTree = "<group>"; };
@@ -342,51 +237,26 @@
 		1F0000020000000000000321 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000322 /* LineformSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformSettingsTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C9 /* AnnouncementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A2 /* AppUpdateCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheckTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheckerTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePresentationTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000007A7 /* AppUpdateCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCommandTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CA /* TestDefaultsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDefaultsSupport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000324 /* TestPlanGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlanGuardTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
-		1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidTypeClassifierTests.swift; sourceTree = "<group>"; };
 		1F0000180000000000000002 /* MermaidPieChartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChartTests.swift; sourceTree = "<group>"; };
-		1F00001A0000000000000002 /* CodeSyntaxHighlighterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSyntaxHighlighterTests.swift; sourceTree = "<group>"; };
 		1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSyntaxPaletteContrastTests.swift; sourceTree = "<group>"; };
-		1F00001C0000000000000002 /* MarkdownCalloutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownCalloutTests.swift; sourceTree = "<group>"; };
-		1F00001D0000000000000002 /* ImageResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageResolver.swift; sourceTree = "<group>"; };
-		1F0000290000000000000002 /* ImageExportPreflight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageExportPreflight.swift; sourceTree = "<group>"; };
-		1F00001E0000000000000002 /* ImageResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageResolverTests.swift; sourceTree = "<group>"; };
-		1F00002A0000000000000002 /* ImageExportPreflightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageExportPreflightTests.swift; sourceTree = "<group>"; };
 		1F00002B0000000000000002 /* ExportFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatTests.swift; sourceTree = "<group>"; };
-		1F00001F0000000000000002 /* ImageFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFit.swift; sourceTree = "<group>"; };
-		1F0000200000000000000002 /* ImageFitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFitTests.swift; sourceTree = "<group>"; };
 		1F0000210000000000000002 /* ImageRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRendering.swift; sourceTree = "<group>"; };
-		1F0000230000000000000002 /* ImageLinkRewrite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLinkRewrite.swift; sourceTree = "<group>"; };
-		1F00002C0000000000000002 /* ImageInsertionText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageInsertionText.swift; sourceTree = "<group>"; };
 		1F0000220000000000000002 /* ImageAttachmentProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAttachmentProviderTests.swift; sourceTree = "<group>"; };
-		1F0000240000000000000002 /* ImageLinkRewriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLinkRewriteTests.swift; sourceTree = "<group>"; };
-		1F00002D0000000000000002 /* ImageInsertionTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageInsertionTextTests.swift; sourceTree = "<group>"; };
 		1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRendererHeadingScaleTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGroupingTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000326 /* DocumentExportRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004A7 /* ExportTypographyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTypographyPreset.swift; sourceTree = "<group>"; };
 		1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTypographyPresetTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004AB /* SpeechTextExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTextExtractor.swift; sourceTree = "<group>"; };
-		1F00000200000000000004AC /* SpeechTextExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTextExtractorTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004AD /* SpeechController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechController.swift; sourceTree = "<group>"; };
-		1F00000200000000000004AE /* SpeechControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechControllerTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000233 /* DiagramLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLogTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
 		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
-		1F0000020000000000000301 /* OutlineFileSortOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileSortOrder.swift; sourceTree = "<group>"; };
 		1F0000020000000000000302 /* DirectoryEventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryEventMonitor.swift; sourceTree = "<group>"; };
 		1F0000020000000000000303 /* SidebarFileActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFileActions.swift; sourceTree = "<group>"; };
-		1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileSortOrderTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000312 /* SidebarFileActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFileActionsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommandsSidebarFileTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicyTests.swift; sourceTree = "<group>"; };
@@ -401,18 +271,10 @@
 		1F00000200000000000004D4 /* HistoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPalette.swift; sourceTree = "<group>"; };
 		1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+ImageInsertion.swift"; sourceTree = "<group>"; };
 		1F0000280000000000000002 /* SaveAsExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAsExport.swift; sourceTree = "<group>"; };
-		1F0000020000000000000017 /* ReadingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfile.swift; sourceTree = "<group>"; };
-		1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRangeAnalyzer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSyntaxHighlighter.swift; sourceTree = "<group>"; };
-		1F0000020000000000000033 /* MarkdownFormattingCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormattingCommand.swift; sourceTree = "<group>"; };
-		1F0000020000000000000084 /* MarkdownListContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownListContinuation.swift; sourceTree = "<group>"; };
-		1F00000200000000000004B9 /* MarkdownHeadingEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingEditing.swift; sourceTree = "<group>"; };
-		1F00000200000000000004B3 /* MarkdownTableEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTableEditing.swift; sourceTree = "<group>"; };
-		1F00000200000000000004B5 /* MarkdownHTMLRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHTMLRenderer.swift; sourceTree = "<group>"; };
-		1F00000200000000000004B8 /* MarkdownInlineSyntax.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownInlineSyntax.swift; sourceTree = "<group>"; };
+		1F00003A0000000000000008 /* MarkdownSyntaxTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSyntaxTokens.swift; sourceTree = "<group>"; };
 1F0000020000000000000086 /* MarkdownSpellCheckRegions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSpellCheckRegions.swift; sourceTree = "<group>"; };
 1F00000200000000000004EC /* MarkdownStructureMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownStructureMap.swift; sourceTree = "<group>"; };
-		1F0000020000000000000034 /* DocumentStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatistics.swift; sourceTree = "<group>"; };
 		1F0000020000000000000036 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		1F00000200000000000004B1 /* MainMenuIconDecorator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecorator.swift; sourceTree = "<group>"; };
 		1F0000320000000000000011 /* SystemMenuItemTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMenuItemTitles.swift; sourceTree = "<group>"; };
@@ -420,38 +282,27 @@
 		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
 		1F0000020000000000000122 /* LineformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformColors.swift; sourceTree = "<group>"; };
 		1F0000020000000000000052 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		1F0000020000000000000053 /* ReadingPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPreset.swift; sourceTree = "<group>"; };
-		1F0000020000000000000054 /* ReadingProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStore.swift; sourceTree = "<group>"; };
 		1F0000020000000000000055 /* ReadingExperiencePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingExperiencePopover.swift; sourceTree = "<group>"; };
 		1F0000020000000000000120 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
-		1F0000020000000000000121 /* BundledFontRegistrar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontRegistrar.swift; sourceTree = "<group>"; };
 		1F0000020000000000000131 /* FirstLaunchIntro */ = {isa = PBXFileReference; lastKnownFileType = folder; path = FirstLaunchIntro; sourceTree = "<group>"; };
-		1F0000020000000000000064 /* ReadingAssistRangeResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistRangeResolver.swift; sourceTree = "<group>"; };
 		1F0000020000000000000065 /* LineformAppNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformAppNotification.swift; sourceTree = "<group>"; };
-		1F0000020000000000000074 /* EditorDisplayMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDisplayMode.swift; sourceTree = "<group>"; };
-		1F0000020000000000000075 /* MarkdownOutlineParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownOutlineParser.swift; sourceTree = "<group>"; };
 		1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRenderer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000078 /* OutlineSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarView.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D8 /* HistorySidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarView.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarPresentationTests.swift; sourceTree = "<group>"; };
-		1F000002000000000000032A /* MarkdownReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReference.swift; sourceTree = "<group>"; };
 		1F000002000000000000032B /* MarkdownReferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReferenceTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032C /* OutlineSidebarTabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarTabTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000330 /* EditorTabStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStoreTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineMarkdownBasicsTabView.swift; sourceTree = "<group>"; };
 		1F000002000000000000032E /* OutlineInfoContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineInfoContrastTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWritingToolsProtection.swift; sourceTree = "<group>"; };
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000230 /* MermaidRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRendering.swift; sourceTree = "<group>"; };
 		1F0000160000000000000002 /* MermaidPieChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChart.swift; sourceTree = "<group>"; };
-		1F0000190000000000000002 /* CodeHighlighting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeHighlighting.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B0 /* MathRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRendering.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B1 /* DiagramCardStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardStyle.swift; sourceTree = "<group>"; };
-		1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrouping.swift; sourceTree = "<group>"; };
 		1F0000020000000000000325 /* DocumentExportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRenderer.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalRuleAttachment.swift; sourceTree = "<group>"; };
-		1F0000020000000000000231 /* DiagramLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramLog.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewEmptyStateTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewInsetAnimationTests.swift; sourceTree = "<group>"; };
@@ -466,46 +317,23 @@
 		1F0000020000000000000113 /* AppStoreMetadata.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AppStoreMetadata.md; sourceTree = "<group>"; };
 		1F0000020000000000000114 /* AccessibilityNutritionLabel.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AccessibilityNutritionLabel.md; sourceTree = "<group>"; };
 		1F0000020000000000000115 /* ReleaseReadiness.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ReleaseReadiness.md; sourceTree = "<group>"; };
-		1F0000020000000000000140 /* EditorSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSearchResolver.swift; sourceTree = "<group>"; };
 		1F0000020000000000000141 /* EditorStatusPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorStatusPresentation.swift; sourceTree = "<group>"; };
 		1F0000020000000000000142 /* EditorPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPresentation.swift; sourceTree = "<group>"; };
 		1F0000020000000000000143 /* EditorChromeAndControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorChromeAndControls.swift; sourceTree = "<group>"; };
-		1F0000020000000000000144 /* MarkdownHeadingParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeadingParser.swift; sourceTree = "<group>"; };
 		1F0000020000000000000148 /* EditorFloatingControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFloatingControlSupport.swift; sourceTree = "<group>"; };
 		1F0000020000000000000506 /* SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SelectionToolbar.swift"; sourceTree = "<group>"; };
 		1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformTextView+SelectionToolbar.swift"; sourceTree = "<group>"; };
-		1F00000200000000000004C5 /* AnnouncementFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFeed.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A1 /* AppUpdateCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheck.swift; sourceTree = "<group>"; };
-		1F00000200000000000007A4 /* AppUpdatePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePresentation.swift; sourceTree = "<group>"; };
 		1F00000200000000000007A6 /* AppUpdateCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCommand.swift; sourceTree = "<group>"; };
-		1F00000200000000000004C6 /* AnnouncementFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementFetcher.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C7 /* AnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementStore.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C8 /* AnnouncementCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementCard.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CB /* AppReviewPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStore.swift; sourceTree = "<group>"; };
-		1F00000200000000000004DE /* AIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProvider.swift; sourceTree = "<group>"; };
-		1F00000200000000000004DF /* AIConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConnectionStore.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E0 /* AIKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIKeychain.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E1 /* AITestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITestDoubles.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E2 /* AIConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConnectionStoreTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E3 /* AIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClient.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E4 /* AIHTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIHTTPTransport.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E5 /* AnthropicMessagesClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicMessagesClient.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E6 /* OpenAICompatibleClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleClient.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E7 /* AIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004E1 /* AIEditorTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEditorTestDoubles.swift; sourceTree = "<group>"; };
+		1F00000200000000000008C3 /* AITestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AITestDoubles.swift; path = Packages/LineformCore/Sources/LineformCoreTestSupport/AITestDoubles.swift; sourceTree = SOURCE_ROOT; };
 		1F00000200000000000004E8 /* ConnectAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIView.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E9 /* ConnectAIPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIPresentation.swift; sourceTree = "<group>"; };
-		1F00000200000000000004EF /* AIAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAction.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F0 /* AIActionPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionPrompt.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F1 /* AIResponseParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponseParser.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F2 /* AIChangeBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChangeBuilder.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F3 /* AISentenceSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISentenceSplitter.swift; sourceTree = "<group>"; };
 		1F00000200000000000004EB /* ConnectAIPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIPresentationTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F4 /* AIActionPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionPromptTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000508 /* SelectionToolbarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolbarTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F5 /* AIResponseParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponseParserTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004F6 /* AIChangeBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChangeBuilderTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F7 /* AIReviewSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSession.swift; sourceTree = "<group>"; };
-		1F00000200000000000004FD /* AIReviewComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewComposition.swift; sourceTree = "<group>"; };
 		1F00000200000000000004FE /* AIReviewTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTextView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSurfaceRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000501 /* AIReviewCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCards.swift; sourceTree = "<group>"; };
@@ -518,25 +346,12 @@
 		1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialReviewProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialHistoryProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004CD /* PassageHistoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryModel.swift; sourceTree = "<group>"; };
-		1F00000200000000000004CE /* PassageHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStore.swift; sourceTree = "<group>"; };
-		1F00000200000000000004CF /* PassageHistoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStoreTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D0 /* PassageHistoryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryText.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D1 /* PassageHistoryTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryTextTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D2 /* DocumentHistoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentHistoryEngine.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentHistoryEngineTests.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A1 /* DocumentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTab.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A2 /* EditorTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStore.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A4 /* WindowCloseController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCloseController.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAndCloseCoordinator.swift; sourceTree = "<group>"; };
-		1F00000200000000000003A6 /* QuickOpenIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOpenIndex.swift; sourceTree = "<group>"; };
-		1F00000200000000000003A7 /* QuickOpenIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOpenIndexTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000003A8 /* QuickOpenPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOpenPalette.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B1 /* CrossFileSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResolver.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResolverTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B3 /* CrossFileSearchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchModel.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchModelTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookMarkdownRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResultsView.swift; sourceTree = "<group>"; };
  		1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewProvider.swift; sourceTree = "<group>"; };
@@ -547,6 +362,7 @@
 		1F0000310000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		1F0000310000000000000002 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		1F0000310000000000000003 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
+		1F00000200000000000005C4 /* LineformCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = LineformCore; path = Packages/LineformCore; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -556,6 +372,7 @@
 			files = (
 				1F0000010000000000000203 /* BeautifulMermaid in Frameworks */,
 				1F00000100000000000002A1 /* SwiftMath in Frameworks */,
+				1F00000100000000000005C3 /* LineformCore in Frameworks */,
 				1F00000100000000000004B0 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -583,6 +400,7 @@
  				1F0000070000000000000002 /* Lineform */,
  				1F0000070000000000000003 /* LineformTests */,
  				1F0000070000000000000005 /* LineformQuickLook */,
+				1F00000200000000000005C4 /* LineformCore */,
  				1F0000070000000000000004 /* Products */,
  			);
  			sourceTree = "<group>";
@@ -609,22 +427,8 @@
 		1F00000700000000000004DD /* AI */ = {
 			isa = PBXGroup;
 			children = (
-				1F00000200000000000004DE /* AIProvider.swift */,
-				1F00000200000000000004DF /* AIConnectionStore.swift */,
-				1F00000200000000000004E0 /* AIKeychain.swift */,
-				1F00000200000000000004E3 /* AIClient.swift */,
-				1F00000200000000000004E4 /* AIHTTPTransport.swift */,
-				1F00000200000000000004E5 /* AnthropicMessagesClient.swift */,
-				1F00000200000000000004E6 /* OpenAICompatibleClient.swift */,
 				1F00000200000000000004E8 /* ConnectAIView.swift */,
-				1F00000200000000000004E9 /* ConnectAIPresentation.swift */,
-				1F00000200000000000004EF /* AIAction.swift */,
-				1F00000200000000000004F0 /* AIActionPrompt.swift */,
-				1F00000200000000000004F1 /* AIResponseParser.swift */,
-				1F00000200000000000004F2 /* AIChangeBuilder.swift */,
 				1F00000200000000000004F3 /* AISentenceSplitter.swift */,
-				1F00000200000000000004F7 /* AIReviewSession.swift */,
-				1F00000200000000000004FD /* AIReviewComposition.swift */,
 				1F00000200000000000004FE /* AIReviewTextView.swift */,
 				1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */,
 				1F0000020000000000000501 /* AIReviewCards.swift */,
@@ -644,12 +448,8 @@
 				1F0000020000000000000036 /* AppCommands.swift */,
 				1F00000200000000000004B1 /* MainMenuIconDecorator.swift */,
 				1F0000320000000000000011 /* SystemMenuItemTitles.swift */,
-				1F00000200000000000004C5 /* AnnouncementFeed.swift */,
-				1F00000200000000000004C6 /* AnnouncementFetcher.swift */,
 				1F00000200000000000004C7 /* AnnouncementStore.swift */,
 				1F00000200000000000004CB /* AppReviewPromptStore.swift */,
-				1F00000200000000000007A1 /* AppUpdateCheck.swift */,
-				1F00000200000000000007A4 /* AppUpdatePresentation.swift */,
 				1F00000200000000000007A6 /* AppUpdateCommand.swift */,
 				1F0000020000000000000065 /* LineformAppNotification.swift */,
 			);
@@ -660,12 +460,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000013 /* LineformDocument.swift */,
-				1F0000020000000000000210 /* DocumentReloadPolicy.swift */,
 				1F0000020000000000000211 /* DocumentReloadController.swift */,
-				1F00000200000000000004CD /* PassageHistoryModel.swift */,
-				1F00000200000000000004CE /* PassageHistoryStore.swift */,
-				1F00000200000000000004D0 /* PassageHistoryText.swift */,
-				1F00000200000000000004D2 /* DocumentHistoryEngine.swift */,
 			);
 			path = Documents;
 			sourceTree = "<group>";
@@ -679,18 +474,14 @@
  				1F0000020000000000000148 /* EditorFloatingControlSupport.swift */,
 				1F0000020000000000000506 /* SelectionToolbar.swift */,
 				1F0000020000000000000507 /* LineformTextView+SelectionToolbar.swift */,
- 				1F0000020000000000000074 /* EditorDisplayMode.swift */,
  				1F00000200000000000003A1 /* DocumentTab.swift */,
  				1F00000200000000000003A2 /* EditorTabStore.swift */,
  				1F00000200000000000003A3 /* TabBarView.swift */,
  				1F00000200000000000003A4 /* WindowCloseController.swift */,
  				1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */,
  				1F00000200000000000003A8 /* QuickOpenPalette.swift */,
- 				1F00000200000000000003B1 /* CrossFileSearchResolver.swift */,
- 				1F00000200000000000003B3 /* CrossFileSearchModel.swift */,
  				1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */,
  				1F0000020000000000000142 /* EditorPresentation.swift */,
-				1F0000020000000000000140 /* EditorSearchResolver.swift */,
 				1F0000020000000000000141 /* EditorStatusPresentation.swift */,
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
 				1F0000020000000000000016 /* LineformTextView.swift */,
@@ -699,20 +490,11 @@
 				1F00000200000000000004DA /* DocumentHistoryController.swift */,
 				1F00000200000000000004D4 /* HistoryPalette.swift */,
 				1F0000270000000000000002 /* LineformTextView+ImageInsertion.swift */,
-				1F00002C0000000000000002 /* ImageInsertionText.swift */,
 				1F0000280000000000000002 /* SaveAsExport.swift */,
-				1F0000020000000000000031 /* MarkdownRangeAnalyzer.swift */,
 				1F0000020000000000000032 /* MarkdownSyntaxHighlighter.swift */,
-				1F0000020000000000000033 /* MarkdownFormattingCommand.swift */,
-				1F0000020000000000000084 /* MarkdownListContinuation.swift */,
-				1F00000200000000000004C4 /* MarkdownLineEnding.swift */,
-				1F00000200000000000004B9 /* MarkdownHeadingEditing.swift */,
-				1F00000200000000000004B3 /* MarkdownTableEditing.swift */,
+				1F00003A0000000000000008 /* MarkdownSyntaxTokens.swift */,
 				1F0000020000000000000086 /* MarkdownSpellCheckRegions.swift */,
 				1F00000200000000000004EC /* MarkdownStructureMap.swift */,
-				1F0000020000000000000034 /* DocumentStatistics.swift */,
-				1F0000020000000000000064 /* ReadingAssistRangeResolver.swift */,
-				1F0000020000000000000083 /* MarkdownWritingToolsProtection.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -720,18 +502,10 @@
 		1F0000070000000000000014 /* ReadingExperience */ = {
 			isa = PBXGroup;
 			children = (
-				1F0000020000000000000017 /* ReadingProfile.swift */,
-				1F0000020000000000000121 /* BundledFontRegistrar.swift */,
 				1F0000020000000000000051 /* FontOption.swift */,
 				1F0000020000000000000122 /* LineformColors.swift */,
 				1F0000020000000000000052 /* Theme.swift */,
-				1F0000020000000000000053 /* ReadingPreset.swift */,
-				1F0000020000000000000054 /* ReadingProfileStore.swift */,
 				1F0000020000000000000055 /* ReadingExperiencePopover.swift */,
-				1F00000200000000000004AB /* SpeechTextExtractor.swift */,
-				1F00000200000000000004AD /* SpeechController.swift */,
-				1F0000350000000000000011 /* SpeechLanguageDetector.swift */,
-				1F0000360000000000000011 /* SpeechVoiceResolver.swift */,
 			);
 			path = ReadingExperience;
 			sourceTree = "<group>";
@@ -746,19 +520,10 @@
 				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
 				1F0000020000000000000230 /* MermaidRendering.swift */,
 				1F0000160000000000000002 /* MermaidPieChart.swift */,
-				1F0000190000000000000002 /* CodeHighlighting.swift */,
 				1F00000200000000000002B0 /* MathRendering.swift */,
 				1F00000200000000000002B1 /* DiagramCardStyle.swift */,
-				1F00001D0000000000000002 /* ImageResolver.swift */,
-				1F0000290000000000000002 /* ImageExportPreflight.swift */,
-				1F00001F0000000000000002 /* ImageFit.swift */,
 				1F0000210000000000000002 /* ImageRendering.swift */,
-				1F0000230000000000000002 /* ImageLinkRewrite.swift */,
-				1F00000200000000000002B4 /* MarkdownBlockGrouping.swift */,
-				1F00000200000000000004B5 /* MarkdownHTMLRenderer.swift */,
-				1F00000200000000000004B8 /* MarkdownInlineSyntax.swift */,
 				1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */,
-				1F0000020000000000000231 /* DiagramLog.swift */,
 			);
 			path = Preview;
 			sourceTree = "<group>";
@@ -767,15 +532,10 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000302 /* DirectoryEventMonitor.swift */,
-				1F0000020000000000000144 /* MarkdownHeadingParser.swift */,
-				1F0000020000000000000075 /* MarkdownOutlineParser.swift */,
-				1F0000020000000000000301 /* OutlineFileSortOrder.swift */,
 				1F0000020000000000000078 /* OutlineSidebarView.swift */,
 				1F00000200000000000004D8 /* HistorySidebarView.swift */,
-				1F000002000000000000032A /* MarkdownReference.swift */,
 				1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */,
 				1F0000020000000000000303 /* SidebarFileActions.swift */,
-				1F00000200000000000003A6 /* QuickOpenIndex.swift */,
 			);
 			path = Outline;
 			sourceTree = "<group>";
@@ -802,19 +562,14 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000001 /* LineformDocumentTests.swift */,
-				1F0000020000000000000002 /* ReadingProfileTests.swift */,
-				1F0000020000000000000021 /* MarkdownRangeAnalyzerTests.swift */,
 				1F0000020000000000000327 /* ScopedSyntaxHighlightingTests.swift */,
 				1F0000020000000000000329 /* LargeDocumentLayoutReentrancyTests.swift */,
-				1F0000020000000000000022 /* MarkdownFormattingCommandTests.swift */,
 				1F0000020000000000000085 /* MarkdownListContinuationTests.swift */,
 				1F00000200000000000004BA /* MarkdownHeadingEditingTests.swift */,
-				1F00000200000000000004B4 /* MarkdownTableEditingTests.swift */,
 				1F00000200000000000004C0 /* MarkdownRobustnessTests.swift */,
 				1F00002E0000000000000002 /* RobustnessProbeTests.swift */,
 				1F0000300000000000000002 /* InteropProbeTests.swift */,
 				1F00002F0000000000000002 /* OutlineAndInsertionProbeTests.swift */,
-				1F00000200000000000004B6 /* MarkdownHTMLRendererTests.swift */,
 				1F00000200000000000004B7 /* ExportMenuTests.swift */,
 				1F0000020000000000000087 /* MarkdownSpellCheckRegionsTests.swift */,
 				1F00000200000000000004ED /* MarkdownStructureMapTests.swift */,
@@ -830,18 +585,12 @@
 				1F0000020000000000000044 /* ReadingProfileStoreTests.swift */,
 				1F0000020000000000000322 /* LineformSettingsTests.swift */,
 				1F00000200000000000004C9 /* AnnouncementTests.swift */,
-				1F00000200000000000007A2 /* AppUpdateCheckTests.swift */,
-				1F00000200000000000007A3 /* AppUpdateCheckerTests.swift */,
-				1F00000200000000000007A5 /* AppUpdatePresentationTests.swift */,
 				1F00000200000000000007A7 /* AppUpdateCommandTests.swift */,
 				1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */,
-				1F00000200000000000004E1 /* AITestDoubles.swift */,
-				1F00000200000000000004E2 /* AIConnectionStoreTests.swift */,
-				1F00000200000000000004E7 /* AIClientTests.swift */,
+				1F00000200000000000004E1 /* AIEditorTestDoubles.swift */,
+				1F00000200000000000008C3 /* AITestDoubles.swift */,
 				1F00000200000000000004EB /* ConnectAIPresentationTests.swift */,
-				1F00000200000000000004F4 /* AIActionPromptTests.swift */,
 				1F0000020000000000000508 /* SelectionToolbarTests.swift */,
-				1F00000200000000000004F5 /* AIResponseParserTests.swift */,
 				1F00000200000000000004F6 /* AIChangeBuilderTests.swift */,
 				1F00000200000000000004F9 /* AIReviewSessionTests.swift */,
 				1F0000020000000000000502 /* AIReviewCompositionTests.swift */,
@@ -850,23 +599,13 @@
 				1F00000200000000000004FA /* AIActionControllerTests.swift */,
 				1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */,
 				1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */,
-				1F00000200000000000004CF /* PassageHistoryStoreTests.swift */,
-				1F00000200000000000004D1 /* PassageHistoryTextTests.swift */,
-				1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */,
 				1F00000200000000000004CA /* TestDefaultsSupport.swift */,
 				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
 				1F0000020000000000000326 /* DocumentExportRendererTests.swift */,
 				1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */,
-				1F00000200000000000004AC /* SpeechTextExtractorTests.swift */,
-				1F0000350000000000000031 /* SpeechLanguageDetectorTests.swift */,
-				1F0000360000000000000031 /* SpeechVoiceResolverTests.swift */,
-				1F00000200000000000004AE /* SpeechControllerTests.swift */,
 				1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */,
-				1F0000020000000000000061 /* ReadingAssistRangeResolverTests.swift */,
-				1F0000020000000000000062 /* ReadingAssistPreferenceTests.swift */,
 				1F0000020000000000000063 /* AppCommandNotificationTests.swift */,
-				1F0000020000000000000071 /* MarkdownOutlineParserTests.swift */,
 				1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */,
 				1F0000020000000000000073 /* EditorDisplayModeTests.swift */,
 				1F0000020000000000000081 /* MarkdownWritingToolsProtectionTests.swift */,
@@ -882,36 +621,22 @@
 				1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
 				1F0000020000000000000116 /* OutlineSidebarViewTests.swift */,
-				1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */,
 				1F0000020000000000000312 /* SidebarFileActionsTests.swift */,
 				1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */,
 				1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */,
 				1F0000020000000000000213 /* DocumentReloadControllerTests.swift */,
 				1F0000020000000000000214 /* LiveReloadScrollTests.swift */,
 				1F0000020000000000000232 /* MermaidRenderingTests.swift */,
-				1F0000170000000000000002 /* MermaidTypeClassifierTests.swift */,
 				1F0000180000000000000002 /* MermaidPieChartTests.swift */,
-				1F00001A0000000000000002 /* CodeSyntaxHighlighterTests.swift */,
 				1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */,
-				1F00001C0000000000000002 /* MarkdownCalloutTests.swift */,
-				1F00001E0000000000000002 /* ImageResolverTests.swift */,
-				1F00002A0000000000000002 /* ImageExportPreflightTests.swift */,
-				1F0000200000000000000002 /* ImageFitTests.swift */,
 				1F0000220000000000000002 /* ImageAttachmentProviderTests.swift */,
-				1F0000240000000000000002 /* ImageLinkRewriteTests.swift */,
-				1F00002D0000000000000002 /* ImageInsertionTextTests.swift */,
-				1F00000200000000000002B5 /* MarkdownBlockGroupingTests.swift */,
 				1F00000200000000000002B2 /* MathRenderingTests.swift */,
 				1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */,
 				1F000002000000000000032B /* MarkdownReferenceTests.swift */,
 				1F000002000000000000032C /* OutlineSidebarTabTests.swift */,
-				1F00000200000000000003A7 /* QuickOpenIndexTests.swift */,
-				1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */,
-				1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */,
 				1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */,
 				1F0000020000000000000330 /* EditorTabStoreTests.swift */,
 				1F000002000000000000032E /* OutlineInfoContrastTests.swift */,
-				1F0000020000000000000233 /* DiagramLogTests.swift */,
 				1F00002B0000000000000002 /* ExportFormatTests.swift */,
 				1F0000340000000000000031 /* CJKFontFallbackTests.swift */,
 			);
@@ -960,6 +685,7 @@
 			packageProductDependencies = (
 				1F0000130000000000000002 /* BeautifulMermaid */,
 				1F00001300000000000002A2 /* SwiftMath */,
+				1F00001300000000000005C2 /* LineformCore */,
 			);
 			productName = Lineform;
 			productReference = 1F0000020000000000000004 /* Lineform.app */;
@@ -1041,6 +767,7 @@
 			packageReferences = (
 				1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */,
 				1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */,
+				1F00001400000000000005C1 /* XCLocalSwiftPackageReference "Packages/LineformCore" */,
 			);
 			productRefGroup = 1F0000070000000000000004 /* Products */;
 			projectDirPath = "";
@@ -1112,7 +839,6 @@
 				1F0000010000000000000320 /* LineformSettings.swift in Sources */,
 				1F0000010000000000000321 /* SettingsView.swift in Sources */,
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
-				1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */,
 				1F0000010000000000000211 /* DocumentReloadController.swift in Sources */,
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
@@ -1122,83 +848,37 @@
 				1F00000100000000000004DA /* DocumentHistoryController.swift in Sources */,
 				1F00000100000000000004D4 /* HistoryPalette.swift in Sources */,
 				1F0000270000000000000001 /* LineformTextView+ImageInsertion.swift in Sources */,
-				1F00002C0000000000000001 /* ImageInsertionText.swift in Sources */,
 				1F0000280000000000000001 /* SaveAsExport.swift in Sources */,
-				1F0000010000000000000017 /* ReadingProfile.swift in Sources */,
-				1F0000010000000000000031 /* MarkdownRangeAnalyzer.swift in Sources */,
 				1F0000010000000000000032 /* MarkdownSyntaxHighlighter.swift in Sources */,
-				1F0000010000000000000033 /* MarkdownFormattingCommand.swift in Sources */,
-				1F0000010000000000000084 /* MarkdownListContinuation.swift in Sources */,
-				1F00000100000000000004C4 /* MarkdownLineEnding.swift in Sources */,
-				1F00000100000000000004B9 /* MarkdownHeadingEditing.swift in Sources */,
-				1F00000100000000000004B3 /* MarkdownTableEditing.swift in Sources */,
-				1F00000100000000000004B5 /* MarkdownHTMLRenderer.swift in Sources */,
-				1F00000100000000000004B8 /* MarkdownInlineSyntax.swift in Sources */,
+				1F00003A0000000000000007 /* MarkdownSyntaxTokens.swift in Sources */,
 				1F0000010000000000000086 /* MarkdownSpellCheckRegions.swift in Sources */,
 				1F00000100000000000004EC /* MarkdownStructureMap.swift in Sources */,
-				1F0000010000000000000034 /* DocumentStatistics.swift in Sources */,
 				1F0000010000000000000036 /* AppCommands.swift in Sources */,
 				1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */,
 				1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */,
-				1F00000100000000000004C5 /* AnnouncementFeed.swift in Sources */,
-				1F00000100000000000007A1 /* AppUpdateCheck.swift in Sources */,
-				1F00000100000000000007A4 /* AppUpdatePresentation.swift in Sources */,
 				1F00000100000000000007A6 /* AppUpdateCommand.swift in Sources */,
-				1F00000100000000000004C6 /* AnnouncementFetcher.swift in Sources */,
 				1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */,
 				1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */,
-				1F00000100000000000004DE /* AIProvider.swift in Sources */,
-				1F00000100000000000004DF /* AIConnectionStore.swift in Sources */,
-				1F00000100000000000004E0 /* AIKeychain.swift in Sources */,
-				1F00000100000000000004E3 /* AIClient.swift in Sources */,
-				1F00000100000000000004E4 /* AIHTTPTransport.swift in Sources */,
-				1F00000100000000000004E5 /* AnthropicMessagesClient.swift in Sources */,
-				1F00000100000000000004E6 /* OpenAICompatibleClient.swift in Sources */,
 				1F00000100000000000004E8 /* ConnectAIView.swift in Sources */,
-				1F00000100000000000004E9 /* ConnectAIPresentation.swift in Sources */,
-				1F00000100000000000004EF /* AIAction.swift in Sources */,
-				1F00000100000000000004F0 /* AIActionPrompt.swift in Sources */,
-				1F00000100000000000004F1 /* AIResponseParser.swift in Sources */,
-				1F00000100000000000004F2 /* AIChangeBuilder.swift in Sources */,
 				1F00000100000000000004F3 /* AISentenceSplitter.swift in Sources */,
-				1F00000100000000000004F7 /* AIReviewSession.swift in Sources */,
-				1F00000100000000000004FD /* AIReviewComposition.swift in Sources */,
 				1F00000100000000000004FE /* AIReviewTextView.swift in Sources */,
 				1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */,
 				1F0000010000000000000501 /* AIReviewCards.swift in Sources */,
 				1F00000100000000000004F8 /* AIActionController.swift in Sources */,
-				1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */,
-				1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */,
-				1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */,
-				1F00000100000000000004D2 /* DocumentHistoryEngine.swift in Sources */,
 				1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
-				1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */,
 				1F0000010000000000000051 /* FontOption.swift in Sources */,
 				1F0000010000000000000122 /* LineformColors.swift in Sources */,
 				1F0000010000000000000052 /* Theme.swift in Sources */,
-				1F0000010000000000000053 /* ReadingPreset.swift in Sources */,
-				1F0000010000000000000054 /* ReadingProfileStore.swift in Sources */,
 				1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */,
-				1F00000100000000000004AB /* SpeechTextExtractor.swift in Sources */,
-				1F00000100000000000004AD /* SpeechController.swift in Sources */,
-				1F0000350000000000000001 /* SpeechLanguageDetector.swift in Sources */,
-				1F0000360000000000000001 /* SpeechVoiceResolver.swift in Sources */,
-				1F0000010000000000000064 /* ReadingAssistRangeResolver.swift in Sources */,
 				1F0000010000000000000065 /* LineformAppNotification.swift in Sources */,
- 				1F0000010000000000000074 /* EditorDisplayMode.swift in Sources */,
  				1F00000100000000000003A1 /* DocumentTab.swift in Sources */,
  				1F00000100000000000003A2 /* EditorTabStore.swift in Sources */,
  				1F00000100000000000003A3 /* TabBarView.swift in Sources */,
  				1F00000100000000000003A4 /* WindowCloseController.swift in Sources */,
  				1F00000100000000000003A5 /* SaveAndCloseCoordinator.swift in Sources */,
- 				1F00000100000000000003A6 /* QuickOpenIndex.swift in Sources */,
  				1F00000100000000000003A8 /* QuickOpenPalette.swift in Sources */,
- 				1F00000100000000000003B1 /* CrossFileSearchResolver.swift in Sources */,
- 				1F00000100000000000003B3 /* CrossFileSearchModel.swift in Sources */,
  				1F00000100000000000003B5 /* CrossFileSearchResultsView.swift in Sources */,
- 				1F0000010000000000000144 /* MarkdownHeadingParser.swift in Sources */,
-				1F0000010000000000000075 /* MarkdownOutlineParser.swift in Sources */,
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */,
 				1F00000100000000000004A7 /* ExportTypographyPreset.swift in Sources */,
@@ -1206,32 +886,21 @@
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
 				1F0000010000000000000230 /* MermaidRendering.swift in Sources */,
 				1F0000160000000000000001 /* MermaidPieChart.swift in Sources */,
-				1F0000190000000000000001 /* CodeHighlighting.swift in Sources */,
-				1F00001D0000000000000001 /* ImageResolver.swift in Sources */,
-				1F0000290000000000000001 /* ImageExportPreflight.swift in Sources */,
-				1F00001F0000000000000001 /* ImageFit.swift in Sources */,
 				1F0000210000000000000001 /* ImageRendering.swift in Sources */,
-				1F0000230000000000000001 /* ImageLinkRewrite.swift in Sources */,
 				1F00000100000000000002B0 /* MathRendering.swift in Sources */,
 				1F00000100000000000002B1 /* DiagramCardStyle.swift in Sources */,
-				1F00000100000000000002B4 /* MarkdownBlockGrouping.swift in Sources */,
 				1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */,
-				1F0000010000000000000231 /* DiagramLog.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
 				1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */,
 				1F0000010000000000000506 /* SelectionToolbar.swift in Sources */,
 				1F0000010000000000000507 /* LineformTextView+SelectionToolbar.swift in Sources */,
 				1F0000010000000000000142 /* EditorPresentation.swift in Sources */,
-				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
 				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
 				1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */,
-				1F000001000000000000032A /* MarkdownReference.swift in Sources */,
 				1F000001000000000000032D /* OutlineMarkdownBasicsTabView.swift in Sources */,
-				1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */,
 				1F0000010000000000000302 /* DirectoryEventMonitor.swift in Sources */,
 				1F0000010000000000000303 /* SidebarFileActions.swift in Sources */,
-				1F0000010000000000000083 /* MarkdownWritingToolsProtection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1241,19 +910,14 @@
 			files = (
 				1F0000010000000000000001 /* LineformDocumentTests.swift in Sources */,
 				1F00000300000000000004A5 /* QuickLookMarkdownRenderer.swift in Sources */,
-				1F0000010000000000000002 /* ReadingProfileTests.swift in Sources */,
-				1F0000010000000000000021 /* MarkdownRangeAnalyzerTests.swift in Sources */,
 				1F0000010000000000000327 /* ScopedSyntaxHighlightingTests.swift in Sources */,
 				1F0000010000000000000329 /* LargeDocumentLayoutReentrancyTests.swift in Sources */,
-				1F0000010000000000000022 /* MarkdownFormattingCommandTests.swift in Sources */,
 				1F0000010000000000000085 /* MarkdownListContinuationTests.swift in Sources */,
 				1F00000100000000000004BA /* MarkdownHeadingEditingTests.swift in Sources */,
-				1F00000100000000000004B4 /* MarkdownTableEditingTests.swift in Sources */,
 				1F00000100000000000004C0 /* MarkdownRobustnessTests.swift in Sources */,
 				1F00002E0000000000000001 /* RobustnessProbeTests.swift in Sources */,
 				1F0000300000000000000001 /* InteropProbeTests.swift in Sources */,
 				1F00002F0000000000000001 /* OutlineAndInsertionProbeTests.swift in Sources */,
-				1F00000100000000000004B6 /* MarkdownHTMLRendererTests.swift in Sources */,
 				1F00000100000000000004B7 /* ExportMenuTests.swift in Sources */,
 				1F0000010000000000000087 /* MarkdownSpellCheckRegionsTests.swift in Sources */,
 				1F00000100000000000004ED /* MarkdownStructureMapTests.swift in Sources */,
@@ -1269,18 +933,12 @@
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
-				1F00000100000000000007A2 /* AppUpdateCheckTests.swift in Sources */,
-				1F00000100000000000007A3 /* AppUpdateCheckerTests.swift in Sources */,
-				1F00000100000000000007A5 /* AppUpdatePresentationTests.swift in Sources */,
 				1F00000100000000000007A7 /* AppUpdateCommandTests.swift in Sources */,
 				1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */,
-				1F00000100000000000004E1 /* AITestDoubles.swift in Sources */,
-				1F00000100000000000004E2 /* AIConnectionStoreTests.swift in Sources */,
-				1F00000100000000000004E7 /* AIClientTests.swift in Sources */,
+				1F00000100000000000004E1 /* AIEditorTestDoubles.swift in Sources */,
+				1F00000100000000000008C3 /* AITestDoubles.swift in Sources */,
 				1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */,
-				1F00000100000000000004F4 /* AIActionPromptTests.swift in Sources */,
 				1F0000010000000000000508 /* SelectionToolbarTests.swift in Sources */,
-				1F00000100000000000004F5 /* AIResponseParserTests.swift in Sources */,
 				1F00000100000000000004F6 /* AIChangeBuilderTests.swift in Sources */,
 				1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */,
 				1F0000010000000000000502 /* AIReviewCompositionTests.swift in Sources */,
@@ -1289,22 +947,12 @@
 				1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */,
 				1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */,
 				1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */,
-				1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */,
-				1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */,
-				1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */,
 				1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */,
 				1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */,
 				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,
 				1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */,
 				1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */,
-				1F00000100000000000004AC /* SpeechTextExtractorTests.swift in Sources */,
-				1F0000350000000000000021 /* SpeechLanguageDetectorTests.swift in Sources */,
-				1F0000360000000000000021 /* SpeechVoiceResolverTests.swift in Sources */,
-				1F00000100000000000004AE /* SpeechControllerTests.swift in Sources */,
-				1F0000010000000000000061 /* ReadingAssistRangeResolverTests.swift in Sources */,
-				1F0000010000000000000062 /* ReadingAssistPreferenceTests.swift in Sources */,
 				1F0000010000000000000063 /* AppCommandNotificationTests.swift in Sources */,
-				1F0000010000000000000071 /* MarkdownOutlineParserTests.swift in Sources */,
 				1F0000010000000000000072 /* MarkdownPreviewRendererTests.swift in Sources */,
 				1F0000010000000000000073 /* EditorDisplayModeTests.swift in Sources */,
 				1F0000010000000000000081 /* MarkdownWritingToolsProtectionTests.swift in Sources */,
@@ -1320,37 +968,23 @@
 				1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
 				1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */,
-				1F0000010000000000000311 /* OutlineFileSortOrderTests.swift in Sources */,
 				1F0000010000000000000312 /* SidebarFileActionsTests.swift in Sources */,
 				1F0000010000000000000313 /* AppCommandsSidebarFileTests.swift in Sources */,
 				1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */,
 				1F0000010000000000000213 /* DocumentReloadControllerTests.swift in Sources */,
 				1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */,
 				1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */,
-				1F0000170000000000000001 /* MermaidTypeClassifierTests.swift in Sources */,
 				1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */,
-				1F00001A0000000000000001 /* CodeSyntaxHighlighterTests.swift in Sources */,
 				1F00001B0000000000000001 /* CodeSyntaxPaletteContrastTests.swift in Sources */,
-				1F00001C0000000000000001 /* MarkdownCalloutTests.swift in Sources */,
-				1F00001E0000000000000001 /* ImageResolverTests.swift in Sources */,
-				1F00002A0000000000000001 /* ImageExportPreflightTests.swift in Sources */,
-				1F0000200000000000000001 /* ImageFitTests.swift in Sources */,
 				1F0000220000000000000001 /* ImageAttachmentProviderTests.swift in Sources */,
-				1F0000240000000000000001 /* ImageLinkRewriteTests.swift in Sources */,
-				1F00002D0000000000000001 /* ImageInsertionTextTests.swift in Sources */,
 				1F0000260000000000000001 /* MarkdownPreviewRendererHeadingScaleTests.swift in Sources */,
-				1F00000100000000000002B5 /* MarkdownBlockGroupingTests.swift in Sources */,
 				1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */,
 				1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */,
 				1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */,
 				1F000001000000000000032C /* OutlineSidebarTabTests.swift in Sources */,
-				1F00000100000000000003A7 /* QuickOpenIndexTests.swift in Sources */,
-				1F00000100000000000003B2 /* CrossFileSearchResolverTests.swift in Sources */,
-				1F00000100000000000003B4 /* CrossFileSearchModelTests.swift in Sources */,
 				1F00000100000000000004A6 /* QuickLookMarkdownRendererTests.swift in Sources */,
 				1F0000010000000000000330 /* EditorTabStoreTests.swift in Sources */,
 				1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */,
-				1F0000010000000000000233 /* DiagramLogTests.swift in Sources */,
 				1F00002B0000000000000001 /* ExportFormatTests.swift in Sources */,
 				1F0000340000000000000021 /* CJKFontFallbackTests.swift in Sources */,
 			);
@@ -1665,6 +1299,13 @@
  		};
  /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		1F00001400000000000005C1 /* XCLocalSwiftPackageReference "Packages/LineformCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/LineformCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1694,6 +1335,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */;
 			productName = SwiftMath;
+		};
+		1F00001300000000000005C2 /* LineformCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LineformCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -2,6 +2,7 @@ import XCTest
 import AppKit
 import SwiftUI
 @testable import Lineform
+@testable import LineformCore
 
 @MainActor
 final class EditorTabStoreTests: XCTestCase {

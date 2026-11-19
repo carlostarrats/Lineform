@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 extension NSAttributedString.Key {
     /// Attached to a rendered task-checkbox glyph; value is an `NSValue` boxing the `NSRange` of the

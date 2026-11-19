@@ -15,6 +15,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Lineform.xcodeproj -scheme Lineform
+      # The shared LineformCore package on its own, with SwiftPM: proves it builds and its
+      # tests pass without the app (the future iPhone app links the same package).
+      - name: Test LineformCore package
+        run: swift test --package-path Packages/LineformCore
+      # The same package for iOS: catches macOS-only API or an import that would break the
+      # future iPhone app before it exists.
+      - name: Build LineformCore for iOS
+        working-directory: Packages/LineformCore
+        run: xcodebuild -scheme LineformCore -destination 'generic/platform=iOS Simulator' build
       # Runs the scheme's default test plan (Lineform.xctestplan): the full pure,
       # deterministic suite. The hosted-window motion tests (EditorDrawerMotionHostedTests,
       # LiveReloadScrollTests) are quarantined into the opt-in LineformHosted plan — they

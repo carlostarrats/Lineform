@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 /// Hosted-window drawer/inspector motion tests, quarantined into the opt-in
 /// `LineformHosted` test plan (run with `-testPlan LineformHosted`).

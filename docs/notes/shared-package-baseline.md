@@ -1,0 +1,627 @@
+# Shared package extraction: baseline
+
+Recorded 2026-11-19 before any `LineformCore` work, so every later task of the shared-package plan
+can compare against it. Task 1 gates: package 1 test passes; default plan 1983 (1982 app + 1
+`LineformCoreTests`); combined 1984.
+
+- Commit: `0c94147` ("Make privacy wording accurate for every network request"), the HEAD of the
+  Check for Updates branch (controller ruling R1: this is the baseline, not `origin/main`).
+- Xcode 27.2 (27B52), Swift 6.4.2, macOS 27.2.1 (26B131), Apple silicon MacBook Pro.
+
+## Test counts
+
+| Plan | Passed | Failed | Skipped |
+|---|---|---|---|
+| Default (`Lineform.xctestplan`) | 1982 | 0 | 0 |
+| Hosted (`-testPlan LineformHosted`) | 25 | 1 | 0 |
+
+Both run with `-parallel-testing-enabled NO`, Xcode not running.
+
+Hosted failure: `EditorDrawerMotionHostedTests/testThemeSwitchStressAcrossEditorSurfacesStaysResponsiveAndResourceBoundedOnMacOS27`
+(`XCTAssertLessThan failed: ("21.12") is not less than ("15.0")`, EditorDrawerMotionHostedTests.swift:665).
+During that full run a few short Python script runs happened in another shell (light load, but
+not a perfectly quiet machine). Re-run once in isolation (`-only-testing:` that one test, nothing else running) at the same
+commit: failed again, `15.71` vs `15.0`. Nothing was changed. This is a wall-clock budget on a
+load-sensitive hosted test (see `docs/notes/hosted-test-plan.md` on machine state); it fails at
+the baseline, so a later failure of the same test is not by itself a regression from this plan.
+Later tasks compare the hosted plan against 25 passed + this one known failure.
+
+## Release build
+
+`xcodebuild -project Lineform.xcodeproj -scheme Lineform -configuration Release -destination 'platform=macOS' build`
+after `clean`, default DerivedData (package checkouts and the module cache already warm):
+**119 s**, BUILD SUCCEEDED.
+
+## Performance timings (default plan, Debug test host)
+
+`LargeDocumentPerformanceTests` (`measure` with `XCTClockMetric`, 5 values each, seconds):
+
+| Test | Average | Values | RSD |
+|---|---|---|---|
+| testBenchmarkLargeDocumentStatistics | 0.001 | 0.000727, 0.000723, 0.000711, 0.000711, 0.000723 | 0.958% |
+| testBenchmarkLargeOutlineParsing | 0.000 | 0.000387, 0.000392, 0.000383, 0.000381, 0.000379 | 1.122% |
+| testBenchmarkLargePreviewRendering | 0.067 | 0.065773, 0.064638, 0.067586, 0.069048, 0.069019 | 2.617% |
+| testBenchmarkLargeSyntaxHighlighting | 0.006 | 0.005701, 0.005932, 0.005618, 0.005894, 0.005719 | 2.076% |
+| testBenchmarkRepeatedLargePreviewApplyForUnchangedContent | 0.000 | 0.000038, 0.000036, 0.000038, 0.000024, 0.000024 | 21.011% |
+
+`MarkdownSpellCheckPerformanceTests`:
+
+```
+[perf] checkableRanges 4.382 ms/call vs whole-document 24.617 ms/call — 5.6× faster on 730 KB (floor 4.0×)
+```
+
+(Also measured in the same run: `MarkdownListContinuationTests/testBenchmarkReturnOnAListLineInALargeDocument`,
+average 0.003 s, values 0.002810, 0.002837, 0.002827, 0.002813, 0.002973.)
+
+To compare later: `grep -E "measured|\[perf\]"` over the default-plan `xcodebuild test` log.
+
+### After the move (Task 11, for comparison with the above)
+
+Recorded at the end of the plan (Task 11 tree: `c196a8c` plus docs and the `Package.swift` change
+below). Same Mac, Xcode not running.
+
+| Gate | Baseline (`0c94147`) | After the move |
+|---|---|---|
+| `swift test --package-path Packages/LineformCore` | 1 | 519 passed |
+| Default plan (after `xcodebuild clean`) | 1982 + 1 | 1991 passed (LineformTests 1472 + LineformCoreTests 519), 0 failed |
+| Unique tests | 1983 | 1991 (1983 + 4 History compatibility tests in Task 7 + 4 drift guards in Task 10) |
+| Hosted plan | 25 passed, 1 known failure | 26 of 26 passed |
+| Archive (`-configuration Release archive`) | not run | ARCHIVE SUCCEEDED, 91 s, signed by the owner's certificate |
+
+Default plan, Debug with coverage: `[perf] checkableRanges 7.546 ms/call vs whole-document 79.051
+ms/call — 10.5×` (floor 4×). This number is higher than the baseline's 5.6× because the package
+builds at `-Onone` in Debug (see Task 4). It is not a regression.
+
+Optimised timings. The method is Task 4's: Debug with `SWIFT_OPTIMIZATION_LEVEL=-O`,
+`SWIFT_COMPILATION_MODE=wholemodule`, code coverage off, separate DerivedData, baseline worktree and
+head run interleaved. The table shows 3 runs each, a median of 15 `measure` samples, and a median
+of 3 `[perf]` lines (ms):
+
+| Measurement | `0c94147` | After the move |
+|---|---|---|
+| LargeDocumentStatistics | 0.702 | 0.700 |
+| LargeOutlineParsing | 0.382 | 0.369 |
+| LargePreviewRendering | 60.8 | 60.5 |
+| LargeSyntaxHighlighting | 4.22 | 4.22 |
+| RepeatedLargePreviewApply | 0.034 | 0.028 |
+| ReturnOnAListLine | 2.79 | 2.79 |
+| spell `checkableRanges` (hot path) | 1.08 | 1.22 (see below) |
+| spell whole-document reference | 24.0 | 24.1 |
+| LayoutReentrancy apply typography (s) | 0.172 | 0.171 |
+
+**The spell hot-path row varies from build to build. The move did not slow it.** One unchanged
+source tree (`c196a8c`, the same worktree) was built twice into two fresh DerivedData folders. Run
+interleaved, the two builds measured 1.034, 1.038 and 1.044 ms, and 1.220, 1.197 and 1.217 ms.
+The values cluster near ~1.05 and ~1.21. Some single builds gave both: one
+`beaeb5c` build measured 1.224, 1.219 and 1.052, and one `a73d9bb` build measured 1.15 and 1.04. The
+Task 4 and Task 7 builds measured 1.03 to 1.11. The likely cause is code layout or alignment
+around a 1 ms loop. No source change in this plan is behind it. All other rows are within ±4% of the baseline, so `@inlinable`
+was not added.
+
+## Package placeholder string (Task 1 → Task 3)
+
+The package catalog holds one placeholder key, `LineformCore placeholder`, with explicit
+stringUnits in en, es, fr, de, ja and zh-Hans. An empty catalog compiles to no `.lproj` at all,
+so without the placeholder `PackageSmokeTests` cannot pass. Task 3 deletes the placeholder
+together with `LineformCore.swift`, and replaces the smoke assertion with a check that a real
+moved key resolves to its Japanese translation through `Bundle.module`.
+
+The hosted failure above (`EditorDrawerMotionHostedTests` theme-switch stress: 21.1 s in the full
+run and 15.7 s alone, against a 15.0 s limit) already exists at `0c94147`. It is not caused by
+this plan.
+
+## Task 2: split pure types out of AppKit files
+
+Eleven new files, each importing only Foundation (`DocumentSaveStatus.swift` also imports Combine
+for `ObservableObject`/`@Published`). Every declaration was cut verbatim; the only edit is
+`MarkdownSyntaxHighlighter.analyzer` widened from `private` to internal (see below). Gates
+unchanged: package 1, default plan 1983, combined 1984.
+
+Taken along because a listed type's signature needs them (pure, same file order):
+`MermaidDiagramKind` (the return type of `MermaidTypeClassifier.classify`) into
+`MermaidSource.swift`; `MathStyle` (a stored property of `MathSpan`) into `MathDelimiters.swift`;
+`OutlineFileRootState` (a stored property of `OutlineFileRoot`) into `OutlineFileTree.swift`;
+the `#if DEBUG` `DocumentSaveStatus.testInstance()` extension (it calls the `private init`, so it
+must share the file).
+
+`CacheBudgets.swift` was not created: `DiagramCacheBudget`, `MathCacheBudget` and
+`ImageCacheBudget` (in `Preview/DiagramCardStyle.swift`) are referenced only by the AppKit image
+providers and `DiagramCardAndCacheTests`, never by pure code, so the plan's condition is not met.
+Task 3's `CacheBudgets` entry therefore has no file to move.
+
+### Stays until the platform-layer plan
+
+- `Editor/MarkdownSyntaxTokens.swift`: `scopedTokenRange(visibleRange:margin:in:)` and
+  `tokens(in:scope:)` sit in an `extension MarkdownSyntaxHighlighter`, because `tokens(in:scope:)`
+  is an instance method (it reads the highlighter's `analyzer`) and both must stay reachable under
+  their current names. The extension imports only Foundation, but `MarkdownSyntaxHighlighter` is
+  the AppKit class, so this file cannot move into `LineformCore` until the highlighter is split in
+  the platform-layer plan. The "pure token types" (`MarkdownTokenKind`, `MarkdownTokenRange`)
+  were already in the pure `MarkdownRangeAnalyzer.swift`; nothing else to split.
+- Left in their AppKit files because they take or return AppKit types: `MermaidHexColor`,
+  `MermaidImageOrientation`, `MermaidRenderOutcome`, `MermaidPieRenderer`,
+  `MathImageOrientation`, `MathRenderOutcome`, `RasterImageCost`, and the image providers.
+- Pure but not in Task 2's list, so left where they are: `MermaidCacheKey`, `MathBlockPolicy`,
+  `MathCacheKey` (CryptoKit + CGFloat), `OutlineFileTreeFlatRow`,
+  `SecurityScopedResourceAccessing`/`URLSecurityScopedResourceAccessor`,
+  `MarkdownSyntaxHighlighter.range(_:covers:)`.
+- Task 8: `AI/AIActionController.swift`, `AI/AISentenceSplitter.swift` and
+  `Editor/DocumentHistoryController.swift`. The first two call `MarkdownStructureMap`
+  (`proseSegments(in:selection:)`, `SourceModel`, `edgeTrimmed`), which stays in the app because
+  it uses the AppKit `MarkdownSyntaxHighlighter` (Task 4). `DocumentHistoryController` also uses
+  app types: `attach(_:)`/`detach(_:)` take `LineformTextView`, and it uses `HistoryEditorSurface`,
+  `HistoryModeDisplay`, `HistoryCounter` and `HistoryTextCommand` (declared in the AppKit file
+  `LineformTextView+History.swift`) and `HistorySidebarModel`/`HistorySidebarRow` (declared in the
+  SwiftUI file `HistorySidebarView.swift`). The plan said its two lifecycle observers
+  (`NSWindow.willCloseNotification`, `NSApplication.willTerminateNotification`) were its only AppKit
+  use; that was wrong. The controller was not changed, so its lifecycle wiring is as before and
+  there is no `DocumentHistoryControllerLifecycleTests` (no behaviour moved).
+
+## Task 3: Markdown core moved into LineformCore
+
+Seventeen files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Markdown/`
+(`MarkdownBlockGrouping`, `MarkdownInlineSyntax`, `MarkdownHTMLRenderer`, `CodeHighlighting`,
+`ImageResolver`, `ImageLinkRewrite`, `ImageExportPreflight`, `ImageFit`, `DiagramLog`,
+`MermaidSource`, `MermaidPieChartModel`, `MathDelimiters`, `MarkdownHeadingParser`,
+`MarkdownOutlineParser`, `MarkdownReference`, `MarkdownRangeAnalyzer`, `MarkdownLineEnding`).
+The placeholder `LineformCore.swift` and its catalog key are gone. Nothing in the group needed an
+app type, so nothing was split or left behind for that reason.
+
+Not moved: `CacheBudgets` (no file; see Task 2) and `Editor/MarkdownSyntaxTokens.swift` (an
+extension of the AppKit `MarkdownSyntaxHighlighter`; see "Stays until the platform-layer plan").
+
+Edits beyond `public`: explicit `public init`s (`MarkdownTokenRange(kind:range:)`, and empty ones
+for `MarkdownRangeAnalyzer`, `MarkdownOutlineParser`, `CodeSyntaxHighlighter`,
+`NullDiagramFailureLog`); `Sendable` on `MarkdownTokenKind` (a public type loses the implicit
+conformance an internal one had, and the app's `static let Set<MarkdownTokenKind>` needs it);
+`DiagramLogStore` uses `URL(fileURLWithPath: NSHomeDirectory())` (same path on macOS, sandboxed or
+not); `MarkdownReference`'s bundle defaults are `.module` (`sections(in:)`, internal) and
+`.lineformCore` for the two public row methods, because a public default argument cannot name the
+internal `Bundle.module`. `Bundle.lineformCore` (new, `LineformCoreBundle.swift`) is that public
+alias.
+
+Strings: 41 distinct keys (42 call sites; "Spelling" is used twice). 38 moved; "Markdown Basics",
+"Block Spacing" and "Search" are also used by app code, so they were copied and stay in the app
+catalog too. Xcode emits no `en.lproj` for the package bundle (the development language needs no
+table without plurals); resolution still picks `en` for an English-first user, exactly like the
+app bundle (checked with `Bundle.preferredLocalizations` against the built bundle).
+
+## Task 4: editing logic moved into LineformCore
+
+Eight files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Editor/`:
+`MarkdownListContinuation`, `MarkdownTableEditing`, `MarkdownHeadingEditing`,
+`MarkdownFormattingCommand`, `MarkdownWritingToolsProtection`, `ImageInsertionText`,
+`DocumentStatistics`, `EditorDisplayMode`.
+
+Left in the app, and why:
+- `MarkdownSpellCheckRegions`: `checkableRanges` takes a `MarkdownSyntaxHighlighter` (the AppKit
+  class) and calls `MarkdownSyntaxHighlighter.scopedTokenRange` and `tokens(in:scope:)`, which live
+  in the `extension MarkdownSyntaxHighlighter` in `MarkdownSyntaxTokens.swift` (see "Stays until the
+  platform-layer plan"). It moves when the highlighter is split.
+- `MarkdownStructureMap`: constructs `MarkdownSyntaxHighlighter()` and calls
+  `MarkdownSpellCheckRegions.subtracting`, so it is blocked by the same thing.
+- `ReadingAssistRangeResolver`: its signature takes `FocusMode`, declared in
+  `ReadingExperience/ReadingProfile.swift`, which is Task 6's group. It can move with or after Task 6.
+
+Edits beyond `public`: explicit `public init`s for `MarkdownEdit(text:selectedRange:)` and
+`MarkdownPlainTextConversion(originalMarkdown:plainText:range:)` (same labels and order as the
+memberwise inits; the app constructs both). `Sendable` added to `MarkdownFormattingCommand`,
+`LineformTextFormat` and `MarkdownPlainTextConversion`: a public type loses the implicit
+conformance an internal one had. Without it, `allCommands`/`allProbeCases` in two test files fail
+Swift 6 checks, and `LineformDocument` (a `Sendable` struct) gets new warnings. The
+`import LineformCore` lines Task 3 added to the moved files were removed, because a module cannot
+import itself.
+
+Strings: `EditorDisplayMode.title` has 3 keys ("Write", "Read", "Preview"). All three are copied
+with `--keep-in-app`: `AppCommands.allEnglishTitleKeys` lists them for `MainMenuIconDecorator`,
+which looks them up in the app bundle.
+
+Tests: `ImageInsertionTextTests` (6), `MarkdownFormattingCommandTests` (18) and
+`MarkdownTableEditingTests` (44) moved. `DocumentStatisticsTests` stays (it uses the app's
+`EditorStatusFormatter`). `MarkdownListContinuationTests` and `MarkdownHeadingEditingTests` stay
+(they host a `LineformTextView`). `MarkdownWritingToolsProtectionTests` stays (it calls
+`MarkdownSpellCheckRegions`).
+Gates: package 249, app 1734, default plan 1983, so unique tests are still 1983.
+
+### Performance (Review Focus 4)
+
+**Method.** You cannot test-build the Release configuration as it is:
+- the Release test bundle does not compile, because tests use `#if DEBUG` helpers such as
+  `DocumentSaveStatus.testInstance()` and `engagedSessionCountForTesting`;
+- with `SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG`, ad-hoc signing and the Debug entitlements, the
+  test runner hung before connecting.
+
+The closest valid method is the Debug configuration with Release's Swift optimiser settings applied
+to every target, the package included. Script: `.superpowers/perf/run.sh`, which is git-ignored:
+
+```
+xcodebuild build-for-testing … -configuration Debug -enableCodeCoverage NO \
+  SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule
+xcodebuild test-without-building … -parallel-testing-enabled NO \
+  -only-testing:LineformTests/{LargeDocumentPerformanceTests,LargeDocumentLayoutReentrancyTests,
+  MarkdownSpellCheckPerformanceTests,ScopedSyntaxHighlightingTests,
+  MarkdownListContinuationTests/testBenchmarkReturnOnAListLineInALargeDocument}
+```
+
+- The scheme turns on code coverage (`-profile-generate`), and the shipped build does not have it,
+  so it is off for the main measurement.
+- Three commits were measured, each with its own DerivedData: `0c94147` (baseline, worktree),
+  `ebf1334` (Task 3, worktree) and this task's tree.
+- The three run interleaved, 3 runs each. A `measure` value is the median of 15 samples; the
+  spell-check value is the median of 3 `[perf]` lines.
+- Same Mac as above. Another session on the machine was building, so load averages were 3 to 17.
+  The runs are interleaved, so that load falls on all three equally.
+
+Optimised, no coverage (ms, median):
+
+| Measurement | 0c94147 | ebf1334 | Task 4 |
+|---|---|---|---|
+| LargeDocumentStatistics | 0.734 | 0.683 | 0.701 |
+| LargeOutlineParsing | 0.380 | 0.370 | 0.369 |
+| LargePreviewRendering | 61.4 | 60.6 | 61.4 |
+| LargeSyntaxHighlighting | 4.22 | 4.23 | 4.27 |
+| RepeatedLargePreviewApply | 0.034 | 0.035 | 0.036 |
+| ReturnOnAListLine (list continuation) | 2.81 | 2.80 | 2.79 |
+| spell `checkableRanges` (hot path) | 1.072 | 1.057 | 1.045 |
+| spell whole-document reference | 24.5 | 24.5 | 24.3 |
+| spell ratio | 23.1× | 23.4× | 23.1× |
+| LayoutReentrancy apply typography (s) | 0.178 | 0.175 | 0.174 |
+
+The same build with coverage on gave the same picture: every row within 3% of baseline, and
+`checkableRanges` 4.16, 4.16 and 4.21 ms. No hot path regressed by more than 10% in an optimised
+build, so `@inlinable` was not added. The four named suites all passed in every run.
+
+**Why the Debug numbers moved (24.6 → 69.9 ms).** It is real and reproducible, and it is a
+Debug-only artifact:
+- The app target sets no `SWIFT_OPTIMIZATION_LEVEL`, so Xcode's default applies, and the app's
+  **Debug build compiles at `-O`**. The build logs show `-module-name Lineform … -O`.
+- SwiftPM builds a package's Debug configuration at **`-Onone`** (`-module-name LineformCore …
+  -Onone`).
+- So every move into the package takes that code from `-O` to `-Onone` in Debug, and only in Debug.
+  In Release both are `-O`, which the table above confirms.
+
+Debug, coverage on (the default plan's settings), interleaved, 3 runs each (ms, median):
+
+| Measurement | 0c94147 | ebf1334 | Task 4 |
+|---|---|---|---|
+| spell `checkableRanges` | 4.22 | 4.18 | 7.35 |
+| spell whole-document | 24.1 | 70.3 | 80.4 |
+| spell ratio | 5.7× | 16.5× | 11.0× |
+| LargeOutlineParsing | 0.411 | 0.667 | 0.667 |
+| LargeDocumentStatistics | 0.781 | 0.710 | 1.041 |
+| ReturnOnAListLine | 2.80 | 2.79 | 3.17 |
+
+- Task 3 moved `MarkdownRangeAnalyzer`, `MathDelimiters` and `MermaidFence`. They make up most of
+  the whole-document pass, so the reference tripled.
+- Task 4 moves `MarkdownWritingToolsProtection.protectedRanges`, which the hot path calls, so
+  `checkableRanges` rises too. `DocumentStatistics` and list continuation move as well, so those
+  rows rise too.
+- Full default plan at Task 4: `[perf] checkableRanges 7.503 ms/call vs whole-document 80.187
+  ms/call — 10.7×`.
+
+The `MarkdownSpellCheckPerformanceTests` doc comment says this test runs in Debug and that Debug is
+"~3.6× slower" than the shipped build. In this project that is not true: the app's Debug has been
+`-O` all along. Only the moved code now runs at `-Onone` in Debug.
+
+**Ratio-gate sensitivity (concern, thresholds unchanged).**
+- The gate runs in the Debug default plan, where the reference now pays `-Onone`. At baseline the
+  ratio was 5.7×, 1.4× above the 4× floor. It is now 10.7–11.0×, about 2.7× above it.
+- So the scoped path could now get about 2.7× slower before the gate fails; at baseline the limit
+  was about 1.4×.
+- The regression the gate exists for, a whole-document pass in the checking path, would still score
+  about 1×. Both sides would run the same `-Onone` package code, so that case is still caught.
+- The loss is for partial slowdowns between about 1.4× and 2.7×.
+- Options, all for the controller to decide: give the package `-O` in Debug through
+  `unsafeFlags` or settings, measure the gate in an optimised build, or recalibrate.
+
+Release build at Task 4 (`xcodebuild -configuration Release build`, after `clean`): BUILD SUCCEEDED.
+iOS Simulator build of the `LineformCore` scheme: BUILD SUCCEEDED.
+
+## Task 5: search and file tree model moved into LineformCore
+
+Seven files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Search/`:
+`EditorSearchResolver`, `CrossFileSearchResolver`, `CrossFileSearchModel` (from `Editor/`) and
+`OutlineFileTree`, `OutlineFileSortOrder`, `QuickOpenIndex`, `UbiquitousItemDownloader` (from
+`Outline/`). The package built with the whole group on the first try: no file needed an app type,
+nothing was split or left behind. `DirectoryEventMonitor` and `OutlineFileBrowserStore` stay in
+the app, as the plan says.
+
+Edits beyond `public`:
+- An explicit `public init(id:title:systemImage:state:items:)` on `OutlineFileRoot`, with the same
+  labels and order as the memberwise init. The app constructs it.
+- An empty `public init() {}` on `CrossFileSearchFileReader`, which has no instance stored
+  properties. `CrossFileSearchModel`'s public init uses it as a default argument.
+- `Sendable` on `QuickOpenEntry` and `OutlineFileSortOrder`. A public type loses the implicit
+  conformance an internal one had:
+  - `QuickOpenEntry`: without it, `CrossFileSearchModel.search` fails a Swift 6 region-isolation
+    check, because it sends `entries` into the nonisolated `scan`.
+  - `OutlineFileSortOrder`: without it, `OutlineSidebarView` gets a new "capture of non-Sendable"
+    warning.
+- `CrossFileSearchResolver` and `EditorSearchToolbarPresentation` stay internal. No app code uses
+  them; only the package and `@testable` tests do.
+
+Persisted identifiers: `OutlineFileSortOrder`'s raw values are its case names (`name`,
+`dateCreated`, `dateModified`), and they did not change. The defaults keys live in
+`OutlineFileBrowserStore`, which stays in the app. `OutlineFileTreeItem`'s `CodingKeys` did not
+change either.
+
+Strings: 6 keys.
+- Moved: "Date Created", "Date Modified", "Search for %@. No matches." and
+  "Search for %@. %@. Result %lld of %lld.".
+- Copied with `--keep-in-app`:
+  - "Name": `TextField("Name")` in `EditorContainerView` uses it.
+  - "%lld matches": `CrossFileSearchResultsView` uses it.
+- The script warned that the "Result %lld of %lld." entry's `en` stringUnit is in state `new`.
+  That was already true in the app catalog, and the entry moved unchanged.
+- The built package bundle's `ja` and `de` tables hold all six keys, translated, including the
+  plural `stringsdict` entry for "%lld matches".
+
+Tests: `CrossFileSearchResolverTests`, `CrossFileSearchModelTests`, `QuickOpenIndexTests` and
+`OutlineFileSortOrderTests` moved (38 tests). The only change in each is the import.
+`OutlineSidebarViewTests`, `EditorDisplayModeTests` and `RobustnessProbeTests` stay, because they
+use app types. They already had `@testable import LineformCore`.
+
+Gates: package 287, app 1696, default plan 1983, so unique tests are still 1983.
+
+## Task 6: reading model and speech moved into LineformCore
+
+Ten files moved verbatim into `Packages/LineformCore/Sources/LineformCore/ReadingExperience/`:
+`ThemeID`, `ReadingProfile` (with `FontID` and `FocusMode`), `ReadingPreset`,
+`ReadingProfileStore`, `SpeechController` (with `SystemSpeechSynthesizer`),
+`SpeechLanguageDetector`, `SpeechTextExtractor`, `SpeechVoiceResolver`, `BundledFontRegistrar`,
+and `ReadingAssistRangeResolver` (from `Lineform/Editor/`, deferred from Task 4 because it takes
+`FocusMode`). Nothing imports AppKit or SwiftUI and nothing uses an app type, so nothing was split
+or left behind. `SpeechController` uses only `AVSpeechSynthesizer`, which iOS also has; there is
+no `NSSpeechSynthesizer`. `Theme`, `FontOption`, `LineformColors` and `ReadingExperiencePopover`
+are AppKit/SwiftUI and stay in the app.
+
+Edits beyond `public`:
+- `Sendable` on `ThemeID`, `FontID`, `FocusMode`, `ReadingProfile` and `ReadingPreset`. A public
+  type loses the implicit conformance an internal one had, and the package's own `static let`
+  presets, `ReadingProfile.original` and `automaticDarkModeExemptThemes` fail Swift 6 checks
+  without it.
+- `public` on `ThemeID.init(from:)`/`encode(to:)`, on every `SystemSpeechSynthesizer` member that
+  witnesses `SpeechSynthesizing`, and on its four `AVSpeechSynthesizerDelegate` methods (the
+  compiler requires it; the methods stay the delegate witnesses, so didFinish/didPause/didContinue
+  still arrive). `SystemSpeechSynthesizer` and `SpeechSynthesizing` are public only because the
+  public `SpeechController.init(synthesizer:)` uses them as its default argument and parameter type.
+- Internal still: `SpeechLanguageDetector`, `SpeechVoiceResolver`, `SpeechVoiceCandidate`,
+  `SpeechVoiceDecision`, `FocusMode.displayName`, the unused `ReadingProfile` fields
+  (`name`, `focusMode`, `reduceMarkdownNoise`, `reduceMotionEnabled`,
+  `adaptiveReadabilityEnabled`), and the store's defaults-key constants.
+
+Persisted identifiers (Review Focus 2): unchanged. `ReadingProfileStore` keeps
+`UserDefaults.standard`, the storage key `Lineform.activeReadingProfile`,
+`Lineform.activeReadingPresetID` and `Lineform.readingPresetOverrides`. `ReadingProfile` has no
+`CodingKeys` (synthesized from unchanged property names); the raw values of `ThemeID`, `FontID`
+and `FocusMode` and `ThemeID`'s legacy `"lowLight"` decode did not change.
+
+Fonts (Review Focus 3): `BundledFontRegistrar.registerFonts(bundle: Bundle = .main)` is unchanged.
+A default argument is evaluated in the caller, and `Bundle.main` is the running process's bundle
+in any module, so `LineformApp`'s call still reads `Lineform.app/Contents/Resources/Fonts`. The
+font files did not move. `FontOptionTests` (stays; it uses the app's `FontOption`) registers with
+the default and resolves Atkinson Hyperlegible and OpenDyslexic in the test host.
+
+Strings: 7 keys. Moved: "Original", "Quiet", "Paper", "Calm", "Focus" (`ReadingPreset.title`).
+Copied with `--keep-in-app`: "Code" (`AppCommands`, `LineformTextView`, `SelectionToolbar`) and
+"Image" (`MarkdownPreviewRenderer`).
+
+Tests moved (72): `ReadingAssistRangeResolverTests`, `ReadingProfileTests`,
+`SpeechControllerTests`, `SpeechLanguageDetectorTests`, `SpeechTextExtractorTests`,
+`SpeechVoiceResolverTests`, `ReadingAssistPreferenceTests`; only the import changed. Stay (use app
+types): `ReadingPresetTests`, `ReadingProfileStoreTests`, `ThemeTests`, `FontOptionTests` and
+others, which gained `@testable import LineformCore`.
+
+Gates: package 359, app 1624, default plan 1983, so unique tests are still 1983.
+
+## Task 7: documents and History moved into LineformCore
+
+Eight files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Documents/`:
+`DocumentReloadPolicy`, `PassageHistoryModel`, `PassageHistoryText`, `PassageHistoryStore`,
+`DocumentHistoryEngine`, `FileIdentity`, `DocumentSaveStatus` (Foundation + Combine) and
+`HistoryUndoCollapse`. None imports AppKit or SwiftUI or uses an app type, so nothing was split
+or left behind. `PassageHistoryText`'s `import LineformCore` (added in Task 3) was removed: a
+module cannot import itself. `DocumentHistoryController` (NSWindow/NSApplication notifications),
+`DocumentReloadController` (AppKit) and `LineformDocument` (AppKit/SwiftUI) stay in the app.
+
+Edits beyond `public`:
+- `Sendable` on `DocumentHistory`, `HistoryPassage`, `HistoryVersion`, `HistoryLevel` and
+  `HistoryAuthor`: the store's `private static let empty = DocumentHistory(passages: [])` fails
+  Swift 6's global-variable check without it, and `DocumentHistory`'s conformance needs the rest.
+- `public init(passages:)` on `DocumentHistory` (the app constructs it; memberwise label).
+- `bundle: .module` on the three `HistoryLevel.title` strings.
+- `PackageSmokeTests` reads `Bundle.lineformCore` instead of `Bundle.module`. The test target now
+  has a resource (the fixture), so inside the tests `Bundle.module` names the TEST bundle, which
+  has no `ja.lproj`. `Bundle.lineformCore` is the same LineformCore bundle the test always checked.
+
+Persisted identifiers (Review Focus 2): unchanged. `FilePassageHistoryStore.defaultDirectory(home:)`
+is still `<home>/Library/Application Support/Lineform/History` (the app passes the container home);
+`index.json` and `<UUID>.json`; `IndexEntry` keys `id`, `pathKey`, `bookmark` (optional); the model types have
+no `CodingKeys`, so their keys are their unchanged property names; `secondsSince1970` dates;
+`staleInterval` 30 days. All pinned by `PassageHistoryStoreCompatibilityTests`.
+
+### The 1.8.0 History fixture
+
+`Packages/LineformCore/Tests/LineformCoreTests/Fixtures/history-1.8.0/` (`index.json` and
+`765470F0-A5A0-4B50-8A51-561097BFC28D.json`, a `.copy` resource of the test target) was written
+by the baseline's own code (ruling R3: History code unchanged since 1.8.0 build 41):
+
+1. `git worktree add --detach .superpowers/fixture-gen 0c94147` (git-ignored folder).
+2. In that worktree only, a throwaway test `testGenerateHistoryFixture_1_8_0` appended to
+   `LineformTests/PassageHistoryStoreTests.swift`. It built one `DocumentHistory` of two passages
+   and called the real `FilePassageHistoryStore(directory:).save(_:for:)` (store directory under
+   the test host's temporary directory) for the URL
+   `/Lineform-1.8.0-fixture/Documents/Two passages.md`. That file does not exist and its parent
+   chain exists on no machine, so the key is the path as written and the baseline stores no
+   bookmark (nothing to bookmark; the optional key is omitted):
+   - passage 0, `.word`, versions "gentle" (you) and "dangerous" (ai), `currentIndex` 1, child of
+     passage 1 at version 1, context "The wind was " / " that night.";
+   - passage 1, `.sentence`, "The wind was gentle that night." / "The wind was dangerous that
+     night." (both you), no parent.
+   Dates are fixed (`1_793_491_200` and one hour later). The test printed each stored file
+   base64-encoded and then deleted its folder (the shell cannot read the app container).
+3. `xcodebuild test ... -derivedDataPath <scratchpad>/fixture-dd
+   -only-testing:LineformTests/PassageHistoryStoreTests/testGenerateHistoryFixture_1_8_0`:
+   TEST SUCCEEDED. The base64 lines were decoded byte-for-byte into the fixture folder.
+4. `git worktree remove --force .superpowers/fixture-gen`. Nothing from the worktree was committed.
+
+A first version of the fixture used a real temporary file, so its index held a bookmark with this
+Mac's volume and sandbox data; it was replaced (the repository is public) before the commit was
+kept. `load(for:)` never reads the bookmark, so no behaviour under test depends on it.
+
+SHA-256: `index.json` 221e15766743a026db5adc0237a8ff38bf71f34f8d02d9400dad31332cdea225,
+record 0c396853e42a45698f8cee0f8933ff0025f5a01e565047ce844161b53d09343f.
+
+The store keys on `FileIdentity.key(for:)`; the test loads through the real public `load(for:)`
+with the fixture's `pathKey` as the URL (the index/record readers are `private`) and asserts the
+file does not exist.
+
+Never regenerate the fixture with post-move code: its value is that the bytes predate the move.
+
+Tests moved (88): `PassageHistoryStoreTests` (17), `PassageHistoryTextTests` (20),
+`DocumentHistoryEngineTests` (51); only the import changed. `DocumentReloadPolicyTests` stays (it
+also tests the app's `ProportionalScrollMath`). New: `PassageHistoryStoreCompatibilityTests` (4).
+Gates: package 451, app 1536, default plan 1987, so unique tests are 1983 + 4 new = 1987.
+
+## Task 8: AI moved into LineformCore
+
+Fifteen files moved verbatim into `Packages/LineformCore/Sources/LineformCore/AI/`: `AIAction`,
+`AIActionPrompt`, `AIProvider`, `AIClient`, `AnthropicMessagesClient`, `OpenAICompatibleClient`,
+`AIHTTPTransport`, `AIKeychain`, `AIConnectionStore`, `AIResponseParser`, `AIChangeBuilder`,
+`AIReviewComposition`, `AIReviewSession`, `ConnectAIPresentation` and `AIReviewCardPresentation`.
+`AIActionController`, `AISentenceSplitter` and `DocumentHistoryController` stay in the app (see
+"Stays until the platform-layer plan" above). The `import LineformCore` lines in
+`AIChangeBuilder` and `AIReviewComposition` were removed (self-import).
+
+Split (Task 2 pattern): `ProseSegment` (two stored properties, `range` and `text`) was cut
+verbatim from the top of the app's `Editor/MarkdownStructureMap.swift` into its own Foundation-only
+file, `AI/ProseSegment.swift`, because `AIChangeBuilder` takes it. It gained a `public init(range:text:)`
+(memberwise label and order); `MarkdownStructureMap` and the tests construct it.
+
+Edits beyond `public`:
+- `Sendable` on `AIProvider`, `AIConnection`, `AIAction`, `AIPrompt` and `AIReviewComposition`
+  (a public type loses its implicit conformance: the clients are `Sendable` structs holding an
+  `AIConnection`, `AIAction.rewriteMenuGroups` and `AIReviewComposition.empty` are global lets, and
+  `AIActionController` sends an `AIPrompt` across isolation).
+- Explicit `public init`s, same labels and order as before: `ProseSegment`, `AIChange` (its
+  nested `Part` became public because the init's default parameter names it), `AIReviewSession`
+  (already explicit; made public), `AIReviewCompositionCache` (`public init() {}`),
+  `URLSessionAITransport` (already explicit; made public).
+- Strings: every `String(localized:)` without a bundle gained `bundle: .module`. The functions
+  that take `bundle: Bundle = .main` (so tests can pass a per-language bundle) now default to
+  `.module`, or `.lineformCore` where the function is public (a public default argument cannot
+  name the internal `Bundle.module`; `Bundle.lineformCore` is `.module`), and the
+  `static var x: String { x(bundle: .main) }` wrappers pass `.module`.
+- `AIKeychain.swift` is unchanged apart from `public`: `SystemAIKeychain.init(service:)` still
+  defaults to `(Bundle.main.bundleIdentifier ?? "com.lineform.app") + ".ai"`. It is evaluated in
+  the running process, so `Bundle.main` is still the app and the Keychain service is still
+  `<bundle id>.ai` (Review Focus 2). `SystemAIKeychain` itself stays internal (only
+  `AIConnectionStore.shared` constructs it). `AIConnectionStore`'s UserDefaults keys and the
+  Keychain account names (provider raw values) did not change.
+- The consent button strings in `ConnectAIPresentation.connectButtonTitle` are unchanged apart from
+  `bundle: .module`.
+
+Strings: 99 keys. Moved: 95. Copied with `--keep-in-app` because app code still uses them:
+"Custom" (`SelectionToolbar`), "Accept All" (`AIReviewTextView`), "Close"
+(`ReadingExperiencePopover`, `EditorChromeAndControls`) and "Suggested changes"
+(`AIReviewTextView`). The script warned that the `en` stringUnit of most AI keys is in state
+`new`; that was already so in the app catalog. Both catalogs pass the byte-identical round-trip
+check. `LocalizationSourceSweepTests`' allowlist entries (`AIProvider.swift|Claude`,
+`AIActionPrompt.swift|modelInstruction`, ...) key on the file name, which did not change; the sweep passes.
+
+Test doubles: `LineformTests/AITestDoubles.swift` moved to
+`Packages/LineformCore/Sources/LineformCoreTestSupport/AITestDoubles.swift`, a non-test library
+target (product `LineformCoreTestSupport`) that `LineformCoreTests` depends on. Its doubles
+(`InMemoryAIKeychain`, `FakeAITransport`, `StubURLProtocol`, `FakeAIClient`, `SplitMix64`)
+became public (with `public init()` on `InMemoryAIKeychain`); `AIKeychain`, `AIHTTPTransport` and
+`AIPrompt.user` became public for them. `FakeAIEditorSurface` conforms to `AIEditorSurface` (in
+`AIActionController`, which stays) and holds a `DocumentHistoryController`, so it moved verbatim
+into a new app test file, `LineformTests/AIEditorTestDoubles.swift`.
+`LineformTests` does NOT link the `LineformCoreTestSupport` product. Linking it made Xcode turn
+`LineformCore` from a static object into a dynamic `LineformCore.framework` embedded in
+`Lineform.app/Contents/Frameworks` (the test bundle and the app would otherwise each hold a copy),
+and `LineformCoreTests` then crashed with "unable to find bundle named LineformCore_LineformCore".
+Instead the one file is also compiled into `LineformTests` through a project file reference
+(`SOURCE_ROOT`-relative path to the package file), so there is still one copy of the source and
+the app keeps linking `LineformCore` statically.
+
+Tests moved (44): `AIActionPromptTests` (10), `AIClientTests` (15), `AIConnectionStoreTests` (14),
+`AIResponseParserTests` (5). `AIActionPromptTests` reads the per-language `.lproj` from
+`Bundle.lineformCore` instead of `Bundle.main`; otherwise only the imports changed. Stay (use
+app types or read app source): `AIActionControllerTests`, `AIChangeBuilderTests`
+(`MarkdownStructureMap`, `AISentenceSplitter`), `AIReviewCompositionTests` and
+`AIReviewSessionTests` (`MarkdownStructureMap`), `AIReviewCardPresentationTests`
+(`AIActionController`, `AIReviewTextView`), `ConnectAIPresentationTests` (reads
+`ConnectAIView.swift`), `AIReviewTextViewTests`, `LineformTextViewAITests`,
+`AdversarialReviewProbeTests`, `SelectionToolbarTests`. `AIReviewCardPresentationTests` and
+`ConnectAIPresentationTests` now load their per-language bundles from `Bundle.lineformCore`
+(the moved keys are no longer in the app's `.lproj`); `AIReviewCardPresentationTests` keeps an
+app-bundle helper for `AIReviewTextView.accessibilityActionTitles`, whose keys stay in the app.
+
+Gates: package 495, app 1492, default plan 1987, so unique tests are still 1987.
+
+## Task 9: app-level pure logic moved into LineformCore
+
+Moved verbatim into `Packages/LineformCore/Sources/LineformCore/App/`: `AnnouncementFeed`,
+`AnnouncementFetcher`, `AppUpdateCheck`, `AppUpdatePresentation`. `swift build` passed with the
+group on the first try; nothing split. `AnnouncementStore`, `AppReviewPromptStore`,
+`AppUpdateCommand`, `SystemMenuItemTitles` and `DocumentTab` stay in the app, as planned.
+
+Diff beyond moves: `public` on what the app uses (`Announcement` and its `id`, `title`, `body`,
+`actionLabel`, `actionURL`, `appliesTo`; `AnnouncementFeed.decode`/`encode`;
+`AnnouncementFetching`; `AnnouncementFetcher` with `defaultFeedURL`, `init`, `fetch`;
+`AppUpdateCheckResult`; `AppUpdateChecking`; `AppStoreUpdateChecker` with `lookupURL`, `init`,
+`check`; `AppUpdatePresentation` with its five properties and `init`). `Sendable` on
+`Announcement` and `AppUpdateCheckResult` (a public type loses its implicit conformance; the app
+tests' `actor FakeAnnouncementFetcher` and `Sendable` checkers failed without it).
+`AppUpdatePresentation.init(result:bundle:)` now defaults to `.lineformCore` instead of `.main`
+(public default, Task 3 pattern). `AnnouncementStore`, `AppUpdateCommand` and `AnnouncementCard`
+gained `import LineformCore`. No other edits; `AppStoreUpdateChecker.storeBundleID` is still the
+fixed "com.lineform.app" (never `Bundle.main`), and no moved file reads `Bundle.main`.
+The Debug-only `LINEFORM_ANNOUNCEMENT_FEED_JSON` seam is still under `#if DEBUG`: the string is in
+the Debug app binary and absent from the Release one.
+
+Strings: 9 keys. Moved 7 ("Lineform is up to date", "Version %@ is the latest version.",
+"A new version of Lineform is available", "Version %1$@ is on the App Store. You have version
+%2$@.", "Open App Store", "Couldn't check for updates", "Check your internet connection and try
+again."). Copied with `--keep-in-app`: "OK" (`EditorContainerView` alerts) and "Not Now"
+(`AnnouncementCard`). Both catalogs pass the byte-identical round-trip check.
+
+Tests moved (22): `AppUpdateCheckTests` (9), `AppUpdateCheckerTests` (9, now using
+`LineformCoreTestSupport`'s `StubURLProtocol`), `AppUpdatePresentationTests` (4, per-language
+`.lproj` now from `Bundle.lineformCore`). Stay: `AnnouncementTests` (one file holding both
+`AnnouncementFeedTests` and `AnnouncementStoreTests`; it exercises `AnnouncementStore`, so the
+file stays whole) and `AppUpdateCommandTests` (`AppUpdateCommand`); both gained
+`@testable import LineformCore`.
+
+Gates: package 517, app 1470, default plan 1987 unique. Hosted plan: 26 of 26 passed (the
+known `EditorDrawerMotionHostedTests` timing failure passed this run).
+
+## Task 10: drift guards
+
+Tests only (no move): `PackagePurityTests` (no UI-framework import in `LineformCore` or
+`LineformCoreTestSupport`), `LocalizationCatalogTests.testKeysInBothCatalogsCarryIdenticalLocalizations`,
+`LocalizationSourceSweepTests.testNoSwiftFileNameAppearsInBothSourceRoots`, and a name comment in
+`MarkdownReferenceTests`. Gates: package 519, app 1472, 1991 unique.
+
+## Task 11: close-out
+
+- Docs: each `Lineform/...` path to a moved file in `docs/architecture/*.md` now points to its
+  package path. Files that stayed keep their app paths. `Claude.md` and `AGENTS.md` have a new
+  "Shared package (LineformCore)" section with the same text.
+- The `editor-behavior.md` claim "Debug measures ~3.6× slower than Release" is corrected (the app's
+  Debug was already `-O`). The same claim remains in a code comment in
+  `LineformTests/MarkdownSpellCheckPerformanceTests.swift`, left for a follow-up because this
+  plan changes no code for it. The same claim also remains in the dated note
+  `docs/notes/2026-07-26-spell-check-probe-findings.md`, kept as a historical record.
+- `Package.swift`: the unused `LineformCoreTestSupport` `.library` product was dropped. Nothing
+  referenced it: `LineformCoreTests` depends on the target, and `LineformTests` compiles
+  `AITestDoubles.swift` by file reference. A comment on the target says why it must not be linked
+  into `LineformTests`. The package, default and hosted gates all pass with it dropped.
+- Archive contents: `Lineform.app` (1.8.0 build 41, unchanged); `Contents/PlugIns/LineformQuickLook.appex`;
+  `Contents/Resources/Metadata.appintents`; and
+  `Contents/Resources/LineformCore_LineformCore.bundle`, with `de`, `en`, `es`, `fr`, `ja` and
+  `zh-Hans` `.lproj` folders (`ja` has 167 strings plus the stringsdict). There is no
+  `Contents/Frameworks`, and `otool -L` lists no LineformCore, so `LineformCore` is linked
+  statically. The archive was moved out of the repo after checking.
+

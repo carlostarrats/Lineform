@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// The app's Settings surface (⌘, / Lineform › Settings…), presented as a
 /// Muse-style in-window modal (`MuseModalChrome` card over a `MuseModalScrim`):

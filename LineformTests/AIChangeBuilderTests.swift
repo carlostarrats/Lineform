@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class AIChangeBuilderTests: XCTestCase {
     private func segments(_ text: String) -> [ProseSegment] {

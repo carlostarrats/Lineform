@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// What the History sidebar draws. Task 6 builds it from the live History model.
 struct HistorySidebarModel: Equatable {

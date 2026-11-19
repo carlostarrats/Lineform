@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import LineformCore
 
 /// The text + modification date to apply when a live reload fires.
 struct ReloadResult: Equatable {

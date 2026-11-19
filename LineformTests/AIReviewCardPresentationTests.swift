@@ -1,11 +1,19 @@
 import XCTest
 import AppKit
 @testable import Lineform
+@testable import LineformCore
 
 final class AIReviewCardPresentationTests: XCTestCase {
     private static let languages = ["es", "fr", "de", "ja", "zh-Hans"]
 
     private func bundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "\(language).lproj missing from the test host"
+        )
+    }
+
+    private func appBundle(_ language: String) throws -> Bundle {
         try XCTUnwrap(
             Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
             "\(language).lproj missing from the test host"
@@ -131,7 +139,7 @@ final class AIReviewCardPresentationTests: XCTestCase {
                     XCTAssertTrue(local.contains(provider.displayName), "\(language): \(local) lost the brand")
                 }
             }
-            let local = AIReviewTextView.accessibilityActionTitles(bundle: bundle)
+            let local = AIReviewTextView.accessibilityActionTitles(bundle: try appBundle(language))
             let english = AIReviewTextView.accessibilityActionTitles()
             XCTAssertEqual(local.count, english.count)
             for (title, source) in zip(local, english) {

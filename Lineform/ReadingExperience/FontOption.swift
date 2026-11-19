@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 enum FontSource: String, Codable, Equatable {
     case system

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import LineformCore
 
 /// Hosts the review overlay (`AIReviewTextView`) in a scroll view laid exactly over the editor
 /// while a review is up (Write mode only).
