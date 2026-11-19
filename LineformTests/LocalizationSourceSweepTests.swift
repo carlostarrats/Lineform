@@ -313,6 +313,28 @@ final class LocalizationSourceSweepTests: XCTestCase {
         }
     }
 
+    /// The allowlists key files by name alone ("File.swift|key"). With two roots scanned, a name
+    /// in both would make an entry ambiguous, so no name may appear in both.
+    func testNoSwiftFileNameAppearsInBothSourceRoots() throws {
+        var namesByRoot: [Set<String>] = []
+        for path in Self.sourceRoots {
+            let root = Self.repoRoot().appendingPathComponent(path)
+            let walker = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            var names: Set<String> = []
+            for case let url as URL in walker where url.pathExtension == "swift" {
+                names.insert(url.lastPathComponent)
+            }
+            XCTAssertFalse(names.isEmpty, "\(path) holds no Swift files; the root is wrong")
+            namesByRoot.append(names)
+        }
+        for (i, a) in namesByRoot.enumerated() {
+            for b in namesByRoot[(i + 1)...] {
+                XCTAssertEqual(a.intersection(b).sorted(), [],
+                               "these file names are in more than one source root")
+            }
+        }
+    }
+
     // MARK: - Scanning
 
     private struct Source {

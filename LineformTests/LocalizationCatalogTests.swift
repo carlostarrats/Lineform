@@ -88,6 +88,21 @@ final class LocalizationCatalogTests: XCTestCase {
         }
     }
 
+    /// `catalog("Localizable")` keeps the app's copy of a key that is in both catalogs, so every
+    /// other gate checks only that copy. The package's copy is what package code draws; it must
+    /// not drift from the app's.
+    func testKeysInBothCatalogsCarryIdenticalLocalizations() throws {
+        let app = try strings(at: "Lineform/Localizable.xcstrings")
+        let package = try strings(at: "Packages/LineformCore/Sources/LineformCore/Resources/Localizable.xcstrings")
+        for key in Set(app.keys).intersection(package.keys).sorted() {
+            let appEntry = app[key]!, packageEntry = package[key]!
+            XCTAssertEqual(appEntry["localizations"] as? NSDictionary, packageEntry["localizations"] as? NSDictionary,
+                           "'\(key)' has different localizations in the app and package catalogs")
+            XCTAssertEqual(isTranslatable(appEntry), isTranslatable(packageEntry),
+                           "'\(key)' has a different shouldTranslate in the app and package catalogs")
+        }
+    }
+
     func testFormatSpecifiersMatchAcrossLanguages() throws {
         let pattern = try NSRegularExpression(pattern: #"%(\d+\$)?(lld|@|d|ld|lu|f|s)"#)
         /// argument index → conversion. A bare specifier takes the next implicit position;

@@ -202,6 +202,7 @@ final class MarkdownReferenceTests: XCTestCase {
         XCTAssertEqual(String(localized: "Don't Save", bundle: german), "Nicht sichern")
     }
 
+    // The name says "MainBundle" from before the move; it is kept because this plan renames nothing.
     func testSectionsInMainBundleMatchTheDefaultProperty() {
         XCTAssertEqual(MarkdownReference.sections(in: .lineformCore), MarkdownReference.sections)
     }
