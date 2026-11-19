@@ -1,5 +1,4 @@
 import Foundation
-import LineformCore
 
 /// Decides what a Return keypress should do on a Markdown list-like line: continue the
 /// construct, end it, or stay out of the way.
@@ -12,8 +11,8 @@ import LineformCore
 /// remainder of an ordered list. Ordered items increment only; GFM renders `1. 2. 2.` as
 /// 1, 2, 3, so the cost of not renumbering is confined to the source text, whereas a
 /// multi-line renumber would have to stay one undo step and hold the caret still.
-enum MarkdownListContinuation {
-    enum Outcome: Equatable {
+public enum MarkdownListContinuation {
+    public enum Outcome: Equatable {
         /// Replace the current selection with this string, e.g. `"\n- "` or `"\n4. "`.
         case `continue`(insertion: String)
         /// The writer pressed Return on a marker they never filled in: replace this range
@@ -22,7 +21,7 @@ enum MarkdownListContinuation {
     }
 
     /// `nil` means "not a continuable line" — the text view should insert an ordinary newline.
-    static func outcome(for text: String, selectedRange: NSRange) -> Outcome? {
+    public static func outcome(for text: String, selectedRange: NSRange) -> Outcome? {
         let nsText = text as NSString
         guard selectedRange.location >= 0,
               selectedRange.length >= 0,

@@ -1,8 +1,7 @@
 import Foundation
-import LineformCore
 
-enum MarkdownWritingToolsProtection {
-    static func ignoredRanges(in text: String, enclosingRange: NSRange) -> [NSRange] {
+public enum MarkdownWritingToolsProtection {
+    public static func ignoredRanges(in text: String, enclosingRange: NSRange) -> [NSRange] {
         let fullRange = NSRange(location: 0, length: (text as NSString).length)
         let safeEnclosingRange = NSIntersectionRange(enclosingRange, fullRange)
         guard safeEnclosingRange.length > 0 else {
@@ -173,7 +172,7 @@ enum MarkdownWritingToolsProtection {
     /// `testScopedProtectedRangesMatchesWholeDocumentIntersection`.
     ///
     /// See `docs/superpowers/specs/2026-07-26-live-spell-check-design.md`.
-    static func protectedRanges(in text: NSString, intersecting scope: NSRange) -> [NSRange] {
+    public static func protectedRanges(in text: NSString, intersecting scope: NSRange) -> [NSRange] {
         let full = NSRange(location: 0, length: text.length)
         let clampedScope = NSIntersectionRange(scope, full)
         guard clampedScope.length > 0 else { return [] }

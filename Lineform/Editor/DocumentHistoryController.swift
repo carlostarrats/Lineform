@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import LineformCore
 
 /// History for the document shown in one editor: owns the engine and the store access, publishes
 /// what the sidebar and the text view draw, and is the ONLY thing that applies History's edits to

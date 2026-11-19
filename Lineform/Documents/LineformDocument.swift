@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
+import LineformCore
 
 extension UTType {
     static let markdownText = UTType(importedAs: "net.daringfireball.markdown")

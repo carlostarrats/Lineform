@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class EditorDisplayModeTests: XCTestCase {
     // MARK: - Sidebar toggle ink

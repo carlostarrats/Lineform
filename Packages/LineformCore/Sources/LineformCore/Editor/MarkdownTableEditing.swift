@@ -1,5 +1,4 @@
 import Foundation
-import LineformCore
 
 /// A GFM pipe table located in the source text: the block's character range, the range of each
 /// of its lines, the parsed table, and the indentation its lines share.
@@ -26,7 +25,7 @@ struct MarkdownTableRegion: Equatable {
 /// (`MarkdownBlockGrouping.swift:427-444`). If the editor's definition of "a table" and the
 /// renderer's ever diverge, Tab intercepts a construct the reader never saw as a table and
 /// Reformat rewrites it.
-enum MarkdownTableEditing {
+public enum MarkdownTableEditing {
     static func locate(in text: String, at location: Int) -> MarkdownTableRegion? {
         let ns = text as NSString
         guard location >= 0, location <= ns.length else { return nil }
@@ -98,7 +97,7 @@ enum MarkdownTableEditing {
         )
     }
 
-    enum TabOutcome: Equatable {
+    public enum TabOutcome: Equatable {
         /// Pure selection move — edits nothing, so it costs no undo step.
         case select(NSRange)
         /// Tab off the last cell: the only Tab that writes. One localized insertion.
@@ -114,7 +113,7 @@ enum MarkdownTableEditing {
 
     /// `nil` means "not a table cell" — the text view should fall through to `super` and insert
     /// an ordinary tab, exactly as it does today.
-    static func tabTarget(in text: String, selectedRange: NSRange, forward: Bool) -> TabOutcome? {
+    public static func tabTarget(in text: String, selectedRange: NSRange, forward: Bool) -> TabOutcome? {
         guard let region = locate(in: text, at: selectedRange.location) else { return nil }
 
         let ns = text as NSString
@@ -164,7 +163,7 @@ enum MarkdownTableEditing {
     /// A 3×2 starter table, written as its own block. Fixed size by design: every other Format
     /// command acts immediately, and gaining a column is one pipe plus Reformat — cheaper than
     /// any size dialog.
-    static func insertion(in text: String, selectedRange: NSRange) -> MarkdownEdit {
+    public static func insertion(in text: String, selectedRange: NSRange) -> MarkdownEdit {
         let ns = text as NSString
         let caretLine = lineRange(in: ns, at: selectedRange.location)
         let lineIsBlank = ns.substring(with: caretLine).trimmingCharacters(in: .whitespaces).isEmpty
@@ -210,7 +209,7 @@ enum MarkdownTableEditing {
     /// but Reformat rewrites the file, so the same wrong split would permanently destroy
     /// `a \| b` or `` `a|b` ``. The backtick half of the test is deliberately over-broad: it
     /// declines some tables it could safely rewrite, and it never corrupts one.
-    static func reformat(in text: String, selectedRange: NSRange) -> MarkdownEdit? {
+    public static func reformat(in text: String, selectedRange: NSRange) -> MarkdownEdit? {
         guard let region = locate(in: text, at: selectedRange.location) else { return nil }
 
         let ns = text as NSString

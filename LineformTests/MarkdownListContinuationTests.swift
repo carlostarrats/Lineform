@@ -1,6 +1,7 @@
 import AppKit
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class MarkdownListContinuationTests: XCTestCase {
     private func outcome(

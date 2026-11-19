@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 @testable import Lineform
+@testable import LineformCore
 
 /// The editor's History controller, without a window (default test plan: no NSWindow). The
 /// integration tests attach a bare `LineformTextView`, which is what production edits go through.

@@ -1,22 +1,32 @@
 import Foundation
-import LineformCore
 
-struct MarkdownEdit: Equatable {
-    var text: String
-    var selectedRange: NSRange
+public struct MarkdownEdit: Equatable {
+    public var text: String
+    public var selectedRange: NSRange
+
+    public init(text: String, selectedRange: NSRange) {
+        self.text = text
+        self.selectedRange = selectedRange
+    }
 }
 
-enum LineformTextFormat: String, Equatable {
+public enum LineformTextFormat: String, Equatable, Sendable {
     case markdown
     case plainText
 }
 
-struct MarkdownPlainTextConversion: Equatable {
-    var originalMarkdown: String
-    var plainText: String
-    var range: NSRange
+public struct MarkdownPlainTextConversion: Equatable, Sendable {
+    public var originalMarkdown: String
+    public var plainText: String
+    public var range: NSRange
 
-    func restoredMarkdown(in text: String) -> MarkdownEdit? {
+    public init(originalMarkdown: String, plainText: String, range: NSRange) {
+        self.originalMarkdown = originalMarkdown
+        self.plainText = plainText
+        self.range = range
+    }
+
+    public func restoredMarkdown(in text: String) -> MarkdownEdit? {
         let nsText = text as NSString
         guard NSMaxRange(range) <= nsText.length else {
             return nil
@@ -38,8 +48,8 @@ struct MarkdownPlainTextConversion: Equatable {
     }
 }
 
-enum MarkdownPlainTextConverter {
-    static func plainText(from markdown: String) -> String {
+public enum MarkdownPlainTextConverter {
+    public static func plainText(from markdown: String) -> String {
         // Split on "\n", NOT `.newlines`: that set splits `\r` and `\n` separately, so every
         // `\r\n` in a Windows-authored file produced an EMPTY component between them and the
         // conversion inserted a blank line after every line — in a command that rewrites the
@@ -191,7 +201,7 @@ enum MarkdownPlainTextConverter {
 /// no-op would have to become an identity edit, and routing that through
 /// `applyFormattingCommand` pushes an empty step onto the undo stack.
 /// `MarkdownHeadingEditing.setLevel` returns `nil` instead, and `applyHeadingLevel` bails.
-enum MarkdownFormattingCommand {
+public enum MarkdownFormattingCommand: Sendable {
     case bold
     case italic
     case inlineCode
@@ -201,7 +211,7 @@ enum MarkdownFormattingCommand {
     case orderedList
     case link
 
-    func apply(to text: String, selectedRange: NSRange) -> MarkdownEdit {
+    public func apply(to text: String, selectedRange: NSRange) -> MarkdownEdit {
         let selectedRange = Self.composedCharacterAligned(selectedRange, in: text)
         switch self {
         case .bold:
@@ -235,7 +245,7 @@ enum MarkdownFormattingCommand {
     /// Aligning once here fixes every command at the entry point instead of each edit site,
     /// and it is also the behaviour a person expects: a selection that clips half an emoji
     /// grows to cover the whole one rather than being refused.
-    static func composedCharacterAligned(_ range: NSRange, in text: String) -> NSRange {
+    public static func composedCharacterAligned(_ range: NSRange, in text: String) -> NSRange {
         let nsText = text as NSString
         guard NSMaxRange(range) <= nsText.length else {
             return NSRange(location: min(range.location, nsText.length), length: 0)

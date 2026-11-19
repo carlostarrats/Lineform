@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import XCTest
 @testable import Lineform
+@testable import LineformCore
 
 final class LineformDocumentTests: XCTestCase {
     func testNewDocumentStartsWithEmptyMarkdownText() {

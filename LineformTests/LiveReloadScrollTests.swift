@@ -1,6 +1,7 @@
 import XCTest
 import SwiftUI
 @testable import Lineform
+@testable import LineformCore
 
 @MainActor
 final class LiveReloadScrollTests: XCTestCase {

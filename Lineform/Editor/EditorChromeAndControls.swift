@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 enum EditorToolbarBackgroundPolicy {
     /// Sonoma draws the native inspector's leading separator through the titlebar. Because the

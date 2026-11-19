@@ -1,17 +1,17 @@
 import Foundation
 
-struct DocumentStatistics: Equatable {
-    var wordCount: Int
-    var characterCount: Int
+public struct DocumentStatistics: Equatable {
+    public var wordCount: Int
+    public var characterCount: Int
     /// True when more than half of the word-forming scalars are Han, Hiragana, or
     /// Katakana. CJK prose has no interword spaces, so the run-based word count
     /// degrades to a sentence count; the status bar suppresses it and reports
     /// characters only. Content-based on purpose — never keyed off the UI locale.
     /// Hangul is space-separated and counts correctly, so it deliberately does not
     /// participate.
-    var isPredominantlyCJK: Bool
+    public var isPredominantlyCJK: Bool
 
-    init(text: String) {
+    public init(text: String) {
         // Characters as the writer counts them — grapheme clusters, not UTF-16 code units. The
         // status line says "characters", and `NSString.length` reported a two-emoji document as
         // four and a decomposed accent as two. Same order of cost as the word scan below, which

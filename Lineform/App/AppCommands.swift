@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import LineformCore
 
 enum AppMenuCommandPlacement: Equatable {
     case view

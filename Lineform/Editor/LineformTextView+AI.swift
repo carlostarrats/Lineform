@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// What the text view asks the AI controller to do.
 enum AITextCommand: Equatable {

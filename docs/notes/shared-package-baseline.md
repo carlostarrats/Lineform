@@ -131,3 +131,134 @@ Strings: 41 distinct keys (42 call sites; "Spelling" is used twice). 38 moved; "
 catalog too. Xcode emits no `en.lproj` for the package bundle (the development language needs no
 table without plurals); resolution still picks `en` for an English-first user, exactly like the
 app bundle (checked with `Bundle.preferredLocalizations` against the built bundle).
+
+## Task 4: editing logic moved into LineformCore
+
+Eight files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Editor/`:
+`MarkdownListContinuation`, `MarkdownTableEditing`, `MarkdownHeadingEditing`,
+`MarkdownFormattingCommand`, `MarkdownWritingToolsProtection`, `ImageInsertionText`,
+`DocumentStatistics`, `EditorDisplayMode`.
+
+Left in the app, and why:
+- `MarkdownSpellCheckRegions`: `checkableRanges` takes a `MarkdownSyntaxHighlighter` (the AppKit
+  class) and calls `MarkdownSyntaxHighlighter.scopedTokenRange` and `tokens(in:scope:)`, which live
+  in the `extension MarkdownSyntaxHighlighter` in `MarkdownSyntaxTokens.swift` (see "Stays until the
+  platform-layer plan"). It moves when the highlighter is split.
+- `MarkdownStructureMap`: constructs `MarkdownSyntaxHighlighter()` and calls
+  `MarkdownSpellCheckRegions.subtracting`, so it is blocked by the same thing.
+- `ReadingAssistRangeResolver`: its signature takes `FocusMode`, declared in
+  `ReadingExperience/ReadingProfile.swift`, which is Task 6's group. It can move with or after Task 6.
+
+Edits beyond `public`: explicit `public init`s for `MarkdownEdit(text:selectedRange:)` and
+`MarkdownPlainTextConversion(originalMarkdown:plainText:range:)` (same labels and order as the
+memberwise inits; the app constructs both). `Sendable` added to `MarkdownFormattingCommand`,
+`LineformTextFormat` and `MarkdownPlainTextConversion`: a public type loses the implicit
+conformance an internal one had. Without it, `allCommands`/`allProbeCases` in two test files fail
+Swift 6 checks, and `LineformDocument` (a `Sendable` struct) gets new warnings. The
+`import LineformCore` lines Task 3 added to the moved files were removed, because a module cannot
+import itself.
+
+Strings: `EditorDisplayMode.title` has 3 keys ("Write", "Read", "Preview"). All three are copied
+with `--keep-in-app`: `AppCommands.allEnglishTitleKeys` lists them for `MainMenuIconDecorator`,
+which looks them up in the app bundle.
+
+Tests: `ImageInsertionTextTests` (6), `MarkdownFormattingCommandTests` (18) and
+`MarkdownTableEditingTests` (44) moved. `DocumentStatisticsTests` stays (it uses the app's
+`EditorStatusFormatter`). `MarkdownListContinuationTests` and `MarkdownHeadingEditingTests` stay
+(they host a `LineformTextView`). `MarkdownWritingToolsProtectionTests` stays (it calls
+`MarkdownSpellCheckRegions`).
+Gates: package 249, app 1734, default plan 1983, so unique tests are still 1983.
+
+### Performance (Review Focus 4)
+
+**Method.** You cannot test-build the Release configuration as it is:
+- the Release test bundle does not compile, because tests use `#if DEBUG` helpers such as
+  `DocumentSaveStatus.testInstance()` and `engagedSessionCountForTesting`;
+- with `SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG`, ad-hoc signing and the Debug entitlements, the
+  test runner hung before connecting.
+
+The closest valid method is the Debug configuration with Release's Swift optimiser settings applied
+to every target, the package included. Script: `.superpowers/perf/run.sh`, which is git-ignored:
+
+```
+xcodebuild build-for-testing … -configuration Debug -enableCodeCoverage NO \
+  SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule
+xcodebuild test-without-building … -parallel-testing-enabled NO \
+  -only-testing:LineformTests/{LargeDocumentPerformanceTests,LargeDocumentLayoutReentrancyTests,
+  MarkdownSpellCheckPerformanceTests,ScopedSyntaxHighlightingTests,
+  MarkdownListContinuationTests/testBenchmarkReturnOnAListLineInALargeDocument}
+```
+
+- The scheme turns on code coverage (`-profile-generate`), and the shipped build does not have it,
+  so it is off for the main measurement.
+- Three commits were measured, each with its own DerivedData: `0c94147` (baseline, worktree),
+  `ebf1334` (Task 3, worktree) and this task's tree.
+- The three run interleaved, 3 runs each. A `measure` value is the median of 15 samples; the
+  spell-check value is the median of 3 `[perf]` lines.
+- Same Mac as above. Another session on the machine was building, so load averages were 3 to 17.
+  The runs are interleaved, so that load falls on all three equally.
+
+Optimised, no coverage (ms, median):
+
+| Measurement | 0c94147 | ebf1334 | Task 4 |
+|---|---|---|---|
+| LargeDocumentStatistics | 0.734 | 0.683 | 0.701 |
+| LargeOutlineParsing | 0.380 | 0.370 | 0.369 |
+| LargePreviewRendering | 61.4 | 60.6 | 61.4 |
+| LargeSyntaxHighlighting | 4.22 | 4.23 | 4.27 |
+| RepeatedLargePreviewApply | 0.034 | 0.035 | 0.036 |
+| ReturnOnAListLine (list continuation) | 2.81 | 2.80 | 2.79 |
+| spell `checkableRanges` (hot path) | 1.072 | 1.057 | 1.045 |
+| spell whole-document reference | 24.5 | 24.5 | 24.3 |
+| spell ratio | 23.1× | 23.4× | 23.1× |
+| LayoutReentrancy apply typography (s) | 0.178 | 0.175 | 0.174 |
+
+The same build with coverage on gave the same picture: every row within 3% of baseline, and
+`checkableRanges` 4.16, 4.16 and 4.21 ms. No hot path regressed by more than 10% in an optimised
+build, so `@inlinable` was not added. The four named suites all passed in every run.
+
+**Why the Debug numbers moved (24.6 → 69.9 ms).** It is real and reproducible, and it is a
+Debug-only artifact:
+- The app target sets no `SWIFT_OPTIMIZATION_LEVEL`, so Xcode's default applies, and the app's
+  **Debug build compiles at `-O`**. The build logs show `-module-name Lineform … -O`.
+- SwiftPM builds a package's Debug configuration at **`-Onone`** (`-module-name LineformCore …
+  -Onone`).
+- So every move into the package takes that code from `-O` to `-Onone` in Debug, and only in Debug.
+  In Release both are `-O`, which the table above confirms.
+
+Debug, coverage on (the default plan's settings), interleaved, 3 runs each (ms, median):
+
+| Measurement | 0c94147 | ebf1334 | Task 4 |
+|---|---|---|---|
+| spell `checkableRanges` | 4.22 | 4.18 | 7.35 |
+| spell whole-document | 24.1 | 70.3 | 80.4 |
+| spell ratio | 5.7× | 16.5× | 11.0× |
+| LargeOutlineParsing | 0.411 | 0.667 | 0.667 |
+| LargeDocumentStatistics | 0.781 | 0.710 | 1.041 |
+| ReturnOnAListLine | 2.80 | 2.79 | 3.17 |
+
+- Task 3 moved `MarkdownRangeAnalyzer`, `MathDelimiters` and `MermaidFence`. They make up most of
+  the whole-document pass, so the reference tripled.
+- Task 4 moves `MarkdownWritingToolsProtection.protectedRanges`, which the hot path calls, so
+  `checkableRanges` rises too. `DocumentStatistics` and list continuation move as well, so those
+  rows rise too.
+- Full default plan at Task 4: `[perf] checkableRanges 7.503 ms/call vs whole-document 80.187
+  ms/call — 10.7×`.
+
+The `MarkdownSpellCheckPerformanceTests` doc comment says this test runs in Debug and that Debug is
+"~3.6× slower" than the shipped build. In this project that is not true: the app's Debug has been
+`-O` all along. Only the moved code now runs at `-Onone` in Debug.
+
+**Ratio-gate sensitivity (concern, thresholds unchanged).**
+- The gate runs in the Debug default plan, where the reference now pays `-Onone`. At baseline the
+  ratio was 5.7×, 1.4× above the 4× floor. It is now 10.7–11.0×, about 2.7× above it.
+- So the scoped path could now get about 2.7× slower before the gate fails; at baseline the limit
+  was about 1.4×.
+- The regression the gate exists for, a whole-document pass in the checking path, would still score
+  about 1×. Both sides would run the same `-Onone` package code, so that case is still caught.
+- The loss is for partial slowdowns between about 1.4× and 2.7×.
+- Options, all for the controller to decide: give the package `-O` in Debug through
+  `unsafeFlags` or settings, measure the gate in an optimised build, or recalibrate.
+
+Release build at Task 4 (`xcodebuild -configuration Release build`, after `clean`): BUILD SUCCEEDED.
+iOS Simulator build of the `LineformCore` scheme: BUILD SUCCEEDED.

@@ -1,5 +1,4 @@
 import Foundation
-import LineformCore
 
 /// Setting the ATX heading level of the lines a selection touches.
 ///
@@ -14,7 +13,7 @@ import LineformCore
 /// the outline sidebar sees.
 ///
 /// See `docs/superpowers/specs/2026-07-26-heading-levels-design.md`.
-enum MarkdownHeadingEditing {
+public enum MarkdownHeadingEditing {
     /// The maximum ATX heading level. A seventh `#` is not a heading.
     static let maximumLevel = 6
 
@@ -94,7 +93,7 @@ enum MarkdownHeadingEditing {
     ///
     /// Returns `nil` when nothing would change — no editable line, or every line already reads
     /// that way. Bailing here is what keeps a dead keypress out of the undo stack.
-    static func setLevel(_ level: Int?, in text: String, selectedRange: NSRange) -> MarkdownEdit? {
+    public static func setLevel(_ level: Int?, in text: String, selectedRange: NSRange) -> MarkdownEdit? {
         let ns = text as NSString
         guard selectedRange.location >= 0,
               selectedRange.length >= 0,
