@@ -2,14 +2,14 @@ import Foundation
 
 /// Which universe the toolbar search field is searching. `.thisFile` is the settled
 /// in-document behavior; `.allFiles` drives the cross-file results page.
-enum EditorSearchScope: Hashable {
+public enum EditorSearchScope: Hashable {
     case thisFile
     case allFiles
 }
 
 /// Reads one candidate file's text for cross-file search, or nil to skip it.
 /// Abstracted (the UbiquitousItemDownloader pattern) so tests use an in-memory corpus.
-protocol CrossFileSearchFileReading: Sendable {
+public protocol CrossFileSearchFileReading: Sendable {
     func readSearchableText(at url: URL) -> String?
 }
 
@@ -17,10 +17,12 @@ protocol CrossFileSearchFileReading: Sendable {
 /// force-download the container; files over `maximumByteCount` (1 MB — far beyond any
 /// real Markdown document) so one giant stray file can't stall a scan; anything
 /// unreadable or non-UTF-8.
-struct CrossFileSearchFileReader: CrossFileSearchFileReading {
+public struct CrossFileSearchFileReader: CrossFileSearchFileReading {
     static let maximumByteCount = 1_048_576
 
-    func readSearchableText(at url: URL) -> String? {
+    public init() {}
+
+    public func readSearchableText(at url: URL) -> String? {
         if let values = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
            let status = values.ubiquitousItemDownloadingStatus,
            status != .current {
@@ -39,16 +41,16 @@ struct CrossFileSearchFileReader: CrossFileSearchFileReading {
 /// ranked results on the main actor. Owns no watcher and touches no view — constructed by
 /// EditorContainerView, reset whenever the scope leaves `.allFiles` or the document swaps.
 @MainActor
-final class CrossFileSearchModel: ObservableObject {
-    @Published private(set) var results: [CrossFileSearchResult] = []
-    @Published private(set) var isSearching = false
+public final class CrossFileSearchModel: ObservableObject {
+    @Published public private(set) var results: [CrossFileSearchResult] = []
+    @Published public private(set) var isSearching = false
 
     private let reader: CrossFileSearchFileReading
     private let debounceInterval: TimeInterval
     private var generation = 0
     private var pendingTask: Task<Void, Never>?
 
-    init(reader: CrossFileSearchFileReading = CrossFileSearchFileReader(), debounceInterval: TimeInterval = 0.3) {
+    public init(reader: CrossFileSearchFileReading = CrossFileSearchFileReader(), debounceInterval: TimeInterval = 0.3) {
         self.reader = reader
         self.debounceInterval = debounceInterval
     }
@@ -57,7 +59,7 @@ final class CrossFileSearchModel: ObservableObject {
     /// the generation and cancels the prior task; a stale task re-checks before publishing.
     /// Returns the search task so tests can await it; nil when the query is empty.
     @discardableResult
-    func search(query: String, entries: [QuickOpenEntry]) -> Task<Void, Never>? {
+    public func search(query: String, entries: [QuickOpenEntry]) -> Task<Void, Never>? {
         generation += 1
         let expected = generation
         pendingTask?.cancel()
@@ -87,7 +89,7 @@ final class CrossFileSearchModel: ObservableObject {
         return task
     }
 
-    func reset() {
+    public func reset() {
         generation += 1
         pendingTask?.cancel()
         pendingTask = nil

@@ -1,12 +1,12 @@
 import Foundation
 
 /// One openable file in the quick-open (⌘K "Jump to File") palette.
-struct QuickOpenEntry: Identifiable, Equatable {
+public struct QuickOpenEntry: Identifiable, Equatable, Sendable {
     /// Full URL path — same identity rule as `OutlineFileTreeItem.id`.
-    let id: String
-    let url: URL
+    public let id: String
+    public let url: URL
     /// File name, e.g. "roadmap.md". The fuzzy matcher runs against this only.
-    let name: String
+    public let name: String
     /// Path within its root, e.g. "projects/roadmap.md" — shown to disambiguate
     /// same-named files in different folders or roots.
     let relativePath: String
@@ -15,7 +15,7 @@ struct QuickOpenEntry: Identifiable, Equatable {
 
     /// The containing folder within the root, for display beside the filename —
     /// "projects" for "projects/roadmap.md", "/" for a file at the root itself.
-    var directoryDisplayPath: String {
+    public var directoryDisplayPath: String {
         guard relativePath.count > name.count else { return "/" }
         return String(relativePath.dropLast(name.count + 1))
     }
@@ -24,10 +24,10 @@ struct QuickOpenEntry: Identifiable, Equatable {
 /// Pure flatten + fuzzy-rank logic behind the ⌘K palette. Operates on the trees the
 /// Files sidebar's `OutlineFileBrowserStore` has already scanned — no I/O, no scanning,
 /// fully unit-testable (the `EditorSearchResolver` pattern).
-enum QuickOpenIndex {
+public enum QuickOpenIndex {
     /// Flattens both roots' already-scanned trees into a flat list of files
     /// (directories recursed into, never listed themselves).
-    static func flatten(iCloudRoot: OutlineFileRoot, workspaceRoot: OutlineFileRoot) -> [QuickOpenEntry] {
+    public static func flatten(iCloudRoot: OutlineFileRoot, workspaceRoot: OutlineFileRoot) -> [QuickOpenEntry] {
         var entries: [QuickOpenEntry] = []
         func walk(_ items: [OutlineFileTreeItem], pathPrefix: String, rootTitle: String) {
             for item in items {
@@ -54,7 +54,7 @@ enum QuickOpenIndex {
     /// Empty/whitespace query → []. Case-insensitive. Subsequence match with bonuses for
     /// exact substring, match at start of name, and contiguous runs; ties break toward
     /// shorter names, then lexicographic relative path (stable, deterministic).
-    static func search(_ entries: [QuickOpenEntry], query: String, limit: Int = 20) -> [QuickOpenEntry] {
+    public static func search(_ entries: [QuickOpenEntry], query: String, limit: Int = 20) -> [QuickOpenEntry] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         return entries

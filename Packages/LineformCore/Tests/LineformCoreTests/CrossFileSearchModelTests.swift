@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 /// Injectable reader over an in-memory corpus — no disk, no iCloud.
 private struct StubReader: CrossFileSearchFileReading {

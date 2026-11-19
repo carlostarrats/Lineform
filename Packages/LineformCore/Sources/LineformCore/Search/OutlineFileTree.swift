@@ -1,27 +1,27 @@
 import Foundation
 
-struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
-    var url: URL
-    var name: String
-    var isDirectory: Bool
-    var children: [OutlineFileTreeItem]
-    var isHidden: Bool = false
+public struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
+    public var url: URL
+    public var name: String
+    public var isDirectory: Bool
+    public var children: [OutlineFileTreeItem]
+    public var isHidden: Bool = false
     var createdAt: Date?
     var modifiedAt: Date?
 
-    var id: String { url.path }
+    public var id: String { url.path }
 
     /// A copy with `children` dropped. Used for the flattened sidebar rows: the row view reads
     /// only scalar fields, so carrying the whole subtree by value would make SwiftUI's per-row
     /// diff (and the flat-list build) O(subtree) on the hot path (Task 5). The parent flattener
     /// still recurses over the ORIGINAL `children` before stripping, so nothing is lost.
-    var withoutChildren: OutlineFileTreeItem {
+    public var withoutChildren: OutlineFileTreeItem {
         var copy = self
         copy.children = []
         return copy
     }
 
-    init(
+    public init(
         url: URL,
         name: String,
         isDirectory: Bool,
@@ -43,7 +43,7 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
         case url, name, isDirectory, children, isHidden, createdAt, modifiedAt
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         url = try container.decode(URL.self, forKey: .url)
         name = try container.decode(String.self, forKey: .name)
@@ -57,21 +57,29 @@ struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
     }
 }
 
-enum OutlineFileRootState: Equatable {
+public enum OutlineFileRootState: Equatable {
     case available
     case unavailable
     case unassigned
     case disconnected
 }
 
-struct OutlineFileRoot: Identifiable, Equatable {
-    var id: String
-    var title: String
+public struct OutlineFileRoot: Identifiable, Equatable {
+    public var id: String
+    public var title: String
     var systemImage: String
-    var state: OutlineFileRootState
-    var items: [OutlineFileTreeItem]
+    public var state: OutlineFileRootState
+    public var items: [OutlineFileTreeItem]
 
-    var showsTree: Bool {
+    public init(id: String, title: String, systemImage: String, state: OutlineFileRootState, items: [OutlineFileTreeItem]) {
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.state = state
+        self.items = items
+    }
+
+    public var showsTree: Bool {
         state == .available || state == .disconnected
     }
 }

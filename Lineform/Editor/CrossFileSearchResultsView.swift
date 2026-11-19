@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// The All Files search results page: a transient, READ-ONLY layer over the current tab's
 /// content area (never a floating card — that was explicitly rejected in brainstorming as

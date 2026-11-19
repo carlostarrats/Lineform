@@ -1,12 +1,12 @@
 import Foundation
 
-enum EditorSearchResolver {
-    struct RefreshState: Equatable {
-        let activeIndex: Int?
-        let requestedSelection: NSRange?
+public enum EditorSearchResolver {
+    public struct RefreshState: Equatable {
+        public let activeIndex: Int?
+        public let requestedSelection: NSRange?
     }
 
-    static func matches(in text: String, query: String) -> [NSRange] {
+    public static func matches(in text: String, query: String) -> [NSRange] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
             return []
@@ -39,9 +39,9 @@ enum EditorSearchResolver {
         return matches
     }
 
-    struct ReplacementResult: Equatable {
-        let text: String
-        let selectedRange: NSRange
+    public struct ReplacementResult: Equatable {
+        public let text: String
+        public let selectedRange: NSRange
         let replacedCount: Int
     }
 
@@ -51,7 +51,7 @@ enum EditorSearchResolver {
     /// ranges stay valid when the replacement length differs, and never re-scans freshly
     /// written text, so a replacement containing the query cannot cascade. Returns nil when
     /// there is nothing to replace (empty/whitespace query or no matches) so callers can no-op.
-    static func replaceAll(in text: String, query: String, replacement: String) -> ReplacementResult? {
+    public static func replaceAll(in text: String, query: String, replacement: String) -> ReplacementResult? {
         let ranges = matches(in: text, query: query)
         guard let firstRange = ranges.first else {
             return nil
@@ -74,7 +74,7 @@ enum EditorSearchResolver {
     /// Replace the single match occupying `matchRange` with `replacement`. The returned
     /// selection spans the inserted replacement (so it reads as selected). Returns nil if
     /// `matchRange` no longer fits the text (a stale range after an edit).
-    static func replaceMatch(in text: String, matchRange: NSRange, replacement: String) -> ReplacementResult? {
+    public static func replaceMatch(in text: String, matchRange: NSRange, replacement: String) -> ReplacementResult? {
         let nsText = text as NSString
         guard
             matchRange.location != NSNotFound,
@@ -106,7 +106,7 @@ enum EditorSearchResolver {
     /// last occurrence was replaced, the wrap landed on a match sitting inside an EARLIER
     /// replacement, so `the log and the log` → Replace ×4 gave `the logss and the logss` — the
     /// app rewriting its own output, autosaved to the user's file at every step.
-    static func nextActiveIndexAfterReplacement(
+    public static func nextActiveIndexAfterReplacement(
         matches: [NSRange],
         replacedLocation: Int,
         replacementLength: Int,
@@ -135,7 +135,7 @@ enum EditorSearchResolver {
     /// replaced range shifts by the delta. The new insertion is appended. The result is the set of
     /// "text this replace run wrote" in post-replace coordinates, which is what
     /// `nextActiveIndexAfterReplacement` needs on the next click.
-    static func insertionsAfterReplacement(
+    public static func insertionsAfterReplacement(
         priorInsertions: [NSRange],
         matchRange: NSRange,
         replacementLength: Int
@@ -149,7 +149,7 @@ enum EditorSearchResolver {
         return shifted + [NSRange(location: matchRange.location, length: replacementLength)]
     }
 
-    static func refreshState(
+    public static func refreshState(
         currentActiveIndex: Int?,
         matches: [NSRange],
         selectFirstWhenNeeded: Bool,
@@ -179,7 +179,7 @@ enum EditorSearchResolver {
         return RefreshState(activeIndex: activeIndex, requestedSelection: matches[activeIndex])
     }
 
-    static func visibleMatches(_ ranges: [NSRange], activeRange: NSRange?, visibleCharacterRange: NSRange?) -> [NSRange] {
+    public static func visibleMatches(_ ranges: [NSRange], activeRange: NSRange?, visibleCharacterRange: NSRange?) -> [NSRange] {
         guard let visibleCharacterRange else {
             return ranges
         }
@@ -194,7 +194,7 @@ enum EditorSearchResolver {
         return visibleRanges
     }
 
-    static func nextIndex(after index: Int?, matchCount: Int) -> Int? {
+    public static func nextIndex(after index: Int?, matchCount: Int) -> Int? {
         guard matchCount > 0 else {
             return nil
         }
@@ -206,21 +206,21 @@ enum EditorSearchResolver {
         return (index + 1) % matchCount
     }
 
-    static func accessibilitySummary(query: String, matchCount: Int, activeIndex: Int?) -> String? {
+    public static func accessibilitySummary(query: String, matchCount: Int, activeIndex: Int?) -> String? {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
             return nil
         }
 
         guard matchCount > 0 else {
-            return String(localized: "Search for \(trimmedQuery). No matches.")
+            return String(localized: "Search for \(trimmedQuery). No matches.", bundle: .module)
         }
 
         let safeActiveIndex = min(max(activeIndex ?? 0, 0), matchCount - 1)
         // The count goes through catalog plural variations, not an English `== 1` ternary
         // spliced into the sentence.
-        let matches = String(localized: "\(matchCount) matches")
-        return String(localized: "Search for \(trimmedQuery). \(matches). Result \(safeActiveIndex + 1) of \(matchCount).")
+        let matches = String(localized: "\(matchCount) matches", bundle: .module)
+        return String(localized: "Search for \(trimmedQuery). \(matches). Result \(safeActiveIndex + 1) of \(matchCount).", bundle: .module)
     }
 }
 

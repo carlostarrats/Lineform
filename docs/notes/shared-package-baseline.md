@@ -262,3 +262,49 @@ The `MarkdownSpellCheckPerformanceTests` doc comment says this test runs in Debu
 
 Release build at Task 4 (`xcodebuild -configuration Release build`, after `clean`): BUILD SUCCEEDED.
 iOS Simulator build of the `LineformCore` scheme: BUILD SUCCEEDED.
+
+## Task 5: search and file tree model moved into LineformCore
+
+Seven files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Search/`:
+`EditorSearchResolver`, `CrossFileSearchResolver`, `CrossFileSearchModel` (from `Editor/`) and
+`OutlineFileTree`, `OutlineFileSortOrder`, `QuickOpenIndex`, `UbiquitousItemDownloader` (from
+`Outline/`). The package built with the whole group on the first try: no file needed an app type,
+nothing was split or left behind. `DirectoryEventMonitor` and `OutlineFileBrowserStore` stay in
+the app, as the plan says.
+
+Edits beyond `public`:
+- An explicit `public init(id:title:systemImage:state:items:)` on `OutlineFileRoot`, with the same
+  labels and order as the memberwise init. The app constructs it.
+- An empty `public init() {}` on `CrossFileSearchFileReader`, which has no instance stored
+  properties. `CrossFileSearchModel`'s public init uses it as a default argument.
+- `Sendable` on `QuickOpenEntry` and `OutlineFileSortOrder`. A public type loses the implicit
+  conformance an internal one had:
+  - `QuickOpenEntry`: without it, `CrossFileSearchModel.search` fails a Swift 6 region-isolation
+    check, because it sends `entries` into the nonisolated `scan`.
+  - `OutlineFileSortOrder`: without it, `OutlineSidebarView` gets a new "capture of non-Sendable"
+    warning.
+- `CrossFileSearchResolver` and `EditorSearchToolbarPresentation` stay internal. No app code uses
+  them; only the package and `@testable` tests do.
+
+Persisted identifiers: `OutlineFileSortOrder`'s raw values are its case names (`name`,
+`dateCreated`, `dateModified`), and they did not change. The defaults keys live in
+`OutlineFileBrowserStore`, which stays in the app. `OutlineFileTreeItem`'s `CodingKeys` did not
+change either.
+
+Strings: 6 keys.
+- Moved: "Date Created", "Date Modified", "Search for %@. No matches." and
+  "Search for %@. %@. Result %lld of %lld.".
+- Copied with `--keep-in-app`:
+  - "Name": `TextField("Name")` in `EditorContainerView` uses it.
+  - "%lld matches": `CrossFileSearchResultsView` uses it.
+- The script warned that the "Result %lld of %lld." entry's `en` stringUnit is in state `new`.
+  That was already true in the app catalog, and the entry moved unchanged.
+- The built package bundle's `ja` and `de` tables hold all six keys, translated, including the
+  plural `stringsdict` entry for "%lld matches".
+
+Tests: `CrossFileSearchResolverTests`, `CrossFileSearchModelTests`, `QuickOpenIndexTests` and
+`OutlineFileSortOrderTests` moved (38 tests). The only change in each is the import.
+`OutlineSidebarViewTests`, `EditorDisplayModeTests` and `RobustnessProbeTests` stay, because they
+use app types. They already had `@testable import LineformCore`.
+
+Gates: package 287, app 1696, default plan 1983, so unique tests are still 1983.

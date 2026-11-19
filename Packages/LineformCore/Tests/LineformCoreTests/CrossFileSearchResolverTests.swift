@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class CrossFileSearchResolverTests: XCTestCase {
     private func entry(name: String = "notes.md", relativePath: String = "projects/notes.md") -> QuickOpenEntry {

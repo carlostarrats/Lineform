@@ -2,23 +2,23 @@ import Foundation
 
 /// One line of context around a cross-file match. `matchRange` locates the query hit
 /// WITHIN `lineText` (post-elision), so the UI can emphasize it.
-struct CrossFileSearchSnippet: Equatable {
-    let lineText: String
-    let matchRange: NSRange
+public struct CrossFileSearchSnippet: Equatable {
+    public let lineText: String
+    public let matchRange: NSRange
 }
 
 /// One file's cross-file search result.
-struct CrossFileSearchResult: Identifiable, Equatable {
-    let id: String            // full URL path — the OutlineFileTreeItem.id rule
-    let url: URL
-    let name: String
-    let relativePath: String
-    let rootTitle: String
+public struct CrossFileSearchResult: Identifiable, Equatable {
+    public let id: String            // full URL path — the OutlineFileTreeItem.id rule
+    public let url: URL
+    public let name: String
+    public let relativePath: String
+    public let rootTitle: String
     /// Query hits in the filename. These are kept separate from document hits so the
     /// card can emphasize its title without pretending a filename is source text.
-    let filenameMatches: [NSRange]
-    let matchCount: Int
-    let snippets: [CrossFileSearchSnippet]
+    public let filenameMatches: [NSRange]
+    public let matchCount: Int
+    public let snippets: [CrossFileSearchSnippet]
 }
 
 /// Pure per-file matching + ranking behind the All Files search scope. Matching reuses

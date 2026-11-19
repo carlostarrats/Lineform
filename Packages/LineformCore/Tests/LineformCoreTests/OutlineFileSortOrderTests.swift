@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class OutlineFileSortOrderTests: XCTestCase {
     private func item(_ name: String, isDirectory: Bool = false, created: Date? = nil, modified: Date? = nil, children: [OutlineFileTreeItem] = []) -> OutlineFileTreeItem {

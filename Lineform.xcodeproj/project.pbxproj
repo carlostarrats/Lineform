@@ -83,10 +83,8 @@
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
 		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
 		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
-		1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000301 /* OutlineFileSortOrder.swift */; };
 		1F0000010000000000000302 /* DirectoryEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000302 /* DirectoryEventMonitor.swift */; };
 		1F0000010000000000000303 /* SidebarFileActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000303 /* SidebarFileActions.swift */; };
-		1F0000010000000000000311 /* OutlineFileSortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */; };
 		1F0000010000000000000312 /* SidebarFileActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000312 /* SidebarFileActionsTests.swift */; };
 		1F0000010000000000000313 /* AppCommandsSidebarFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */; };
 		1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */; };
@@ -122,8 +120,6 @@
 		1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */; };
 		1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */; };
 		1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000078 /* OutlineSidebarView.swift */; };
-		1F00003A000000000000000D /* UbiquitousItemDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A000000000000000E /* UbiquitousItemDownloader.swift */; };
-		1F00003A000000000000000B /* OutlineFileTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A000000000000000C /* OutlineFileTree.swift */; };
 		1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D8 /* HistorySidebarView.swift */; };
 		1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032B /* MarkdownReferenceTests.swift */; };
 		1F000001000000000000032C /* OutlineSidebarTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032C /* OutlineSidebarTabTests.swift */; };
@@ -155,7 +151,6 @@
 		1F0000010000000000000120 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000120 /* Fonts */; };
 		1F0000010000000000000121 /* BundledFontRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000121 /* BundledFontRegistrar.swift */; };
 		1F0000010000000000000131 /* FirstLaunchIntro in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000131 /* FirstLaunchIntro */; };
-		1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000140 /* EditorSearchResolver.swift */; };
 		1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000141 /* EditorStatusPresentation.swift */; };
 		1F0000010000000000000142 /* EditorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000142 /* EditorPresentation.swift */; };
 		1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000143 /* EditorChromeAndControls.swift */; };
@@ -222,13 +217,7 @@
 		1F00000100000000000003A3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A3 /* TabBarView.swift */; };
 		1F00000100000000000003A4 /* WindowCloseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A4 /* WindowCloseController.swift */; };
 		1F00000100000000000003A5 /* SaveAndCloseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */; };
-		1F00000100000000000003A6 /* QuickOpenIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A6 /* QuickOpenIndex.swift */; };
-		1F00000100000000000003A7 /* QuickOpenIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A7 /* QuickOpenIndexTests.swift */; };
 		1F00000100000000000003A8 /* QuickOpenPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003A8 /* QuickOpenPalette.swift */; };
-		1F00000100000000000003B1 /* CrossFileSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B1 /* CrossFileSearchResolver.swift */; };
-		1F00000100000000000003B2 /* CrossFileSearchResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */; };
-		1F00000100000000000003B3 /* CrossFileSearchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B3 /* CrossFileSearchModel.swift */; };
-		1F00000100000000000003B4 /* CrossFileSearchModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */; };
 		1F00000100000000000004A6 /* QuickLookMarkdownRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */; };
 		1F00000100000000000003B5 /* CrossFileSearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */; };
 		1F00000100000000000004A1 /* QuickLookPreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */; };
@@ -337,10 +326,8 @@
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
 		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
-		1F0000020000000000000301 /* OutlineFileSortOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileSortOrder.swift; sourceTree = "<group>"; };
 		1F0000020000000000000302 /* DirectoryEventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryEventMonitor.swift; sourceTree = "<group>"; };
 		1F0000020000000000000303 /* SidebarFileActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFileActions.swift; sourceTree = "<group>"; };
-		1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileSortOrderTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000312 /* SidebarFileActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFileActionsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommandsSidebarFileTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicyTests.swift; sourceTree = "<group>"; };
@@ -379,8 +366,6 @@
 		1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRenderer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000078 /* OutlineSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarView.swift; sourceTree = "<group>"; };
-		1F00003A000000000000000E /* UbiquitousItemDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UbiquitousItemDownloader.swift; sourceTree = "<group>"; };
-		1F00003A000000000000000C /* OutlineFileTree.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineFileTree.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D8 /* HistorySidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarView.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D9 /* HistorySidebarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarPresentationTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000032B /* MarkdownReferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReferenceTests.swift; sourceTree = "<group>"; };
@@ -409,7 +394,6 @@
 		1F0000020000000000000113 /* AppStoreMetadata.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AppStoreMetadata.md; sourceTree = "<group>"; };
 		1F0000020000000000000114 /* AccessibilityNutritionLabel.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AccessibilityNutritionLabel.md; sourceTree = "<group>"; };
 		1F0000020000000000000115 /* ReleaseReadiness.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ReleaseReadiness.md; sourceTree = "<group>"; };
-		1F0000020000000000000140 /* EditorSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSearchResolver.swift; sourceTree = "<group>"; };
 		1F0000020000000000000141 /* EditorStatusPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorStatusPresentation.swift; sourceTree = "<group>"; };
 		1F0000020000000000000142 /* EditorPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPresentation.swift; sourceTree = "<group>"; };
 		1F0000020000000000000143 /* EditorChromeAndControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorChromeAndControls.swift; sourceTree = "<group>"; };
@@ -473,13 +457,7 @@
  		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A4 /* WindowCloseController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCloseController.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAndCloseCoordinator.swift; sourceTree = "<group>"; };
-		1F00000200000000000003A6 /* QuickOpenIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOpenIndex.swift; sourceTree = "<group>"; };
-		1F00000200000000000003A7 /* QuickOpenIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOpenIndexTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000003A8 /* QuickOpenPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOpenPalette.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B1 /* CrossFileSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResolver.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResolverTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B3 /* CrossFileSearchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchModel.swift; sourceTree = "<group>"; };
-		1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchModelTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookMarkdownRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFileSearchResultsView.swift; sourceTree = "<group>"; };
  		1F00000200000000000004A1 /* QuickLookPreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewProvider.swift; sourceTree = "<group>"; };
@@ -635,11 +613,8 @@
  				1F00000200000000000003A4 /* WindowCloseController.swift */,
  				1F00000200000000000003A5 /* SaveAndCloseCoordinator.swift */,
  				1F00000200000000000003A8 /* QuickOpenPalette.swift */,
- 				1F00000200000000000003B1 /* CrossFileSearchResolver.swift */,
- 				1F00000200000000000003B3 /* CrossFileSearchModel.swift */,
  				1F00000200000000000003B5 /* CrossFileSearchResultsView.swift */,
  				1F0000020000000000000142 /* EditorPresentation.swift */,
-				1F0000020000000000000140 /* EditorSearchResolver.swift */,
 				1F0000020000000000000141 /* EditorStatusPresentation.swift */,
 				1F0000020000000000000015 /* MarkdownTextViewRepresentable.swift */,
 				1F0000020000000000000016 /* LineformTextView.swift */,
@@ -700,14 +675,10 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000302 /* DirectoryEventMonitor.swift */,
-				1F0000020000000000000301 /* OutlineFileSortOrder.swift */,
 				1F0000020000000000000078 /* OutlineSidebarView.swift */,
-				1F00003A000000000000000E /* UbiquitousItemDownloader.swift */,
-				1F00003A000000000000000C /* OutlineFileTree.swift */,
 				1F00000200000000000004D8 /* HistorySidebarView.swift */,
 				1F000002000000000000032D /* OutlineMarkdownBasicsTabView.swift */,
 				1F0000020000000000000303 /* SidebarFileActions.swift */,
-				1F00000200000000000003A6 /* QuickOpenIndex.swift */,
 			);
 			path = Outline;
 			sourceTree = "<group>";
@@ -809,7 +780,6 @@
 				1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */,
 				1F0000020000000000000107 /* LargeDocumentPerformanceTests.swift */,
 				1F0000020000000000000116 /* OutlineSidebarViewTests.swift */,
-				1F0000020000000000000311 /* OutlineFileSortOrderTests.swift */,
 				1F0000020000000000000312 /* SidebarFileActionsTests.swift */,
 				1F0000020000000000000313 /* AppCommandsSidebarFileTests.swift */,
 				1F0000020000000000000212 /* DocumentReloadPolicyTests.swift */,
@@ -823,9 +793,6 @@
 				1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */,
 				1F000002000000000000032B /* MarkdownReferenceTests.swift */,
 				1F000002000000000000032C /* OutlineSidebarTabTests.swift */,
-				1F00000200000000000003A7 /* QuickOpenIndexTests.swift */,
-				1F00000200000000000003B2 /* CrossFileSearchResolverTests.swift */,
-				1F00000200000000000003B4 /* CrossFileSearchModelTests.swift */,
 				1F00000200000000000004A6 /* QuickLookMarkdownRendererTests.swift */,
 				1F0000020000000000000330 /* EditorTabStoreTests.swift */,
 				1F000002000000000000032E /* OutlineInfoContrastTests.swift */,
@@ -1106,10 +1073,7 @@
  				1F00000100000000000003A3 /* TabBarView.swift in Sources */,
  				1F00000100000000000003A4 /* WindowCloseController.swift in Sources */,
  				1F00000100000000000003A5 /* SaveAndCloseCoordinator.swift in Sources */,
- 				1F00000100000000000003A6 /* QuickOpenIndex.swift in Sources */,
  				1F00000100000000000003A8 /* QuickOpenPalette.swift in Sources */,
- 				1F00000100000000000003B1 /* CrossFileSearchResolver.swift in Sources */,
- 				1F00000100000000000003B3 /* CrossFileSearchModel.swift in Sources */,
  				1F00000100000000000003B5 /* CrossFileSearchResultsView.swift in Sources */,
 				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */,
@@ -1127,14 +1091,10 @@
 				1F0000010000000000000506 /* SelectionToolbar.swift in Sources */,
 				1F0000010000000000000507 /* LineformTextView+SelectionToolbar.swift in Sources */,
 				1F0000010000000000000142 /* EditorPresentation.swift in Sources */,
-				1F0000010000000000000140 /* EditorSearchResolver.swift in Sources */,
 				1F0000010000000000000141 /* EditorStatusPresentation.swift in Sources */,
 				1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */,
-				1F00003A000000000000000D /* UbiquitousItemDownloader.swift in Sources */,
-				1F00003A000000000000000B /* OutlineFileTree.swift in Sources */,
 				1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */,
 				1F000001000000000000032D /* OutlineMarkdownBasicsTabView.swift in Sources */,
-				1F0000010000000000000301 /* OutlineFileSortOrder.swift in Sources */,
 				1F0000010000000000000302 /* DirectoryEventMonitor.swift in Sources */,
 				1F0000010000000000000303 /* SidebarFileActions.swift in Sources */,
 			);
@@ -1220,7 +1180,6 @@
 				1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */,
 				1F0000010000000000000107 /* LargeDocumentPerformanceTests.swift in Sources */,
 				1F0000010000000000000116 /* OutlineSidebarViewTests.swift in Sources */,
-				1F0000010000000000000311 /* OutlineFileSortOrderTests.swift in Sources */,
 				1F0000010000000000000312 /* SidebarFileActionsTests.swift in Sources */,
 				1F0000010000000000000313 /* AppCommandsSidebarFileTests.swift in Sources */,
 				1F0000010000000000000212 /* DocumentReloadPolicyTests.swift in Sources */,
@@ -1235,9 +1194,6 @@
 				1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */,
 				1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */,
 				1F000001000000000000032C /* OutlineSidebarTabTests.swift in Sources */,
-				1F00000100000000000003A7 /* QuickOpenIndexTests.swift in Sources */,
-				1F00000100000000000003B2 /* CrossFileSearchResolverTests.swift in Sources */,
-				1F00000100000000000003B4 /* CrossFileSearchModelTests.swift in Sources */,
 				1F00000100000000000004A6 /* QuickLookMarkdownRendererTests.swift in Sources */,
 				1F0000010000000000000330 /* EditorTabStoreTests.swift in Sources */,
 				1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */,
