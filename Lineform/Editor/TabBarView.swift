@@ -1,4 +1,5 @@
 import SwiftUI
+import LineformCore
 
 /// Document tab bar (redesigned from live QA, 2026-07-18). Flat capsule tabs, no
 /// translucency:

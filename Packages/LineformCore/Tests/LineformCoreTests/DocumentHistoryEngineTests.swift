@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class DocumentHistoryEngineTests: XCTestCase {
     private let fixedDate = Date(timeIntervalSince1970: 1_800_000_000)

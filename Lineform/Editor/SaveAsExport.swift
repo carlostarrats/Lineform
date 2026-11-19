@@ -1,5 +1,6 @@
 import AppKit
 import UniformTypeIdentifiers
+import LineformCore
 
 /// A target for File ▸ Export As. Markdown is deliberately absent: saving your document is
 /// Save As, exporting a copy in another format is Export As, and keeping a Markdown entry here

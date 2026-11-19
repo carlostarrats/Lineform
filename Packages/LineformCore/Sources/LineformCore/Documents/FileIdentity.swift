@@ -3,7 +3,7 @@ import Foundation
 /// Whether two URLs name the same file on disk. Shared by the Save As destination guard and by
 /// open-time tab dedupe (`EditorTabStore.locate`) so "already open" means the same thing in both —
 /// if they disagreed, a file could slip past dedupe and then be refused at save, or vice versa.
-enum FileIdentity {
+public enum FileIdentity {
     /// Both sides are first put through `resolvingSymlinksInPath()`, which is the only thing that
     /// follows a symlink at the LAST path component — `canonicalPath` resolves symlinked ancestors
     /// but hands back the link's own path for the leaf, so without this an `alias.md` tab and the
@@ -19,14 +19,14 @@ enum FileIdentity {
     /// this fronts: `.saveOperation`, `.saveAsOperation`, autosave-in-place and `Data.write(.atomic)`
     /// all leave a new inode with the sibling intact. Matching on inode would refuse a harmless save,
     /// and a wrong refusal has no in-app override.
-    static func isSameFile(_ lhs: URL, _ rhs: URL) -> Bool {
+    public static func isSameFile(_ lhs: URL, _ rhs: URL) -> Bool {
         key(for: lhs) == key(for: rhs)
     }
 
     /// The comparison key on its own, so a caller matching ONE url against many (tab dedupe) can
     /// resolve the query once instead of re-walking the file system for every candidate — each call
     /// is up to four disk round-trips on the main thread, and iCloud/network volumes make that felt.
-    static func key(for url: URL) -> String {
+    public static func key(for url: URL) -> String {
         comparisonKey(for: url.standardizedFileURL.resolvingSymlinksInPath())
     }
 

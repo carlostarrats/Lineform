@@ -2,19 +2,19 @@ import Foundation
 
 /// A passage found in the live text by `DocumentHistoryEngine.locateAll(in:)`. `range` is a UTF-16
 /// range into the text that call was given, and is only valid for that exact text.
-struct LocatedPassage: Equatable {
-    let id: UUID
-    let level: HistoryLevel
-    let range: NSRange
+public struct LocatedPassage: Equatable {
+    public let id: UUID
+    public let level: HistoryLevel
+    public let range: NSRange
     let rootID: UUID
 }
 
 /// One replacement the editor applies to show another version. `range` is the passage's live range
 /// in the text the engine was handed. The caller applies it verbatim and does not report it back
 /// through `applyEdit`.
-struct HistoryEdit: Equatable {
-    let range: NSRange
-    let replacement: String
+public struct HistoryEdit: Equatable {
+    public let range: NSRange
+    public let replacement: String
 }
 
 /// Pure History logic over plain strings: no UI, no AppKit, no persistence.
@@ -40,8 +40,8 @@ struct HistoryEdit: Equatable {
 /// Without one (first locate after load, after `invalidateLiveRanges`, or after an unreported
 /// change) a passage is found only by a LITERAL match of its last known text plus context;
 /// anything else drops it.
-struct DocumentHistoryEngine {
-    var history: DocumentHistory
+public struct DocumentHistoryEngine {
+    public var history: DocumentHistory
     let now: () -> Date
 
     /// Where each located, visible passage sits in the live text (UTF-16).
@@ -66,7 +66,7 @@ struct DocumentHistoryEngine {
     private(set) var isSettingAside = false
     private(set) var setAside: Set<UUID> = []
 
-    init(history: DocumentHistory, now: @escaping () -> Date) {
+    public init(history: DocumentHistory, now: @escaping () -> Date) {
         self.history = history
         self.now = now
     }
@@ -76,7 +76,7 @@ struct DocumentHistoryEngine {
     /// Maps one user text change through every live range. `edited` is the range replaced, in the
     /// text before the change; `replacement` is the text inserted there. O(passages), plus a splice
     /// of the remembered text of each passage the edit falls inside. Never reads the document.
-    mutating func applyEdit(_ edited: NSRange, replacement: String) {
+    public mutating func applyEdit(_ edited: NSRange, replacement: String) {
         mapLiveRanges(through: edited, replacement: replacement, except: nil)
         if let length = syncedLength { syncedLength = length + (replacement as NSString).length - edited.length }
     }
@@ -114,18 +114,18 @@ struct DocumentHistoryEngine {
     }
 
     /// An accepted AI change is about to be applied: dropped passages are set aside, not removed.
-    mutating func beginSettingAside() {
+    public mutating func beginSettingAside() {
         isSettingAside = true
     }
 
     /// The accepted change is applied; later edits drop as usual.
-    mutating func endSettingAside() {
+    public mutating func endSettingAside() {
         isSettingAside = false
     }
 
     /// The accept's recording is over. A passage still set aside could not be filed anywhere (the
     /// change was recorded nowhere, or nowhere containing its text): it goes, as before.
-    mutating func finishSetAside() {
+    public mutating func finishSetAside() {
         isSettingAside = false
         let leftover = setAside
         setAside = []
@@ -154,7 +154,7 @@ struct DocumentHistoryEngine {
     /// Forget every live range; the next `locateAll` re-finds every passage LITERALLY (by its last
     /// known live text), dropping what it cannot find. Call it for live reload from disk and any
     /// other wholesale replacement of the text that is not reported edit by edit.
-    mutating func invalidateLiveRanges() {
+    public mutating func invalidateLiveRanges() {
         liveRanges.removeAll()
         syncedLength = nil
     }
@@ -164,7 +164,7 @@ struct DocumentHistoryEngine {
     /// skipped) and forget ALL live state, so the next `locateAll` re-finds each passage literally
     /// by its stored current text. Without this, the next locate would write the restored text
     /// over the version that was current when the session ended.
-    mutating func restoreCurrentVersions(_ indices: [UUID: Int]) {
+    public mutating func restoreCurrentVersions(_ indices: [UUID: Int]) {
         for (id, version) in indices {
             guard let p = index(of: id), history.passages[p].versions.indices.contains(version) else { continue }
             history.passages[p].currentIndex = version
@@ -246,7 +246,7 @@ struct DocumentHistoryEngine {
 
     // MARK: - Locating
 
-    mutating func locateAll(in text: String) -> [LocatedPassage] {
+    public mutating func locateAll(in text: String) -> [LocatedPassage] {
         let ns = text as NSString
         if syncedLength != ns.length { liveRanges.removeAll() }
         dropUnreachable()
@@ -328,7 +328,7 @@ struct DocumentHistoryEngine {
     /// boundary — an edit across a boundary would drop that passage. A selection inside a passage,
     /// equal to one, or containing whole passages is returned unchanged. Live ranges only: never
     /// searches the text.
-    func aiActionRange(for range: NSRange) -> NSRange {
+    public func aiActionRange(for range: NSRange) -> NSRange {
         var result = range
         var grew = true
         while grew {
@@ -345,7 +345,7 @@ struct DocumentHistoryEngine {
 
     // MARK: - Adding
 
-    func canAdd(_ range: NSRange, in text: String) -> Bool {
+    public func canAdd(_ range: NSRange, in text: String) -> Bool {
         var copy = self
         return copy.placement(for: range, in: text) != nil
     }
@@ -381,7 +381,7 @@ struct DocumentHistoryEngine {
     /// gains a second version is discarded when History mode is left
     /// (`discardUnrevisedPassages`): adding something and changing nothing keeps nothing.
     @discardableResult
-    mutating func add(_ range: NSRange, author: HistoryAuthor, in text: String) -> UUID? {
+    public mutating func add(_ range: NSRange, author: HistoryAuthor, in text: String) -> UUID? {
         guard let placement = placement(for: range, in: text) else { return nil }
         switch placement {
         case .existing(let id):
@@ -402,7 +402,7 @@ struct DocumentHistoryEngine {
     /// selected instead. Nil when the text is empty or equals the trimmed current version, or the
     /// passage cannot be located.
     /// Like `select`, the edit is applied verbatim and NOT reported through `applyEdit`.
-    mutating func addReplacement(_ replacement: String, to id: UUID, in text: String) -> HistoryEdit? {
+    public mutating func addReplacement(_ replacement: String, to id: UUID, in text: String) -> HistoryEdit? {
         let trimmed = Self.singleLineReplacement(replacement)
         guard !trimmed.isEmpty,
               let located = locateAll(in: text).first(where: { $0.id == id }),
@@ -445,7 +445,7 @@ struct DocumentHistoryEngine {
     /// own parent, in the version it was made in. A one-version passage's only version is the
     /// live text, so those children still sit exactly where that parent shows them.
     @discardableResult
-    mutating func discardUnrevisedPassages() -> [UUID] {
+    public mutating func discardUnrevisedPassages() -> [UUID] {
         var discarded: [UUID] = []
         while let p = history.passages.firstIndex(where: { $0.versions.count == 1 }) {
             let gone = history.passages[p]
@@ -499,7 +499,7 @@ struct DocumentHistoryEngine {
     /// keeps its history. The replaced version is the writer's only when `original` differs from
     /// the stored text of that version; otherwise (accepting AI text twice) it keeps its author.
     @discardableResult
-    mutating func recordAccepted(range: NSRange, original: String, accepted: String, in text: String) -> UUID? {
+    public mutating func recordAccepted(range: NSRange, original: String, accepted: String, in text: String) -> UUID? {
         // Match by position BEFORE locateAll refreshes the current version to the accepted text.
         // The live range covers exactly what was inserted, edge whitespace included, so compare it
         // with both `range` and its trimmed form.
@@ -625,7 +625,7 @@ struct DocumentHistoryEngine {
     // The returned `HistoryEdit` is applied by the caller verbatim and NOT reported back through
     // `applyEdit`: the engine has already moved its live ranges for it.
 
-    mutating func step(_ id: UUID, by delta: Int, in text: String) -> HistoryEdit? {
+    public mutating func step(_ id: UUID, by delta: Int, in text: String) -> HistoryEdit? {
         guard let passage = history.passages.first(where: { $0.id == id }) else { return nil }
         let count = passage.versions.count
         guard count > 1 else { return nil }
@@ -634,7 +634,7 @@ struct DocumentHistoryEngine {
     }
 
     /// Nil when the passage cannot be located, has one version, or `index` is already current.
-    mutating func select(_ id: UUID, version index: Int, in text: String) -> HistoryEdit? {
+    public mutating func select(_ id: UUID, version index: Int, in text: String) -> HistoryEdit? {
         guard let located = locateAll(in: text).first(where: { $0.id == id }),
               let p = self.index(of: id) else { return nil }
         let passage = history.passages[p]
@@ -650,7 +650,7 @@ struct DocumentHistoryEngine {
 
     /// Deleting the current version first switches to its neighbour and returns that edit. A
     /// passage left with one version is removed together with its descendants.
-    mutating func deleteVersion(_ id: UUID, at index: Int, in text: String) -> HistoryEdit? {
+    public mutating func deleteVersion(_ id: UUID, at index: Int, in text: String) -> HistoryEdit? {
         guard let located = locateAll(in: text).first(where: { $0.id == id }),
               let p = self.index(of: id),
               history.passages[p].versions.indices.contains(index),
@@ -680,7 +680,7 @@ struct DocumentHistoryEngine {
 
     /// Every level present in the nested group: the root plus descendants made in each parent's
     /// current version, in `HistoryLevel.allCases` order.
-    func group(containing id: UUID) -> [HistoryLevel] {
+    public func group(containing id: UUID) -> [HistoryLevel] {
         guard let rootID = chain(to: id).first else { return [] }
         var levels = Set<HistoryLevel>()
         var stack = [rootID]
@@ -693,7 +693,7 @@ struct DocumentHistoryEngine {
     }
 
     /// Root … id. Empty when `id` is unknown or its ancestry is broken.
-    func chain(to id: UUID) -> [UUID] {
+    public func chain(to id: UUID) -> [UUID] {
         var result: [UUID] = []
         var cursor: UUID? = id
         while let current = cursor {
@@ -706,7 +706,7 @@ struct DocumentHistoryEngine {
     }
 
     /// First passage of `level` nested under `id`, through current versions only.
-    func descend(from id: UUID, to level: HistoryLevel) -> UUID? {
+    public func descend(from id: UUID, to level: HistoryLevel) -> UUID? {
         guard let start = history.passages.first(where: { $0.id == id }) else { return nil }
         var queue = visibleChildren(of: start)
         var head = 0

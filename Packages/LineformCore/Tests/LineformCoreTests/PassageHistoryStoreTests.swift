@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class PassageHistoryStoreTests: XCTestCase {
     private var directory: URL!

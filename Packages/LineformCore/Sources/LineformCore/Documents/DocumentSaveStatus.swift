@@ -2,14 +2,14 @@ import Combine
 import Foundation
 
 @MainActor
-final class DocumentSaveStatus: ObservableObject {
-    static let shared = DocumentSaveStatus()
+public final class DocumentSaveStatus: ObservableObject {
+    public static let shared = DocumentSaveStatus()
 
-    enum SaveKind: Equatable { case manual, autosave }
+    public enum SaveKind: Equatable { case manual, autosave }
 
-    struct SaveEvent: Equatable {
-        let documentID: UUID
-        let kind: SaveKind
+    public struct SaveEvent: Equatable {
+        public let documentID: UUID
+        public let kind: SaveKind
         let sequence: Int
     }
 
@@ -25,7 +25,7 @@ final class DocumentSaveStatus: ObservableObject {
     /// A transient signal published for each real write so the status bar can flash
     /// a green "Saved"/"Autosaved" confirmation. Distinct `sequence` per event so
     /// `.onChange` fires even for repeated kinds.
-    @Published private(set) var lastSaveEvent: SaveEvent?
+    @Published public private(set) var lastSaveEvent: SaveEvent?
     /// Set when the user invokes Save / Save As, cleared when consumed by a write or
     /// invalidated by an edit (see `noteUserEdit`). A one-shot flag rather than a timed
     /// window so it survives a slow `NSSavePanel` interaction (Save As, first save of an
@@ -34,14 +34,14 @@ final class DocumentSaveStatus: ObservableObject {
     private var writeSequence = 0
     private init() {}
 
-    func savedAt(for documentID: UUID) -> Date? {
+    public func savedAt(for documentID: UUID) -> Date? {
         savedAtByDocumentID[documentID]
     }
 
     /// True when the live text differs from the last text written to disk. Untitled
     /// documents (no recorded save) are never "dirty" — their state is shown as
     /// "Not saved yet" instead.
-    func isDirty(documentID: UUID, currentText: String) -> Bool {
+    public func isDirty(documentID: UUID, currentText: String) -> Bool {
         guard savedAtByDocumentID[documentID] != nil else { return false }
         guard let savedHash = savedTextHashByDocumentID[documentID] else { return false }
         return savedHash != currentText.hashValue
@@ -49,7 +49,7 @@ final class DocumentSaveStatus: ObservableObject {
 
     /// Records that the user just invoked Save / Save As, so the next real write is
     /// attributed to the user ("Saved") rather than an autosave ("Autosaved").
-    func noteManualSaveIntent() {
+    public func noteManualSaveIntent() {
         pendingManualSave = true
     }
 
@@ -57,7 +57,7 @@ final class DocumentSaveStatus: ObservableObject {
     /// not yet produced a write is cleared, because the next write will be an autosave
     /// of this new edit — not the earlier ⌘S/Save As. (During a modal save panel the
     /// document can't be edited, so a legitimate panel save keeps its intent.)
-    func noteUserEdit() {
+    public func noteUserEdit() {
         pendingManualSave = false
     }
 
@@ -69,7 +69,7 @@ final class DocumentSaveStatus: ObservableObject {
 
     /// Called from the document write path for a real save. Updates the saved
     /// date/text baseline and publishes a classified event for the status flash.
-    func recordWrite(documentID: UUID, text: String) {
+    public func recordWrite(documentID: UUID, text: String) {
         let manual = consumeManualSaveIntent()
         markSaved(documentID: documentID, at: Date(), text: text)
         writeSequence += 1
@@ -79,11 +79,11 @@ final class DocumentSaveStatus: ObservableObject {
     /// The exact text that was written by the save this `savedAt` describes. The live reload
     /// baseline uses this instead of the live document text, which may already contain
     /// keystrokes typed after the save snapshot was taken.
-    func savedText(for documentID: UUID) -> String? {
+    public func savedText(for documentID: UUID) -> String? {
         savedTextByDocumentID[documentID]
     }
 
-    func markSaved(documentID: UUID, at date: Date = Date(), text: String? = nil) {
+    public func markSaved(documentID: UUID, at date: Date = Date(), text: String? = nil) {
         if let text {
             savedTextByDocumentID[documentID] = text
             savedTextHashByDocumentID[documentID] = text.hashValue

@@ -16,7 +16,8 @@ let package = Package(
         ),
         .testTarget(
             name: "LineformCoreTests",
-            dependencies: ["LineformCore"]
+            dependencies: ["LineformCore"],
+            resources: [.copy("Fixtures/history-1.8.0")]
         ),
     ],
     swiftLanguageModes: [.v6]

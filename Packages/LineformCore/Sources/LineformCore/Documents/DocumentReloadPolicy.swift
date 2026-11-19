@@ -1,7 +1,7 @@
 import Foundation
 
 /// The result of deciding whether an externally-changed file should reload the open document.
-enum ReloadOutcome: Equatable {
+public enum ReloadOutcome: Equatable {
     case reload
     case ignoreDirty
     case ignoreUnchanged
@@ -15,11 +15,11 @@ enum ReloadOutcome: Equatable {
 /// (but not-yet-flagged-dirty) document could be clobbered by an external write. Comparing
 /// against `lastSyncedText` (the in-memory text as of the last moment memory equalled disk —
 /// open, our own save, or a prior reload) closes that window deterministically.
-enum DocumentReloadPolicy {
+public enum DocumentReloadPolicy {
     /// Trailing debounce interval that coalesces burst writes into a single reload.
-    static let debounceInterval: TimeInterval = 0.3
+    public static let debounceInterval: TimeInterval = 0.3
 
-    static func decide(diskText: String, currentText: String, lastSyncedText: String) -> ReloadOutcome {
+    public static func decide(diskText: String, currentText: String, lastSyncedText: String) -> ReloadOutcome {
         // Disk already matches memory: nothing to do (covers the app's own save write-back).
         if diskText == currentText { return .ignoreUnchanged }
         // Memory diverged from the last synced baseline: the user has unsaved in-memory edits.

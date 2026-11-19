@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// One suggested change, in DOCUMENT UTF-16 coordinates. `range` always sits on
 /// composed-character boundaries.

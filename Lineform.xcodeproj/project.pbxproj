@@ -56,9 +56,6 @@
 		1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */; };
 		1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000324 /* TestPlanGuardTests.swift */; };
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
-		1F00003A0000000000000013 /* HistoryUndoCollapse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000014 /* HistoryUndoCollapse.swift */; };
-		1F00003A0000000000000011 /* DocumentSaveStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000012 /* DocumentSaveStatus.swift */; };
-		1F00003A000000000000000F /* FileIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00003A0000000000000010 /* FileIdentity.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
 		1F0000180000000000000001 /* MermaidPieChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000180000000000000002 /* MermaidPieChartTests.swift */; };
 		1F00001B0000000000000001 /* CodeSyntaxPaletteContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */; };
@@ -70,7 +67,6 @@
 		1F00000100000000000004A8 /* ExportTypographyPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */; };
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
-		1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000210 /* DocumentReloadPolicy.swift */; };
 		1F0000010000000000000211 /* DocumentReloadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000211 /* DocumentReloadController.swift */; };
 		1F0000010000000000000302 /* DirectoryEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000302 /* DirectoryEventMonitor.swift */; };
 		1F0000010000000000000303 /* SidebarFileActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000303 /* SidebarFileActions.swift */; };
@@ -185,13 +181,6 @@
 		1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */; };
 		1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */; };
 		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
-		1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CD /* PassageHistoryModel.swift */; };
-		1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CE /* PassageHistoryStore.swift */; };
-		1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CF /* PassageHistoryStoreTests.swift */; };
-		1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D0 /* PassageHistoryText.swift */; };
-		1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D1 /* PassageHistoryTextTests.swift */; };
-		1F00000100000000000004D2 /* DocumentHistoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D2 /* DocumentHistoryEngine.swift */; };
-		1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */; };
 		1F0000010000000000000203 /* BeautifulMermaid in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000130000000000000002 /* BeautifulMermaid */; };
 		1F00000100000000000002A1 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000002A2 /* SwiftMath */; };
 		1F00000100000000000005C3 /* LineformCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1F00001300000000000005C2 /* LineformCore */; };
@@ -281,9 +270,6 @@
 		1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDrawerMotionHostedTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000324 /* TestPlanGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlanGuardTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
-		1F00003A0000000000000014 /* HistoryUndoCollapse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryUndoCollapse.swift; sourceTree = "<group>"; };
-		1F00003A0000000000000012 /* DocumentSaveStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentSaveStatus.swift; sourceTree = "<group>"; };
-		1F00003A0000000000000010 /* FileIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIdentity.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
 		1F0000180000000000000002 /* MermaidPieChartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidPieChartTests.swift; sourceTree = "<group>"; };
 		1F00001B0000000000000002 /* CodeSyntaxPaletteContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSyntaxPaletteContrastTests.swift; sourceTree = "<group>"; };
@@ -296,7 +282,6 @@
 		1F00000200000000000004A8 /* ExportTypographyPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTypographyPresetTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000210 /* DocumentReloadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadPolicy.swift; sourceTree = "<group>"; };
 		1F0000020000000000000211 /* DocumentReloadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReloadController.swift; sourceTree = "<group>"; };
 		1F0000020000000000000302 /* DirectoryEventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryEventMonitor.swift; sourceTree = "<group>"; };
 		1F0000020000000000000303 /* SidebarFileActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFileActions.swift; sourceTree = "<group>"; };
@@ -411,13 +396,6 @@
 		1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialReviewProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialHistoryProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004CD /* PassageHistoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryModel.swift; sourceTree = "<group>"; };
-		1F00000200000000000004CE /* PassageHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStore.swift; sourceTree = "<group>"; };
-		1F00000200000000000004CF /* PassageHistoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryStoreTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D0 /* PassageHistoryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryText.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D1 /* PassageHistoryTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassageHistoryTextTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D2 /* DocumentHistoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentHistoryEngine.swift; sourceTree = "<group>"; };
-		1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentHistoryEngineTests.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A1 /* DocumentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTab.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A2 /* EditorTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTabStore.swift; sourceTree = "<group>"; };
  		1F00000200000000000003A3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
@@ -551,15 +529,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000020000000000000013 /* LineformDocument.swift */,
-				1F00003A0000000000000014 /* HistoryUndoCollapse.swift */,
-				1F00003A0000000000000012 /* DocumentSaveStatus.swift */,
-				1F00003A0000000000000010 /* FileIdentity.swift */,
-				1F0000020000000000000210 /* DocumentReloadPolicy.swift */,
 				1F0000020000000000000211 /* DocumentReloadController.swift */,
-				1F00000200000000000004CD /* PassageHistoryModel.swift */,
-				1F00000200000000000004CE /* PassageHistoryStore.swift */,
-				1F00000200000000000004D0 /* PassageHistoryText.swift */,
-				1F00000200000000000004D2 /* DocumentHistoryEngine.swift */,
 			);
 			path = Documents;
 			sourceTree = "<group>";
@@ -704,9 +674,6 @@
 				1F00000200000000000004FA /* AIActionControllerTests.swift */,
 				1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */,
 				1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */,
-				1F00000200000000000004CF /* PassageHistoryStoreTests.swift */,
-				1F00000200000000000004D1 /* PassageHistoryTextTests.swift */,
-				1F00000200000000000004D3 /* DocumentHistoryEngineTests.swift */,
 				1F00000200000000000004CA /* TestDefaultsSupport.swift */,
 				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
@@ -947,10 +914,6 @@
 				1F0000010000000000000320 /* LineformSettings.swift in Sources */,
 				1F0000010000000000000321 /* SettingsView.swift in Sources */,
 				1F0000010000000000000013 /* LineformDocument.swift in Sources */,
-				1F00003A0000000000000013 /* HistoryUndoCollapse.swift in Sources */,
-				1F00003A0000000000000011 /* DocumentSaveStatus.swift in Sources */,
-				1F00003A000000000000000F /* FileIdentity.swift in Sources */,
-				1F0000010000000000000210 /* DocumentReloadPolicy.swift in Sources */,
 				1F0000010000000000000211 /* DocumentReloadController.swift in Sources */,
 				1F0000010000000000000014 /* EditorContainerView.swift in Sources */,
 				1F0000010000000000000015 /* MarkdownTextViewRepresentable.swift in Sources */,
@@ -996,10 +959,6 @@
 				1F0000010000000000000501 /* AIReviewCards.swift in Sources */,
 				1F00003A0000000000000015 /* AIReviewCardPresentation.swift in Sources */,
 				1F00000100000000000004F8 /* AIActionController.swift in Sources */,
-				1F00000100000000000004CD /* PassageHistoryModel.swift in Sources */,
-				1F00000100000000000004CE /* PassageHistoryStore.swift in Sources */,
-				1F00000100000000000004D0 /* PassageHistoryText.swift in Sources */,
-				1F00000100000000000004D2 /* DocumentHistoryEngine.swift in Sources */,
 				1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
 				1F0000010000000000000051 /* FontOption.swift in Sources */,
@@ -1088,9 +1047,6 @@
 				1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */,
 				1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */,
 				1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */,
-				1F00000100000000000004CF /* PassageHistoryStoreTests.swift in Sources */,
-				1F00000100000000000004D1 /* PassageHistoryTextTests.swift in Sources */,
-				1F00000100000000000004D3 /* DocumentHistoryEngineTests.swift in Sources */,
 				1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */,
 				1F0000010000000000000323 /* EditorDrawerMotionHostedTests.swift in Sources */,
 				1F0000010000000000000324 /* TestPlanGuardTests.swift in Sources */,

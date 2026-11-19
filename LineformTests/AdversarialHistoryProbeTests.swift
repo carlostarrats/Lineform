@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 @testable import Lineform
+@testable import LineformCore
 
 /// Adversarial probes of History: the engine, the controller's counter and sidebar model, and the
 /// counter's placement. Probes that exposed a real defect are wrapped in `XCTExpectFailure`.

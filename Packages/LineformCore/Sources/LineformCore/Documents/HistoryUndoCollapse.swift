@@ -4,8 +4,8 @@ import Foundation
 /// out, then the changed span is widened to Character boundaries in BOTH strings, so it
 /// never splits a CRLF pair, a surrogate pair, or a combining mark from its base. A leading BOM
 /// and any line endings outside the change are therefore never rewritten. `nil` when equal.
-enum HistoryUndoCollapse {
-    static func minimalEdit(from entry: String, to exit: String) -> HistoryEdit? {
+public enum HistoryUndoCollapse {
+    public static func minimalEdit(from entry: String, to exit: String) -> HistoryEdit? {
         trimmedEdit(from: entry, to: exit, prefixFirst: true)
     }
 
@@ -17,7 +17,7 @@ enum HistoryUndoCollapse {
     /// two placements differ this returns their UNION (earliest start to latest end, replacement
     /// built so the result text is the same), so every passage overlapping the ambiguous region
     /// straddles the edit and is dropped. Ordinary typing has one placement and is unchanged.
-    static func unambiguousEdit(from entry: String, to exit: String) -> HistoryEdit? {
+    public static func unambiguousEdit(from entry: String, to exit: String) -> HistoryEdit? {
         guard let forward = trimmedEdit(from: entry, to: exit, prefixFirst: true),
               let backward = trimmedEdit(from: entry, to: exit, prefixFirst: false) else { return nil }
         guard forward != backward else { return forward }

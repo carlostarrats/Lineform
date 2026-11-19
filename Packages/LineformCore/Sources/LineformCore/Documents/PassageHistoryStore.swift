@@ -3,7 +3,7 @@ import Foundation
 /// Persistence for per-document passage history. Failure-tolerant by contract: a missing or
 /// corrupt file loads as empty and no method throws to the caller. Thread-safe by contract:
 /// `prune` runs on a background queue while the main thread loads and saves.
-protocol PassageHistoryPersisting: AnyObject {
+public protocol PassageHistoryPersisting: AnyObject {
     func load(for url: URL) -> DocumentHistory
     func save(_ history: DocumentHistory, for url: URL)
     func retarget(from old: URL, to new: URL)
@@ -15,22 +15,22 @@ protocol PassageHistoryPersisting: AnyObject {
 }
 
 /// Keeps nothing. Used by tests and by untitled documents (no file to key history to).
-final class NullPassageHistoryStore: PassageHistoryPersisting {
-    func load(for url: URL) -> DocumentHistory { DocumentHistory(passages: []) }
-    func save(_ history: DocumentHistory, for url: URL) {}
-    func retarget(from old: URL, to new: URL) {}
-    func retargetDirectory(from oldDir: URL, to newDir: URL) {}
-    func prune(now: Date) {}
-    func clearAll() {}
+public final class NullPassageHistoryStore: PassageHistoryPersisting {
+    public func load(for url: URL) -> DocumentHistory { DocumentHistory(passages: []) }
+    public func save(_ history: DocumentHistory, for url: URL) {}
+    public func retarget(from old: URL, to new: URL) {}
+    public func retargetDirectory(from oldDir: URL, to newDir: URL) {}
+    public func prune(now: Date) {}
+    public func clearAll() {}
 }
 
 /// Stores history as JSON under Application Support: `index.json` maps each document
 /// (`FileIdentity.key`, plus a bookmark so a Finder move made while Lineform was closed can be
 /// followed) to a `<id>.json` holding its `DocumentHistory`. Nothing is stored for a document
 /// with no history.
-final class FilePassageHistoryStore: PassageHistoryPersisting {
+public final class FilePassageHistoryStore: PassageHistoryPersisting {
     /// Passages untouched for this long are dropped by `prune`.
-    static let staleInterval: TimeInterval = 30 * 24 * 60 * 60
+    public static let staleInterval: TimeInterval = 30 * 24 * 60 * 60
 
     private struct IndexEntry: Codable, Equatable {
         var id: UUID
@@ -45,12 +45,12 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
 
     /// `isConfirmedMissing` must return true ONLY on positive evidence the file is gone; the
     /// default is `confirmedMissing(_:)`.
-    init(directory: URL, isConfirmedMissing: @escaping (URL) -> Bool = FilePassageHistoryStore.confirmedMissing) {
+    public init(directory: URL, isConfirmedMissing: @escaping (URL) -> Bool = FilePassageHistoryStore.confirmedMissing) {
         self.directory = directory
         self.isConfirmedMissing = isConfirmedMissing
     }
 
-    static func defaultDirectory(home: URL) -> URL {
+    public static func defaultDirectory(home: URL) -> URL {
         home
             .appendingPathComponent("Library/Application Support", isDirectory: true)
             .appendingPathComponent("Lineform/History", isDirectory: true)
@@ -58,7 +58,7 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
 
     // MARK: - PassageHistoryPersisting
 
-    func load(for url: URL) -> DocumentHistory {
+    public func load(for url: URL) -> DocumentHistory {
         lock.lock(); defer { lock.unlock() }
         let key = FileIdentity.key(for: url)
         guard let entry = readIndex().first(where: { $0.pathKey == key }) else { return Self.empty }
@@ -67,7 +67,7 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         return DocumentHistoryEngine.preparedForLoad(readHistory(entry.id))
     }
 
-    func save(_ history: DocumentHistory, for url: URL) {
+    public func save(_ history: DocumentHistory, for url: URL) {
         lock.lock(); defer { lock.unlock() }
         let key = FileIdentity.key(for: url)
         var index = readIndex()
@@ -94,7 +94,7 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         writeIndex(index)
     }
 
-    func retarget(from old: URL, to new: URL) {
+    public func retarget(from old: URL, to new: URL) {
         lock.lock(); defer { lock.unlock() }
         let oldKey = FileIdentity.key(for: old)
         let newKey = FileIdentity.key(for: new)
@@ -112,7 +112,7 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         writeIndex(index)
     }
 
-    func retargetDirectory(from oldDir: URL, to newDir: URL) {
+    public func retargetDirectory(from oldDir: URL, to newDir: URL) {
         lock.lock(); defer { lock.unlock() }
         let oldPrefix = FileIdentity.key(for: oldDir) + "/"
         guard FileIdentity.key(for: newDir) + "/" != oldPrefix else { return }
@@ -147,7 +147,7 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
     /// The slow part (resolving each bookmark, checking each folder) runs WITHOUT the lock, so a
     /// `load` or `save` on the main thread never waits behind it; the decisions are then applied
     /// under the lock to the index as it is at that moment, skipping entries changed meanwhile.
-    func prune(now: Date) {
+    public func prune(now: Date) {
         lock.lock()
         // Nothing stored yet: write nothing either (not even an empty index).
         guard fileManager.fileExists(atPath: indexURL.path) else { lock.unlock(); return }
@@ -221,7 +221,7 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
         writeIndex(kept)
     }
 
-    func clearAll() {
+    public func clearAll() {
         lock.lock(); defer { lock.unlock() }
         let files = (try? fileManager.contentsOfDirectory(atPath: directory.path)) ?? []
         for name in files {
@@ -300,7 +300,7 @@ final class FilePassageHistoryStore: PassageHistoryPersisting {
     /// Positive evidence that `url` is gone: its folder can be LISTED (so its volume is mounted
     /// and readable) and the file is neither in that listing nor present. A folder that cannot be
     /// listed — unplugged drive, unmounted network volume, outside the sandbox — proves nothing.
-    static func confirmedMissing(_ url: URL) -> Bool {
+    public static func confirmedMissing(_ url: URL) -> Bool {
         let fileManager = FileManager.default
         let folder = url.deletingLastPathComponent()
         guard let names = try? fileManager.contentsOfDirectory(atPath: folder.path) else { return false }

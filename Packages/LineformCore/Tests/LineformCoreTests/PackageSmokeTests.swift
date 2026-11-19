@@ -7,8 +7,8 @@ final class PackageSmokeTests: XCTestCase {
     /// left behind in the app catalog, the lookup would return the English key.
     func testModuleBundleHasTheStringCatalog() throws {
         let japanese = try XCTUnwrap(
-            Bundle.module.path(forResource: "ja", ofType: "lproj").flatMap(Bundle.init(path:)),
-            "ja.lproj missing from Bundle.module"
+            Bundle.lineformCore.path(forResource: "ja", ofType: "lproj").flatMap(Bundle.init(path:)),
+            "ja.lproj missing from LineformCore's bundle"
         )
         let key = "Strikethrough."
         let translated = japanese.localizedString(forKey: key, value: nil, table: nil)

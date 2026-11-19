@@ -359,3 +359,72 @@ types): `ReadingPresetTests`, `ReadingProfileStoreTests`, `ThemeTests`, `FontOpt
 others, which gained `@testable import LineformCore`.
 
 Gates: package 359, app 1624, default plan 1983, so unique tests are still 1983.
+
+## Task 7: documents and History moved into LineformCore
+
+Eight files moved verbatim into `Packages/LineformCore/Sources/LineformCore/Documents/`:
+`DocumentReloadPolicy`, `PassageHistoryModel`, `PassageHistoryText`, `PassageHistoryStore`,
+`DocumentHistoryEngine`, `FileIdentity`, `DocumentSaveStatus` (Foundation + Combine) and
+`HistoryUndoCollapse`. None imports AppKit or SwiftUI or uses an app type, so nothing was split
+or left behind. `PassageHistoryText`'s `import LineformCore` (added in Task 3) was removed: a
+module cannot import itself. `DocumentHistoryController` (NSWindow/NSApplication notifications),
+`DocumentReloadController` (AppKit) and `LineformDocument` (AppKit/SwiftUI) stay in the app.
+
+Edits beyond `public`:
+- `Sendable` on `DocumentHistory`, `HistoryPassage`, `HistoryVersion`, `HistoryLevel` and
+  `HistoryAuthor`: the store's `private static let empty = DocumentHistory(passages: [])` fails
+  Swift 6's global-variable check without it, and `DocumentHistory`'s conformance needs the rest.
+- `public init(passages:)` on `DocumentHistory` (the app constructs it; memberwise label).
+- `bundle: .module` on the three `HistoryLevel.title` strings.
+- `PackageSmokeTests` reads `Bundle.lineformCore` instead of `Bundle.module`. The test target now
+  has a resource (the fixture), so inside the tests `Bundle.module` names the TEST bundle, which
+  has no `ja.lproj`. `Bundle.lineformCore` is the same LineformCore bundle the test always checked.
+
+Persisted identifiers (Review Focus 2): unchanged. `FilePassageHistoryStore.defaultDirectory(home:)`
+is still `<home>/Library/Application Support/Lineform/History` (the app passes the container home);
+`index.json` and `<UUID>.json`; `IndexEntry` keys `id`, `pathKey`, `bookmark` (optional); the model types have
+no `CodingKeys`, so their keys are their unchanged property names; `secondsSince1970` dates;
+`staleInterval` 30 days. All pinned by `PassageHistoryStoreCompatibilityTests`.
+
+### The 1.8.0 History fixture
+
+`Packages/LineformCore/Tests/LineformCoreTests/Fixtures/history-1.8.0/` (`index.json` and
+`765470F0-A5A0-4B50-8A51-561097BFC28D.json`, a `.copy` resource of the test target) was written
+by the baseline's own code (ruling R3: History code unchanged since 1.8.0 build 41):
+
+1. `git worktree add --detach .superpowers/fixture-gen 0c94147` (git-ignored folder).
+2. In that worktree only, a throwaway test `testGenerateHistoryFixture_1_8_0` appended to
+   `LineformTests/PassageHistoryStoreTests.swift`. It built one `DocumentHistory` of two passages
+   and called the real `FilePassageHistoryStore(directory:).save(_:for:)` (store directory under
+   the test host's temporary directory) for the URL
+   `/Lineform-1.8.0-fixture/Documents/Two passages.md`. That file does not exist and its parent
+   chain exists on no machine, so the key is the path as written and the baseline stores no
+   bookmark (nothing to bookmark; the optional key is omitted):
+   - passage 0, `.word`, versions "gentle" (you) and "dangerous" (ai), `currentIndex` 1, child of
+     passage 1 at version 1, context "The wind was " / " that night.";
+   - passage 1, `.sentence`, "The wind was gentle that night." / "The wind was dangerous that
+     night." (both you), no parent.
+   Dates are fixed (`1_793_491_200` and one hour later). The test printed each stored file
+   base64-encoded and then deleted its folder (the shell cannot read the app container).
+3. `xcodebuild test ... -derivedDataPath <scratchpad>/fixture-dd
+   -only-testing:LineformTests/PassageHistoryStoreTests/testGenerateHistoryFixture_1_8_0`:
+   TEST SUCCEEDED. The base64 lines were decoded byte-for-byte into the fixture folder.
+4. `git worktree remove --force .superpowers/fixture-gen`. Nothing from the worktree was committed.
+
+A first version of the fixture used a real temporary file, so its index held a bookmark with this
+Mac's volume and sandbox data; it was replaced (the repository is public) before the commit was
+kept. `load(for:)` never reads the bookmark, so no behaviour under test depends on it.
+
+SHA-256: `index.json` 221e15766743a026db5adc0237a8ff38bf71f34f8d02d9400dad31332cdea225,
+record 0c396853e42a45698f8cee0f8933ff0025f5a01e565047ce844161b53d09343f.
+
+The store keys on `FileIdentity.key(for:)`; the test loads through the real public `load(for:)`
+with the fixture's `pathKey` as the URL (the index/record readers are `private`) and asserts the
+file does not exist.
+
+Never regenerate the fixture with post-move code: its value is that the bytes predate the move.
+
+Tests moved (88): `PassageHistoryStoreTests` (17), `PassageHistoryTextTests` (20),
+`DocumentHistoryEngineTests` (51); only the import changed. `DocumentReloadPolicyTests` stays (it
+also tests the app's `ProportionalScrollMath`). New: `PassageHistoryStoreCompatibilityTests` (4).
+Gates: package 451, app 1536, default plan 1987, so unique tests are 1983 + 4 new = 1987.

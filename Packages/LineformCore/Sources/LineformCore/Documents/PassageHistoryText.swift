@@ -1,9 +1,8 @@
 import Foundation
-import LineformCore
 
 /// Pure text helpers for passage History. Every NSRange here is a UTF-16 offset into the ORIGINAL
 /// text (CRLF and a leading BOM included), never into a stripped copy.
-enum PassageHistoryText {
+public enum PassageHistoryText {
     static let contextLength = 32
 
     private static let trimSet = CharacterSet.whitespacesAndNewlines
@@ -15,7 +14,7 @@ enum PassageHistoryText {
     }
 
     /// Snaps to composed-character boundaries, then trims surrounding whitespace and line endings.
-    static func aligned(_ range: NSRange, in text: String) -> NSRange {
+    public static func aligned(_ range: NSRange, in text: String) -> NSRange {
         let ns = text as NSString
         let length = ns.length
         let location = (range.location == NSNotFound || range.location < 0) ? length : min(range.location, length)
@@ -111,7 +110,7 @@ enum PassageHistoryText {
     /// runner-up by `max(4, 25% of best)`. A tie never resolves to the first: replacing the wrong
     /// occurrence rewrites text the writer never selected, while dropping only loses history.
     /// Han ideographs, kana and hangul: scripts written without spaces between words.
-    static func isIdeographic(_ scalar: Unicode.Scalar) -> Bool {
+    public static func isIdeographic(_ scalar: Unicode.Scalar) -> Bool {
         switch scalar.value {
         case 0x3040...0x30FF, 0x31F0...0x31FF, 0xFF66...0xFF9F,
              0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF, 0x20000...0x3FFFF,
