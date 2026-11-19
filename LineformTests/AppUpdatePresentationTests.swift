@@ -74,6 +74,7 @@ final class AppUpdatePresentationTests: XCTestCase {
             XCTAssertTrue(localized[1].message.contains("1.8.0"), "\(language): \(localized[1].message)")
             XCTAssertTrue(localized[1].message.contains("App Store"), "\(language): \(localized[1].message)")
             XCTAssertTrue(localized[1].primaryButton.contains("App Store"), "\(language): \(localized[1].primaryButton)")
+            XCTAssertNotEqual(localized[1].primaryButton, "Open App Store", "\(language): Open App Store untranslated")
             XCTAssertNotEqual(localized[1].secondaryButton, "Not Now", "\(language): Not Now untranslated")
         }
     }

@@ -88,7 +88,10 @@ enum AppStoreLookup {
         guard raw.count <= maximumStoreURLLength,
               let url = URL(string: raw),
               url.scheme?.lowercased() == allowedStoreScheme,
-              url.host == allowedStoreHost
+              url.host == allowedStoreHost,
+              url.port == nil,
+              url.user == nil,
+              url.password == nil
         else { return nil }
         return url
     }
@@ -107,8 +110,9 @@ protocol AppUpdateChecking: Sendable {
 ///
 /// Privacy shape, the same as `AnnouncementFetcher`: a plain GET with no body, no
 /// cookies, no credentials, and no identifiers. The only query is the app's own public
-/// bundle id (and the Mac catalog); deliberately no `country`/locale parameter, so the
-/// request says nothing about the writer.
+/// bundle id (and the Mac catalog). The request adds no locale or country parameter of
+/// its own (URLSession still sends its standard User-Agent and Accept-Language headers,
+/// as for the announcement check).
 struct AppStoreUpdateChecker: AppUpdateChecking {
     /// The Release bundle id, fixed. Never `Bundle.main.bundleIdentifier`: Debug builds
     /// are `com.lineform.app.debug`, which has no store listing.

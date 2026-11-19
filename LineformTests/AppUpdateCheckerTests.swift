@@ -57,9 +57,12 @@ final class AppUpdateCheckerTests: XCTestCase {
         XCTAssertEqual(result, .failed)
     }
 
-    func testHTMLBodyWith200IsFailed() async {
-        StubURLProtocol.contentType = "text/html; charset=utf-8"
-        StubURLProtocol.body = Data("<html><body>Sign in to Wi-Fi</body></html>".utf8)
+    /// Isolates the Content-Type guard: the body is the VALID lookup JSON, so only the
+    /// `text/html` header (a captive portal answering 200) can make this fail.
+    func testHTMLContentTypeWith200IsFailedEvenForAValidBody() async {
+        StubURLProtocol.contentType = "text/html"
+        StubURLProtocol.status = 200
+        StubURLProtocol.body = Data(good.utf8)
         let result = await checker().check(currentVersion: "1.8.0")
         XCTAssertEqual(result, .failed)
     }

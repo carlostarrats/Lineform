@@ -17,6 +17,12 @@ final class AppUpdateCheckTests: XCTestCase {
         XCTAssertNil(AppStoreLookup.decode(json(good.replacingOccurrences(of: "https://", with: "http://"))))
         XCTAssertNil(AppStoreLookup.decode(json(good.replacingOccurrences(of: "apps.apple.com", with: "apps.apple.com.evil.example"))))
     }
+    /// "Host exactly apps.apple.com" must be literally true: no userinfo, no port.
+    func testRejectsStoreURLWithUserPasswordOrPort() {
+        XCTAssertNil(AppStoreLookup.decode(json(good.replacingOccurrences(of: "https://apps.apple.com", with: "https://x@apps.apple.com"))))
+        XCTAssertNil(AppStoreLookup.decode(json(good.replacingOccurrences(of: "https://apps.apple.com", with: "https://x:secret@apps.apple.com"))))
+        XCTAssertNil(AppStoreLookup.decode(json(good.replacingOccurrences(of: "https://apps.apple.com", with: "https://apps.apple.com:8443"))))
+    }
     func testRejectsMalformedVersion() {
         XCTAssertNil(AppStoreLookup.decode(json(good.replacingOccurrences(of: "1.9.0", with: "1.9-beta"))))
         XCTAssertNil(AppStoreLookup.decode(json(good.replacingOccurrences(of: "1.9.0", with: String(repeating: "9", count: 40)))))

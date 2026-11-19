@@ -60,7 +60,8 @@ Mac-conventional place and flagged that — moving it is one line in `AppCommand
 - **Endpoint:** a plain GET of `https://itunes.apple.com/lookup?bundleId=com.lineform.app&entity=macSoftware`.
   The bundle id is the FIXED Release id (`AppStoreUpdateChecker.storeBundleID`), never
   `Bundle.main.bundleIdentifier`: Debug builds are `com.lineform.app.debug`, which has no store listing.
-  No `country`/locale parameter, so the request says nothing about the writer.
+  The request adds no locale or country parameter of its own (URLSession still sends its standard
+  User-Agent and Accept-Language headers, as for the announcement check).
 - **Privacy shape, same as `AnnouncementFetcher`:** ephemeral session, no cookies, no credentials, no
   identifiers, 10 s request and resource timeouts. App Privacy stays **Data Not Collected**.
 - **The response is hostile input** (`AppStoreLookup`): 200-only; `Content-Type` must contain `json` or
