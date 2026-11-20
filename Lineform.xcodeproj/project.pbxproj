@@ -29,6 +29,8 @@
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
 		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
 		1F0000010000000000000043 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000043 /* ThemeTests.swift */; };
+		1F0000350000000000000001 /* RenderGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000002 /* RenderGoldenTests.swift */; };
+		1F0000350000000000000003 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000004 /* Fixtures */; };
 		1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000044 /* ReadingProfileStoreTests.swift */; };
 		1F0000010000000000000063 /* AppCommandNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000063 /* AppCommandNotificationTests.swift */; };
 		1F0000010000000000000072 /* MarkdownPreviewRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */; };
@@ -216,6 +218,8 @@
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000043 /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
+		1F0000350000000000000002 /* RenderGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderGoldenTests.swift; sourceTree = "<group>"; };
+		1F0000350000000000000004 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
 		1F0000020000000000000044 /* ReadingProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingProfileStoreTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000063 /* AppCommandNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommandNotificationTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRendererTests.swift; sourceTree = "<group>"; };
@@ -639,6 +643,8 @@
 				1F000002000000000000032E /* OutlineInfoContrastTests.swift */,
 				1F00002B0000000000000002 /* ExportFormatTests.swift */,
 				1F0000340000000000000031 /* CJKFontFallbackTests.swift */,
+				1F0000350000000000000002 /* RenderGoldenTests.swift */,
+				1F0000350000000000000004 /* Fixtures */,
 			);
  			path = LineformTests;
  			sourceTree = "<group>";
@@ -803,6 +809,7 @@
  			isa = PBXResourcesBuildPhase;
  			buildActionMask = 2147483647;
  			files = (
+				1F0000350000000000000003 /* Fixtures in Resources */,
  			);
  			runOnlyForDeploymentPostprocessing = 0;
  		};
@@ -930,6 +937,7 @@
 				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
 				1F0000010000000000000042 /* FontOptionTests.swift in Sources */,
 				1F0000010000000000000043 /* ThemeTests.swift in Sources */,
+				1F0000350000000000000001 /* RenderGoldenTests.swift in Sources */,
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
