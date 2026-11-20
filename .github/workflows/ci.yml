@@ -28,6 +28,12 @@ jobs:
       - name: Build LineformCore for iOS
         working-directory: Packages/LineformCore
         run: xcodebuild -scheme LineformCore -destination 'generic/platform=iOS Simulator' build
+      # Compiles the package's tests for iOS too, so a macOS-only call in a test (outside an
+      # `#if os(macOS)` branch) fails CI. Build only: a generic destination does not depend on
+      # the runner's simulator names. Run them locally on a simulator (see Claude.md).
+      - name: Build LineformCore tests for iOS
+        working-directory: Packages/LineformCore
+        run: xcodebuild build-for-testing -scheme LineformCore -destination 'generic/platform=iOS Simulator'
       # Runs the scheme's default test plan (Lineform.xctestplan): the full pure,
       # deterministic suite. The hosted-window motion tests (EditorDrawerMotionHostedTests,
       # LiveReloadScrollTests) are quarantined into the opt-in LineformHosted plan — they

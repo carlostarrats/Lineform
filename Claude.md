@@ -228,7 +228,7 @@ Important directories:
 - `Lineform/Outline`: Markdown heading parser and outline sidebar UI.
 - `Lineform/ReadingExperience`: reading profiles, presets, themes, fonts, and reading experience controls.
 - `Lineform/Resources`: bundled privacy/help/release/accessibility docs.
-- `Packages/LineformCore`: the AppKit-free shared package (see Shared package below).
+- `Packages/LineformCore`: the shared Mac and iPhone package; AppKit and UIKit only behind its platform seam (see Shared package below).
 - `LineformTests`: XCTest coverage for app behavior, editor behavior, reading experience, and Markdown handling.
 - `docs`: deeper project docs, including implementation specs and plans.
 
@@ -244,9 +244,11 @@ this file.
 
 `Packages/LineformCore` is a local Swift package (macOS 14 / iOS 26, Swift 6) that
 the app links statically. Its only dependencies are BeautifulMermaid 1.0.4 and SwiftMath 1.7.3, pinned
-exactly as the app pins them. It holds the AppKit-free logic: Markdown parsing and HTML rendering
-(`Markdown/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
-profiles and speech (`ReadingExperience/`), History and save status (`Documents/`), the AI model,
+exactly as the app pins them (the package commits its own `Package.resolved`; the app target no
+longer links the two products directly). It holds Markdown parsing and HTML rendering
+(`Markdown/`), the Read/Preview attributed-string renderer and its image, Mermaid, pie and math
+providers (`Markdown/Rendering/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
+profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History and save status (`Documents/`), the AI model,
 clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in
 `Packages/LineformCore/Tests/LineformCoreTests`. Some pure-looking files stay in the app
 (`MarkdownSyntaxTokens`, `MarkdownSpellCheckRegions`, `MarkdownStructureMap`, `AIActionController`,
@@ -254,10 +256,29 @@ clients and Keychain (`AI/`), announcements and the update check (`App/`). Its t
 (directly or through `MarkdownSyntaxHighlighter`, `LineformTextView` or the History editor types).
 The list and the reasons are in `docs/notes/shared-package-baseline.md`.
 
-- **Purity.** Nothing in the package imports AppKit, SwiftUI, Cocoa, UIKit or WebKit, or uses an
-  app type. `PackagePurityTests` enforces the import rule for `LineformCore` and
-  `LineformCoreTestSupport`. If a file needs an app type, split the pure part out. Never add a
-  dependency from the package to the app.
+- **Purity.** The package never imports SwiftUI, Cocoa or WebKit, and never uses an app type.
+  AppKit and UIKit are allowed only inside an `#if os(macOS)` / `#else` branch, and only in files
+  under `Sources/LineformCore/Platform/` or `Sources/LineformCore/Markdown/Rendering/` (exact path
+  prefixes, subfolders included). Every other file is platform-neutral. `PackagePurityTests`
+  enforces this for `LineformCore` and `LineformCoreTestSupport`. If a file needs an app type,
+  split the pure part out. Never add a dependency from the package to the app.
+- **Platform seam.** `Sources/LineformCore/Platform/` holds the typealiases `PlatformColor`,
+  `PlatformFont`, `PlatformImage`, `PlatformEdgeInsets` and `PlatformMutableParagraphStyle`
+  (`NSColor`/`UIColor` and so on: typealiases, never wrappers) and the helpers that branch for
+  you (`lineformSRGB`, `lineformCalibratedWhite`, `lineformSRGBComponents`, `lineformLink`,
+  `lineformText`, `lineformTextBackground`, `lineformFont(_:adding:)`). Branch only on
+  `#if os(macOS)` / `#else` (iOS); no other platforms. The macOS branch is always the exact
+  AppKit call the app made before the move (`NSColor(calibratedWhite:)` stays calibrated,
+  `NSFontManager` trait conversion stays, `NSScreen.main` is read at each render through the
+  computed `RenderDisplayMetrics.current`), so Mac output does not change. iPhone-side choices
+  and limits are in `docs/architecture/rendering.md`.
+- **Render golden.** `LineformTests/RenderGoldenTests` pins the Mac renderer's attributes and
+  pixels for `LineformTests/Fixtures/render-golden/corpus.md` against `golden.txt`, which records
+  the macOS version and the main screen's scale (both tests skip on a mismatch). Re-record it
+  only for a deliberate visual change, in its own commit, with before and after screenshots;
+  never to make a refactor pass. Recording: run with `RECORD_RENDER_GOLDEN=1`
+  (`TEST_RUNNER_RECORD_RENDER_GOLDEN=1` from `xcodebuild`). The Debug test host is sandboxed, so
+  the file is written to the app container's `tmp` folder; copy it into the repo by hand.
 - **Access control.** Make `public` only what the app uses. That includes an explicit `public init`
   for every struct the app constructs, because memberwise inits are internal. A public type loses
   its implicit `Sendable`, so add it where Swift 6 needs it. No `@_exported`, `@_spi` or `open`.
@@ -270,7 +291,9 @@ The list and the reasons are in `docs/notes/shared-package-baseline.md`.
   `Bundle.lineformCore`.
 - **Gates.** `xcodebuild test -scheme LineformCore -destination 'platform=macOS'` from
   `Packages/LineformCore` (not `swift test`: some toolchains' command-line SwiftPM does not
-  compile the `.xcstrings` catalog, so the per-language tests fail), then the default plan (it also runs
+  compile the `.xcstrings` catalog, so the per-language tests fail), then the same package on iOS,
+  `xcodebuild test -scheme LineformCore -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`
+  from `Packages/LineformCore` (CI only builds the iOS tests), then the default plan (it also runs
   `LineformCoreTests`), then the hosted plan when the change calls for it (see Verification
   Commands). Run `xcodebuild clean` after changing the package catalog, or the app tests can read
   a stale bundle.
