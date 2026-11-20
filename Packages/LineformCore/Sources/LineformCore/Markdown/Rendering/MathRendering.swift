@@ -1,9 +1,13 @@
-import AppKit
 import CryptoKit
+import Foundation
 import SwiftMath
-import LineformCore
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
-/// Makes a rendered math `NSImage` orientation-stable across graphics contexts.
+/// Makes a rendered math image orientation-stable across graphics contexts.
 ///
 /// SwiftMath's `MathImage.asImage()` returns an `NSImage` that draws correctly (upright) in the
 /// flipped `NSTextView` used on screen, but flips vertically in a non-flipped context such as the
@@ -11,13 +15,22 @@ import LineformCore
 /// it as a CGImage-backed `NSImage` (the same technique `MermaidImageOrientation` uses) makes it
 /// render identically in both contexts. No flip is applied: SwiftMath is already upright, so its
 /// extracted bitmap is used as-is (unlike mermaid, whose raw raster is mirrored).
+///
+/// iOS: SwiftMath draws with `UIGraphicsImageRenderer` (top-left origin, upright). The image is
+/// rewrapped from its `cgImage` at its own scale with `.up` orientation, or returned as is when it
+/// has no `cgImage`.
 enum MathImageOrientation {
-    static func cgImageBacked(_ image: NSImage) -> NSImage {
+    static func cgImageBacked(_ image: PlatformImage) -> PlatformImage {
+        #if os(macOS)
         var proposed = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) else {
             return image
         }
         return NSImage(cgImage: cgImage, size: image.size)
+        #else
+        guard let cgImage = image.cgImage else { return image }
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: .up)
+        #endif
     }
 }
 
@@ -44,46 +57,48 @@ enum MathCacheKey {
 
 /// The result of attempting to render a math region. `descent` is the equation's descent
 /// below its own baseline (points), used to sit inline math on the surrounding text baseline.
-enum MathRenderOutcome {
-    case image(NSImage, descent: CGFloat)
+public enum MathRenderOutcome {
+    case image(PlatformImage, descent: CGFloat)
     case skipped          // size guard tripped
     case failed(String)   // parse/typeset failure
 }
 
 /// Abstracts equation image production so the renderer's fallback path is testable without
 /// the library.
-protocol MathImageProviding: AnyObject {
-    func outcome(latex: String, style: MathStyle, foreground: NSColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome
+public protocol MathImageProviding: AnyObject {
+    func outcome(latex: String, style: MathStyle, foreground: PlatformColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome
 }
 
 /// A provider that never renders (math falls back to source). Used by the back-compat
 /// `render(_:profile:)` convenience and by tests.
-final class DisabledMathImageProvider: MathImageProviding {
-    func outcome(latex: String, style: MathStyle, foreground: NSColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome {
+public final class DisabledMathImageProvider: MathImageProviding {
+    public init() {}
+
+    public func outcome(latex: String, style: MathStyle, foreground: PlatformColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome {
         .skipped
     }
 }
 
 /// The single seam that touches SwiftMath. Every render is defensive: a parse/typeset failure
 /// becomes `.failed` → the source fallback, so a broken formula can never break a document.
-final class MathImageProvider: MathImageProviding {
+public final class MathImageProvider: MathImageProviding {
     private let cache = NSCache<NSString, CachedMath>()
     private let failureCache = NSCache<NSString, NSString>()
 
     /// Boxed image + descent so both survive the NSCache round-trip.
     final class CachedMath {
-        let image: NSImage
+        let image: PlatformImage
         let descent: CGFloat
-        init(image: NSImage, descent: CGFloat) { self.image = image; self.descent = descent }
+        init(image: PlatformImage, descent: CGFloat) { self.image = image; self.descent = descent }
     }
 
-    init() {
+    public init() {
         cache.countLimit = MathCacheBudget.countLimit
         cache.totalCostLimit = MathCacheBudget.totalCostLimitBytes
         failureCache.countLimit = 200
     }
 
-    func outcome(latex: String, style: MathStyle, foreground: NSColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome {
+    public func outcome(latex: String, style: MathStyle, foreground: PlatformColor, pointSize: CGFloat, scale: CGFloat) -> MathRenderOutcome {
         guard MathBlockPolicy.shouldAttemptRender(source: latex) else { return .skipped }
 
         let key = MathCacheKey.key(

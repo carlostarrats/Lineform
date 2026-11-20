@@ -1,5 +1,4 @@
 import XCTest
-@testable import Lineform
 @testable import LineformCore
 
 /// Coverage for the `headingScale` parameter threaded into `MarkdownPreviewRenderer.render(...)`
@@ -21,7 +20,7 @@ final class MarkdownPreviewRendererHeadingScaleTests: XCTestCase {
             appVersion: "0",
             headingScale: scale
         )
-        let font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        let font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? PlatformFont
         return font?.pointSize ?? 0
     }
 
@@ -49,7 +48,7 @@ final class MarkdownPreviewRendererHeadingScaleTests: XCTestCase {
         let ns = attributed.string as NSString
         let bodyRange = ns.range(of: "Body")
         XCTAssertNotEqual(bodyRange.location, NSNotFound)
-        let font = attributed.attribute(.font, at: bodyRange.location, effectiveRange: nil) as? NSFont
+        let font = attributed.attribute(.font, at: bodyRange.location, effectiveRange: nil) as? PlatformFont
         XCTAssertEqual(font?.pointSize, 17)
     }
 }

@@ -1,6 +1,4 @@
 import XCTest
-import AppKit
-@testable import Lineform
 @testable import LineformCore
 
 final class CodeSyntaxPaletteContrastTests: XCTestCase {
@@ -29,11 +27,12 @@ final class CodeSyntaxPaletteContrastTests: XCTestCase {
         }
     }
 
-    private static func contrastRatio(_ a: NSColor, _ b: NSColor) -> CGFloat {
-        func lum(_ c: NSColor) -> CGFloat {
-            let s = c.usingColorSpace(.sRGB) ?? c
+    private static func contrastRatio(_ a: PlatformColor, _ b: PlatformColor) -> CGFloat {
+        func lum(_ c: PlatformColor) -> CGFloat {
+            // macOS: `(c.usingColorSpace(.sRGB) ?? c)`'s components, as before the move.
+            let s = c.lineformSRGBComponentsOrOwn
             func chan(_ v: CGFloat) -> CGFloat { v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
-            return 0.2126 * chan(s.redComponent) + 0.7152 * chan(s.greenComponent) + 0.0722 * chan(s.blueComponent)
+            return 0.2126 * chan(s.red) + 0.7152 * chan(s.green) + 0.0722 * chan(s.blue)
         }
         let l1 = lum(a), l2 = lum(b)
         return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)

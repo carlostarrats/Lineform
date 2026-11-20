@@ -103,8 +103,8 @@ enum MuseModalChrome {
     static let closeHoverFillOpacity = 0.08
 
     /// Card geometry + entrance motion (shared so both modals animate identically).
-    static let cornerRadius: CGFloat = 20
-    static let animationDuration = 0.24
+    static let cornerRadius: CGFloat = LineformDesign.Radius.modal
+    static let animationDuration = LineformDesign.Motion.standard
     static let entranceYOffset: CGFloat = 10
 
     static var backgroundColor: Color {
@@ -176,7 +176,7 @@ struct MuseModalHeader: View {
             .onHover { hovering in
                 isCloseHovered = hovering
             }
-            .animation(.easeOut(duration: 0.12), value: isCloseHovered)
+            .animation(.easeOut(duration: LineformDesign.Motion.hover), value: isCloseHovered)
         }
         // The card's `modalArrowCursor` is an `onContinuousHover`, and that stream stops
         // arriving over the close button — an AppKit-backed control swallows the mouse-moved
@@ -692,7 +692,7 @@ struct EditorModeSegmentedControl: View {
                     .accessibilityLabel(mode.title)
                     .accessibilityAddTraits(selection == mode ? [.isSelected] : [])
                     .onHover { isHovering in
-                        withAnimation(.easeInOut(duration: 0.12)) {
+                        withAnimation(.easeInOut(duration: LineformDesign.Motion.hover)) {
                             hoveredMode = isHovering ? mode : nil
                         }
                     }

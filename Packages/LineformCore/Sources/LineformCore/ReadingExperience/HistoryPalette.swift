@@ -1,4 +1,5 @@
-import AppKit
+import CoreGraphics
+import Foundation
 
 /// The colours History mode draws with in the editor. Every one is derived from the theme's own
 /// ink and page (the `Theme.readableInk` approach), so a theme change — including Automatic Dark
@@ -14,36 +15,36 @@ import AppKit
 /// the page) under `focusOtherInk` (≥ 3:1 on that tint) — and hovering one brings it to full
 /// strength (full ink on the opaque hover fill). Unchanged text falls to `deepRecededInk`.
 /// The receded inks are de-emphasis, not body text; each keeps a documented floor.
-enum HistoryPalette {
+public enum HistoryPalette {
     /// A passage that has history: a light wash of the theme's own ink. 0.08 is the lightest wash
     /// that clears 1.15:1 off the page on the light themes; three nested washes still keep AA on
     /// Quiet (0.09 does not).
-    static let tintAlpha: CGFloat = 0.08
+    public static let tintAlpha: CGFloat = 0.08
     /// The passage under the pointer: a stronger wash, drawn opaque. Preview only.
-    static let hoverTintAlpha: CGFloat = 0.15
+    public static let hoverTintAlpha: CGFloat = 0.15
     /// Unchanged text recedes to this share of the ink before the readability floor is applied.
-    static let recededInkAlpha: CGFloat = 0.45
+    public static let recededInkAlpha: CGFloat = 0.45
     /// Receded text is de-emphasised, not hidden: it keeps at least this ratio against the page.
-    static let recededInkMinimumRatio: CGFloat = 3.0
+    public static let recededInkMinimumRatio: CGFloat = 3.0
     /// While a passage is focused: the OTHER passages' fill. Owner (QA 1.8): "dark enough for
     /// accessibility … it can't be too faint" — so stronger than the unfocused wash.
-    static let focusOtherTintAlpha: CGFloat = 0.10
+    public static let focusOtherTintAlpha: CGFloat = 0.10
     /// While a passage is focused: the OTHER passages' ink, measured ON `focusOtherTint`.
-    static let focusOtherInkAlpha: CGFloat = 0.38
-    static let focusOtherInkMinimumRatio: CGFloat = 3.0
+    public static let focusOtherInkAlpha: CGFloat = 0.38
+    public static let focusOtherInkMinimumRatio: CGFloat = 3.0
     /// While a passage is focused: unchanged text, receded further.
-    static let deepRecededInkAlpha: CGFloat = 0.22
-    static let deepRecededInkMinimumRatio: CGFloat = 2.0
+    public static let deepRecededInkAlpha: CGFloat = 0.22
+    public static let deepRecededInkMinimumRatio: CGFloat = 2.0
 
     // MARK: - Mark (2026-11-13)
 
     /// Mark's sentences: an OPAQUE wash of the theme's ink, stronger on a dark page, where the
     /// History tint (translucent, 0.08) was barely visible. At least as far off the page as the
     /// History tint, with the text on it at AA (`HistoryPaletteTests`).
-    static let markWashAlphaLight: CGFloat = 0.12
-    static let markWashAlphaDark: CGFloat = 0.20
+    public static let markWashAlphaLight: CGFloat = 0.12
+    public static let markWashAlphaDark: CGFloat = 0.20
 
-    static func markWash(for theme: Theme) -> NSColor {
+    public static func markWash(for theme: Theme) -> PlatformColor {
         let alpha = theme.usesDarkChrome ? markWashAlphaDark : markWashAlphaLight
         return opaqueFill(ink(of: theme).withAlphaComponent(alpha), for: theme)
     }
@@ -53,49 +54,49 @@ enum HistoryPalette {
     /// Nested passages draw as LAYERED rounded boxes (the mockup's `.h .h`): each depth adds one
     /// more layer of its tint, composited OPAQUE so what is drawn is exactly what the AA tests
     /// measure. Deeper than this reuses the deepest layer.
-    static let maximumLayerDepth = 3
+    public static let maximumLayerDepth = 3
     /// The boxes' corner radius (the mockup's 3px).
-    static let layerCornerRadius: CGFloat = 3
+    public static let layerCornerRadius: CGFloat = 3
     /// The selected passage: the system accent blue (the mockup's `.sel`), stronger on a dark page.
-    static let selectedAlphaLight: CGFloat = 0.20
-    static let selectedAlphaDark: CGFloat = 0.30
+    public static let selectedAlphaLight: CGFloat = 0.20
+    public static let selectedAlphaDark: CGFloat = 0.30
     /// A passage nested INSIDE the selected one: one ink layer per depth over the blue, so it still
     /// reads as its own box.
-    static let selectedChildTintAlpha: CGFloat = 0.07
+    public static let selectedChildTintAlpha: CGFloat = 0.07
     /// Each nested wash past the first adds this much (the first is `tintAlpha`): three full
     /// 0.08 washes sit right at AA on Quiet, leaving no room for hover to brighten a depth-3 box.
-    static let nestedTintAlpha: CGFloat = 0.05
+    public static let nestedTintAlpha: CGFloat = 0.05
     /// Hover adds this over the passage's own wash, so it always brightens it.
-    static let hoverStepAlpha: CGFloat = 0.07
+    public static let hoverStepAlpha: CGFloat = 0.07
 
     /// `alpha` stacked `depth` times (1…`maximumLayerDepth`).
-    static func layeredAlpha(_ alpha: CGFloat, depth: Int) -> CGFloat {
+    public static func layeredAlpha(_ alpha: CGFloat, depth: Int) -> CGFloat {
         1 - pow(1 - alpha, CGFloat(min(max(depth, 1), maximumLayerDepth)))
     }
 
     /// Nothing selected: a passage at `depth` (1 = outermost) — `tint` stacked `depth` deep.
-    static func washFill(for theme: Theme, depth: Int) -> NSColor {
+    public static func washFill(for theme: Theme, depth: Int) -> PlatformColor {
         opaqueFill(ink(of: theme).withAlphaComponent(washAlpha(depth: depth)), for: theme)
     }
 
     /// The overview wash's alpha at `depth`: `tintAlpha`, then `nestedTintAlpha` per extra layer.
-    static func washAlpha(depth: Int) -> CGFloat {
+    public static func washAlpha(depth: Int) -> CGFloat {
         1 - (1 - tintAlpha) * (1 - layeredAlpha(nestedTintAlpha, depth: depth - 1) * (depth > 1 ? 1 : 0))
     }
 
     /// The hovered passage at `depth`: its own wash plus `hoverStepAlpha`.
-    static func hoverFill(for theme: Theme, depth: Int) -> NSColor {
+    public static func hoverFill(for theme: Theme, depth: Int) -> PlatformColor {
         let alpha = 1 - (1 - washAlpha(depth: depth)) * (1 - hoverStepAlpha)
         return opaqueFill(ink(of: theme).withAlphaComponent(alpha), for: theme)
     }
 
     /// A passage selected: every OTHER passage at `depth`, `focusOtherTintAlpha` stacked.
-    static func focusOtherFill(for theme: Theme, depth: Int) -> NSColor {
+    public static func focusOtherFill(for theme: Theme, depth: Int) -> PlatformColor {
         opaqueFill(ink(of: theme).withAlphaComponent(layeredAlpha(focusOtherTintAlpha, depth: depth)), for: theme)
     }
 
     /// The other passages' ink at `depth`, measured on that depth's fill (≥ 3:1).
-    static func focusOtherInk(for theme: Theme, depth: Int) -> NSColor {
+    public static func focusOtherInk(for theme: Theme, depth: Int) -> PlatformColor {
         theme.readableInk(
             ink(of: theme).withAlphaComponent(focusOtherInkAlpha),
             minimumRatio: focusOtherInkMinimumRatio,
@@ -104,37 +105,37 @@ enum HistoryPalette {
     }
 
     /// The selected passage's box: accent blue over the page, opaque.
-    static func selectedFill(for theme: Theme) -> NSColor {
+    public static func selectedFill(for theme: Theme) -> PlatformColor {
         let alpha = theme.usesDarkChrome ? selectedAlphaDark : selectedAlphaLight
         return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
     }
 
     /// A passage `depth` levels inside the selected one (1 = its direct child): ink layers over
     /// the blue, opaque.
-    static func selectedChildFill(for theme: Theme, depth: Int) -> NSColor {
+    public static func selectedChildFill(for theme: Theme, depth: Int) -> PlatformColor {
         composite(ink(of: theme).withAlphaComponent(layeredAlpha(selectedChildTintAlpha, depth: depth)),
                   over: selectedFill(for: theme))
     }
 
     /// `top` composited over the opaque `base`.
-    static func composite(_ top: NSColor, over base: NSColor) -> NSColor {
-        let t = top.usingColorSpace(.sRGB) ?? top
-        let b = base.usingColorSpace(.sRGB) ?? base
-        let alpha = t.alphaComponent
+    public static func composite(_ top: PlatformColor, over base: PlatformColor) -> PlatformColor {
+        let t = top.lineformSRGBComponentsOrOwn
+        let b = base.lineformSRGBComponentsOrOwn
+        let alpha = t.alpha
         func blend(_ x: CGFloat, _ y: CGFloat) -> CGFloat { x + (y - x) * alpha }
-        return NSColor(srgbRed: blend(b.redComponent, t.redComponent), green: blend(b.greenComponent, t.greenComponent),
-                       blue: blend(b.blueComponent, t.blueComponent), alpha: 1)
+        return PlatformColor.lineformSRGB(red: blend(b.red, t.red), green: blend(b.green, t.green),
+                                          blue: blend(b.blue, t.blue), alpha: 1)
     }
 
-    static func tint(for theme: Theme) -> NSColor {
+    public static func tint(for theme: Theme) -> PlatformColor {
         ink(of: theme).withAlphaComponent(tintAlpha)
     }
 
-    static func hoverTint(for theme: Theme) -> NSColor {
+    public static func hoverTint(for theme: Theme) -> PlatformColor {
         ink(of: theme).withAlphaComponent(hoverTintAlpha)
     }
 
-    static func recededInk(for theme: Theme) -> NSColor {
+    public static func recededInk(for theme: Theme) -> PlatformColor {
         theme.readableInk(
             ink(of: theme).withAlphaComponent(recededInkAlpha),
             minimumRatio: recededInkMinimumRatio
@@ -143,11 +144,11 @@ enum HistoryPalette {
 
     /// Opaque (`opaqueFill`), so nested passages never stack and what is drawn is exactly the
     /// pair `HistoryPaletteTests` measures.
-    static func focusOtherTint(for theme: Theme) -> NSColor {
+    public static func focusOtherTint(for theme: Theme) -> PlatformColor {
         opaqueFill(ink(of: theme).withAlphaComponent(focusOtherTintAlpha), for: theme)
     }
 
-    static func focusOtherInk(for theme: Theme) -> NSColor {
+    public static func focusOtherInk(for theme: Theme) -> PlatformColor {
         theme.readableInk(
             ink(of: theme).withAlphaComponent(focusOtherInkAlpha),
             minimumRatio: focusOtherInkMinimumRatio,
@@ -155,7 +156,7 @@ enum HistoryPalette {
         )
     }
 
-    static func deepRecededInk(for theme: Theme) -> NSColor {
+    public static func deepRecededInk(for theme: Theme) -> PlatformColor {
         theme.readableInk(
             ink(of: theme).withAlphaComponent(deepRecededInkAlpha),
             minimumRatio: deepRecededInkMinimumRatio
@@ -167,21 +168,21 @@ enum HistoryPalette {
     /// where the same alpha reads weaker. Returned OPAQUE (`opaqueFill`), so what is drawn is
     /// exactly the pair `HistoryPaletteTests` measures: visibly off the page (≥ 1.15:1) with the
     /// text on it at AA, on every built-in theme.
-    static let reviewInsertAccent = NSColor(srgbRed: 10 / 255, green: 132 / 255, blue: 1, alpha: 1)
-    static let reviewInsertAlphaLight: CGFloat = 0.14
-    static let reviewInsertAlphaDark: CGFloat = 0.26
+    public static let reviewInsertAccent = PlatformColor.lineformSRGB(red: 10 / 255, green: 132 / 255, blue: 1, alpha: 1)
+    public static let reviewInsertAlphaLight: CGFloat = 0.14
+    public static let reviewInsertAlphaDark: CGFloat = 0.26
 
     /// Proofread's OTHER pending corrections (the current one is on `reviewInsertTint`): a lighter
     /// wash of the same blue, still visibly off the page, text AA on it.
-    static let reviewInsertOtherAlphaLight: CGFloat = 0.07
-    static let reviewInsertOtherAlphaDark: CGFloat = 0.14
+    public static let reviewInsertOtherAlphaLight: CGFloat = 0.07
+    public static let reviewInsertOtherAlphaDark: CGFloat = 0.14
 
-    static func reviewInsertOtherTint(for theme: Theme) -> NSColor {
+    public static func reviewInsertOtherTint(for theme: Theme) -> PlatformColor {
         let alpha = theme.usesDarkChrome ? reviewInsertOtherAlphaDark : reviewInsertOtherAlphaLight
         return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
     }
 
-    static func reviewInsertTint(for theme: Theme) -> NSColor {
+    public static func reviewInsertTint(for theme: Theme) -> PlatformColor {
         let alpha = theme.usesDarkChrome ? reviewInsertAlphaDark : reviewInsertAlphaLight
         return opaqueFill(reviewInsertAccent.withAlphaComponent(alpha), for: theme)
     }
@@ -192,7 +193,7 @@ enum HistoryPalette {
     /// light enough to fix that is still visible. Body text already reads on the tint and comes
     /// back as the same object; deliberately muted inks (Markdown markers) stay as muted as they
     /// were rather than being raised to AA.
-    static func reviewReplacementInk(_ ink: NSColor, for theme: Theme, on tint: NSColor? = nil) -> NSColor {
+    public static func reviewReplacementInk(_ ink: PlatformColor, for theme: Theme, on tint: PlatformColor? = nil) -> PlatformColor {
         let tint = tint ?? reviewInsertTint(for: theme)
         let target = min(4.5, Theme.contrastRatio(ink, theme.backgroundColor))
         guard Theme.contrastRatio(ink, tint) < target else { return ink }
@@ -200,7 +201,7 @@ enum HistoryPalette {
     }
 
     /// The focused passage's counter: the theme's full ink, like the passage it labels.
-    static func counterInk(for theme: Theme) -> NSColor {
+    public static func counterInk(for theme: Theme) -> PlatformColor {
         theme.readableInk(ink(of: theme), minimumRatio: 4.5)
     }
 
@@ -208,35 +209,26 @@ enum HistoryPalette {
     /// way, last, so it REPLACES whatever nested washes lie beneath rather than stacking on them
     /// (stacked translucent fills once fell to 4.19:1 on Quiet). The hovered passage therefore
     /// always sits on exactly page + hover — the pair the 4.5:1 test measures.
-    static func opaqueFill(_ tint: NSColor, for theme: Theme) -> NSColor {
-        let top = tint.usingColorSpace(.sRGB) ?? tint
-        let page = resolved(theme.backgroundColor, for: theme)
-        let alpha = top.alphaComponent
+    public static func opaqueFill(_ tint: PlatformColor, for theme: Theme) -> PlatformColor {
+        let top = tint.lineformSRGBComponentsOrOwn
+        let page = resolved(theme.backgroundColor, for: theme).lineformSRGBComponentsOrOwn
+        let alpha = top.alpha
         func blend(_ base: CGFloat, _ over: CGFloat) -> CGFloat { base + (over - base) * alpha }
-        return NSColor(
-            srgbRed: blend(page.redComponent, top.redComponent),
-            green: blend(page.greenComponent, top.greenComponent),
-            blue: blend(page.blueComponent, top.blueComponent),
+        return PlatformColor.lineformSRGB(
+            red: blend(page.red, top.red),
+            green: blend(page.green, top.green),
+            blue: blend(page.blue, top.blue),
             alpha: 1
         )
     }
 
-    private static func ink(of theme: Theme) -> NSColor {
+    private static func ink(of theme: Theme) -> PlatformColor {
         resolved(theme.textColor, for: theme)
     }
 
     /// A dynamic colour (the high-contrast theme's `.textColor`) resolved for the
     /// THEME's appearance — never the system's, which is not what the window is drawn in.
-    private static func resolved(_ color: NSColor, for theme: Theme) -> NSColor {
-        let appearance = NSAppearance(named: theme.usesDarkChrome ? .darkAqua : .aqua)
-        var result = color
-        if let appearance {
-            appearance.performAsCurrentDrawingAppearance {
-                result = color.usingColorSpace(.sRGB) ?? color
-            }
-        } else {
-            result = color.usingColorSpace(.sRGB) ?? color
-        }
-        return result
+    private static func resolved(_ color: PlatformColor, for theme: Theme) -> PlatformColor {
+        color.lineformResolvedSRGB(dark: theme.usesDarkChrome)
     }
 }

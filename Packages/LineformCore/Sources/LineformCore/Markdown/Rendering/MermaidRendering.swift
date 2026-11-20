@@ -1,15 +1,20 @@
-import AppKit
 import BeautifulMermaid
 import CryptoKit
-import LineformCore
+import Foundation
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
-/// Converts an NSColor to a `#rrggbb` hex string for BeautifulMermaid's two-color mono theme.
+/// Converts a colour to a `#rrggbb` hex string for BeautifulMermaid's two-color mono theme.
 enum MermaidHexColor {
-    static func string(from color: NSColor) -> String {
-        let rgb = color.usingColorSpace(.sRGB) ?? color
-        let r = Int((rgb.redComponent * 255).rounded())
-        let g = Int((rgb.greenComponent * 255).rounded())
-        let b = Int((rgb.blueComponent * 255).rounded())
+    static func string(from color: PlatformColor) -> String {
+        // macOS: `(color.usingColorSpace(.sRGB) ?? color)`'s components, as always.
+        let rgb = color.lineformSRGBComponentsOrOwn
+        let r = Int((rgb.red * 255).rounded())
+        let g = Int((rgb.green * 255).rounded())
+        let b = Int((rgb.blue * 255).rounded())
         return String(format: "#%02x%02x%02x", max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
     }
 }
@@ -36,6 +41,10 @@ enum MermaidCacheKey {
 /// un-flipped image would put a MIRRORED diagram on screen — the one outcome this type exists to
 /// prevent — and the allocation only fails for rasters big enough that a retry is the right
 /// answer. The caller treats nil as a transient failure.
+///
+/// macOS only: the library's UIKit path draws through `UIGraphicsImageRenderer`, whose origin is
+/// top-left, so iOS output is already upright and gets no orientation pass.
+#if os(macOS)
 enum MermaidImageOrientation {
     static func uprightForMacOS(_ image: NSImage) -> NSImage? {
         var proposed = CGRect(origin: .zero, size: image.size)
@@ -61,10 +70,11 @@ enum MermaidImageOrientation {
         return NSImage(cgImage: flipped, size: image.size)
     }
 }
+#endif
 
 /// The result of attempting to render a mermaid block.
-enum MermaidRenderOutcome {
-    case image(NSImage)
+public enum MermaidRenderOutcome {
+    case image(PlatformImage)
     case skipped               // size guard tripped
     case unsupported(String)   // recognized-but-unrenderable type (e.g. "gantt"); clean fallback, no report/log
     case failed(String)        // render threw or produced no image
@@ -72,33 +82,35 @@ enum MermaidRenderOutcome {
 
 /// Abstracts diagram image production so the preview renderer's fallback path is testable
 /// without the library.
-protocol MermaidImageProviding: AnyObject {
-    func outcome(source: String, background: NSColor, foreground: NSColor, scale: CGFloat) -> MermaidRenderOutcome
+public protocol MermaidImageProviding: AnyObject {
+    func outcome(source: String, background: PlatformColor, foreground: PlatformColor, scale: CGFloat) -> MermaidRenderOutcome
 }
 
 /// A provider that never renders (mermaid blocks fall back to captioned source). Used by the
 /// back-compat `render(_:profile:)` convenience and by tests.
-final class DisabledMermaidImageProvider: MermaidImageProviding {
-    func outcome(source: String, background: NSColor, foreground: NSColor, scale: CGFloat) -> MermaidRenderOutcome {
+public final class DisabledMermaidImageProvider: MermaidImageProviding {
+    public init() {}
+
+    public func outcome(source: String, background: PlatformColor, foreground: PlatformColor, scale: CGFloat) -> MermaidRenderOutcome {
         .skipped
     }
 }
 
 /// The single seam that touches BeautifulMermaid. Every render is defensive (do/catch) so any
 /// library failure degrades to `.failed` → the captioned-source fallback.
-final class MermaidImageProvider: MermaidImageProviding {
-    private let cache = NSCache<NSString, NSImage>()
+public final class MermaidImageProvider: MermaidImageProviding {
+    private let cache = NSCache<NSString, PlatformImage>()
     /// Failed sources are remembered too (key → error), so a broken diagram isn't re-parsed
     /// on every preview pass while the user types elsewhere in the document.
     private let failureCache = NSCache<NSString, NSString>()
 
-    init() {
+    public init() {
         cache.countLimit = DiagramCacheBudget.countLimit
         cache.totalCostLimit = DiagramCacheBudget.totalCostLimitBytes
         failureCache.countLimit = 200
     }
 
-    func outcome(source: String, background: NSColor, foreground: NSColor, scale: CGFloat) -> MermaidRenderOutcome {
+    public func outcome(source: String, background: PlatformColor, foreground: PlatformColor, scale: CGFloat) -> MermaidRenderOutcome {
         guard MermaidBlockPolicy.shouldAttemptRender(source: source) else { return .skipped }
 
         let kind = MermaidTypeClassifier.classify(source)
@@ -130,12 +142,17 @@ final class MermaidImageProvider: MermaidImageProviding {
             // on it, and the classifier that decided this block is `.supported` looked PAST it.
             let renderable = MermaidSource.withoutFrontMatter(source)
             if let image = try MermaidRenderer.renderImage(source: renderable, theme: theme, scale: scale) {
+                #if os(macOS)
                 guard let upright = MermaidImageOrientation.uprightForMacOS(image) else {
                     // The flip's context allocation failed (a huge raster under memory pressure).
                     // Returning the un-flipped image would draw the diagram MIRRORED; a transient
                     // failure that retries later is the honest outcome.
                     return .failed("Mermaid orientation pass could not allocate")
                 }
+                #else
+                // The library's UIKit output is already upright (top-left origin).
+                let upright = image
+                #endif
                 cache.setObject(upright, forKey: key, cost: RasterImageCost.bytes(for: upright))
                 return .image(upright)
             }

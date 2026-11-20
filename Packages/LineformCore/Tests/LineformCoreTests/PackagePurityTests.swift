@@ -1,10 +1,64 @@
 import XCTest
 
-/// The package must stay shareable with the iOS app, so no UI framework may enter it.
+/// The package must stay shareable with the iOS app, so no UI framework may enter it except
+/// through the seam folders: `Sources/LineformCore/Platform/` and
+/// `Sources/LineformCore/Markdown/Rendering/` may import AppKit inside `#if os(macOS)` and UIKit
+/// inside its `#else` (or `#if os(iOS)`), and nothing else. SwiftUI, Cocoa and WebKit stay banned
+/// everywhere, and every other file names only the seam's aliases.
 /// Reads the sources from the repo via `#filePath`, not the built module.
 final class PackagePurityTests: XCTestCase {
+    /// The folders, relative to `Sources/LineformCore/`, whose files may import AppKit/UIKit under
+    /// their own platform branch. Matched as exact path prefixes.
+    static let seamFolders = ["Platform/", "Markdown/Rendering/"]
+
+    private static var packageRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    }
+
     func testNoUIFrameworkImportsInTheCorePackage() throws {
-        XCTAssertEqual(try uiFrameworkImports(inTarget: "LineformCore"), [])
+        XCTAssertEqual(try uiFrameworkImports(inTarget: "LineformCore", seamFolders: Self.seamFolders), [])
+    }
+
+    /// The allow-list is exactly the two seam folders, and a file counts as in a seam folder only
+    /// when its path STARTS with `Sources/LineformCore/<folder>`: a folder of the same name
+    /// elsewhere, a sibling whose name merely begins the same, or the parent folder does not count.
+    func testSeamFoldersAreExactPathPrefixes() {
+        XCTAssertEqual(Self.seamFolders, ["Platform/", "Markdown/Rendering/"])
+        let sources = Self.packageRoot.appendingPathComponent("Sources/LineformCore")
+        func inSeam(_ relative: String) -> Bool {
+            Self.isInSeam(sources.appendingPathComponent(relative), sources: sources, seamFolders: Self.seamFolders)
+        }
+        XCTAssertTrue(inSeam("Platform/PlatformTypes.swift"))
+        XCTAssertTrue(inSeam("Markdown/Rendering/MermaidRendering.swift"))
+        XCTAssertFalse(inSeam("AI/Platform/Anything.swift"))
+        XCTAssertFalse(inSeam("Markdown/RenderingExtra/Anything.swift"))
+        XCTAssertFalse(inSeam("Markdown/MermaidSource.swift"))
+        XCTAssertFalse(inSeam("PlatformTypes.swift"))
+        XCTAssertFalse(Self.isInSeam(Self.packageRoot.appendingPathComponent("Sources/LineformCoreTestSupport/Platform/X.swift"),
+                                     sources: sources, seamFolders: Self.seamFolders))
+    }
+
+    /// The seams really are where the imports are: each platform's framework is imported there,
+    /// and only under its own platform branch (an unguarded AppKit import would break iOS). Every
+    /// file in `Markdown/Rendering/` that imports a UI framework imports AppKit under
+    /// `#if os(macOS)` and UIKit under its `#else`, never one without the other.
+    func testThePlatformSeamImportsEachFrameworkOnlyUnderItsOwnPlatform() throws {
+        let seam = Self.packageRoot.appendingPathComponent("Sources/LineformCore/Platform/PlatformTypes.swift")
+        let imports = Self.guardedImports(in: try String(contentsOf: seam, encoding: .utf8))
+        XCTAssertEqual(imports.map(\.framework), ["AppKit", "UIKit"])
+        XCTAssertEqual(imports.map(\.platform), ["macOS", "iOS"])
+
+        let rendering = Self.packageRoot.appendingPathComponent("Sources/LineformCore/Markdown/Rendering")
+        let walker = try XCTUnwrap(FileManager.default.enumerator(at: rendering, includingPropertiesForKeys: nil))
+        let files = walker.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty, "found no files in Markdown/Rendering; the path is wrong")
+        for file in files {
+            let imports = Self.guardedImports(in: try String(contentsOf: file, encoding: .utf8))
+            guard !imports.isEmpty else { continue }
+            XCTAssertEqual(imports.map(\.framework), ["AppKit", "UIKit"], file.lastPathComponent)
+            XCTAssertEqual(imports.map(\.platform), ["macOS", "iOS"], file.lastPathComponent)
+        }
     }
 
     /// The same rule for the test-support target, which iOS test targets will link too.
@@ -121,24 +175,68 @@ final class PackagePurityTests: XCTestCase {
     private static let banned = try! NSRegularExpression(pattern:
         #"^(@\w+(\(.*?\))?\s+)*((public|package|internal|fileprivate|private)\s+)?import\s+((typealias|struct|class|enum|protocol|let|var|func)\s+)?(AppKit|SwiftUI|Cocoa|UIKit|WebKit)\b"#)
 
-    private func uiFrameworkImports(inTarget target: String) throws -> [String] {
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/\(target)")
+    /// True when `url` lies under one of `seamFolders` (relative to `sources`), compared as an
+    /// exact path prefix of the standardized paths.
+    static func isInSeam(_ url: URL, sources: URL, seamFolders: [String]) -> Bool {
+        let path = url.standardizedFileURL.path
+        let root = sources.standardizedFileURL.path
+        return seamFolders.contains { path.hasPrefix(root + "/" + $0) }
+    }
+
+    /// Banned imports in `Sources/<target>`. A file under one of `seamFolders` may import AppKit
+    /// under `#if os(macOS)` and UIKit under its `#else` or `#if os(iOS)`; any other UI import is
+    /// listed.
+    private func uiFrameworkImports(inTarget target: String, seamFolders: [String] = []) throws -> [String] {
+        let sources = Self.packageRoot.appendingPathComponent("Sources/\(target)")
         var offenders: [String] = []
         var scanned = 0
         let walker = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
         for case let url as URL in walker where url.pathExtension == "swift" {
             scanned += 1
             let text = try String(contentsOf: url, encoding: .utf8)
-            for line in text.split(separator: "\n") {
+            let inSeam = Self.isInSeam(url, sources: sources, seamFolders: seamFolders)
+            let allowed = inSeam ? Self.guardedImports(in: text) : []
+            for (index, line) in text.components(separatedBy: "\n").enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if Self.banned.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) != nil {
+                guard Self.banned.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) != nil
+                else { continue }
+                let isAllowed = allowed.contains {
+                    $0.line == index && ($0.framework, $0.platform) == ("AppKit", "macOS")
+                        || $0.line == index && ($0.framework, $0.platform) == ("UIKit", "iOS")
+                }
+                if !isAllowed {
                     offenders.append("\(url.lastPathComponent): \(line)")
                 }
             }
         }
         XCTAssertGreaterThan(scanned, 0, "scanned no files in Sources/\(target); the path is wrong")
         return offenders
+    }
+
+    /// Every plain `import AppKit`/`import UIKit` line in `source` (0-based line index) with the
+    /// platform its enclosing `#if` branch selects: "macOS" under `#if os(macOS)`, "iOS" under its
+    /// `#else` or under `#if os(iOS)`, "any" outside a platform branch or under any other condition.
+    private static func guardedImports(in source: String) -> [(line: Int, framework: String, platform: String)] {
+        var branches: [String] = []
+        var found: [(line: Int, framework: String, platform: String)] = []
+        for (index, line) in source.components(separatedBy: "\n").enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("#if ") {
+                let condition = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+                branches.append(condition == "os(macOS)" ? "macOS" : condition == "os(iOS)" ? "iOS" : "any")
+            } else if trimmed.hasPrefix("#elseif") {
+                branches[branches.count - 1] = "any"
+            } else if trimmed == "#else" {
+                if let last = branches.last {
+                    branches[branches.count - 1] = last == "macOS" ? "iOS" : "any"
+                }
+            } else if trimmed.hasPrefix("#endif") {
+                _ = branches.popLast()
+            } else if trimmed == "import AppKit" || trimmed == "import UIKit" {
+                let platform = branches.contains("any") ? "any" : branches.last ?? "any"
+                found.append((index, String(trimmed.dropFirst("import ".count)), platform))
+            }
+        }
+        return found
     }
 }
