@@ -1,6 +1,12 @@
+import ImageIO
+import UniformTypeIdentifiers
 import XCTest
+@testable import LineformCore
+#if os(macOS)
 import AppKit
-@testable import Lineform
+#else
+import UIKit
+#endif
 
 final class ImageAttachmentProviderTests: XCTestCase {
     private var tempDirectory: URL!
@@ -92,28 +98,24 @@ final class ImageAttachmentProviderTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// A white `width`×`height` PNG, written with Core Graphics and ImageIO so it is the same
+    /// file on both platforms.
     @discardableResult
     private func writePNG(named name: String, width: Int, height: Int) throws -> URL {
         let url = tempDirectory.appendingPathComponent(name)
-        let rep = try XCTUnwrap(NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: width,
-            pixelsHigh: height,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
+        let ctx = try XCTUnwrap(CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ))
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        NSColor.white.setFill()
-        NSRect(x: 0, y: 0, width: width, height: height).fill()
-        NSGraphicsContext.restoreGraphicsState()
-        let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
-        try data.write(to: url)
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = try XCTUnwrap(ctx.makeImage())
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
+            url as CFURL, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination), "could not write \(name)")
         return url
     }
 }
@@ -121,7 +123,11 @@ final class ImageAttachmentProviderTests: XCTestCase {
 /// A fake `ImageAttachmentProviding` that returns a canned image, proving the seam is
 /// protocol-injectable without touching the filesystem.
 private final class FakeImageAttachmentProvider: ImageAttachmentProviding {
-    func image(at url: URL, maxSize: CGSize, scale: CGFloat) -> NSImage? {
+    func image(at url: URL, maxSize: CGSize, scale: CGFloat) -> PlatformImage? {
+        #if os(macOS)
         NSImage(size: CGSize(width: 10, height: 10))
+        #else
+        UIGraphicsImageRenderer(size: CGSize(width: 10, height: 10)).image { _ in }
+        #endif
     }
 }

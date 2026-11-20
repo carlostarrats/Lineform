@@ -1,24 +1,64 @@
 import XCTest
 
 /// The package must stay shareable with the iOS app, so no UI framework may enter it except
-/// through the platform seam: `Sources/LineformCore/Platform/` may import AppKit inside
-/// `#if os(macOS)` and UIKit inside its `#else` (or `#if os(iOS)`), and nothing else. SwiftUI,
-/// Cocoa and WebKit stay banned everywhere, and every other file names only the seam's aliases.
+/// through the seam folders: `Sources/LineformCore/Platform/` and
+/// `Sources/LineformCore/Markdown/Rendering/` may import AppKit inside `#if os(macOS)` and UIKit
+/// inside its `#else` (or `#if os(iOS)`), and nothing else. SwiftUI, Cocoa and WebKit stay banned
+/// everywhere, and every other file names only the seam's aliases.
 /// Reads the sources from the repo via `#filePath`, not the built module.
 final class PackagePurityTests: XCTestCase {
-    func testNoUIFrameworkImportsInTheCorePackage() throws {
-        XCTAssertEqual(try uiFrameworkImports(inTarget: "LineformCore", seamFolder: "Platform"), [])
+    /// The folders, relative to `Sources/LineformCore/`, whose files may import AppKit/UIKit under
+    /// their own platform branch. Matched as exact path prefixes.
+    static let seamFolders = ["Platform/", "Markdown/Rendering/"]
+
+    private static var packageRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     }
 
-    /// The seam really is where the imports are: each platform's framework is imported there,
-    /// and only under its own platform branch (an unguarded AppKit import would break iOS).
+    func testNoUIFrameworkImportsInTheCorePackage() throws {
+        XCTAssertEqual(try uiFrameworkImports(inTarget: "LineformCore", seamFolders: Self.seamFolders), [])
+    }
+
+    /// The allow-list is exactly the two seam folders, and a file counts as in a seam folder only
+    /// when its path STARTS with `Sources/LineformCore/<folder>`: a folder of the same name
+    /// elsewhere, a sibling whose name merely begins the same, or the parent folder does not count.
+    func testSeamFoldersAreExactPathPrefixes() {
+        XCTAssertEqual(Self.seamFolders, ["Platform/", "Markdown/Rendering/"])
+        let sources = Self.packageRoot.appendingPathComponent("Sources/LineformCore")
+        func inSeam(_ relative: String) -> Bool {
+            Self.isInSeam(sources.appendingPathComponent(relative), sources: sources, seamFolders: Self.seamFolders)
+        }
+        XCTAssertTrue(inSeam("Platform/PlatformTypes.swift"))
+        XCTAssertTrue(inSeam("Markdown/Rendering/MermaidRendering.swift"))
+        XCTAssertFalse(inSeam("AI/Platform/Anything.swift"))
+        XCTAssertFalse(inSeam("Markdown/RenderingExtra/Anything.swift"))
+        XCTAssertFalse(inSeam("Markdown/MermaidSource.swift"))
+        XCTAssertFalse(inSeam("PlatformTypes.swift"))
+        XCTAssertFalse(Self.isInSeam(Self.packageRoot.appendingPathComponent("Sources/LineformCoreTestSupport/Platform/X.swift"),
+                                     sources: sources, seamFolders: Self.seamFolders))
+    }
+
+    /// The seams really are where the imports are: each platform's framework is imported there,
+    /// and only under its own platform branch (an unguarded AppKit import would break iOS). Every
+    /// file in `Markdown/Rendering/` that imports a UI framework imports AppKit under
+    /// `#if os(macOS)` and UIKit under its `#else`, never one without the other.
     func testThePlatformSeamImportsEachFrameworkOnlyUnderItsOwnPlatform() throws {
-        let seam = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/LineformCore/Platform/PlatformTypes.swift")
+        let seam = Self.packageRoot.appendingPathComponent("Sources/LineformCore/Platform/PlatformTypes.swift")
         let imports = Self.guardedImports(in: try String(contentsOf: seam, encoding: .utf8))
         XCTAssertEqual(imports.map(\.framework), ["AppKit", "UIKit"])
         XCTAssertEqual(imports.map(\.platform), ["macOS", "iOS"])
+
+        let rendering = Self.packageRoot.appendingPathComponent("Sources/LineformCore/Markdown/Rendering")
+        let files = try FileManager.default.contentsOfDirectory(at: rendering, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty, "found no files in Markdown/Rendering; the path is wrong")
+        for file in files {
+            let imports = Self.guardedImports(in: try String(contentsOf: file, encoding: .utf8))
+            guard !imports.isEmpty else { continue }
+            XCTAssertEqual(imports.map(\.framework), ["AppKit", "UIKit"], file.lastPathComponent)
+            XCTAssertEqual(imports.map(\.platform), ["macOS", "iOS"], file.lastPathComponent)
+        }
     }
 
     /// The same rule for the test-support target, which iOS test targets will link too.
@@ -135,19 +175,26 @@ final class PackagePurityTests: XCTestCase {
     private static let banned = try! NSRegularExpression(pattern:
         #"^(@\w+(\(.*?\))?\s+)*((public|package|internal|fileprivate|private)\s+)?import\s+((typealias|struct|class|enum|protocol|let|var|func)\s+)?(AppKit|SwiftUI|Cocoa|UIKit|WebKit)\b"#)
 
-    /// Banned imports in `Sources/<target>`. A file under `seamFolder` may import AppKit under
-    /// `#if os(macOS)` and UIKit under its `#else` or `#if os(iOS)`; any other UI import is listed.
-    private func uiFrameworkImports(inTarget target: String, seamFolder: String? = nil) throws -> [String] {
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/\(target)")
+    /// True when `url` lies under one of `seamFolders` (relative to `sources`), compared as an
+    /// exact path prefix of the standardized paths.
+    static func isInSeam(_ url: URL, sources: URL, seamFolders: [String]) -> Bool {
+        let path = url.standardizedFileURL.path
+        let root = sources.standardizedFileURL.path
+        return seamFolders.contains { path.hasPrefix(root + "/" + $0) }
+    }
+
+    /// Banned imports in `Sources/<target>`. A file under one of `seamFolders` may import AppKit
+    /// under `#if os(macOS)` and UIKit under its `#else` or `#if os(iOS)`; any other UI import is
+    /// listed.
+    private func uiFrameworkImports(inTarget target: String, seamFolders: [String] = []) throws -> [String] {
+        let sources = Self.packageRoot.appendingPathComponent("Sources/\(target)")
         var offenders: [String] = []
         var scanned = 0
         let walker = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
         for case let url as URL in walker where url.pathExtension == "swift" {
             scanned += 1
             let text = try String(contentsOf: url, encoding: .utf8)
-            let inSeam = seamFolder.map { url.pathComponents.contains($0) } ?? false
+            let inSeam = Self.isInSeam(url, sources: sources, seamFolders: seamFolders)
             let allowed = inSeam ? Self.guardedImports(in: text) : []
             for (index, line) in text.components(separatedBy: "\n").enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)

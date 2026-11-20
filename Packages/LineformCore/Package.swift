@@ -9,9 +9,19 @@ let package = Package(
     products: [
         .library(name: "LineformCore", targets: ["LineformCore"]),
     ],
+    // Pinned exactly as the app pins them (Package.resolved): BeautifulMermaid brings elk-swift 1.0.2.
+    // The Mermaid orientation fix in MermaidRendering.swift is coupled to this BeautifulMermaid pin.
+    dependencies: [
+        .package(url: "https://github.com/lukilabs/beautiful-mermaid-swift", exact: "1.0.4"),
+        .package(url: "https://github.com/mgriebling/SwiftMath", exact: "1.7.3"),
+    ],
     targets: [
         .target(
             name: "LineformCore",
+            dependencies: [
+                .product(name: "BeautifulMermaid", package: "beautiful-mermaid-swift"),
+                .product(name: "SwiftMath", package: "SwiftMath"),
+            ],
             resources: [.process("Resources/Localizable.xcstrings")]
         ),
         // Test doubles for LineformCoreTests only. Deliberately not a product: linking it into

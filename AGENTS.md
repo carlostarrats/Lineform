@@ -221,8 +221,9 @@ this file.
 
 ## Shared package (LineformCore)
 
-`Packages/LineformCore` is a local Swift package (macOS 14 / iOS 26, Swift 6, no dependencies) that
-the app links statically. It holds the AppKit-free logic: Markdown parsing and HTML rendering
+`Packages/LineformCore` is a local Swift package (macOS 14 / iOS 26, Swift 6) that
+the app links statically. Its only dependencies are BeautifulMermaid 1.0.4 and SwiftMath 1.7.3, pinned
+exactly as the app pins them. It holds the AppKit-free logic: Markdown parsing and HTML rendering
 (`Markdown/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
 profiles and speech (`ReadingExperience/`), History and save status (`Documents/`), the AI model,
 clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in

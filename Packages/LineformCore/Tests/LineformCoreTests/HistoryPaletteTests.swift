@@ -248,7 +248,7 @@ final class HistoryPaletteTests: XCTestCase {
         XCTAssertEqual(rgb.alpha, 1)
     }
 
-        /// The text view draws with the DISPLAY profile, so under Automatic Dark Mode a light preset
+    /// The text view draws with the DISPLAY profile, so under Automatic Dark Mode a light preset
     /// resolves to Quiet — and the History palette must follow it there.
     func testAutomaticDarkModeUsesQuietPalette() {
         for preset in ReadingPreset.builtIn where !preset.profile.highContrastEnabled
