@@ -84,6 +84,31 @@ extension PlatformColor {
         #endif
     }
 
+    /// The colour resolved for a light or dark page, converted to sRGB (the colour itself when the
+    /// conversion fails). A dynamic colour (the high-contrast theme's text colour) resolves for
+    /// the THEME's appearance, never the system's.
+    ///
+    /// macOS: `usingColorSpace(.sRGB) ?? self` inside `NSAppearance(named: dark ? .darkAqua : .aqua)`'s
+    /// `performAsCurrentDrawingAppearance`, or outside it when that appearance is missing, the
+    /// call `HistoryPalette` has always made. iOS: `resolvedColor(with:)` for the matching
+    /// interface style.
+    func lineformResolvedSRGB(dark: Bool) -> PlatformColor {
+        #if os(macOS)
+        let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        var result = self
+        if let appearance {
+            appearance.performAsCurrentDrawingAppearance {
+                result = self.usingColorSpace(.sRGB) ?? self
+            }
+        } else {
+            result = usingColorSpace(.sRGB) ?? self
+        }
+        return result
+        #else
+        resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light))
+        #endif
+    }
+
     /// macOS: `.linkColor`. iOS: `.link`.
     public static var lineformLink: PlatformColor {
         #if os(macOS)

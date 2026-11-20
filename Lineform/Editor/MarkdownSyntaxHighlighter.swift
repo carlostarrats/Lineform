@@ -2,168 +2,39 @@ import AppKit
 import LineformCore
 
 final class MarkdownSyntaxHighlighter {
-    static let lightThemeInlineCodeColor = NSColor(srgbRed: 0.0, green: 0.32, blue: 0.68, alpha: 1)
-    static let darkThemeInlineCodeColor = NSColor(srgbRed: 0.60, green: 0.76, blue: 1.0, alpha: 1)
-    static let lightThemeMarkdownMarkerColor = NSColor(srgbRed: 0.24, green: 0.29, blue: 0.35, alpha: 1)
-    static let darkThemeMarkdownMarkerColor = NSColor(srgbRed: 0.82, green: 0.86, blue: 0.92, alpha: 1)
+    // The static half lives in LineformCore's `MarkdownTextStyle`; these forward to it so every
+    // existing call site keeps its name.
+    static var lightThemeInlineCodeColor: NSColor { MarkdownTextStyle.lightThemeInlineCodeColor }
+    static var darkThemeInlineCodeColor: NSColor { MarkdownTextStyle.darkThemeInlineCodeColor }
+    static var lightThemeMarkdownMarkerColor: NSColor { MarkdownTextStyle.lightThemeMarkdownMarkerColor }
+    static var darkThemeMarkdownMarkerColor: NSColor { MarkdownTextStyle.darkThemeMarkdownMarkerColor }
 
-    static func inlineCodeColor(for profile: ReadingProfile) -> NSColor {
-        inlineCodeColor(for: Theme.theme(for: profile))
+    static func inlineCodeColor(for profile: ReadingProfile) -> NSColor { MarkdownTextStyle.inlineCodeColor(for: profile) }
+    static func inlineCodeColor(for theme: Theme) -> NSColor { MarkdownTextStyle.inlineCodeColor(for: theme) }
+    static func markdownMarkerColor(for profile: ReadingProfile) -> NSColor { MarkdownTextStyle.markdownMarkerColor(for: profile) }
+    static func markdownMarkerColor(for theme: Theme) -> NSColor { MarkdownTextStyle.markdownMarkerColor(for: theme) }
+
+    static var baseAttributes: [NSAttributedString.Key: Any] { MarkdownTextStyle.baseAttributes }
+    static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] { MarkdownTextStyle.baseAttributes(for: profile) }
+
+    static func paragraphStyle(for profile: ReadingProfile, font: NSFont, blockSpacing: CGFloat = 0) -> NSMutableParagraphStyle {
+        MarkdownTextStyle.paragraphStyle(for: profile, font: font, blockSpacing: blockSpacing)
     }
 
-    static func inlineCodeColor(for theme: Theme) -> NSColor {
-        theme.usesDarkChrome ? darkThemeInlineCodeColor : lightThemeInlineCodeColor
+    static func blockSpacingParagraphStyle(for profile: ReadingProfile, font: NSFont, additionalSpacing: CGFloat = 0) -> NSMutableParagraphStyle {
+        MarkdownTextStyle.blockSpacingParagraphStyle(for: profile, font: font, additionalSpacing: additionalSpacing)
     }
 
-    static func markdownMarkerColor(for profile: ReadingProfile) -> NSColor {
-        markdownMarkerColor(for: Theme.theme(for: profile))
+    static func markdownBlockSpacingLineRanges(in text: String, includeLineTerminators: Bool = true, includeTrailingBlankBoundary: Bool = true) -> [NSRange] {
+        MarkdownTextStyle.markdownBlockSpacingLineRanges(in: text, includeLineTerminators: includeLineTerminators, includeTrailingBlankBoundary: includeTrailingBlankBoundary)
     }
 
-    static func markdownMarkerColor(for theme: Theme) -> NSColor {
-        if theme.usesDarkChrome {
-            return darkThemeMarkdownMarkerColor
-        }
-
-        return lightThemeMarkdownMarkerColor
+    static func markdownBlockSpacingLineIndexes(in text: String, includeTrailingBlankBoundary: Bool = true) -> [Int] {
+        MarkdownTextStyle.markdownBlockSpacingLineIndexes(in: text, includeTrailingBlankBoundary: includeTrailingBlankBoundary)
     }
 
-    static var baseAttributes: [NSAttributedString.Key: Any] {
-        baseAttributes(for: .original)
-    }
-
-    static func baseAttributes(for profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
-        let theme = Theme.theme(for: profile)
-        // `resolved(for:)`, not `option(for:)?` + a bare `?? .systemFont(…)` tail: a RETIRED
-        // FontID resolves to nil here. The tail renders the SAME face today (the default option
-        // is SF Pro), so this is forward insurance against the next retirement — not a fix for a
-        // visible defect. See `FontOption.resolved(for:)`.
-        let font = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
-        let paragraphStyle = paragraphStyle(for: profile, font: font)
-
-        return [
-            NSAttributedString.Key.font: font,
-            NSAttributedString.Key.foregroundColor: theme.textColor,
-            NSAttributedString.Key.paragraphStyle: paragraphStyle,
-            NSAttributedString.Key.kern: profile.letterSpacing
-        ]
-    }
-
-    static func paragraphStyle(
-        for profile: ReadingProfile,
-        font: NSFont,
-        blockSpacing: CGFloat = 0
-    ) -> NSMutableParagraphStyle {
-        let paragraphStyle = NSMutableParagraphStyle()
-        let lineHeightMultiple = CGFloat(profile.lineHeightMultiple)
-        if lineHeightMultiple < 1 {
-            paragraphStyle.lineHeightMultiple = 1
-            let naturalLineHeight = max(font.ascender - font.descender + font.leading, font.pointSize)
-            paragraphStyle.lineSpacing = naturalLineHeight * (lineHeightMultiple - 1)
-        } else {
-            paragraphStyle.lineHeightMultiple = lineHeightMultiple
-        }
-        paragraphStyle.paragraphSpacing = blockSpacing
-        return paragraphStyle
-    }
-
-    static func blockSpacingParagraphStyle(
-        for profile: ReadingProfile,
-        font: NSFont,
-        additionalSpacing: CGFloat = 0
-    ) -> NSMutableParagraphStyle {
-        paragraphStyle(
-            for: profile,
-            font: font,
-            blockSpacing: CGFloat(profile.paragraphSpacing) + additionalSpacing
-        )
-    }
-
-    static func markdownBlockSpacingLineRanges(
-        in text: String,
-        includeLineTerminators: Bool = true,
-        includeTrailingBlankBoundary: Bool = true
-    ) -> [NSRange] {
-        let lines = text.components(separatedBy: "\n")
-        let blockSpacingLineIndexes = Set(markdownBlockSpacingLineIndexes(
-            in: text,
-            includeTrailingBlankBoundary: includeTrailingBlankBoundary
-        ))
-        var ranges: [NSRange] = []
-        var currentLocation = 0
-
-        for (index, line) in lines.enumerated() {
-            let length = (line as NSString).length
-
-            if blockSpacingLineIndexes.contains(index) {
-                let includesLineTerminator = includeLineTerminators && index < lines.count - 1
-                ranges.append(NSRange(location: currentLocation, length: max(length + (includesLineTerminator ? 1 : 0), 1)))
-            }
-
-            currentLocation += length
-            if index < lines.count - 1 {
-                currentLocation += 1
-            }
-        }
-
-        return ranges
-    }
-
-    static func markdownBlockSpacingLineIndexes(
-        in text: String,
-        includeTrailingBlankBoundary: Bool = true
-    ) -> [Int] {
-        markdownBlockSpacingLineIndexes(
-            inLines: text.components(separatedBy: "\n"),
-            includeTrailingBlankBoundary: includeTrailingBlankBoundary
-        )
-    }
-
-    /// Same as `markdownBlockSpacingLineIndexes(in:)` but takes lines already split by the caller,
-    /// so a caller that also needs the split (the preview renderer) does it once, not twice.
-    static func markdownBlockSpacingLineIndexes(
-        inLines lines: [String],
-        includeTrailingBlankBoundary: Bool = true
-    ) -> [Int] {
-        // Fence state uses `MermaidFence`, the renderer's CommonMark matching, so block spacing
-        // agrees with what is actually drawn as one code block. A flag toggled on any ``` / ~~~
-        // line ended a ```` block at its first inner ``` and respaced the rest of the document.
-        var openFenceMarker: (character: Character, length: Int)?
-
-        return lines.indices.compactMap { index in
-            let line = lines[index]
-            let trimmed = line.trimmingCharacters(in: markdownLineTrimCharacters)
-            let inFence = openFenceMarker != nil
-            let isClosingFence = openFenceMarker.map { MermaidFence.isClosingFence(trimmed, matching: $0) } ?? false
-            let opensFence = !inFence && MermaidFence.openingMarker(trimmed) != nil
-            let nextLine = index + 1 < lines.count ? lines[index + 1] : nil
-            let nextLineIsBlank = nextLine?.trimmingCharacters(in: markdownLineTrimCharacters).isEmpty == true
-            let nextLineIsHeading = nextLine.map { !inFence && MarkdownHeadingParser.heading(in: $0) != nil } ?? false
-            let blankBoundaryIsStable = includeTrailingBlankBoundary || hasNonEmptyLine(after: index + 1, in: lines)
-            let isHeading = !inFence && MarkdownHeadingParser.heading(in: line) != nil
-            let usesBlockSpacing = !trimmed.isEmpty
-                && (
-                    isHeading
-                        || nextLineIsHeading
-                        || (!inFence && nextLineIsBlank && blankBoundaryIsStable)
-                        || (isClosingFence && nextLineIsBlank && blankBoundaryIsStable)
-                )
-
-            if isClosingFence {
-                openFenceMarker = nil
-            } else if opensFence {
-                openFenceMarker = MermaidFence.openingMarker(trimmed)
-            }
-
-            return usesBlockSpacing ? index : nil
-        }
-    }
-
-    private static func hasNonEmptyLine(after index: Int, in lines: [String]) -> Bool {
-        guard index + 1 < lines.count else {
-            return false
-        }
-
-        return lines[(index + 1)...].contains { !$0.trimmingCharacters(in: markdownLineTrimCharacters).isEmpty }
+    static func markdownBlockSpacingLineIndexes(inLines lines: [String], includeTrailingBlankBoundary: Bool = true) -> [Int] {
+        MarkdownTextStyle.markdownBlockSpacingLineIndexes(inLines: lines, includeTrailingBlankBoundary: includeTrailingBlankBoundary)
     }
 
     let analyzer = MarkdownRangeAnalyzer()
