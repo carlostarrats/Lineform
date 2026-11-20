@@ -56,7 +56,6 @@
 		1F0000010000000000000013 /* LineformDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000013 /* LineformDocument.swift */; };
 		1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000232 /* MermaidRenderingTests.swift */; };
 		1F00002B0000000000000001 /* ExportFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00002B0000000000000002 /* ExportFormatTests.swift */; };
-		1F0000260000000000000001 /* MarkdownPreviewRendererHeadingScaleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */; };
 		1F0000010000000000000326 /* DocumentExportRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000326 /* DocumentExportRendererTests.swift */; };
 		1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B2 /* MathRenderingTests.swift */; };
 		1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */; };
@@ -87,7 +86,6 @@
 		1F0000010000000000000052 /* SystemAppearanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000052 /* SystemAppearanceMonitor.swift */; };
 		1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000055 /* ReadingExperiencePopover.swift */; };
 		1F0000010000000000000065 /* LineformAppNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000065 /* LineformAppNotification.swift */; };
-		1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */; };
 		1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */; };
 		1F0000010000000000000078 /* OutlineSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000078 /* OutlineSidebarView.swift */; };
 		1F00000100000000000004D8 /* HistorySidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004D8 /* HistorySidebarView.swift */; };
@@ -98,7 +96,6 @@
 		1F000001000000000000032E /* OutlineInfoContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000032E /* OutlineInfoContrastTests.swift */; };
 		1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */; };
 		1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000325 /* DocumentExportRenderer.swift */; };
-		1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */; };
 		1F0000010000000000000105 /* ReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000105 /* ReleaseResourceTests.swift */; };
 		1F0000010000000000000106 /* LineformTextViewEmptyStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */; };
 		1F000001000000000000044B3 /* LineformTextViewInsetAnimationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */; };
@@ -231,7 +228,6 @@
 		1F0000020000000000000013 /* LineformDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocument.swift; sourceTree = "<group>"; };
 		1F0000020000000000000232 /* MermaidRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderingTests.swift; sourceTree = "<group>"; };
 		1F00002B0000000000000002 /* ExportFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatTests.swift; sourceTree = "<group>"; };
-		1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRendererHeadingScaleTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000326 /* DocumentExportRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRendererTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B2 /* MathRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathRenderingTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000002B3 /* DiagramCardAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagramCardAndCacheTests.swift; sourceTree = "<group>"; };
@@ -264,7 +260,6 @@
 		1F0000020000000000000120 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		1F0000020000000000000131 /* FirstLaunchIntro */ = {isa = PBXFileReference; lastKnownFileType = folder; path = FirstLaunchIntro; sourceTree = "<group>"; };
 		1F0000020000000000000065 /* LineformAppNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformAppNotification.swift; sourceTree = "<group>"; };
-		1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewRenderer.swift; sourceTree = "<group>"; };
 		1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000078 /* OutlineSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSidebarView.swift; sourceTree = "<group>"; };
 		1F00000200000000000004D8 /* HistorySidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySidebarView.swift; sourceTree = "<group>"; };
@@ -276,7 +271,6 @@
 		1F000002000000000000032E /* OutlineInfoContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineInfoContrastTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedMarkdownPreviewView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000325 /* DocumentExportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentExportRenderer.swift; sourceTree = "<group>"; };
-		1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalRuleAttachment.swift; sourceTree = "<group>"; };
 		1F0000020000000000000105 /* ReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000106 /* LineformTextViewEmptyStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewEmptyStateTests.swift; sourceTree = "<group>"; };
 		1F000002000000000000044B3 /* LineformTextViewInsetAnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformTextViewInsetAnimationTests.swift; sourceTree = "<group>"; };
@@ -482,11 +476,9 @@
 		1F0000070000000000000015 /* Preview */ = {
 			isa = PBXGroup;
 			children = (
-				1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */,
 				1F0000020000000000000325 /* DocumentExportRenderer.swift */,
 				1F0000020000000000000077 /* MarkdownPreviewViewRepresentable.swift */,
 				1F0000020000000000000104 /* DebouncedMarkdownPreviewView.swift */,
-				1F00000200000000000002B6 /* HorizontalRuleAttachment.swift */,
 			);
 			path = Preview;
 			sourceTree = "<group>";
@@ -566,7 +558,6 @@
 				1F0000020000000000000323 /* EditorDrawerMotionHostedTests.swift */,
 				1F0000020000000000000324 /* TestPlanGuardTests.swift */,
 				1F0000020000000000000326 /* DocumentExportRendererTests.swift */,
-				1F0000260000000000000002 /* MarkdownPreviewRendererHeadingScaleTests.swift */,
 				1F0000020000000000000063 /* AppCommandNotificationTests.swift */,
 				1F0000020000000000000072 /* MarkdownPreviewRendererTests.swift */,
 				1F0000020000000000000073 /* EditorDisplayModeTests.swift */,
@@ -835,11 +826,9 @@
  				1F00000100000000000003A5 /* SaveAndCloseCoordinator.swift in Sources */,
  				1F00000100000000000003A8 /* QuickOpenPalette.swift in Sources */,
  				1F00000100000000000003B5 /* CrossFileSearchResultsView.swift in Sources */,
-				1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */,
 				1F0000010000000000000325 /* DocumentExportRenderer.swift in Sources */,
 				1F0000010000000000000077 /* MarkdownPreviewViewRepresentable.swift in Sources */,
 				1F0000010000000000000104 /* DebouncedMarkdownPreviewView.swift in Sources */,
-				1F00000100000000000002B6 /* HorizontalRuleAttachment.swift in Sources */,
 				1F0000010000000000000143 /* EditorChromeAndControls.swift in Sources */,
 				1F0000010000000000000148 /* EditorFloatingControlSupport.swift in Sources */,
 				1F0000010000000000000506 /* SelectionToolbar.swift in Sources */,
@@ -923,7 +912,6 @@
 				1F0000010000000000000213 /* DocumentReloadControllerTests.swift in Sources */,
 				1F0000010000000000000214 /* LiveReloadScrollTests.swift in Sources */,
 				1F0000010000000000000232 /* MermaidRenderingTests.swift in Sources */,
-				1F0000260000000000000001 /* MarkdownPreviewRendererHeadingScaleTests.swift in Sources */,
 				1F00000100000000000002B2 /* MathRenderingTests.swift in Sources */,
 				1F00000100000000000002B3 /* DiagramCardAndCacheTests.swift in Sources */,
 				1F000001000000000000032B /* MarkdownReferenceTests.swift in Sources */,

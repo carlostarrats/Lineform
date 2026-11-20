@@ -34,7 +34,7 @@ let package = Package(
         .testTarget(
             name: "LineformCoreTests",
             dependencies: ["LineformCore", "LineformCoreTestSupport"],
-            resources: [.copy("Fixtures/history-1.8.0")]
+            resources: [.copy("Fixtures/history-1.8.0"), .copy("Fixtures/render-corpus")]
         ),
     ],
     swiftLanguageModes: [.v6]

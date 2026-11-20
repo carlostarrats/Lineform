@@ -1,28 +1,32 @@
+import Foundation
+#if os(macOS)
 import AppKit
-import LineformCore
+#else
+import UIKit
+#endif
 
 extension NSAttributedString.Key {
     /// Attached to a rendered task-checkbox glyph; value is an `NSValue` boxing the `NSRange` of the
     /// `[ ]`/`[x]` marker in the source document, so a click on the glyph can toggle that span.
-    static let checkboxSourceRange = NSAttributedString.Key("lineform.checkboxSourceRange")
+    public static let checkboxSourceRange = NSAttributedString.Key("lineform.checkboxSourceRange")
 
     /// Attached to rendered heading text; value is an `NSValue` boxing the `NSRange` of the
     /// heading line in the source document, so the outline sidebar can sync its scroll state.
-    static let headingSourceRange = NSAttributedString.Key("lineform.headingSourceRange")
+    public static let headingSourceRange = NSAttributedString.Key("lineform.headingSourceRange")
 
     /// Attached to a rendered fenced-code body; value is an `NSValue` boxing the `NSRange` of the
     /// code body in the SOURCE document, so the hover copy pill can copy the raw code.
-    static let codeBlockSourceRange = NSAttributedString.Key("lineform.codeBlockSourceRange")
+    public static let codeBlockSourceRange = NSAttributedString.Key("lineform.codeBlockSourceRange")
 
     /// Attached to a rendered "🖼 label" image placeholder run; value is an `NSValue` boxing the
     /// `NSRange` of the WHOLE image line in the source document (an own-line `![alt](path)`), so a
     /// Reconnect affordance can re-verify and rewrite the exact source substring.
-    static let imageSourceRange = NSAttributedString.Key("lineform.imageSourceRange")
+    public static let imageSourceRange = NSAttributedString.Key("lineform.imageSourceRange")
 
     /// A marker (`NSNumber(true)`) on an image placeholder run indicating a Reconnect pill should be
     /// offered — set whenever the image did NOT resolve to a rendered `BlockRenderedAttachment`
     /// (remote, unresolved, or a local file that failed to load).
-    static let imageReconnect = NSAttributedString.Key("lineform.imageReconnect")
+    public static let imageReconnect = NSAttributedString.Key("lineform.imageReconnect")
 
     /// Attached to every rendered run; value is an `NSValue` boxing the SOURCE `NSRange` that the run
     /// maps back to — a single source line for prose/heading runs (from `appendLines`), or the whole
@@ -31,14 +35,14 @@ extension NSAttributedString.Key {
     /// Read/Preview can report and restore the reading position across a display-mode switch. The
     /// span's LENGTH bounds the sub-line offset the reader adds, so a position inside a multi-line
     /// block can never overshoot past the block (which would mis-restore and mis-bold the outline).
-    static let sourceSpan = NSAttributedString.Key("lineform.sourceSpan")
+    public static let sourceSpan = NSAttributedString.Key("lineform.sourceSpan")
 }
 
 @MainActor
-struct MarkdownPreviewRenderer {
+public struct MarkdownPreviewRenderer {
     /// Table cell text renders at this fraction of the reading font size — denser than prose, but
     /// still relative so it scales with the user's size setting. Dial-able.
-    static let tableTextScale: CGFloat = 0.9
+    public static let tableTextScale: CGFloat = 0.9
     private static let headingSizeBoosts: [Int: CGFloat] = [
         1: 11,
         2: 3,
@@ -48,9 +52,15 @@ struct MarkdownPreviewRenderer {
         6: 0
     ]
 
+    public init() {}
+
     /// Back-compat convenience (used by tests and any caller that doesn't render mermaid): uses
     /// a disabled mermaid provider so ```mermaid blocks fall back to a captioned source block.
-    func render(_ text: String, profile: ReadingProfile) -> NSAttributedString {
+    public func render(
+        _ text: String,
+        profile: ReadingProfile,
+        displayMetrics: RenderDisplayMetrics = .current
+    ) -> NSAttributedString {
         render(
             text,
             profile: profile,
@@ -58,11 +68,12 @@ struct MarkdownPreviewRenderer {
             mermaidProvider: DisabledMermaidImageProvider(),
             mathProvider: DisabledMathImageProvider(),
             diagramLog: NullDiagramFailureLog(),
-            appVersion: "0"
+            appVersion: "0",
+            displayMetrics: displayMetrics
         )
     }
 
-    func render(
+    public func render(
         _ text: String,
         profile: ReadingProfile,
         columnWidth: CGFloat,
@@ -96,9 +107,13 @@ struct MarkdownPreviewRenderer {
         // per-level boost). Not a `ReadingProfile` field. Defaults to a no-op so on-screen
         // Read/Preview rendering is byte-identical.
         headingScale: CGFloat = 1.0,
+        // The display the rasters (diagrams, math, images) are drawn for. The default is read
+        // per call — on macOS from `NSScreen.main` — so a window that moved to a screen of
+        // another scale renders for that screen.
+        displayMetrics: RenderDisplayMetrics = .current
     ) -> NSAttributedString {
         let output = NSMutableAttributedString(string: "")
-        let bodyAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        let bodyAttributes = MarkdownTextStyle.baseAttributes(for: profile)
         let bodyBlockSpacingAttributes = blockSpacingAttributes(bodyAttributes, profile: profile)
         let codeAttributes = codeAttributes(profile: profile)
         let codeBlockSpacingAttributes = blockSpacingAttributes(codeAttributes, profile: profile)
@@ -107,7 +122,7 @@ struct MarkdownPreviewRenderer {
         let source = markdownSourceLines(in: text)
         let lines = source.lines
         let lineRanges = source.ranges
-        let blockSpacingLineIndexes = Set(MarkdownSyntaxHighlighter.markdownBlockSpacingLineIndexes(inLines: lines))
+        let blockSpacingLineIndexes = Set(MarkdownTextStyle.markdownBlockSpacingLineIndexes(inLines: lines))
         let theme = Theme.theme(for: profile)
 
         // Group the lines once, then render each block. `.lines` runs reproduce the original
@@ -137,7 +152,8 @@ struct MarkdownPreviewRenderer {
                     bodyBlockSpacingAttributes: bodyBlockSpacingAttributes,
                     blockSpacingLineIndexes: blockSpacingLineIndexes,
                     imagesAsText: imagesAsText,
-                    headingScale: headingScale
+                    headingScale: headingScale,
+                    displayMetrics: displayMetrics
                 )
             case .singleLineMath(let latex, let lineIndex):
                 appendMathBlock(
@@ -148,7 +164,8 @@ struct MarkdownPreviewRenderer {
                     columnWidth: columnWidth,
                     codeAttributes: codeAttributes,
                     mathProvider: mathProvider,
-                    imagesAsText: imagesAsText
+                    imagesAsText: imagesAsText,
+                    displayMetrics: displayMetrics
                 )
                 if lineIndex < lines.count - 1 {
                     let usesBlockSpacing = blockSpacingLineIndexes.contains(lineIndex)
@@ -164,7 +181,8 @@ struct MarkdownPreviewRenderer {
                     columnWidth: columnWidth,
                     codeAttributes: codeAttributes,
                     mathProvider: mathProvider,
-                    imagesAsText: imagesAsText
+                    imagesAsText: imagesAsText,
+                    displayMetrics: displayMetrics
                 )
                 appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .mermaid(let source, let closingIndex):
@@ -178,23 +196,24 @@ struct MarkdownPreviewRenderer {
                     mermaidProvider: mermaidProvider,
                     diagramLog: diagramLog,
                     appVersion: appVersion,
-                    imagesAsText: imagesAsText
+                    imagesAsText: imagesAsText,
+                    displayMetrics: displayMetrics
                 )
                 appendBlockSeparator(afterLine: closingIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .horizontalRule(let lineIndex):
                 appendHorizontalRule(to: output, profile: profile, theme: theme)
                 appendBlockSeparator(afterLine: lineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .blockquote(let quoteLines, let lastLineIndex):
-                appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
+                appendBlockquote(quoteLines, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText, displayMetrics: displayMetrics)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .callout(let kind, let title, let body, let lastLineIndex):
-                appendCallout(kind: kind, title: title, body: body, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
+                appendCallout(kind: kind, title: title, body: body, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText, displayMetrics: displayMetrics)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .list(let items, let lastLineIndex):
-                appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
+                appendList(items, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText, displayMetrics: displayMetrics)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .table(let table, let lastLineIndex):
-                appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, fitToWidth: fitTablesToWidth)
+                appendTable(table, to: output, baseAttributes: bodyAttributes, profile: profile, theme: theme, columnWidth: columnWidth, fitToWidth: fitTablesToWidth)
                 appendBlockSeparator(afterLine: lastLineIndex, to: output, totalLines: lines.count, attributes: bodyAttributes)
             case .fencedCode(let language, let body, let openingIndex, let closingIndex):
                 appendCodeBlock(
@@ -237,7 +256,8 @@ struct MarkdownPreviewRenderer {
                     documentDirectory: documentDirectory,
                     imageProvider: imageProvider,
                     bodyAttributes: bodyAttributes,
-                    isLastLine: lineIndex >= lines.count - 1
+                    isLastLine: lineIndex >= lines.count - 1,
+                    displayMetrics: displayMetrics
                 )
             }
 
@@ -295,83 +315,79 @@ struct MarkdownPreviewRenderer {
         }
     }
 
-    /// Emit a GFM table as a native `NSTextTable`: live, selectable, theme-colored text that lays
-    /// out responsively to the reading column and wraps cell text when narrow (columns auto-size).
-    /// The header row is distinguished; per-column alignment comes from the delimiter row; gridlines
-    /// are quiet and contrast-derived from the theme so they read on light and dark pages.
+    /// Emit a GFM table as live, selectable, theme-colored text (`MarkdownTableEmitter`: a native
+    /// `NSTextTable` on macOS that lays out responsively to the reading column and wraps cell text
+    /// when narrow; tab-aligned rows on iOS). The header row is distinguished; per-column
+    /// alignment comes from the delimiter row; gridlines are quiet and contrast-derived from the
+    /// theme so they read on light and dark pages.
     private func appendTable(
         _ table: MarkdownTable,
         to output: NSMutableAttributedString,
         baseAttributes: [NSAttributedString.Key: Any],
         profile: ReadingProfile,
         theme: Theme,
+        columnWidth: CGFloat,
         fitToWidth: Bool = false
     ) {
         let columns = table.columnCount
         guard columns > 0 else { return }
 
-        let textTable = NSTextTable()
-        textTable.numberOfColumns = columns
-        textTable.layoutAlgorithm = .automaticLayoutAlgorithm
-        textTable.collapsesBorders = true
-        textTable.hidesEmptyCells = false
-
         // When exporting to a fixed page, content-sized columns can overflow the (narrow) page
         // column and clip on the right. Give each column a percentage width proportional to its
         // longest cell, summing to a value under 100% (leaving room for per-cell padding/borders),
-        // so the whole table fits the page and long cells wrap. On screen this stays off and the
-        // wide reading column keeps natural content-sized columns.
+        // so the whole table fits the page and long cells wrap. On screen the Mac emitter ignores
+        // them and the wide reading column keeps natural content-sized columns; the iPhone
+        // emitter places its tab stops with them.
         let allRows: [(cells: [String], isHeader: Bool)] =
             [(table.headers, true)] + table.rows.map { ($0, false) }
-        let columnPercentages: [CGFloat]? = fitToWidth ? Self.fitColumnPercentages(rows: allRows, columns: columns) : nil
+        let columnPercentages = Self.fitColumnPercentages(rows: allRows, columns: columns)
 
-        let borderColor = theme.textColor.withAlphaComponent(0.25)
-        let headerFill = theme.textColor.withAlphaComponent(0.06)
-        let baseFont = (baseAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
+        let baseFont = (baseAttributes[.font] as? PlatformFont) ?? PlatformFont.systemFont(ofSize: CGFloat(profile.fontSize))
         // Table cells render slightly smaller than prose (a common, denser table convention) while
         // still tracking the reading font size — so it scales with the user's accessibility setting
         // and just fits more per column, easing the too-wide case. Relative, never a fixed size.
-        let cellFont = NSFont(descriptor: baseFont.fontDescriptor, size: baseFont.pointSize * Self.tableTextScale) ?? baseFont
-        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+        let cellFont = Self.font(baseFont, size: baseFont.pointSize * Self.tableTextScale)
+        let headerFont = lineformFont(cellFont, adding: .bold)
 
-        for (rowIndex, row) in allRows.enumerated() {
-            for column in 0..<columns {
-                let block = NSTextTableBlock(
-                    table: textTable,
-                    startingRow: rowIndex,
-                    rowSpan: 1,
-                    startingColumn: column,
-                    columnSpan: 1
-                )
-                block.setBorderColor(borderColor)
-                block.setWidth(1, type: .absoluteValueType, for: .border)
-                block.setWidth(6, type: .absoluteValueType, for: .padding)
-                if let columnPercentages {
-                    block.setContentWidth(columnPercentages[column], type: .percentageValueType)
-                }
-                if row.isHeader {
-                    block.backgroundColor = headerFill
-                }
+        MarkdownTableEmitter.append(
+            rows: allRows,
+            alignments: table.alignments,
+            columnPercentages: columnPercentages,
+            columnWidth: columnWidth,
+            fitToWidth: fitToWidth,
+            cellFont: cellFont,
+            headerFont: headerFont,
+            baseAttributes: baseAttributes,
+            theme: theme,
+            to: output
+        )
+    }
 
-                let paragraph = mutableParagraphStyle(from: baseAttributes)
-                paragraph.textBlocks = [block]
-                paragraph.alignment = nsAlignment(table.alignments[column])
+    /// `font`'s face at `size`. macOS: `NSFont(descriptor:size:)`, falling back to `font` when
+    /// that fails, exactly as the renderer always has. iOS: `UIFont(descriptor:size:)`.
+    private static func font(_ font: PlatformFont, size: CGFloat) -> PlatformFont {
+        #if os(macOS)
+        NSFont(descriptor: font.fontDescriptor, size: size) ?? font
+        #else
+        UIFont(descriptor: font.fontDescriptor, size: size)
+        #endif
+    }
 
-                var attributes = baseAttributes
-                attributes[.paragraphStyle] = paragraph
-                attributes[.font] = row.isHeader ? headerFont : cellFont
-
-                let cellText = column < row.cells.count ? row.cells[column] : ""
-                output.append(NSAttributedString(string: cellText + "\n", attributes: attributes))
-            }
-        }
+    /// Sets the VoiceOver description of a rendered image. macOS: `accessibilityDescription`.
+    /// iOS: `accessibilityLabel`.
+    private static func setAccessibilityDescription(_ description: String, on image: PlatformImage) {
+        #if os(macOS)
+        image.accessibilityDescription = description
+        #else
+        image.accessibilityLabel = description
+        #endif
     }
 
     /// Percentage content widths (of the page column) per table column, proportional to each
     /// column's longest cell, summing to a budget under 100% so per-cell padding + borders don't
     /// push the table past the page column. Used only for export (fit-to-width). A small floor
     /// keeps a short column from collapsing.
-    static func fitColumnPercentages(rows: [(cells: [String], isHeader: Bool)], columns: Int) -> [CGFloat] {
+    public static func fitColumnPercentages(rows: [(cells: [String], isHeader: Bool)], columns: Int) -> [CGFloat] {
         guard columns > 0 else { return [] }
         var weights = [CGFloat](repeating: 1, count: columns)
         for column in 0..<columns {
@@ -397,14 +413,6 @@ struct MarkdownPreviewRenderer {
         return weights.map { floor + ($0 / total) * distributable }
     }
 
-    private func nsAlignment(_ alignment: MarkdownTableAlignment) -> NSTextAlignment {
-        switch alignment {
-        case .left: return .left
-        case .center: return .center
-        case .right: return .right
-        }
-    }
-
     /// Emit a list: Google-Docs-style with a slight indent per nesting level, real bullets (•) and
     /// sequence numbers, and a hanging indent so wrapped lines align under the item text rather than
     /// the marker. Inline styling inside an item still renders.
@@ -415,7 +423,8 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) {
         let levelStep: CGFloat = 24
         let markerColumn: CGFloat = 22
@@ -449,7 +458,8 @@ struct MarkdownPreviewRenderer {
                 profile: profile,
                 theme: theme,
                 mathProvider: mathProvider,
-                imagesAsText: imagesAsText
+                imagesAsText: imagesAsText,
+                displayMetrics: displayMetrics
             ))
             if offset < items.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: attributes))
@@ -490,9 +500,10 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) {
-        appendQuoteLines(quoteLines, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
+        appendQuoteLines(quoteLines, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText, displayMetrics: displayMetrics)
     }
 
     /// Emit a run of blockquote lines: each indented by its nesting depth (markers hidden) and gently
@@ -505,7 +516,8 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) {
         let quoteColor = theme.textColor.withAlphaComponent(0.8)
         let indentStep: CGFloat = 22
@@ -526,7 +538,8 @@ struct MarkdownPreviewRenderer {
                 profile: profile,
                 theme: theme,
                 mathProvider: mathProvider,
-                imagesAsText: imagesAsText
+                imagesAsText: imagesAsText,
+                displayMetrics: displayMetrics
             ))
             if offset < quoteLines.count - 1 {
                 output.append(NSAttributedString(string: "\n", attributes: attributes))
@@ -546,15 +559,16 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) {
         let indentStep: CGFloat = 22
         let paragraph = mutableParagraphStyle(from: baseBody)
         paragraph.firstLineHeadIndent = indentStep
         paragraph.headIndent = indentStep
 
-        let baseFont = (baseBody[.font] as? NSFont) ?? NSFont.systemFont(ofSize: CGFloat(profile.fontSize))
-        let titleFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+        let baseFont = (baseBody[.font] as? PlatformFont) ?? PlatformFont.systemFont(ofSize: CGFloat(profile.fontSize))
+        let titleFont = lineformFont(baseFont, adding: .bold)
 
         var titleAttributes = baseBody
         titleAttributes[.paragraphStyle] = paragraph
@@ -578,19 +592,27 @@ struct MarkdownPreviewRenderer {
 
         if !body.isEmpty {
             output.append(NSAttributedString(string: "\n", attributes: titleAttributes))
-            appendQuoteLines(body, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
+            appendQuoteLines(body, to: output, baseAttributes: baseBody, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText, displayMetrics: displayMetrics)
         }
     }
 
     /// A monochrome SF Symbol image tinted to `color` (the theme ink), sized to the body font, for the
     /// callout title row. Returns nil if the symbol is unavailable (caller then omits the glyph).
-    private func calloutSymbolImage(for kind: CalloutKind, color: NSColor, pointSize: CGFloat) -> NSImage? {
+    private func calloutSymbolImage(for kind: CalloutKind, color: PlatformColor, pointSize: CGFloat) -> PlatformImage? {
+        #if os(macOS)
         guard let base = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: kind.displayName) else {
             return nil
         }
         let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
             .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
         return base.withSymbolConfiguration(config) ?? base
+        #else
+        let config = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+            .applying(UIImage.SymbolConfiguration(paletteColors: [color]))
+        let image = UIImage(systemName: kind.symbolName, withConfiguration: config)
+        image?.accessibilityLabel = kind.displayName
+        return image
+        #endif
     }
 
     /// Emit a quiet, full-width divider as a self-sizing attachment. The line is low-contrast
@@ -625,7 +647,8 @@ struct MarkdownPreviewRenderer {
         bodyBlockSpacingAttributes: [NSAttributedString.Key: Any],
         blockSpacingLineIndexes: Set<Int>,
         imagesAsText: Bool = false,
-        headingScale: CGFloat = 1.0
+        headingScale: CGFloat = 1.0,
+        displayMetrics: RenderDisplayMetrics
     ) {
         for index in range {
             let line = lines[index]
@@ -658,7 +681,8 @@ struct MarkdownPreviewRenderer {
                     profile: profile,
                     theme: theme,
                     mathProvider: mathProvider,
-                    imagesAsText: imagesAsText
+                    imagesAsText: imagesAsText,
+                    displayMetrics: displayMetrics
                 ))
             }
 
@@ -750,12 +774,13 @@ struct MarkdownPreviewRenderer {
         diagramLog: DiagramFailureLogging,
         appVersion: String,
         imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) {
         if imagesAsText {
             appendMermaidFallback(source: source, to: output, profile: profile, codeAttributes: codeAttributes)
             return
         }
-        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let scale = displayMetrics.scale
         // Block diagrams: LIGHT themes render on a TRANSPARENT canvas (no box; dark ink draws crisp
         // node borders on the light page) with a fixed ink, so switching among light themes redraws
         // nothing. DARK themes render on a canvas set to the theme's own page color — it still reads
@@ -773,7 +798,7 @@ struct MarkdownPreviewRenderer {
 
         switch outcome {
         case .image(let image):
-            image.accessibilityDescription = String(localized: "Mermaid diagram. \(source)")
+            Self.setAccessibilityDescription(String(localized: "Mermaid diagram. \(source)", bundle: .module), on: image)
             let attachment = BlockRenderedAttachment()
             attachment.image = image
             let natural = image.size
@@ -801,15 +826,15 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         codeAttributes: [NSAttributedString.Key: Any]
     ) {
-        var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        var captionAttributes = MarkdownTextStyle.baseAttributes(for: profile)
         // Through the contrast floor: a flat 0.6 alpha put this below AA on four of five themes,
         // and the caption is already drawn smaller than body text.
         captionAttributes[.foregroundColor] = Theme.theme(for: profile)
             .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
-        if let font = captionAttributes[.font] as? NSFont {
-            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
+        if let font = captionAttributes[.font] as? PlatformFont {
+            captionAttributes[.font] = PlatformFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
-        output.append(NSAttributedString(string: String(localized: "Mermaid diagram (source)"), attributes: captionAttributes))
+        output.append(NSAttributedString(string: String(localized: "Mermaid diagram (source)", bundle: .module), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
         output.append(NSAttributedString(string: source, attributes: codeAttributes))
     }
@@ -825,13 +850,14 @@ struct MarkdownPreviewRenderer {
         columnWidth: CGFloat,
         codeAttributes: [NSAttributedString.Key: Any],
         mathProvider: MathImageProviding,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) {
         if imagesAsText {
             appendMathFallback(latex: latex, to: output, profile: profile, codeAttributes: codeAttributes)
             return
         }
-        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let scale = displayMetrics.scale
         let pointSize = CGFloat(profile.fontSize)
         // Block math renders transparent (no canvas) with a fixed light/dark ink, so it matches
         // every theme's page and is exempt from theme-switch redraw.
@@ -846,7 +872,7 @@ struct MarkdownPreviewRenderer {
 
         switch outcome {
         case .image(let image, _):
-            image.accessibilityDescription = String(localized: "Math. \(latex)")
+            Self.setAccessibilityDescription(String(localized: "Math. \(latex)", bundle: .module), on: image)
             let attachment = BlockRenderedAttachment()
             attachment.image = image
             let natural = image.size
@@ -865,15 +891,15 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         codeAttributes: [NSAttributedString.Key: Any]
     ) {
-        var captionAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
+        var captionAttributes = MarkdownTextStyle.baseAttributes(for: profile)
         // Through the contrast floor: a flat 0.6 alpha put this below AA on four of five themes,
         // and the caption is already drawn smaller than body text.
         captionAttributes[.foregroundColor] = Theme.theme(for: profile)
             .readableInk(Theme.theme(for: profile).textColor.withAlphaComponent(0.6))
-        if let font = captionAttributes[.font] as? NSFont {
-            captionAttributes[.font] = NSFont.systemFont(ofSize: max(10, font.pointSize - 2))
+        if let font = captionAttributes[.font] as? PlatformFont {
+            captionAttributes[.font] = PlatformFont.systemFont(ofSize: max(10, font.pointSize - 2))
         }
-        output.append(NSAttributedString(string: String(localized: "Math (source)"), attributes: captionAttributes))
+        output.append(NSAttributedString(string: String(localized: "Math (source)", bundle: .module), attributes: captionAttributes))
         output.append(NSAttributedString(string: "\n", attributes: captionAttributes))
         output.append(NSAttributedString(string: latex, attributes: codeAttributes))
     }
@@ -889,7 +915,8 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) -> NSAttributedString {
         let mathSpans = MathDelimiters.inlineSpans(in: line)
         guard !mathSpans.isEmpty else {
@@ -934,7 +961,7 @@ struct MarkdownPreviewRenderer {
                 ))
             }
             if useMath {
-                appendInlineMath(mathSpan!, to: output, baseAttributes: baseAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText)
+                appendInlineMath(mathSpan!, to: output, baseAttributes: baseAttributes, profile: profile, theme: theme, mathProvider: mathProvider, imagesAsText: imagesAsText, displayMetrics: displayMetrics)
             } else {
                 let token = regexToken!
                 output.append(NSAttributedString(string: token.text, attributes: token.attributes(baseAttributes, profile)))
@@ -953,15 +980,16 @@ struct MarkdownPreviewRenderer {
         profile: ReadingProfile,
         theme: Theme,
         mathProvider: MathImageProviding,
-        imagesAsText: Bool = false
+        imagesAsText: Bool = false,
+        displayMetrics: RenderDisplayMetrics
     ) {
         if imagesAsText {
             var codeAttrs = baseAttributes
-            codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
+            codeAttrs[.font] = PlatformFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
             output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
             return
         }
-        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let scale = displayMetrics.scale
         let pointSize = CGFloat(profile.fontSize)
         // Inline math stays fully theme-aware.
         let outcome = mathProvider.outcome(
@@ -972,7 +1000,7 @@ struct MarkdownPreviewRenderer {
             scale: scale
         )
         if case .image(let image, let descent) = outcome {
-            image.accessibilityDescription = String(localized: "Math. \(span.latex)")
+            Self.setAccessibilityDescription(String(localized: "Math. \(span.latex)", bundle: .module), on: image)
             let attachment = NSTextAttachment()
             attachment.image = image
             let size = image.size
@@ -982,7 +1010,7 @@ struct MarkdownPreviewRenderer {
             output.append(NSAttributedString(attachment: attachment))
         } else {
             var codeAttrs = baseAttributes
-            codeAttrs[.font] = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
+            codeAttrs[.font] = PlatformFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
             output.append(NSAttributedString(string: span.latex, attributes: codeAttrs))
         }
     }
@@ -999,11 +1027,11 @@ struct MarkdownPreviewRenderer {
         // visible defect. See `FontOption.resolved(for:)`.
         let bodyFont = FontOption.resolved(for: profile.fontID).resolvedFont(size: CGFloat(profile.fontSize))
         let sizeBoost = Self.headingSizeBoosts[level] ?? 0
-        let headingFont = NSFontManager.shared.convert(bodyFont, toHaveTrait: .boldFontMask)
-        let resolvedHeadingFont = NSFont(descriptor: headingFont.fontDescriptor, size: bodyFont.pointSize + sizeBoost * headingScale) ?? headingFont
+        let headingFont = lineformFont(bodyFont, adding: .bold)
+        let resolvedHeadingFont = Self.font(headingFont, size: bodyFont.pointSize + sizeBoost * headingScale)
         let paragraphStyle = usesBlockSpacing
-            ? MarkdownSyntaxHighlighter.blockSpacingParagraphStyle(for: profile, font: resolvedHeadingFont, additionalSpacing: 4)
-            : MarkdownSyntaxHighlighter.paragraphStyle(for: profile, font: resolvedHeadingFont)
+            ? MarkdownTextStyle.blockSpacingParagraphStyle(for: profile, font: resolvedHeadingFont, additionalSpacing: 4)
+            : MarkdownTextStyle.paragraphStyle(for: profile, font: resolvedHeadingFont)
 
         return [
             NSAttributedString.Key.font: resolvedHeadingFont,
@@ -1014,8 +1042,8 @@ struct MarkdownPreviewRenderer {
     }
 
     private func codeAttributes(profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
-        var attributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
-        attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
+        var attributes = MarkdownTextStyle.baseAttributes(for: profile)
+        attributes[.font] = PlatformFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
         return attributes
     }
 
@@ -1023,12 +1051,12 @@ struct MarkdownPreviewRenderer {
         _ attributes: [NSAttributedString.Key: Any],
         profile: ReadingProfile
     ) -> [NSAttributedString.Key: Any] {
-        guard profile.paragraphSpacing > 0, let font = attributes[.font] as? NSFont else {
+        guard profile.paragraphSpacing > 0, let font = attributes[.font] as? PlatformFont else {
             return attributes
         }
 
         var spacedAttributes = attributes
-        spacedAttributes[.paragraphStyle] = MarkdownSyntaxHighlighter.blockSpacingParagraphStyle(for: profile, font: font)
+        spacedAttributes[.paragraphStyle] = MarkdownTextStyle.blockSpacingParagraphStyle(for: profile, font: font)
         return spacedAttributes
     }
 
@@ -1136,7 +1164,7 @@ struct MarkdownPreviewRenderer {
             label = alt
         } else {
             let filename = Self.imageFilename(from: nsLine.substring(with: match.range(at: 2)))
-            label = filename.isEmpty ? String(localized: "Image") : filename
+            label = filename.isEmpty ? String(localized: "Image", bundle: .module) : filename
         }
         return InlineToken(kind: .image, text: "🖼 \(label)", range: match.range)
     }
@@ -1157,20 +1185,22 @@ struct MarkdownPreviewRenderer {
         documentDirectory: URL?,
         imageProvider: ImageAttachmentProviding,
         bodyAttributes: [NSAttributedString.Key: Any],
-        isLastLine: Bool
+        isLastLine: Bool,
+        displayMetrics: RenderDisplayMetrics
     ) {
         let spacedAttributes = imageBlockSpacing(bodyAttributes, profile: profile)
 
         if case .localFile(let url) = ImageResolver.resolve(path: path, documentDirectory: documentDirectory) {
-            let scale = NSScreen.main?.backingScaleFactor ?? 2
+            let scale = displayMetrics.scale
             // The renderer has no live view to measure a real viewport at initial-render time;
-            // approximate with the main screen's visible height (almost always resolves near the
+            // approximate with the display's visible height (`displayMetrics`; on macOS the main
+            // screen's, read at render time — almost always resolves near the
             // flat 500pt ceiling). This is HARMLESS: the raster itself is downscale-only (never
             // upscaled), and the resize-refit path (`MarkdownPreviewTextView.refitBlockAttachments`,
             // which fires unconditionally right after this render via `apply()`) re-clamps the
             // attachment's on-screen HEIGHT to the real viewport via `appliesViewportHeightCap`, so
             // the initial approximation is corrected before the user ever sees it.
-            let maxHeight = ImageFit.maxHeight(visibleViewportHeight: NSScreen.main?.visibleFrame.height ?? 900)
+            let maxHeight = ImageFit.maxHeight(visibleViewportHeight: displayMetrics.visibleViewportHeight)
             if let baseImage = imageProvider.image(at: url, maxSize: CGSize(width: columnWidth, height: maxHeight), scale: scale) {
                 let natural = baseImage.size
                 let width = min(natural.width, max(columnWidth, 1))
@@ -1183,17 +1213,31 @@ struct MarkdownPreviewRenderer {
                 // which enlarges the visual gap BELOW the image; compensate by adding that same
                 // leading to the TOP margin so the picture ends up with EQUAL space above and below.
                 let baseMargin = max(18, CGFloat(profile.paragraphSpacing))
-                let font = (bodyAttributes[.font] as? NSFont) ?? NSFont.systemFont(ofSize: max(1, CGFloat(profile.fontSize)))
+                let font = (bodyAttributes[.font] as? PlatformFont) ?? PlatformFont.systemFont(ofSize: max(1, CGFloat(profile.fontSize)))
                 let naturalLineHeight = max(font.ascender - font.descender + font.leading, font.pointSize)
                 let leadingExtra = max(0, naturalLineHeight * (CGFloat(profile.lineHeightMultiple) - 1))
                 let topMargin = baseMargin + leadingExtra
                 let bottomMargin = baseMargin
+                #if os(macOS)
                 let padded = NSImage(size: NSSize(width: width, height: height + topMargin + bottomMargin))
                 padded.lockFocus()
                 NSGraphicsContext.current?.imageInterpolation = .high
                 baseImage.draw(in: NSRect(x: 0, y: bottomMargin, width: width, height: height))
                 padded.unlockFocus()
-                padded.accessibilityDescription = alt.isEmpty ? String(localized: "Image") : alt
+                #else
+                // UIKit's origin is top-left, so the picture sits `topMargin` down.
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = displayMetrics.scale
+                format.opaque = false
+                let padded = UIGraphicsImageRenderer(
+                    size: CGSize(width: width, height: height + topMargin + bottomMargin),
+                    format: format
+                ).image { context in
+                    context.cgContext.interpolationQuality = .high
+                    baseImage.draw(in: CGRect(x: 0, y: topMargin, width: width, height: height))
+                }
+                #endif
+                Self.setAccessibilityDescription(alt.isEmpty ? String(localized: "Image", bundle: .module) : alt, on: padded)
                 let attachment = BlockRenderedAttachment()
                 attachment.image = padded
                 attachment.appliesViewportHeightCap = true
@@ -1239,10 +1283,10 @@ struct MarkdownPreviewRenderer {
             label = alt
         } else {
             let filename = Self.imageFilename(from: path)
-            label = filename.isEmpty ? String(localized: "Image") : filename
+            label = filename.isEmpty ? String(localized: "Image", bundle: .module) : filename
         }
         var placeholderAttributes = attributes
-        placeholderAttributes[.foregroundColor] = NSColor.linkColor
+        placeholderAttributes[.foregroundColor] = PlatformColor.lineformLink
         placeholderAttributes[.imageSourceRange] = NSValue(range: sourceRange)
         placeholderAttributes[.imageReconnect] = NSNumber(value: true)
         // A broken-heart glyph between the frame and the label signals "this image didn't
@@ -1309,23 +1353,23 @@ private struct InlineToken {
         var attributes = base
         switch kind {
         case .bold:
-            if let font = base[.font] as? NSFont {
-                attributes[.font] = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+            if let font = base[.font] as? PlatformFont {
+                attributes[.font] = lineformFont(font, adding: .bold)
             }
         case .italic:
-            if let font = base[.font] as? NSFont {
-                attributes[.font] = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
+            if let font = base[.font] as? PlatformFont {
+                attributes[.font] = lineformFont(font, adding: .italic)
             }
         case .code:
-            attributes[.font] = NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
+            attributes[.font] = PlatformFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular)
         case .strikethrough:
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         case .image:
             // Color the placeholder like a link so a not-yet-rendered image reference reads clearly
             // as a reference rather than dim body text.
-            attributes[.foregroundColor] = NSColor.linkColor
+            attributes[.foregroundColor] = PlatformColor.lineformLink
         case .link:
-            attributes[.foregroundColor] = NSColor.linkColor
+            attributes[.foregroundColor] = PlatformColor.lineformLink
         }
         return attributes
     }
