@@ -154,7 +154,7 @@ struct OutlineSidebarView: View {
     /// Workspace and iCloud roots sit on a soft card. A closed root uses the card's solid
     /// leading colour; an open root carries that colour into a downward fade so the section
     /// stays grouped without boxing in a long tree.
-    static let filesRootCardCornerRadius: CGFloat = 14
+    static let filesRootCardCornerRadius: CGFloat = LineformDesign.Radius.card
     static let filesRowBackgroundHorizontalInset: CGFloat = 6
     /// The root card reaches equally beyond its header above and below, matching the Change
     /// pill's trailing inset.
@@ -614,7 +614,7 @@ struct OutlineSidebarView: View {
             // Hover scoped to the button itself, not the whole bar/divider, so only hovering
             // the Settings row highlights it.
             .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.12)) {
+                withAnimation(.easeOut(duration: LineformDesign.Motion.hover)) {
                     isSettingsHovered = hovering
                 }
             }
@@ -1003,7 +1003,7 @@ private struct OutlineSidebarRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(.easeOut(duration: LineformDesign.Motion.hover)) {
                 isHovered = hovering
             }
         }
@@ -1054,7 +1054,7 @@ private struct SidebarTabButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(.easeOut(duration: LineformDesign.Motion.hover)) {
                 isHovered = hovering
             }
         }
@@ -2056,7 +2056,7 @@ private struct OutlineFileBrowserView: View {
         .padding(.trailing, 6)
         .padding(.vertical, OutlineSidebarView.filesSortRowVerticalPadding)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(.easeOut(duration: LineformDesign.Motion.hover)) {
                 isSortHovered = hovering
             }
         }
@@ -2460,7 +2460,7 @@ struct SidebarCapsuleButtonStyle: ButtonStyle {
                     usesDarkChrome: usesDarkChrome, emphasis: emphasis), alpha: 1)))
                 .contentShape(Capsule())
                 .onHover { hovering in
-                    withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
+                    withAnimation(.easeOut(duration: LineformDesign.Motion.hover)) { isHovered = hovering }
                 }
         }
     }
@@ -2551,7 +2551,7 @@ private struct OutlineFileTreeNodeView: View {
             }
         }
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(.easeOut(duration: LineformDesign.Motion.hover)) {
                 isHovered = hovering
             }
         }

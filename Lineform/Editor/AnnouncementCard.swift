@@ -22,7 +22,7 @@ struct AnnouncementCard: View {
     @State private var isHoveringClose = false
     @State private var isHoveringAction = false
 
-    static let cornerRadius: CGFloat = 12
+    static let cornerRadius: CGFloat = LineformDesign.FloatingCard.radius
     /// Ideal width. A CAP, not a fixed size — see the `.frame` comment below.
     static let maximumWidth: CGFloat = 326
     /// Inset from the content area's bottom-trailing corner.
@@ -253,10 +253,24 @@ struct FloatingCardChrome: ViewModifier {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
-                    .strokeBorder(usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
+                    .strokeBorder(
+                        usesDarkChrome
+                            ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
+                            : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
+                        lineWidth: LineformDesign.FloatingCard.hairlineWidth
+                    )
             )
             .clipShape(RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(usesDarkChrome ? 0.45 : 0.16), radius: 18, y: 6)
+            .shadow(
+                color: .black.opacity(
+                    usesDarkChrome
+                        ? LineformDesign.FloatingCard.shadowOpacityDark
+                        : LineformDesign.FloatingCard.shadowOpacityLight
+                ),
+                radius: LineformDesign.FloatingCard.shadowRadius,
+                x: LineformDesign.FloatingCard.shadowOffset.width,
+                y: LineformDesign.FloatingCard.shadowOffset.height
+            )
             // The card floats over the text view, whose I-beam otherwise wins the cursor over
             // the whole content area (see CursorRectView — it tracks geometrically).
             .background(CursorRectView(cursor: .arrow))
