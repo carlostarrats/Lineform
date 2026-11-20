@@ -1,35 +1,42 @@
-import AppKit
-import LineformCore
+import CoreGraphics
+import Foundation
 
-enum FontSource: String, Codable, Equatable {
+public enum FontSource: String, Codable, Equatable, Sendable {
     case system
     case bundled
     case userInstalled
 }
 
-struct FontOption: Equatable, Identifiable {
-    var id: FontID
-    var name: String
-    var familyName: String
-    var source: FontSource
+public struct FontOption: Equatable, Identifiable, Sendable {
+    public var id: FontID
+    public var name: String
+    public var familyName: String
+    public var source: FontSource
+
+    public init(id: FontID, name: String, familyName: String, source: FontSource) {
+        self.id = id
+        self.name = name
+        self.familyName = familyName
+        self.source = source
+    }
 
     /// The option every unrecognized `FontID` falls back to. Declared separately from
     /// `groupedOptions` so it can never itself be nil.
-    static let defaultOption = FontOption(id: .sfPro, name: "SF Pro", familyName: ".AppleSystemUIFont", source: .system)
+    public static let defaultOption = FontOption(id: .sfPro, name: "SF Pro", familyName: ".AppleSystemUIFont", source: .system)
 
-    static let groupedOptions: [FontOptionGroup] = [
+    public static let groupedOptions: [FontOptionGroup] = [
         FontOptionGroup(
-            name: String(localized: "System"),
+            name: String(localized: "System", bundle: .module),
             options: [
                 defaultOption,
                 FontOption(id: .newYork, name: "New York", familyName: "New York", source: .system),
                 // "Monospaced" describes the typeface's role; it is not a typeface NAME like "SF Pro",
                 // so unlike its siblings it localizes. The id stays `.jetBrainsMono` (persisted).
-                FontOption(id: .jetBrainsMono, name: String(localized: "Monospaced"), familyName: ".AppleSystemUIFontMonospaced", source: .system)
+                FontOption(id: .jetBrainsMono, name: String(localized: "Monospaced", bundle: .module), familyName: ".AppleSystemUIFontMonospaced", source: .system)
             ]
         ),
         FontOptionGroup(
-            name: String(localized: "Reading & Accessibility"),
+            name: String(localized: "Reading & Accessibility", bundle: .module),
             options: [
                 FontOption(id: .atkinsonHyperlegible, name: "Atkinson Hyperlegible", familyName: "Atkinson Hyperlegible", source: .bundled),
                 FontOption(id: .openDyslexic, name: "OpenDyslexic", familyName: "OpenDyslexic", source: .bundled),
@@ -38,7 +45,7 @@ struct FontOption: Equatable, Identifiable {
         )
     ]
 
-    static func option(for id: FontID) -> FontOption? {
+    public static func option(for id: FontID) -> FontOption? {
         groupedOptions.flatMap(\.options).first { $0.id == id }
     }
 
@@ -63,11 +70,11 @@ struct FontOption: Equatable, Identifiable {
     /// substituting the whole default OPTION also corrects the retired id's other properties, it
     /// makes the next retirement structurally incapable of reintroducing that divergence, and it
     /// deletes three copies of a fallback that otherwise has to be right independently.
-    static func resolved(for id: FontID) -> FontOption {
+    public static func resolved(for id: FontID) -> FontOption {
         option(for: id) ?? defaultOption
     }
 
-    static var availableGroupedOptions: [FontOptionGroup] {
+    public static var availableGroupedOptions: [FontOptionGroup] {
         groupedOptions.compactMap { group in
             let options = group.options.filter(\.isAvailable)
             guard !options.isEmpty else {
@@ -77,41 +84,42 @@ struct FontOption: Equatable, Identifiable {
         }
     }
 
-    var isAvailable: Bool {
+    public var isAvailable: Bool {
         availableFont(size: 17) != nil
     }
 
-    func availableFont(size: CGFloat) -> NSFont? {
+    public func availableFont(size: CGFloat) -> PlatformFont? {
         switch id {
         case .sfPro:
             return .systemFont(ofSize: size)
         case .newYork:
-            return NSFont(name: familyName, size: size) ?? systemSerifFont(size: size)
+            return PlatformFont(name: familyName, size: size) ?? systemSerifFont(size: size)
         case .jetBrainsMono:
             return .monospacedSystemFont(ofSize: size, weight: .regular)
         default:
-            return NSFont(name: familyName, size: size)
+            return PlatformFont(name: familyName, size: size)
         }
     }
 
-    func resolvedFont(size: CGFloat) -> NSFont {
+    public func resolvedFont(size: CGFloat) -> PlatformFont {
         availableFont(size: size) ?? .systemFont(ofSize: size)
     }
 
-    private func systemSerifFont(size: CGFloat) -> NSFont? {
+    /// macOS: `NSFontDescriptor.withDesign(.serif)`; iOS: `UIFontDescriptor.withDesign(.serif)`.
+    private func systemSerifFont(size: CGFloat) -> PlatformFont? {
         if #available(macOS 11.0, *) {
-            return NSFont
+            return PlatformFont
                 .systemFont(ofSize: size)
                 .fontDescriptor
                 .withDesign(.serif)
-                .flatMap { NSFont(descriptor: $0, size: size) }
+                .flatMap { PlatformFont(descriptor: $0, size: size) }
         }
         return nil
     }
 }
 
-struct FontOptionGroup: Equatable, Identifiable {
-    var id: String { name }
-    var name: String
-    var options: [FontOption]
+public struct FontOptionGroup: Equatable, Identifiable, Sendable {
+    public var id: String { name }
+    public var name: String
+    public var options: [FontOption]
 }

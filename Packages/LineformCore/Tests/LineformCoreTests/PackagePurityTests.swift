@@ -1,10 +1,24 @@
 import XCTest
 
-/// The package must stay shareable with the iOS app, so no UI framework may enter it.
+/// The package must stay shareable with the iOS app, so no UI framework may enter it except
+/// through the platform seam: `Sources/LineformCore/Platform/` may import AppKit inside
+/// `#if os(macOS)` and UIKit inside its `#else` (or `#if os(iOS)`), and nothing else. SwiftUI,
+/// Cocoa and WebKit stay banned everywhere, and every other file names only the seam's aliases.
 /// Reads the sources from the repo via `#filePath`, not the built module.
 final class PackagePurityTests: XCTestCase {
     func testNoUIFrameworkImportsInTheCorePackage() throws {
-        XCTAssertEqual(try uiFrameworkImports(inTarget: "LineformCore"), [])
+        XCTAssertEqual(try uiFrameworkImports(inTarget: "LineformCore", seamFolder: "Platform"), [])
+    }
+
+    /// The seam really is where the imports are: each platform's framework is imported there,
+    /// and only under its own platform branch (an unguarded AppKit import would break iOS).
+    func testThePlatformSeamImportsEachFrameworkOnlyUnderItsOwnPlatform() throws {
+        let seam = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/LineformCore/Platform/PlatformTypes.swift")
+        let imports = Self.guardedImports(in: try String(contentsOf: seam, encoding: .utf8))
+        XCTAssertEqual(imports.map(\.framework), ["AppKit", "UIKit"])
+        XCTAssertEqual(imports.map(\.platform), ["macOS", "iOS"])
     }
 
     /// The same rule for the test-support target, which iOS test targets will link too.
@@ -121,7 +135,9 @@ final class PackagePurityTests: XCTestCase {
     private static let banned = try! NSRegularExpression(pattern:
         #"^(@\w+(\(.*?\))?\s+)*((public|package|internal|fileprivate|private)\s+)?import\s+((typealias|struct|class|enum|protocol|let|var|func)\s+)?(AppKit|SwiftUI|Cocoa|UIKit|WebKit)\b"#)
 
-    private func uiFrameworkImports(inTarget target: String) throws -> [String] {
+    /// Banned imports in `Sources/<target>`. A file under `seamFolder` may import AppKit under
+    /// `#if os(macOS)` and UIKit under its `#else` or `#if os(iOS)`; any other UI import is listed.
+    private func uiFrameworkImports(inTarget target: String, seamFolder: String? = nil) throws -> [String] {
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/\(target)")
@@ -131,14 +147,49 @@ final class PackagePurityTests: XCTestCase {
         for case let url as URL in walker where url.pathExtension == "swift" {
             scanned += 1
             let text = try String(contentsOf: url, encoding: .utf8)
-            for line in text.split(separator: "\n") {
+            let inSeam = seamFolder.map { url.pathComponents.contains($0) } ?? false
+            let allowed = inSeam ? Self.guardedImports(in: text) : []
+            for (index, line) in text.components(separatedBy: "\n").enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if Self.banned.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) != nil {
+                guard Self.banned.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) != nil
+                else { continue }
+                let isAllowed = allowed.contains {
+                    $0.line == index && ($0.framework, $0.platform) == ("AppKit", "macOS")
+                        || $0.line == index && ($0.framework, $0.platform) == ("UIKit", "iOS")
+                }
+                if !isAllowed {
                     offenders.append("\(url.lastPathComponent): \(line)")
                 }
             }
         }
         XCTAssertGreaterThan(scanned, 0, "scanned no files in Sources/\(target); the path is wrong")
         return offenders
+    }
+
+    /// Every plain `import AppKit`/`import UIKit` line in `source` (0-based line index) with the
+    /// platform its enclosing `#if` branch selects: "macOS" under `#if os(macOS)`, "iOS" under its
+    /// `#else` or under `#if os(iOS)`, "any" outside a platform branch or under any other condition.
+    private static func guardedImports(in source: String) -> [(line: Int, framework: String, platform: String)] {
+        var branches: [String] = []
+        var found: [(line: Int, framework: String, platform: String)] = []
+        for (index, line) in source.components(separatedBy: "\n").enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("#if ") {
+                let condition = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+                branches.append(condition == "os(macOS)" ? "macOS" : condition == "os(iOS)" ? "iOS" : "any")
+            } else if trimmed.hasPrefix("#elseif") {
+                branches[branches.count - 1] = "any"
+            } else if trimmed == "#else" {
+                if let last = branches.last {
+                    branches[branches.count - 1] = last == "macOS" ? "iOS" : "any"
+                }
+            } else if trimmed.hasPrefix("#endif") {
+                _ = branches.popLast()
+            } else if trimmed == "import AppKit" || trimmed == "import UIKit" {
+                let platform = branches.contains("any") ? "any" : branches.last ?? "any"
+                found.append((index, String(trimmed.dropFirst("import ".count)), platform))
+            }
+        }
+        return found
     }
 }

@@ -27,7 +27,7 @@
 		1F0000340000000000000021 /* CJKFontFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000340000000000000031 /* CJKFontFallbackTests.swift */; };
 		1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000023 /* DocumentStatisticsTests.swift */; };
 		1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000041 /* ReadingPresetTests.swift */; };
-		1F0000010000000000000042 /* FontOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* FontOptionTests.swift */; };
+		1F0000010000000000000042 /* BundledFontRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000042 /* BundledFontRegistrationTests.swift */; };
 		1F0000010000000000000043 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000043 /* ThemeTests.swift */; };
 		1F0000350000000000000001 /* RenderGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000002 /* RenderGoldenTests.swift */; };
 		1F0000350000000000000003 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000350000000000000004 /* Fixtures */; };
@@ -91,9 +91,7 @@
 		1F00000100000000000004B1 /* MainMenuIconDecorator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B1 /* MainMenuIconDecorator.swift */; };
 		1F0000320000000000000001 /* SystemMenuItemTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000320000000000000011 /* SystemMenuItemTitles.swift */; };
 		1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */; };
-		1F0000010000000000000051 /* FontOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000051 /* FontOption.swift */; };
-		1F0000010000000000000122 /* LineformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000122 /* LineformColors.swift */; };
-		1F0000010000000000000052 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000052 /* Theme.swift */; };
+		1F0000010000000000000052 /* SystemAppearanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000052 /* SystemAppearanceMonitor.swift */; };
 		1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000055 /* ReadingExperiencePopover.swift */; };
 		1F0000010000000000000065 /* LineformAppNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000065 /* LineformAppNotification.swift */; };
 		1F0000010000000000000076 /* MarkdownPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000076 /* MarkdownPreviewRenderer.swift */; };
@@ -216,7 +214,7 @@
 		1F0000340000000000000031 /* CJKFontFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CJKFontFallbackTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000023 /* DocumentStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStatisticsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000041 /* ReadingPresetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPresetTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000042 /* FontOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOptionTests.swift; sourceTree = "<group>"; };
+		1F0000020000000000000042 /* BundledFontRegistrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontRegistrationTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000043 /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
 		1F0000350000000000000002 /* RenderGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderGoldenTests.swift; sourceTree = "<group>"; };
 		1F0000350000000000000004 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
@@ -283,9 +281,7 @@
 		1F00000200000000000004B1 /* MainMenuIconDecorator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuIconDecorator.swift; sourceTree = "<group>"; };
 		1F0000320000000000000011 /* SystemMenuItemTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMenuItemTitles.swift; sourceTree = "<group>"; };
 		1F0000020000000000000130 /* FirstLaunchIntroOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLaunchIntroOverlay.swift; sourceTree = "<group>"; };
-		1F0000020000000000000051 /* FontOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontOption.swift; sourceTree = "<group>"; };
-		1F0000020000000000000122 /* LineformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformColors.swift; sourceTree = "<group>"; };
-		1F0000020000000000000052 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		1F0000020000000000000052 /* SystemAppearanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAppearanceMonitor.swift; sourceTree = "<group>"; };
 		1F0000020000000000000055 /* ReadingExperiencePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingExperiencePopover.swift; sourceTree = "<group>"; };
 		1F0000020000000000000120 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		1F0000020000000000000131 /* FirstLaunchIntro */ = {isa = PBXFileReference; lastKnownFileType = folder; path = FirstLaunchIntro; sourceTree = "<group>"; };
@@ -506,9 +502,7 @@
 		1F0000070000000000000014 /* ReadingExperience */ = {
 			isa = PBXGroup;
 			children = (
-				1F0000020000000000000051 /* FontOption.swift */,
-				1F0000020000000000000122 /* LineformColors.swift */,
-				1F0000020000000000000052 /* Theme.swift */,
+				1F0000020000000000000052 /* SystemAppearanceMonitor.swift */,
 				1F0000020000000000000055 /* ReadingExperiencePopover.swift */,
 			);
 			path = ReadingExperience;
@@ -584,7 +578,7 @@
 				1F0000330000000000000031 /* LocalizationSourceSweepTests.swift */,
 				1F0000020000000000000023 /* DocumentStatisticsTests.swift */,
 				1F0000020000000000000041 /* ReadingPresetTests.swift */,
-				1F0000020000000000000042 /* FontOptionTests.swift */,
+				1F0000020000000000000042 /* BundledFontRegistrationTests.swift */,
 				1F0000020000000000000043 /* ThemeTests.swift */,
 				1F0000020000000000000044 /* ReadingProfileStoreTests.swift */,
 				1F0000020000000000000322 /* LineformSettingsTests.swift */,
@@ -874,9 +868,7 @@
 				1F00000100000000000004F8 /* AIActionController.swift in Sources */,
 				1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
-				1F0000010000000000000051 /* FontOption.swift in Sources */,
-				1F0000010000000000000122 /* LineformColors.swift in Sources */,
-				1F0000010000000000000052 /* Theme.swift in Sources */,
+				1F0000010000000000000052 /* SystemAppearanceMonitor.swift in Sources */,
 				1F0000010000000000000055 /* ReadingExperiencePopover.swift in Sources */,
 				1F0000010000000000000065 /* LineformAppNotification.swift in Sources */,
  				1F00000100000000000003A1 /* DocumentTab.swift in Sources */,
@@ -935,7 +927,7 @@
 				1F0000330000000000000021 /* LocalizationSourceSweepTests.swift in Sources */,
 				1F0000010000000000000023 /* DocumentStatisticsTests.swift in Sources */,
 				1F0000010000000000000041 /* ReadingPresetTests.swift in Sources */,
-				1F0000010000000000000042 /* FontOptionTests.swift in Sources */,
+				1F0000010000000000000042 /* BundledFontRegistrationTests.swift in Sources */,
 				1F0000010000000000000043 /* ThemeTests.swift in Sources */,
 				1F0000350000000000000001 /* RenderGoldenTests.swift in Sources */,
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,

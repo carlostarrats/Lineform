@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 
 /// The colours History mode draws with in the editor. Every one is derived from the theme's own
 /// ink and page (the `Theme.readableInk` approach), so a theme change — including Automatic Dark

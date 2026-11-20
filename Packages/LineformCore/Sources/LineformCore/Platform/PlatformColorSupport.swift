@@ -1,0 +1,113 @@
+import CoreGraphics
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+/// A colour's components in sRGB.
+public struct SRGBComponents: Equatable, Sendable {
+    public var red: CGFloat
+    public var green: CGFloat
+    public var blue: CGFloat
+    public var alpha: CGFloat
+
+    public init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
+    }
+}
+
+/// The sRGB value (red = green = blue) macOS converts each `NSColor(calibratedWhite:)` used by
+/// `Theme` to. iOS has no calibrated colour space, so it draws these whites from this table.
+/// Computed on macOS with `NSColor(calibratedWhite: w, alpha: 1).usingColorSpace(.sRGB)` and
+/// pinned by `PlatformSeamTests.testCalibratedWhiteTableMatchesMacConversion`.
+enum CalibratedWhiteTable {
+    static let sRGB: [CGFloat: CGFloat] = [
+        0.86: 0.88716357946395874,
+        0.19: 0.24861118197441101,
+        0.90: 0.91984230279922485,
+        0.88: 0.90354937314987183,
+        0.09: 0.11835422366857529,
+    ]
+}
+
+extension PlatformColor {
+    /// macOS: `NSColor(srgbRed:green:blue:alpha:)`. iOS: `UIColor(red:green:blue:alpha:)`.
+    public static func lineformSRGB(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> PlatformColor {
+        #if os(macOS)
+        NSColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
+        #else
+        UIColor(red: red, green: green, blue: blue, alpha: alpha)
+        #endif
+    }
+
+    /// macOS: `NSColor(calibratedWhite:alpha:)`, unchanged. iOS: the sRGB colour macOS converts
+    /// that white to, from `CalibratedWhiteTable`; a white not in the table falls back to
+    /// `UIColor(white:alpha:)`.
+    public static func lineformCalibratedWhite(_ white: CGFloat, alpha: CGFloat) -> PlatformColor {
+        #if os(macOS)
+        NSColor(calibratedWhite: white, alpha: alpha)
+        #else
+        if let value = CalibratedWhiteTable.sRGB[white] {
+            return UIColor(red: value, green: value, blue: value, alpha: alpha)
+        }
+        return UIColor(white: white, alpha: alpha)
+        #endif
+    }
+
+    /// macOS: the components of `usingColorSpace(.sRGB)`, nil when that conversion fails.
+    /// iOS: `getRed(_:green:blue:alpha:)`, nil when it returns false.
+    public var lineformSRGBComponents: SRGBComponents? {
+        #if os(macOS)
+        guard let rgb = usingColorSpace(.sRGB) else { return nil }
+        return SRGBComponents(red: rgb.redComponent, green: rgb.greenComponent,
+                              blue: rgb.blueComponent, alpha: rgb.alphaComponent)
+        #else
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return nil }
+        return SRGBComponents(red: red, green: green, blue: blue, alpha: alpha)
+        #endif
+    }
+
+    /// `lineformSRGBComponents`, falling back to the colour's own components when the sRGB
+    /// conversion fails. On macOS this is exactly `(usingColorSpace(.sRGB) ?? color).redComponent`
+    /// and so on, the fallback `Theme`'s contrast arithmetic has always used.
+    var lineformSRGBComponentsOrOwn: SRGBComponents {
+        if let rgb = lineformSRGBComponents { return rgb }
+        #if os(macOS)
+        return SRGBComponents(red: redComponent, green: greenComponent, blue: blueComponent, alpha: alphaComponent)
+        #else
+        return SRGBComponents(red: 0, green: 0, blue: 0, alpha: cgColor.alpha)
+        #endif
+    }
+
+    /// macOS: `.linkColor`. iOS: `.link`.
+    public static var lineformLink: PlatformColor {
+        #if os(macOS)
+        .linkColor
+        #else
+        .link
+        #endif
+    }
+
+    /// macOS: `.textColor`. iOS: `.label`.
+    public static var lineformText: PlatformColor {
+        #if os(macOS)
+        .textColor
+        #else
+        .label
+        #endif
+    }
+
+    /// macOS: `.textBackgroundColor`. iOS: `.systemBackground`.
+    public static var lineformTextBackground: PlatformColor {
+        #if os(macOS)
+        .textBackgroundColor
+        #else
+        .systemBackground
+        #endif
+    }
+}
