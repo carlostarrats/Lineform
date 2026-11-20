@@ -8,8 +8,8 @@ import UIKit
 #endif
 
 /// Converts a colour to a `#rrggbb` hex string for BeautifulMermaid's two-color mono theme.
-public enum MermaidHexColor {
-    public static func string(from color: PlatformColor) -> String {
+enum MermaidHexColor {
+    static func string(from color: PlatformColor) -> String {
         // macOS: `(color.usingColorSpace(.sRGB) ?? color)`'s components, as always.
         let rgb = color.lineformSRGBComponentsOrOwn
         let r = Int((rgb.red * 255).rounded())
@@ -20,8 +20,8 @@ public enum MermaidHexColor {
 }
 
 /// Stable, compact cache key for a rendered diagram, keyed by source + theme + scale.
-public enum MermaidCacheKey {
-    public static func key(source: String, backgroundHex: String, foregroundHex: String, scale: CGFloat) -> String {
+enum MermaidCacheKey {
+    static func key(source: String, backgroundHex: String, foregroundHex: String, scale: CGFloat) -> String {
         let material = "\(scale)\n\(backgroundHex)\n\(foregroundHex)\n\(source)"
         let digest = SHA256.hash(data: Data(material.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
@@ -45,8 +45,8 @@ public enum MermaidCacheKey {
 /// macOS only: the library's UIKit path draws through `UIGraphicsImageRenderer`, whose origin is
 /// top-left, so iOS output is already upright and gets no orientation pass.
 #if os(macOS)
-public enum MermaidImageOrientation {
-    public static func uprightForMacOS(_ image: NSImage) -> NSImage? {
+enum MermaidImageOrientation {
+    static func uprightForMacOS(_ image: NSImage) -> NSImage? {
         var proposed = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) else {
             return nil

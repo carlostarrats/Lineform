@@ -50,8 +50,8 @@ final class PackagePurityTests: XCTestCase {
         XCTAssertEqual(imports.map(\.platform), ["macOS", "iOS"])
 
         let rendering = Self.packageRoot.appendingPathComponent("Sources/LineformCore/Markdown/Rendering")
-        let files = try FileManager.default.contentsOfDirectory(at: rendering, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "swift" }
+        let walker = try XCTUnwrap(FileManager.default.enumerator(at: rendering, includingPropertiesForKeys: nil))
+        let files = walker.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
         XCTAssertFalse(files.isEmpty, "found no files in Markdown/Rendering; the path is wrong")
         for file in files {
             let imports = Self.guardedImports(in: try String(contentsOf: file, encoding: .utf8))

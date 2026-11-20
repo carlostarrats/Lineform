@@ -10,8 +10,8 @@ import UIKit
 /// fitted box + scale (mirrors `MermaidCacheKey`). Two different files at the same key would
 /// collide only if their paths, mtimes, and fit box were all identical, which is precisely
 /// when a fresh load is unnecessary — an unchanged file's raster is safe to reuse.
-public enum ImageAttachmentCacheKey {
-    public static func key(url: URL, modificationDate: Date?, maxSize: CGSize, scale: CGFloat) -> String {
+enum ImageAttachmentCacheKey {
+    static func key(url: URL, modificationDate: Date?, maxSize: CGSize, scale: CGFloat) -> String {
         let mtime = modificationDate?.timeIntervalSince1970 ?? -1
         let material = "\(url.standardizedFileURL.path)\n\(mtime)\n\(maxSize.width)x\(maxSize.height)\n\(scale)"
         let digest = SHA256.hash(data: Data(material.utf8))

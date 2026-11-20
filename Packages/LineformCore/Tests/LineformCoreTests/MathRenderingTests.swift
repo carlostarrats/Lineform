@@ -131,15 +131,19 @@ final class MathRenderingTests: XCTestCase {
     // MARK: - Orientation on this platform (spec §11: re-checked on iPhone)
 
     /// SwiftMath draws upright on both platforms and `MathImageOrientation` only rewraps it, so a
-    /// superscript sits high: the right-most ink column (the "2") has its topmost ink above the
-    /// image's vertical middle.
+    /// superscript sits high: the "2" (the right-most ink column) starts above the "x" (the
+    /// left-most ink column). Mirrored, the superscript's bottom edge would become its top and sit
+    /// below the x's.
     func testSuperscriptSitsHigh() throws {
         let outcome = MathImageProvider().outcome(latex: "x^{2}", style: .inline, foreground: .black, pointSize: 18, scale: 2)
         guard case .image(let image, _) = outcome else { return XCTFail("expected an image, got \(outcome)") }
 
         let scan = try RasterInkScan(image)
-        let column = try XCTUnwrap(scan.rightmostInkColumn, "the equation has no ink")
-        let top = try XCTUnwrap(scan.topmostInk(inColumn: column))
-        XCTAssertLessThan(top, scan.height / 2, "superscript top \(top) of \(scan.height): the equation is upside down")
+        let right = try XCTUnwrap(scan.rightmostInkColumn, "the equation has no ink")
+        let left = try XCTUnwrap(scan.leftmostInkColumn, "the equation has no ink")
+        let superscriptTop = try XCTUnwrap(scan.topmostInk(inColumn: right))
+        let baseTop = try XCTUnwrap(scan.topmostInk(inColumn: left))
+        XCTAssertLessThan(superscriptTop, baseTop,
+                          "the 2 starts at row \(superscriptTop), the x at row \(baseTop): the equation is upside down")
     }
 }

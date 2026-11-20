@@ -19,8 +19,8 @@ import UIKit
 /// iOS: SwiftMath draws with `UIGraphicsImageRenderer` (top-left origin, upright). The image is
 /// rewrapped from its `cgImage` at its own scale with `.up` orientation, or returned as is when it
 /// has no `cgImage`.
-public enum MathImageOrientation {
-    public static func cgImageBacked(_ image: PlatformImage) -> PlatformImage {
+enum MathImageOrientation {
+    static func cgImageBacked(_ image: PlatformImage) -> PlatformImage {
         #if os(macOS)
         var proposed = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) else {
@@ -37,17 +37,17 @@ public enum MathImageOrientation {
 // MARK: - Rendering seam (wraps SwiftMath)
 
 /// Decides whether a math source is safe to attempt rendering (size guard → fallback).
-public enum MathBlockPolicy {
-    public static let maxSourceLength = 20_000
-    public static func shouldAttemptRender(source: String) -> Bool { source.count <= maxSourceLength }
+enum MathBlockPolicy {
+    static let maxSourceLength = 20_000
+    static func shouldAttemptRender(source: String) -> Bool { source.count <= maxSourceLength }
 }
 
 /// Stable, compact cache key for a rendered equation, keyed by latex + style + color + scale +
 /// point size. `pointSize` must be part of the key: the image is rendered at `fontSize: pointSize`
 /// (and its baseline `descent` scales with it), so omitting it collides equations that differ only
 /// in reader font size and returns a stale wrong-size raster after a font-size change.
-public enum MathCacheKey {
-    public static func key(latex: String, style: MathStyle, foregroundHex: String, scale: CGFloat, pointSize: CGFloat) -> String {
+enum MathCacheKey {
+    static func key(latex: String, style: MathStyle, foregroundHex: String, scale: CGFloat, pointSize: CGFloat) -> String {
         let styleTag = style == .inline ? "i" : "d"
         let material = "\(styleTag)\n\(scale)\n\(pointSize)\n\(foregroundHex)\n\(latex)"
         let digest = SHA256.hash(data: Data(material.utf8))

@@ -174,14 +174,19 @@ final class MermaidRenderingTests: XCTestCase {
     }
 
     /// The pie draws its own raster (flipped NSImage on macOS, UIGraphicsImageRenderer on iOS):
-    /// its title is at the top.
+    /// its title is at the top. The pie's centre column (padding 16 + radius 100 = 116 pt) is past
+    /// the short title, so its topmost ink is the circle's top, below the 16 pt padding + 24 pt
+    /// title band (40 pt). A mirrored pie puts the circle's top 16 pt from the top instead.
     func testPieRendersTitleAtTop() throws {
         let source = "pie title Fruit\n \"Apples\" : 30\n \"Pears\" : 10"
         let outcome = MermaidImageProvider().outcome(source: source, background: .white, foreground: .black, scale: 2)
         guard case .image(let image) = outcome else { return XCTFail("expected .image, got \(outcome)") }
 
         let scan = try RasterInkScan(image)
-        let first = try XCTUnwrap(scan.firstInkRow, "the pie has no ink")
-        XCTAssertLessThan(first, scan.height / 4, "first ink row \(first) of \(scan.height)")
+        let pixelsPerPoint = CGFloat(scan.width) / image.size.width
+        let centreColumn = Int((116 * pixelsPerPoint).rounded())
+        let top = try XCTUnwrap(scan.topmostInk(inColumn: centreColumn), "the pie's centre column has no ink")
+        XCTAssertGreaterThanOrEqual(CGFloat(top), 36 * pixelsPerPoint,
+                                    "pie centre column's top ink \(top) px: the circle is above the title band, the pie is upside down")
     }
 }

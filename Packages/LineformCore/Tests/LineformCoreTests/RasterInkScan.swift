@@ -21,6 +21,8 @@ struct RasterInkScan {
         let cgImage = try XCTUnwrap(image.cgImage(forProposedRect: &proposed, context: nil, hints: nil),
                                     "the image has no CGImage")
         #else
+        // `cgImage` ignores `imageOrientation`, so the scan is only visual order when it is `.up`.
+        XCTAssertEqual(image.imageOrientation, .up, "the scan reads cgImage, which ignores orientation")
         let cgImage = try XCTUnwrap(image.cgImage, "the image has no CGImage")
         #endif
         let width = cgImage.width
@@ -71,6 +73,11 @@ struct RasterInkScan {
             if best == nil || span > best!.span { best = (y, span) }
         }
         return best?.row
+    }
+
+    /// The left-most column holding any ink.
+    var leftmostInkColumn: Int? {
+        (0..<width).first { x in (0..<height).contains { isInk(x: x, y: $0) } }
     }
 
     /// The right-most column holding any ink.

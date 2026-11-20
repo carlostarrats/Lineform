@@ -8,8 +8,8 @@ import UIKit
 /// Approximate RGBA byte footprint of an image's backing raster (pixels × 4). Used as the
 /// `NSCache` cost so the diagram/equation caches are bounded by MEMORY, not a flat count — a
 /// large flowchart weighs far more than a tiny inline equation and should evict accordingly.
-public enum RasterImageCost {
-    public static func bytes(for image: PlatformImage) -> Int {
+enum RasterImageCost {
+    static func bytes(for image: PlatformImage) -> Int {
         #if os(macOS)
         var proposed = CGRect(origin: .zero, size: image.size)
         if let cg = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) {
@@ -35,23 +35,23 @@ public enum RasterImageCost {
 /// when either is exceeded; `totalCostLimitBytes` (with a per-image cost of `RasterImageCost`)
 /// is the real governor, so a diagram-heavy document keeps its diagrams cached instead of
 /// thrashing against the old flat count of 50.
-public enum DiagramCacheBudget {
-    public static let countLimit = 512
-    public static let totalCostLimitBytes = 128 * 1024 * 1024   // 128 MB ceiling
+enum DiagramCacheBudget {
+    static let countLimit = 512
+    static let totalCostLimitBytes = 128 * 1024 * 1024   // 128 MB ceiling
 }
 
 /// Memory-sized bounds for the rendered-equation cache (equations are individually small, so the
 /// count is generous and the byte ceiling comfortably holds a math-heavy document).
-public enum MathCacheBudget {
-    public static let countLimit = 1024
-    public static let totalCostLimitBytes = 64 * 1024 * 1024    // 64 MB ceiling
+enum MathCacheBudget {
+    static let countLimit = 1024
+    static let totalCostLimitBytes = 64 * 1024 * 1024    // 64 MB ceiling
 }
 
 /// Memory-sized bounds for the block-image attachment cache (downscaled rasters of local files
 /// referenced by `![alt](path)`), sibling of `DiagramCacheBudget`/`MathCacheBudget`.
-public enum ImageCacheBudget {
-    public static let countLimit = 256
-    public static let totalCostLimitBytes = 128 * 1024 * 1024   // 128 MB ceiling
+enum ImageCacheBudget {
+    static let countLimit = 256
+    static let totalCostLimitBytes = 128 * 1024 * 1024   // 128 MB ceiling
 }
 
 /// Marks a full-width BLOCK diagram/equation attachment (as opposed to an inline math attachment),
