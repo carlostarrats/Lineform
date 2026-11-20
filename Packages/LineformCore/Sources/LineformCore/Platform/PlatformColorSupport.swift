@@ -45,8 +45,8 @@ extension PlatformColor {
     }
 
     /// macOS: `NSColor(calibratedWhite:alpha:)`, unchanged. iOS: the sRGB colour macOS converts
-    /// that white to, from `CalibratedWhiteTable`; a white not in the table falls back to
-    /// `UIColor(white:alpha:)`.
+    /// that white to, from `CalibratedWhiteTable`; a white not in the table is a programming
+    /// error (assertion in debug) and falls back to `UIColor(white:alpha:)`.
     public static func lineformCalibratedWhite(_ white: CGFloat, alpha: CGFloat) -> PlatformColor {
         #if os(macOS)
         NSColor(calibratedWhite: white, alpha: alpha)
@@ -54,6 +54,7 @@ extension PlatformColor {
         if let value = CalibratedWhiteTable.sRGB[white] {
             return UIColor(red: value, green: value, blue: value, alpha: alpha)
         }
+        assertionFailure("no CalibratedWhiteTable entry for \(white)")
         return UIColor(white: white, alpha: alpha)
         #endif
     }
@@ -72,9 +73,13 @@ extension PlatformColor {
         #endif
     }
 
-    /// `lineformSRGBComponents`, falling back to the colour's own components when the sRGB
-    /// conversion fails. On macOS this is exactly `(usingColorSpace(.sRGB) ?? color).redComponent`
-    /// and so on, the fallback `Theme`'s contrast arithmetic has always used.
+    /// `lineformSRGBComponents`, with a fallback when the sRGB conversion fails.
+    ///
+    /// macOS: falls back to the colour's own components, so this is exactly
+    /// `(usingColorSpace(.sRGB) ?? color).redComponent` and so on, the fallback `Theme`'s
+    /// contrast arithmetic has always used. iOS: a colour `getRed(_:green:blue:alpha:)` cannot
+    /// convert gives black (red = green = blue = 0) with the colour's own alpha, so
+    /// `MermaidHexColor` turns such a colour into `#000000`.
     var lineformSRGBComponentsOrOwn: SRGBComponents {
         if let rgb = lineformSRGBComponents { return rgb }
         #if os(macOS)

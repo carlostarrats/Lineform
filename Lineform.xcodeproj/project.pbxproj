@@ -714,8 +714,6 @@
 			);
 			mainGroup = 1F0000070000000000000001;
 			packageReferences = (
-				1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */,
-				1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */,
 				1F00001400000000000005C1 /* XCLocalSwiftPackageReference "Packages/LineformCore" */,
 			);
 			productRefGroup = 1F0000070000000000000004 /* Products */;
@@ -1239,25 +1237,6 @@
 			relativePath = Packages/LineformCore;
 		};
 /* End XCLocalSwiftPackageReference section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		1F0000140000000000000002 /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/lukilabs/beautiful-mermaid-swift";
-			requirement = {
-				kind = exactVersion;
-				version = 1.0.4;
-			};
-		};
-		1F00001400000000000002A3 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/mgriebling/SwiftMath";
-			requirement = {
-				kind = exactVersion;
-				version = 1.7.3;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		1F00001300000000000005C2 /* LineformCore */ = {

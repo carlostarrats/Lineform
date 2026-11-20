@@ -113,6 +113,24 @@ final class RendererPlatformTests: XCTestCase {
         )
         XCTAssertEqual(empty.width, 1)
     }
+
+    func testHorizontalRuleSurvivesKeyedArchiveRoundTrip() throws {
+        let rule = HorizontalRuleAttachment(color: .black, height: 17)
+        let data = try NSKeyedArchiver.archivedData(withRootObject: rule, requiringSecureCoding: false)
+        let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
+        unarchiver.requiresSecureCoding = false
+        let decoded = try XCTUnwrap(
+            unarchiver.decodeObject(forKey: NSKeyedArchiveRootObjectKey) as? HorizontalRuleAttachment,
+            "the archived rule did not decode as a HorizontalRuleAttachment"
+        )
+        unarchiver.finishDecoding()
+        let bounds = decoded.attachmentBounds(
+            for: nil, proposedLineFragment: CGRect(x: 0, y: 0, width: 300, height: 20),
+            glyphPosition: .zero, characterIndex: 0
+        )
+        XCTAssertGreaterThan(bounds.height, 0)
+        XCTAssertEqual(bounds.width, 300)
+    }
     #endif
 
     // MARK: - Display metrics

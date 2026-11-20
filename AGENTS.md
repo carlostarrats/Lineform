@@ -258,6 +258,9 @@ The list and the reasons are in `docs/notes/shared-package-baseline.md`.
   never to make a refactor pass. Recording: run with `RECORD_RENDER_GOLDEN=1`
   (`TEST_RUNNER_RECORD_RENDER_GOLDEN=1` from `xcodebuild`). The Debug test host is sandboxed, so
   the file is written to the app container's `tmp` folder; copy it into the repo by hand.
+- **Golden after a macOS update.** When the local macOS version changes, `RenderGoldenTests`
+  skips. Re-record the golden in its own commit, on the new OS, from a commit where the Mac
+  output is known good, and include before and after screenshots.
 - **Access control.** Make `public` only what the app uses. That includes an explicit `public init`
   for every struct the app constructs, because memberwise inits are internal. A public type loses
   its implicit `Sendable`, so add it where Swift 6 needs it. No `@_exported`, `@_spi` or `open`.

@@ -120,3 +120,26 @@ then.
 - `RenderDisplayMetrics.current` on iOS is a placeholder (scale 3, viewport 844); the iPhone Read
   view must pass real values.
 - `MathImageProvider` uses `scale` only in its cache key, not for the raster's pixels (ruling R11).
+
+## Carried to roadmap step 5 (iPhone Read view)
+
+From the final whole-branch review. Each item waits for the iPhone Read view, because only that
+view can exercise it.
+
+- **TextKit 2 path for `HorizontalRuleAttachment`.** Only the TextKit 1 overrides exist, and
+  `UITextView` defaults to TextKit 2. Either force TextKit 1 in the Read view or add the TextKit 2
+  overrides, plus one hosted layout test.
+- **`displayMetrics` effectively required on iOS.** The scale 3 / viewport 844 default of
+  `RenderDisplayMetrics.current` is a placeholder; the Read view must always pass real metrics.
+- **Make `.markdownTableRow` public.** The iPhone Read view needs the row key to style or hit-test
+  table rows; today it is internal.
+- **Math raster scale.** `MathImageProvider` uses `scale` only in its cache key, not for the
+  raster's pixels (ruling R11), so iPhone math sharpness is unchecked.
+- **Pin iOS tab-stop locations and alignments.** No test asserts the tab stops the iOS table
+  emitter sets, so a regression in column layout would pass.
+- **Real container for `testLongTableCellDoesNotCrashAtNarrowWidth`.** It checks only the
+  attributed string; it must lay the output out in a real text container to prove no crash.
+- **Document the iOS table's leading tab and 1-point nudge.** Neither is written down, and long
+  cells wrap and misalign the rows.
+- **Purity rule and `MemberImportVisibility`.** When that upcoming feature is turned on, the
+  purity rule must allow per-file `#if os` imports outside the seam folders (ruling R8).

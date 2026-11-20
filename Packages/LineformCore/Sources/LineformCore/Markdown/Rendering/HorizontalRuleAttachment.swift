@@ -39,8 +39,24 @@ public final class HorizontalRuleAttachment: NSTextAttachment {
         super.init(data: nil, ofType: nil)
     }
 
+    /// The rule height a decoded attachment uses: `appendHorizontalRule` sizes a rule to the
+    /// profile's font size, and `ReadingProfile.original`'s is 17.
+    private static var defaultHeight: CGFloat { CGFloat(ReadingProfile.original.fontSize) }
+
+    /// Decoding (for example a pasteboard or archive round trip) does not carry the colour or
+    /// height, so a decoded rule draws in `.separator` at the renderer's default rule height.
     public required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        self.color = .separator
+        self.height = Self.defaultHeight
+        super.init(coder: coder)
+    }
+
+    /// UIKit's `init(coder:)` chains through this initializer, so it must exist; it uses the
+    /// same defaults as a decoded rule.
+    public override init(data contentData: Data?, ofType uti: String?) {
+        self.color = .separator
+        self.height = Self.defaultHeight
+        super.init(data: contentData, ofType: uti)
     }
 
     public override func attachmentBounds(
