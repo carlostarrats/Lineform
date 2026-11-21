@@ -141,14 +141,14 @@ struct SelectionToolbarRoot: View {
         )
         .environment(\.colorScheme, model.usesDarkChrome ? .dark : .light)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: LineformDesign.Radius.floatingCard, style: .continuous)
                 .fill(model.usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: LineformDesign.Radius.floatingCard, style: .continuous)
                 .strokeBorder(model.usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: LineformDesign.Radius.floatingCard, style: .continuous))
         // Room for the shadow inside the hosting view's bounds.
         .shadow(color: .black.opacity(model.usesDarkChrome ? 0.45 : 0.16), radius: 12, y: 4)
         .padding(SelectionToolbarHostingView.shadowInset)
@@ -510,7 +510,7 @@ private struct ToolbarIconButton<Icon: View>: View {
             }
             .frame(minWidth: 28, minHeight: 28)
             .padding(.horizontal, showsChevron ? 5 : 0)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: LineformDesign.Radius.button, style: .continuous)
                 .fill(Color.primary.opacity(hovering ? 0.07 : 0)))
             .contentShape(Rectangle())
         }
@@ -548,9 +548,9 @@ private struct ActionPickerButton: View {
             .padding(.leading, 10)
             .padding(.trailing, 8)
             .frame(height: 26)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: LineformDesign.Radius.button, style: .continuous)
                 .fill(Color.primary.opacity(hovering ? 0.09 : 0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .overlay(RoundedRectangle(cornerRadius: LineformDesign.Radius.button, style: .continuous)
                 .strokeBorder(Color.primary.opacity(hovering ? 0.16 : 0.10)))
             .contentShape(Rectangle())
         }

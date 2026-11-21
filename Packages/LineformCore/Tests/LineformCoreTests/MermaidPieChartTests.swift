@@ -1,7 +1,10 @@
 import XCTest
-import AppKit
-@testable import Lineform
 @testable import LineformCore
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 final class MermaidPieChartTests: XCTestCase {
     func testParsesLabelsValuesTitle() {

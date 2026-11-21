@@ -1,20 +1,25 @@
-import AppKit
+import CoreGraphics
 import Foundation
-import LineformCore
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
-/// Draws a `MermaidPieModel` as an upright NSImage: title, pie circle, and a legend.
+/// Draws a `MermaidPieModel` as an upright image: title, pie circle, and a legend.
 ///
 /// Monochrome by design — Lineform's mermaid diagrams use a strict two-color (page + ink) theme,
 /// so slices are the `foreground` ink at stepped alpha with a thin `foreground` stroke, matching
 /// the calm look of every other diagram. We draw the raster ourselves (top-left origin via a
-/// flipped image), so no `uprightForMacOS` flip is required.
-enum MermaidPieRenderer {
-    static func image(model: MermaidPieModel, background: NSColor,
-                      foreground: NSColor, scale: CGFloat) -> NSImage? {
+/// flipped image), so no `uprightForMacOS` flip is required. On iOS `UIGraphicsImageRenderer` has
+/// a top-left origin too, so the same drawing code is upright there with no flip.
+public enum MermaidPieRenderer {
+    public static func image(model: MermaidPieModel, background: PlatformColor,
+                             foreground: PlatformColor, scale: CGFloat) -> PlatformImage? {
         let pieDiameter: CGFloat = 200
         let padding: CGFloat = 16
-        let titleFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
-        let legendFont = NSFont.systemFont(ofSize: 12)
+        let titleFont = PlatformFont.systemFont(ofSize: 15, weight: .semibold)
+        let legendFont = PlatformFont.systemFont(ofSize: 12)
         let rowHeight: CGFloat = 20
         let swatch: CGFloat = 12
 
@@ -24,14 +29,8 @@ enum MermaidPieRenderer {
         let width = contentWidth + padding * 2
         let height = titleHeight + max(pieDiameter, legendHeight) + padding * 2
 
-        // Draw into a FLIPPED vector image first (top-left origin → text draws upright), then
-        // rasterize that into a concrete bitmap rep at `scale` so the result is a crisp Retina
-        // raster with a real backing store — matching the BeautifulMermaid/math path (which the
-        // cache-cost model and resize-refit both assume). A bare `NSImage(flipped:drawingHandler:)`
-        // would stay a lazy point-size vector: soft on Retina and undercounted by the cache.
-        let vector = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-
+        // Draws the chart into a top-left-origin context (y grows downward).
+        func draw(in ctx: CGContext) {
             if background != .clear {
                 ctx.setFillColor(background.cgColor)
                 ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
@@ -80,6 +79,17 @@ enum MermaidPieRenderer {
                 drawText(text, at: CGPoint(x: lx + swatch + 8, y: ly + 2), font: legendFont, color: foreground)
                 ly += rowHeight
             }
+        }
+
+        #if os(macOS)
+        // Draw into a FLIPPED vector image first (top-left origin → text draws upright), then
+        // rasterize that into a concrete bitmap rep at `scale` so the result is a crisp Retina
+        // raster with a real backing store — matching the BeautifulMermaid/math path (which the
+        // cache-cost model and resize-refit both assume). A bare `NSImage(flipped:drawingHandler:)`
+        // would stay a lazy point-size vector: soft on Retina and undercounted by the cache.
+        let vector = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            draw(in: ctx)
             return true
         }
 
@@ -103,6 +113,15 @@ enum MermaidPieRenderer {
         let out = NSImage(size: NSSize(width: width, height: height))
         out.addRepresentation(rep)
         return out
+        #else
+        // UIGraphicsImageRenderer: top-left origin, so the drawing is upright as is, and a real
+        // bitmap at `scale` pixels per point.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        return UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { context in
+            draw(in: context.cgContext)
+        }
+        #endif
     }
 
     /// Stepped alpha so adjacent slices read distinctly without new hues (0.85 → 0.30).
@@ -129,12 +148,12 @@ enum MermaidPieRenderer {
         return Int(min(100, max(0, (fraction * 100).rounded())))
     }
 
-    private static func drawText(_ s: String, at p: CGPoint, font: NSFont, color: NSColor) {
+    private static func drawText(_ s: String, at p: CGPoint, font: PlatformFont, color: PlatformColor) {
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         NSAttributedString(string: s, attributes: attrs).draw(at: p)
     }
 
-    private static func legendMaxWidth(_ model: MermaidPieModel, font: NSFont, swatch: CGFloat) -> CGFloat {
+    private static func legendMaxWidth(_ model: MermaidPieModel, font: PlatformFont, swatch: CGFloat) -> CGFloat {
         var maxW: CGFloat = 120
         for slice in model.slices {
             let pct = percent(model.fraction(of: slice))

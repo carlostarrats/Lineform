@@ -1,25 +1,24 @@
 import XCTest
-import AppKit
-@testable import Lineform
 @testable import LineformCore
 
 @MainActor
 final class HistoryPaletteTests: XCTestCase {
     /// A translucent fill as the reader sees it: composited over the page.
-    private static func flattened(_ color: NSColor, over page: NSColor) -> NSColor {
-        let top = color.usingColorSpace(.sRGB) ?? color
-        let bottom = page.usingColorSpace(.sRGB) ?? page
-        let alpha = top.alphaComponent
+    private static func flattened(_ color: PlatformColor, over page: PlatformColor) -> PlatformColor {
+        // macOS: the sRGB conversion (or the colour itself) blended into an sRGB colour, as before the move.
+        let top = color.lineformSRGBComponentsOrOwn
+        let bottom = page.lineformSRGBComponentsOrOwn
+        let alpha = top.alpha
         func blend(_ base: CGFloat, _ over: CGFloat) -> CGFloat { base + (over - base) * alpha }
-        return NSColor(
-            srgbRed: blend(bottom.redComponent, top.redComponent),
-            green: blend(bottom.greenComponent, top.greenComponent),
-            blue: blend(bottom.blueComponent, top.blueComponent),
+        return PlatformColor.lineformSRGB(
+            red: blend(bottom.red, top.red),
+            green: blend(bottom.green, top.green),
+            blue: blend(bottom.blue, top.blue),
             alpha: 1
         )
     }
 
-    private static func palette(for theme: Theme) -> [NSColor] {
+    private static func palette(for theme: Theme) -> [PlatformColor] {
         [
             HistoryPalette.tint(for: theme),
             HistoryPalette.hoverTint(for: theme),
@@ -58,12 +57,12 @@ final class HistoryPaletteTests: XCTestCase {
 
             for tint in [HistoryPalette.hoverTint(for: theme)] {
                 let fill = HistoryPalette.opaqueFill(tint, for: theme)
-                XCTAssertEqual(fill.alphaComponent, 1, theme.name)
+                XCTAssertEqual(fill.lineformSRGBComponentsOrOwn.alpha, 1, theme.name)
                 XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, fill), 4.5, theme.name)
-                let expected = Self.flattened(tint, over: theme.backgroundColor).usingColorSpace(.sRGB)!
-                let actual = fill.usingColorSpace(.sRGB)!
-                XCTAssertEqual(actual.redComponent, expected.redComponent, accuracy: 0.002, theme.name)
-                XCTAssertEqual(actual.blueComponent, expected.blueComponent, accuracy: 0.002, theme.name)
+                let expected = Self.flattened(tint, over: theme.backgroundColor).lineformSRGBComponents!
+                let actual = fill.lineformSRGBComponents!
+                XCTAssertEqual(actual.red, expected.red, accuracy: 0.002, theme.name)
+                XCTAssertEqual(actual.blue, expected.blue, accuracy: 0.002, theme.name)
             }
         }
     }
@@ -74,7 +73,7 @@ final class HistoryPaletteTests: XCTestCase {
     func testLayeredFillsStayDistinctAndReadable() {
         for theme in Theme.builtIn {
             let page = theme.backgroundColor
-            func offPage(_ c: NSColor) -> CGFloat { Theme.contrastRatio(c, page) }
+            func offPage(_ c: PlatformColor) -> CGFloat { Theme.contrastRatio(c, page) }
             for depth in 1...HistoryPalette.maximumLayerDepth {
                 let wash = HistoryPalette.washFill(for: theme, depth: depth)
                 let hover = HistoryPalette.hoverFill(for: theme, depth: depth)
@@ -91,7 +90,19 @@ final class HistoryPaletteTests: XCTestCase {
                                          "\(theme.name): other depth \(depth) distinct")
                 }
             }
+            #if os(macOS)
             XCTAssertEqual(HistoryPalette.washFill(for: theme, depth: 1), HistoryPalette.opaqueFill(HistoryPalette.tint(for: theme), for: theme))
+            #else
+            // `washAlpha(depth: 1)` is `tintAlpha` to within 1e-16, not bit for bit. `NSColor`'s
+            // `isEqual` absorbs that; `UIColor`'s compares the doubles exactly, so compare the
+            // components, to far below what any display can show.
+            let wash = HistoryPalette.washFill(for: theme, depth: 1).lineformSRGBComponentsOrOwn
+            let tinted = HistoryPalette.opaqueFill(HistoryPalette.tint(for: theme), for: theme).lineformSRGBComponentsOrOwn
+            XCTAssertEqual(wash.red, tinted.red, accuracy: 1e-12, theme.name)
+            XCTAssertEqual(wash.green, tinted.green, accuracy: 1e-12, theme.name)
+            XCTAssertEqual(wash.blue, tinted.blue, accuracy: 1e-12, theme.name)
+            XCTAssertEqual(wash.alpha, tinted.alpha, theme.name)
+            #endif
             let selected = HistoryPalette.selectedFill(for: theme)
             XCTAssertGreaterThanOrEqual(offPage(selected), 1.15, theme.name)
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, selected), 4.5, "\(theme.name) selected")
@@ -112,7 +123,7 @@ final class HistoryPaletteTests: XCTestCase {
         for theme in Theme.builtIn {
             let page = theme.backgroundColor
             let mark = HistoryPalette.markWash(for: theme)
-            XCTAssertEqual(mark.alphaComponent, 1, theme.name)
+            XCTAssertEqual(mark.lineformSRGBComponentsOrOwn.alpha, 1, theme.name)
             let tint = Self.flattened(HistoryPalette.tint(for: theme), over: page)
             XCTAssertGreaterThan(Theme.contrastRatio(mark, page), Theme.contrastRatio(tint, page), theme.name)
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(mark, page), 1.2, theme.name)
@@ -138,9 +149,9 @@ final class HistoryPaletteTests: XCTestCase {
             XCTAssertGreaterThan(Theme.contrastRatio(current, page), Theme.contrastRatio(other, page), theme.name)
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(other, page), 1.05, theme.name)
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(theme.textColor, other), 4.5, theme.name)
-            let link = HistoryPalette.reviewReplacementInk(NSColor.linkColor, for: theme, on: other)
+            let link = HistoryPalette.reviewReplacementInk(PlatformColor.lineformLink, for: theme, on: other)
             XCTAssertGreaterThanOrEqual(Theme.contrastRatio(link, other),
-                                        min(4.5, Theme.contrastRatio(NSColor.linkColor, page)) - 0.01, theme.name)
+                                        min(4.5, Theme.contrastRatio(PlatformColor.lineformLink, page)) - 0.01, theme.name)
         }
     }
 
@@ -180,7 +191,7 @@ final class HistoryPaletteTests: XCTestCase {
         for theme in Theme.builtIn {
             let page = theme.backgroundColor
             let fill = HistoryPalette.focusOtherTint(for: theme)
-            XCTAssertEqual(fill.alphaComponent, 1, "\(theme.name): drawn opaque, so nested passages never stack")
+            XCTAssertEqual(fill.lineformSRGBComponentsOrOwn.alpha, 1, "\(theme.name): drawn opaque, so nested passages never stack")
             let visible = Theme.contrastRatio(fill, page)
             XCTAssertGreaterThanOrEqual(visible, 1.15, "\(theme.name) focus-other tint vs page was \(visible)")
             let text = Theme.contrastRatio(HistoryPalette.focusOtherInk(for: theme), fill)
@@ -213,19 +224,28 @@ final class HistoryPaletteTests: XCTestCase {
             // under — no tint can fix that. The overlay draws each ink through
             // `reviewReplacementInk`, which keeps on the tint the contrast it had on the page
             // (up to AA): links and code reach 4.5:1, muted markers stay as muted as they were.
-            let link = HistoryPalette.reviewReplacementInk(theme.readableInk(NSColor.linkColor), for: theme)
+            let link = HistoryPalette.reviewReplacementInk(theme.readableInk(PlatformColor.lineformLink), for: theme)
             let linkRatio = Theme.contrastRatio(link, fill)
             XCTAssertGreaterThanOrEqual(linkRatio, 4.5, "\(theme.name) link ink on tint was \(linkRatio)")
-            let code = HistoryPalette.reviewReplacementInk(MarkdownSyntaxHighlighter.inlineCodeColor(for: theme), for: theme)
+            let code = HistoryPalette.reviewReplacementInk(MarkdownTextStyle.inlineCodeColor(for: theme), for: theme)
             let codeRatio = Theme.contrastRatio(code, fill)
             XCTAssertGreaterThanOrEqual(codeRatio, 4.5, "\(theme.name) code ink on tint was \(codeRatio)")
             XCTAssertTrue(HistoryPalette.reviewReplacementInk(theme.textColor, for: theme) === theme.textColor,
                           "\(theme.name): body text already reads on the tint and is left alone")
-            let marker = MarkdownSyntaxHighlighter.markdownMarkerColor(for: theme)
+            let marker = MarkdownTextStyle.markdownMarkerColor(for: theme)
             let markerTarget = min(4.5, Theme.contrastRatio(marker, theme.backgroundColor))
             let markerRatio = Theme.contrastRatio(HistoryPalette.reviewReplacementInk(marker, for: theme), fill)
             XCTAssertGreaterThanOrEqual(markerRatio, markerTarget - 0.01, "\(theme.name) marker on tint was \(markerRatio)")
         }
+    }
+
+    /// The AI review's accent is the system accent blue the mockup names: #0A84FF in sRGB.
+    func testHistoryReviewAccentIs0A84FF() throws {
+        let rgb = try XCTUnwrap(HistoryPalette.reviewInsertAccent.lineformSRGBComponents)
+        let hex = String(format: "#%02X%02X%02X", Int((rgb.red * 255).rounded()),
+                         Int((rgb.green * 255).rounded()), Int((rgb.blue * 255).rounded()))
+        XCTAssertEqual(hex, "#0A84FF")
+        XCTAssertEqual(rgb.alpha, 1)
     }
 
     /// The text view draws with the DISPLAY profile, so under Automatic Dark Mode a light preset

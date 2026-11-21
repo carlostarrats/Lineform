@@ -1,11 +1,16 @@
+import CoreGraphics
+#if os(macOS)
 import AppKit
-import LineformCore
+#else
+import UIKit
+#endif
 
 /// Approximate RGBA byte footprint of an image's backing raster (pixels × 4). Used as the
 /// `NSCache` cost so the diagram/equation caches are bounded by MEMORY, not a flat count — a
 /// large flowchart weighs far more than a tiny inline equation and should evict accordingly.
 enum RasterImageCost {
-    static func bytes(for image: NSImage) -> Int {
+    static func bytes(for image: PlatformImage) -> Int {
+        #if os(macOS)
         var proposed = CGRect(origin: .zero, size: image.size)
         if let cg = image.cgImage(forProposedRect: &proposed, context: nil, hints: nil) {
             return max(1, cg.width * cg.height * 4)
@@ -14,6 +19,15 @@ enum RasterImageCost {
         let w = max(1, Int(image.size.width.rounded()))
         let h = max(1, Int(image.size.height.rounded()))
         return max(1, w * h * 4 * 4)
+        #else
+        if let cg = image.cgImage {
+            return max(1, cg.width * cg.height * 4)
+        }
+        // No CGImage available: the point size at the image's own scale.
+        let w = max(1, Int(image.size.width.rounded()))
+        let h = max(1, Int(image.size.height.rounded()))
+        return max(1, Int((CGFloat(w * h) * image.scale * image.scale * 4).rounded()))
+        #endif
     }
 }
 
@@ -40,65 +54,16 @@ enum ImageCacheBudget {
     static let totalCostLimitBytes = 128 * 1024 * 1024   // 128 MB ceiling
 }
 
-/// Fixed two-variant INK for block MATH, keyed only on light-vs-dark (never the specific theme) so
-/// block math — which renders transparent — never re-renders on a theme switch. Block Mermaid
-/// diagrams instead use the actual per-theme page color (they must, so Mermaid's node boxes get a
-/// solid fill that matches every theme); the memory-sized cache keeps that affordable. Inline math
-/// is unaffected (fully theme-aware).
-enum DiagramPalette {
-    /// Ink for block math: the Original theme's text on light themes, the Quiet theme's on dark
-    /// themes — so dark ink only ever lands on a light page and light ink only on a dark page. (All
-    /// light themes share the Original text color and both dark themes are near-identical, so this
-    /// matches surrounding prose on every theme while staying theme-independent.)
-    static func ink(isDark: Bool) -> NSColor {
-        (isDark ? Theme.quiet : Theme.system).textColor
-    }
-}
-
-/// Muted, monochrome-leaning token colors for fenced-code highlighting in Read/Preview. Derived
-/// from the theme (light/dark aware), restrained so code reads calm rather than rainbow. `.plain`
-/// reuses the theme's own text color (unchanged code foreground). Every colored role is AA-verified
-/// against every `Theme.builtIn` background (`CodeSyntaxPaletteContrastTests`). Display-only.
-enum CodeSyntaxPalette {
-    static func color(for kind: CodeTokenKind, theme: Theme) -> NSColor {
-        let dark = theme.usesDarkChrome
-        switch kind {
-        case .plain:
-            return theme.textColor
-        case .keyword:
-            // A muted plum/violet — the one role allowed a little hue.
-            return dark ? NSColor(srgbRed: 0.78, green: 0.62, blue: 0.86, alpha: 1)
-                        : NSColor(srgbRed: 0.42, green: 0.24, blue: 0.55, alpha: 1)
-        case .string:
-            // Muted green.
-            return dark ? NSColor(srgbRed: 0.55, green: 0.80, blue: 0.60, alpha: 1)
-                        : NSColor(srgbRed: 0.16, green: 0.44, blue: 0.24, alpha: 1)
-        case .comment:
-            // Low-chroma grey — deliberately the quietest role, still AA.
-            return dark ? NSColor(srgbRed: 0.68, green: 0.70, blue: 0.70, alpha: 1)
-                        : NSColor(srgbRed: 0.42, green: 0.44, blue: 0.44, alpha: 1)
-        case .number:
-            // Muted amber/brown.
-            return dark ? NSColor(srgbRed: 0.85, green: 0.70, blue: 0.48, alpha: 1)
-                        : NSColor(srgbRed: 0.55, green: 0.38, blue: 0.12, alpha: 1)
-        case .type:
-            // Muted teal/blue.
-            return dark ? NSColor(srgbRed: 0.55, green: 0.76, blue: 0.82, alpha: 1)
-                        : NSColor(srgbRed: 0.15, green: 0.40, blue: 0.50, alpha: 1)
-        }
-    }
-}
-
 /// Marks a full-width BLOCK diagram/equation attachment (as opposed to an inline math attachment),
 /// so the resize refit rescales only block content and never disturbs inline math's baseline. A
 /// bare subclass with no overrides — it behaves identically to `NSTextAttachment` in every other
 /// respect (accessibility, copy, layout).
-final class BlockRenderedAttachment: NSTextAttachment {
+public final class BlockRenderedAttachment: NSTextAttachment {
     /// True only for block-image attachments (`appendImageBlock`). When true, the resize refit
     /// path additionally clamps the attachment's HEIGHT to the real viewport's cap
     /// (`ImageFit.maxHeight`), so a tall image shrinks to fit a short window. Mermaid/math
     /// attachments leave this false and are refit by width only, unchanged.
-    var appliesViewportHeightCap = false
+    public var appliesViewportHeightCap = false
 }
 
 /// Pure geometry for the resize refit nit: given a block attachment's natural raster size, its
@@ -110,8 +75,8 @@ final class BlockRenderedAttachment: NSTextAttachment {
 /// pass it, namely mermaid/math) additionally downscales the fitted size, aspect preserved, so
 /// the resulting height never exceeds it — used only for block images, which must shrink on a
 /// short window per the viewport-adaptive height cap.
-enum BlockAttachmentRefit {
-    static func refittedBounds(
+public enum BlockAttachmentRefit {
+    public static func refittedBounds(
         naturalSize: CGSize,
         currentBounds: CGRect,
         fitWidth: CGFloat,

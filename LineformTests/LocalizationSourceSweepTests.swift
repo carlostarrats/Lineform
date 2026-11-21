@@ -181,7 +181,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
     private static let calleesWithNoCallSiteToday: Set<String> = [
         "SecureField", "Link", "Stepper", "Toggle", "Menu", "confirmationDialog", "navigationTitle",
         "tabItem", "accessibilityHint", "accessibilityValue",
-        "assertionFailure", "precondition", "preconditionFailure",
+        "precondition", "preconditionFailure",
     ]
 
     // MARK: - The gate
