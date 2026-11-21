@@ -1,5 +1,6 @@
 import XCTest
 @testable import Lineform
+import LineformCore
 
 @MainActor
 final class DocumentReloadControllerTests: XCTestCase {

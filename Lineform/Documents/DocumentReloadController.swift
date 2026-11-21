@@ -2,45 +2,8 @@ import AppKit
 import Foundation
 import LineformCore
 
-/// The text + modification date to apply when a live reload fires.
-struct ReloadResult: Equatable {
-    let text: String
-    let modificationDate: Date?
-}
-
-/// Abstracts the coordinated disk read so the controller is testable without real files.
-/// `Sendable` so the reader can be handed to the background read queue.
-protocol DocumentDiskReading: Sendable {
-    func readText(at url: URL) -> String?
-    func modificationDate(at url: URL) -> Date?
-}
-
-/// Real disk reader: sandbox-safe coordinated read + UTF-8 decode.
-struct FileSystemDiskReader: DocumentDiskReading {
-    func readText(at url: URL) -> String? {
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-
-        var coordinationError: NSError?
-        var text: String?
-        NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
-            if let data = try? Data(contentsOf: readURL) {
-                // Same decode pair as `LineformDocument.init(markdownData:)`: validate with the
-                // failable initializer, decode with `String(decoding:as:)` so a leading U+FEFF
-                // survives. If the two disagreed, a BOM'd file would compare unequal to its own
-                // in-memory text and reload on every save.
-                text = String(data: data, encoding: .utf8) == nil
-                    ? nil
-                    : String(decoding: data, as: UTF8.self)
-            }
-        }
-        return text
-    }
-
-    func modificationDate(at url: URL) -> Date? {
-        LineformDocument.modificationDate(at: url)
-    }
-}
+// `ReloadResult`, `DocumentDiskReading`, `FileSystemDiskReader` and `DocumentFileWatcher` live in
+// LineformCore (`Documents/DocumentFileWatching.swift`), shared with the iPhone app.
 
 /// Owns the file watcher + debounce, decides via `DocumentReloadPolicy`, and publishes a
 /// `ReloadResult` the view applies. Never mutates the document itself.
@@ -280,25 +243,4 @@ final class DocumentReloadController: ObservableObject {
         // (Setting the flag with no watcher installed makes the didSet re-kick a no-op.)
         isWritingToolsSessionActive = false
     }
-}
-
-/// A minimal NSFilePresenter that forwards content changes and moves to the controller.
-/// Deletes are left to the framework NSDocument. Callbacks are assigned after init so they
-/// can capture the watcher itself for identity checks.
-final class DocumentFileWatcher: NSObject, NSFilePresenter {
-    let presentedItemURL: URL?
-    let presentedItemOperationQueue: OperationQueue
-    var onChange: (() -> Void)?
-    var onMove: ((URL) -> Void)?
-
-    init(url: URL) {
-        self.presentedItemURL = url
-        let queue = OperationQueue()
-        queue.maxConcurrentOperationCount = 1
-        self.presentedItemOperationQueue = queue
-    }
-
-    func presentedItemDidChange() { onChange?() }
-
-    func presentedItemDidMove(to newURL: URL) { onMove?(newURL) }
 }

@@ -227,7 +227,7 @@ exactly as the app pins them (the package commits its own `Package.resolved`; th
 longer links the two products directly). It holds Markdown parsing and HTML rendering
 (`Markdown/`), the Read/Preview attributed-string renderer and its image, Mermaid, pie and math
 providers (`Markdown/Rendering/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
-profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History and save status (`Documents/`), the AI model,
+profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History, save status, the Markdown file codec and the live-reload file watcher (`Documents/`), the AI model,
 clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in
 `Packages/LineformCore/Tests/LineformCoreTests`. Some pure-looking files stay in the app
 (`MarkdownSyntaxTokens`, `MarkdownSpellCheckRegions`, `MarkdownStructureMap`, `AIActionController`,

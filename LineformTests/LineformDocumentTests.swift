@@ -215,27 +215,4 @@ final class LineformDocumentTests: XCTestCase {
         XCTAssertEqual(FileSystemDiskReader().readText(at: url), document.text)
     }
 
-    /// `URL` caches resource values per instance, so statting through a stored `URL` froze the
-    /// modification date and live reload fired at most once per file. The reader must see a
-    /// second external write through the SAME url value it was given the first time.
-    func testDiskReaderSeesASecondExternalWriteThroughTheSameURLValue() throws {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("stat-\(UUID().uuidString).md")
-        try Data("one".utf8).write(to: url)
-        defer { try? FileManager.default.removeItem(at: url) }
-
-        let reader = FileSystemDiskReader()
-        let first = reader.modificationDate(at: url)
-
-        try Data("two".utf8).write(to: url)
-        try FileManager.default.setAttributes(
-            [.modificationDate: Date().addingTimeInterval(5)],
-            ofItemAtPath: url.path
-        )
-        let second = reader.modificationDate(at: url)
-
-        XCTAssertNotNil(first)
-        XCTAssertNotNil(second)
-        XCTAssertNotEqual(first, second)
-    }
 }
