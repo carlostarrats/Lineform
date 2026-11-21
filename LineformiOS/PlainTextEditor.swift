@@ -60,9 +60,16 @@ struct PlainTextEditor: UIViewRepresentable {
     }
 
     /// Replaces the whole text, styled with the current typing attributes (a bare `text =`
-    /// would drop the paragraph style and kerning).
+    /// would drop the paragraph style and kerning). The selection is kept where it was, clamped
+    /// to the new text, so a live reload does not throw the caret to the end.
     static func setText(_ text: String, in textView: EditorTextView) {
-        textView.attributedText = NSAttributedString(string: text, attributes: textView.typingAttributes)
+        let selection = textView.selectedRange
+        let attributes = textView.typingAttributes
+        textView.attributedText = NSAttributedString(string: text, attributes: attributes)
+        textView.typingAttributes = attributes
+        let length = (text as NSString).length
+        let location = min(selection.location, length)
+        textView.selectedRange = NSRange(location: location, length: min(selection.length, length - location))
     }
 
     /// The horizontal inset that centres a `columnWidth` column in `width`, never below the

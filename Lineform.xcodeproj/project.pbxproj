@@ -166,6 +166,9 @@
 		1F000041000000000000000F /* LineformCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1F0000490000000000000001 /* LineformCore */; };
 		1F000041000000000000000B /* PlainTextEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000000B /* PlainTextEditorTests.swift */; };
 		1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000000C /* DocumentLaunchTests.swift */; };
+		1F0000410000000000000010 /* OpenDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000010 /* OpenDocument.swift */; };
+		1F0000410000000000000011 /* FileListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000011 /* FileListSheet.swift */; };
+		1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000012 /* OpenDocumentTests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -359,6 +362,9 @@
 		1F000040000000000000000A /* LineformiOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F000040000000000000000B /* PlainTextEditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainTextEditorTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000000C /* DocumentLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentLaunchTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000010 /* OpenDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenDocument.swift; sourceTree = "<group>"; };
+		1F0000400000000000000011 /* FileListSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListSheet.swift; sourceTree = "<group>"; };
+		1F0000400000000000000012 /* OpenDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenDocumentTests.swift; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -673,6 +679,8 @@
 				1F0000400000000000000004 /* Info.plist */,
 				1F0000400000000000000005 /* LineformiOS.entitlements */,
 				1F0000400000000000000006 /* LineformiOSDebug.entitlements */,
+				1F0000400000000000000010 /* OpenDocument.swift */,
+				1F0000400000000000000011 /* FileListSheet.swift */,
 			);
 			path = LineformiOS;
 			sourceTree = "<group>";
@@ -682,6 +690,7 @@
 			children = (
 				1F000040000000000000000B /* PlainTextEditorTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
+				1F0000400000000000000012 /* OpenDocumentTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1078,6 +1087,8 @@
 				1F0000410000000000000001 /* LineformiOSApp.swift in Sources */,
 				1F0000410000000000000002 /* DocumentScreen.swift in Sources */,
 				1F0000410000000000000003 /* PlainTextEditor.swift in Sources */,
+				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
+				1F0000410000000000000011 /* FileListSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1087,6 +1098,7 @@
 			files = (
 				1F000041000000000000000B /* PlainTextEditorTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,
+				1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
