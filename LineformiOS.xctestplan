@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "5A1E4B2C-0000-4000-8000-000000000101",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "language" : "en",
+    "region" : "US"
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Lineform.xcodeproj",
+        "identifier" : "1F0000430000000000000002",
+        "name" : "LineformiOSTests"
+      }
+    }
+  ],
+  "version" : 1
+}

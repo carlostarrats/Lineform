@@ -75,6 +75,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AppUpdateCheck.swift|Accept": "HTTP request header field name.",
         "OutlineSidebarView.swift|Lineform": "The app name — never translated (plan Global Constraints).",
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
+        "DocumentFolderResolver.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "BundledFontRegistrar.swift|Fonts": "Bundle subdirectory name.",
         "DiagramLog.swift|Library/Application Support": "File-system path component.",
         "PassageHistoryStore.swift|Library/Application Support": "File-system path component.",
