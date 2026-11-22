@@ -27,46 +27,98 @@ final class LineformTextView: UITextView {
     /// The reading profile. Setting a different one re-applies the base attributes over the whole
     /// document, the typing attributes, the page, caret and selection colours, and the column
     /// insets from `EditorReadingLayout`.
-    var profile: ReadingProfile = .original {
-        didSet {
-            if profile != oldValue || !hasAppliedProfile {
-                let restoredOffset = updateTypewriterScrollState(from: oldValue, to: profile)
+    var profile: ReadingProfile {
+        get { state.profile }
+        set {
+            let oldValue = state.profile
+            state.profile = newValue
+            if newValue != oldValue || !hasAppliedProfile {
+                let restoredOffset = updateTypewriterScrollState(from: oldValue, to: newValue)
                 applyProfile()
                 if let restoredOffset { restoreOffsetBeforeTypewriterMode(restoredOffset) }
             }
         }
     }
 
+    // MARK: - Stored state
+
+    /// Every piece of editor state that has a starting value. It lives in one object made on first
+    /// use, never in stored properties with default values: UIKit builds this class through the
+    /// `textViewUsingTextLayoutManager:` factory, and on that path Swift's property initializers
+    /// do not run. Memory is zeroed instead, so a `let` with a default read as nil and crashed, and
+    /// an optional `CGPoint` read as `(0, 0)` rather than nil. The only stored property is this
+    /// optional class reference, whose zeroed value is nil on every path (`init(usingTextLayoutManager:)`,
+    /// `init(frame:textContainer:)`, `init?(coder:)`). `EditorConstructionTests` reads every value
+    /// through each path.
+    final class State {
+        var profile: ReadingProfile = .original
+        var readingRulerView: UIView?
+        var scrollOffsetBeforeTypewriterMode: CGPoint?
+        var isKeyboardAnimating = false
+        var spellCheck: SpellCheckPass?
+        var spellingUnderlines: CAShapeLayer?
+        var needsSpellingUnderlineRedraw = false
+        var lastHighlightedTokenRange: NSRange?
+        var needsFullHighlight = false
+        var hasAppliedProfile = false
+        var lastLayoutSize: CGSize = .zero
+    }
+
+    private var stateStorage: State?
+
+    var state: State {
+        if let stateStorage { return stateStorage }
+        let state = State()
+        stateStorage = state
+        return state
+    }
+
     // MARK: Reading assists state (logic in LineformiOSTextView+ReadingAssists.swift)
 
     /// The Reading Ruler band: the lowest subview, so it sits behind the text. Made on first use.
-    var readingRulerView: UIView?
+    var readingRulerView: UIView? {
+        get { state.readingRulerView }
+        set { state.readingRulerView = newValue }
+    }
     /// Where the page was when Typewriter Mode came on; turning it off scrolls back here.
-    var scrollOffsetBeforeTypewriterMode: CGPoint?
+    var scrollOffsetBeforeTypewriterMode: CGPoint? {
+        get { state.scrollOffsetBeforeTypewriterMode }
+        set { state.scrollOffsetBeforeTypewriterMode = newValue }
+    }
     /// The keyboard is animating its frame; Typewriter Mode waits so it does not fight keyboard
     /// avoidance.
-    var isKeyboardAnimating = false
+    var isKeyboardAnimating: Bool {
+        get { state.isKeyboardAnimating }
+        set { state.isKeyboardAnimating = newValue }
+    }
 
     // MARK: Spell-check state (logic in LineformiOSTextView+SpellCheck.swift)
 
-    /// This document's spell-check pass and checker, made on first use. Not a `let` with a
-    /// default value: the editor comes from UIKit's `textViewUsingTextLayoutManager:` factory, on
-    /// which a non-optional stored property's initial value is not set (it read as nil and
-    /// crashed). Optional storage starts as nil either way.
+    /// This document's spell-check pass and checker, made on first use.
     var spellCheck: SpellCheckPass {
-        if let spellCheckStorage { return spellCheckStorage }
+        if let pass = state.spellCheck { return pass }
         let pass = SpellCheckPass()
-        spellCheckStorage = pass
+        state.spellCheck = pass
         return pass
     }
-    private var spellCheckStorage: SpellCheckPass?
     /// The shape layer that strokes the misspelling underlines. Made on first use.
-    var spellingUnderlines: CAShapeLayer?
+    var spellingUnderlines: CAShapeLayer? {
+        get { state.spellingUnderlines }
+        set { state.spellingUnderlines = newValue }
+    }
     /// An edit or a re-style moved the text; the next layout pass re-strokes the underlines.
-    var needsSpellingUnderlineRedraw = false
+    var needsSpellingUnderlineRedraw: Bool {
+        get { state.needsSpellingUnderlineRedraw }
+        set { state.needsSpellingUnderlineRedraw = newValue }
+    }
+
+    // MARK: Highlighting state
 
     /// The range the last token pass covered; a scroll inside it does no work.
-    private(set) var lastHighlightedTokenRange: NSRange?
+    private(set) var lastHighlightedTokenRange: NSRange? {
+        get { state.lastHighlightedTokenRange }
+        set { state.lastHighlightedTokenRange = newValue }
+    }
     #if DEBUG
     /// Lets a test make the next scroll pass find its window uncovered.
     var lastHighlightedTokenRangeForTesting: NSRange? {
@@ -75,9 +127,18 @@ final class LineformTextView: UITextView {
     }
     #endif
     /// A full pass was skipped during composition; the next pass runs it instead.
-    private(set) var needsFullHighlight = false
-    private var hasAppliedProfile = false
-    private var lastLayoutSize: CGSize = .zero
+    private(set) var needsFullHighlight: Bool {
+        get { state.needsFullHighlight }
+        set { state.needsFullHighlight = newValue }
+    }
+    private(set) var hasAppliedProfile: Bool {
+        get { state.hasAppliedProfile }
+        set { state.hasAppliedProfile = newValue }
+    }
+    private(set) var lastLayoutSize: CGSize {
+        get { state.lastLayoutSize }
+        set { state.lastLayoutSize = newValue }
+    }
 
     /// A configured editor. Separate from `MarkdownEditor.makeUIView` so tests build one directly.
     static func make(profile: ReadingProfile = .original) -> LineformTextView {

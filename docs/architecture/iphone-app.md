@@ -115,8 +115,12 @@ for line alike. Do not switch it to TextKit 2.
   lists, as on the Mac), and the delegate's `writingToolsIgnoredRangesIn` returns
   `MarkdownWritingToolsProtection.ignoredRanges`, so the protection holds if it is turned on.
 - **Stored properties.** `LineformTextView` comes from UIKit's `textViewUsingTextLayoutManager:`
-  factory, on which a non-optional stored property's default value is never set. Keep editor
-  state optional (or a plain `Bool`), behind a lazy computed property where it needs an object.
+  factory, on which Swift's property initializers never run: memory is zeroed instead, so a
+  class-typed default reads as nil and an optional struct (`CGPoint?`, `NSRange?`) reads as a
+  zero value, not nil. All editor state with a starting value lives in `LineformTextView.State`,
+  made on first use behind the only stored property (an optional class reference, nil when
+  zeroed). `EditorConstructionTests` reads every value through `init(usingTextLayoutManager:)`,
+  `init(frame:textContainer:)`, `init?(coder:)` and `make(profile:)`.
 - Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
