@@ -118,12 +118,14 @@ is dropped.
 
 ## Opening and iCloud downloads
 
-Every open reads through the injected `DocumentDiskReading` off the main thread. A file iCloud has
-not downloaded yet (a `.Name.md.icloud` placeholder is there, or its
-`ubiquitousItemDownloadingStatus` is not `.current`) is handled first: the current document is
-saved and put away, `startDownloadingUbiquitousItem` runs on the real URL, the screen shows a quiet
-"Downloading…" state in place of the text, and the file is read once it is current. A later open
-or New Document supersedes a pending one. A placeholder URL always maps to the real file.
+Every open reads through the injected `DocumentDiskReading` off the main thread. An iCloud file
+with no local copy yet (only its `.Name.md.icloud` placeholder) is handled first: the current
+document is saved and put away, `startDownloadingUbiquitousItem` runs on the real URL, the screen
+shows a quiet "Downloading…" state in place of the text, and the file is read once a local copy
+exists. A file with a full local copy that is not current (`.downloaded`, for example offline)
+opens that copy at once; the download request keeps running, and the live-reload watcher plus
+`DocumentReloadPolicy` apply the current version when it arrives. A later open or New Document
+supersedes a pending one. A placeholder URL always maps to the real file.
 
 ## Moves
 

@@ -183,6 +183,31 @@ final class OpenDocumentTests: XCTestCase {
         XCTAssertEqual(document.text, "From iCloud")
     }
 
+    /// Offline, a file with a full but outdated local copy opens that copy at once; the download
+    /// keeps running, and live reload brings the current version in when it arrives.
+    func testOutdatedLocalCopyOpensAtOnceAndReloadsWhenCurrentArrives() async throws {
+        let url = try write("Local copy", named: "Outdated.md")
+        let cloud = FakeUbiquitousItems(outdated: [url], arrivingText: "Current version")
+        let document = makeDocument(ubiquitousItems: cloud)
+        var sawDownloading = false
+        let observer = Task { @MainActor in
+            while !Task.isCancelled {
+                if document.downloadingName != nil { sawDownloading = true }
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+        }
+
+        try await document.open(url)
+
+        XCTAssertEqual(document.text, "Local copy", "the local copy opens without waiting")
+        XCTAssertEqual(document.url, url)
+        XCTAssertEqual(cloud.startedURLs, [url], "the download request still runs")
+        try await waitUntil { document.text == "Current version" }
+        observer.cancel()
+        XCTAssertFalse(sawDownloading, "no downloading state for a file with a local copy")
+        XCTAssertEqual(document.lastSyncedText, "Current version")
+    }
+
     func testNewDocumentWhileDownloadingCancelsTheOpen() async throws {
         let real = folder.appendingPathComponent("Never.md")
         let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil)
@@ -277,29 +302,50 @@ final class OpenDocumentTests: XCTestCase {
     }
 }
 
-/// Stands in for iCloud: the listed files need downloading until a download is started; then,
-/// a moment later, the file "arrives" with `arrivingText` (or never, when it is nil).
+/// Stands in for iCloud. `pending` files have no local copy until a download is started; then,
+/// a moment later, the file "arrives" with `arrivingText` (or never, when it is nil). `outdated`
+/// files have a full local copy that is not current; when the download is started, the current
+/// version arrives a moment later as a coordinated write, as iCloud would deliver it.
 final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
     private let lock = NSLock()
     private var pending: Set<URL>
+    private var outdated: Set<URL>
     private var started: [URL] = []
     private let arrivingText: String?
 
-    init(pending: Set<URL>, arrivingText: String?) {
+    init(pending: Set<URL> = [], outdated: Set<URL> = [], arrivingText: String?) {
         self.pending = Set(pending.map(\.standardizedFileURL))
+        self.outdated = Set(outdated.map(\.standardizedFileURL))
         self.arrivingText = arrivingText
     }
 
     var startedURLs: [URL] { lock.withLock { started } }
 
-    func needsDownload(_ url: URL) -> Bool {
-        lock.withLock { pending.contains(url.standardizedFileURL) }
+    func downloadState(_ url: URL) -> UbiquitousDownloadState {
+        lock.withLock {
+            let key = url.standardizedFileURL
+            if pending.contains(key) { return .notDownloaded }
+            if outdated.contains(key) { return .localCopyNotCurrent }
+            return .current
+        }
     }
 
     func startDownloading(_ url: URL) throws {
-        lock.withLock { started.append(url) }
+        let wasOutdated = lock.withLock { () -> Bool in
+            started.append(url)
+            return outdated.contains(url.standardizedFileURL)
+        }
         guard let arrivingText else { return }
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [self] in
+            if wasOutdated {
+                var error: NSError?
+                NSFileCoordinator(filePresenter: nil)
+                    .coordinate(writingItemAt: url, options: .forReplacing, error: &error) { writeURL in
+                        try? Data(arrivingText.utf8).write(to: writeURL)
+                    }
+                _ = lock.withLock { outdated.remove(url.standardizedFileURL) }
+                return
+            }
             try? Data(arrivingText.utf8).write(to: url)
             let placeholder = url.deletingLastPathComponent()
                 .appendingPathComponent("." + url.lastPathComponent + ".icloud")

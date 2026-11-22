@@ -206,9 +206,11 @@ final class OpenDocument {
     /// Opens `url`, replacing the current document. A file from outside the app (Files, "Open in
     /// Lineform") is opened through its security scope, which the document keeps while it is open.
     ///
-    /// The file is read off the main thread. A file iCloud has not downloaded yet (or its
-    /// `.Name.md.icloud` placeholder) is downloaded first: the current document is saved and put
-    /// away, `downloadingName` is set while iCloud works, and the file opens once it is current.
+    /// The file is read off the main thread. A file with no local copy yet (its `.Name.md.icloud`
+    /// placeholder) is downloaded first: the current document is saved and put away,
+    /// `downloadingName` is set while iCloud works, and the file opens once a local copy exists.
+    /// A full local copy that is not current opens at once while the download runs; live reload
+    /// applies the current version when it arrives.
     ///
     /// Throws `OpenError.unreadable` when the file cannot be read or is not valid UTF-8, and
     /// `OpenError.currentDocumentNotSaved` when the current document could not be saved; in both
@@ -229,7 +231,15 @@ final class OpenDocument {
         defer { if didAccess, !keepsScope { url.stopAccessingSecurityScopedResource() } }
 
         let items = ubiquitousItems
-        if await Task.detached(operation: { items.needsDownload(url) }).value {
+        switch await Task.detached(operation: { items.downloadState(url) }).value {
+        case .current:
+            break
+        case .localCopyNotCurrent:
+            // A full local copy is here (offline, or a newer version is on its way): open it at
+            // once. The download keeps running, and when the current version lands the watcher
+            // and `DocumentReloadPolicy` bring it in like any external change.
+            Task.detached { try? items.startDownloading(url) }
+        case .notDownloaded:
             guard generation == openGeneration else { throw OpenError.superseded }
             // The download can take a while: save and put away the current document first, so
             // nothing typed meanwhile can be lost, and show the downloading state in its place.
@@ -243,7 +253,8 @@ final class OpenDocument {
                 if generation == openGeneration { downloadingName = nil }
                 throw OpenError.unreadable(url)
             }
-            while await Task.detached(operation: { items.needsDownload(url) }).value {
+            // Wait only until a local copy exists; a newer version then arrives as a reload.
+            while await Task.detached(operation: { items.downloadState(url) }).value == .notDownloaded {
                 guard generation == openGeneration else { throw OpenError.superseded }
                 try? await Task.sleep(for: Self.downloadPollInterval)
                 guard generation == openGeneration else { throw OpenError.superseded }
@@ -695,27 +706,44 @@ struct FileSystemDocumentWriter: DocumentFileWriting {
     }
 }
 
-/// Whether iCloud still has to download a file before it can be read, and starting that
-/// download. The real one asks the file system; tests inject a fake.
+/// Where an iCloud file stands locally.
+enum UbiquitousDownloadState: Equatable, Sendable {
+    /// Not an iCloud item, or downloaded and current: read it.
+    case current
+    /// A full local copy exists but a newer version is in iCloud (or iCloud can't be reached to
+    /// tell): read the local copy; the download brings the current version as a reload.
+    case localCopyNotCurrent
+    /// No local copy yet (only a `.Name.md.icloud` placeholder): download before reading.
+    case notDownloaded
+}
+
+/// Where an iCloud file stands, and starting its download. The real one asks the file system;
+/// tests inject a fake.
 protocol UbiquitousItemAccessing: Sendable {
-    /// True while `url` is an iCloud item that is not downloaded and current: its
-    /// `.Name.md.icloud` placeholder is there, or its downloading status is not `.current`.
-    func needsDownload(_ url: URL) -> Bool
+    func downloadState(_ url: URL) -> UbiquitousDownloadState
     func startDownloading(_ url: URL) throws
 }
 
 struct LiveUbiquitousItems: UbiquitousItemAccessing {
-    func needsDownload(_ url: URL) -> Bool {
+    func downloadState(_ url: URL) -> UbiquitousDownloadState {
         let placeholder = url.deletingLastPathComponent()
             .appendingPathComponent("." + url.lastPathComponent + ".icloud")
-        if FileManager.default.fileExists(atPath: placeholder.path) { return true }
+        if FileManager.default.fileExists(atPath: placeholder.path),
+           !FileManager.default.fileExists(atPath: url.path) {
+            return .notDownloaded
+        }
         // A fresh URL value each time: `URL` caches resource values per instance.
         let fresh = URL(fileURLWithPath: url.path)
         guard let values = try? fresh.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
               values.isUbiquitousItem == true,
               let status = values.ubiquitousItemDownloadingStatus
-        else { return false }
-        return status != .current
+        else { return .current }
+        switch status {
+        case .current: return .current
+        case .downloaded: return .localCopyNotCurrent
+        default:
+            return FileManager.default.fileExists(atPath: url.path) ? .localCopyNotCurrent : .notDownloaded
+        }
     }
 
     func startDownloading(_ url: URL) throws {
