@@ -19,12 +19,20 @@ public enum DocumentNaming {
 
     /// The base name (no extension) for a document holding `text`, or nil when the text has no
     /// non-whitespace character (such a document gets no file).
+    ///
+    /// The name comes from the first line that still has words once its image references
+    /// (`![alt](dest)`) are taken out, so a pasted image never names the document; a link in that
+    /// line counts as its text. A document of nothing but images is Untitled (not nil: it still
+    /// gets a file, beside its `images/` folder).
     public static func baseName(fromText text: String) -> String? {
-        guard let line = text.split(whereSeparator: \.isNewline)
+        let lines = text.split(whereSeparator: \.isNewline)
+        guard lines.contains(where: { $0.contains { !$0.isWhitespace } }) else { return nil }
+        guard let line = lines.lazy
+            .map({ removingImageReferences(from: String($0)) })
             .first(where: { $0.contains { !$0.isWhitespace } })
-        else { return nil }
+        else { return untitledBaseName }
 
-        var name = stripLeadingMarkers(String(line))
+        var name = stripLeadingMarkers(reducingLinksToText(in: line))
         name.removeAll { emphasisMarkers.contains($0) }
         name = replacingUnsafeCharacters(in: name)
         name = collapsingWhitespace(in: name)
@@ -84,6 +92,23 @@ public enum DocumentNaming {
     private static func markerEnd(_ afterMarker: Substring) -> Substring? {
         guard let next = afterMarker.first else { return afterMarker }
         return next.isWhitespace ? afterMarker : nil
+    }
+
+    /// `![alt](dest)`, on one line.
+    private static let imageReference = try! NSRegularExpression(pattern: #"!\[[^\]]*\]\([^)\n]*\)"#)
+    /// `[text](dest)`, on one line; the text is group 1.
+    private static let linkReference = try! NSRegularExpression(pattern: #"\[([^\]]*)\]\([^)\n]*\)"#)
+
+    private static func removingImageReferences(from line: String) -> String {
+        imageReference.stringByReplacingMatches(
+            in: line, range: NSRange(location: 0, length: (line as NSString).length), withTemplate: " "
+        )
+    }
+
+    private static func reducingLinksToText(in line: String) -> String {
+        linkReference.stringByReplacingMatches(
+            in: line, range: NSRange(location: 0, length: (line as NSString).length), withTemplate: "$1"
+        )
     }
 
     private static func replacingUnsafeCharacters(in name: String) -> String {

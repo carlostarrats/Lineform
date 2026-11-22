@@ -57,6 +57,12 @@ final class OpenDocument: ImageInsertionHost {
     /// The name of a file iCloud is downloading so it can be opened, or nil. While it is set the
     /// screen shows a quiet downloading state in place of the text.
     private(set) var downloadingName: String?
+    /// True for a few seconds after a pasted or dropped image could not be written beside the
+    /// document (its folder is not writable, as for a file opened from another provider where
+    /// only the file is in scope). The screen shows a short notice; nothing was inserted.
+    private(set) var imageSaveFailed = false
+    /// How long the image notice stays.
+    static let imageNoticeDuration: Duration = .seconds(4)
 
     /// How long after the last keystroke an autosave runs.
     static let autosaveDelay: Duration = .seconds(1)
@@ -76,6 +82,10 @@ final class OpenDocument: ImageInsertionHost {
     /// Bumped by every open and New Document, so an open still reading or downloading can tell
     /// that something newer took over.
     @ObservationIgnored private var openGeneration = 0
+    /// Bumped whenever the document is put away for another (`closeCurrentDocument`): an image on
+    /// its way to the old one must not land in the new one.
+    @ObservationIgnored private var documentGeneration = 0
+    @ObservationIgnored private var imageNoticeTask: Task<Void, Never>?
     /// How many opens are between their start and their end. The launch restore gives way to any.
     @ObservationIgnored private var opensInFlight = 0
     /// Bumped whenever `lastSyncedText` is set (open, our own save, a reload, a detach), so a
@@ -329,6 +339,7 @@ final class OpenDocument: ImageInsertionHost {
     /// Puts the current document away (after it was saved): stops watching, releases its scope,
     /// and leaves a blank, untouched new document.
     private func closeCurrentDocument() {
+        documentGeneration += 1
         autosaveTask?.cancel()
         autosaveTask = nil
         stopWatching()
@@ -483,6 +494,23 @@ final class OpenDocument: ImageInsertionHost {
     /// file is on disk next to its `images/` folder.
     func imageLinkInserted() async {
         await flush()
+    }
+
+    /// Which document is open: it changes when another document (an opened file, New Document)
+    /// takes this one's place, and stays the same while this one is first saved or renamed.
+    var imageInsertionDocumentIdentity: Int { documentGeneration }
+
+    /// An image could not be written beside the document: show the short notice, which goes
+    /// away by itself. Nothing is written anywhere else (an absolute path to the app's own
+    /// container would not travel with the document).
+    func imageCouldNotBeSaved() {
+        imageSaveFailed = true
+        imageNoticeTask?.cancel()
+        imageNoticeTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.imageNoticeDuration)
+            guard !Task.isCancelled else { return }
+            self?.imageSaveFailed = false
+        }
     }
 
     private func setLastSyncedText(_ newValue: String) {

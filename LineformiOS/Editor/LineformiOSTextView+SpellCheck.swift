@@ -6,8 +6,8 @@ import UIKit
 /// - **The pass.** `SpellCheckPass` checks the prose of the visible window plus its margin,
 ///   `SpellCheckPass.typingDelay` (0.4 s) after the last edit and after a scroll, never per
 ///   keystroke and never while an input method is composing (`markedTextRange != nil`). The
-///   language is the keyboard's primary language, else the first preferred language; with no
-///   `UITextChecker` dictionary for it, nothing is checked.
+///   language is the keyboard's primary language; when it has no `UITextChecker` dictionary (the
+///   emoji keyboard), the first preferred language that has one. With none, nothing is checked.
 /// - **Drawn, never stored.** Each misspelling gets a 1.5 pt dotted red line under its glyphs,
 ///   stroked by a shape layer above the text from TextKit 1 line fragments. Nothing is written
 ///   to the text storage, so copy, paste and the saved file never see it. An edit that touches a
@@ -53,8 +53,8 @@ extension LineformTextView {
         return true
     }
 
-    /// The keyboard's primary language, or the first preferred language, as a `UITextChecker`
-    /// language; nil when there is no dictionary for it.
+    /// The keyboard's primary language, else the first preferred language with a dictionary, as a
+    /// `UITextChecker` language; nil when none has one.
     var spellCheckLanguage: String? {
         SpellCheckPass.language(primary: textInputMode?.primaryLanguage)
     }
@@ -114,8 +114,18 @@ extension LineformTextView {
                 path.addLine(to: CGPoint(x: box.maxX + textContainerInset.left, y: y))
             }
         }
-        layer.strokeColor = UIColor.systemRed.resolvedColor(with: traitCollection).cgColor
+        // The Original theme's page colour is dynamic: read it with this view's traits.
+        var usesDarkChrome = false
+        traitCollection.performAsCurrent { usesDarkChrome = Theme.theme(for: profile).usesDarkChrome }
+        layer.strokeColor = Self.spellingUnderlineColor(usesDarkChrome: usesDarkChrome).cgColor
         layer.path = path.isEmpty ? nil : path.cgPath
+    }
+
+    /// `systemRed` for the page's own light or dark (`Theme.usesDarkChrome`), not the system
+    /// appearance: a dark theme in Light Mode gets the dark red, a light theme in Dark Mode the
+    /// light one.
+    static func spellingUnderlineColor(usesDarkChrome: Bool) -> UIColor {
+        UIColor.systemRed.resolvedColor(with: UITraitCollection(userInterfaceStyle: usesDarkChrome ? .dark : .light))
     }
 
     /// The underline's stroke: 1.5 pt, round dots every 3 pt.

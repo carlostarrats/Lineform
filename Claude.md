@@ -361,9 +361,12 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
 - **Image paste.** A pasted or dropped image is a PNG (`UIImage.pngData()`) written with a
   coordinated, never-overwriting write into `images/` beside the document, named by
   `ImageFileNaming`, with its link on its own line (`ImageInsertionText`). A string on the
-  pasteboard always pastes as text. A document never saved is saved first (`OpenDocument.flush`);
+  pasteboard always pastes as text in `paste(_:)`; `paste(itemProviders:)` (paste and drop)
+  decides from its providers only. A document never saved is saved first (`OpenDocument.flush`);
   if that fails, nothing is inserted. Never write an image outside the document's own folder or
-  the save folder.
+  the save folder: when that folder is not writable, insert nothing and show the short image
+  notice (no Application Support fallback). An image lands only in the document that was open
+  when its paste or drop started. Image-only lines never name a document (`DocumentNaming`).
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog.

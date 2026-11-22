@@ -21,6 +21,14 @@ struct DocumentScreen: View {
     @SceneStorage("openDocumentPath") private var legacyOpenDocumentPath = ""
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
+    /// could not be written beside the document.
+    private var noticeMessage: String? {
+        if document.saveFailed { return String(localized: "Couldn’t save this document. Your text is still here.") }
+        if document.imageSaveFailed { return String(localized: "Can't save images beside this document.") }
+        return nil
+    }
+
     var body: some View {
         MarkdownEditor(
             text: Binding(get: { document.text }, set: { document.edit($0) }),
@@ -35,14 +43,15 @@ struct DocumentScreen: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if document.saveFailed {
-                SaveFailedNotice(profile: profile)
+            // A failed save matters more than a failed image, and stays until a save succeeds.
+            if let message = noticeMessage {
+                QuietNotice(message: message, profile: profile)
                     .padding(.bottom, MarkdownEditor.chromeMargin + MenuButton.diameter + 12)
                     .padding(.horizontal, MarkdownEditor.chromeMargin)
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: document.saveFailed)
+        .animation(.easeInOut(duration: 0.2), value: noticeMessage)
         .overlay(alignment: .bottomTrailing) {
             MenuButton(profile: profile) { isShowingFiles = true }
                 .padding(MarkdownEditor.chromeMargin)
@@ -95,15 +104,17 @@ private struct DownloadingView: View {
     }
 }
 
-/// A small, calm notice after a save failed. The text is still in memory and the next save tries
-/// again; the notice goes away once a save succeeds. It never blocks typing.
-private struct SaveFailedNotice: View {
+/// A small, calm notice: after a save failed (the text is still in memory, the next save tries
+/// again, and it goes away once a save succeeds), or for a few seconds after an image could not be
+/// saved beside the document. It never blocks typing.
+private struct QuietNotice: View {
+    var message: String
     var profile: ReadingProfile
 
     var body: some View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
-        Text(String(localized: "Couldn’t save this document. Your text is still here."))
+        Text(message)
             .font(.footnote)
             .multilineTextAlignment(.center)
             .foregroundStyle(Color(uiColor: theme.textColor))

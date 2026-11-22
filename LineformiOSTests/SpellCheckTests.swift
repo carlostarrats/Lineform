@@ -216,6 +216,36 @@ final class SpellCheckTests: XCTestCase {
         XCTAssertGreaterThan(passRatio, 4, "the spell pass is not scoped to the visible window")
     }
 
+    /// A keyboard with no dictionary (emoji) falls back to the preferred languages, in order,
+    /// rather than checking nothing.
+    func testLanguageFallsBackToPreferredWithoutDictionary() {
+        XCTAssertEqual(SpellCheckPass.language(primary: "emoji", preferred: ["fr-FR", "en-US"], available: ["en_US", "fr"]), "fr")
+        XCTAssertEqual(SpellCheckPass.language(primary: "emoji", preferred: ["xx-YY", "en-US"], available: ["en_US"]), "en_US")
+        XCTAssertNil(SpellCheckPass.language(primary: "emoji", preferred: ["xx-YY"], available: ["en_US"]))
+        XCTAssertEqual(SpellCheckPass.language(primary: "de-DE", preferred: ["en-US"], available: ["en_US", "de"]), "de")
+        XCTAssertEqual(SpellCheckPass.language(primary: nil, preferred: ["en-GB"], available: ["en_GB", "en_US"]), "en_GB")
+    }
+
+    /// The underline's red matches the theme's light or dark, not the system appearance.
+    func testUnderlineColourFollowsTheTheme() throws {
+        let darkRed = UIColor.systemRed.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).cgColor
+        let lightRed = UIColor.systemRed.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)).cgColor
+        XCTAssertNotEqual(darkRed, lightRed)
+
+        var profile = ReadingProfile.original
+        profile.themeID = .night
+        let textView = LineformTextView.make(profile: profile)
+        textView.overrideUserInterfaceStyle = .light
+        textView.redrawSpellingUnderlines()
+        XCTAssertEqual(textView.spellingUnderlines?.strokeColor, darkRed, "a dark theme in Light Mode")
+
+        profile.themeID = .paper
+        textView.profile = profile
+        textView.overrideUserInterfaceStyle = .dark
+        textView.redrawSpellingUnderlines()
+        XCTAssertEqual(textView.spellingUnderlines?.strokeColor, lightRed, "a light theme in Dark Mode")
+    }
+
     // MARK: - Helpers
 
     private static func language() throws -> String {

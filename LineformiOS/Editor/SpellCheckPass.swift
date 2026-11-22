@@ -56,18 +56,23 @@ final class SpellCheckPass {
         return found
     }
 
-    /// The checker language for `primary` (the keyboard's `textInputMode?.primaryLanguage`), or
-    /// the first preferred language when there is none. Nil when `UITextChecker` has no
-    /// dictionary for it: then nothing is checked.
+    /// The checker language for `primary` (the keyboard's `textInputMode?.primaryLanguage`); when
+    /// there is none, or `UITextChecker` has no dictionary for it (the emoji keyboard's "emoji"),
+    /// the first preferred language that has one. Nil when none does: then nothing is checked.
     static func language(
         primary: String?,
         preferred: [String] = Locale.preferredLanguages,
         available: [String] = UITextChecker.availableLanguages
     ) -> String? {
-        guard let wanted = primary ?? preferred.first else { return nil }
+        let candidates = (primary.map { [$0] } ?? []) + preferred
+        return candidates.lazy.compactMap { dictionary(for: $0, available: available) }.first
+    }
+
+    /// The `UITextChecker` dictionary for one language tag: "en_US" for "en-US"; else the bare
+    /// language, or its first regional dictionary. Nil when there is none.
+    private static func dictionary(for wanted: String, available: [String]) -> String? {
         let normalized = wanted.replacingOccurrences(of: "-", with: "_")
         if available.contains(normalized) { return normalized }
-        // "en_US" for "en-US"; else the bare language, or its first regional dictionary.
         let parts = normalized.split(separator: "_")
         guard let code = parts.first.map(String.init) else { return nil }
         if parts.count > 1, let region = parts.last, available.contains("\(code)_\(region)") { return "\(code)_\(region)" }

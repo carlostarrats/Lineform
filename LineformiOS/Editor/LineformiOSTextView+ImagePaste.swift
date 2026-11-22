@@ -13,6 +13,12 @@ protocol ImageInsertionHost: AnyObject {
     /// An image link went into the text (and through the binding). Saves at once, so a document
     /// that had nothing to be named from until now gets its file next to `images/`.
     func imageLinkInserted() async
+    /// Which document is open. An image captures it when the paste or drop starts and is only
+    /// inserted if it is unchanged by the time the image is ready.
+    var imageInsertionDocumentIdentity: Int { get }
+    /// The image could not be written into `images/` beside the document; nothing was inserted.
+    /// Shows a short, non-modal notice.
+    func imageCouldNotBeSaved()
 }
 
 /// Paste and drop of an image into the iPhone editor, the iPhone side of the Mac's
@@ -24,8 +30,14 @@ protocol ImageInsertionHost: AnyObject {
 ///   document that is created by this paste.
 /// - The link (`ImageLinkRewrite.markdownDestination`) goes in on its own line at the start of the
 ///   caret's line (`ImageInsertionText.insertingOnLine`), as one localized edit with one undo step.
-/// - Pasting a string never takes the image path: while the pasteboard has strings, the normal
-///   text paste runs, as on the Mac.
+/// - Pasting a string never takes the image path: while the pasteboard has strings, `paste(_:)`
+///   runs the normal text paste, as on the Mac. `paste(itemProviders:)` (UIKit's paste and drop)
+///   decides from its providers alone: a drop has no pasteboard, so a string that happens to be on
+///   the general pasteboard never turns an image drop into a text paste.
+/// - When the image cannot be written beside the document (its folder is not writable), nothing is
+///   inserted and the host shows a short notice. There is no fallback folder: a link to an absolute
+///   path in the app's container would not travel with the document.
+/// - An image only lands in the document that was open when its paste or drop started.
 /// - Paste goes through `pasteConfiguration` and `paste(itemProviders:)` (and `paste(_:)`, which
 ///   the edit menu and ⌘V call); drop goes through a `UIDropInteraction` that only takes sessions
 ///   with an image and no text, so a text drag keeps the system's text drop.
@@ -102,9 +114,10 @@ extension LineformTextView: UIDropInteractionDelegate {
         return super.canPaste(itemProviders)
     }
 
+    /// Decided from the providers alone, never from a pasteboard: a drop through
+    /// `pasteConfiguration` arrives here too, and has none.
     override func paste(itemProviders: [NSItemProvider]) {
-        guard !activePasteboard.hasStrings,
-              !itemProviders.contains(where: Self.providesText),
+        guard !itemProviders.contains(where: Self.providesText),
               itemProviders.contains(where: Self.providesImage)
         else {
             super.paste(itemProviders: itemProviders)
@@ -134,19 +147,25 @@ extension LineformTextView: UIDropInteractionDelegate {
     // MARK: - Insert
 
     /// Starts inserting every image in `providers`, in order, at `index` (nil: the caret when each
-    /// one is ready). The work is `imagePasteTask`.
+    /// one is ready). Every provider starts loading now, synchronously (a drop session's providers
+    /// are only good during `performDrop`); only the inserts wait for each other. The open
+    /// document is captured now, too. The work is `imagePasteTask`.
     func insertImages(from providers: [NSItemProvider], at index: Int?) {
-        let imageProviders = providers.filter(Self.providesImage)
-        guard !imageProviders.isEmpty else { return }
+        let loads = providers.filter(Self.providesImage).map { provider in
+            (name: provider.suggestedName ?? Self.pastedImageBaseName, png: Self.beginLoadingPNG(from: provider))
+        }
+        guard !loads.isEmpty else { return }
+        let documentIdentity = imageInsertionHost?.imageInsertionDocumentIdentity
         let previous = imagePasteTask
         imagePasteTask = Task { [weak self] in
             await previous?.value
             var nextIndex = index
-            for provider in imageProviders {
-                guard let png = await Self.pngData(from: provider) else { continue }
+            for load in loads {
+                guard let png = await load.png.value else { continue }
                 guard let self else { return }
-                let preferredName = provider.suggestedName ?? Self.pastedImageBaseName
-                guard let caret = await self.insertImage(png: png, preferredName: preferredName, at: nextIndex) else { return }
+                guard let caret = await self.insertImage(
+                    png: png, preferredName: load.name, at: nextIndex, documentIdentity: documentIdentity
+                ) else { return }
                 if nextIndex != nil { nextIndex = caret }
             }
         }
@@ -154,12 +173,22 @@ extension LineformTextView: UIDropInteractionDelegate {
 
     /// Writes `png` into `images/` beside the document and inserts its link on its own line.
     /// Returns the caret after the link, or nil when nothing was inserted: no document, its first
-    /// save failed, or the file could not be written.
+    /// save failed, the file could not be written (the host shows its notice), or another
+    /// document took this one's place since `documentIdentity` was taken (nil: now).
     @discardableResult
-    func insertImage(png: Data, preferredName: String, at index: Int?) async -> Int? {
+    func insertImage(png: Data, preferredName: String, at index: Int?, documentIdentity: Int? = nil) async -> Int? {
         guard isEditable, let host = imageInsertionHost else { return nil }
+        let identity = documentIdentity ?? host.imageInsertionDocumentIdentity
         guard let folder = await host.folderForInsertedImage() else { return nil }
         guard let written = await Self.writeImage(png, imagesFolderNextTo: folder, preferredName: preferredName) else {
+            // The folder (or its images/) is not writable. Nothing is inserted, and no copy is put
+            // anywhere else.
+            if host.imageInsertionDocumentIdentity == identity { host.imageCouldNotBeSaved() }
+            return nil
+        }
+        guard host.imageInsertionDocumentIdentity == identity, isEditable else {
+            // Another document is open now: the image belongs to neither.
+            try? FileManager.default.removeItem(at: written.url)
             return nil
         }
         let text = textStorage.string
@@ -189,15 +218,28 @@ extension LineformTextView: UIDropInteractionDelegate {
     /// The provider's image, decoded and re-encoded as PNG with `UIImage.pngData()`, off the main
     /// thread.
     static func pngData(from provider: NSItemProvider) async -> Data? {
+        await beginLoadingPNG(from: provider).value
+    }
+
+    /// Starts loading the provider's image now, synchronously, and returns the task that ends
+    /// with it as PNG (decoded and re-encoded with `UIImage.pngData()`, off the main thread).
+    static func beginLoadingPNG(from provider: NSItemProvider) -> Task<Data?, Never> {
         let type = provider.registeredTypeIdentifiers.first { UTType($0)?.conforms(to: .image) == true }
             ?? UTType.image.identifier
-        let data: Data? = await withCheckedContinuation { continuation in
-            _ = provider.loadDataRepresentation(forTypeIdentifier: type) { data, _ in
-                continuation.resume(returning: data)
-            }
+        let (loaded, delivery) = AsyncStream<Data?>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        _ = provider.loadDataRepresentation(forTypeIdentifier: type) { data, _ in
+            delivery.yield(data)
+            delivery.finish()
         }
-        guard let data else { return nil }
-        return await Task.detached(priority: .userInitiated) { UIImage(data: data)?.pngData() }.value
+        return Task.detached(priority: .userInitiated) {
+            var data: Data?
+            for await value in loaded {
+                data = value
+                break
+            }
+            guard let data else { return nil }
+            return UIImage(data: data)?.pngData()
+        }
     }
 
     /// Writes `data` to a new `images/<name>.png` in `folder`, with a coordinated write that never

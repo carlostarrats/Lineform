@@ -102,8 +102,10 @@ for line alike. Do not switch it to TextKit 2.
   (snapped to lines), so fenced code, inline code, front matter, math and link or image
   destinations are never flagged. It runs 0.4 s after the last edit and after a scroll, never
   per keystroke and never while there is marked text. The language is the keyboard's primary
-  language, else the first preferred language; without a `UITextChecker` dictionary for it,
-  nothing is checked. Each misspelling gets a 1.5 pt dotted red line, stroked by a `CAShapeLayer`
+  language; when it has no `UITextChecker` dictionary (the emoji keyboard), the first preferred
+  language that has one; with none, nothing is checked. Each misspelling gets a 1.5 pt dotted
+  red line (`systemRed` resolved for the theme's own light or dark, `Theme.usesDarkChrome`, not
+  the system appearance), stroked by a `CAShapeLayer`
   above the text from TextKit 1 line fragments; nothing is written to the text storage, so copy,
   paste and the saved file never see it. An edit that touches a misspelling drops its underline
   at once, and one before it shifts it. On a misspelling the edit menu
@@ -117,8 +119,12 @@ for line alike. Do not switch it to TextKit 2.
 - **Image paste and drop** (`LineformiOSTextView+ImagePaste.swift`). The text view sets a
   `pasteConfiguration` for images and overrides `paste(itemProviders:)` and `paste(_:)` (the edit
   menu and ⌘V); a `UIDropInteraction` takes drag sessions that carry an image and no text, so a
-  text drag keeps the system's text drop. While the pasteboard has a string, the ordinary text
-  paste runs: a string never takes the image path (the Mac's rule). Each image is decoded and
+  text drag keeps the system's text drop. In `paste(_:)`, while the pasteboard has a string, the
+  ordinary text paste runs: a string never takes the image path (the Mac's rule).
+  `paste(itemProviders:)` decides from its providers alone, never from a pasteboard, because a
+  drop arrives there too and has none. Every provider starts loading at once (a drop session's
+  providers are only good during `performDrop`); only the inserts run one after another. Each
+  image is decoded and
   re-encoded with `UIImage.pngData()` off the main thread, then written with a coordinated
   `.withoutOverwriting` write to `<document folder>/images/<name>.png`. The name is
   `ImageFileNaming`'s (the item's suggested name, else `image`, sanitized and uniqued as
@@ -130,7 +136,14 @@ for line alike. Do not switch it to TextKit 2.
   creates its file through the autosave rules, and if that fails nothing is written or
   inserted and the save-failed notice shows. A blank document has nothing to be named from, so
   it gets the save folder, and the save right after the link creates its file there. Nothing is
-  ever written outside the document's own folder or the save folder.
+  ever written outside the document's own folder or the save folder. When the image cannot be
+  written there (the folder is not writable, as for a file opened from another provider where
+  only the file is in scope), nothing is inserted and a short notice ("Can't save images beside
+  this document.") shows for a few seconds; there is no fallback folder, because a link to an
+  absolute path in the app's container would not travel with the document. An image lands only
+  in the document that was open when its paste or drop started (`imageInsertionDocumentIdentity`,
+  bumped when another document takes this one's place); otherwise its PNG is removed and nothing
+  is inserted.
 - **Stored properties.** `LineformTextView` comes from UIKit's `textViewUsingTextLayoutManager:`
   factory, on which Swift's property initializers never run: memory is zeroed instead, so a
   class-typed default reads as nil and an optional struct (`CGPoint?`, `NSRange?`) reads as a
@@ -171,7 +184,10 @@ for line alike. Do not switch it to TextKit 2.
 
 - A new document saves into the save folder as soon as it has text, named from its first line
   (`DocumentNaming`: Markdown markers and unsafe characters removed, 60 characters at a word
-  boundary, a 200-byte cap, a unique name compared case- and normalisation-insensitively).
+  boundary, a 200-byte cap, a unique name compared case- and normalisation-insensitively). A
+  line of nothing but image references is skipped, and a link counts as its text, so a pasted
+  image never names the document; a document of only images is Untitled, and a title typed
+  later renames it.
 - An Untitled document with nothing typed creates no file.
 - While the name still follows the first line, editing the first line renames the file. Once the
   user renames the file, or the document was opened from an existing file, it is never renamed

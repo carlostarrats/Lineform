@@ -77,6 +77,36 @@ final class DocumentNamingTests: XCTestCase {
         XCTAssertEqual(DocumentNaming.uniqueFileName(base: "Notes", existingNames: ["Other.md"]), "Notes.md")
     }
 
+    /// A line that is only image references names nothing: the first line with words does.
+    func testImageOnlyFirstLineIsSkipped() {
+        XCTAssertEqual(DocumentNaming.baseName(fromText: "![](images/image.png)\nTrip notes\n"), "Trip notes")
+        XCTAssertEqual(
+            DocumentNaming.baseName(fromText: "  ![shot](images/a.png) ![](images/b.png)  \n\n# Packing list"),
+            "Packing list"
+        )
+        // Images on the line with words do not end up in the name.
+        XCTAssertEqual(DocumentNaming.baseName(fromText: "![](images/image.png) Trip notes"), "Trip notes")
+    }
+
+    /// A link names the document by its text, not its destination.
+    func testLinkTextNamesTheDocument() {
+        XCTAssertEqual(DocumentNaming.baseName(fromText: "# See [the docs](https://example.com/a?b) today"), "See the docs today")
+        XCTAssertEqual(DocumentNaming.baseName(fromText: "- [Packing](notes.md)"), "Packing")
+        // A task box is not a link.
+        XCTAssertEqual(DocumentNaming.baseName(fromText: "- [ ] Buy milk"), "Buy milk")
+    }
+
+    /// A document of nothing but images still gets a file, named Untitled, so a paste into a
+    /// blank document is saved beside its `images/` folder.
+    func testImagesOnlyDocumentIsUntitled() {
+        XCTAssertEqual(DocumentNaming.baseName(fromText: "![](images/image.png)\n"), DocumentNaming.untitledBaseName)
+        XCTAssertEqual(
+            DocumentNaming.baseName(fromText: "![](images/a.png)\r\n\r\n![x](images/b.png)\r\n"),
+            DocumentNaming.untitledBaseName
+        )
+        XCTAssertNil(DocumentNaming.baseName(fromText: " \n\t\n"), "whitespace still gets no file")
+    }
+
     /// "Untitled" is translated in every shipped language, from the package's own catalog.
     func testUntitledIsTranslatedInEveryLanguage() throws {
         let expected = ["en": "Untitled", "es": "Sin título", "fr": "Sans titre", "de": "Ohne Titel",

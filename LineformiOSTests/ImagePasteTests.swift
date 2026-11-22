@@ -183,6 +183,90 @@ final class ImagePasteTests: XCTestCase {
         XCTAssertTrue(textView.text.contains("![](images/Screen-Shot-1.png)"))
     }
 
+    /// A document whose folder cannot be written (a file opened from another provider, where
+    /// only the file is in scope): nothing goes in, nothing is written, and a short notice says why.
+    func testUnwritableFolderInsertsNothingAndShowsNotice() async throws {
+        let readOnly = folder.appendingPathComponent("read-only", isDirectory: true)
+        try FileManager.default.createDirectory(at: readOnly, withIntermediateDirectories: true)
+        let file = readOnly.appendingPathComponent("Theirs.md")
+        try "Theirs\n".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: readOnly.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: readOnly.path) }
+
+        let document = await preparedDocument()
+        try await document.open(file)
+        let textView = makeEditor(for: document)
+        XCTAssertFalse(document.imageSaveFailed)
+
+        pasteboard.setItems([[UTType.png.identifier: Self.pngData()]])
+        textView.paste(nil)
+        await textView.imagePasteTask?.value
+
+        XCTAssertEqual(textView.text, "Theirs\n", "no link to an image that is not there")
+        XCTAssertEqual(document.text, "Theirs\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: readOnly.appendingPathComponent("images").path))
+        XCTAssertTrue(document.imageSaveFailed, "the image notice shows")
+        XCTAssertFalse(document.saveFailed, "the document itself still saves")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted(), ["read-only"],
+                       "no fallback copy anywhere else")
+    }
+
+    /// A drop has no pasteboard: an image drop goes in even while the general pasteboard holds
+    /// a string. Only `paste(_:)` lets a pasteboard string win.
+    func testImageDropWithStringOnPasteboardInsertsImage() async throws {
+        let document = await preparedDocument()
+        let textView = makeEditor(for: document)
+        type("Notes\n", into: textView)
+        await document.flush()
+        pasteboard.setItems([[UTType.utf8PlainText.identifier: "plain words"]])
+
+        textView.paste(itemProviders: [NSItemProvider(item: Self.pngData() as NSData, typeIdentifier: UTType.png.identifier)])
+        await textView.imagePasteTask?.value
+
+        XCTAssertEqual(textView.text, "Notes\n![](images/image.png)\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent("images/image.png").path))
+    }
+
+    /// A drop session's providers are only good during `performDrop`: every load starts at once,
+    /// and only the inserts wait for each other.
+    func testEveryDropLoadStartsAtOnce() async throws {
+        let document = await preparedDocument()
+        let textView = makeEditor(for: document)
+        type("Notes\n", into: textView)
+        await document.flush()
+        let providers = [RecordingImageProvider(png: Self.pngData()), RecordingImageProvider(png: Self.pngData())]
+
+        textView.insertImages(from: providers, at: nil)
+        XCTAssertEqual(providers.map(\.loadStarted), [true, true], "both loads started before the first insert")
+
+        await textView.imagePasteTask?.value
+        XCTAssertEqual(textView.text, "Notes\n![](images/image.png)\n![](images/image-2.png)\n")
+    }
+
+    /// The document was replaced while the image was on its way: it lands in neither document,
+    /// and the PNG it wrote is removed.
+    func testImageForReplacedDocumentIsDiscarded() async throws {
+        let document = await preparedDocument()
+        let textView = makeEditor(for: document)
+        type("Notes\n", into: textView)
+        await document.flush()
+        let notes = try XCTUnwrap(document.url)
+        let identity = document.imageInsertionDocumentIdentity
+
+        let replaced = await document.newDocument()
+        XCTAssertTrue(replaced)
+        textView.setDocumentText(document.text)
+        let caret = await textView.insertImage(png: Self.pngData(), preferredName: "image", at: nil, documentIdentity: identity)
+
+        XCTAssertNil(caret)
+        XCTAssertEqual(textView.text, "")
+        XCTAssertEqual(document.text, "")
+        XCTAssertNil(document.url, "the new document was not created for it")
+        XCTAssertEqual(try String(contentsOf: notes, encoding: .utf8), "Notes\n")
+        let images = folder.appendingPathComponent("images").path
+        XCTAssertEqual((try? FileManager.default.contentsOfDirectory(atPath: images)) ?? [], [], "the PNG was removed")
+    }
+
     // MARK: - Helpers
 
     private func preparedDocument() async -> OpenDocument {
@@ -233,4 +317,25 @@ final class ImagePasteTests: XCTestCase {
 private struct NoUbiquitousItems: UbiquitousItemAccessing {
     func downloadState(_ url: URL) -> UbiquitousDownloadState { .current }
     func startDownloading(_ url: URL) throws {}
+}
+
+/// An image provider that records when its data starts loading.
+private final class RecordingImageProvider: NSItemProvider, @unchecked Sendable {
+    private(set) var loadStarted = false
+
+    init(png: Data) {
+        super.init()
+        registerDataRepresentation(forTypeIdentifier: UTType.png.identifier, visibility: .all) { completion in
+            completion(png, nil)
+            return nil
+        }
+    }
+
+    override func loadDataRepresentation(
+        forTypeIdentifier typeIdentifier: String,
+        completionHandler: @escaping @Sendable (Data?, (any Error)?) -> Void
+    ) -> Progress {
+        loadStarted = true
+        return super.loadDataRepresentation(forTypeIdentifier: typeIdentifier, completionHandler: completionHandler)
+    }
 }
