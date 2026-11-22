@@ -1,5 +1,6 @@
 import LineformCore
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 /// The full-screen document. A normal launch opens a blank document; there is no bar across the
@@ -16,11 +17,22 @@ import UniformTypeIdentifiers
 ///
 /// The reading profile comes from the per-device `ReadingProfileStore`, observed here, so a
 /// profile change (the Styling sheet, roadmap step 7) re-applies to the editor without a relaunch.
+/// What the page draws with is that profile with Automatic Dark Mode applied for the iPhone's
+/// appearance (`AppSettings.displayProfile`, the Mac's rule): the colour scheme comes from the
+/// trait collection's `userInterfaceStyle`, so the page re-renders when the appearance changes.
 struct DocumentScreen: View {
     var document: OpenDocument
     @ObservedObject var profileStore: ReadingProfileStore
-    private var profile: ReadingProfile { profileStore.activeProfile }
-    @State private var isShowingFiles = false
+    /// The Files section's store. One for the app's lifetime, so a Workspace folder's access
+    /// outlives the Menu sheet.
+    var files: FilesStore
+    /// The Settings section's values: Automatic Dark Mode and the spelling switch apply here.
+    @ObservedObject var settings: AppSettings
+    @Environment(\.colorScheme) private var colorScheme
+    private var profile: ReadingProfile {
+        settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
+    }
+    @State private var isShowingMenu = false
     @State private var isShowingStyling = false
     /// Write, Read or Preview. Kept with the scene, so a Preview restored after iOS ended the app
     /// opens in Preview; a new scene starts in Write.
@@ -65,11 +77,15 @@ struct DocumentScreen: View {
     init(
         document: OpenDocument,
         profileStore: ReadingProfileStore,
+        files: FilesStore = .shared,
+        settings: AppSettings = .shared,
         initialMode: EditorDisplayMode = .write,
         showsFirstRun: Bool = false
     ) {
         self.document = document
         self.profileStore = profileStore
+        self.files = files
+        self.settings = settings
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
     }
@@ -157,7 +173,7 @@ struct DocumentScreen: View {
                         arePanesLinked = linkedScroll.isLinked
                     }
                 }
-                MenuButton(profile: profile) { isShowingFiles = true }
+                MenuButton(profile: profile) { isShowingMenu = true }
                 StylingButton(profile: profile) { isShowingStyling = true }
             }
             .padding(MarkdownEditor.chromeMargin)
@@ -178,8 +194,15 @@ struct DocumentScreen: View {
             .disabled(presentsFirstRun)
             .hidden()
         }
-        .sheet(isPresented: $isShowingFiles) {
-            FileListSheet(document: document)
+        .sheet(isPresented: $isShowingMenu) {
+            MenuSheet(
+                document: document,
+                editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
+                files: files,
+                settings: settings,
+                profile: profile,
+                onDismiss: { isShowingMenu = false }
+            )
         }
         .sheet(isPresented: $isShowingStyling, onDismiss: {
             // A Reconnect tapped on the page beside the open sheet waits for it to close: a view
@@ -247,8 +270,10 @@ extension DocumentScreen {
     /// The gap between the bottom-trailing buttons: Preview's link, Menu, and Aa.
     static let bottomChromeSpacing: CGFloat = 12
     /// The room the Read view (and Preview's lower pane) keeps below its last line, so it scrolls
-    /// clear of the floating Menu and link buttons.
-    static var bottomChromeClearance: CGFloat { MarkdownEditor.chromeMargin + PreviewLinkButton.diameter + 8 }
+    /// clear of the floating buttons: the tallest of Menu, Aa and the link button.
+    static var bottomChromeClearance: CGFloat {
+        MarkdownEditor.chromeMargin + max(MenuButton.diameter, StylingButton.diameter, PreviewLinkButton.diameter) + 8
+    }
     /// ⌘E, the Mac's Toggle Write / Read.
     static let toggleWriteReadShortcut = KeyboardShortcut("e", modifiers: .command)
 
@@ -273,7 +298,8 @@ extension DocumentScreen {
             linkedScroll: displayMode == .split ? linkedScroll : nil,
             keepsCaretVisibleOnResize: displayMode == .split,
             topChromeInset: ModeSwitch.pageTopClearance,
-            readEditDocument: document
+            readEditDocument: document,
+            checksSpelling: settings.checksSpellingWhileTyping
         )
     }
 

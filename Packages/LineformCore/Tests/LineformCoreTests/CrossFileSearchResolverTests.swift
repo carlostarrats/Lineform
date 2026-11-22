@@ -133,6 +133,22 @@ final class CrossFileSearchResolverTests: XCTestCase {
         XCTAssertEqual(result?.snippets.first?.lineText, "needle needle needle")
     }
 
+    /// Each snippet carries its match's range in the whole file, so a result opened elsewhere
+    /// (the iPhone's Search) can select the hit it showed.
+    func testSnippetsCarryTheirRangeInTheFile() {
+        let text = "intro\r\n  the needle here\r\nand Needle again, néedle too"
+        let result = CrossFileSearchResolver.result(for: entry(), text: text, query: "needle")
+        let expected = EditorSearchResolver.matches(in: text, query: "needle")
+        XCTAssertEqual(expected.count, 3)
+        XCTAssertEqual(result?.snippets.map(\.sourceRange), expected)
+        let source = text as NSString
+        for snippet in result?.snippets ?? [] {
+            let inLine = (snippet.lineText as NSString).substring(with: snippet.matchRange)
+            XCTAssertEqual(inLine.lowercased(), source.substring(with: snippet.sourceRange).lowercased())
+        }
+        XCTAssertEqual(CrossFileSearchResolver.snippet(in: text, around: expected[1]).sourceRange, expected[1])
+    }
+
     func testSnippetsAreCappedAtMaximumSnippetsPerFile() {
         let lines = (0..<(CrossFileSearchResolver.maximumSnippetsPerFile + 5)).map { "needle line \($0)" }
         let text = lines.joined(separator: "\n")

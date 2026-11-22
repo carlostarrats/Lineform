@@ -17,4 +17,11 @@ final class DocumentFolderResolverTests: XCTestCase {
         let resolver = DocumentFolderResolver(ubiquityDocumentsURL: { nil }, localDocumentsURL: local)
         XCTAssertEqual(resolver.saveFolder(), local)
     }
+
+    func testResolverNamesEachFolderOnItsOwn() {
+        let iCloud = URL(fileURLWithPath: "/tmp/lineform-tests/iCloud/Documents", isDirectory: true)
+        XCTAssertEqual(DocumentFolderResolver(ubiquityDocumentsURL: { iCloud }, localDocumentsURL: local).iCloudFolder(), iCloud)
+        XCTAssertNil(DocumentFolderResolver(ubiquityDocumentsURL: { nil }, localDocumentsURL: local).iCloudFolder())
+        XCTAssertEqual(DocumentFolderResolver(ubiquityDocumentsURL: { iCloud }, localDocumentsURL: local).deviceFolder, local)
+    }
 }

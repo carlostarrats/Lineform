@@ -7,8 +7,8 @@ links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
 all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
 This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
-Preview, with the Write/Read/Preview switch), step 7 (the Styling sheet) and step 11 (first run).
-The Menu sheet and the rest arrive in later steps.
+Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
+sheet) and step 11 (first run). The rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -17,7 +17,10 @@ a fully working state, never an error or a prompt.
 
 ## Target, scheme and tests
 
-- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `FileListSheet`,
+- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `AppSettings`;
+  `Menu/`: `MenuSheet`, `MenuSection`, `EditorCommands`, `FilesStore`, `FilesSection`, `FolderView`,
+  `OutlineSection`, `BasicsSection`, `SearchSection`, `SearchController`, `DocumentSection`,
+  `SettingsSection`;
   `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
   `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
@@ -251,8 +254,9 @@ lives in a lazily made `State` object (`testFactoryPathHasEveryDefault`).
 - **Accessibility.** `accessibilityCustomActions` mirror every pill and checkbox with the Mac's
   strings: "Copy code block %lld", "Reconnect image", "Toggle task: %@" and "Toggle task".
 - **Bottom clearance.** Read, and Preview's lower pane, get a bottom `contentInset` of
-  `DocumentScreen.bottomChromeClearance` (chromeMargin + 38 + 8 = 66 pt), applied like the top
-  clearance, so the last line and its pill scroll clear of the Menu and link buttons. (The editor
+  `DocumentScreen.bottomChromeClearance` (chromeMargin + 44 + 8, the tallest of the Menu, Aa
+  and link buttons), applied like the top clearance, so the last line and its pill scroll clear of
+  them. (The editor
   has no such inset; the buttons float over it as before.)
 - **Position.** `onVisibleTopSourceLocationChanged` fires 0.08 s after scrolling stops.
   `scrollSourceLocationToTop` waits until the view is rendered, in a window and sized, parks the
@@ -484,13 +488,181 @@ later launch opens straight into a fresh Untitled document, as on the Mac.
   live, keyed by their English in `LineformiOS/Localizable.xcstrings` (six languages; the
   translations still need a native speaker's check). The owner edits the wording there.
 
-## The temporary file sheet
+## The Menu sheet
 
-`FileListSheet` and the floating `MenuButton` (bottom right, Mac floating-card chrome) are a
-stand-in until roadmap step 6's Menu sheet. The sheet offers **New Document** (flushes the pending
-save, then shows a blank Untitled document), **Open from Files…**, and the save folder's
-`.md`, `.markdown` and `.txt` files, newest first, kept current by `DocumentFolderMonitor`. iCloud
-placeholders (`.Name.md.icloud`) are listed under their real names.
+The floating `MenuButton` (bottom right, 44 pt, Mac floating-card chrome, accessibility label
+"Menu") opens `MenuSheet`: a page-coloured card with radius `LineformDesign.Radius.modal` (20),
+the floating-card hairline and shadow, medium and large detents. Its header shows the save state
+and `DocumentStatusText.counts` ("%lld words — %lld characters", characters only for CJK). The
+save state is "Saved" only while a file holds the text (`url != nil` and `text ==
+lastSyncedText`), "Unsaved changes" in the autosave delay (or after a failed save), and the Mac's
+"Not saved yet" for text no file holds: a new document before its first save, or one detached
+after its file was deleted elsewhere (its next change, typed or on the way to the background,
+saves it as a new document). The Mac's "Autosaved" is not used: it is the Mac's flash for an autosave
+as against ⌘S, and every iPhone write is an autosave, so it would add nothing.
+
+The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, Document, Settings
+(`MenuSection`; raw values are identity, never localized). The section is kept in
+`@SceneStorage("menuSection")` and starts on Files.
+
+### Files
+
+`FilesSection` (with `FolderView` and `FilesStore`) is the iPhone's Files tree. It keeps the Mac's
+rules (files-sidebar.md) and adds iPhone ones:
+
+- **Top rows:** New Document, Open from Files…, the sort menu ("Sort folders by: %@", with Name,
+  Date Created and Date Modified from the package's `OutlineFileSortOrder.title`) and a Show
+  Hidden Folders toggle.
+- **Roots:** iCloud ("Lineform", `<container>/Documents`) when the container resolves and
+  `Lineform.settings.showICloudInSidebar` is on (followed live: turning it off drops the iCloud
+  list, so turning it on never shows a stale one). **On My iPhone**, the on-device save folder,
+  shows when iCloud does not resolve, because that is where new documents save then, and beside
+  iCloud whenever it holds documents (saved before iCloud came on). Debug never resolves iCloud.
+  Then the Workspace.
+- **Lazy:** nothing is looked up, scanned or watched until the section, or a search across files,
+  is on screen (`setVisible(_:for:)`, counted per client, so Search ending never hides Files;
+  `scanIfVisible`). Scans run off the main thread with `OutlineFileScanner` (placeholders included
+  under their real names, one row when the real file is there too; `.Trash` never, whatever Show
+  Hidden Folders says), latest wins.
+- **Re-scans:** a sort change and a Show Hidden Folders change both re-scan. One sort serves every
+  root, stored under both Mac keys (`Lineform.outline.sortOrder.icloud` and `.workspace`).
+- **Drill-down:** each level is one flat, lazy `List`; a folder pushes its own level onto a
+  `NavigationStack` with the system slide. Rows are an SF Symbol (`doc.text` / `folder`) and the
+  name, plus the date the list is ordered by under a date sort.
+- **Actions:** files swipe to Rename (an alert with a text field and the shared `FileRenaming`
+  rule) and Delete (a confirmation, Cancel as default, "It will be moved to the Trash."). A long
+  press offers the same, and Rename alone for a folder. Folders are never deleted. A rename of
+  the open document saves it first; when that save renamed the file from a new first line, the
+  rename moves the file where it is now.
+- **Coordinated:** rename and Trash go through `NSFileCoordinator` with `.forMoving` (rename also
+  announces `item(at:willMoveTo:)` / `didMoveTo`), on the main actor like OpenDocument's own
+  writes. The open document follows a rename (`OpenDocument.userRenamed(to:)`, which stops
+  automatic renaming) and lets go of a trashed file (`fileWasTrashed(at:)`); its presenter hears
+  both too. Trash is `FileManager.trashItem` only: a refusal shows "Couldn’t move “%@” to the
+  Trash." and the file stays. There is no `removeItem` path.
+- **Workspace:** chosen with `.fileImporter(allowedContentTypes: [.folder])`; a plain
+  `bookmarkData()` is kept under `Lineform.outline.workspaceBookmark` (per device). It is
+  re-resolved at launch and refreshed when stale; a bookmark that cannot be resolved or refreshed,
+  or a folder that is gone, shows "Workspace folder unavailable" with Change and Choose. The
+  security scope is held for the store's lifetime, and `FilesStore.shared` lives as long as the
+  app, so documents opened from the Workspace stay readable after the sheet closes. An empty
+  Workspace names the scanned folder ("Scanned folder: %@").
+- **Watching:** one `DocumentFolderMonitor` per visible root while Files is on screen. A folder
+  presenter hears coordinated changes in its subfolders too (`testSubfolderChangeRefreshes`), so
+  no per-subfolder monitor is needed.
+- **iCloud placeholders:** listed under their real names; tapping one opens it through
+  `OpenDocument`, which downloads it first. They have no Rename or Delete (the store throws
+  `.notDownloaded`) until they have downloaded; see files-sidebar.md. The whole tree is not kept downloaded (unlike the
+  Mac's `ensureDownloaded`): phone storage is the writer's.
+
+### Outline and Markdown Basics
+
+- **Outline** (`OutlineSection`, `OutlineModel`): the heading tree of the current text
+  (`MarkdownOutlineParser` and `MarkdownOutlineTree`), one row per heading, indented by its depth
+  in the tree. It is built at once when the section opens and rebuilt 0.3 s after the text
+  changes; each change restarts the wait. Tapping a heading dismisses the sheet first, then calls
+  `EditorCommands.scrollToCharacterRange`, which puts the heading at the top of the surface on
+  screen in the active mode (Write, Read, or both Preview panes) through `ModePositionKeeper`. It
+  does not move the selection. With no headings, the section shows the Mac's "Add # Title or
+  ## Section to build an outline."
+- **Markdown Basics** (`BasicsSection`): the package's `MarkdownReference` sections in a plain
+  `List`, with the Mac view's section headers and row layout (the syntax, monospaced for a code
+  row, over its explanation). Tapping a code row copies its `copyAffordance` text to
+  `UIPasteboard` and shows "Copied" on that row for 1 s. Label rows (Tab, Block Spacing, Spelling,
+  …) have no `copyAffordance`, so they are not buttons and copy nothing. VoiceOver reads one
+  element per row (`Row.accessibilityLabel()`).
+
+### Search
+
+`SearchSection` and `SearchController` (`@MainActor @Observable`). The field sits at the top, with
+the All / In document / Files filter under it. While the query is empty the section shows "Search
+this document and your files."; typing fades that out and the results in. The results, in order:
+this document's matches (snippet, "In document" on the right), file-name matches
+(`QuickOpenIndex`, the folder on the left and the file's name on the right), then matches inside
+other files (`CrossFileSearchModel`, snippet and the file's name). The Replace row (field,
+Replace, Replace All) shows for All and In document and acts on this document only. A quiet status
+line gives the count, "Searching…" or "No matches". Candidates come from `FilesStore`'s current
+roots; the first query that needs them makes the store visible and scans it (never at launch), and
+leaving the section stops it again. Tapping an in-document match dismisses the sheet and selects
+the match; tapping a file opens it and, for a content match, selects the first hit at or after the
+snippet's location in the opened text; that open's task holds the editor and the match, not the
+controller, so the match is selected after the sheet is gone. The controller is made once, when
+the section first appears (`@State`, never in `init`), and the fields write straight into it as
+the writer types, so Replace and Replace All always act on what the fields show. Leaving the
+section ends only Search's hold on the store (`setVisible(false, for: .search)`). Every Mac rule
+from search.md carries over; see the iPhone Search paragraph there.
+
+### Document
+
+`DocumentSection`, in order:
+
+- New Document and Open from Files…, as in Files.
+- Insert Table and Reformat Table, for Markdown only (the Mac shows its formatting commands for
+  Markdown only too). Each closes the sheet so the change is seen.
+- **Convert to Plain Text / Convert to Markdown.** The title follows `OpenDocument.textFormat`
+  (`DocumentSection.conversionTitle`, the Mac's strings). The state machine is the Mac's
+  `LineformDocument.convertMarkdownToPlainText` / `restoreConvertedMarkdown`, verbatim, in
+  `TextFormatConversion`, over the package's `MarkdownPlainTextConverter` (lines split on `\n`
+  only, never `CharacterSet.newlines`; fenced code and display math verbatim). The new text goes
+  through the editor (`applyReadEdit`), so a conversion is ONE undo step. Convert to Markdown
+  restores only while the converted text is unchanged; otherwise the document stays plain text
+  and forgets the conversion. A `.txt` file opens as plain text with nothing to restore, so the
+  row is off for it; New Document is Markdown. Every iPhone write is the text verbatim, so a
+  converted `.md` saves as its plain text. The command converts the whole document: a Write
+  selection is not on screen under the sheet. The sheet stays open, so the new title shows.
+- **Check Document Now** closes the sheet and runs `SpellCheckPass` once over the prose of the
+  whole document (`misspelledRangesInWholeDocument`), whether or not Check spelling while typing
+  is on, as the Mac's command does. Every misspelling is underlined, and the first one after the
+  selection (wrapping) is selected and brought to the top of the surface on screen. It is the
+  only whole-document spelling pass, and it is never scheduled. With Check spelling while typing
+  off, its underlines last until the next edit, which clears them.
+- Show Hidden Folders, the Files setting (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`).
+- Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
+  `LineformLinks`, which the Mac's Help menu also forwards to.
+- Export, Print, Share and Read aloud arrive with roadmap step 10, in the spot marked in the
+  source after Check Document Now. Save As waits for step 10 too. No placeholder rows.
+
+### Settings
+
+`SettingsSection` over `AppSettings` (an `ObservableObject`, `AppSettings.shared` on
+`UserDefaults.standard`). Each value is per device, under the Mac's `Lineform.settings.*` key
+(`LineformSettingKeys`), on by default, and loads through `Published(initialValue:)`. The notes
+are worded for iPhone: no iPhone string names a Mac or a sidebar
+(`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings` sweeps the catalog's English).
+
+- **Automatic Dark Mode** (`automaticDarkMode`). `DocumentScreen` draws with
+  `AppSettings.displayProfile`: the Mac's `ReadingProfile.displayProfile(automaticDarkMode:systemIsDark:)`,
+  with "dark" read from the trait collection's `userInterfaceStyle` (SwiftUI's `colorScheme`). In
+  Dark appearance a light theme draws as Quiet; Quiet and Night keep their own. The page, Read,
+  the Menu button and the sheet re-render when the appearance changes. The stored profile keeps
+  the writer's theme.
+- **Show iCloud in Files** (`showICloudInSidebar`, the Mac's key): the Files root for Lineform's
+  iCloud folder. New documents still save there.
+- **Check spelling while typing** (`checksSpellingWhileTyping`): `MarkdownEditor` hands it to
+  `LineformTextView.checksSpellingWhileTyping`. Off, no typing pass is scheduled or run and the
+  underlines clear; on, a pass is scheduled.
+- **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
+  Announcements reach the iPhone in roadmap step 12; until then the switch only keeps the choice.
+
+Connect Your AI, Clear History and Check for Updates arrive with steps 8, 9 and 12.
+
+### Markdown Basics on iPhone
+
+`MarkdownReference` has iPhone wording behind `#if os(iOS)`, in all six languages: "Tap it in
+Read to toggle" for a done task (the Mac says Click), the heading shortcuts marked "with a
+keyboard", the table row pointing at Document (the Mac names ⌃⌘T and ⌃⌘R), and the Search row as
+"Tap" (the iPhone's search field has no Return-to-next). The Mac's text is unchanged
+(`MarkdownReferenceSectionsTests.testIPhoneWordingSpeaksToTouch` pins both).
+
+### Editor commands
+
+Sections act on the editor only through `EditorCommands`, which the screen implements over the
+live editor (`LiveEditorCommands`): top-aligned scrolling through `ModePositionKeeper` in the
+current mode, selection, Insert and Reformat Table, Check Document Now, and `replace` /
+`replaceAll`, each ONE undo step through `applyRuleEdit`. `replaceAll` rewrites one span from the first range to the last and
+copies the text between the ranges through unchanged, so line endings survive.
+`DocumentScreen.bottomChromeClearance` uses the tallest bottom-right button: Menu and Aa are
+both 44 pt (the link button is 38), and they share one row (`bottomChromeSpacing`, 12 pt).
 
 ## Strings
 

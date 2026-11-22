@@ -74,6 +74,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AnnouncementFetcher.swift|Accept": "HTTP request header field name.",
         "AppUpdateCheck.swift|Accept": "HTTP request header field name.",
         "OutlineSidebarView.swift|Lineform": "The app name — never translated (plan Global Constraints).",
+        "FilesStore.swift|Lineform": "The iPhone Files section's iCloud root: the app name, as on the Mac — never translated.",
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "DocumentFolderResolver.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "BundledFontRegistrar.swift|Fonts": "Bundle subdirectory name.",
@@ -165,6 +166,11 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Background-task debug name passed to beginBackgroundTask(withName:); only system diagnostics show it.",
         "OpenDocument.swift|Autosave could not write %@: %@": "os_log diagnostic (Logger.error), never drawn.",
         "OpenDocument.swift|Autosave could not rename %@: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|The Workspace bookmark no longer resolves": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|The stale Workspace bookmark could not be refreshed": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|Could not make a bookmark for the chosen Workspace": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|Rename failed: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|Trash failed: %@": "os_log diagnostic (Logger.error), never drawn.",
         "OpenDocument.swift|Trash":
             "A folder name matched in a file path (isTrashLocation), never drawn.",
     ]

@@ -76,12 +76,7 @@ struct OutlineFileTreeFlatRow: Identifiable {
 }
 
 struct OutlineSidebarView: View {
-    struct OutlineNode: Identifiable, Equatable {
-        var item: MarkdownOutlineItem
-        var children: [OutlineNode]
-
-        var id: String { item.id }
-    }
+    typealias OutlineNode = MarkdownOutlineTree.Node
 
     static let emptyStateInstruction = String(localized: "Add # Title or ## Section to build an outline.")
     /// Matches the Markdown Basics section header exactly: size 12 medium, inactive-tab grey,
@@ -277,7 +272,7 @@ struct OutlineSidebarView: View {
     @StateObject private var fileBrowserStore: OutlineFileBrowserStore
 
     static func showsTitle(for items: [MarkdownOutlineItem]) -> Bool {
-        false
+        MarkdownOutlineTree.showsTitle(for: items)
     }
 
     static func iconName(forHeadingLevel level: Int) -> String {
@@ -314,39 +309,7 @@ struct OutlineSidebarView: View {
     }
 
     static func outlineTree(from items: [MarkdownOutlineItem]) -> [OutlineNode] {
-        final class MutableNode {
-            var item: MarkdownOutlineItem
-            var children: [MutableNode] = []
-
-            init(item: MarkdownOutlineItem) {
-                self.item = item
-            }
-        }
-
-        var roots: [MutableNode] = []
-        var stack: [MutableNode] = []
-
-        for item in items {
-            let node = MutableNode(item: item)
-
-            while let parent = stack.last, parent.item.level >= item.level {
-                stack.removeLast()
-            }
-
-            if let parent = stack.last {
-                parent.children.append(node)
-            } else {
-                roots.append(node)
-            }
-
-            stack.append(node)
-        }
-
-        func immutableNode(from node: MutableNode) -> OutlineNode {
-            OutlineNode(item: node.item, children: node.children.map(immutableNode))
-        }
-
-        return roots.map(immutableNode)
+        MarkdownOutlineTree.tree(from: items)
     }
 
     var items: [MarkdownOutlineItem]
@@ -1092,14 +1055,14 @@ final class OutlineFileBrowserStore: ObservableObject {
     // unavailable — which keeps local/CI build churn from ever touching (and
     // letting macOS purge) the real users' production container.
     static let iCloudContainerIdentifier = "iCloud.com.lineform.app"
-    static let iCloudSnapshotDefaultsKey = "Lineform.outline.iCloudSnapshot"
-    static let workspaceBookmarkDefaultsKey = "Lineform.outline.workspaceBookmark"
-    static let workspaceSnapshotDefaultsKey = "Lineform.outline.workspaceSnapshot"
-    static let showsHiddenFoldersDefaultsKey = "Lineform.outline.showsHiddenFolders"
-    static let iCloudSortOrderDefaultsKey = "Lineform.outline.sortOrder.icloud"
-    static let workspaceSortOrderDefaultsKey = "Lineform.outline.sortOrder.workspace"
-    static let lastKnownICloudAvailableDefaultsKey = "Lineform.outline.lastKnownICloudAvailable"
-    static let maximumTreeDepth = 4
+    static let iCloudSnapshotDefaultsKey = LineformSettingKeys.iCloudSnapshot
+    static let workspaceBookmarkDefaultsKey = LineformSettingKeys.workspaceBookmark
+    static let workspaceSnapshotDefaultsKey = LineformSettingKeys.workspaceSnapshot
+    static let showsHiddenFoldersDefaultsKey = LineformSettingKeys.showsHiddenFolders
+    static let iCloudSortOrderDefaultsKey = LineformSettingKeys.iCloudSortOrder
+    static let workspaceSortOrderDefaultsKey = LineformSettingKeys.workspaceSortOrder
+    static let lastKnownICloudAvailableDefaultsKey = LineformSettingKeys.lastKnownICloudAvailable
+    static let maximumTreeDepth = OutlineFileScanner.maximumTreeDepth
     /// Trailing debounce for FSEvents-driven rescans (Task 5). Autosave-while-typing writes
     /// fire the monitor; without a debounce each coalesced tick ran the recursive directory
     /// walk synchronously on the main thread ~every `DirectoryEventMonitor.coalescingLatency`
@@ -1108,10 +1071,10 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// longer debounce is guaranteed to keep resetting (never fire) until the churn stops —
     /// converting the mid-typing hitch into a single settle-after-pause rescan.
     static let directoryRescanDebounceInterval: TimeInterval = 0.75
-    static let supportedFileExtensions: Set<String> = ["md", "markdown", "txt"]
+    static let supportedFileExtensions = OutlineFileScanner.supportedFileExtensions
     /// Directory names always hidden from the tree, even with "Show hidden folders" on —
     /// build/vcs noise that is never useful reading material.
-    static let excludedDirectoryNames: Set<String> = ["node_modules", ".git"]
+    static let excludedDirectoryNames = OutlineFileScanner.excludedDirectoryNames
     static let workspacePickerTitle = String(localized: "Choose a Lineform Workspace")
     static let workspacePickerMessage = String(localized: "Select the folder you want to show in Lineform's Files sidebar. Your files stay where they are.")
     static let workspacePickerPrompt = String(localized: "Choose")
@@ -1883,101 +1846,17 @@ final class OutlineFileBrowserStore: ObservableObject {
     /// child-folder level, matching the document-only sidebar definition without
     /// walking a whole large iCloud tree. Read-only; never writes.
     static func documentsFolderIsEmpty(at url: URL, fileManager: FileManager) -> Bool {
-        items(
-            in: url,
-            fileManager: fileManager,
-            depth: maximumTreeDepth - 2,
-            showsHiddenFolders: true
-        ).isEmpty
+        OutlineFileScanner.documentsFolderIsEmpty(at: url, fileManager: fileManager)
     }
 
+    /// The scan itself lives in the package (`OutlineFileScanner`), shared with the iPhone.
     private static func items(
         in url: URL,
         fileManager: FileManager,
-        depth: Int = 0,
         showsHiddenFolders: Bool,
-        inheritedHidden: Bool = false,
         sortOrder: OutlineFileSortOrder = .name
     ) -> [OutlineFileTreeItem] {
-        guard depth < maximumTreeDepth else {
-            return []
-        }
-
-        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isHiddenKey, .creationDateKey, .contentModificationDateKey]
-        let options: FileManager.DirectoryEnumerationOptions = showsHiddenFolders ? [] : [.skipsHiddenFiles]
-        let urls = (try? fileManager.contentsOfDirectory(
-            at: url,
-            includingPropertiesForKeys: Array(resourceKeys),
-            options: options
-        )) ?? []
-
-        // Resolve and sort each child's shallow attributes first (children left empty — no
-        // recursion yet). Empty directories are removed before the tree is published, so they
-        // cannot obscure document-bearing folders.
-        // A directory is kept only when its scanned subtree contains a supported document;
-        // folders that contain only images, build artifacts, or nothing are not useful in a
-        // document-only browser.
-        let candidates = urls.compactMap { childURL -> OutlineFileTreeItem? in
-            guard let values = try? childURL.resourceValues(forKeys: resourceKeys) else {
-                return nil
-            }
-
-            let name = childURL.lastPathComponent
-            let isDirectory = values.isDirectory == true
-
-            // Always exclude build/vcs noise directories, regardless of the toggle.
-            if isDirectory, excludedDirectoryNames.contains(name) {
-                return nil
-            }
-
-            // With hidden folders shown, .skipsHiddenFiles is dropped — so also drop genuinely
-            // OS-hidden items that are NOT dot-prefixed (system junk), while keeping dotfiles.
-            let isDotPrefixed = name.hasPrefix(".")
-            if showsHiddenFolders, values.isHidden == true, !isDotPrefixed {
-                return nil
-            }
-
-            let isSupportedFile = values.isRegularFile == true
-                && supportedFileExtensions.contains(childURL.pathExtension.lowercased())
-
-            guard isDirectory || isSupportedFile else {
-                return nil
-            }
-
-            return OutlineFileTreeItem(
-                url: childURL,
-                name: name,
-                isDirectory: isDirectory,
-                children: [],
-                isHidden: inheritedHidden || isDotPrefixed,
-                createdAt: values.creationDate,
-                modifiedAt: values.contentModificationDate
-            )
-        }
-        .sorted { OutlineFileSortOrder.areInIncreasingOrder($0, $1, order: sortOrder) }
-
-        var visible: [OutlineFileTreeItem] = []
-        visible.reserveCapacity(candidates.count)
-        for item in candidates {
-            guard item.isDirectory else {
-                visible.append(item)
-                continue
-            }
-
-            var populated = item
-            populated.children = items(
-                in: item.url,
-                fileManager: fileManager,
-                depth: depth + 1,
-                showsHiddenFolders: showsHiddenFolders,
-                inheritedHidden: item.isHidden,
-                sortOrder: sortOrder
-            )
-            if !populated.children.isEmpty {
-                visible.append(populated)
-            }
-        }
-        return visible
+        OutlineFileScanner.items(in: url, showsHidden: showsHiddenFolders, sortOrder: sortOrder, fileManager: fileManager)
     }
 }
 

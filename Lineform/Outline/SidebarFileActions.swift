@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import LineformCore
 
 /// File-system side of the sidebar's Rename/Delete actions, behind a protocol so unit
 /// tests can observe calls without touching the real Trash. Delete is trash-only by
@@ -15,34 +16,14 @@ extension FileManager: SidebarFileManaging {
     }
 }
 
+/// The rule itself lives in the package (`FileRenaming`), shared with the iPhone.
 enum SidebarFileRenaming {
-    /// What the rename dialog's text field shows: files without their extension
-    /// (the extension is preserved automatically), folders as their whole name.
     static func displayName(for url: URL, isDirectory: Bool) -> String {
-        isDirectory ? url.lastPathComponent : url.deletingPathExtension().lastPathComponent
+        FileRenaming.displayName(for: url, isDirectory: isDirectory)
     }
 
-    /// The rename target for a user-entered name, or nil when the name is empty,
-    /// unchanged, contains a path separator ("/" or the legacy ":"), or is the reserved
-    /// relative component "." / ".." (which for a folder — no extension appended — would
-    /// resolve the destination to the parent directory, turning a rename into a move that
-    /// the file system rejects with a confusing raw error).
     static func validatedDestination(for url: URL, isDirectory: Bool, newDisplayName: String) -> URL? {
-        let trimmed = newDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.contains("/"), !trimmed.contains(":"),
-              trimmed != ".", trimmed != ".." else {
-            return nil
-        }
-
-        let ext = isDirectory ? "" : url.pathExtension
-        let newName = ext.isEmpty ? trimmed : "\(trimmed).\(ext)"
-        guard newName != url.lastPathComponent else {
-            return nil
-        }
-
-        return url
-            .deletingLastPathComponent()
-            .appendingPathComponent(newName, isDirectory: isDirectory)
+        FileRenaming.validatedDestination(for: url, isDirectory: isDirectory, newDisplayName: newDisplayName)
     }
 }
 

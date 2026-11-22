@@ -32,7 +32,8 @@ protocol ReadEditApplying: AnyObject {
 /// When the open file is deleted elsewhere (Files, another device), or moved into a Trash folder,
 /// the text stays on screen but the document lets go of that path: it becomes a new document
 /// again, so the next change saves it under a new name from its first line, and nothing writes
-/// the deleted file back.
+/// the deleted file back. A rename or Trash from the Files section (`FilesStore`) reaches the same
+/// rules at once, through `userRenamed(to:)` and `fileWasTrashed(at:)`.
 ///
 /// Text is never thrown away to make room for something else. Opening a file or starting a new
 /// document first saves the current one; if that save fails, the current document stays and the
@@ -56,6 +57,15 @@ final class OpenDocument: ImageInsertionHost {
     private(set) var text = ""
     /// The text as of the last moment memory equalled disk: open, our own save, or a reload.
     private(set) var lastSyncedText = ""
+    /// Markdown, or plain text: a `.txt` file opens as plain text, and Convert to Plain Text turns
+    /// a Markdown document into it (`convertToPlainText`). New documents are Markdown.
+    private(set) var textFormat: LineformTextFormat = .markdown
+    /// What Convert to Plain Text replaced, so Convert to Markdown can put it back. Nil for a
+    /// `.txt` opened from disk: there is nothing to restore.
+    private(set) var plainTextConversion: MarkdownPlainTextConversion?
+    /// True for a document whose flavour can change now: Markdown converts, and a conversion is
+    /// restored. A `.txt` opened from disk has nothing to restore, so the Menu's row is off.
+    var canConvertTextFormat: Bool { textFormat == .markdown || plainTextConversion != nil }
     /// True while the file name follows the document's first line. A new document starts named
     /// from its first line; an opened file never is.
     var isNamedFromFirstLine: Bool { planner.isNamedFromFirstLine }
@@ -329,6 +339,8 @@ final class OpenDocument: ImageInsertionHost {
         self.url = url
         text = diskText
         setLastSyncedText(diskText)
+        textFormat = Self.textFormat(for: url)
+        plainTextConversion = nil
         planner = AutosavePlanner(existingFileName: url.lastPathComponent, isNamedFromFirstLine: false)
         startWatching(url)
         if startsDownloadAfterWatching {
@@ -364,8 +376,16 @@ final class OpenDocument: ImageInsertionHost {
         url = nil
         text = ""
         setLastSyncedText("")
+        textFormat = .markdown
+        plainTextConversion = nil
         planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
         downloadingName = nil
+    }
+
+    /// A `.txt` file is plain text, as the Mac's `.plainText` content type is; anything else opens
+    /// as Markdown.
+    nonisolated static func textFormat(for url: URL) -> LineformTextFormat {
+        url.pathExtension.lowercased() == "txt" ? .plainText : .markdown
     }
 
     /// The file a URL stands for: an iCloud placeholder `.Name.md.icloud` stands for `Name.md`
@@ -373,7 +393,7 @@ final class OpenDocument: ImageInsertionHost {
     nonisolated static func realURL(for url: URL) -> URL {
         let entry = url.lastPathComponent
         guard entry.hasPrefix("."), entry.hasSuffix(".icloud"),
-              let name = FileListModel.displayName(of: entry)
+              let name = OutlineFileScanner.realName(ofEntry: entry)
         else { return url }
         return url.deletingLastPathComponent().appendingPathComponent(name)
     }
@@ -406,6 +426,39 @@ final class OpenDocument: ImageInsertionHost {
     /// The folder relative image links resolve against: the open file's. Nil for a document that
     /// has no file yet.
     var documentDirectory: URL? { url?.deletingLastPathComponent() }
+
+    // MARK: - Text format
+
+    /// Convert to Plain Text: the Mac's `LineformDocument.convertMarkdownToPlainText`, through
+    /// `TextFormatConversion`. The new text goes through the editor as one edit with one undo
+    /// step (as a Read edit does). Returns the converted range, or nil when nothing changed. A
+    /// document that is plain text already returns its conversion's range and changes nothing.
+    @discardableResult
+    func convertToPlainText(selectedRange: NSRange? = nil) -> NSRange? {
+        var conversion = TextFormatConversion(text: text, textFormat: textFormat, plainTextConversion: plainTextConversion)
+        let range = conversion.convertMarkdownToPlainText(selectedRange: selectedRange)
+        return adopt(conversion) ? range : nil
+    }
+
+    /// Convert to Markdown: the Mac's `LineformDocument.restoreConvertedMarkdown`. It puts the
+    /// Markdown back only while the converted text is still unchanged; otherwise the document
+    /// stays plain text and forgets the conversion (a `.txt` opened from disk never flips to
+    /// Markdown). Returns the restored range, or nil.
+    @discardableResult
+    func restoreMarkdown() -> NSRange? {
+        var conversion = TextFormatConversion(text: text, textFormat: textFormat, plainTextConversion: plainTextConversion)
+        let range = conversion.restoreConvertedMarkdown()
+        return adopt(conversion) ? range : nil
+    }
+
+    /// Takes a conversion's result: its text first (refused while an input method is composing,
+    /// and then nothing changes), then its format and stored conversion.
+    private func adopt(_ conversion: TextFormatConversion) -> Bool {
+        if conversion.text != text, !applyReadEdit(conversion.text) { return false }
+        textFormat = conversion.textFormat
+        plainTextConversion = conversion.plainTextConversion
+        return true
+    }
 
     // MARK: - Edits from Read
 
@@ -708,6 +761,31 @@ final class OpenDocument: ImageInsertionHost {
         startWatching(newURL)
     }
 
+    /// The writer renamed the open file in Files (or the folder holding it), and `FilesStore`
+    /// moved it to `newURL` through a coordinated move. The document follows it at once, before
+    /// any autosave can run, and its name never follows the first line again: the writer chose
+    /// it. The presenter also hears the move; whichever arrives second finds nothing to do.
+    func userRenamed(to newURL: URL) {
+        guard let url else { return }
+        if url.standardizedFileURL != newURL.standardizedFileURL {
+            stopWatching()
+            self.url = newURL
+            planner.fileWasRenamed(to: newURL.lastPathComponent)
+            startWatching(newURL)
+        } else {
+            planner.markRenamedByUser()
+        }
+    }
+
+    /// `FilesStore` moved `trashedURL` to the Trash. When it is the open file, the document lets
+    /// go of it at once, by the same rule as a delete elsewhere: the text stays on screen and is
+    /// never written back to that path.
+    func fileWasTrashed(at trashedURL: URL) {
+        guard let url, url.standardizedFileURL.resolvingSymlinksInPath() == trashedURL.standardizedFileURL.resolvingSymlinksInPath()
+        else { return }
+        detachFromDeletedFile()
+    }
+
     /// The file was deleted by someone else. Keep the text on screen, but never write to that path
     /// again: the document becomes new, and nothing is saved until the text changes, when it gets
     /// a file named from its first line.
@@ -807,7 +885,7 @@ final class OpenDocument: ImageInsertionHost {
     /// The file names in `folder`, with an iCloud placeholder counted under its real name.
     private static func existingNames(in folder: URL) -> Set<String> {
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        return Set(entries.compactMap(FileListModel.displayName(of:)))
+        return Set(entries.compactMap(OutlineFileScanner.realName(ofEntry:)))
     }
 }
 
@@ -900,5 +978,73 @@ struct LiveUbiquitousItems: UbiquitousItemAccessing {
     func startDownloading(_ url: URL) throws {
         let downloader: any UbiquitousItemDownloader = FileManager.default
         try downloader.startDownloadingUbiquitousItem(at: url)
+    }
+}
+
+/// The Mac's Convert to Plain Text / Convert to Markdown state machine, verbatim from
+/// `LineformDocument.convertMarkdownToPlainText` and `restoreConvertedMarkdown`
+/// (`Lineform/Documents/LineformDocument.swift`), over a copy of the document's state. The
+/// conversion itself is the package's `MarkdownPlainTextConverter`: it splits lines on "\n" only
+/// (never `CharacterSet.newlines`, so CRLF survives) and keeps code and display math verbatim.
+struct TextFormatConversion {
+    var text: String
+    var textFormat: LineformTextFormat
+    var plainTextConversion: MarkdownPlainTextConversion?
+
+    @discardableResult
+    mutating func convertMarkdownToPlainText(selectedRange: NSRange? = nil) -> NSRange? {
+        guard textFormat == .markdown else {
+            return plainTextConversion?.range
+        }
+
+        let nsText = text as NSString
+        let conversionRange: NSRange
+        if let selectedRange, selectedRange.length > 0 {
+            conversionRange = selectedRange
+        } else {
+            conversionRange = NSRange(location: 0, length: nsText.length)
+        }
+
+        guard conversionRange.length > 0, NSMaxRange(conversionRange) <= nsText.length else {
+            return nil
+        }
+
+        let originalMarkdown = nsText.substring(with: conversionRange)
+        let plainText = MarkdownPlainTextConverter.plainText(from: originalMarkdown)
+        let replacementRange = NSRange(location: conversionRange.location, length: (plainText as NSString).length)
+
+        guard let swiftRange = Range(conversionRange, in: text) else {
+            return nil
+        }
+
+        text.replaceSubrange(swiftRange, with: plainText)
+        plainTextConversion = MarkdownPlainTextConversion(
+            originalMarkdown: originalMarkdown,
+            plainText: plainText,
+            range: replacementRange
+        )
+        textFormat = .plainText
+        return replacementRange
+    }
+
+    @discardableResult
+    mutating func restoreConvertedMarkdown() -> NSRange? {
+        if
+            let conversion = plainTextConversion,
+            let edit = conversion.restoredMarkdown(in: text)
+        {
+            text = edit.text
+            plainTextConversion = nil
+            textFormat = .markdown
+            return edit.selectedRange
+        }
+
+        // Only a document that actually holds a conversion goes back to `.markdown`. A `.txt`
+        // file opened from disk has `textFormat == .plainText` and no conversion, and flipping it
+        // here made the next write take the lossy `plainTextData()` branch — running the Markdown
+        // stripper over the user's plain-text file and deleting its fenced-code lines, link URLs,
+        // and every leading marker.
+        plainTextConversion = nil
+        return nil
     }
 }

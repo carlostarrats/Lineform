@@ -89,15 +89,15 @@ public struct MarkdownReference {
     static func sections(in bundle: Bundle = .module) -> [Section] {
         [
         Section(id: "basics", title: String(localized: "Markdown Basics", bundle: bundle), rows: [
-            Row(syntax: "# Title", explanation: String(localized: "Top-level heading. ⌘1 sets it, ⌘0 clears it.", bundle: bundle)),
-            Row(syntax: "## Section", explanation: String(localized: "Smaller heading (more # = smaller). ⌘2 to ⌘6 set the level.", bundle: bundle)),
+            Row(syntax: "# Title", explanation: titleExplanation(in: bundle)),
+            Row(syntax: "## Section", explanation: sectionExplanation(in: bundle)),
             Row(syntax: "**bold**", explanation: String(localized: "Bold.", bundle: bundle)),
             Row(syntax: "_italic_", explanation: String(localized: "Italic. *asterisks* work too; underscores inside a word are left alone.", bundle: bundle)),
             Row(syntax: "- bullet", explanation: String(localized: "Bulleted list. Return starts the next; Return on an empty one ends it.", bundle: bundle)),
             Row(syntax: "1. item", explanation: String(localized: "Numbered list. Return keeps the count going.", bundle: bundle)),
             Row(syntax: "  - nested", explanation: String(localized: "Indent two spaces to nest a list item.", bundle: bundle)),
             Row(syntax: "- [ ] to do", explanation: String(localized: "Task, not done. Return starts the next one.", bundle: bundle)),
-            Row(syntax: "- [x] done", explanation: String(localized: "Task, done. Click to toggle.", bundle: bundle)),
+            Row(syntax: "- [x] done", explanation: doneTaskExplanation(in: bundle)),
             Row(syntax: "> quote", explanation: String(localized: "Blockquote. Return continues it.", bundle: bundle)),
             Row(syntax: "> [!NOTE]", explanation: String(localized: "Callout. Also TIP, IMPORTANT, WARNING, CAUTION. Add a title after the marker.", bundle: bundle)),
             Row(syntax: "~~text~~", explanation: String(localized: "Strikethrough.", bundle: bundle)),
@@ -106,7 +106,7 @@ public struct MarkdownReference {
             Row(syntax: "---", explanation: String(localized: "Divider. At the very top of a file, --- opens front matter instead.", bundle: bundle)),
             Row(syntax: "[text](url)", explanation: String(localized: "Link.", bundle: bundle)),
             Row(syntax: "![alt](url)", explanation: String(localized: "Image. Local files show in Read and Preview; web addresses stay a placeholder.", bundle: bundle)),
-            Row(syntax: "| a | b |", explanation: String(localized: "Header row, then |---|---|, then rows. Colons align. ⌃⌘T inserts, ⌃⌘R tidies.", bundle: bundle)),
+            Row(syntax: "| a | b |", explanation: tableExplanation(in: bundle)),
             // A keycap legend: a LABEL row, by the rule on `rendersSyntaxAsCode` below. It stays
             // "Tab" in every language, but routes through the catalog anyway, because a language
             // that DOES relabel the key has nowhere else to say so. `Return` is the other one.
@@ -137,11 +137,60 @@ public struct MarkdownReference {
                 rendersSyntaxAsCode: false),
         ]),
         Section(id: "search", title: String(localized: "Search", bundle: bundle), rows: [
-            Row(identifier: "return", syntax: String(localized: "Return", bundle: bundle),
-                explanation: String(localized: "While searching, jumps to the next match; wraps around.", bundle: bundle),
-                rendersSyntaxAsCode: false),
+            searchRow(in: bundle),
         ]),
         ]
+    }
+
+    // MARK: - Platform wording
+
+    // The Mac's sentences are unchanged. The iPhone's say "Tap" where the Mac says "Click", name
+    // the Menu's Document section where the Mac names ⌃⌘T and ⌃⌘R, mark the heading keys as
+    // keyboard shortcuts, and describe Search by a tap (its field has no next-match Return).
+
+    private static func titleExplanation(in bundle: Bundle) -> String {
+        #if os(iOS)
+        String(localized: "Top-level heading. ⌘1 sets it, ⌘0 clears it, with a keyboard.", bundle: bundle)
+        #else
+        String(localized: "Top-level heading. ⌘1 sets it, ⌘0 clears it.", bundle: bundle)
+        #endif
+    }
+
+    private static func sectionExplanation(in bundle: Bundle) -> String {
+        #if os(iOS)
+        String(localized: "Smaller heading (more # = smaller). ⌘2 to ⌘6 with a keyboard.", bundle: bundle)
+        #else
+        String(localized: "Smaller heading (more # = smaller). ⌘2 to ⌘6 set the level.", bundle: bundle)
+        #endif
+    }
+
+    private static func doneTaskExplanation(in bundle: Bundle) -> String {
+        #if os(iOS)
+        String(localized: "Task, done. Tap it in Read to toggle.", bundle: bundle)
+        #else
+        String(localized: "Task, done. Click to toggle.", bundle: bundle)
+        #endif
+    }
+
+    private static func tableExplanation(in bundle: Bundle) -> String {
+        #if os(iOS)
+        String(localized: "Header row, then |---|---|, then rows. Colons align. Insert and tidy in Document.", bundle: bundle)
+        #else
+        String(localized: "Header row, then |---|---|, then rows. Colons align. ⌃⌘T inserts, ⌃⌘R tidies.", bundle: bundle)
+        #endif
+    }
+
+    /// The Search section's one row: a label row, identity `return` on both platforms.
+    private static func searchRow(in bundle: Bundle) -> Row {
+        #if os(iOS)
+        Row(identifier: "return", syntax: String(localized: "Tap", bundle: bundle),
+            explanation: String(localized: "In Search, tap a match to go to it.", bundle: bundle),
+            rendersSyntaxAsCode: false)
+        #else
+        Row(identifier: "return", syntax: String(localized: "Return", bundle: bundle),
+            explanation: String(localized: "While searching, jumps to the next match; wraps around.", bundle: bundle),
+            rendersSyntaxAsCode: false)
+        #endif
     }
 
     /// Every existing reader keeps working, so this refactor is not a churn event.

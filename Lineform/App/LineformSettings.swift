@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -10,12 +11,12 @@ import UniformTypeIdentifiers
 final class LineformSettingsStore: ObservableObject {
     static let shared = LineformSettingsStore()
 
-    static let showSidebarOnLaunchKey = "Lineform.settings.showSidebarOnLaunch"
-    static let allowRootFolderCollapseKey = "Lineform.settings.allowRootFolderCollapse"
-    static let showICloudInSidebarKey = "Lineform.settings.showICloudInSidebar"
-    static let checksSpellingWhileTypingKey = "Lineform.settings.checksSpellingWhileTyping"
-    static let checksForAnnouncementsKey = "Lineform.settings.checksForAnnouncements"
-    static let automaticDarkModeKey = "Lineform.settings.automaticDarkMode"
+    static let showSidebarOnLaunchKey = LineformSettingKeys.showSidebarOnLaunch
+    static let allowRootFolderCollapseKey = LineformSettingKeys.allowRootFolderCollapse
+    static let showICloudInSidebarKey = LineformSettingKeys.showICloudInSidebar
+    static let checksSpellingWhileTypingKey = LineformSettingKeys.checksSpellingWhileTyping
+    static let checksForAnnouncementsKey = LineformSettingKeys.checksForAnnouncements
+    static let automaticDarkModeKey = LineformSettingKeys.automaticDarkMode
 
     @Published var showSidebarOnLaunch: Bool {
         didSet {
@@ -102,16 +103,16 @@ final class LineformSettingsStore: ObservableObject {
         // explicit fallback. Assign backing storage directly (didSet fires on
         // init assignments — see OutlineFileBrowserStore.init).
         func boolOrDefault(_ key: String, _ fallback: Bool) -> Bool {
-            defaults.object(forKey: key) as? Bool ?? fallback
+            LineformSettingKeys.bool(key, default: fallback, in: defaults)
         }
-        _showSidebarOnLaunch = Published(initialValue: boolOrDefault(Self.showSidebarOnLaunchKey, true))
+        _showSidebarOnLaunch = Published(initialValue: boolOrDefault(Self.showSidebarOnLaunchKey, LineformSettingKeys.Defaults.showSidebarOnLaunch))
         // Tri-state: absent key = the user never chose (nil), so the effective
         // behavior can adapt to root visibility.
         _allowRootFolderCollapseChoice = Published(initialValue: defaults.object(forKey: Self.allowRootFolderCollapseKey) as? Bool)
-        _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, true))
-        _checksSpellingWhileTyping = Published(initialValue: boolOrDefault(Self.checksSpellingWhileTypingKey, true))
-        _checksForAnnouncements = Published(initialValue: boolOrDefault(Self.checksForAnnouncementsKey, true))
-        _automaticDarkMode = Published(initialValue: boolOrDefault(Self.automaticDarkModeKey, true))
+        _showICloudInSidebar = Published(initialValue: boolOrDefault(Self.showICloudInSidebarKey, LineformSettingKeys.Defaults.showICloudInSidebar))
+        _checksSpellingWhileTyping = Published(initialValue: boolOrDefault(Self.checksSpellingWhileTypingKey, LineformSettingKeys.Defaults.checksSpellingWhileTyping))
+        _checksForAnnouncements = Published(initialValue: boolOrDefault(Self.checksForAnnouncementsKey, LineformSettingKeys.Defaults.checksForAnnouncements))
+        _automaticDarkMode = Published(initialValue: boolOrDefault(Self.automaticDarkModeKey, LineformSettingKeys.Defaults.automaticDarkMode))
     }
 }
 

@@ -16,9 +16,9 @@ enum EditorStatusFormatter {
     }
 
     static let updatedIndicatorText = String(localized: "Updated")
-    static let unsavedChangesText = String(localized: "Unsaved changes")
-    static let savedIndicatorText = String(localized: "Saved")
-    static let autosavedIndicatorText = String(localized: "Autosaved")
+    static let unsavedChangesText = DocumentStatusText.unsavedChanges
+    static let savedIndicatorText = DocumentStatusText.saved
+    static let autosavedIndicatorText = DocumentStatusText.autosaved
 
     struct MetadataSegments: Equatable {
         /// The unsaved-state label ("Not saved yet") when the document has never been
@@ -28,18 +28,13 @@ enum EditorStatusFormatter {
         var neutralText: String
     }
 
+    /// The count wording is shared with the iPhone (`DocumentStatusText`).
     static func statisticsText(for statistics: DocumentStatistics) -> String {
-        if statistics.isPredominantlyCJK {
-            return String(localized: "\(statistics.characterCount) characters")
-        }
-        return String(localized: "\(statistics.wordCount) words — \(statistics.characterCount) characters")
+        DocumentStatusText.counts(statistics)
     }
 
     static func statusAccessibilityText(for statistics: DocumentStatistics) -> String {
-        if statistics.isPredominantlyCJK {
-            return String(localized: "Document contains \(statistics.characterCount) characters")
-        }
-        return String(localized: "Document contains \(statistics.wordCount) words and \(statistics.characterCount) characters")
+        DocumentStatusText.countsAccessibilityText(statistics)
     }
 
     static func metadataSegments(lastSavedDisplay: LastSavedDisplay, statisticsText: String) -> MetadataSegments {
