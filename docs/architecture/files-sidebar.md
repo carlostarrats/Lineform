@@ -35,7 +35,9 @@ and the scan stays lazy) remain there under Load-Bearing Invariants.
 
 ## Toggle, watcher, and sort (audited 2026-07-27)
 
-**The Files tree is document-only, including its folders.** `items(in:)` admits only supported
+**The Files tree is document-only, including its folders.** `items(in:)` (since the iPhone Menu
+work, `OutlineFileScanner.items(in:showsHidden:sortOrder:fileManager:)` in LineformCore, shared
+with the iPhone; the store keeps a private forwarder) admits only supported
 documents (`.md`, `.markdown`, `.txt`) and directories while scanning, then drops a directory
 whose bounded scanned subtree is empty. This keeps image-only and empty folders out of the sidebar
 while preserving the flat, lazy renderer. There is no arbitrary per-folder item cap; the lazy

@@ -18,43 +18,6 @@ final class SidebarFileActionsTests: XCTestCase {
         }
     }
 
-    func testDisplayNameStripsExtensionForFilesButNotFolders() {
-        XCTAssertEqual(SidebarFileRenaming.displayName(for: URL(fileURLWithPath: "/tmp/Notes.md"), isDirectory: false), "Notes")
-        XCTAssertEqual(SidebarFileRenaming.displayName(for: URL(fileURLWithPath: "/tmp/Archive.old", isDirectory: true), isDirectory: true), "Archive.old")
-    }
-
-    func testValidatedDestinationPreservesExtensionAndDirectory() {
-        let url = URL(fileURLWithPath: "/tmp/Docs/Notes.md")
-        let destination = SidebarFileRenaming.validatedDestination(for: url, isDirectory: false, newDisplayName: "Journal")
-        XCTAssertEqual(destination?.path, "/tmp/Docs/Journal.md")
-    }
-
-    func testValidatedDestinationForFolderKeepsWholeName() {
-        let url = URL(fileURLWithPath: "/tmp/Docs/Old", isDirectory: true)
-        let destination = SidebarFileRenaming.validatedDestination(for: url, isDirectory: true, newDisplayName: "New Name")
-        XCTAssertEqual(destination?.path, "/tmp/Docs/New Name")
-    }
-
-    func testValidatedDestinationRejectsEmptySlashColonAndUnchangedNames() {
-        let url = URL(fileURLWithPath: "/tmp/Notes.md")
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: url, isDirectory: false, newDisplayName: "  "))
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: url, isDirectory: false, newDisplayName: "a/b"))
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: url, isDirectory: false, newDisplayName: "a:b"))
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: url, isDirectory: false, newDisplayName: "Notes"))
-    }
-
-    // "." / ".." would, for a folder (no extension appended), resolve the destination to the
-    // parent directory — a move disguised as a rename, which the file system rejects with a
-    // confusing raw error. They must be treated as invalid names, not attempted.
-    func testValidatedDestinationRejectsDotAndDotDot() {
-        let folder = URL(fileURLWithPath: "/tmp/Journal", isDirectory: true)
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: folder, isDirectory: true, newDisplayName: "."))
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: folder, isDirectory: true, newDisplayName: ".."))
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: folder, isDirectory: true, newDisplayName: "  ..  "))
-        let file = URL(fileURLWithPath: "/tmp/Notes.md")
-        XCTAssertNil(SidebarFileRenaming.validatedDestination(for: file, isDirectory: false, newDisplayName: ".."))
-    }
-
     func testRenameMovesFileOnDisk() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("LineformTests-\(UUID().uuidString)", isDirectory: true)

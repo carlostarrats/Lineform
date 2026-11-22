@@ -253,7 +253,11 @@ clients and Keychain (`AI/`), announcements and the update check (`App/`). Its t
 `Packages/LineformCore/Tests/LineformCoreTests`. The editor logic both apps share is in the package too:
 token scoping (`MarkdownTokenScope`), token styling (`MarkdownTokenStyler`, in `Markdown/Rendering/`
 because it writes to `NSTextStorage`), `MarkdownSpellCheckRegions`, `MarkdownStructureMap`,
-`EditorReadingLayout`, `TypewriterScroll` and `ImageFileNaming`. The iPhone editor also calls the
+`EditorReadingLayout`, `TypewriterScroll` and `ImageFileNaming`. The Files pieces both apps use are package code too: the tree scan
+(`OutlineFileScanner`), the rename rule (`FileRenaming`), the outline tree (`MarkdownOutlineTree`),
+the persisted key names and defaults (`LineformSettingKeys`) and the save-state and count wording
+(`DocumentStatusText`); the Mac keeps `items(in:)`, `SidebarFileRenaming`, `outlineTree(from:)`,
+the `…Key` constants and `EditorStatusFormatter` as forwarders. The iPhone editor also calls the
 package editing commands both apps already shared (`MarkdownListContinuation`,
 `MarkdownTableEditing`, `MarkdownHeadingEditing`, `MarkdownFormattingCommand`,
 `MarkdownWritingToolsProtection`, `ImageInsertionText`, `ImageLinkRewrite.markdownDestination`),
