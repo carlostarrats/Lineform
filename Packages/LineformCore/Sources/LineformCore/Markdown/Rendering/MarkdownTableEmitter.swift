@@ -8,7 +8,7 @@ import UIKit
 extension NSAttributedString.Key {
     /// iOS only: on every run of a rendered table row; value is the row's index (`NSNumber`,
     /// header = 0), so the iPhone Read view can draw the grid behind the tab-aligned rows.
-    static let markdownTableRow = NSAttributedString.Key("lineform.markdownTableRow")
+    public static let markdownTableRow = NSAttributedString.Key("lineform.markdownTableRow")
 }
 
 /// Emits a parsed GFM table as live, selectable, theme-colored text.

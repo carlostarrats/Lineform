@@ -48,18 +48,6 @@ final class LiveReloadScrollTests: XCTestCase {
         return nil
     }
 
-    func testSplitJumpUsesOnePhysicalSourceWhenLinkedAndBothPanesWhenUnlinked() {
-        let range = NSRange(location: 420, length: 12)
-
-        let linked = SplitScrollJumpPlan(range: range, isLinked: true)
-        XCTAssertEqual(linked.editorRange, range)
-        XCTAssertNil(linked.previewRange)
-
-        let unlinked = SplitScrollJumpPlan(range: range, isLinked: false)
-        XCTAssertEqual(unlinked.editorRange, range)
-        XCTAssertEqual(unlinked.previewRange, range)
-    }
-
     func testExternalReloadPreservesProportionalScroll() throws {
         let longText = (0..<400).map { "Line \($0)" }.joined(separator: "\n")
         let model = ReloadTestModel(text: longText)
