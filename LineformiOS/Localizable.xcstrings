@@ -784,6 +784,40 @@
         }
       }
     },
+    "Lineform couldn’t export “%@”." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform konnte „%@“ nicht exportieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform no ha podido exportar “%@”."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform n’a pas pu exporter « %@ »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineformは“%@”を書き出せませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform 无法导出“%@”。"
+          }
+        }
+      }
+    },
     "Link" : {
       "localizations" : {
         "de" : {
