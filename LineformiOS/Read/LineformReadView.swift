@@ -42,8 +42,9 @@ final class LineformReadView: UITextView {
     /// `visibleTopProbeInset`); it must exceed `scrollTopMargin`.
     static let visibleTopProbeInset: CGFloat = 14
     /// The grid's ink: the theme ink at this alpha, through `readableInk` at `tableGridMinimumRatio`.
-    static let tableGridAlpha: CGFloat = 0.15
-    static let tableGridMinimumRatio: CGFloat = 1.5
+    /// `nonisolated`: Print draws the same grid on the print system's threads.
+    nonisolated static let tableGridAlpha: CGFloat = 0.15
+    nonisolated static let tableGridMinimumRatio: CGFloat = 1.5
 
     // MARK: - Stored state
 
@@ -1019,7 +1020,7 @@ final class LineformReadView: UITextView {
     /// (`fitColumnPercentages`, the numbers the tab stops are placed with) times the fit width. A
     /// column's edge is where its share ends, whatever its alignment, so a long right-aligned cell
     /// after a centred column never has a line through it.
-    static func columnEdges(fractions: [CGFloat], fitWidth: CGFloat) -> [CGFloat] {
+    nonisolated static func columnEdges(fractions: [CGFloat], fitWidth: CGFloat) -> [CGFloat] {
         guard fractions.count > 1 else { return [] }
         var edges: [CGFloat] = []
         var running: CGFloat = 0

@@ -18,12 +18,14 @@ enum PhonePDFRenderer {
         documentDirectory: URL?
     ) -> Data {
         let content = paper.contentSize(preset: preset)
-        let layout = PhonePageLayout(
+        // A document past the page cap is not exported at all rather than cut short: the empty
+        // data becomes the export's failure notice.
+        guard let layout = PhonePageLayout(
             attributed: attributedString(
                 text: text, profile: profile, paper: paper, preset: preset, documentDirectory: documentDirectory
             ),
             pageContentSize: content
-        )
+        ) else { return Data() }
         let page = CGRect(origin: .zero, size: paper.sizeInPoints)
         let origin = CGPoint(x: preset.pageMargins.left, y: preset.pageMargins.top)
         let renderer = UIGraphicsPDFRenderer(bounds: page, format: UIGraphicsPDFRendererFormat())
