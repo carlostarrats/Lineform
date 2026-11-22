@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F000041000000000000009B /* ExportRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009B /* ExportRowsTests.swift */; };
+		1F000041000000000000009C /* ExportRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009C /* ExportRows.swift */; };
+		1F000041000000000000009D /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009D /* ActivityShareSheet.swift */; };
 		1F000041000000000000009A /* ExportCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009A /* ExportCommandsTests.swift */; };
 		1F0000410000000000000099 /* ExportCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000099 /* ExportCommands.swift */; };
 		1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000098 /* PhonePrintRendererTests.swift */; };
@@ -256,6 +259,9 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1F000040000000000000009B /* ExportRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportRowsTests.swift; sourceTree = "<group>"; };
+		1F000040000000000000009C /* ExportRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportRows.swift; sourceTree = "<group>"; };
+		1F000040000000000000009D /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
 		1F000040000000000000009A /* ExportCommandsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCommandsTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000099 /* ExportCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCommands.swift; sourceTree = "<group>"; };
 		1F0000400000000000000098 /* PhonePrintRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePrintRendererTests.swift; sourceTree = "<group>"; };
@@ -832,6 +838,7 @@
 				1F0000400000000000000093 /* PhoneRasterInk.swift */,
 				1F0000400000000000000092 /* PhonePDFExportTests.swift */,
 				1F000040000000000000009A /* ExportCommandsTests.swift */,
+				1F000040000000000000009B /* ExportRowsTests.swift */,
 				1F0000400000000000000098 /* PhonePrintRendererTests.swift */,
 			);
 			path = LineformiOSTests;
@@ -923,6 +930,8 @@
 				1F0000400000000000000094 /* PhoneExportFormat.swift */,
 				1F0000400000000000000095 /* PhoneExportWriter.swift */,
 				1F0000400000000000000099 /* ExportCommands.swift */,
+				1F000040000000000000009D /* ActivityShareSheet.swift */,
+				1F000040000000000000009C /* ExportRows.swift */,
 				1F0000400000000000000097 /* PhonePrintRenderer.swift */,
 			);
 			path = Export;
@@ -1323,6 +1332,8 @@
 				1F0000410000000000000023 /* LineformReadView.swift in Sources */,
 				1F0000410000000000000095 /* PhoneExportWriter.swift in Sources */,
 				1F0000410000000000000099 /* ExportCommands.swift in Sources */,
+				1F000041000000000000009D /* ActivityShareSheet.swift in Sources */,
+				1F000041000000000000009C /* ExportRows.swift in Sources */,
 				1F0000410000000000000097 /* PhonePrintRenderer.swift in Sources */,
 				1F0000410000000000000094 /* PhoneExportFormat.swift in Sources */,
 				1F0000410000000000000091 /* PhonePDFRenderer.swift in Sources */,
@@ -1374,6 +1385,7 @@
 				1F0000410000000000000093 /* PhoneRasterInk.swift in Sources */,
 				1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */,
 				1F000041000000000000009A /* ExportCommandsTests.swift in Sources */,
+				1F000041000000000000009B /* ExportRowsTests.swift in Sources */,
 				1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */,
 				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
 				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,

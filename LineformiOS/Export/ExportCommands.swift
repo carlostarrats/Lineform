@@ -59,6 +59,10 @@ final class ExportCommands {
     var paper: ExportPaperSize
     /// Read aloud's transport: idle, speaking or paused.
     private(set) var speechState: SpeechState
+    /// The calm notice after an export failed, shown for `failureNoticeDuration`; nil otherwise.
+    private(set) var failureNotice: String?
+    /// How long the failure notice stays, the same as the image notice's.
+    static let failureNoticeDuration: Duration = OpenDocument.imageNoticeDuration
 
     @ObservationIgnored private weak var document: OpenDocument?
     @ObservationIgnored private let profile: () -> ReadingProfile
@@ -67,6 +71,7 @@ final class ExportCommands {
     @ObservationIgnored private let audioSession: any SpeechAudioSessionControlling
     @ObservationIgnored private var isAudioSessionActive: Bool
     @ObservationIgnored private var speechObservation: AnyCancellable?
+    @ObservationIgnored private var failureNoticeTask: Task<Void, Never>?
 
     init(
         document: OpenDocument,
@@ -85,6 +90,8 @@ final class ExportCommands {
         speechState = speech.state
         isAudioSessionActive = false
         speechObservation = nil
+        failureNotice = nil
+        failureNoticeTask = nil
         // `@Published` emits before it stores, with the new value, so the mirror is current by the
         // time any call into `speech` returns, including a finish from the synthesizer.
         speechObservation = speech.$state.sink { [weak self] state in
@@ -119,6 +126,34 @@ final class ExportCommands {
             return .failure(.emptyRender)
         } catch {
             return .failure(.writeFailed)
+        }
+    }
+
+    /// `export`, for the rows: the file for the share sheet, or nil after showing the failure
+    /// notice.
+    func exportForSharing(_ format: PhoneExportFormat) async -> URL? {
+        switch await export(format) {
+        case .success(let url):
+            return url
+        case .failure(let failure):
+            showFailureNotice(failure.message(documentName: documentBaseName))
+            return nil
+        }
+    }
+
+    /// Deletes every export copy: when the share sheet for one closes, and at launch for any copy
+    /// a share sheet still held when iOS ended the app.
+    func removeExports() {
+        writer.removeAll()
+    }
+
+    private func showFailureNotice(_ message: String) {
+        failureNoticeTask?.cancel()
+        failureNotice = message
+        failureNoticeTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.failureNoticeDuration)
+            guard !Task.isCancelled else { return }
+            self?.failureNotice = nil
         }
     }
 

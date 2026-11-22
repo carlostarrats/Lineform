@@ -53,6 +53,9 @@ struct DocumentScreen: View {
     @State private var reconnectRange: NSRange?
     @State private var reconnectRenderedText: String?
     @State private var isPickingReconnectImage = false
+    /// Export, Print, Share and read aloud for the open document. Made once, on first appear, so
+    /// re-creating this view never makes a second speech controller.
+    @State private var exportCommands: ExportCommands?
     @SceneStorage("openDocumentBookmark") private var openDocumentBookmark = ""
     /// The older form, a path. Read once for a scene stored before bookmarks, then cleared.
     @SceneStorage("openDocumentPath") private var legacyOpenDocumentPath = ""
@@ -68,6 +71,7 @@ struct DocumentScreen: View {
     /// could not be written beside the document.
     private var noticeMessage: String? {
         if document.saveFailed { return String(localized: "Couldn’t save this document. Your text is still here.") }
+        if let exportFailure = exportCommands?.failureNotice { return exportFailure }
         if document.imageSaveFailed { return String(localized: "Can't save images beside this document.") }
         return nil
     }
@@ -137,6 +141,17 @@ struct DocumentScreen: View {
         positionKeeper.switchMode(from: displayMode, to: mode)
         shownDisplayMode = mode
         storedDisplayMode = mode
+    }
+
+    /// Makes the export commands once. Reading the previous document aloud stops whenever the
+    /// document swaps (New Document, an open from the list or Files, the launch restore), and
+    /// any export copy a share sheet still held when iOS ended the app is deleted.
+    private func makeExportCommandsIfNeeded() {
+        guard exportCommands == nil else { return }
+        let commands = ExportCommands(document: document, profile: { [profileStore] in profileStore.activeProfile })
+        commands.removeExports()
+        document.onDocumentSwap = { [weak commands] in commands?.documentWillChange() }
+        exportCommands = commands
     }
 
     /// The image types Reconnect offers, as on the Mac.
@@ -239,6 +254,7 @@ struct DocumentScreen: View {
                 endFirstRun(firstRun.restored(bookmark: openDocumentBookmark, path: legacyOpenDocumentPath))
                 hasCheckedFirstRunRestore = true
             }
+            makeExportCommandsIfNeeded()
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
             positionKeeper.adopt(displayMode)
             let linkedScroll = linkedScroll
