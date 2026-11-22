@@ -1,0 +1,127 @@
+# iPhone app
+
+The iPhone app is the `LineformiOS` target in `Lineform.xcodeproj`. It shares the App Store
+listing, bundle identifier (`com.lineform.app`), version and build number with the Mac app, and
+links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
+(`TARGETED_DEVICE_FAMILY = 1`); Mac Catalyst, "Designed for iPhone" on the Mac and visionOS are
+all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
+
+This page covers roadmap step 3 (shell and files). The editor is plain text; highlighting, Read
+and Preview, the Menu sheet and the rest arrive in later steps.
+
+## Each app stands alone
+
+No iPhone copy mentions or assumes a Mac. There is no account and no sign-in. iCloud being off is
+a fully working state, never an error or a prompt.
+
+## Target, scheme and tests
+
+- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `PlainTextEditor`,
+  `OpenDocument`, `FileListSheet`), with its own `Info.plist`, `Localizable.xcstrings` (six
+  languages) and entitlements.
+- Tests: `LineformiOSTests/`, hosted in the app, run by the shared `LineformiOS` scheme through
+  `LineformiOS.xctestplan`. Never link `LineformCoreTestSupport` into this target.
+- Run them on a simulator:
+
+  ```sh
+  xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS \
+    -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'
+  ```
+
+- CI builds the target's tests for the generic simulator (`build-for-testing`), because the
+  runner's simulator names are not fixed. Run the tests locally.
+- The Mac scheme and its archive do not build the iOS target.
+
+## Signing and iCloud
+
+- **Debug carries no iCloud entitlement** (`LineformiOSDebug.entitlements` is empty), the same
+  rule as the Mac's `LineformDebug.entitlements`. Debug builds and tests therefore always save to
+  the on-device folder, sign ad hoc on the simulator, and can never touch the production
+  container. Do not add iCloud to Debug.
+- Release (`LineformiOS.entitlements`) carries CloudDocuments for `iCloud.com.lineform.app`.
+- `DocumentFolderResolver` picks the save folder: `<container>/Documents` (the same folder the
+  Mac's Files sidebar shows as iCloud) when the container resolves, otherwise the app's own
+  `Documents` folder. `live()` asks for the ubiquity container, so call it off the main thread;
+  `OpenDocument.prepare` does.
+- The on-device folder appears in the Files app under On My iPhone › Lineform
+  (`UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`).
+- No test touches the real container: tests inject a temporary folder.
+
+## Editor: TextKit 1
+
+`PlainTextEditor` wraps `EditorTextView`, a `UITextView(usingTextLayoutManager: false)`.
+TextKit 1 is deliberate: the Mac editor and its AI review overlay are TextKit 1, and the later
+Write-mode features port from the Mac's `NSLayoutManager` code. Matching the Mac keeps the two editors laying out line
+for line alike. Do not switch it to TextKit 2.
+
+- Typing attributes come from `MarkdownTextStyle.baseAttributes(for:)`; the page and caret
+  colours from `Theme.theme(for:)`, with the default `ReadingProfile`.
+- The text column is `profile.columnWidth`, centred, with at least 20 pt side margins.
+- Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
+  edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
+- Text set from code keeps the selection, clamped to the new text, so a live reload does not move
+  the caret.
+
+## Files: reading, writing and live reload
+
+`OpenDocument` owns the one open document.
+
+- Reads and writes go through `NSFileCoordinator` and `MarkdownFileCodec`: valid UTF-8 only, a
+  leading BOM survives, CRLF is never normalised. An unreadable or non-UTF-8 file is refused and
+  the current document stays.
+- A file from outside the app (Files, "Open in Lineform") is opened through its security scope,
+  which is held while the file is open.
+- Live reload uses the shared `DocumentFileWatcher` and `DocumentReloadPolicy` (0.3 s debounce).
+  An external change replaces the text only while memory still equals the last synced text, so
+  edits disk does not have yet are never overwritten. Our own writes are coordinated with the
+  document's own presenter, so they never come back as a reload.
+- An external rename (`onMove`) follows the file and stops automatic renaming.
+- **An external delete** (`onDelete`, set only on iPhone) keeps the text on screen and detaches
+  the document from the deleted path. It becomes a new document again: nothing is written until
+  the text changes, and then it saves under a new name from its first line. The deleted file is
+  never written back. The watcher checks the file is gone after the writer finishes, because the
+  coordinator also announces a deletion for a `.forReplacing` write that puts the file straight
+  back. Without `onDelete` (the Mac) the watcher does not answer the delete or relinquish
+  callbacks at all.
+
+## Autosave rules
+
+`AutosavePlanner` (package) decides each save; `OpenDocument` performs it.
+
+- A new document saves into the save folder as soon as it has text, named from its first line
+  (`DocumentNaming`: Markdown markers and unsafe characters removed, 60 characters at a word
+  boundary, a 200-byte cap, a unique name compared case- and normalisation-insensitively).
+- An Untitled document with nothing typed creates no file.
+- While the name still follows the first line, editing the first line renames the file. Once the
+  user renames the file, or the document was opened from an existing file, it is never renamed
+  automatically.
+- Saves run 1 s after the last keystroke, at once when the scene goes to the background (inside a
+  background-task assertion), and before another file or a New Document replaces this one.
+- The app never shows a "Not saved" state and never asks Save / Don't Save. A failed write keeps
+  the text in memory, logs to os_log and is retried on the next save.
+
+## Launch and scene restoration
+
+- A normal launch opens a blank document.
+- After iOS ends the app, the next launch reopens the document that was open. `@SceneStorage`
+  (`openDocumentBookmark`) keeps the file's bookmark data, base64-encoded, so a file from outside
+  the save folder also reopens with its security scope, and a renamed file is still found. The
+  system discards scene storage after a user force-quit, so that launch is blank.
+- The older `openDocumentPath` key (a path relative to the save folder, or absolute) is read once
+  for scenes stored before bookmarks, then cleared.
+- A stored file that no longer resolves leaves the blank document.
+
+## The temporary file sheet
+
+`FileListSheet` and the floating `MenuButton` (bottom right, Mac floating-card chrome) are a
+stand-in until roadmap step 6's Menu sheet. The sheet offers **New Document** (flushes the pending
+save, then shows a blank Untitled document), **Open from Files…**, and the save folder's
+`.md`, `.markdown` and `.txt` files, newest first, kept current by `DocumentFolderMonitor`. iCloud
+placeholders (`.Name.md.icloud`) are listed under their real names.
+
+## Strings
+
+iPhone strings live in `LineformiOS/Localizable.xcstrings`, in all six languages. Where the Mac
+catalog already translates the same English text, the iPhone entry reuses that translation.
+`LocalizationSourceSweepTests` scans `LineformiOS/` against this catalog, the same way it scans
+`Lineform/` against the Mac catalog.

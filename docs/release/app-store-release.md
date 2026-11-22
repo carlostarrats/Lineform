@@ -7,6 +7,31 @@ This is the complete release path for production builds. Read
 `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before changing signing,
 provisioning, iCloud capabilities, or sandbox behavior.
 
+## Owner step, one time only: add the iPhone app to the listing
+
+The iPhone app (`LineformiOS` target) ships in the same App Store listing as the Mac app, with the
+same bundle ID, `com.lineform.app`. Before the first iPhone build is uploaded, the account owner
+does these two things once. Neither can be done from the repository.
+
+1. **App Store Connect: add the iOS platform to the existing app record.**
+   - Open App Store Connect › Apps › Lineform.
+   - Next to the macOS platform in the sidebar, choose **Add Platform** (the **+**), then **iOS**.
+   - Do not create a new app record. The iPhone app uses the same record and the same bundle ID.
+2. **Developer account: enable iCloud Documents for `com.lineform.app` on iOS.**
+   - Open developer.apple.com › Certificates, Identifiers & Profiles › Identifiers ›
+     `com.lineform.app`.
+   - Confirm the **iCloud** capability is on, with iCloud Documents (CloudKit) support, and that
+     the container `iCloud.com.lineform.app` is assigned. The Mac app already uses this
+     identifier and container; the iOS app needs the same settings.
+   - Save. Then create (or let Xcode create) an **iOS App Store** provisioning profile for
+     `com.lineform.app`. Dump its whole `Entitlements` dictionary (see §2) and confirm it lists
+     `iCloud.com.lineform.app` as an iCloud container and `CloudDocuments` as an iCloud service.
+
+After these steps, archive the iPhone app from the `LineformiOS` scheme with its iOS profile and
+upload it to the same app record. The iOS Release target uses Automatic signing with team
+`TV4QZT7A7X`. Its version and build number are the Mac's (`MARKETING_VERSION`,
+`CURRENT_PROJECT_VERSION`).
+
 ## 0. Preconditions
 
 - [ ] The full default and `LineformHosted` test plans pass serially.

@@ -227,7 +227,7 @@ exactly as the app pins them (the package commits its own `Package.resolved`; th
 longer links the two products directly). It holds Markdown parsing and HTML rendering
 (`Markdown/`), the Read/Preview attributed-string renderer and its image, Mermaid, pie and math
 providers (`Markdown/Rendering/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
-profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History, save status, the Markdown file codec and the live-reload file watcher (`Documents/`), the AI model,
+profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History, save status, the Markdown file codec, the live-reload file watcher, and the file pieces the iPhone app uses (document naming, the save folder, the folder monitor and the autosave planner) (`Documents/`), the AI model,
 clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in
 `Packages/LineformCore/Tests/LineformCoreTests`. Some pure-looking files stay in the app
 (`MarkdownSyntaxTokens`, `MarkdownSpellCheckRegions`, `MarkdownStructureMap`, `AIActionController`,
@@ -286,6 +286,37 @@ The list and the reasons are in `docs/notes/shared-package-baseline.md`.
   SwiftPM builds the package's Debug at `-Onone`. So moved code is slower in Debug only, and
   `MarkdownSpellCheckPerformanceTests`' Debug ratio reads differently from an optimised build.
   Measure performance with Release optimiser settings (method in the baseline note, § Task 4).
+
+## iPhone app (LineformiOS)
+
+The iPhone app is the `LineformiOS` target in `Lineform.xcodeproj`, with its sources in
+`LineformiOS/` and tests in `LineformiOSTests/`. It shares the Mac's App Store listing, bundle
+identifier (`com.lineform.app`), version and build, and links `LineformCore`. Minimum iOS 26.0,
+iPhone only. Details: `docs/architecture/iphone-app.md`.
+
+- **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan`:
+  `xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`.
+  CI only builds these tests (`build-for-testing` for `generic/platform=iOS Simulator`). The Mac
+  scheme and its archive never build the iOS target. Never link `LineformCoreTestSupport` into
+  `LineformiOSTests`.
+- **Debug has no iCloud.** `LineformiOSDebug.entitlements` is empty, the same rule as the Mac's
+  Debug. Debug builds and tests always save to the on-device folder (On My iPhone › Lineform).
+  Only Release carries CloudDocuments for `iCloud.com.lineform.app`. Do not add iCloud to Debug.
+  Tests inject a temporary save folder and never touch the real container.
+- **Autosave.** `AutosavePlanner` decides every save. A new document saves as soon as it has
+  text, named from its first line; an Untitled document with nothing typed creates no file.
+  While the name follows the first line, editing that line renames the file; a user rename or an
+  opened file is never renamed automatically. Saves run 1 s after the last keystroke, at once on
+  `scenePhase == .background` inside a background-task assertion, and before another document
+  replaces this one. There is no "Not saved" state and no Save / Don't Save prompt. An open file
+  deleted elsewhere keeps its text on screen and is never written back; the next change saves it
+  as a new document. After iOS ends the app, `@SceneStorage` reopens the open file from its
+  bookmark.
+- **TextKit 1.** The editor is `UITextView(usingTextLayoutManager: false)`, matching the Mac
+  editor's TextKit 1 stack. Do not switch it to TextKit 2.
+- **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
+  the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
+  `LineformiOS/` against that catalog.
 
 ## iCloud Storage
 

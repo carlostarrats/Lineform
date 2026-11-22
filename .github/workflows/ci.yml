@@ -16,7 +16,7 @@ jobs:
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Lineform.xcodeproj -scheme Lineform
       # The shared LineformCore package on its own: proves it builds and its tests pass
-      # without the app (the future iPhone app links the same package). Run through
+      # without the app (the iPhone app links the same package). Run through
       # xcodebuild, not `swift test`: the runner's command-line SwiftPM does not compile the
       # package's Localizable.xcstrings into .lproj folders, so the per-language tests fail
       # there while the app (built by xcodebuild) ships the translations correctly.
@@ -24,7 +24,7 @@ jobs:
         working-directory: Packages/LineformCore
         run: xcodebuild test -scheme LineformCore -destination 'platform=macOS'
       # The same package for iOS: catches macOS-only API or an import that would break the
-      # future iPhone app before it exists.
+      # iPhone app.
       - name: Build LineformCore for iOS
         working-directory: Packages/LineformCore
         run: xcodebuild -scheme LineformCore -destination 'generic/platform=iOS Simulator' build
@@ -34,6 +34,11 @@ jobs:
       - name: Build LineformCore tests for iOS
         working-directory: Packages/LineformCore
         run: xcodebuild build-for-testing -scheme LineformCore -destination 'generic/platform=iOS Simulator'
+      # The iPhone app and its tests compile for the simulator. Build only: a generic
+      # destination does not depend on the runner's simulator names. Run the tests locally on a
+      # simulator (see Claude.md, "iPhone app").
+      - name: Build iPhone app tests
+        run: xcodebuild build-for-testing -project Lineform.xcodeproj -scheme LineformiOS -destination 'generic/platform=iOS Simulator'
       # Runs the scheme's default test plan (Lineform.xctestplan): the full pure,
       # deterministic suite. The hosted-window motion tests (EditorDrawerMotionHostedTests,
       # LiveReloadScrollTests) are quarantined into the opt-in LineformHosted plan — they
