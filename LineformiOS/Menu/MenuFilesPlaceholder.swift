@@ -2,8 +2,9 @@ import LineformCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-// A stand-in for the file browser: roadmap step 6 replaces this sheet and its button. It is kept
-// deliberately small.
+// The Files section until roadmap step 6's Task 3 replaces it with the Files tree: the earlier
+// temporary file list ("New Document", "Open from Files…" and the save folder's documents), moved
+// here from the old FileListSheet so nothing regresses meanwhile. Kept deliberately small.
 
 /// The files in the save folder, newest first, kept current by a `DocumentFolderMonitor`.
 @MainActor
@@ -96,52 +97,48 @@ final class FileListModel {
     }
 }
 
-/// The temporary file list: "New Document", "Open from Files…", and the save folder's documents.
-struct FileListSheet: View {
+/// The Files section's interim contents: "New Document", "Open from Files…", and the save
+/// folder's documents. Opening or creating a document closes the sheet.
+struct MenuFilesPlaceholder: View {
     var document: OpenDocument
+    var onDismiss: () -> Void
     @State private var model = FileListModel()
     @State private var isImporting = false
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button {
-                        Task { await document.newDocument() }
-                        dismiss()
-                    } label: {
-                        Label(String(localized: "New Document"), systemImage: "square.and.pencil")
-                    }
-                    Button {
-                        isImporting = true
-                    } label: {
-                        Label(String(localized: "Open from Files…"), systemImage: "folder")
-                    }
+        List {
+            Section {
+                Button {
+                    Task { await document.newDocument() }
+                    onDismiss()
+                } label: {
+                    Label(String(localized: "New Document"), systemImage: "square.and.pencil")
                 }
-                Section {
-                    if model.files.isEmpty {
-                        Text(String(localized: "No Markdown files"))
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(model.files) { file in
-                        Button {
-                            open(file.url)
-                        } label: {
-                            Label(file.name, systemImage: "doc.text")
-                        }
-                        .foregroundStyle(.primary)
+                Button {
+                    isImporting = true
+                } label: {
+                    Label(String(localized: "Open from Files…"), systemImage: "folder")
+                }
+            .listRowBackground(Color.clear)
+            }
+            .listRowBackground(Color.clear)
+            Section {
+                if model.files.isEmpty {
+                    Text(String(localized: "No Markdown files"))
+                        .opacity(0.6)
+                }
+                ForEach(model.files) { file in
+                    Button {
+                        open(file.url)
+                    } label: {
+                        Label(file.name, systemImage: "doc.text")
                     }
                 }
             }
-            .navigationTitle(String(localized: "Files"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Done")) { dismiss() }
-                }
-            }
+            .listRowBackground(Color.clear)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .fileImporter(isPresented: $isImporting, allowedContentTypes: Self.importableTypes) { result in
             if case .success(let url) = result { open(url) }
         }
@@ -155,51 +152,10 @@ struct FileListSheet: View {
 
     private func open(_ url: URL) {
         Task { await document.openReportingFailure(url) }
-        dismiss()
+        onDismiss()
     }
 
     static var importableTypes: [UTType] {
         [UTType("net.daringfireball.markdown"), .plainText].compactMap { $0 }
-    }
-}
-
-/// The temporary Menu button: a circular floating control in the bottom-right corner, drawn with
-/// the same floating-card chrome as the Mac's announcement card.
-struct MenuButton: View {
-    var profile: ReadingProfile
-    var action: () -> Void
-
-    static let diameter: CGFloat = 44
-
-    var body: some View {
-        let theme = Theme.theme(for: profile)
-        let isDark = theme.usesDarkChrome
-        Button(action: action) {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(Color(uiColor: theme.textColor))
-                .frame(width: Self.diameter, height: Self.diameter)
-                .background(Circle().fill(Color(uiColor: theme.backgroundColor)))
-                .overlay(
-                    Circle().strokeBorder(
-                        isDark
-                            ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
-                            : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
-                        lineWidth: LineformDesign.FloatingCard.hairlineWidth
-                    )
-                )
-                .shadow(
-                    color: .black.opacity(
-                        isDark ? LineformDesign.FloatingCard.shadowOpacityDark
-                            : LineformDesign.FloatingCard.shadowOpacityLight
-                    ),
-                    radius: LineformDesign.FloatingCard.shadowRadius,
-                    x: LineformDesign.FloatingCard.shadowOffset.width,
-                    y: LineformDesign.FloatingCard.shadowOffset.height
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "Files"))
     }
 }

@@ -17,7 +17,8 @@ a fully working state, never an error or a prompt.
 
 ## Target, scheme and tests
 
-- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `FileListSheet`,
+- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`; `Menu/`: `MenuSheet`,
+  `MenuSection`, `EditorCommands`, `MenuFilesPlaceholder`;
   `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
   `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
@@ -484,13 +485,30 @@ later launch opens straight into a fresh Untitled document, as on the Mac.
   live, keyed by their English in `LineformiOS/Localizable.xcstrings` (six languages; the
   translations still need a native speaker's check). The owner edits the wording there.
 
-## The temporary file sheet
+## The Menu sheet
 
-`FileListSheet` and the floating `MenuButton` (bottom right, Mac floating-card chrome) are a
-stand-in until roadmap step 6's Menu sheet. The sheet offers **New Document** (flushes the pending
-save, then shows a blank Untitled document), **Open from Files…**, and the save folder's
-`.md`, `.markdown` and `.txt` files, newest first, kept current by `DocumentFolderMonitor`. iCloud
-placeholders (`.Name.md.icloud`) are listed under their real names.
+The floating `MenuButton` (bottom right, 44 pt, Mac floating-card chrome, accessibility label
+"Menu") opens `MenuSheet`: a page-coloured card with radius `LineformDesign.Radius.modal` (20),
+the floating-card hairline and shadow, medium and large detents. Its header shows the save state
+and `DocumentStatusText.counts` ("%lld words — %lld characters", characters only for CJK). The
+save state is "Saved" while `text == lastSyncedText` and "Unsaved changes" in the autosave delay
+(or after a failed save). The Mac's "Autosaved" is not used: it is the Mac's flash for an autosave
+as against ⌘S, and every iPhone write is an autosave, so it would add nothing.
+
+The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, Document, Settings
+(`MenuSection`; raw values are identity, never localized). The section is kept in
+`@SceneStorage("menuSection")` and starts on Files. Sections are placeholders until their roadmap
+tasks; Files keeps the earlier list meanwhile (`MenuFilesPlaceholder`: **New Document**, **Open
+from Files…**, and the save folder's `.md`, `.markdown` and `.txt` files, newest first, kept
+current by `DocumentFolderMonitor`, with iCloud placeholders listed under their real names).
+
+Sections act on the editor only through `EditorCommands`, which the screen implements over the
+live editor (`LiveEditorCommands`): top-aligned scrolling through `ModePositionKeeper` in the
+current mode, selection, Insert and Reformat Table, and `replace` / `replaceAll`, each ONE undo
+step through `applyRuleEdit`. `replaceAll` rewrites one span from the first range to the last and
+copies the text between the ranges through unchanged, so line endings survive.
+`DocumentScreen.bottomChromeClearance` uses the Menu button's 44 pt, the taller of the two
+floating buttons.
 
 ## Strings
 
