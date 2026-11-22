@@ -114,6 +114,23 @@ for line alike. Do not switch it to TextKit 2.
 - **Writing Tools** is off (`writingToolsBehavior = .none`, results limited to plain text and
   lists, as on the Mac), and the delegate's `writingToolsIgnoredRangesIn` returns
   `MarkdownWritingToolsProtection.ignoredRanges`, so the protection holds if it is turned on.
+- **Image paste and drop** (`LineformiOSTextView+ImagePaste.swift`). The text view sets a
+  `pasteConfiguration` for images and overrides `paste(itemProviders:)` and `paste(_:)` (the edit
+  menu and ⌘V); a `UIDropInteraction` takes drag sessions that carry an image and no text, so a
+  text drag keeps the system's text drop. While the pasteboard has a string, the ordinary text
+  paste runs: a string never takes the image path (the Mac's rule). Each image is decoded and
+  re-encoded with `UIImage.pngData()` off the main thread, then written with a coordinated
+  `.withoutOverwriting` write to `<document folder>/images/<name>.png`. The name is
+  `ImageFileNaming`'s (the item's suggested name, else `image`, sanitized and uniqued as
+  `image-2.png` and so on); a name taken at the last moment is uniqued again, never replaced.
+  The link (`ImageLinkRewrite.markdownDestination`) goes in on its own line at the start of the
+  caret's line (`ImageInsertionText.insertingOnLine`, keeping CRLF) through `applyRuleEdit`, so
+  it is one undo step and autosave sees it. The folder comes from `OpenDocument`, the editor's
+  `ImageInsertionHost`: the open file's folder; for a document never saved, `flush` first
+  creates its file through the autosave rules, and if that fails nothing is written or
+  inserted and the save-failed notice shows. A blank document has nothing to be named from, so
+  it gets the save folder, and the save right after the link creates its file there. Nothing is
+  ever written outside the document's own folder or the save folder.
 - **Stored properties.** `LineformTextView` comes from UIKit's `textViewUsingTextLayoutManager:`
   factory, on which Swift's property initializers never run: memory is zeroed instead, so a
   class-typed default reads as nil and an optional struct (`CGPoint?`, `NSRange?`) reads as a

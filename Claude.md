@@ -253,7 +253,11 @@ clients and Keychain (`AI/`), announcements and the update check (`App/`). Its t
 `Packages/LineformCore/Tests/LineformCoreTests`. The editor logic both apps share is in the package too:
 token scoping (`MarkdownTokenScope`), token styling (`MarkdownTokenStyler`, in `Markdown/Rendering/`
 because it writes to `NSTextStorage`), `MarkdownSpellCheckRegions`, `MarkdownStructureMap`,
-`EditorReadingLayout`, `TypewriterScroll` and `ImageFileNaming`. The Mac keeps its old names
+`EditorReadingLayout`, `TypewriterScroll` and `ImageFileNaming`. The iPhone editor also calls the
+package editing commands both apps already shared (`MarkdownListContinuation`,
+`MarkdownTableEditing`, `MarkdownHeadingEditing`, `MarkdownFormattingCommand`,
+`MarkdownWritingToolsProtection`, `ImageInsertionText`, `ImageLinkRewrite.markdownDestination`),
+so its edits, protected ranges and image links match the Mac. The Mac keeps its old names
 (`MarkdownSyntaxHighlighter.highlight`/`refreshTokens`/`scopedTokenRange`/`tokens(in:scope:)`,
 `LineformTextView.typewriterScrollOrigin`, …) as one-line forwarders, so Mac output is unchanged.
 A few pure-looking files still stay in the app (`AIActionController`, `AISentenceSplitter`,
@@ -354,6 +358,12 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   optional `CGPoint` read as `(0, 0)`, not nil). Put new state in `LineformTextView.State`, the
   one object made on first use, behind a computed property. `EditorConstructionTests` reads every
   value through each init path.
+- **Image paste.** A pasted or dropped image is a PNG (`UIImage.pngData()`) written with a
+  coordinated, never-overwriting write into `images/` beside the document, named by
+  `ImageFileNaming`, with its link on its own line (`ImageInsertionText`). A string on the
+  pasteboard always pastes as text. A document never saved is saved first (`OpenDocument.flush`);
+  if that fails, nothing is inserted. Never write an image outside the document's own folder or
+  the save folder.
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog.
