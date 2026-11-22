@@ -222,6 +222,9 @@
 		1F0000410000000000000093 /* PhoneRasterInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000093 /* PhoneRasterInk.swift */; };
 		1F0000410000000000000090 /* PhonePageLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000090 /* PhonePageLayout.swift */; };
 		1F0000410000000000000091 /* PhonePDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000091 /* PhonePDFRenderer.swift */; };
+		1F0000410000000000000096 /* PhoneExportWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000096 /* PhoneExportWriterTests.swift */; };
+		1F0000410000000000000094 /* PhoneExportFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000094 /* PhoneExportFormat.swift */; };
+		1F0000410000000000000095 /* PhoneExportWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000095 /* PhoneExportWriter.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -470,6 +473,9 @@
 		1F0000400000000000000093 /* PhoneRasterInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRasterInk.swift; sourceTree = "<group>"; };
 		1F0000400000000000000090 /* PhonePageLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePageLayout.swift; sourceTree = "<group>"; };
 		1F0000400000000000000091 /* PhonePDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePDFRenderer.swift; sourceTree = "<group>"; };
+		1F0000400000000000000096 /* PhoneExportWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportWriterTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000094 /* PhoneExportFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportFormat.swift; sourceTree = "<group>"; };
+		1F0000400000000000000095 /* PhoneExportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportWriter.swift; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -814,6 +820,7 @@
 				1F0000400000000000000012 /* OpenDocumentTests.swift */,
 				1F0000400000000000000013 /* AutosaveTests.swift */,
 				1F0000B10000000000000005 /* FirstRunTests.swift */,
+				1F0000400000000000000096 /* PhoneExportWriterTests.swift */,
 				1F0000400000000000000093 /* PhoneRasterInk.swift */,
 				1F0000400000000000000092 /* PhonePDFExportTests.swift */,
 			);
@@ -903,6 +910,8 @@
 			children = (
 				1F0000400000000000000090 /* PhonePageLayout.swift */,
 				1F0000400000000000000091 /* PhonePDFRenderer.swift */,
+				1F0000400000000000000094 /* PhoneExportFormat.swift */,
+				1F0000400000000000000095 /* PhoneExportWriter.swift */,
 			);
 			path = Export;
 			sourceTree = "<group>";
@@ -1300,6 +1309,8 @@
 				1F000041000000000000001C /* LineformiOSTextView+ReadingAssists.swift in Sources */,
 				1F0000410000000000000021 /* LineformiOSTextView+ImagePaste.swift in Sources */,
 				1F0000410000000000000023 /* LineformReadView.swift in Sources */,
+				1F0000410000000000000095 /* PhoneExportWriter.swift in Sources */,
+				1F0000410000000000000094 /* PhoneExportFormat.swift in Sources */,
 				1F0000410000000000000091 /* PhonePDFRenderer.swift in Sources */,
 				1F0000410000000000000090 /* PhonePageLayout.swift in Sources */,
 				1F0000410000000000000024 /* ReadViewRepresentable.swift in Sources */,
@@ -1345,6 +1356,7 @@
 				1F000041000000000000001D /* SpellCheckTests.swift in Sources */,
 				1F0000410000000000000022 /* ImagePasteTests.swift in Sources */,
 				1F0000410000000000000026 /* ReadViewTests.swift in Sources */,
+				1F0000410000000000000096 /* PhoneExportWriterTests.swift in Sources */,
 				1F0000410000000000000093 /* PhoneRasterInk.swift in Sources */,
 				1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */,
 				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
