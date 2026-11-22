@@ -19,6 +19,8 @@
 		1F0000410000000000000028 /* ModeSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000028 /* ModeSwitch.swift */; };
 		1F0000410000000000000070 /* StylingButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000070 /* StylingButton.swift */; };
 		1F0000410000000000000071 /* StylingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000071 /* StylingSheet.swift */; };
+		1F0000410000000000000073 /* StylingPresetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000073 /* StylingPresetCard.swift */; };
+		1F0000410000000000000074 /* StylingRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000074 /* StylingRows.swift */; };
 		1F0000410000000000000072 /* StylingSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000072 /* StylingSheetTests.swift */; };
 		1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000029 /* ModePositionKeeper.swift */; };
 		1F000041000000000000002A /* ModeSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002A /* ModeSwitchTests.swift */; };
@@ -235,6 +237,8 @@
 		1F0000400000000000000028 /* ModeSwitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitch.swift; sourceTree = "<group>"; };
 		1F0000400000000000000070 /* StylingButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingButton.swift; sourceTree = "<group>"; };
 		1F0000400000000000000071 /* StylingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingSheet.swift; sourceTree = "<group>"; };
+		1F0000400000000000000073 /* StylingPresetCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingPresetCard.swift; sourceTree = "<group>"; };
+		1F0000400000000000000074 /* StylingRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingRows.swift; sourceTree = "<group>"; };
 		1F0000400000000000000072 /* StylingSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingSheetTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000029 /* ModePositionKeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePositionKeeper.swift; sourceTree = "<group>"; };
 		1F000040000000000000002A /* ModeSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitchTests.swift; sourceTree = "<group>"; };
@@ -808,6 +812,8 @@
 			isa = PBXGroup;
 			children = (
 				1F0000400000000000000071 /* StylingSheet.swift */,
+				1F0000400000000000000073 /* StylingPresetCard.swift */,
+				1F0000400000000000000074 /* StylingRows.swift */,
 			);
 			path = Styling;
 			sourceTree = "<group>";
@@ -1213,6 +1219,8 @@
 				1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */,
 				1F0000410000000000000070 /* StylingButton.swift in Sources */,
 				1F0000410000000000000071 /* StylingSheet.swift in Sources */,
+				1F0000410000000000000073 /* StylingPresetCard.swift in Sources */,
+				1F0000410000000000000074 /* StylingRows.swift in Sources */,
 				1F000041000000000000002B /* LinkedScroll.swift in Sources */,
 				1F000041000000000000002C /* PreviewSplit.swift in Sources */,
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
