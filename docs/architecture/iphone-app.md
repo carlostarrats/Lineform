@@ -7,7 +7,8 @@ links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
 all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
 This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
-Preview, with the Write/Read/Preview switch) and step 7 (the Styling sheet). The Menu sheet and the rest arrive in later steps.
+Preview, with the Write/Read/Preview switch), step 7 (the Styling sheet) and step 11 (first run).
+The Menu sheet and the rest arrive in later steps.
 
 ## Each app stands alone
 
