@@ -206,6 +206,9 @@
 		1F0000410000000000000038 /* OutlineSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000038 /* OutlineSection.swift */; };
 		1F0000410000000000000039 /* BasicsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000039 /* BasicsSection.swift */; };
 		1F000041000000000000003A /* OutlineBasicsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003A /* OutlineBasicsTests.swift */; };
+		1F000041000000000000003B /* SearchSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003B /* SearchSection.swift */; };
+		1F000041000000000000003C /* SearchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003C /* SearchController.swift */; };
+		1F000041000000000000003D /* SearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003D /* SearchTests.swift */; };
 		1F0000410000000000000034 /* FilesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000034 /* FilesSection.swift */; };
 		1F0000410000000000000033 /* FilesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000033 /* FilesStore.swift */; };
 		1F0000410000000000000037 /* FilesSectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000037 /* FilesSectionTests.swift */; };
@@ -441,6 +444,9 @@
 		1F0000400000000000000038 /* OutlineSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSection.swift; sourceTree = "<group>"; };
 		1F0000400000000000000039 /* BasicsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasicsSection.swift; sourceTree = "<group>"; };
 		1F000040000000000000003A /* OutlineBasicsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineBasicsTests.swift; sourceTree = "<group>"; };
+		1F000040000000000000003B /* SearchSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSection.swift; sourceTree = "<group>"; };
+		1F000040000000000000003C /* SearchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchController.swift; sourceTree = "<group>"; };
+		1F000040000000000000003D /* SearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000034 /* FilesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesSection.swift; sourceTree = "<group>"; };
 		1F0000400000000000000033 /* FilesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesStore.swift; sourceTree = "<group>"; };
 		1F0000400000000000000037 /* FilesSectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesSectionTests.swift; sourceTree = "<group>"; };
@@ -777,6 +783,7 @@
 				1F0000400000000000000032 /* MenuSheetTests.swift */,
 				1F0000400000000000000037 /* FilesSectionTests.swift */,
 				1F0000400000000000000036 /* FilesStoreTests.swift */,
+				1F000040000000000000003D /* SearchTests.swift */,
 				1F000040000000000000003A /* OutlineBasicsTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
@@ -856,6 +863,8 @@
 				1F0000400000000000000035 /* FolderView.swift */,
 				1F0000400000000000000034 /* FilesSection.swift */,
 				1F0000400000000000000033 /* FilesStore.swift */,
+				1F000040000000000000003C /* SearchController.swift */,
+				1F000040000000000000003B /* SearchSection.swift */,
 				1F0000400000000000000039 /* BasicsSection.swift */,
 				1F0000400000000000000038 /* OutlineSection.swift */,
 			);
@@ -1278,6 +1287,8 @@
 				1F0000410000000000000035 /* FolderView.swift in Sources */,
 				1F0000410000000000000034 /* FilesSection.swift in Sources */,
 				1F0000410000000000000033 /* FilesStore.swift in Sources */,
+				1F000041000000000000003C /* SearchController.swift in Sources */,
+				1F000041000000000000003B /* SearchSection.swift in Sources */,
 				1F0000410000000000000039 /* BasicsSection.swift in Sources */,
 				1F0000410000000000000038 /* OutlineSection.swift in Sources */,
 			);
@@ -1300,6 +1311,7 @@
 				1F0000410000000000000032 /* MenuSheetTests.swift in Sources */,
 				1F0000410000000000000037 /* FilesSectionTests.swift in Sources */,
 				1F0000410000000000000036 /* FilesStoreTests.swift in Sources */,
+				1F000041000000000000003D /* SearchTests.swift in Sources */,
 				1F000041000000000000003A /* OutlineBasicsTests.swift in Sources */,
 				1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,

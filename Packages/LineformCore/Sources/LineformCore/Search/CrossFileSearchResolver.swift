@@ -5,6 +5,15 @@ import Foundation
 public struct CrossFileSearchSnippet: Equatable {
     public let lineText: String
     public let matchRange: NSRange
+    /// The match's range in the whole file text (UTF-16), so a caller that opens the file can
+    /// select the hit this snippet shows. Zero-length at 0 when the caller built the snippet by hand.
+    public let sourceRange: NSRange
+
+    init(lineText: String, matchRange: NSRange, sourceRange: NSRange = NSRange(location: 0, length: 0)) {
+        self.lineText = lineText
+        self.matchRange = matchRange
+        self.sourceRange = sourceRange
+    }
 }
 
 /// One file's cross-file search result.
@@ -25,7 +34,9 @@ public struct CrossFileSearchResult: Identifiable, Equatable {
 /// `EditorSearchResolver.matches` (literal, case- and diacritic-insensitive, trimmed
 /// query) so cross-file search agrees with in-file search by construction. No I/O —
 /// callers supply the file text. The `EditorSearchResolver` pattern: fully unit-testable.
-enum CrossFileSearchResolver {
+/// Public for `snippet(in:around:)` and `maximumSnippetsPerFile`, which the iPhone's Search uses
+/// for its in-document rows too, so both kinds of row elide alike.
+public enum CrossFileSearchResolver {
     /// Longest snippet line shown before eliding around the match.
     // Short enough that the elided window (centered on the match) fits a result-card
     // pill's single visible line — with the old 120 cap, a match past ~45 characters sat
@@ -36,7 +47,7 @@ enum CrossFileSearchResolver {
     // Generous on purpose: the result card scrolls, so a heavily-matched file should
     // list (nearly) every matching line — a cap of 8 left cards feeling truncated. This
     // is a runaway guard, not a display budget.
-    static let maximumSnippetsPerFile = 100
+    public static let maximumSnippetsPerFile = 100
 
     static func result(for entry: QuickOpenEntry, text: String?, query: String) -> CrossFileSearchResult? {
         let filenameMatches = EditorSearchResolver.matches(in: entry.name, query: query)
@@ -81,7 +92,7 @@ enum CrossFileSearchResolver {
     /// characters when longer, with the window LEFT-BIASED to the match (at most
     /// `snippetLeadingContextLength` characters before it). The returned range re-locates
     /// the match within the (possibly elided) snippet text.
-    static func snippet(in text: String, around match: NSRange) -> CrossFileSearchSnippet {
+    public static func snippet(in text: String, around match: NSRange) -> CrossFileSearchSnippet {
         let nsText = text as NSString
         let lineRange = nsText.lineRange(for: match)
         var line = nsText.substring(with: lineRange) as NSString
@@ -102,7 +113,7 @@ enum CrossFileSearchResolver {
         matchInLine.length = min(matchInLine.length, max(0, line.length - matchInLine.location))
 
         guard line.length > snippetMaximumLength else {
-            return CrossFileSearchSnippet(lineText: line as String, matchRange: matchInLine)
+            return CrossFileSearchSnippet(lineText: line as String, matchRange: matchInLine, sourceRange: match)
         }
 
         // Left-bias the window: at most `snippetLeadingContextLength` characters before
@@ -148,6 +159,6 @@ enum CrossFileSearchResolver {
         }
         shifted.location = max(0, shifted.location)
         shifted.length = min(shifted.length, max(0, (display as NSString).length - shifted.location))
-        return CrossFileSearchSnippet(lineText: display, matchRange: shifted)
+        return CrossFileSearchSnippet(lineText: display, matchRange: shifted, sourceRange: match)
     }
 }

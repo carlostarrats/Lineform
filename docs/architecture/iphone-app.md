@@ -19,7 +19,7 @@ a fully working state, never an error or a prompt.
 
 - Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`; `Menu/`: `MenuSheet`,
   `MenuSection`, `EditorCommands`, `FilesStore`, `FilesSection`, `FolderView`, `OutlineSection`,
-  `BasicsSection`;
+  `BasicsSection`, `SearchSection`, `SearchController`;
   `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
   `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
@@ -560,6 +560,22 @@ rules (files-sidebar.md) and adds iPhone ones:
   `UIPasteboard` and shows "Copied" on that row for 1 s. Label rows (Tab, Block Spacing, Spelling,
   …) have no `copyAffordance`, so they are not buttons and copy nothing. VoiceOver reads one
   element per row (`Row.accessibilityLabel()`).
+
+### Search
+
+`SearchSection` and `SearchController` (`@MainActor @Observable`). The field sits at the top, with
+the All / In document / Files filter under it. While the query is empty the section shows "Search
+this document and your files."; typing fades that out and the results in. The results, in order:
+this document's matches (snippet, "In document" on the right), file-name matches
+(`QuickOpenIndex`, the folder on the left and the file's name on the right), then matches inside
+other files (`CrossFileSearchModel`, snippet and the file's name). The Replace row (field,
+Replace, Replace All) shows for All and In document and acts on this document only. A quiet status
+line gives the count, "Searching…" or "No matches". Candidates come from `FilesStore`'s current
+roots; the first query that needs them makes the store visible and scans it (never at launch), and
+leaving the section stops it again. Tapping an in-document match dismisses the sheet and selects
+the match; tapping a file opens it and, for a content match, selects the first hit at or after the
+snippet's location in the opened text. Every Mac rule from search.md carries over; see the iPhone
+Search paragraph there.
 
 ### Editor commands
 

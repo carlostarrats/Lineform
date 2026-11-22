@@ -191,9 +191,12 @@ final class RecordingEditorCommands: EditorCommands {
     var onScroll: (NSRange) -> Void = { _ in }
     var onSelect: (NSRange) -> Void = { _ in }
 
+    /// When set, the text as some other owner holds it (an `OpenDocument`), in place of `text`.
+    var liveText: (() -> String)?
+
     init(text: String) { self.text = text }
 
-    var currentText: String { text }
+    var currentText: String { liveText?() ?? text }
     func scrollToCharacterRange(_ range: NSRange) {
         scrolled.append(range)
         onScroll(range)
