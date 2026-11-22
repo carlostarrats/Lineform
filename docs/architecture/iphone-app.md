@@ -254,8 +254,9 @@ lives in a lazily made `State` object (`testFactoryPathHasEveryDefault`).
 - **Accessibility.** `accessibilityCustomActions` mirror every pill and checkbox with the Mac's
   strings: "Copy code block %lld", "Reconnect image", "Toggle task: %@" and "Toggle task".
 - **Bottom clearance.** Read, and Preview's lower pane, get a bottom `contentInset` of
-  `DocumentScreen.bottomChromeClearance` (chromeMargin + 38 + 8 = 66 pt), applied like the top
-  clearance, so the last line and its pill scroll clear of the Menu and link buttons. (The editor
+  `DocumentScreen.bottomChromeClearance` (chromeMargin + 44 + 8, the tallest of the Menu, Aa
+  and link buttons), applied like the top clearance, so the last line and its pill scroll clear of
+  them. (The editor
   has no such inset; the buttons float over it as before.)
 - **Position.** `onVisibleTopSourceLocationChanged` fires 0.08 s after scrolling stops.
   `scrollSourceLocationToTop` waits until the view is rendered, in a window and sized, parks the
@@ -660,8 +661,8 @@ live editor (`LiveEditorCommands`): top-aligned scrolling through `ModePositionK
 current mode, selection, Insert and Reformat Table, Check Document Now, and `replace` /
 `replaceAll`, each ONE undo step through `applyRuleEdit`. `replaceAll` rewrites one span from the first range to the last and
 copies the text between the ranges through unchanged, so line endings survive.
-`DocumentScreen.bottomChromeClearance` uses the Menu button's 44 pt, the taller of the two
-floating buttons.
+`DocumentScreen.bottomChromeClearance` uses the tallest bottom-right button: Menu and Aa are
+both 44 pt (the link button is 38), and they share one row (`bottomChromeSpacing`, 12 pt).
 
 ## Strings
 
