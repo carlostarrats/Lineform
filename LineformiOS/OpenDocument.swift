@@ -95,6 +95,21 @@ final class OpenDocument: ImageInsertionHost {
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     /// The URL whose security scope this document holds (a file from outside the app).
     @ObservationIgnored private var securityScopedURL: URL?
+    /// Images picked with Read's Reconnect whose security scope this document holds while it is
+    /// open, so the next render (and every one after) can load them.
+    @ObservationIgnored private var reconnectedImageURLs: [URL] = []
+    /// Undo for the edits Read makes (a checkbox toggle, a Reconnect): one step each. Write mode's
+    /// editor keeps its own; a Write edit clears this stack, because undoing an older whole-text
+    /// step would throw that edit away.
+    /// Each step is grouped by hand (`groupsByEvent` off), so one toggle is one step whether or not
+    /// a run-loop event is open.
+    @ObservationIgnored let undoManager: UndoManager = {
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        return manager
+    }()
+    /// Set while a Read edit (or its undo) goes through `edit`, so it keeps the undo stack.
+    @ObservationIgnored private var isApplyingReadEdit = false
     @ObservationIgnored private var isPrepared = false
     private var planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
     @ObservationIgnored private var autosaveTask: Task<Void, Never>?
@@ -349,6 +364,7 @@ final class OpenDocument: ImageInsertionHost {
         setLastSyncedText("")
         planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
         downloadingName = nil
+        undoManager.removeAllActions()
     }
 
     /// The file a URL stands for: an iCloud placeholder `.Name.md.icloud` stands for `Name.md`
@@ -382,8 +398,58 @@ final class OpenDocument: ImageInsertionHost {
     /// The writer changed the text.
     func edit(_ newText: String) {
         guard newText != text else { return }
+        if !isApplyingReadEdit { undoManager.removeAllActions() }
         text = newText
         scheduleAutosave()
+    }
+
+    /// The folder relative image links resolve against: the open file's. Nil for a document that
+    /// has no file yet.
+    var documentDirectory: URL? { url?.deletingLastPathComponent() }
+
+    // MARK: - Edits from Read
+
+    /// A rendered task checkbox was tapped: swaps `[ ]` and `[x]` at `range` as a normal edit
+    /// (autosave, one undo step). Nothing happens when `range` no longer holds a marker
+    /// (`CheckboxToggle` returns nil), or when `renderedFrom`, the source the Read view rendered
+    /// the checkbox from, is no longer the text: a render that has not caught up with an edit
+    /// (Preview's 0.12 s debounce) could otherwise aim at another line's marker.
+    func toggleCheckbox(at range: NSRange, renderedFrom: String? = nil) {
+        if let renderedFrom, renderedFrom != text { return }
+        guard let newText = CheckboxToggle.toggledText(in: text, at: range) else { return }
+        applyReadEdit(newText)
+    }
+
+    /// Read's Reconnect: points the image at `range` at `pickedURL` (from the image picker),
+    /// relative to the document's folder when the file is inside it, otherwise absolute
+    /// (`ImageLinkRewrite`), as a normal edit with one undo step. The picked file's security scope
+    /// is kept while this document is open, so the next render loads it. A stale range (no longer
+    /// one image) changes nothing and keeps no scope.
+    func reconnectImage(at range: NSRange, with pickedURL: URL) {
+        let didAccess = pickedURL.startAccessingSecurityScopedResource()
+        let newPath = ImageLinkRewrite.linkPath(for: pickedURL, documentDirectory: documentDirectory)
+        guard let newText = ImageLinkRewrite.rewritten(in: text, at: range, newPath: newPath) else {
+            if didAccess { pickedURL.stopAccessingSecurityScopedResource() }
+            return
+        }
+        if didAccess { reconnectedImageURLs.append(pickedURL) }
+        applyReadEdit(newText)
+    }
+
+    /// One Read edit through `edit`, registered as one undo step that redoes the same way.
+    private func applyReadEdit(_ newText: String) {
+        let oldText = text
+        guard newText != oldText else { return }
+        isApplyingReadEdit = true
+        edit(newText)
+        isApplyingReadEdit = false
+        // An undo or redo is already inside the manager's own group; a new step needs its own.
+        let opensGroup = !undoManager.isUndoing && !undoManager.isRedoing
+        if opensGroup { undoManager.beginUndoGrouping() }
+        undoManager.registerUndo(withTarget: self) { document in
+            document.applyReadEdit(oldText)
+        }
+        if opensGroup { undoManager.endUndoGrouping() }
     }
 
     // MARK: - Autosave
@@ -572,6 +638,8 @@ final class OpenDocument: ImageInsertionHost {
                 diskText: diskText, currentText: text, lastSyncedText: lastSyncedText
             )
             if outcome == .reload {
+                // Undoing a Read edit made before the reload would put older text over it.
+                undoManager.removeAllActions()
                 text = diskText
                 setLastSyncedText(diskText)
             }
@@ -668,6 +736,10 @@ final class OpenDocument: ImageInsertionHost {
     private func releaseSecurityScope() {
         securityScopedURL?.stopAccessingSecurityScopedResource()
         securityScopedURL = nil
+        for imageURL in reconnectedImageURLs {
+            imageURL.stopAccessingSecurityScopedResource()
+        }
+        reconnectedImageURLs = []
     }
 
     // MARK: - Disk

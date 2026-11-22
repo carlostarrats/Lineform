@@ -1,5 +1,6 @@
 import LineformCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The full-screen document. A normal launch opens a blank document; there is no bar across the
 /// top of the text, and the page colour runs edge to edge under the status bar and home
@@ -16,6 +17,13 @@ struct DocumentScreen: View {
     @ObservedObject var profileStore: ReadingProfileStore
     private var profile: ReadingProfile { profileStore.activeProfile }
     @State private var isShowingFiles = false
+    /// Read mode in place of the editor. Temporary until the Write / Read / Preview control
+    /// (roadmap step 5, Task 3): tests start the screen in Read, and Debug builds show a small
+    /// switch; Release always shows Write.
+    @State private var isReading: Bool
+    /// The image line whose Reconnect pill opened the image picker.
+    @State private var reconnectRange: NSRange?
+    @State private var isPickingReconnectImage = false
     @SceneStorage("openDocumentBookmark") private var openDocumentBookmark = ""
     /// The older form, a path. Read once for a scene stored before bookmarks, then cleared.
     @SceneStorage("openDocumentPath") private var legacyOpenDocumentPath = ""
@@ -29,12 +37,17 @@ struct DocumentScreen: View {
         return nil
     }
 
+    init(document: OpenDocument, profileStore: ReadingProfileStore, startsInRead: Bool = false) {
+        self.document = document
+        self.profileStore = profileStore
+        _isReading = State(initialValue: startsInRead)
+    }
+
+    /// The image types Reconnect offers, as on the Mac.
+    static let reconnectImageTypes: [UTType] = [.png, .jpeg, .gif, .heic, .tiff, .bmp, .image]
+
     var body: some View {
-        MarkdownEditor(
-            text: Binding(get: { document.text }, set: { document.edit($0) }),
-            profile: profile,
-            imageHost: document
-        )
+        page
         .ignoresSafeArea(.container)
         .background(Color(uiColor: Theme.theme(for: profile).backgroundColor))
         .overlay {
@@ -56,8 +69,23 @@ struct DocumentScreen: View {
             MenuButton(profile: profile) { isShowingFiles = true }
                 .padding(MarkdownEditor.chromeMargin)
         }
+        #if DEBUG
+        .overlay(alignment: .bottomLeading) {
+            DebugReadSwitch(isReading: $isReading, profile: profile)
+                .padding(MarkdownEditor.chromeMargin)
+        }
+        #endif
         .sheet(isPresented: $isShowingFiles) {
             FileListSheet(document: document)
+        }
+        .fileImporter(
+            isPresented: $isPickingReconnectImage,
+            allowedContentTypes: Self.reconnectImageTypes,
+            allowsMultipleSelection: false
+        ) { result in
+            defer { reconnectRange = nil }
+            guard let range = reconnectRange, case .success(let urls) = result, let picked = urls.first else { return }
+            document.reconnectImage(at: range, with: picked)
         }
         .alert(
             String(localized: "That file couldn't be opened in Lineform."),
@@ -84,6 +112,58 @@ struct DocumentScreen: View {
         }
     }
 }
+
+extension DocumentScreen {
+    /// Write's editor, or the Read view.
+    @ViewBuilder
+    private var page: some View {
+        if isReading {
+            ReadViewRepresentable(
+                text: document.text,
+                profile: profile,
+                documentDirectory: document.documentDirectory,
+                onCheckboxToggle: { range, renderedFrom in
+                    document.toggleCheckbox(at: range, renderedFrom: renderedFrom)
+                },
+                onImageReconnect: { range in
+                    reconnectRange = range
+                    isPickingReconnectImage = true
+                },
+                undoManager: document.undoManager
+            )
+        } else {
+            MarkdownEditor(
+                text: Binding(get: { document.text }, set: { document.edit($0) }),
+                profile: profile,
+                imageHost: document
+            )
+        }
+    }
+}
+
+#if DEBUG
+/// Debug builds only: switches between Write and Read until the real mode control arrives.
+private struct DebugReadSwitch: View {
+    @Binding var isReading: Bool
+    var profile: ReadingProfile
+
+    var body: some View {
+        let theme = Theme.theme(for: profile)
+        Button {
+            isReading.toggle()
+        } label: {
+            Image(systemName: isReading ? "pencil" : "book")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Color(uiColor: theme.textColor))
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(Color(uiColor: theme.backgroundColor)))
+                .overlay(Circle().strokeBorder(Color(uiColor: theme.textColor).opacity(0.2), lineWidth: 1))
+        }
+        // Debug-only and never shipped: VoiceOver reads the symbol's own name, so no string
+        // goes in the catalog.
+    }
+}
+#endif
 
 /// Shown in place of the text while iCloud downloads the file being opened: quiet, no buttons.
 private struct DownloadingView: View {

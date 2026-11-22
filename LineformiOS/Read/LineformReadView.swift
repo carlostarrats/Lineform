@@ -1,0 +1,902 @@
+import LineformCore
+import UIKit
+
+/// The iPhone Read view: the Mac's `MarkdownPreviewTextView` on UIKit. A non-editable, selectable
+/// TextKit 1 `UITextView` (`init(usingTextLayoutManager: false)`, the same stack as the Mac's),
+/// filled by the shared `MarkdownPreviewRenderer` with the real providers.
+///
+/// - **Renders only when an input changes** (`apply`): the text, the profile, the document's
+///   folder, or the display scale, as the Mac's `apply` does. The blanket text colour is set only
+///   on that path, right before the storage is replaced, because it would flatten the code
+///   colours. Rendering waits until the view is in a window, so every render passes real
+///   `RenderDisplayMetrics`: the view's `displayScale` and its window's height.
+/// - **A width change** (rotation, a split) keeps the character at the top of the page where it
+///   was (the Mac's reflow anchor; a page at the very top stays pinned at the top), refits block
+///   diagrams, equations and images (`BlockAttachmentRefit`), and refits table rows.
+/// - **Edits only through checkboxes and Reconnect.** A tap inside a task checkbox's glyph calls
+///   `onCheckboxToggle` with its `.checkboxSourceRange`; a Reconnect pill calls
+///   `onImageReconnect` with the image's `.imageSourceRange`. The Copy pill copies the code body's
+///   source to the pasteboard and never edits.
+/// - **Tables** are the shared iOS tab-stop rows, with a hairline grid drawn behind them.
+/// - **Accessibility:** every pill and checkbox has a mirror custom action, named as on the Mac.
+/// - **Position:** `onVisibleTopSourceLocationChanged` reports the source offset at the top of
+///   the page 0.08 s after scrolling stops; `scrollSourceLocationToTop` parks a source offset at
+///   the top, retrying until the view has a size.
+///
+/// UIKit can build this class through the `textViewUsingTextLayoutManager:` factory, on which
+/// Swift's property initializers never run (see `LineformTextView`). All state with a starting
+/// value therefore lives in `State`, behind the one optional stored property.
+final class LineformReadView: UITextView {
+    /// Top and bottom page inset, the Mac Read view's 32 pt. The sides come from
+    /// `EditorReadingLayout`.
+    static let verticalInset: CGFloat = 32
+    /// The visible-top report waits this long after the last scroll (the Mac's 0.08 s).
+    static let visibleTopReportDebounce: TimeInterval = 0.08
+    /// How long a Copy pill shows its checkmark (the Mac's 1.0 s).
+    static let copiedFeedbackDuration: TimeInterval = 1.0
+    /// A scroll-to-source parks the line this far below the top of the page (the Mac's 8 pt).
+    static let scrollTopMargin: CGFloat = 8
+    /// The grid's ink: the theme ink at this alpha, through `readableInk` at `tableGridMinimumRatio`.
+    static let tableGridAlpha: CGFloat = 0.15
+    static let tableGridMinimumRatio: CGFloat = 1.5
+
+    // MARK: - Stored state
+
+    @MainActor
+    final class State {
+        var profile: ReadingProfile = .original
+        /// What `apply` was last given.
+        var desiredText: String?
+        var desiredDocumentDirectory: URL?
+        /// What the text storage holds now.
+        var renderedText: String?
+        var renderedProfile: ReadingProfile?
+        var renderedDocumentDirectory: URL?
+        var renderedScale: CGFloat = 0
+        var hasRendered = false
+        var lastRenderMetrics: RenderDisplayMetrics?
+        /// The column width the table rows' tab stops are placed for.
+        var tableTabBasisWidth: CGFloat = 0
+        let mermaidProvider = MermaidImageProvider()
+        let mathProvider = MathImageProvider()
+        let imageProvider = ImageAttachmentProvider()
+        let diagramLog = DiagramLogStore()
+        var onCheckboxToggle: (NSRange) -> Void = { _ in }
+        var onImageReconnect: (NSRange) -> Void = { _ in }
+        var onVisibleTopSourceLocationChanged: ((Int) -> Void)?
+        var lastReportedVisibleTop: Int?
+        var pendingScrollSourceLocation: Int?
+        /// An offset set from code while the layout below it may still grow `contentSize`; the
+        /// next layout pass sets it once more (UITextView can put a scroll past the laid-out
+        /// content back while it grows).
+        var pendingContentOffsetY: CGFloat?
+        var isHandlingWidthChange = false
+        var lastLayoutWidth: CGFloat = 0
+        var needsOverlayLayout = true
+        var overlayButtons: [ReadOverlayButton] = []
+        var copiedSourceRange: NSRange?
+        var copyFeedbackGeneration = 0
+        var tableGridView: ReadTableGridView?
+        var checkboxTap: UITapGestureRecognizer?
+        weak var documentUndoManager: UndoManager?
+        #if DEBUG
+        var pasteboardForTesting: UIPasteboard?
+        #endif
+    }
+
+    private var stateStorage: State?
+
+    var state: State {
+        if let stateStorage { return stateStorage }
+        let state = State()
+        stateStorage = state
+        return state
+    }
+
+    /// Called with a checkbox's `[ ]`/`[x]` source range when a tap lands inside its glyph.
+    var onCheckboxToggle: (NSRange) -> Void {
+        get { state.onCheckboxToggle }
+        set { state.onCheckboxToggle = newValue }
+    }
+    /// Called with an image line's source range when its Reconnect pill is tapped.
+    var onImageReconnect: (NSRange) -> Void {
+        get { state.onImageReconnect }
+        set { state.onImageReconnect = newValue }
+    }
+    /// Called with the source offset at the top of the page, 0.08 s after scrolling stops, when it
+    /// changed.
+    var onVisibleTopSourceLocationChanged: ((Int) -> Void)? {
+        get { state.onVisibleTopSourceLocationChanged }
+        set { state.onVisibleTopSourceLocationChanged = newValue }
+    }
+    /// The document's undo manager, so a shake or a three-finger swipe in Read undoes a checkbox
+    /// toggle or a Reconnect (they are document edits, `OpenDocument.edit`).
+    var documentUndoManager: UndoManager? {
+        get { state.documentUndoManager }
+        set { state.documentUndoManager = newValue }
+    }
+    /// The source text the storage was rendered from; nil before the first render.
+    var renderedSourceText: String? { state.renderedText }
+    /// The metrics the last render passed to the renderer.
+    var lastRenderMetrics: RenderDisplayMetrics? { state.lastRenderMetrics }
+    /// The Copy and Reconnect pills, in reading order (Copy pills first, as the attributes are
+    /// enumerated).
+    var overlayButtons: [ReadOverlayButton] { state.overlayButtons }
+    #if DEBUG
+    /// Lets a test copy into its own pasteboard, never the user's.
+    var pasteboardForTesting: UIPasteboard? {
+        get { state.pasteboardForTesting }
+        set { state.pasteboardForTesting = newValue }
+    }
+    #endif
+
+    override var undoManager: UndoManager? {
+        state.documentUndoManager ?? super.undoManager
+    }
+
+    // MARK: - Making
+
+    /// A configured Read view. Separate from `ReadViewRepresentable.makeUIView` so tests build
+    /// one directly.
+    static func make(profile: ReadingProfile = .original) -> LineformReadView {
+        let view = LineformReadView(usingTextLayoutManager: false)
+        view.configure()
+        view.state.profile = profile
+        view.applyChrome()
+        return view
+    }
+
+    private func configure() {
+        isEditable = false
+        isSelectable = true
+        delegate = self
+        dataDetectorTypes = []
+        alwaysBounceVertical = true
+        textContainer.lineFragmentPadding = 0
+        textContainer.widthTracksTextView = true
+        accessibilityLabel = String(localized: "Markdown read view")
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleCheckboxTap(_:)))
+        addGestureRecognizer(tap)
+        state.checkboxTap = tap
+
+        let grid = ReadTableGridView()
+        insertSubview(grid, at: 0)
+        state.tableGridView = grid
+
+        registerForTraitChanges([UITraitDisplayScale.self]) { (view: LineformReadView, _) in
+            view.renderIfNeeded()
+        }
+    }
+
+    // MARK: - Rendering
+
+    /// Shows `text` rendered for `profile`, resolving relative images against
+    /// `documentDirectory`. Renders only when an input changed (or the display scale did); the
+    /// render itself waits until the view is in a window, so it always has real metrics.
+    func apply(text: String, profile: ReadingProfile, documentDirectory: URL?) {
+        state.profile = profile
+        state.desiredText = text
+        state.desiredDocumentDirectory = documentDirectory
+        applyChrome()
+        renderIfNeeded()
+    }
+
+    private func applyChrome() {
+        let theme = Theme.theme(for: state.profile)
+        backgroundColor = theme.backgroundColor
+        // On iOS the tint colours the selection.
+        tintColor = theme.caretColor
+        indicatorStyle = theme.usesDarkChrome ? .white : .black
+        updateTextContainerInset()
+    }
+
+    /// The display scale renders are drawn for: the view's own `displayScale`.
+    private var currentDisplayScale: CGFloat {
+        let scale = traitCollection.displayScale
+        return scale > 0 ? scale : (window?.screen.scale ?? 1)
+    }
+
+    func renderIfNeeded() {
+        guard let text = state.desiredText, let window else { return }
+        let profile = state.profile
+        let directory = state.desiredDocumentDirectory
+        let scale = currentDisplayScale
+        guard !state.hasRendered
+            || text != state.renderedText
+            || profile != state.renderedProfile
+            || directory != state.renderedDocumentDirectory
+            || scale != state.renderedScale
+        else { return }
+
+        // A new profile (a font size, a theme) rewraps everything: keep the passage at the top by
+        // its SOURCE position, which survives the new storage.
+        let sourceAnchor = (state.hasRendered && profile != state.renderedProfile) ? sourceAnchorAtTop() : nil
+
+        let metrics = RenderDisplayMetrics(scale: scale, visibleViewportHeight: window.bounds.height)
+        let columnWidth = renderColumnWidth(for: profile, window: window)
+        let rendered = MarkdownPreviewRenderer().render(
+            text,
+            profile: profile,
+            columnWidth: columnWidth,
+            mermaidProvider: state.mermaidProvider,
+            mathProvider: state.mathProvider,
+            diagramLog: state.diagramLog,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+            documentDirectory: directory,
+            imageProvider: state.imageProvider,
+            displayMetrics: metrics
+        )
+        // Only here, right before the storage is replaced: the blanket colour would flatten the
+        // code colours. The rendered string carries the ink on every run; this is a backstop.
+        textColor = Theme.theme(for: profile).textColor
+        textStorage.setAttributedString(rendered)
+        state.renderedText = text
+        state.renderedProfile = profile
+        state.renderedDocumentDirectory = directory
+        state.renderedScale = scale
+        state.hasRendered = true
+        state.lastRenderMetrics = metrics
+        state.tableTabBasisWidth = columnWidth
+        state.lastReportedVisibleTop = nil
+
+        updateTextContainerInset()
+        refitBlockAttachments()
+        refitTableRows()
+        if let sourceAnchor { restoreSourceAnchor(sourceAnchor) }
+        setNeedsOverlayLayout()
+        applyPendingScrollIfPossible()
+    }
+
+    /// The column the renderer fits to: the profile's reading column (as on the Mac), but never
+    /// wider than the window's longest side, so a Full Width profile still gets real raster and
+    /// table sizes. The width-change refit then fits it to the view.
+    private func renderColumnWidth(for profile: ReadingProfile, window: UIWindow) -> CGFloat {
+        let longestSide = max(window.bounds.width, window.bounds.height, 1)
+        return min(EditorReadingLayout.textColumnMaxWidth(for: profile), longestSide)
+    }
+
+    private func updateTextContainerInset() {
+        let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: state.profile)
+        let inset = UIEdgeInsets(top: Self.verticalInset, left: side, bottom: Self.verticalInset, right: side)
+        if textContainerInset != inset {
+            textContainerInset = inset
+        }
+    }
+
+    /// Scale block diagrams, equations and images to the view's width, in place, without
+    /// re-rendering (the Mac's `refitBlockAttachments`). Inline math is never touched. A block
+    /// image's height is also capped to the visible page (`ImageFit.maxHeight`).
+    private func refitBlockAttachments() {
+        guard textStorage.length > 0, bounds.width > 1 else { return }
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: state.profile)
+        let viewportHeight = bounds.height - adjustedContentInset.top - adjustedContentInset.bottom
+        let imageMaxHeight = ImageFit.maxHeight(visibleViewportHeight: viewportHeight > 1 ? viewportHeight : bounds.height)
+        textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
+            guard let attachment = value as? BlockRenderedAttachment, let image = attachment.image else { return }
+            guard let newBounds = BlockAttachmentRefit.refittedBounds(
+                naturalSize: image.size,
+                currentBounds: attachment.bounds,
+                fitWidth: fitWidth,
+                maxHeight: attachment.appliesViewportHeightCap ? imageMaxHeight : .infinity
+            ) else { return }
+            attachment.bounds = newBounds
+            layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
+        }
+    }
+
+    /// Re-place every table row's tab stops for the view's column: the renderer placed them at
+    /// `tableTabBasisWidth` (each column's share of that width), so they scale by the ratio.
+    private func refitTableRows() {
+        guard textStorage.length > 0, bounds.width > 1, state.tableTabBasisWidth > 0 else { return }
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: state.profile)
+        guard fitWidth > 0, abs(fitWidth - state.tableTabBasisWidth) > 0.5 else { return }
+        let ratio = fitWidth / state.tableTabBasisWidth
+        var restyled: [(NSRange, NSParagraphStyle)] = []
+        textStorage.enumerateAttribute(.markdownTableRow, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
+            guard value != nil,
+                  let style = textStorage.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle,
+                  let mutable = style.mutableCopy() as? NSMutableParagraphStyle
+            else { return }
+            mutable.tabStops = style.tabStops.map { NSTextTab(textAlignment: $0.alignment, location: $0.location * ratio, options: $0.options) }
+            restyled.append((range, mutable))
+        }
+        state.tableTabBasisWidth = fitWidth
+        guard !restyled.isEmpty else { return }
+        textStorage.beginEditing()
+        for (range, style) in restyled {
+            textStorage.addAttribute(.paragraphStyle, value: style, range: range)
+        }
+        textStorage.endEditing()
+    }
+
+    // MARK: - Width changes
+
+    override var frame: CGRect {
+        get { super.frame }
+        set {
+            let oldWidth = super.frame.width
+            handleWidthChange(from: oldWidth, to: newValue.width) { super.frame = newValue }
+        }
+    }
+
+    override var bounds: CGRect {
+        get { super.bounds }
+        set {
+            let oldWidth = super.bounds.width
+            handleWidthChange(from: oldWidth, to: newValue.width) { super.bounds = newValue }
+        }
+    }
+
+    /// Captures the reading position BEFORE the width changes (a narrower column rewraps, so the
+    /// same offset would show another passage), applies the change, refits, then restores it.
+    private func handleWidthChange(from oldWidth: CGFloat, to newWidth: CGFloat, _ change: () -> Void) {
+        guard abs(newWidth - oldWidth) > 0.5, stateStorage != nil, !state.isHandlingWidthChange else {
+            change()
+            return
+        }
+        state.isHandlingWidthChange = true
+        defer { state.isHandlingWidthChange = false }
+        let anchor = reflowAnchor()
+        change()
+        updateTextContainerInset()
+        let containerWidth = max(0, bounds.width - textContainerInset.left - textContainerInset.right)
+        if abs(textContainer.size.width - containerWidth) > 0.5 {
+            textContainer.size = CGSize(width: containerWidth, height: textContainer.size.height)
+        }
+        refitBlockAttachments()
+        refitTableRows()
+        if let anchor { restoreReflowAnchor(anchor) }
+        setNeedsOverlayLayout()
+        applyPendingScrollIfPossible()
+    }
+
+    /// The character at the top of the page and its offset from the page top.
+    struct ReflowAnchor {
+        let characterIndex: Int
+        let offsetFromViewportTop: CGFloat
+        /// A page at the very top stays pinned there outright: character-anchoring wobbles by a
+        /// line per frame, which at the top reads as bouncing (the Mac's rule).
+        let capturedAtTop: Bool
+    }
+
+    /// The top of the visible page in view (content) coordinates.
+    private var visibleTopY: CGFloat { contentOffset.y + adjustedContentInset.top }
+    /// The offset that shows the very top of the page.
+    private var topContentOffsetY: CGFloat { -adjustedContentInset.top }
+
+    /// The first character on the page, or nil.
+    private func topCharacterIndex() -> Int? {
+        guard textStorage.length > 0, bounds.height > 0 else { return nil }
+        let visibleHeight = max(1, bounds.height - adjustedContentInset.top - adjustedContentInset.bottom)
+        let rect = CGRect(
+            x: 0,
+            y: max(0, visibleTopY - textContainerInset.top),
+            width: max(1, textContainer.size.width),
+            height: visibleHeight
+        )
+        let glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
+        let characters = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        return min(max(0, characters.location), textStorage.length - 1)
+    }
+
+    func reflowAnchor() -> ReflowAnchor? {
+        guard let index = topCharacterIndex(), let y = anchorY(forCharacterAt: index) else { return nil }
+        return ReflowAnchor(
+            characterIndex: index,
+            offsetFromViewportTop: y + textContainerInset.top - visibleTopY,
+            capturedAtTop: contentOffset.y <= topContentOffsetY + 1
+        )
+    }
+
+    private func restoreReflowAnchor(_ anchor: ReflowAnchor) {
+        guard anchor.characterIndex < textStorage.length else { return }
+        if anchor.capturedAtTop {
+            setContentOffsetY(topContentOffsetY)
+            return
+        }
+        guard let y = anchorY(forCharacterAt: anchor.characterIndex) else { return }
+        let restoredTop = y + textContainerInset.top - anchor.offsetFromViewportTop
+        setContentOffsetY(max(topContentOffsetY, restoredTop - adjustedContentInset.top))
+    }
+
+    /// The passage at the top by source position, for a re-render.
+    private struct SourceAnchor {
+        let sourceLocation: Int
+        let offsetFromViewportTop: CGFloat
+        let capturedAtTop: Bool
+    }
+
+    private func sourceAnchorAtTop() -> SourceAnchor? {
+        guard let anchor = reflowAnchor(),
+              let location = SourcePosition.sourceLocation(atRenderedIndex: anchor.characterIndex, in: textStorage)
+        else { return nil }
+        return SourceAnchor(sourceLocation: location, offsetFromViewportTop: anchor.offsetFromViewportTop, capturedAtTop: anchor.capturedAtTop)
+    }
+
+    private func restoreSourceAnchor(_ anchor: SourceAnchor) {
+        if anchor.capturedAtTop {
+            setContentOffsetY(topContentOffsetY)
+            return
+        }
+        guard let index = SourcePosition.renderedIndex(forSourceLocation: anchor.sourceLocation, in: textStorage),
+              let y = anchorY(forCharacterAt: index)
+        else { return }
+        let restoredTop = y + textContainerInset.top - anchor.offsetFromViewportTop
+        setContentOffsetY(max(topContentOffsetY, restoredTop - adjustedContentInset.top))
+    }
+
+    /// The top of `characterIndex`'s glyph in container coordinates, laying out only up to it.
+    private func anchorY(forCharacterAt characterIndex: Int) -> CGFloat? {
+        guard characterIndex < textStorage.length else { return nil }
+        layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: characterIndex + 1))
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: characterIndex, length: 1),
+            actualCharacterRange: nil
+        )
+        return layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer).minY
+    }
+
+    private func setContentOffsetY(_ y: CGFloat) {
+        if abs(contentOffset.y - y) > 0.5 {
+            contentOffset = CGPoint(x: contentOffset.x, y: y)
+        }
+        state.pendingContentOffsetY = y
+    }
+
+    // MARK: - Layout
+
+    override func layoutSubviews() {
+        updateTextContainerInset()
+        super.layoutSubviews()
+        if let pending = state.pendingContentOffsetY {
+            state.pendingContentOffsetY = nil
+            if abs(contentOffset.y - pending) > 0.5 {
+                contentOffset = CGPoint(x: contentOffset.x, y: pending)
+            }
+        }
+        if abs(bounds.width - state.lastLayoutWidth) > 0.5 {
+            state.lastLayoutWidth = bounds.width
+            state.needsOverlayLayout = true
+        }
+        if state.needsOverlayLayout {
+            state.needsOverlayLayout = false
+            layoutOverlays()
+        }
+        applyPendingScrollIfPossible()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        renderIfNeeded()
+        applyPendingScrollIfPossible()
+    }
+
+    func setNeedsOverlayLayout() {
+        state.needsOverlayLayout = true
+        setNeedsLayout()
+    }
+
+    // MARK: - Pills
+
+    struct Pill {
+        let kind: ReadOverlayButton.Kind
+        let rect: CGRect
+        let sourceRange: NSRange
+    }
+
+    /// Every pill for the current layout, in view (content) coordinates: one Copy pill per
+    /// `.codeBlockSourceRange` run, pinned to the column's right edge at the block's top, and one
+    /// Reconnect pill per `.imageReconnect` placeholder, after its run (the Mac's geometry).
+    func overlayPills() -> [Pill] {
+        guard textStorage.length > 0 else { return [] }
+        var pills: [Pill] = []
+        let full = NSRange(location: 0, length: textStorage.length)
+        let origin = CGPoint(x: textContainerInset.left, y: textContainerInset.top)
+
+        textStorage.enumerateAttribute(.codeBlockSourceRange, in: full, options: []) { value, range, _ in
+            guard let value = value as? NSValue else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                .offsetBy(dx: origin.x, dy: origin.y)
+            let size = ReadOverlayButton.copyPillSize
+            // The column's right edge, not the end of the code: a short line ends mid-column.
+            let columnRightEdge = origin.x + textContainer.size.width - textContainer.lineFragmentPadding
+            let rect = CGRect(
+                x: columnRightEdge - size.width - ReadOverlayButton.pillInset,
+                y: blockRect.minY + ReadOverlayButton.pillInset,
+                width: size.width,
+                height: size.height
+            )
+            pills.append(Pill(kind: .copy, rect: rect, sourceRange: value.rangeValue))
+        }
+
+        let width = ReadOverlayButton.reconnectPillWidth
+        textStorage.enumerateAttribute(.imageReconnect, in: full, options: []) { value, range, _ in
+            guard value != nil,
+                  let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue
+            else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let runRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                .offsetBy(dx: origin.x, dy: origin.y)
+            // After the run, as on the Mac; on a narrow phone a long label would push the pill
+            // off the page, so it stops at the view's right margin.
+            let x = min(runRect.maxX + ReadOverlayButton.reconnectPillLeadingGap, max(origin.x, bounds.width - width - 4))
+            let rect = CGRect(
+                x: x,
+                y: runRect.midY - ReadOverlayButton.reconnectPillHeight / 2 + ReadOverlayButton.reconnectPillVerticalNudge,
+                width: width,
+                height: ReadOverlayButton.reconnectPillHeight
+            )
+            pills.append(Pill(kind: .reconnect, rect: rect, sourceRange: sourceValue.rangeValue))
+        }
+        return pills
+    }
+
+    /// Places the pills and redraws the table grid for the current layout. Pills are subviews in
+    /// content coordinates, so a scroll needs no work; this runs after a render, a refit, a width
+    /// change or a profile change.
+    func layoutOverlays() {
+        let pills = overlayPills()
+        let theme = Theme.theme(for: state.profile)
+        var reusable = state.overlayButtons
+        var placed: [ReadOverlayButton] = []
+        var codeBlockNumber = 0
+        for pill in pills {
+            let button: ReadOverlayButton
+            if let index = reusable.firstIndex(where: { $0.kind == pill.kind }) {
+                button = reusable.remove(at: index)
+            } else {
+                button = ReadOverlayButton(kind: pill.kind, sourceRange: pill.sourceRange)
+                button.addTarget(self, action: #selector(overlayButtonTapped(_:)), for: .touchUpInside)
+                addSubview(button)
+            }
+            button.sourceRange = pill.sourceRange
+            if pill.kind == .copy {
+                codeBlockNumber += 1
+                button.codeBlockNumber = codeBlockNumber
+                button.isShowingCopied = state.copiedSourceRange.map { NSEqualRanges($0, pill.sourceRange) } ?? false
+            }
+            button.apply(theme: theme)
+            button.frame = pill.rect
+            bringSubviewToFront(button)
+            placed.append(button)
+        }
+        for leftover in reusable {
+            leftover.removeFromSuperview()
+        }
+        state.overlayButtons = placed
+        layoutTableGrid(theme: theme)
+    }
+
+    @objc private func overlayButtonTapped(_ button: ReadOverlayButton) {
+        switch button.kind {
+        case .copy: copyCodeBlockShowingFeedback(button)
+        case .reconnect: onImageReconnect(button.sourceRange)
+        }
+    }
+
+    private var pasteboard: UIPasteboard {
+        #if DEBUG
+        if let pasteboardForTesting { return pasteboardForTesting }
+        #endif
+        return UIPasteboard.general
+    }
+
+    /// Copies a code block's source (sliced from the source this view rendered) to the
+    /// pasteboard. False, and nothing copied, when the range is stale. Never edits.
+    @discardableResult
+    func copyCodeBlock(sourceRange: NSRange) -> Bool {
+        guard let source = state.renderedText as NSString?,
+              sourceRange.location >= 0,
+              NSMaxRange(sourceRange) <= source.length
+        else { return false }
+        pasteboard.string = source.substring(with: sourceRange)
+        return true
+    }
+
+    private func copyCodeBlockShowingFeedback(_ button: ReadOverlayButton) {
+        guard copyCodeBlock(sourceRange: button.sourceRange) else { return }
+        state.copiedSourceRange = button.sourceRange
+        button.isShowingCopied = true
+        state.copyFeedbackGeneration += 1
+        let generation = state.copyFeedbackGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.copiedFeedbackDuration) { [weak self] in
+            guard let self, self.state.copyFeedbackGeneration == generation else { return }
+            self.state.copiedSourceRange = nil
+            for button in self.state.overlayButtons where button.kind == .copy {
+                button.isShowingCopied = false
+            }
+        }
+    }
+
+    // MARK: - Checkboxes
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === state.checkboxTap {
+            return checkboxSourceRange(at: gestureRecognizer.location(in: self)) != nil
+        }
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
+    }
+
+    @objc private func handleCheckboxTap(_ recognizer: UITapGestureRecognizer) {
+        activateCheckbox(at: recognizer.location(in: self))
+    }
+
+    /// The tap's work: toggles the checkbox whose glyph contains `point` (view coordinates).
+    /// Returns false, and does nothing, anywhere else.
+    @discardableResult
+    func activateCheckbox(at point: CGPoint) -> Bool {
+        guard let range = checkboxSourceRange(at: point) else { return false }
+        onCheckboxToggle(range)
+        return true
+    }
+
+    /// The source range of the task checkbox whose glyph `point` lands inside, or nil. The point
+    /// must fall inside the glyph's own rect, not merely on its line, so a tap in empty space never
+    /// toggles (the Mac's rule).
+    func checkboxSourceRange(at point: CGPoint) -> NSRange? {
+        guard textStorage.length > 0 else { return nil }
+        let containerPoint = CGPoint(x: point.x - textContainerInset.left, y: point.y - textContainerInset.top)
+        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: textContainer)
+        guard glyphRect.contains(containerPoint) else { return nil }
+        let characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        guard characterIndex < textStorage.length,
+              let value = textStorage.attribute(.checkboxSourceRange, at: characterIndex, effectiveRange: nil) as? NSValue
+        else { return nil }
+        return value.rangeValue
+    }
+
+    /// The rect of the checkbox glyph for `sourceRange`, in view coordinates (tests aim taps).
+    func checkboxGlyphRect(forSourceRange sourceRange: NSRange) -> CGRect? {
+        var found: CGRect?
+        textStorage.enumerateAttribute(.checkboxSourceRange, in: NSRange(location: 0, length: textStorage.length)) { value, range, stop in
+            guard let value = value as? NSValue, NSEqualRanges(value.rangeValue, sourceRange) else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: NSRange(location: range.location, length: 1), actualCharacterRange: nil)
+            found = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                .offsetBy(dx: textContainerInset.left, dy: textContainerInset.top)
+            stop.pointee = true
+        }
+        return found
+    }
+
+    // MARK: - Accessibility
+
+    /// The pills and checkboxes as custom actions, named as on the Mac. Each range is captured
+    /// now and checked again when invoked, so a stale one is a safe no-op.
+    override var accessibilityCustomActions: [UIAccessibilityCustomAction]? {
+        get {
+            let actions = readAccessibilityActions()
+            return actions + (super.accessibilityCustomActions ?? [])
+        }
+        set { super.accessibilityCustomActions = newValue }
+    }
+
+    func readAccessibilityActions() -> [UIAccessibilityCustomAction] {
+        guard textStorage.length > 0 else { return [] }
+        var actions: [UIAccessibilityCustomAction] = []
+        let full = NSRange(location: 0, length: textStorage.length)
+        let string = textStorage.string as NSString
+
+        var codeBlockNumber = 0
+        textStorage.enumerateAttribute(.codeBlockSourceRange, in: full, options: []) { value, _, _ in
+            guard let value = value as? NSValue else { return }
+            codeBlockNumber += 1
+            let sourceRange = value.rangeValue
+            actions.append(UIAccessibilityCustomAction(name: String(localized: "Copy code block \(codeBlockNumber)")) { [weak self] _ in
+                self?.copyCodeBlock(sourceRange: sourceRange) ?? false
+            })
+        }
+
+        textStorage.enumerateAttribute(.imageReconnect, in: full, options: []) { value, range, _ in
+            guard value != nil,
+                  let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue
+            else { return }
+            let sourceRange = sourceValue.rangeValue
+            actions.append(UIAccessibilityCustomAction(name: String(localized: "Reconnect image")) { [weak self] _ in
+                self?.onImageReconnect(sourceRange)
+                return true
+            })
+        }
+
+        textStorage.enumerateAttribute(.checkboxSourceRange, in: full, options: []) { value, range, _ in
+            guard let value = value as? NSValue else { return }
+            let sourceRange = value.rangeValue
+            let lineText = string.substring(with: string.lineRange(for: range))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = lineText.isEmpty
+                ? String(localized: "Toggle task")
+                : String(localized: "Toggle task: \(lineText)")
+            actions.append(UIAccessibilityCustomAction(name: name) { [weak self] _ in
+                self?.onCheckboxToggle(sourceRange)
+                return true
+            })
+        }
+        return actions
+    }
+
+    // MARK: - Position
+
+    /// The source offset of the first character on the page, or nil.
+    func sourceLocationAtTopOfViewport() -> Int? {
+        guard let index = topCharacterIndex() else { return nil }
+        return SourcePosition.sourceLocation(atRenderedIndex: index, in: textStorage)
+    }
+
+    fileprivate func scheduleVisibleTopReport() {
+        let selector = #selector(reportVisibleTop)
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
+        perform(selector, with: nil, afterDelay: Self.visibleTopReportDebounce, inModes: [.common])
+    }
+
+    @objc private func reportVisibleTop() {
+        guard let location = sourceLocationAtTopOfViewport(), location != state.lastReportedVisibleTop else { return }
+        state.lastReportedVisibleTop = location
+        onVisibleTopSourceLocationChanged?(location)
+    }
+
+    /// Parks the source line at or above `location` at the top of the page (8 pt below it, as on
+    /// the Mac), with sub-line precision. Before the view has a size or a render, the request
+    /// waits and is retried from layout. Never selects text.
+    func scrollSourceLocationToTop(_ location: Int) {
+        state.pendingScrollSourceLocation = location
+        applyPendingScrollIfPossible()
+    }
+
+    private func applyPendingScrollIfPossible() {
+        guard let target = state.pendingScrollSourceLocation,
+              state.hasRendered,
+              window != nil,
+              bounds.width > 1,
+              bounds.height > 1
+        else { return }
+        state.pendingScrollSourceLocation = nil
+        performScrollToSourceLocation(target)
+    }
+
+    private func performScrollToSourceLocation(_ target: Int) {
+        guard textStorage.length > 0 else {
+            setContentOffsetY(topContentOffsetY)
+            return
+        }
+        layoutManager.ensureLayout(for: textContainer)
+        let targetTop: CGFloat
+        if let renderedIndex = SourcePosition.renderedIndex(forSourceLocation: target, in: textStorage) {
+            let glyphRange = layoutManager.glyphRange(
+                forCharacterRange: NSRange(location: renderedIndex, length: 1),
+                actualCharacterRange: nil
+            )
+            let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            targetTop = max(0, rect.minY + textContainerInset.top - Self.scrollTopMargin)
+        } else {
+            targetTop = 0
+        }
+        // Never past the end of the laid-out page (the Mac's clip view clamps the same way).
+        let contentHeight = layoutManager.usedRect(for: textContainer).height + textContainerInset.top + textContainerInset.bottom
+        let maximumY = max(topContentOffsetY, contentHeight + adjustedContentInset.bottom - bounds.height)
+        setContentOffsetY(min(max(topContentOffsetY, targetTop - adjustedContentInset.top), maximumY))
+    }
+
+    // MARK: - Table grid
+
+    /// A hairline grid behind the table rows (`.markdownTableRow`): a line above the header, one
+    /// under every row, and a line at each column edge given by the rows' tab stops, in the theme
+    /// ink at 0.15 through `readableInk` (ratio 1.5).
+    private func layoutTableGrid(theme: Theme) {
+        guard let grid = state.tableGridView else { return }
+        sendSubviewToBack(grid)
+        let ink = theme.readableInk(theme.textColor.withAlphaComponent(Self.tableGridAlpha), minimumRatio: Self.tableGridMinimumRatio)
+        let lineWidth = 1 / max(1, currentDisplayScale)
+        grid.shapeLayer.strokeColor = ink.cgColor
+        grid.shapeLayer.lineWidth = lineWidth
+        grid.shapeLayer.fillColor = nil
+        let path = tableGridPath()
+        let height = max(contentSize.height, bounds.height, path.bounds.maxY + 1)
+        grid.frame = CGRect(x: 0, y: 0, width: max(bounds.width, 1), height: height)
+        grid.shapeLayer.path = path.isEmpty ? nil : path.cgPath
+    }
+
+    /// The table rows as (row index, character range), in order.
+    private func tableRows() -> [(index: Int, range: NSRange)] {
+        guard textStorage.length > 0 else { return [] }
+        var rows: [(Int, NSRange)] = []
+        textStorage.enumerateAttribute(.markdownTableRow, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
+            guard let number = value as? NSNumber else { return }
+            rows.append((number.intValue, range))
+        }
+        return rows
+    }
+
+    /// The grid's lines, in view coordinates.
+    func tableGridPath() -> UIBezierPath {
+        let path = UIBezierPath()
+        let rows = tableRows()
+        guard !rows.isEmpty else { return path }
+        let originX = textContainerInset.left
+        let originY = textContainerInset.top
+        let columnWidth = textContainer.size.width
+
+        // Split into tables: a row index of 0 (the header) starts a new one.
+        var tables: [[NSRange]] = []
+        for row in rows {
+            if row.index == 0 || tables.isEmpty {
+                tables.append([row.range])
+            } else {
+                tables[tables.count - 1].append(row.range)
+            }
+        }
+
+        for table in tables {
+            var rowTops: [CGFloat] = []
+            var bottom: CGFloat = 0
+            for range in table {
+                let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+                guard glyphs.length > 0 else { continue }
+                let first = layoutManager.lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+                let last = layoutManager.lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+                rowTops.append(first.minY + originY)
+                bottom = last.maxY + originY
+            }
+            guard let top = rowTops.first else { continue }
+            for y in rowTops + [bottom] {
+                path.move(to: CGPoint(x: originX, y: y))
+                path.addLine(to: CGPoint(x: originX + columnWidth, y: y))
+            }
+            if let first = table.first,
+               let style = textStorage.attribute(.paragraphStyle, at: first.location, effectiveRange: nil) as? NSParagraphStyle {
+                for x in Self.columnEdges(for: style.tabStops) {
+                    path.move(to: CGPoint(x: originX + x, y: top))
+                    path.addLine(to: CGPoint(x: originX + x, y: bottom))
+                }
+            }
+        }
+        return path
+    }
+
+    /// The inner column edges a row's tab stops imply. A left-aligned column's stop is its start;
+    /// after a right-aligned column the edge is that column's stop (its end); otherwise (a centred
+    /// column, whose stop is its middle) the edge falls halfway between the two stops.
+    static func columnEdges(for stops: [NSTextTab]) -> [CGFloat] {
+        guard stops.count > 1 else { return [] }
+        var edges: [CGFloat] = []
+        for index in 1..<stops.count {
+            let stop = stops[index]
+            let previous = stops[index - 1]
+            if stop.alignment == .left || stop.alignment == .natural {
+                edges.append(stop.location)
+            } else if previous.alignment == .right {
+                edges.append(previous.location)
+            } else {
+                edges.append((previous.location + stop.location) / 2)
+            }
+        }
+        return edges
+    }
+}
+
+// MARK: - Scrolling
+
+extension LineformReadView: UITextViewDelegate {
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        scheduleVisibleTopReport()
+    }
+}
+
+/// The table grid's layer: the lowest subview of the Read view, behind the text, never touched.
+final class ReadTableGridView: UIView {
+    override class var layerClass: AnyClass { CAShapeLayer.self }
+    var shapeLayer: CAShapeLayer { layer as! CAShapeLayer }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        backgroundColor = .clear
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("ReadTableGridView is made in code")
+    }
+}
