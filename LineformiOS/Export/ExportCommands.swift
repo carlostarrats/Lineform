@@ -57,6 +57,8 @@ final class ExportCommands {
 
     /// The sheet PDF exports use. Kept for the session.
     var paper: ExportPaperSize
+    /// The region's everyday sheet, the one the print panel starts on: Print renders for it first.
+    let printPaper: ExportPaperSize
     /// Read aloud's transport: idle, speaking or paused.
     private(set) var speechState: SpeechState
     /// The calm notice after an export failed, shown for `failureNoticeDuration`; nil otherwise.
@@ -86,7 +88,9 @@ final class ExportCommands {
         self.writer = writer
         self.speech = speech
         self.audioSession = audioSession
-        paper = ExportPaperSize.regionalDefault(regionCode: regionCode)
+        let regional = ExportPaperSize.regionalDefault(regionCode: regionCode)
+        paper = regional
+        printPaper = regional
         speechState = speech.state
         isAudioSessionActive = false
         speechObservation = nil
@@ -183,6 +187,7 @@ final class ExportCommands {
         PhonePrintRenderer(
             text: document?.text ?? "",
             profile: profile(),
+            paper: printPaper,
             documentDirectory: document?.documentDirectory
         )
     }

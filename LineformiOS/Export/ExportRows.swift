@@ -96,8 +96,12 @@ struct ExportRows: View {
     private func printDocument() {
         let controller = UIPrintInteractionController.shared
         controller.printInfo = PhonePrintRenderer.printInfo(jobName: commands.printJobName)
-        controller.printPageRenderer = commands.makePrintRenderer()
+        let renderer = commands.makePrintRenderer()
+        controller.printPageRenderer = renderer
         controller.present(animated: true)
+        // The other sheets' renders, on main while the panel is up: the print system's threads
+        // only lay out and draw finished renders (`PhonePrintRenderer`, Threading).
+        Task { await renderer.renderRemainingSheets() }
     }
 
     private func perform(_ action: SpeechAction) {
