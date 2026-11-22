@@ -69,6 +69,8 @@ struct StylingSliderRow: View {
     var valueText: String
     @Binding var value: Double
     var range: ClosedRange<Double>
+    /// True when a drag starts, false when it ends (`StylingDrag`).
+    var onEditingChanged: (Bool) -> Void = { _ in }
 
     var body: some View {
         StylingControlRow {
@@ -96,7 +98,7 @@ struct StylingSliderRow: View {
                         ))
                 }
 
-                Slider(value: $value, in: range)
+                Slider(value: $value, in: range, onEditingChanged: onEditingChanged)
                     .accessibilityLabel(StylingRowStyle.accessibilityTitle(title: title, subtitle: subtitle))
                     .accessibilityValue(valueText)
             }

@@ -25,6 +25,13 @@ extension LineformTextView {
     /// selection change and edit (through the delegate), on a size change, and when the profile
     /// or the whole text changes. Cheap: it lays out only the caret's line.
     func refreshReadingAssists() {
+        // During a Styling slider drag each restyle invalidates the whole layout, and placing the
+        // assists would lay the prefix out again (about 640 ms on 1 MB): hide the ruler, leave the
+        // caret, and catch up once when the drag ends (`stylingDragDidEnd`).
+        guard !StylingDrag.isActive else {
+            readingRulerView?.isHidden = true
+            return
+        }
         updateReadingRuler()
         centerSelectionForTypewriterModeIfNeeded()
     }
@@ -181,6 +188,8 @@ extension LineformTextView {
                            name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         center.addObserver(self, selector: #selector(keyboardDidSettleForTypewriter),
                            name: UIResponder.keyboardDidChangeFrameNotification, object: nil)
+        center.addObserver(self, selector: #selector(stylingDragDidEnd),
+                           name: StylingDrag.didEndNotification, object: nil)
     }
 
     @objc private func keyboardWillChangeFrameForTypewriter(_ notification: Notification) {
@@ -190,6 +199,10 @@ extension LineformTextView {
         let selector = #selector(keyboardDidSettleForTypewriter)
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
         perform(selector, with: nil, afterDelay: duration + 0.05, inModes: [.common])
+    }
+
+    @objc func stylingDragDidEnd() {
+        refreshReadingAssists()
     }
 
     @objc private func keyboardDidSettleForTypewriter() {

@@ -71,9 +71,13 @@ struct StylingSheet: View {
     static let resetTopSpacing: CGFloat = 20
     /// The Mac header's gap above the scrolling controls.
     static let headerBottomPadding: CGFloat = 8
+    /// The page behind the medium detent stays undimmed and usable, so a change shows live.
+    static let backgroundInteraction: PresentationBackgroundInteraction = .enabled(upThrough: .medium)
 
     private var theme: Theme { Theme.theme(for: store.activeProfile) }
-    private var bindings: Bindings { Bindings(store: store) }
+    /// Coalesces slider drags (`StylingDrag`).
+    @State private var coalescer = ProfileUpdateCoalescer()
+    private var bindings: Bindings { Bindings(store: store, coalescer: coalescer) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -132,6 +136,9 @@ struct StylingSheet: View {
             }
         }
         .foregroundStyle(Color(uiColor: theme.textColor))
+        // A sheet dismissed mid-drag never reports the drag's end: end it here, or the Read view
+        // would wait for it.
+        .onDisappear { coalescer.endDrag() }
     }
 
     private var header: some View {
@@ -180,7 +187,10 @@ struct StylingSheet: View {
             subtitle: subtitle,
             valueText: ReadingExperienceControls.valueText(for: keyPath, in: store.activeProfile),
             value: bindings.numeric(keyPath, range: range),
-            range: range
+            range: range,
+            onEditingChanged: { [coalescer] editing in
+                if editing { coalescer.beginDrag() } else { coalescer.endDrag() }
+            }
         )
     }
 }
@@ -191,6 +201,8 @@ extension StylingSheet {
     @MainActor
     struct Bindings {
         let store: ReadingProfileStore
+        /// Slider writes go through it, so a drag writes the store at most once per run-loop turn.
+        var coalescer: ProfileUpdateCoalescer? = nil
 
         /// The preset card drawn selected: the active slot, else the preset the profile matches.
         var selectedPresetID: UUID? {
@@ -211,10 +223,16 @@ extension StylingSheet {
             range: ClosedRange<Double>
         ) -> Binding<Double> {
             let store = store
+            let coalescer = coalescer
             return Binding(
                 get: { store.activeProfile[keyPath: keyPath] },
                 set: { value in
-                    store.update { $0[keyPath: keyPath] = ReadingExperienceControls.clamped(value, to: range) }
+                    let clamped = ReadingExperienceControls.clamped(value, to: range)
+                    if let coalescer {
+                        coalescer.submit(to: store) { $0[keyPath: keyPath] = clamped }
+                    } else {
+                        store.update { $0[keyPath: keyPath] = clamped }
+                    }
                 }
             )
         }
@@ -246,6 +264,7 @@ extension View {
             .presentationBackground(Color(uiColor: theme.backgroundColor))
             .presentationCornerRadius(StylingSheet.cornerRadius)
             .presentationDragIndicator(.visible)
+            .presentationBackgroundInteraction(StylingSheet.backgroundInteraction)
             .environment(\.colorScheme, StylingSheet.colorScheme(for: theme))
     }
 }

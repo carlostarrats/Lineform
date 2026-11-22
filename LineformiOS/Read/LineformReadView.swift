@@ -206,6 +206,8 @@ final class LineformReadView: UITextView {
     static func make(profile: ReadingProfile = .original) -> LineformReadView {
         let view = LineformReadView(usingTextLayoutManager: false)
         view.configure()
+        NotificationCenter.default.addObserver(view, selector: #selector(stylingDragDidEnd),
+                                               name: StylingDrag.didEndNotification, object: nil)
         view.state.profile = profile
         view.applyChrome()
         return view
@@ -250,9 +252,13 @@ final class LineformReadView: UITextView {
             && text != state.renderedText
             && profile == state.renderedProfile
             && documentDirectory == state.renderedDocumentDirectory
+        let deferredForDrag = StylingDrag.isActive && state.hasRendered && profile != state.renderedProfile
         state.profile = profile
         state.desiredText = text
         state.desiredDocumentDirectory = documentDirectory
+        // A Styling slider drag: a render costs over a second on 1 MB, so the newest profile waits
+        // for the drag's end (`stylingDragDidEnd`), chrome included (new insets re-lay the text).
+        if deferredForDrag { return }
         applyChrome()
         if textDelay > 0, onlyTextChanged {
             perform(selector, with: nil, afterDelay: textDelay, inModes: [.common])
@@ -262,6 +268,11 @@ final class LineformReadView: UITextView {
     }
 
     @objc private func renderAfterTextDelay() {
+        renderIfNeeded()
+    }
+
+    @objc func stylingDragDidEnd() {
+        applyChrome()
         renderIfNeeded()
     }
 
