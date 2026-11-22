@@ -31,6 +31,10 @@ struct DocumentScreen: View {
     private var displayMode: EditorDisplayMode { shownDisplayMode ?? storedDisplayMode }
     /// Records the position at a mode switch and restores it on the new surface.
     @State private var positionKeeper = ModePositionKeeper()
+    /// Preview's linked scrolling, linked by default.
+    @State private var linkedScroll = LinkedScroll()
+    /// The link button's state (mirrors `linkedScroll.isLinked`, which SwiftUI does not observe).
+    @State private var arePanesLinked = true
     /// The image line whose Reconnect pill opened the image picker.
     @State private var reconnectRange: NSRange?
     @State private var isPickingReconnectImage = false
@@ -94,8 +98,16 @@ struct DocumentScreen: View {
                 .padding(.top, ModeSwitch.topMargin)
         }
         .overlay(alignment: .bottomTrailing) {
-            MenuButton(profile: profile) { isShowingFiles = true }
-                .padding(MarkdownEditor.chromeMargin)
+            HStack(spacing: Self.bottomChromeSpacing) {
+                if displayMode == .split {
+                    PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
+                        linkedScroll.toggleLink()
+                        arePanesLinked = linkedScroll.isLinked
+                    }
+                }
+                MenuButton(profile: profile) { isShowingFiles = true }
+            }
+            .padding(MarkdownEditor.chromeMargin)
         }
         .background {
             // ⌘E on a hardware keyboard: Write ↔ Read, and Preview to Write, as on the Mac.
@@ -129,6 +141,8 @@ struct DocumentScreen: View {
         .onAppear {
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
             positionKeeper.adopt(displayMode)
+            let linkedScroll = linkedScroll
+            positionKeeper.isPreviewLinked = { [weak linkedScroll] in linkedScroll?.isLinked ?? true }
         }
         .task {
             await document.prepare(
@@ -148,30 +162,17 @@ struct DocumentScreen: View {
 }
 
 extension DocumentScreen {
+    /// The gap between Preview's link button and the Menu button.
+    static let bottomChromeSpacing: CGFloat = 12
     /// ⌘E, the Mac's Toggle Write / Read.
     static let toggleWriteReadShortcut = KeyboardShortcut("e", modifiers: .command)
 
-    /// The editor and the Read view, placed for the mode. The editor stays in the hierarchy in
-    /// every mode (under the Read view in Read), so Write keeps its undo history across a switch;
-    /// the Read view exists only in Read and Preview, so typing in Write renders nothing.
-    @ViewBuilder
+    /// The editor and the Read view, placed for the mode (`PreviewSplit`).
     private var page: some View {
-        let mode = displayMode
-        GeometryReader { proxy in
-            let height = proxy.size.height
-            let editorHeight = mode == .split ? (height / 2).rounded() : height
-            ZStack(alignment: .top) {
-                editor
-                    .frame(height: editorHeight)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .allowsHitTesting(mode != .read)
-                    .accessibilityHidden(mode == .read)
-                if mode != .write {
-                    reader
-                        .frame(height: mode == .split ? height - editorHeight : height)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                }
-            }
+        PreviewSplit(mode: displayMode, profile: profile) {
+            editor
+        } reader: {
+            reader
         }
         // The pill animates; the page itself switches at once, so the restore lands on settled
         // frames.
@@ -184,6 +185,8 @@ extension DocumentScreen {
             profile: profile,
             imageHost: document,
             positionKeeper: positionKeeper,
+            linkedScroll: displayMode == .split ? linkedScroll : nil,
+            keepsCaretVisibleOnResize: displayMode == .split,
             topChromeInset: ModeSwitch.pageTopClearance
         )
     }
@@ -202,7 +205,9 @@ extension DocumentScreen {
             },
             undoManager: document.undoManager,
             positionKeeper: positionKeeper,
-            topChromeInset: displayMode == .split ? 0 : ModeSwitch.pageTopClearance
+            topChromeInset: displayMode == .split ? 0 : ModeSwitch.pageTopClearance,
+            linkedScroll: displayMode == .split ? linkedScroll : nil,
+            textDelay: displayMode == .split ? LineformReadView.previewTextDelay : 0
         )
     }
 }

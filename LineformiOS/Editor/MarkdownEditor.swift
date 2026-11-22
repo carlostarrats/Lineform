@@ -22,8 +22,8 @@ struct MarkdownEditor: UIViewRepresentable {
     var imageHost: (any ImageInsertionHost)?
     /// Told which text view is the editor, for the mode switch's position restore.
     var positionKeeper: ModePositionKeeper?
-    /// Called on every scroll of the editor (Preview's linked scrolling).
-    var onScroll: ((UIScrollView) -> Void)?
+    /// Preview's linked scrolling; nil in Write and Read.
+    var linkedScroll: LinkedScroll?
     /// Preview's editor pane keeps the caret in view when the keyboard resizes it.
     var keepsCaretVisibleOnResize = false
     /// Extra room above the first line for the floating mode control.
@@ -40,6 +40,7 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.keepsCaretVisibleOnResize = keepsCaretVisibleOnResize
         textView.setTopChromeInset(topChromeInset)
         positionKeeper?.editor = textView
+        linkedScroll?.connect(editor: textView)
         return textView
     }
 
@@ -55,6 +56,7 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.keepsCaretVisibleOnResize = keepsCaretVisibleOnResize
         textView.setTopChromeInset(topChromeInset)
         positionKeeper?.editor = textView
+        linkedScroll?.connect(editor: textView)
         if textView.text != text {
             // An outside replacement: the editor's undo steps describe the old text.
             textView.setDocumentText(text)
@@ -90,7 +92,7 @@ struct MarkdownEditor: UIViewRepresentable {
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             (scrollView as? LineformTextView)?.visibleRangeDidChange()
-            parent.onScroll?(scrollView)
+            parent.linkedScroll?.editorDidScroll(scrollView)
         }
 
         /// On a misspelling, the spelling group (guesses, Learn, Ignore) leads the system's menu.

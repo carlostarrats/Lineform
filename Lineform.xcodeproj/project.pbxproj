@@ -19,6 +19,9 @@
 		1F0000410000000000000028 /* ModeSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000028 /* ModeSwitch.swift */; };
 		1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000029 /* ModePositionKeeper.swift */; };
 		1F000041000000000000002A /* ModeSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002A /* ModeSwitchTests.swift */; };
+		1F000041000000000000002B /* LinkedScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002B /* LinkedScroll.swift */; };
+		1F000041000000000000002C /* PreviewSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002C /* PreviewSplit.swift */; };
+		1F000041000000000000002D /* LinkedScrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002D /* LinkedScrollTests.swift */; };
 		1F000041000000000000001E /* SpellCheckPass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001E /* SpellCheckPass.swift */; };
 		1F000041000000000000001D /* SpellCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001D /* SpellCheckTests.swift */; };
 		1F000041000000000000001C /* LineformiOSTextView+ReadingAssists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */; };
@@ -223,6 +226,9 @@
 		1F0000400000000000000028 /* ModeSwitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitch.swift; sourceTree = "<group>"; };
 		1F0000400000000000000029 /* ModePositionKeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePositionKeeper.swift; sourceTree = "<group>"; };
 		1F000040000000000000002A /* ModeSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitchTests.swift; sourceTree = "<group>"; };
+		1F000040000000000000002B /* LinkedScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedScroll.swift; sourceTree = "<group>"; };
+		1F000040000000000000002C /* PreviewSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSplit.swift; sourceTree = "<group>"; };
+		1F000040000000000000002D /* LinkedScrollTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedScrollTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000001E /* SpellCheckPass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckPass.swift; sourceTree = "<group>"; };
 		1F000040000000000000001D /* SpellCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+ReadingAssists.swift"; sourceTree = "<group>"; };
@@ -719,6 +725,7 @@
 				1F0000400000000000000022 /* ImagePasteTests.swift */,
 				1F0000400000000000000026 /* ReadViewTests.swift */,
 				1F000040000000000000002A /* ModeSwitchTests.swift */,
+				1F000040000000000000002D /* LinkedScrollTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
@@ -748,6 +755,8 @@
 				1F0000400000000000000023 /* LineformReadView.swift */,
 				1F0000400000000000000024 /* ReadViewRepresentable.swift */,
 				1F0000400000000000000025 /* ReadOverlayButtons.swift */,
+				1F000040000000000000002B /* LinkedScroll.swift */,
+				1F000040000000000000002C /* PreviewSplit.swift */,
 			);
 			path = Read;
 			sourceTree = "<group>";
@@ -1160,6 +1169,8 @@
 				1F0000410000000000000027 /* MotionPolicy.swift in Sources */,
 				1F0000410000000000000028 /* ModeSwitch.swift in Sources */,
 				1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */,
+				1F000041000000000000002B /* LinkedScroll.swift in Sources */,
+				1F000041000000000000002C /* PreviewSplit.swift in Sources */,
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
 				1F0000410000000000000011 /* FileListSheet.swift in Sources */,
 			);
@@ -1176,6 +1187,7 @@
 				1F0000410000000000000022 /* ImagePasteTests.swift in Sources */,
 				1F0000410000000000000026 /* ReadViewTests.swift in Sources */,
 				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
+				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,
 				1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,

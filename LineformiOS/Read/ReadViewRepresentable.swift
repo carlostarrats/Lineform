@@ -26,6 +26,10 @@ struct ReadViewRepresentable: UIViewRepresentable {
     var positionKeeper: ModePositionKeeper?
     /// Extra room above the first line for the floating mode control (Read; not Preview's lower pane).
     var topChromeInset: CGFloat = 0
+    /// Preview's linked scrolling; nil in Read.
+    var linkedScroll: LinkedScroll?
+    /// How long after an edit the text is rendered (Preview's 0.12 s; Read renders at once).
+    var textDelay: TimeInterval = 0
 
     func makeUIView(context: Context) -> LineformReadView {
         let view = LineformReadView.make(profile: profile)
@@ -46,6 +50,12 @@ struct ReadViewRepresentable: UIViewRepresentable {
         view.documentUndoManager = undoManager
         view.setTopChromeInset(topChromeInset)
         positionKeeper?.reader = view
-        view.apply(text: text, profile: profile, documentDirectory: documentDirectory)
+        if let linkedScroll {
+            linkedScroll.connect(preview: view)
+            view.onScroll = { [weak linkedScroll] in linkedScroll?.previewDidScroll($0) }
+        } else {
+            view.onScroll = nil
+        }
+        view.apply(text: text, profile: profile, documentDirectory: documentDirectory, textDelay: textDelay)
     }
 }

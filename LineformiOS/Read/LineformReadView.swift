@@ -32,6 +32,8 @@ final class LineformReadView: UITextView {
     static let verticalInset: CGFloat = 32
     /// The visible-top report waits this long after the last scroll (the Mac's 0.08 s).
     static let visibleTopReportDebounce: TimeInterval = 0.08
+    /// Preview renders a text change this long after the last edit (the Mac's preview debounce).
+    static let previewTextDelay: TimeInterval = 0.12
     /// How long a Copy pill shows its checkmark (the Mac's 1.0 s).
     static let copiedFeedbackDuration: TimeInterval = 1.0
     /// A scroll-to-source parks the line this far below the top of the page (the Mac's 8 pt).
@@ -83,6 +85,11 @@ final class LineformReadView: UITextView {
         var checkboxTap: UITapGestureRecognizer?
         /// Become first responder once in a window (Read was chosen before the view was mounted).
         var wantsFocus = false
+        /// Every scroll, for Preview's linked scrolling. Not called for the offset changes a render,
+        /// a refit or a width change make on their own.
+        var onScroll: ((UIScrollView) -> Void)?
+        /// Set while the view moves its own offset for a layout change (no linked-scroll report).
+        var isAdjustingLayout = false
         weak var documentUndoManager: UndoManager?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
@@ -113,6 +120,11 @@ final class LineformReadView: UITextView {
     var onVisibleTopSourceLocationChanged: ((Int) -> Void)? {
         get { state.onVisibleTopSourceLocationChanged }
         set { state.onVisibleTopSourceLocationChanged = newValue }
+    }
+    /// Every scroll the reader makes, or a position restore (Preview's linked scrolling).
+    var onScroll: ((UIScrollView) -> Void)? {
+        get { state.onScroll }
+        set { state.onScroll = newValue }
     }
     /// The document's undo manager, so a shake or a three-finger swipe in Read undoes a checkbox
     /// toggle or a Reconnect (they are document edits, `OpenDocument.edit`).
@@ -179,11 +191,29 @@ final class LineformReadView: UITextView {
     /// Shows `text` rendered for `profile`, resolving relative images against
     /// `documentDirectory`. Renders only when an input changed (or the display scale did); the
     /// render itself waits until the view is in a window, so it always has real metrics.
-    func apply(text: String, profile: ReadingProfile, documentDirectory: URL?) {
+    ///
+    /// With a `textDelay` (Preview: `previewTextDelay`), a change of the text alone renders that
+    /// long after the last one, so typing in the editor above does not re-render per keystroke;
+    /// any other change renders at once.
+    func apply(text: String, profile: ReadingProfile, documentDirectory: URL?, textDelay: TimeInterval = 0) {
+        let selector = #selector(renderAfterTextDelay)
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
+        let onlyTextChanged = state.hasRendered
+            && text != state.renderedText
+            && profile == state.renderedProfile
+            && documentDirectory == state.renderedDocumentDirectory
         state.profile = profile
         state.desiredText = text
         state.desiredDocumentDirectory = documentDirectory
         applyChrome()
+        if textDelay > 0, onlyTextChanged {
+            perform(selector, with: nil, afterDelay: textDelay, inModes: [.common])
+        } else {
+            renderIfNeeded()
+        }
+    }
+
+    @objc private func renderAfterTextDelay() {
         renderIfNeeded()
     }
 
@@ -218,6 +248,8 @@ final class LineformReadView: UITextView {
         // its SOURCE position, which survives the new storage.
         let sourceAnchor = (state.hasRendered && profile != state.renderedProfile) ? sourceAnchorAtTop() : nil
 
+        state.isAdjustingLayout = true
+        defer { state.isAdjustingLayout = false }
         let metrics = RenderDisplayMetrics(scale: scale, visibleViewportHeight: window.bounds.height)
         let columnWidth = renderColumnWidth(for: profile, window: window)
         let rendered = MarkdownPreviewRenderer().render(
@@ -341,7 +373,11 @@ final class LineformReadView: UITextView {
             return
         }
         state.isHandlingWidthChange = true
-        defer { state.isHandlingWidthChange = false }
+        state.isAdjustingLayout = true
+        defer {
+            state.isHandlingWidthChange = false
+            state.isAdjustingLayout = false
+        }
         let anchor = reflowAnchor()
         change()
         updateTextContainerInset()
@@ -447,6 +483,12 @@ final class LineformReadView: UITextView {
             contentOffset = CGPoint(x: contentOffset.x, y: y)
         }
         state.pendingContentOffsetY = y
+        // Only the layout passes of this turn may put it back; after that the page belongs to the
+        // reader (and to Preview's linked scrolling), and an old target must never pull it back.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.state.pendingContentOffsetY == y else { return }
+            self.state.pendingContentOffsetY = nil
+        }
     }
 
     // MARK: - Layout
@@ -457,7 +499,9 @@ final class LineformReadView: UITextView {
         if let pending = state.pendingContentOffsetY {
             state.pendingContentOffsetY = nil
             if abs(contentOffset.y - pending) > 0.5 {
+                state.isAdjustingLayout = true
                 contentOffset = CGPoint(x: contentOffset.x, y: pending)
+                state.isAdjustingLayout = false
             }
         }
         if abs(bounds.width - state.lastLayoutWidth) > 0.5 {
@@ -906,6 +950,7 @@ final class LineformReadView: UITextView {
 extension LineformReadView: UITextViewDelegate {
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         scheduleVisibleTopReport()
+        if !state.isAdjustingLayout { state.onScroll?(scrollView) }
     }
 }
 
