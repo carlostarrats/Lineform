@@ -542,6 +542,10 @@ now validates with the failable initializer (so invalid UTF-8 is still rejected,
 decodes with `String(decoding:as:)`, which preserves the mark. `FileSystemDiskReader.readText` uses
 the same pair, or a BOM'd file would compare unequal to its own in-memory text and reload on every
 save. This is also what makes the existing BOM handling in the parsing layer reachable on real files.
+(2026-11-21: the pair is now `MarkdownFileCodec` in LineformCore, and `FileSystemDiskReader`,
+`DocumentDiskReading`, `ReloadResult` and `DocumentFileWatcher` moved to the package's
+`Documents/DocumentFileWatching.swift`, so the iPhone app reads and writes the same bytes.
+`DocumentReloadController` stays in the Mac app.)
 
 **`data(for:)` and `recordsSourceSave(for:)` disagreed in exactly one cell.** For a `.md` document
 left in `.plainText` by Convert to Plain Text, the write emitted the source verbatim while

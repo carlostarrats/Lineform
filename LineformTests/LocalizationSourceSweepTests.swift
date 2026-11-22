@@ -75,6 +75,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AppUpdateCheck.swift|Accept": "HTTP request header field name.",
         "OutlineSidebarView.swift|Lineform": "The app name — never translated (plan Global Constraints).",
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
+        "DocumentFolderResolver.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "BundledFontRegistrar.swift|Fonts": "Bundle subdirectory name.",
         "DiagramLog.swift|Library/Application Support": "File-system path component.",
         "PassageHistoryStore.swift|Library/Application Support": "File-system path component.",
@@ -158,6 +159,14 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AppReviewPromptStore.swift|eligibility forced for local QA": "DEBUG-only stderr QA diagnostic.",
         "AppReviewPromptStore.swift|Lineform review prompt QA: %@\n": "DEBUG-only stderr QA diagnostic.",
         "EditorContainerView.swift|requesting StoreKit system sheet": "DEBUG-only stderr QA diagnostic.",
+
+        // iPhone app diagnostics, never drawn.
+        "OpenDocument.swift|Save document":
+            "Background-task debug name passed to beginBackgroundTask(withName:); only system diagnostics show it.",
+        "OpenDocument.swift|Autosave could not write %@: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "OpenDocument.swift|Autosave could not rename %@: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "OpenDocument.swift|Trash":
+            "A folder name matched in a file path (isTrashLocation), never drawn.",
     ]
 
     /// Positions where SwiftUI (or App Intents) reads a bare literal as a `LocalizedStringKey`.
@@ -192,7 +201,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
 
         let catalogKeysByRoot = try Self.catalogKeysByRoot()
         for root in Self.sourceRoots {
-            XCTAssertGreaterThan(catalogKeysByRoot[root]?.count ?? 0, 100,
+            XCTAssertGreaterThan(catalogKeysByRoot[root]?.count ?? 0, Self.minimumCatalogKeys[root] ?? 100,
                                  "\(root)'s catalog read back almost empty — the scan would pass vacuously")
         }
 
@@ -346,7 +355,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         }
     }
 
-    /// The allowlists key files by name alone ("File.swift|key"). With two roots scanned, a name
+    /// The allowlists key files by name alone ("File.swift|key"). With several roots scanned, a name
     /// in both would make an entry ambiguous, so no name may appear in both.
     func testNoSwiftFileNameAppearsInBothSourceRoots() throws {
         var namesByRoot: [Set<String>] = []
@@ -394,8 +403,13 @@ final class LocalizationSourceSweepTests: XCTestCase {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     }
 
-    /// The app's sources and the shared `LineformCore` package's, which code moved out of `Lineform/`.
-    private static let sourceRoots = ["Lineform", "Packages/LineformCore/Sources/LineformCore"]
+    /// The Mac app's sources, the shared `LineformCore` package's (which code moved out of
+    /// `Lineform/`), and the iPhone app's, which resolves strings from its own catalog.
+    private static let sourceRoots = ["Lineform", "Packages/LineformCore/Sources/LineformCore", "LineformiOS"]
+
+    /// How many keys each root's catalog must read back before the scan can be trusted. The
+    /// iPhone catalog is young and small; the floor still catches a catalog that reads back empty.
+    private static let minimumCatalogKeys: [String: Int] = ["LineformiOS": 5]
 
     private static func swiftSources() throws -> [Source] {
         let manager = FileManager.default
@@ -421,6 +435,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "Lineform": "Lineform/Localizable.xcstrings",
         "Packages/LineformCore/Sources/LineformCore":
             "Packages/LineformCore/Sources/LineformCore/Resources/Localizable.xcstrings",
+        "LineformiOS": "LineformiOS/Localizable.xcstrings",
     ]
 
     private static func catalogKeysByRoot() throws -> [String: Set<String>] {

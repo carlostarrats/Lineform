@@ -31,9 +31,11 @@ final class RenderGoldenTests: XCTestCase {
     func testRenderedAttributesMatchGolden() throws {
         if try recordIfRequested() { return }
         let golden = try loadGolden()
-        let actual = Self.cases.map { renderCase in
-            Self.attributeSection(for: renderCase, text: render(renderCase))
-        }.joined()
+        let actual = Self.inRecordedAppearance {
+            Self.cases.map { renderCase in
+                Self.attributeSection(for: renderCase, text: render(renderCase))
+            }.joined()
+        }
         let expected = golden.lines.filter { !$0.hasPrefix(Self.hashLinePrefix) }.joined(separator: "\n") + "\n"
         if actual != expected {
             XCTFail("Rendered attributes differ from golden.txt.\n\(Self.firstDifference(expected, actual))")
@@ -44,13 +46,31 @@ final class RenderGoldenTests: XCTestCase {
         if try recordIfRequested() { return }
         let golden = try loadGolden()
         let expected = golden.lines.filter { $0.hasPrefix(Self.hashLinePrefix) }
-        let actual = Self.cases.map { renderCase in
-            Self.hashLine(for: renderCase, text: render(renderCase))
+        let actual = Self.inRecordedAppearance {
+            Self.cases.map { renderCase in
+                Self.hashLine(for: renderCase, text: render(renderCase))
+            }
         }
         XCTAssertEqual(expected.count, Self.cases.count, "golden.txt has the wrong number of pixel hash lines")
         for (expectedLine, actualLine) in zip(expected, actual) {
             XCTAssertEqual(actualLine, expectedLine, "pixel hash differs")
         }
+    }
+
+    // MARK: - Appearance
+
+    /// The golden was recorded with the Mac in Dark appearance. The high-contrast case uses the
+    /// dynamic `textColor` / `textBackgroundColor`, which resolve against the current appearance
+    /// both when the renderer derives colours and when `usesDarkChrome` picks the bitmap's
+    /// appearance. Pinning the render, the fingerprint and the drawing to Dark Aqua keeps both
+    /// tests independent of the system Light/Dark setting. `RenderPixels` still draws each case
+    /// in the appearance its theme asks for, as it did when the golden was recorded.
+    private static let recordedAppearance = NSAppearance(named: .darkAqua)!
+
+    private static func inRecordedAppearance<T>(_ body: () -> T) -> T {
+        var result: T?
+        recordedAppearance.performAsCurrentDrawingAppearance { result = body() }
+        return result!
     }
 
     // MARK: - Cases
@@ -160,10 +180,12 @@ final class RenderGoldenTests: XCTestCase {
         guard ProcessInfo.processInfo.environment["RECORD_RENDER_GOLDEN"] == "1" else { return false }
         if Self.didRecord { return true }
         var output = Self.osLine + "\n" + Self.scaleLine + "\n"
-        for renderCase in Self.cases {
-            let text = render(renderCase)
-            output += Self.attributeSection(for: renderCase, text: text)
-            output += Self.hashLine(for: renderCase, text: text) + "\n"
+        Self.inRecordedAppearance {
+            for renderCase in Self.cases {
+                let text = render(renderCase)
+                output += Self.attributeSection(for: renderCase, text: text)
+                output += Self.hashLine(for: renderCase, text: text) + "\n"
+            }
         }
         do {
             try output.write(to: Self.sourceGoldenURL, atomically: true, encoding: .utf8)

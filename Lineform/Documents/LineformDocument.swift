@@ -35,19 +35,14 @@ struct LineformDocument: FileDocument, Equatable {
     }
 
     init(markdownData: Data, id: UUID = UUID(), textFormat: LineformTextFormat = .markdown) throws {
-        // Validate with `String(data:encoding:)` — it returns nil on invalid UTF-8, which is how
-        // a corrupt file is rejected rather than repaired. Decode with `String(decoding:as:)`,
-        // because the validating initializer ALSO strips a leading U+FEFF on Darwin: the BOM then
-        // never reaches `text`, `markdownData()` cannot re-emit it, and the first write silently
-        // drops three bytes from the head of every Notepad-authored file. This is the same rule
-        // as the CRLF one — Lineform never normalises a file's byte-level conventions for the
-        // writer — and it is what makes the BOM handling in the parsing layer reachable at all.
-        guard String(data: markdownData, encoding: .utf8) != nil else {
+        // `MarkdownFileCodec` rejects invalid UTF-8 rather than repairing it, and keeps a leading
+        // U+FEFF and CRLF line endings exactly as they are on disk (the reasons are on the codec).
+        guard let decoded = MarkdownFileCodec.decode(markdownData) else {
             throw CocoaError(.fileReadCorruptFile)
         }
 
         self.id = id
-        text = String(decoding: markdownData, as: UTF8.self)
+        text = decoded
         self.textFormat = textFormat
         plainTextConversion = nil
     }
@@ -89,7 +84,7 @@ struct LineformDocument: FileDocument, Equatable {
     }
 
     func markdownData() -> Data {
-        Data(text.utf8)
+        MarkdownFileCodec.encode(text)
     }
 
     func plainTextData() -> Data {
@@ -185,16 +180,10 @@ struct LineformDocument: FileDocument, Equatable {
         return .markdownText
     }
 
-    /// Stat through `FileManager`, never `url.resourceValues(forKeys:)`.
-    ///
-    /// `URL` caches resource values on the instance, and `DocumentReloadController` re-uses one
-    /// stored `URL` for the life of the watch. With the caching read, the modification date froze
-    /// at whatever the first stat saw, so `reloadFromDisk`'s `modificationDate == lastSeen`
-    /// pre-check short-circuited forever: live reload fired at most once per file, and every
-    /// later external rewrite produced no reload and no "Updated" flash while the editor kept
-    /// showing — and kept autosaving — the stale snapshot.
+    /// Stat through `FileManager`, never `url.resourceValues(forKeys:)`: the reasons are on
+    /// `FileSystemDiskReader.modificationDate(at:)`, which this forwards to.
     static func modificationDate(at url: URL) -> Date? {
-        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        FileSystemDiskReader().modificationDate(at: url)
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
