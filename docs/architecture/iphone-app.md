@@ -6,8 +6,9 @@ links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
 (`TARGETED_DEVICE_FAMILY = 1`); Mac Catalyst, "Designed for iPhone" on the Mac and visionOS are
 all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
-This page covers roadmap step 3 (shell and files), step 4 (Write mode) and step 5 (Read and
-Preview, with the Write/Read/Preview switch). The Menu sheet and the rest arrive in later steps.
+This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
+Preview, with the Write/Read/Preview switch), step 7 (the Styling sheet) and step 11 (first run).
+The Menu sheet and the rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -19,7 +20,9 @@ a fully working state, never an error or a prompt.
 - Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `FileListSheet`,
   `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
-  `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper` and `MotionPolicy`. Every name
+  `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
+  `StylingButton`; `Styling/`: `StylingSheet`, `StylingPresetCard`, `StylingRows` and
+  `StylingDrag`. Every name
   differs from the Mac sources' file names), with its own `Info.plist`, `Localizable.xcstrings`
   (six languages) and entitlements.
 - Tests: `LineformiOSTests/`, hosted in the app, run by the shared `LineformiOS` scheme through
@@ -309,6 +312,57 @@ above the keyboard, split by a hairline (theme ink at 0.15 through `readableInk`
   systemBlue on a blue wash; unlinked it is struck through in the ink at 0.62. The press animates
   like the mode control's (every layer drawn, only opacities change). Labels are the Mac's
   "Link split scrolling" and "Unlink split scrolling".
+
+## Styling sheet
+
+Roadmap step 7 (plan `2026-11-22-iphone-styling-sheet.md` in the Lineform-mobile planning folder).
+
+- **Button.** `StylingButton` is a 44 pt "Aa" circle with the Menu button's floating-card chrome,
+  to the right of Menu (`[link (Preview only)] [Menu] [Aa]`). Its label is the Mac's "Reading
+  Experience".
+- **Sheet.** Page-coloured from the live profile's theme, corner radius `LineformDesign.Radius.modal`
+  (20), detents medium and large, drag indicator, colour scheme forced from
+  `Theme.usesDarkChrome` (never the system appearance). The page behind the medium detent is not
+  dimmed and stays usable, so every change shows live. A Reconnect tapped there closes the sheet
+  first, then opens the image picker (one view cannot present both). The sheet also sets
+  `preferredColorScheme`, so its grabber and the Font menu follow the theme too.
+- **Controls.** The Mac panel (`ReadingExperiencePopover.swift`), in its order and with its values:
+  header "Reading"; "Themes" with the six preset cards in three columns; Font (the available
+  grouped options, so Comic Sans, a Mac system font, never shows; a retired font shows the
+  default); Font Size, Line Height, Block Spacing (Read / Preview), Letter Spacing and Column
+  Width sliders (continuous, no steps); Reading Ruler and Typewriter Mode with their
+  descriptions; Reset to Default (resets only the current preset). The ranges, the value wording
+  and the visible font id come from the package's `ReadingExperienceControls`, which the Mac's
+  panel forwards to, so the two cannot drift.
+- **Not on the sheet.** The desktop panel has no separate theme picker, margins slider or High
+  Contrast toggle (each preset carries its theme), so the iPhone sheet has none either. Automatic
+  Dark Mode is a Settings row. Column width keeps the Mac's 460–1200 range ("Full" from 1160): on
+  a portrait phone the 40 pt margin governs, and the setting shows in landscape.
+- **Persistence.** Every control writes through `ReadingProfileStore` (`applyPreset`, `update`,
+  `resetCurrentPreset`), per device in `UserDefaults.standard`, never synced. `DocumentScreen`
+  observes the store, so the editor and the Read view restyle without a relaunch.
+- **Slider drags on large documents.** Measured on 1 MB (Debug, simulator), one profile change
+  costs: in Write, 4 ms for the base attributes and under 1 ms for the token pass, then about
+  640 ms for the reading assists, because the restyle invalidates layout and placing the ruler or
+  centring the caret lays out the whole prefix up to the caret; in Read, about 450 ms to render,
+  390 ms to place the pills and 430 ms to lay out. So while a slider is held (`StylingDrag.isActive`):
+  - `ProfileUpdateCoalescer` writes the store at most once per run-loop turn, with the newest
+    value.
+  - The editor restyles live, but `refreshReadingAssists` only hides the ruler and leaves the
+    caret where it is.
+  - `LineformReadView.apply` keeps the newest profile without rendering it or changing its
+    insets.
+
+  When the last held slider is released (drags are counted, so two fingers work), the final
+  value lands in the store, and the drag stays active for one more main-queue turn: SwiftUI hands
+  that value to the views after the write, so their last update is still deferred. Then
+  `StylingDrag.didEndNotification` runs the assists and the render once, on the final value.
+  While a drag is active the Read view also keeps laying out for the profile it rendered, so a
+  scroll or rotation never re-wraps the old render at a new column. A sheet dismissed mid-drag,
+  or the app resigning active (an interrupted touch may never report its end), ends every drag. What
+  remains is the one catch-up at release and the same cost for a preset tap or a toggle on a
+  1 MB document in Read. `StylingPerformanceTests` prints the numbers and asserts the structure
+  (one store update per turn, no prefix layout during a drag, one render at its end).
 
 ## Files: reading, writing and live reload
 

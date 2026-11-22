@@ -21,6 +21,7 @@ struct DocumentScreen: View {
     @ObservedObject var profileStore: ReadingProfileStore
     private var profile: ReadingProfile { profileStore.activeProfile }
     @State private var isShowingFiles = false
+    @State private var isShowingStyling = false
     /// Write, Read or Preview. Kept with the scene, so a Preview restored after iOS ended the app
     /// opens in Preview; a new scene starts in Write.
     @SceneStorage("displayMode") private var storedDisplayMode: EditorDisplayMode = .write
@@ -157,6 +158,7 @@ struct DocumentScreen: View {
                     }
                 }
                 MenuButton(profile: profile) { isShowingFiles = true }
+                StylingButton(profile: profile) { isShowingStyling = true }
             }
             .padding(MarkdownEditor.chromeMargin)
         }
@@ -178,6 +180,15 @@ struct DocumentScreen: View {
         }
         .sheet(isPresented: $isShowingFiles) {
             FileListSheet(document: document)
+        }
+        .sheet(isPresented: $isShowingStyling, onDismiss: {
+            // A Reconnect tapped on the page beside the open sheet waits for it to close: a view
+            // already presenting cannot present the image picker too.
+            if reconnectRange != nil, !isPickingReconnectImage { isPickingReconnectImage = true }
+        }) {
+            // The live profile's theme: the sheet recolours as a preset is picked.
+            StylingSheet(store: profileStore)
+                .stylingSheetChrome(theme: Theme.theme(for: profile))
         }
         .fileImporter(
             isPresented: $isPickingReconnectImage,
@@ -233,7 +244,7 @@ struct DocumentScreen: View {
 }
 
 extension DocumentScreen {
-    /// The gap between Preview's link button and the Menu button.
+    /// The gap between the bottom-trailing buttons: Preview's link, Menu, and Aa.
     static let bottomChromeSpacing: CGFloat = 12
     /// The room the Read view (and Preview's lower pane) keeps below its last line, so it scrolls
     /// clear of the floating Menu and link buttons.
@@ -277,7 +288,11 @@ extension DocumentScreen {
             onImageReconnect: { range, renderedFrom in
                 reconnectRange = range
                 reconnectRenderedText = renderedFrom
-                isPickingReconnectImage = true
+                if isShowingStyling {
+                    isShowingStyling = false
+                } else {
+                    isPickingReconnectImage = true
+                }
             },
             // One undo history in every mode: the editor's, which applied the Read edits.
             undoManager: { [positionKeeper] in positionKeeper.editor?.undoManager },

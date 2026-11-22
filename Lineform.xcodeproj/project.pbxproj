@@ -17,6 +17,13 @@
 		1F0000410000000000000026 /* ReadViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000026 /* ReadViewTests.swift */; };
 		1F0000410000000000000027 /* MotionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000027 /* MotionPolicy.swift */; };
 		1F0000410000000000000028 /* ModeSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000028 /* ModeSwitch.swift */; };
+		1F0000410000000000000070 /* StylingButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000070 /* StylingButton.swift */; };
+		1F0000410000000000000071 /* StylingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000071 /* StylingSheet.swift */; };
+		1F0000410000000000000073 /* StylingPresetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000073 /* StylingPresetCard.swift */; };
+		1F0000410000000000000074 /* StylingRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000074 /* StylingRows.swift */; };
+		1F0000410000000000000076 /* StylingDrag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000076 /* StylingDrag.swift */; };
+		1F0000410000000000000072 /* StylingSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000072 /* StylingSheetTests.swift */; };
+		1F0000410000000000000075 /* StylingPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000075 /* StylingPerformanceTests.swift */; };
 		1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000029 /* ModePositionKeeper.swift */; };
 		1F000041000000000000002A /* ModeSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002A /* ModeSwitchTests.swift */; };
 		1F000041000000000000002B /* LinkedScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002B /* LinkedScroll.swift */; };
@@ -230,6 +237,13 @@
 		1F0000400000000000000026 /* ReadViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadViewTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000027 /* MotionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionPolicy.swift; sourceTree = "<group>"; };
 		1F0000400000000000000028 /* ModeSwitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitch.swift; sourceTree = "<group>"; };
+		1F0000400000000000000070 /* StylingButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingButton.swift; sourceTree = "<group>"; };
+		1F0000400000000000000071 /* StylingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingSheet.swift; sourceTree = "<group>"; };
+		1F0000400000000000000073 /* StylingPresetCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingPresetCard.swift; sourceTree = "<group>"; };
+		1F0000400000000000000074 /* StylingRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingRows.swift; sourceTree = "<group>"; };
+		1F0000400000000000000076 /* StylingDrag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingDrag.swift; sourceTree = "<group>"; };
+		1F0000400000000000000072 /* StylingSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingSheetTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000075 /* StylingPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingPerformanceTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000029 /* ModePositionKeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePositionKeeper.swift; sourceTree = "<group>"; };
 		1F000040000000000000002A /* ModeSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitchTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000002B /* LinkedScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedScroll.swift; sourceTree = "<group>"; };
@@ -716,6 +730,7 @@
 				1F0000420000000000000004 /* Read */,
 				1F0000420000000000000005 /* Chrome */,
 				1F0000B10000000000000001 /* FirstRun */,
+				1F0000420000000000000070 /* Styling */,
 				1F0000400000000000000008 /* Assets.xcassets */,
 				1F0000400000000000000007 /* Localizable.xcstrings */,
 				1F0000400000000000000004 /* Info.plist */,
@@ -738,6 +753,8 @@
 				1F0000400000000000000026 /* ReadViewTests.swift */,
 				1F000040000000000000002A /* ModeSwitchTests.swift */,
 				1F000040000000000000002D /* LinkedScrollTests.swift */,
+				1F0000400000000000000072 /* StylingSheetTests.swift */,
+				1F0000400000000000000075 /* StylingPerformanceTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
@@ -791,8 +808,20 @@
 				1F0000400000000000000027 /* MotionPolicy.swift */,
 				1F0000400000000000000028 /* ModeSwitch.swift */,
 				1F0000400000000000000029 /* ModePositionKeeper.swift */,
+				1F0000400000000000000070 /* StylingButton.swift */,
 			);
 			path = Chrome;
+			sourceTree = "<group>";
+		};
+		1F0000420000000000000070 /* Styling */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000400000000000000071 /* StylingSheet.swift */,
+				1F0000400000000000000073 /* StylingPresetCard.swift */,
+				1F0000400000000000000074 /* StylingRows.swift */,
+				1F0000400000000000000076 /* StylingDrag.swift */,
+			);
+			path = Styling;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1194,6 +1223,11 @@
 				1F0000410000000000000027 /* MotionPolicy.swift in Sources */,
 				1F0000410000000000000028 /* ModeSwitch.swift in Sources */,
 				1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */,
+				1F0000410000000000000070 /* StylingButton.swift in Sources */,
+				1F0000410000000000000071 /* StylingSheet.swift in Sources */,
+				1F0000410000000000000073 /* StylingPresetCard.swift in Sources */,
+				1F0000410000000000000074 /* StylingRows.swift in Sources */,
+				1F0000410000000000000076 /* StylingDrag.swift in Sources */,
 				1F000041000000000000002B /* LinkedScroll.swift in Sources */,
 				1F000041000000000000002C /* PreviewSplit.swift in Sources */,
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
@@ -1217,6 +1251,8 @@
 				1F0000410000000000000026 /* ReadViewTests.swift in Sources */,
 				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
 				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,
+				1F0000410000000000000072 /* StylingSheetTests.swift in Sources */,
+				1F0000410000000000000075 /* StylingPerformanceTests.swift in Sources */,
 				1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,

@@ -206,6 +206,8 @@ final class LineformReadView: UITextView {
     static func make(profile: ReadingProfile = .original) -> LineformReadView {
         let view = LineformReadView(usingTextLayoutManager: false)
         view.configure()
+        NotificationCenter.default.addObserver(view, selector: #selector(stylingDragDidEnd),
+                                               name: StylingDrag.didEndNotification, object: nil)
         view.state.profile = profile
         view.applyChrome()
         return view
@@ -250,9 +252,13 @@ final class LineformReadView: UITextView {
             && text != state.renderedText
             && profile == state.renderedProfile
             && documentDirectory == state.renderedDocumentDirectory
+        let deferredForDrag = StylingDrag.isActive && state.hasRendered && profile != state.renderedProfile
         state.profile = profile
         state.desiredText = text
         state.desiredDocumentDirectory = documentDirectory
+        // A Styling slider drag: a render costs over a second on 1 MB, so the newest profile waits
+        // for the drag's end (`stylingDragDidEnd`), chrome included (new insets re-lay the text).
+        if deferredForDrag { return }
         applyChrome()
         if textDelay > 0, onlyTextChanged {
             perform(selector, with: nil, afterDelay: textDelay, inModes: [.common])
@@ -262,6 +268,11 @@ final class LineformReadView: UITextView {
     }
 
     @objc private func renderAfterTextDelay() {
+        renderIfNeeded()
+    }
+
+    @objc func stylingDragDidEnd() {
+        applyChrome()
         renderIfNeeded()
     }
 
@@ -352,8 +363,15 @@ final class LineformReadView: UITextView {
         return min(EditorReadingLayout.textColumnMaxWidth(for: profile), longestSide)
     }
 
+    /// The profile the on-screen render is laid out for. During a Styling slider drag the newest
+    /// profile waits (`apply`), so a layout pass in the meantime (a scroll, a rotation) keeps the
+    /// rendered profile's column and fit width instead of re-wrapping the old render at new ones.
+    private var layoutProfile: ReadingProfile {
+        (StylingDrag.isActive ? state.renderedProfile : nil) ?? state.profile
+    }
+
     private func updateTextContainerInset() {
-        let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: state.profile)
+        let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: layoutProfile)
         let inset = UIEdgeInsets(top: Self.verticalInset, left: side, bottom: Self.verticalInset, right: side)
         if textContainerInset != inset {
             textContainerInset = inset
@@ -365,7 +383,7 @@ final class LineformReadView: UITextView {
     /// image's height is also capped to the visible page (`ImageFit.maxHeight`).
     private func refitBlockAttachments() {
         guard textStorage.length > 0, bounds.width > 1 else { return }
-        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: state.profile)
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: layoutProfile)
         let viewportHeight = bounds.height - adjustedContentInset.top - adjustedContentInset.bottom
         let imageMaxHeight = ImageFit.maxHeight(visibleViewportHeight: viewportHeight > 1 ? viewportHeight : bounds.height)
         textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
@@ -385,7 +403,7 @@ final class LineformReadView: UITextView {
     /// `tableTabBasisWidth` (each column's share of that width), so they scale by the ratio.
     private func refitTableRows() {
         guard textStorage.length > 0, bounds.width > 1, state.tableTabBasisWidth > 0 else { return }
-        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: state.profile)
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: layoutProfile)
         guard fitWidth > 0, abs(fitWidth - state.tableTabBasisWidth) > 0.5 else { return }
         let ratio = fitWidth / state.tableTabBasisWidth
         var restyled: [(NSRange, NSParagraphStyle)] = []
