@@ -319,6 +319,73 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: other, encoding: .utf8), "cat in another file", "other files are never written")
     }
 
+    // MARK: - Review fixes
+
+    /// What the writer typed reaches the controller as it is typed: a tap on Replace or Replace
+    /// All straight after the last keystroke, with no view update between them, uses the new
+    /// query and replacement. "cats" must never replace the "cat" in "category".
+    func testFieldsReachTheControllerBeforeTheNextViewUpdate() async throws {
+        for button in ["Replace All", "Replace"] {
+            let commands = RecordingEditorCommands(text: "category cats")
+            let folder = self.folder!
+            let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+            let window = try hostSearch(document: document, commands: commands)
+            try await settle(window) { !Self.textFields(in: window).isEmpty }
+
+            let query = try XCTUnwrap(Self.textFields(in: window).first, "the search field")
+            query.becomeFirstResponder()
+            query.insertText("cat")
+            try await settle(window) { Self.textFields(in: window).count == 2 && Self.element(button, in: window) != nil }
+            let replacement = try XCTUnwrap(Self.textFields(in: window).last, "the replacement field")
+            let tap = try XCTUnwrap(Self.element(button, in: window), button)
+
+            // The last keystrokes, then the tap, in one main-thread turn.
+            replacement.becomeFirstResponder()
+            replacement.insertText("dogs")
+            query.becomeFirstResponder()
+            query.insertText("s")
+            XCTAssertTrue(tap.accessibilityActivate(), "\(button) was tapped")
+
+            XCTAssertEqual(commands.text, "category dogs", "\(button) used the typed query and replacement")
+            window.isHidden = true
+        }
+    }
+
+    /// A tap on a file result outlives the sheet: the match is selected once the file opens, even
+    /// though the section and its controller are gone by then.
+    func testFileResultSelectsAfterTheControllerIsReleased() async throws {
+        let commands = RecordingEditorCommands(text: "")
+        let opened = "zero\nthe needle here"
+        let gate = OpenGate()
+        var controller: SearchController? = SearchController(
+            editor: commands, files: nil, currentURL: { nil },
+            fileSearch: CrossFileSearchModel(debounceInterval: 0),
+            open: { _ in
+                await gate.wait()
+                commands.text = opened
+                return opened
+            },
+            announce: { _ in }
+        )
+        weak var released = controller
+        controller?.setQuery("needle")
+        let row = SearchRow(
+            id: "content", kind: .fileContent(NSRange(location: 9, length: 6)),
+            url: folder.appendingPathComponent("Other.md"), snippet: nil, indicator: "Other.md"
+        )
+        var dismissed = false
+        let task = controller?.activate(row, dismiss: { dismissed = true })
+        controller = nil
+        XCTAssertNil(released, "the sheet and its controller are gone before the file opens")
+        XCTAssertTrue(dismissed)
+
+        gate.open()
+        await task?.value
+        let expected = NSRange(location: 9, length: 6)
+        XCTAssertEqual(commands.selected, [expected], "the match is still selected")
+        XCTAssertEqual(commands.scrolled, [expected])
+    }
+
     // MARK: - Helpers
 
     private func makeController(
@@ -344,6 +411,55 @@ final class SearchTests: XCTestCase {
         )
     }
 
+    private func hostSearch(document: OpenDocument, commands: RecordingEditorCommands) throws -> UIWindow {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UIHostingController(
+            rootView: SearchSection(document: document, editor: commands, files: makeStore(), onDismiss: {})
+        )
+        window.makeKeyAndVisible()
+        self.window = window
+        return window
+    }
+
+    private func settle(_ window: UIWindow, until condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            try await Task.sleep(for: .milliseconds(30))
+            window.layoutIfNeeded()
+        } while !condition() && Date() < deadline
+    }
+
+    /// The text fields on screen, top to bottom.
+    private static func textFields(in view: UIView) -> [UITextField] {
+        var found: [UITextField] = []
+        func walk(_ view: UIView) {
+            if let field = view as? UITextField { found.append(field) }
+            view.subviews.forEach(walk)
+        }
+        walk(view)
+        return found.sorted { $0.convert($0.bounds, to: nil).minY < $1.convert($1.bounds, to: nil).minY }
+    }
+
+    /// The button labelled exactly `label`.
+    private static func element(_ label: String, in root: NSObject, depth: Int = 0) -> NSObject? {
+        guard depth < 60 else { return nil }
+        if root.accessibilityLabel == label, root.accessibilityTraits.contains(.button), !(root is UIWindow) { return root }
+        var children: [NSObject] = []
+        if let view = root as? UIView { children += view.subviews }
+        if let elements = root.accessibilityElements as? [NSObject] { children += elements }
+        let count = root.accessibilityElementCount()
+        if count != NSNotFound, count > 0 {
+            for index in 0..<count {
+                if let element = root.accessibilityElement(at: index) as? NSObject { children.append(element) }
+            }
+        }
+        for child in children where child !== root {
+            if let found = element(label, in: child, depth: depth + 1) { return found }
+        }
+        return nil
+    }
+
     private func liveCommands(text: String) throws -> (LiveEditorCommands, LineformTextView) {
         let editor = LineformTextView.make(profile: .original)
         editor.setDocumentText(text)
@@ -361,6 +477,24 @@ final class SearchTests: XCTestCase {
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
         return (LiveEditorCommands(positionKeeper: keeper, document: document, mode: .write), editor)
+    }
+}
+
+/// Holds an open until the test lets it finish.
+@MainActor
+final class OpenGate {
+    private var isOpen = false
+    private var waiting: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { waiting = $0 }
+    }
+
+    func open() {
+        isOpen = true
+        waiting?.resume()
+        waiting = nil
     }
 }
 

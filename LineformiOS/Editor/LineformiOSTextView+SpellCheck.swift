@@ -8,6 +8,8 @@ import UIKit
 ///   keystroke and never while an input method is composing (`markedTextRange != nil`). The
 ///   language is the keyboard's primary language; when it has no `UITextChecker` dictionary (the
 ///   emoji keyboard), the first preferred language that has one. With none, nothing is checked.
+/// - **Check Document Now.** One whole-document pass, on or off. With the switch off, its
+///   underlines last until the next edit.
 /// - **Drawn, never stored.** Each misspelling gets a 1.5 pt dotted red line under its glyphs,
 ///   stroked by a shape layer above the text from TextKit 1 line fragments. Nothing is written
 ///   to the text storage, so copy, paste and the saved file never see it. An edit that touches a
@@ -109,13 +111,18 @@ extension LineformTextView {
         )
     }
 
-    /// Shifts or drops the underlines an edit moved or touched. Runs inside the storage's
-    /// `processEditing`, where layout must not be asked for, so the redraw waits for the next
-    /// layout pass (this same frame).
+    /// Shifts or drops the underlines an edit moved or touched. With Check spelling while typing
+    /// off, no pass keeps underlines current, so the ones Check Document Now drew are a one-off:
+    /// the next edit clears them all. Runs inside the storage's `processEditing`, where layout
+    /// must not be asked for, so the redraw waits for the next layout pass (this same frame).
     @objc private func textStorageDidProcessEditingForSpellCheck(_ notification: Notification) {
         let storage = textStorage
         if storage.editedMask.contains(.editedCharacters) {
-            spellCheck.textDidChange(editedRange: storage.editedRange, changeInLength: storage.changeInLength)
+            if checksSpellingWhileTyping {
+                spellCheck.textDidChange(editedRange: storage.editedRange, changeInLength: storage.changeInLength)
+            } else if !spellCheck.misspelledRanges.isEmpty {
+                spellCheck.misspelledRanges = []
+            }
         }
         setNeedsSpellingUnderlineRedraw()
     }

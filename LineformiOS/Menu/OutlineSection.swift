@@ -56,17 +56,12 @@ struct OutlineSection: View {
     var editor: any EditorCommands
     var onDismiss: () -> Void
 
-    @State private var model: OutlineModel
+    /// Built once, when the section first appears, then kept current by its debounced rebuild:
+    /// never in `init`, which SwiftUI runs on every update of the sheet (each keystroke).
+    @State private var model: OutlineModel?
 
     /// Points per level of indent.
     static let indentStep: CGFloat = 14
-
-    init(text: String, editor: any EditorCommands, onDismiss: @escaping () -> Void) {
-        self.text = text
-        self.editor = editor
-        self.onDismiss = onDismiss
-        _model = State(initialValue: OutlineModel(text: text))
-    }
 
     /// The Mac's empty-state wording.
     static var emptyText: String { String(localized: "Add # Title or ## Section to build an outline.") }
@@ -78,6 +73,21 @@ struct OutlineSection: View {
     }
 
     var body: some View {
+        Group {
+            if let model {
+                list(model)
+            } else {
+                Color.clear
+            }
+        }
+        .onAppear {
+            if model == nil { model = OutlineModel(text: text) }
+        }
+        .onChange(of: text) { _, newText in model?.textChanged(newText) }
+    }
+
+    @ViewBuilder
+    private func list(_ model: OutlineModel) -> some View {
         Group {
             if model.rows.isEmpty {
                 Text(Self.emptyText)
@@ -106,6 +116,5 @@ struct OutlineSection: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .onChange(of: text) { _, newText in model.textChanged(newText) }
     }
 }

@@ -13,7 +13,12 @@ import Foundation
 ///
 /// With `includesICloudPlaceholders` (the iPhone), an iCloud placeholder `.Name.md.icloud` (a file
 /// iCloud has not downloaded) is listed as `Name.md`, under its real URL, and is not hidden. The
-/// Mac's scan leaves it off, so a placeholder stays a hidden, unsupported entry there.
+/// Mac's scan leaves it off, so a placeholder stays a hidden, unsupported entry there. Such an item
+/// is flagged `isICloudPlaceholder`, and when the real file sits beside its placeholder (a download
+/// in progress), only the real file is listed.
+///
+/// `alsoExcluding` adds directory names dropped at every level whatever Show Hidden Folders says
+/// (the iPhone passes `.Trash`, where its Files section moves deleted documents).
 ///
 /// It never writes and never coordinates. Callers decide when and on which thread to run it.
 public enum OutlineFileScanner {
@@ -28,6 +33,7 @@ public enum OutlineFileScanner {
         showsHidden: Bool,
         sortOrder: OutlineFileSortOrder = .name,
         includesICloudPlaceholders: Bool = false,
+        alsoExcluding extraExcludedDirectoryNames: Set<String> = [],
         fileManager: FileManager = .default
     ) -> [OutlineFileTreeItem] {
         items(
@@ -36,7 +42,8 @@ public enum OutlineFileScanner {
             depth: 0,
             showsHiddenFolders: showsHidden,
             sortOrder: sortOrder,
-            includesICloudPlaceholders: includesICloudPlaceholders
+            includesICloudPlaceholders: includesICloudPlaceholders,
+            excludedNames: excludedDirectoryNames.union(extraExcludedDirectoryNames)
         )
     }
 
@@ -78,7 +85,8 @@ public enum OutlineFileScanner {
         showsHiddenFolders: Bool,
         inheritedHidden: Bool = false,
         sortOrder: OutlineFileSortOrder,
-        includesICloudPlaceholders: Bool = false
+        includesICloudPlaceholders: Bool = false,
+        excludedNames: Set<String> = excludedDirectoryNames
     ) -> [OutlineFileTreeItem] {
         guard depth < maximumTreeDepth else {
             return []
@@ -121,7 +129,7 @@ public enum OutlineFileScanner {
             }
 
             // Always exclude build/vcs noise directories, regardless of the toggle.
-            if isDirectory, excludedDirectoryNames.contains(name) {
+            if isDirectory, excludedNames.contains(name) {
                 return nil
             }
 
@@ -147,10 +155,12 @@ public enum OutlineFileScanner {
                 children: [],
                 isHidden: inheritedHidden || isDotPrefixed,
                 createdAt: values.creationDate,
-                modifiedAt: values.contentModificationDate
+                modifiedAt: values.contentModificationDate,
+                isICloudPlaceholder: isPlaceholder
             )
         }
         .sorted { OutlineFileSortOrder.areInIncreasingOrder($0, $1, order: sortOrder) }
+        .droppingPlaceholdersOfListedFiles()
 
         var visible: [OutlineFileTreeItem] = []
         visible.reserveCapacity(candidates.count)
@@ -168,12 +178,22 @@ public enum OutlineFileScanner {
                 showsHiddenFolders: showsHiddenFolders,
                 inheritedHidden: item.isHidden,
                 sortOrder: sortOrder,
-                includesICloudPlaceholders: includesICloudPlaceholders
+                includesICloudPlaceholders: includesICloudPlaceholders,
+                excludedNames: excludedNames
             )
             if !populated.children.isEmpty {
                 visible.append(populated)
             }
         }
         return visible
+    }
+}
+
+private extension Array where Element == OutlineFileTreeItem {
+    /// One row per file: a placeholder whose real file is listed too is dropped, keeping the order.
+    func droppingPlaceholdersOfListedFiles() -> [OutlineFileTreeItem] {
+        guard contains(where: \.isICloudPlaceholder) else { return self }
+        let realNames = Set(filter { !$0.isICloudPlaceholder && !$0.isDirectory }.map(\.name))
+        return filter { !$0.isICloudPlaceholder || !realNames.contains($0.name) }
     }
 }

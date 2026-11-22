@@ -156,6 +156,41 @@ final class OutlineFileScannerTests: XCTestCase {
         XCTAssertEqual(withHidden.first { $0.name == ".Hidden.md" }?.isHidden, true)
     }
 
+    func testPlaceholdersAreFlaggedAndTheRealFileWins() throws {
+        try write("Kept.md")
+        try write(".Evicted.md.icloud", "placeholder")
+        // A file mid-download (or a stale stub): both the real file and its placeholder exist.
+        try write("Both.md", "real")
+        try write(".Both.md.icloud", "placeholder")
+
+        let items = OutlineFileScanner.items(in: root, showsHidden: false, includesICloudPlaceholders: true)
+        XCTAssertEqual(items.map(\.name), ["Both.md", "Evicted.md", "Kept.md"], "one row for Both.md")
+        XCTAssertEqual(items.first { $0.name == "Evicted.md" }?.isICloudPlaceholder, true)
+        XCTAssertEqual(items.first { $0.name == "Both.md" }?.isICloudPlaceholder, false, "the real file is preferred")
+        XCTAssertEqual(items.first { $0.name == "Kept.md" }?.isICloudPlaceholder, false)
+
+        let withHidden = OutlineFileScanner.items(in: root, showsHidden: true, includesICloudPlaceholders: true)
+        XCTAssertEqual(withHidden.filter { $0.name == "Both.md" }.count, 1)
+        XCTAssertEqual(withHidden.first { $0.name == "Both.md" }?.isICloudPlaceholder, false)
+    }
+
+    func testScannerCanExcludeTheTrashWhateverTheHiddenSetting() throws {
+        try write("Kept.md")
+        try write(".Trash/Gone.md")
+        try write("Sub/.Trash/Deep gone.md")
+        try write("Sub/Here.md")
+
+        for showsHidden in [false, true] {
+            let items = OutlineFileScanner.items(
+                in: root, showsHidden: showsHidden, includesICloudPlaceholders: true, alsoExcluding: [".Trash"]
+            )
+            XCTAssertFalse(items.contains { $0.name == ".Trash" }, "showsHidden \(showsHidden)")
+            XCTAssertEqual(items.first { $0.name == "Sub" }?.children.map(\.name), ["Here.md"], "showsHidden \(showsHidden)")
+        }
+        // The Mac's scan (no extra exclusions) is unchanged.
+        XCTAssertTrue(OutlineFileScanner.items(in: root, showsHidden: true).contains { $0.name == ".Trash" })
+    }
+
     func testScannerItemDatesAreReadable() throws {
         try write("Dated.md")
         let item = try XCTUnwrap(OutlineFileScanner.items(in: root, showsHidden: false).first)

@@ -56,6 +56,31 @@ final class SpellCheckTests: XCTestCase {
         XCTAssertNil(textView.spellingUnderlineLayer().path, "and the redraw follows in the same frame")
     }
 
+    /// With Check spelling while typing off, Check Document Now's underlines are a one-off: the
+    /// next edit clears them, since no pass will ever keep them current.
+    func testManualCheckUnderlinesClearOnTheNextEditWhenTypingCheckIsOff() throws {
+        _ = try Self.language()
+        let textView = makeEditor("Ok teh cat and teh dog")
+        textView.checksSpellingWhileTyping = false
+        XCTAssertTrue(textView.checkDocumentNow())
+        XCTAssertEqual(textView.spellCheck.misspelledRanges.count, 2, "the manual check underlines every misspelling")
+
+        // An edit far from either word: with the switch on it would only shift them.
+        textView.selectedRange = NSRange(location: (textView.text as NSString).length, length: 0)
+        textView.insertText("!")
+        XCTAssertEqual(textView.spellCheck.misspelledRanges, [], "the next edit clears the manual check's underlines")
+        textView.layoutIfNeeded()
+        XCTAssertNil(textView.spellingUnderlineLayer().path)
+
+        // With the switch on, an edit away from the words keeps them (the typing pass owns them).
+        textView.checksSpellingWhileTyping = true
+        XCTAssertTrue(textView.checkDocumentNow())
+        let before = textView.spellCheck.misspelledRanges
+        textView.selectedRange = NSRange(location: (textView.text as NSString).length, length: 0)
+        textView.insertText("?")
+        XCTAssertEqual(textView.spellCheck.misspelledRanges, before)
+    }
+
     func testCodeFenceAndInlineCodeAreSkipped() throws {
         let text = "```\nteh fense\n```\n\nUse `teh` here, and teh cat.\n"
         let ranges = SpellCheckPass.misspelledRanges(in: text, visible: NSRange(location: 0, length: (text as NSString).length),

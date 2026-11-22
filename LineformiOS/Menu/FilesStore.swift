@@ -54,14 +54,27 @@ enum FilesStoreError: Error, Equatable {
     case invalidName
     /// Folders are never deleted from Files.
     case folderCannotBeDeleted
+    /// An iCloud placeholder (a file not downloaded yet) is never renamed or trashed: on disk it is
+    /// only the `.Name.md.icloud` stub. It can be once it has downloaded.
+    case notDownloaded
+}
+
+/// Who has the Files store on screen. Each one shows and hides it on its own, so one going away
+/// never hides the store from the other (SwiftUI may run a section switch in either order).
+enum FilesVisibilityClient: Hashable {
+    /// The Files section (its pushed folders included).
+    case files
+    /// A search across all files.
+    case search
 }
 
 /// A Files root's identity. The raw value is never shown.
 enum FilesRootID: String, CaseIterable {
     /// Lineform's iCloud Documents folder, when the container resolves.
     case icloud
-    /// The on-device save folder (On My iPhone › Lineform), shown in iCloud's place when the
-    /// container does not resolve, because that is where new documents save then.
+    /// The on-device save folder (On My iPhone › Lineform). Shown in iCloud's place when the
+    /// container does not resolve, because that is where new documents save then, and beside
+    /// iCloud whenever it holds documents (saved before iCloud came on), so they never vanish.
     case device
     /// The folder the writer chose.
     case workspace
@@ -104,9 +117,17 @@ struct FilesRoot: Identifiable, Equatable {
 final class FilesStore {
     typealias Scanner = @Sendable (URL, Bool, OutlineFileSortOrder) -> [OutlineFileTreeItem]
 
-    /// The scan the app uses: the shared tree scan, with iCloud placeholders under their real names.
+    /// Directory names never listed on iPhone, whatever Show Hidden Folders says: `.Trash` is
+    /// where Files' Delete moves documents.
+    nonisolated static let excludedDirectoryNames: Set<String> = [".Trash"]
+
+    /// The scan the app uses: the shared tree scan, with iCloud placeholders under their real
+    /// names (one row when the real file is there too), and never the Trash.
     nonisolated static let liveScanner: Scanner = { url, showsHidden, sortOrder in
-        OutlineFileScanner.items(in: url, showsHidden: showsHidden, sortOrder: sortOrder, includesICloudPlaceholders: true)
+        OutlineFileScanner.items(
+            in: url, showsHidden: showsHidden, sortOrder: sortOrder,
+            includesICloudPlaceholders: true, alsoExcluding: excludedDirectoryNames
+        )
     }
 
     /// The app's one store, for the app's lifetime.
@@ -123,7 +144,11 @@ final class FilesStore {
 
     private(set) var sortOrder: OutlineFileSortOrder
     private(set) var showsHidden: Bool
-    private(set) var isVisible = false
+    /// True while Files or a search across files is on screen.
+    var isVisible: Bool { !visibleClients.isEmpty }
+    private var visibleClients: Set<FilesVisibilityClient> = []
+    /// Settings › Show iCloud in Files, kept current as the setting changes.
+    private(set) var showsICloud: Bool
     /// A failed rename or Trash, for the section's alert.
     private(set) var notice: String?
     /// The chosen Workspace folder, once accepted.
@@ -147,6 +172,7 @@ final class FilesStore {
     @ObservationIgnored private var scanGenerations: [FilesRootID: Int] = [:]
     @ObservationIgnored private var monitors: [FilesRootID: (url: URL, monitor: DocumentFolderMonitor)] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.lineform.app", category: "files")
+    @ObservationIgnored private var settingsObserver: (any NSObjectProtocol)?
 
     /// - Parameters:
     ///   - iCloudFolder: Lineform's iCloud Documents folder, or nil. Called off the main thread,
@@ -172,7 +198,22 @@ final class FilesStore {
         let workspaceSort = OutlineFileSortOrder(rawValue: defaults.string(forKey: LineformSettingKeys.workspaceSortOrder) ?? "")
         let iCloudSort = OutlineFileSortOrder(rawValue: defaults.string(forKey: LineformSettingKeys.iCloudSortOrder) ?? "")
         sortOrder = workspaceSort ?? iCloudSort ?? .name
+        showsICloud = Self.readShowsICloud(from: defaults)
         loadWorkspaceBookmark()
+        // Settings writes the switch to the same defaults; follow it at once.
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: defaults, queue: nil
+        ) { [weak self] _ in
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.settingsChanged() }
+            } else {
+                Task { @MainActor in self?.settingsChanged() }
+            }
+        }
+    }
+
+    isolated deinit {
+        if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
     }
 
     // MARK: - Roots
@@ -182,11 +223,10 @@ final class FilesStore {
     var roots: [FilesRoot] {
         guard hasLookedUpICloud else { return [] }
         var roots: [FilesRoot] = []
-        if let iCloudURL {
-            if showsICloud {
-                roots.append(makeRoot(.icloud, title: Self.iCloudTitle, systemImage: "icloud", folder: iCloudURL))
-            }
-        } else {
+        if let iCloudURL, showsICloud {
+            roots.append(makeRoot(.icloud, title: Self.iCloudTitle, systemImage: "icloud", folder: iCloudURL))
+        }
+        if showsDeviceRoot {
             roots.append(makeRoot(.device, title: Self.deviceTitle, systemImage: "iphone", folder: deviceFolder))
         }
         var workspace = makeRoot(
@@ -212,10 +252,31 @@ final class FilesStore {
     /// The iCloud root reads as the app's own folder, as on the Mac. A name, never translated.
     static let iCloudTitle = "Lineform"
 
-    private var showsICloud: Bool {
+    private static func readShowsICloud(from defaults: UserDefaults) -> Bool {
         LineformSettingKeys.bool(
             LineformSettingKeys.showICloudInSidebar, default: LineformSettingKeys.Defaults.showICloudInSidebar, in: defaults
         )
+    }
+
+    /// On My iPhone shows when iCloud does not resolve (new documents save there), and otherwise
+    /// once its scan found documents in it.
+    private var showsDeviceRoot: Bool {
+        iCloudURL == nil || !(itemsByRoot[.device] ?? []).isEmpty
+    }
+
+    /// The defaults changed: pick up Show iCloud in Files. Turning it off drops the iCloud list
+    /// at once, so turning it back on never shows a stale one; the next scan lists it afresh.
+    private func settingsChanged() {
+        let shows = Self.readShowsICloud(from: defaults)
+        guard shows != showsICloud else { return }
+        showsICloud = shows
+        itemsByRoot[.icloud] = nil
+        scannedRoots.remove(.icloud)
+        rebuildIndex()
+        updateMonitors()
+        if shows, isVisible {
+            Task { await self.scanIfVisible() }
+        }
     }
 
     private func makeRoot(_ id: FilesRootID, title: String, systemImage: String, folder: URL?) -> FilesRoot {
@@ -229,9 +290,9 @@ final class FilesStore {
     private var scanTargets: [(id: FilesRootID, url: URL)] {
         guard hasLookedUpICloud else { return [] }
         var targets: [(id: FilesRootID, url: URL)] = []
-        if let iCloudURL {
-            if showsICloud { targets.append((.icloud, iCloudURL)) }
-        } else {
+        if let iCloudURL, showsICloud { targets.append((.icloud, iCloudURL)) }
+        // Scanned even beside iCloud: that scan is how Files learns whether it holds documents.
+        if iCloudURL.map({ Self.key($0) != Self.key(deviceFolder) }) ?? true {
             targets.append((.device, deviceFolder))
         }
         if workspaceState == .available, let workspaceURL { targets.append((.workspace, workspaceURL)) }
@@ -240,12 +301,17 @@ final class FilesStore {
 
     // MARK: - Visibility and scanning
 
-    /// Files came on screen or went away. Going away stops the watchers; coming back watches and
-    /// scans again on the next `scanIfVisible()`.
-    func setVisible(_ visible: Bool) {
-        guard visible != isVisible else { return }
-        isVisible = visible
-        if !visible { stopMonitors() }
+    /// Files (or a search across files) came on screen or went away. The store is visible while
+    /// any client has it on screen. The last one going away stops the watchers; coming back
+    /// watches and scans again on the next `scanIfVisible()`.
+    func setVisible(_ visible: Bool, for client: FilesVisibilityClient = .files) {
+        let wasVisible = isVisible
+        if visible {
+            visibleClients.insert(client)
+        } else {
+            visibleClients.remove(client)
+        }
+        if wasVisible, !isVisible { stopMonitors() }
     }
 
     /// Looks up the iCloud folder, then watches and scans every root, only while Files is visible.
@@ -431,16 +497,34 @@ final class FilesStore {
     /// Throws `FilesStoreError.invalidName` for a name the shared rule refuses (nothing touches
     /// the disk), or the move's own error, which also sets `notice`.
     func rename(_ item: OutlineFileTreeItem, to newName: String) async throws {
-        guard let destination = FileRenaming.validatedDestination(
+        guard !Self.isPlaceholder(item) else { throw FilesStoreError.notDownloaded }
+        guard var destination = FileRenaming.validatedDestination(
             for: item.url, isDirectory: item.isDirectory, newDisplayName: newName
         ) else { throw FilesStoreError.invalidName }
 
-        if let document = openDocument, let url = document.url,
-           Self.relocated(url, from: item.url, to: destination) != nil {
+        var source = item.url
+        if let document = openDocument, let before = document.url,
+           Self.relocated(before, from: item.url, to: destination) != nil {
             // Disk has everything before the file moves.
             await document.flush()
+            // That save may itself have renamed the open file from its new first line: move the
+            // file where it is now, not where the scan saw it.
+            if !item.isDirectory, Self.key(before) == Self.key(item.url),
+               let now = document.url, Self.key(now) != Self.key(before) {
+                source = now
+                guard let moved = FileRenaming.validatedDestination(
+                    for: now, isDirectory: false, newDisplayName: newName
+                ) else {
+                    // The first line already gave the file the chosen name: keep it, as the
+                    // writer's choice.
+                    document.userRenamed(to: now)
+                    await scanIfVisible()
+                    return
+                }
+                destination = moved
+            }
         }
-        let (source, target) = Self.onDisk(item.url, destination)
+        let target = destination
         do {
             // On the main actor, as OpenDocument's own coordinated writes are: every presenter
             // here runs on its own queue, so nothing waits on the main thread, and no autosave can
@@ -452,7 +536,7 @@ final class FilesStore {
             throw error
         }
         if let document = openDocument, let url = document.url,
-           let followed = Self.relocated(url, from: item.url, to: destination) {
+           let followed = Self.relocated(url, from: source, to: destination) {
             document.userRenamed(to: followed)
         }
         await scanIfVisible()
@@ -464,7 +548,8 @@ final class FilesStore {
     /// its text on screen and lets go of the path (`OpenDocument.fileWasTrashed(at:)`).
     func trash(_ item: OutlineFileTreeItem) async throws {
         guard Self.canTrash(item) else { throw FilesStoreError.folderCannotBeDeleted }
-        let (source, _) = Self.onDisk(item.url, item.url)
+        guard !Self.isPlaceholder(item) else { throw FilesStoreError.notDownloaded }
+        let source = item.url
         do {
             // On the main actor, for the same reason as `rename`: no autosave can write the file
             // back between the Trash and the document letting go.
@@ -480,6 +565,17 @@ final class FilesStore {
 
     /// Only files can be deleted, and only to the Trash.
     nonisolated static func canTrash(_ item: OutlineFileTreeItem) -> Bool { !item.isDirectory }
+
+    /// An iCloud placeholder: flagged by the scan, or (for an item from before it was flagged)
+    /// a real file that is missing beside its `.Name.md.icloud` stub. Rename and Delete wait until
+    /// it has downloaded; how real providers treat a stub moved or trashed is to be verified on a
+    /// device first (files-sidebar.md).
+    nonisolated static func isPlaceholder(_ item: OutlineFileTreeItem) -> Bool {
+        if item.isICloudPlaceholder { return true }
+        guard !item.isDirectory, !FileManager.default.fileExists(atPath: item.url.path) else { return false }
+        let stub = item.url.deletingLastPathComponent().appendingPathComponent(".\(item.url.lastPathComponent).icloud")
+        return FileManager.default.fileExists(atPath: stub.path)
+    }
 
     func dismissNotice() { notice = nil }
 
@@ -536,16 +632,6 @@ final class FilesStore {
         if path == sourcePath { return destination }
         guard path.hasPrefix(sourcePath + "/") else { return nil }
         return destination.appendingPathComponent(String(path.dropFirst(sourcePath.count + 1)))
-    }
-
-    /// The entries on disk for an item and its destination: an iCloud placeholder
-    /// (`.Name.md.icloud`) stands on disk for a file that is not downloaded.
-    nonisolated static func onDisk(_ url: URL, _ destination: URL) -> (URL, URL) {
-        guard !FileManager.default.fileExists(atPath: url.path) else { return (url, destination) }
-        let placeholder = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
-        guard FileManager.default.fileExists(atPath: placeholder.path) else { return (url, destination) }
-        let target = destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).icloud")
-        return (placeholder, target)
     }
 
     /// One spelling per folder or file, for comparing and indexing.

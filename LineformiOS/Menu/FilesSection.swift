@@ -3,19 +3,22 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// What a Files row offers besides opening. Files can be renamed and moved to the Trash; folders
-/// can only be renamed (no folder delete, as on the Mac).
+/// can only be renamed (no folder delete, as on the Mac). An iCloud placeholder (a file not
+/// downloaded yet) offers neither until it has downloaded: on disk it is only its stub.
 enum FilesRowAction: Equatable {
     case rename
     case delete
 
-    /// The swipe actions: files only.
+    /// The swipe actions: downloaded files only.
     static func swipeActions(for item: OutlineFileTreeItem) -> [FilesRowAction] {
-        item.isDirectory ? [] : [.rename, .delete]
+        item.isDirectory || item.isICloudPlaceholder ? [] : [.rename, .delete]
     }
 
-    /// The long-press menu: Rename for a folder, Rename and Delete for a file.
+    /// The long-press menu: Rename for a folder, Rename and Delete for a file, nothing for a
+    /// placeholder.
     static func menuActions(for item: OutlineFileTreeItem) -> [FilesRowAction] {
-        FilesStore.canTrash(item) ? [.rename, .delete] : [.rename]
+        if item.isICloudPlaceholder { return [] }
+        return FilesStore.canTrash(item) ? [.rename, .delete] : [.rename]
     }
 }
 
@@ -118,10 +121,10 @@ struct FilesSection: View {
         }
         .onAppear {
             store.openDocument = document
-            store.setVisible(true)
+            store.setVisible(true, for: .files)
         }
         .task { await store.scanIfVisible() }
-        .onDisappear { store.setVisible(false) }
+        .onDisappear { store.setVisible(false, for: .files) }
     }
 
     private var list: some View {

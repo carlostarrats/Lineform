@@ -46,12 +46,23 @@ struct MenuSheet: View {
 
     // MARK: - Header text
 
-    /// "Saved" while disk has the text, "Unsaved changes" in the moment between a keystroke and
-    /// its autosave (or after a failed save). Every iPhone write is an autosave, so the Mac's
-    /// "Autosaved" (its flash for an autosave as against ⌘S) would tell the writer nothing more.
-    static func saveStateText(text: String, lastSyncedText: String) -> String {
-        DocumentStatusText.saveState(isSaved: text == lastSyncedText, isAutosaved: false)
+    /// "Saved" only while a file holds exactly the text on screen; "Unsaved changes" in the
+    /// moment between a keystroke and its autosave (or after a failed save); and the Mac's "Not
+    /// saved yet" for text no file holds: a new document before its first save, or one whose
+    /// file was deleted elsewhere (its text stays on screen, and the next change saves it as a
+    /// new document). Every iPhone write is an autosave, so the Mac's "Autosaved" (its flash for
+    /// an autosave as against ⌘S) would tell the writer nothing more.
+    static func saveStateText(hasFile: Bool, text: String, lastSyncedText: String) -> String {
+        guard hasFile else { return notSavedYetText }
+        return DocumentStatusText.saveState(isSaved: text == lastSyncedText, isAutosaved: false)
     }
+
+    static func saveStateText(for document: OpenDocument) -> String {
+        saveStateText(hasFile: document.url != nil, text: document.text, lastSyncedText: document.lastSyncedText)
+    }
+
+    /// The Mac's label for an untitled document, with its translations.
+    static var notSavedYetText: String { String(localized: "Not saved yet") }
 
     static func countsText(for text: String) -> String {
         DocumentStatusText.counts(DocumentStatistics(text: text))
@@ -84,7 +95,7 @@ struct MenuSheet: View {
     }
 
     private func header(theme: Theme) -> some View {
-        let saveState = Self.saveStateText(text: document.text, lastSyncedText: document.lastSyncedText)
+        let saveState = Self.saveStateText(for: document)
         let statistics = DocumentStatistics(text: document.text)
         return HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {

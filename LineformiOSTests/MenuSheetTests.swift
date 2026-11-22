@@ -40,13 +40,60 @@ final class MenuSheetTests: XCTestCase {
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: MenuSheetTestUbiquitousItems())
         await document.prepare()
 
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Not saved yet", "a blank new document has no file")
         document.edit("one two three")
-        XCTAssertEqual(MenuSheet.saveStateText(text: document.text, lastSyncedText: document.lastSyncedText),
-                       "Unsaved changes", "between a keystroke and its autosave")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Not saved yet", "a new document's text is not on disk")
         await document.flush()
-        XCTAssertEqual(MenuSheet.saveStateText(text: document.text, lastSyncedText: document.lastSyncedText), "Saved")
-        XCTAssertEqual(MenuSheet.countsText(for: document.text), "3 words — 13 characters")
+        XCTAssertNotNil(document.url)
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Saved")
+        document.edit("one two three four")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Unsaved changes", "between a keystroke and its autosave")
+        await document.flush()
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Saved")
+        XCTAssertEqual(MenuSheet.countsText(for: "one two three"), "3 words — 13 characters")
         XCTAssertEqual(MenuSheet.countsText(for: "吾輩は猫である。"), "8 characters", "CJK shows characters only, as on the Mac")
+        // pinned-en: the Mac's own key.
+        XCTAssertEqual(MenuSheet.notSavedYetText, "Not saved yet")
+    }
+
+    /// The open file was deleted elsewhere: its text stays on screen but is on disk nowhere, so the
+    /// header never says Saved. The next change saves it again, while typing or on the way to the
+    /// background.
+    func testHeaderAfterADetachSaysNotSavedYetAndTheNextChangeSaves() async throws {
+        let folder = self.folder!
+        let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: MenuSheetTestUbiquitousItems())
+        await document.prepare()
+        document.edit("Doomed draft")
+        await document.flush()
+        let url = try XCTUnwrap(document.url)
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Saved")
+
+        try FileManager.default.removeItem(at: url)
+        document.fileWasTrashed(at: url)
+        XCTAssertNil(document.url)
+        XCTAssertEqual(document.text, "Doomed draft")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Not saved yet", "detached text is on disk nowhere")
+
+        // The app goes to the background after a change: the text saves as a new document.
+        document.edit("Doomed draft, rescued")
+        document.flushForBackground(using: MenuSheetBackgroundTasks())
+        let rescued = folder.appendingPathComponent("Doomed draft, rescued.md")
+        XCTAssertEqual(try String(contentsOf: rescued, encoding: .utf8), "Doomed draft, rescued")
+        XCTAssertEqual(document.url?.standardizedFileURL, rescued.standardizedFileURL)
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Saved")
+
+        // Detached again; this time plain typing (the autosave) saves it.
+        try FileManager.default.removeItem(at: rescued)
+        document.fileWasTrashed(at: rescued)
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Not saved yet")
+        document.edit("Typed back")
+        let typed = folder.appendingPathComponent("Typed back.md")
+        let deadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: typed.path), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertEqual(try String(contentsOf: typed, encoding: .utf8), "Typed back")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Saved")
     }
 
     func testMenuButtonLabelIsMenu() throws {
@@ -178,4 +225,14 @@ final class MenuSheetTests: XCTestCase {
 private struct MenuSheetTestUbiquitousItems: UbiquitousItemAccessing {
     func downloadState(_ url: URL) -> UbiquitousDownloadState { .current }
     func startDownloading(_ url: URL) throws {}
+}
+
+/// Background-task assertions that do nothing, for `flushForBackground`.
+@MainActor
+private final class MenuSheetBackgroundTasks: BackgroundTaskAsserting {
+    func beginAssertion(name: String, expiration: @escaping @MainActor () -> Void) -> UIBackgroundTaskIdentifier {
+        UIBackgroundTaskIdentifier(rawValue: 1)
+    }
+
+    func endAssertion(_ identifier: UIBackgroundTaskIdentifier) {}
 }

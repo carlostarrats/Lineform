@@ -8,6 +8,10 @@ public struct OutlineFileTreeItem: Identifiable, Equatable, Codable, Sendable {
     public var isHidden: Bool = false
     public var createdAt: Date?
     public var modifiedAt: Date?
+    /// True for an iCloud placeholder (`.Name.md.icloud`, a file iCloud has not downloaded) that
+    /// the iPhone's scan lists under its real name. Never encoded: the Mac's snapshots and scan
+    /// never carry placeholders.
+    public var isICloudPlaceholder: Bool = false
 
     public var id: String { url.path }
 
@@ -28,7 +32,8 @@ public struct OutlineFileTreeItem: Identifiable, Equatable, Codable, Sendable {
         children: [OutlineFileTreeItem],
         isHidden: Bool = false,
         createdAt: Date? = nil,
-        modifiedAt: Date? = nil
+        modifiedAt: Date? = nil,
+        isICloudPlaceholder: Bool = false
     ) {
         self.url = url
         self.name = name
@@ -37,6 +42,7 @@ public struct OutlineFileTreeItem: Identifiable, Equatable, Codable, Sendable {
         self.isHidden = isHidden
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.isICloudPlaceholder = isICloudPlaceholder
     }
 
     private enum CodingKeys: String, CodingKey {

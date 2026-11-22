@@ -185,13 +185,14 @@ final class SearchController {
         searchFiles()
     }
 
-    /// The section went away: stop scanning and searching.
+    /// The section went away: stop scanning and searching. Only Search's own hold on the store
+    /// ends; Files, if it is on screen, keeps the store visible.
     func stop() {
         fileSearch.reset()
         pendingScan?.cancel()
         if hasStartedScan {
             hasStartedScan = false
-            files?.setVisible(false)
+            files?.setVisible(false, for: .search)
         }
     }
 
@@ -298,7 +299,7 @@ final class SearchController {
     private func startScanIfNeeded() {
         guard let files, !hasStartedScan else { return }
         hasStartedScan = true
-        files.setVisible(true)
+        files.setVisible(true, for: .search)
         pendingScan = Task { [weak self] in
             await files.scanIfVisible()
             guard !Task.isCancelled else { return }
@@ -390,6 +391,9 @@ final class SearchController {
     /// A tap on a result. The sheet goes first. A match in this document is then selected and
     /// brought into view; a file is opened, and its match (if it has one) selected once the editor
     /// shows the opened text. Returns the open's task for a file.
+    ///
+    /// The open's task holds the editor and the match itself, never the controller: the sheet,
+    /// and this controller with it, is usually gone before the file has opened.
     @discardableResult
     func activate(_ row: SearchRow, dismiss: () -> Void) -> Task<Void, Never>? {
         switch row.kind {
@@ -406,14 +410,17 @@ final class SearchController {
             dismiss()
             let query = self.query
             let open = self.open
-            return Task { [weak self] in
+            let editor = self.editor
+            let editorWait = self.editorWait
+            let kind = row.kind
+            return Task {
                 guard let text = await open(url) else { return }
-                guard case .fileContent(let shown) = row.kind, let self else { return }
+                guard case .fileContent(let shown) = kind else { return }
                 // Re-resolve against the opened text: the file may have changed since it was read.
                 let hits = EditorSearchResolver.matches(in: text, query: query)
                 guard let target = Self.firstMatch(in: hits, atOrAfter: shown.location) else { return }
-                guard await waitForEditor(toShow: text) else { return }
-                select(target)
+                guard await Self.waitForEditor(editor, toShow: text, within: editorWait) else { return }
+                Self.select(target, in: editor)
             }
         }
     }
@@ -424,13 +431,17 @@ final class SearchController {
     }
 
     private func select(_ range: NSRange) {
+        Self.select(range, in: editor)
+    }
+
+    private static func select(_ range: NSRange, in editor: any EditorCommands) {
         editor.selectRange(range)
         editor.scrollToCharacterRange(range)
     }
 
     /// The editor takes an opened file's text on its next update; wait (briefly) for it.
-    private func waitForEditor(toShow text: String) async -> Bool {
-        let deadline = ContinuousClock.now + editorWait
+    private static func waitForEditor(_ editor: any EditorCommands, toShow text: String, within wait: Duration) async -> Bool {
+        let deadline = ContinuousClock.now + wait
         while editor.currentText != text {
             guard ContinuousClock.now < deadline, !Task.isCancelled else { return false }
             try? await Task.sleep(for: .milliseconds(20))

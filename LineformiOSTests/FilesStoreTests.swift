@@ -358,6 +358,191 @@ final class FilesStoreTests: XCTestCase {
         store.setVisible(false)
     }
 
+    // MARK: - Review fixes
+
+    /// The open document was typed into and its first line changed just before the rename: the
+    /// pre-rename save renames the file from the first line, so the rename moves the file where it
+    /// is now, not where the scan saw it.
+    func testRenameRightAfterTypingMovesTheFileWhereItIsNow() async throws {
+        let device = try makeFolder("Device")
+        let document = OpenDocument(folderProvider: { device }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+        await document.prepare()
+        document.edit("Draft\nBody")
+        await document.flush()
+        XCTAssertEqual(document.url?.lastPathComponent, "Draft.md")
+
+        let store = makeStore(device: device, log: FilesScanLog())
+        store.openDocument = document
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let item = try XCTUnwrap(store.root(.device)?.items.first)
+        XCTAssertEqual(item.name, "Draft.md")
+
+        // Typed, and not yet autosaved: the save before the move renames Draft.md.
+        document.edit("Better title\nBody")
+        try await store.rename(item, to: "Chosen")
+
+        XCTAssertEqual(try names(in: device), ["Chosen.md"], "no stray Draft.md or Better title.md")
+        XCTAssertEqual(try String(contentsOf: device.appendingPathComponent("Chosen.md"), encoding: .utf8), "Better title\nBody")
+        XCTAssertEqual(document.url?.lastPathComponent, "Chosen.md")
+        XCTAssertFalse(document.isNamedFromFirstLine)
+        XCTAssertNil(store.notice)
+    }
+
+    /// Rename and Delete act on downloaded files only: an iCloud placeholder's row offers neither,
+    /// and the store refuses both, so nothing ever moves the `.Name.md.icloud` stub.
+    func testPlaceholdersCannotBeRenamedOrTrashed() async throws {
+        let device = try makeFolder("Device")
+        let stub = device.appendingPathComponent(".Evicted.md.icloud")
+        try write("stub", to: stub)
+        try write("Here", to: device.appendingPathComponent("Here.md"))
+        let operations = RecordingFileOperations(trashFolder: try makeFolder(".Trash"))
+        let store = makeStore(device: device, log: FilesScanLog(), operations: operations)
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let placeholder = try XCTUnwrap(store.root(.device)?.items.first { $0.name == "Evicted.md" })
+        XCTAssertTrue(placeholder.isICloudPlaceholder)
+
+        XCTAssertEqual(FilesRowAction.swipeActions(for: placeholder), [], "no swipe actions on a placeholder")
+        XCTAssertEqual(FilesRowAction.menuActions(for: placeholder), [], "no Rename or Delete in its menu")
+        let here = try XCTUnwrap(store.root(.device)?.items.first { $0.name == "Here.md" })
+        XCTAssertEqual(FilesRowAction.swipeActions(for: here), [.rename, .delete])
+
+        do {
+            try await store.rename(placeholder, to: "Renamed")
+            XCTFail("a placeholder was renamed")
+        } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        do {
+            try await store.trash(placeholder)
+            XCTFail("a placeholder was trashed")
+        } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        // Even an item that lost its flag (built by hand) is caught by what is on disk.
+        var unflagged = placeholder
+        unflagged.isICloudPlaceholder = false
+        do {
+            try await store.trash(unflagged)
+            XCTFail("a placeholder was trashed")
+        } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        XCTAssertEqual(operations.moves.count, 0)
+        XCTAssertEqual(operations.trashed, [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stub.path), "the stub never moves")
+    }
+
+    /// Files and Search each make the store visible; one going away never hides it from the other,
+    /// whichever order SwiftUI runs the switch in.
+    func testVisibilityCountsEachUser() async throws {
+        let device = try makeFolder("Device")
+        let store = makeStore(device: device, log: FilesScanLog())
+
+        // Search → Files, Files appearing first.
+        store.setVisible(true, for: .search)
+        store.setVisible(true, for: .files)
+        store.setVisible(false, for: .search)
+        XCTAssertTrue(store.isVisible, "Search ending never hides Files")
+        store.setVisible(false, for: .files)
+        XCTAssertFalse(store.isVisible)
+
+        // Search → Files, Search going away first.
+        store.setVisible(true, for: .search)
+        store.setVisible(false, for: .search)
+        store.setVisible(true, for: .files)
+        XCTAssertTrue(store.isVisible)
+        // Files → Search, Search appearing first, then Files going away.
+        store.setVisible(true, for: .search)
+        store.setVisible(false, for: .files)
+        XCTAssertTrue(store.isVisible, "Files ending never hides Search")
+        store.setVisible(false, for: .search)
+        XCTAssertFalse(store.isVisible)
+
+        // Through the Search controller itself.
+        try write("Note", to: device.appendingPathComponent("Note.md"))
+        let controller = SearchController(
+            editor: RecordingEditorCommands(text: ""), files: store, currentURL: { nil },
+            fileSearch: CrossFileSearchModel(debounceInterval: 0), open: { _ in nil }, announce: { _ in }
+        )
+        controller.setQuery("note")
+        await controller.pendingScan?.value
+        store.setVisible(true, for: .files)
+        controller.stop()
+        XCTAssertTrue(store.isVisible, "Search stopping leaves Files showing")
+        store.setVisible(false, for: .files)
+        XCTAssertFalse(store.isVisible)
+    }
+
+    /// Settings › Show iCloud in Files applies at once, and turning it back on never shows the
+    /// iCloud list from before.
+    func testShowICloudSettingAppliesLive() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        try write("Cloud", to: iCloud.appendingPathComponent("Cloud.md"))
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
+        store.setVisible(true)
+        await store.scanIfVisible()
+        XCTAssertEqual(store.roots.map(\.id), [.icloud, .workspace])
+
+        defaults.set(false, forKey: LineformSettingKeys.showICloudInSidebar)
+        try await waitUntil { store.root(.icloud) == nil }
+        XCTAssertNil(store.root(.icloud), "the switch hides iCloud without a relaunch")
+
+        // While it is off, the folder changes; the old list must not come back.
+        try FileManager.default.removeItem(at: iCloud.appendingPathComponent("Cloud.md"))
+        try write("New", to: iCloud.appendingPathComponent("New.md"))
+        store.setVisible(false)
+        defaults.set(true, forKey: LineformSettingKeys.showICloudInSidebar)
+        try await waitUntil { store.root(.icloud) != nil }
+        XCTAssertNotEqual(store.root(.icloud)?.items.map(\.name), ["Cloud.md"], "no stale cache")
+        store.setVisible(true)
+        await store.scanIfVisible()
+        XCTAssertEqual(store.root(.icloud)?.items.map(\.name), ["New.md"], "the next appearance scans afresh")
+    }
+
+    /// Documents saved on the device before iCloud came on stay listed under On My iPhone.
+    func testDeviceRootShowsWhenItHasDocumentsEvenWithICloud() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        try write("Cloud", to: iCloud.appendingPathComponent("Cloud.md"))
+
+        let empty = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
+        empty.setVisible(true)
+        await empty.scanIfVisible()
+        XCTAssertEqual(empty.roots.map(\.id), [.icloud, .workspace], "an empty device folder stays out of the way")
+
+        try write("Old", to: device.appendingPathComponent("Old.md"))
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
+        store.setVisible(true)
+        await store.scanIfVisible()
+        XCTAssertEqual(store.roots.map(\.id), [.icloud, .device, .workspace])
+        XCTAssertEqual(store.root(.device)?.items.map(\.name), ["Old.md"])
+        XCTAssertEqual(store.root(.icloud)?.items.map(\.name), ["Cloud.md"])
+
+        // Its documents are searchable too.
+        let entries = SearchController.entries(from: store.roots, excluding: nil)
+        XCTAssertEqual(Set(entries.map(\.name)), ["Old.md", "Cloud.md"])
+    }
+
+    /// `.Trash` (where Files moves deleted documents) is never listed, whatever Show Hidden
+    /// Folders says, and a file next to its own placeholder is one row.
+    func testTrashIsNeverListedAndAPlaceholderBesideItsFileIsOneRow() async throws {
+        let device = try makeFolder("Device")
+        try write("Kept", to: device.appendingPathComponent("Kept.md"))
+        try write("Gone", to: device.appendingPathComponent(".Trash/Gone.md"))
+        try write("Both", to: device.appendingPathComponent("Both.md"))
+        try write("stub", to: device.appendingPathComponent(".Both.md.icloud"))
+        let store = makeStore(device: device, log: FilesScanLog())
+        store.setVisible(true)
+        await store.scanIfVisible()
+        XCTAssertEqual(store.root(.device)?.items.map(\.name), ["Both.md", "Kept.md"])
+        await store.setShowsHidden(true)
+        XCTAssertEqual(store.root(.device)?.items.map(\.name), ["Both.md", "Kept.md"], "no .Trash even with hidden folders shown")
+        XCTAssertEqual(store.root(.device)?.items.first?.isICloudPlaceholder, false, "the real file wins")
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
@@ -375,9 +560,7 @@ final class FilesStoreTests: XCTestCase {
             fileOperations: operations,
             scanner: { url, showsHidden, sortOrder in
                 log.record(url: url, showsHidden: showsHidden, sortOrder: sortOrder)
-                return OutlineFileScanner.items(
-                    in: url, showsHidden: showsHidden, sortOrder: sortOrder, includesICloudPlaceholders: true
-                )
+                return FilesStore.liveScanner(url, showsHidden, sortOrder)
             }
         )
     }

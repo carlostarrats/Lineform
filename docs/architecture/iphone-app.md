@@ -493,8 +493,11 @@ The floating `MenuButton` (bottom right, 44 pt, Mac floating-card chrome, access
 "Menu") opens `MenuSheet`: a page-coloured card with radius `LineformDesign.Radius.modal` (20),
 the floating-card hairline and shadow, medium and large detents. Its header shows the save state
 and `DocumentStatusText.counts` ("%lld words — %lld characters", characters only for CJK). The
-save state is "Saved" while `text == lastSyncedText` and "Unsaved changes" in the autosave delay
-(or after a failed save). The Mac's "Autosaved" is not used: it is the Mac's flash for an autosave
+save state is "Saved" only while a file holds the text (`url != nil` and `text ==
+lastSyncedText`), "Unsaved changes" in the autosave delay (or after a failed save), and the Mac's
+"Not saved yet" for text no file holds: a new document before its first save, or one detached
+after its file was deleted elsewhere (its next change, typed or on the way to the background,
+saves it as a new document). The Mac's "Autosaved" is not used: it is the Mac's flash for an autosave
 as against ⌘S, and every iPhone write is an autosave, so it would add nothing.
 
 The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, Document, Settings
@@ -510,12 +513,16 @@ rules (files-sidebar.md) and adds iPhone ones:
   Date Created and Date Modified from the package's `OutlineFileSortOrder.title`) and a Show
   Hidden Folders toggle.
 - **Roots:** iCloud ("Lineform", `<container>/Documents`) when the container resolves and
-  `Lineform.settings.showICloudInSidebar` is on; otherwise **On My iPhone**, the on-device save
-  folder, because that is where new documents save then. Debug never resolves iCloud. Then the
-  Workspace.
-- **Lazy:** nothing is looked up, scanned or watched until the section is on screen
-  (`setVisible`, `scanIfVisible`). Scans run off the main thread with `OutlineFileScanner`
-  (placeholders included under their real names), latest wins.
+  `Lineform.settings.showICloudInSidebar` is on (followed live: turning it off drops the iCloud
+  list, so turning it on never shows a stale one). **On My iPhone**, the on-device save folder,
+  shows when iCloud does not resolve, because that is where new documents save then, and beside
+  iCloud whenever it holds documents (saved before iCloud came on). Debug never resolves iCloud.
+  Then the Workspace.
+- **Lazy:** nothing is looked up, scanned or watched until the section, or a search across files,
+  is on screen (`setVisible(_:for:)`, counted per client, so Search ending never hides Files;
+  `scanIfVisible`). Scans run off the main thread with `OutlineFileScanner` (placeholders included
+  under their real names, one row when the real file is there too; `.Trash` never, whatever Show
+  Hidden Folders says), latest wins.
 - **Re-scans:** a sort change and a Show Hidden Folders change both re-scan. One sort serves every
   root, stored under both Mac keys (`Lineform.outline.sortOrder.icloud` and `.workspace`).
 - **Drill-down:** each level is one flat, lazy `List`; a folder pushes its own level onto a
@@ -523,7 +530,9 @@ rules (files-sidebar.md) and adds iPhone ones:
   name, plus the date the list is ordered by under a date sort.
 - **Actions:** files swipe to Rename (an alert with a text field and the shared `FileRenaming`
   rule) and Delete (a confirmation, Cancel as default, "It will be moved to the Trash."). A long
-  press offers the same, and Rename alone for a folder. Folders are never deleted.
+  press offers the same, and Rename alone for a folder. Folders are never deleted. A rename of
+  the open document saves it first; when that save renamed the file from a new first line, the
+  rename moves the file where it is now.
 - **Coordinated:** rename and Trash go through `NSFileCoordinator` with `.forMoving` (rename also
   announces `item(at:willMoveTo:)` / `didMoveTo`), on the main actor like OpenDocument's own
   writes. The open document follows a rename (`OpenDocument.userRenamed(to:)`, which stops
@@ -541,7 +550,8 @@ rules (files-sidebar.md) and adds iPhone ones:
   presenter hears coordinated changes in its subfolders too (`testSubfolderChangeRefreshes`), so
   no per-subfolder monitor is needed.
 - **iCloud placeholders:** listed under their real names; tapping one opens it through
-  `OpenDocument`, which downloads it first. The whole tree is not kept downloaded (unlike the
+  `OpenDocument`, which downloads it first. They have no Rename or Delete (the store throws
+  `.notDownloaded`) until they have downloaded; see files-sidebar.md. The whole tree is not kept downloaded (unlike the
   Mac's `ensureDownloaded`): phone storage is the writer's.
 
 ### Outline and Markdown Basics
@@ -574,8 +584,12 @@ line gives the count, "Searching…" or "No matches". Candidates come from `File
 roots; the first query that needs them makes the store visible and scans it (never at launch), and
 leaving the section stops it again. Tapping an in-document match dismisses the sheet and selects
 the match; tapping a file opens it and, for a content match, selects the first hit at or after the
-snippet's location in the opened text. Every Mac rule from search.md carries over; see the iPhone
-Search paragraph there.
+snippet's location in the opened text; that open's task holds the editor and the match, not the
+controller, so the match is selected after the sheet is gone. The controller is made once, when
+the section first appears (`@State`, never in `init`), and the fields write straight into it as
+the writer types, so Replace and Replace All always act on what the fields show. Leaving the
+section ends only Search's hold on the store (`setVisible(false, for: .search)`). Every Mac rule
+from search.md carries over; see the iPhone Search paragraph there.
 
 ### Document
 
@@ -599,7 +613,8 @@ Search paragraph there.
   whole document (`misspelledRangesInWholeDocument`), whether or not Check spelling while typing
   is on, as the Mac's command does. Every misspelling is underlined, and the first one after the
   selection (wrapping) is selected and brought to the top of the surface on screen. It is the
-  only whole-document spelling pass, and it is never scheduled.
+  only whole-document spelling pass, and it is never scheduled. With Check spelling while typing
+  off, its underlines last until the next edit, which clears them.
 - Show Hidden Folders, the Files setting (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`).
 - Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
   `LineformLinks`, which the Mac's Help menu also forwards to.

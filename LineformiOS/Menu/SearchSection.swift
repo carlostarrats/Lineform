@@ -8,34 +8,57 @@ import SwiftUI
 /// filter hides it. The rules live in `SearchController`.
 struct SearchSection: View {
     var document: OpenDocument
+    var editor: any EditorCommands
     var files: FilesStore
     var onDismiss: () -> Void
 
-    @State private var controller: SearchController
-    @State private var queryText = ""
-    @State private var replacementText = ""
-    @FocusState private var focusedField: Field?
-
-    private enum Field { case query, replacement }
-
-    init(document: OpenDocument, editor: any EditorCommands, files: FilesStore, onDismiss: @escaping () -> Void) {
-        self.document = document
-        self.files = files
-        self.onDismiss = onDismiss
-        _controller = State(initialValue: SearchController(
-            editor: editor,
-            files: files,
-            currentURL: { [weak document] in document?.url },
-            open: SearchController.opener(for: document)
-        ))
-    }
+    /// Made once, when the section first appears: never in `init`, which SwiftUI runs on every
+    /// update of the sheet (each keystroke changes the header's counts).
+    @State private var controller: SearchController?
 
     /// Replace works on this document's matches only, never on files.
     static func showsReplaceRow(for filter: SearchFilter) -> Bool { filter != .files }
 
     static var hintText: String { String(localized: "Search this document and your files.") }
 
-    private var hasQuery: Bool { !queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var body: some View {
+        Group {
+            if let controller {
+                SearchSectionContent(controller: controller, document: document, files: files, onDismiss: onDismiss)
+            } else {
+                Color.clear
+            }
+        }
+        .onAppear {
+            guard controller == nil else { return }
+            controller = SearchController(
+                editor: editor,
+                files: files,
+                currentURL: { [weak document] in document?.url },
+                open: SearchController.opener(for: document)
+            )
+        }
+    }
+}
+
+/// The section's views over its controller. The fields write straight into the controller as the
+/// writer types, so a tap on Replace or Replace All right after the last keystroke acts on what
+/// the fields show, never on what they showed one view update earlier.
+private struct SearchSectionContent: View {
+    @Bindable var controller: SearchController
+    var document: OpenDocument
+    var files: FilesStore
+    var onDismiss: () -> Void
+
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case query, replacement }
+
+    private var hasQuery: Bool { !controller.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    private var queryBinding: Binding<String> {
+        Binding(get: { controller.query }, set: { controller.setQuery($0) })
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -56,7 +79,7 @@ struct SearchSection: View {
                     results
                         .transition(.opacity)
                 } else {
-                    Text(Self.hintText)
+                    Text(SearchSection.hintText)
                         .font(.callout)
                         .opacity(0.6)
                         .multilineTextAlignment(.center)
@@ -69,8 +92,6 @@ struct SearchSection: View {
             .animation(.easeInOut(duration: 0.2), value: hasQuery)
         }
         .padding(.top, 6)
-        .onChange(of: queryText) { _, newValue in controller.setQuery(newValue) }
-        .onChange(of: replacementText) { _, newValue in controller.replacement = newValue }
         .onChange(of: document.text) { controller.textChanged() }
         .onChange(of: files.roots) { controller.rootsChanged() }
         .onDisappear { controller.stop() }
@@ -81,7 +102,7 @@ struct SearchSection: View {
             Image(systemName: "magnifyingglass")
                 .opacity(0.5)
                 .accessibilityHidden(true)
-            TextField(String(localized: "Search"), text: $queryText)
+            TextField(String(localized: "Search"), text: queryBinding)
                 .focused($focusedField, equals: .query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -95,7 +116,7 @@ struct SearchSection: View {
 
     private var results: some View {
         VStack(spacing: 6) {
-            if Self.showsReplaceRow(for: controller.filter) {
+            if SearchSection.showsReplaceRow(for: controller.filter) {
                 replaceRow
             }
             if let status = controller.statusText {
@@ -127,7 +148,7 @@ struct SearchSection: View {
 
     private var replaceRow: some View {
         HStack(spacing: 8) {
-            TextField(String(localized: "Replace"), text: $replacementText)
+            TextField(String(localized: "Replace"), text: $controller.replacement)
                 .focused($focusedField, equals: .replacement)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -135,6 +156,8 @@ struct SearchSection: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
+            // `canReplace` and `canReplaceAll` are only what the buttons show; the controller
+            // checks again against its live state on every tap.
             Button(String(localized: "Replace")) { controller.replace() }
                 .disabled(!controller.canReplace)
             Button(String(localized: "Replace All")) { controller.replaceAll() }
