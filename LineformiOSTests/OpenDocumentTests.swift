@@ -111,14 +111,14 @@ final class OpenDocumentTests: XCTestCase {
 
     /// A reload replaces the editor's text without throwing the caret to the end.
     func testReloadedTextKeepsTheEditorSelection() {
-        let textView = PlainTextEditor.makeTextView(profile: .original)
-        PlainTextEditor.setText("Hello world", in: textView)
+        let textView = LineformTextView.make(profile: .original)
+        textView.setDocumentText("Hello world")
         textView.selectedRange = NSRange(location: 5, length: 0)
 
-        PlainTextEditor.setText("Hello there, world", in: textView)
+        textView.setDocumentText("Hello there, world")
         XCTAssertEqual(textView.selectedRange, NSRange(location: 5, length: 0))
 
-        PlainTextEditor.setText("Hi", in: textView)
+        textView.setDocumentText("Hi")
         XCTAssertEqual(textView.selectedRange, NSRange(location: 2, length: 0), "clamped to the new text")
     }
 

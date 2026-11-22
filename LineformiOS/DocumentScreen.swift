@@ -8,9 +8,13 @@ import SwiftUI
 /// After iOS ends the app, the next launch reopens the document that was open: `@SceneStorage`
 /// keeps a bookmark to its file, and the system discards it when the user force-quits, so a
 /// normal launch is blank. Leaving the foreground (inactive or background) saves at once.
+///
+/// The reading profile comes from the per-device `ReadingProfileStore`, observed here, so a
+/// profile change (the Styling sheet, roadmap step 7) re-applies to the editor without a relaunch.
 struct DocumentScreen: View {
     var document: OpenDocument
-    private let profile = ReadingProfile.original
+    @ObservedObject var profileStore: ReadingProfileStore
+    private var profile: ReadingProfile { profileStore.activeProfile }
     @State private var isShowingFiles = false
     @SceneStorage("openDocumentBookmark") private var openDocumentBookmark = ""
     /// The older form, a path. Read once for a scene stored before bookmarks, then cleared.
@@ -18,7 +22,7 @@ struct DocumentScreen: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        PlainTextEditor(
+        MarkdownEditor(
             text: Binding(get: { document.text }, set: { document.edit($0) }),
             profile: profile
         )
@@ -32,15 +36,15 @@ struct DocumentScreen: View {
         .overlay(alignment: .bottom) {
             if document.saveFailed {
                 SaveFailedNotice(profile: profile)
-                    .padding(.bottom, PlainTextEditor.minimumSideMargin + MenuButton.diameter + 12)
-                    .padding(.horizontal, PlainTextEditor.minimumSideMargin)
+                    .padding(.bottom, MarkdownEditor.chromeMargin + MenuButton.diameter + 12)
+                    .padding(.horizontal, MarkdownEditor.chromeMargin)
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: document.saveFailed)
         .overlay(alignment: .bottomTrailing) {
             MenuButton(profile: profile) { isShowingFiles = true }
-                .padding(PlainTextEditor.minimumSideMargin)
+                .padding(MarkdownEditor.chromeMargin)
         }
         .sheet(isPresented: $isShowingFiles) {
             FileListSheet(document: document)

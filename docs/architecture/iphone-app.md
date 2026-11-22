@@ -6,8 +6,8 @@ links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
 (`TARGETED_DEVICE_FAMILY = 1`); Mac Catalyst, "Designed for iPhone" on the Mac and visionOS are
 all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
-This page covers roadmap step 3 (shell and files). The editor is plain text; highlighting, Read
-and Preview, the Menu sheet and the rest arrive in later steps.
+This page covers roadmap step 3 (shell and files) and step 4 (Write mode) as it lands. Read and
+Preview, the Menu sheet and the rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -16,8 +16,8 @@ a fully working state, never an error or a prompt.
 
 ## Target, scheme and tests
 
-- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `PlainTextEditor`,
-  `OpenDocument`, `FileListSheet`), with its own `Info.plist`, `Localizable.xcstrings` (six
+- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `FileListSheet`,
+  and `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`, named so no file name is shared with the Mac sources), with its own `Info.plist`, `Localizable.xcstrings` (six
   languages) and entitlements.
 - Tests: `LineformiOSTests/`, hosted in the app, run by the shared `LineformiOS` scheme through
   `LineformiOS.xctestplan`. Never link `LineformCoreTestSupport` into this target.
@@ -49,14 +49,26 @@ a fully working state, never an error or a prompt.
 
 ## Editor: TextKit 1
 
-`PlainTextEditor` wraps `EditorTextView`, a `UITextView(usingTextLayoutManager: false)`.
+`MarkdownEditor` (SwiftUI) wraps `LineformTextView`, a `UITextView(usingTextLayoutManager: false)`.
 TextKit 1 is deliberate: the Mac editor and its AI review overlay are TextKit 1, and the later
 Write-mode features port from the Mac's `NSLayoutManager` code. Matching the Mac keeps the two editors laying out line
 for line alike. Do not switch it to TextKit 2.
 
-- Typing attributes come from `MarkdownTextStyle.baseAttributes(for:)`; the page and caret
-  colours from `Theme.theme(for:)`, with the default `ReadingProfile`.
-- The text column is `profile.columnWidth`, centred, with at least 20 pt side margins.
+- **Reading profile.** `LineformTextView.profile` applies the base attributes
+  (`MarkdownTextStyle.baseAttributes(for:)`) over the whole document, the typing attributes, the
+  page colour, the caret and selection (`tintColor`) from `Theme.theme(for:)`, and the column
+  insets from `EditorReadingLayout` (`profile.columnWidth` centred, never under
+  `profile.marginWidth`; 20 pt top and bottom). The profile comes from the per-device
+  `ReadingProfileStore` (`UserDefaults.standard`, never synced), which `DocumentScreen` observes,
+  so a change re-applies without a relaunch.
+- **Fonts.** The app copies `Lineform/Resources/Fonts` by reference (the same folder reference as
+  the Mac, licence files included) and registers it at launch with `BundledFontRegistrar`. Comic
+  Sans is a Mac system font and is unavailable on iPhone.
+- **Highlighting** follows the Mac's rules (`docs/architecture/editor-behavior.md`): base
+  attributes whole-document, token inks (`MarkdownTokenStyler`) only over the visible range plus
+  3,000 characters (`MarkdownTokenScope`). The token pass runs 0.25 s after the last edit, and on
+  scroll only when the window is no longer covered. **Every pass is skipped while there is marked
+  text**, the typing-delay pass included; a skipped full pass runs once composition ends.
 - Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
