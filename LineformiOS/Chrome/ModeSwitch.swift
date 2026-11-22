@@ -1,0 +1,251 @@
+import LineformCore
+import SwiftUI
+import UIKit
+
+/// The Write / Read / Preview pill, built from the Mac's `EditorModeSegmentedControl`
+/// (`Lineform/Editor/EditorChromeAndControls.swift`) with its values: 78 × 30 segments, 3 pt
+/// padding, a 3 pt divider slot holding a 1 × 18 divider at 0.45 shown only between two unselected
+/// segments, 14 pt regular labels, the capsule's material, fill, stroke and shadow, the light and
+/// dark colours, and the liquid bridge (a spring of 0.24 / 0.78 that stretches the selected pill
+/// over both segments, then after 0.16 s a spring of 0.30 / 0.82 that settles it). Reduce Motion
+/// skips the bridge and every animation (`EditorMotionPolicy`).
+///
+/// A phone has no hover, so the Mac's hover pill (0.48 of the selected fill) is the pressed state.
+/// It floats at the top centre of the page (`DocumentScreen`); there is no bar behind it.
+struct ModeSwitch: View {
+    struct LiquidBridge: Equatable {
+        var from: EditorDisplayMode
+        var to: EditorDisplayMode
+    }
+
+    static let segmentWidth: CGFloat = 78
+    static let segmentHeight: CGFloat = 30
+    static let controlPadding: CGFloat = 3
+    static let dividerSlotWidth: CGFloat = 3
+    static let dividerSize = CGSize(width: 1, height: 18)
+    static let dividerOpacity: Double = 0.45
+    static let labelFontSize: CGFloat = 14
+    static let selectedFillComponent: CGFloat = 0.86
+    static let selectedFillAlpha: CGFloat = 0.74
+    static let darkSelectedFillComponent: CGFloat = 0.20
+    static let darkSelectedFillAlpha: CGFloat = 0.92
+    static let backgroundFillComponent: CGFloat = 1.0
+    static let backgroundFillOpacity: Double = 0.82
+    static let darkBackgroundFillComponent: CGFloat = {
+        var white: CGFloat = 0
+        var alpha: CGFloat = 0
+        LineformColors.darkControlBackground.getWhite(&white, alpha: &alpha)
+        return white
+    }()
+    static let darkBackgroundFillOpacity: Double = 0.92
+    static let textFillComponent: CGFloat = 0.18
+    static let darkTextFillComponent: CGFloat = 0.92
+    static let strokeWidth: CGFloat = 0.5
+    static let strokeOpacity: Double = 0.72
+    static let darkStrokeOpacity: Double = 0.10
+    static let shadowOpacity: Double = 0.035
+    static let shadowRadius: CGFloat = 5
+    static let shadowY: CGFloat = 1
+    /// The Mac's hover fill: this share of the selected fill, here while a segment is pressed.
+    static let pressedFillShare: Double = 0.48
+    static let bridgeAnimation = Animation.spring(response: 0.24, dampingFraction: 0.78)
+    static let settleAnimation = Animation.spring(response: 0.30, dampingFraction: 0.82)
+    static let liquidSettleDelay: TimeInterval = 0.16
+    /// The control's top margin inside the safe area.
+    static let topMargin: CGFloat = 8
+    /// The room a page under the control keeps above its first line: the control and its margins.
+    static var pageTopClearance: CGFloat { topMargin + intrinsicSize.height + topMargin }
+
+    @Binding var mode: EditorDisplayMode
+    var usesDarkChrome = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var liquidBridge: LiquidBridge?
+    @State private var liquidTransitionID = 0
+
+    private let modes = EditorDisplayMode.allCases
+
+    init(mode: Binding<EditorDisplayMode>, usesDarkChrome: Bool = false) {
+        _mode = mode
+        self.usesDarkChrome = usesDarkChrome
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            selectedPill
+
+            HStack(spacing: 0) {
+                ForEach(Array(modes.enumerated()), id: \.element.id) { index, segment in
+                    Button {
+                        select(segment)
+                    } label: {
+                        Text(segment.title)
+                            .font(.system(size: Self.labelFontSize, weight: .regular))
+                            .foregroundStyle(Self.textFillColor(usesDarkChrome: usesDarkChrome))
+                            .lineLimit(1)
+                            .frame(width: Self.segmentWidth, height: Self.segmentHeight)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(SegmentPressStyle(
+                        pressedFill: Self.selectedFillColor(usesDarkChrome: usesDarkChrome).opacity(Self.pressedFillShare),
+                        isSelected: mode == segment
+                    ))
+                    .accessibilityLabel(segment.title)
+                    .accessibilityAddTraits(mode == segment ? [.isSelected] : [])
+
+                    if index < modes.index(before: modes.endIndex) {
+                        Rectangle()
+                            .fill(Self.dividerColor(usesDarkChrome: usesDarkChrome)
+                                .opacity(Self.showsDivider(after: index, selection: mode) ? Self.dividerOpacity : 0))
+                            .frame(width: Self.dividerSize.width, height: Self.dividerSize.height)
+                            .padding(.horizontal, (Self.dividerSlotWidth - Self.dividerSize.width) / 2)
+                    }
+                }
+            }
+        }
+        .padding(Self.controlPadding)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule()
+                        .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome)
+                            .opacity(usesDarkChrome ? Self.darkBackgroundFillOpacity : Self.backgroundFillOpacity))
+                }
+                .overlay {
+                    Capsule()
+                        .stroke(Color.white.opacity(usesDarkChrome ? Self.darkStrokeOpacity : Self.strokeOpacity),
+                                lineWidth: Self.strokeWidth)
+                }
+                .shadow(color: .black.opacity(Self.shadowOpacity), radius: Self.shadowRadius, y: Self.shadowY)
+        }
+        .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
+        .fixedSize(horizontal: true, vertical: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Editor mode"))
+    }
+
+    private var selectedPill: some View {
+        Capsule()
+            .fill(Self.selectedFillColor(usesDarkChrome: usesDarkChrome))
+            .overlay {
+                Capsule()
+                    .stroke(Color.white.opacity(usesDarkChrome ? 0.16 : 0.36), lineWidth: Self.strokeWidth)
+            }
+            .frame(width: Self.pillWidth(bridge: liquidBridge), height: Self.segmentHeight)
+            .offset(x: Self.pillOffset(bridge: liquidBridge, selection: mode))
+            .animation(EditorMotionPolicy.animation(Self.settleAnimation, reduceMotion: reduceMotion), value: mode)
+            .animation(EditorMotionPolicy.animation(Self.bridgeAnimation, reduceMotion: reduceMotion), value: liquidBridge)
+    }
+
+    private func select(_ segment: EditorDisplayMode) {
+        guard segment != mode else { return }
+        liquidTransitionID += 1
+        guard let bridge = Self.bridge(from: mode, to: segment, reduceMotion: reduceMotion) else {
+            liquidBridge = nil
+            mode = segment
+            return
+        }
+        let transitionID = liquidTransitionID
+        withAnimation(Self.bridgeAnimation) {
+            liquidBridge = bridge
+            mode = segment
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.liquidSettleDelay) {
+            guard transitionID == liquidTransitionID else { return }
+            withAnimation(Self.settleAnimation) {
+                liquidBridge = nil
+            }
+        }
+    }
+
+    // MARK: - Geometry and colours (static, so tests read the Mac's values)
+
+    /// The bridge a switch starts with, or nil under Reduce Motion (the Mac's
+    /// `usesReduceMotionForLiquidBridge`).
+    static func bridge(from source: EditorDisplayMode, to destination: EditorDisplayMode, reduceMotion: Bool) -> LiquidBridge? {
+        guard EditorMotionPolicy.usesAnimatedTransitions(reduceMotion: reduceMotion), source != destination else { return nil }
+        return LiquidBridge(from: source, to: destination)
+    }
+
+    static func segmentOffset(for mode: EditorDisplayMode) -> CGFloat {
+        guard let index = EditorDisplayMode.allCases.firstIndex(of: mode) else { return 0 }
+        return CGFloat(index) * (segmentWidth + dividerSlotWidth)
+    }
+
+    static func pillOffset(bridge: LiquidBridge?, selection: EditorDisplayMode) -> CGFloat {
+        guard let bridge else { return segmentOffset(for: selection) }
+        return min(segmentOffset(for: bridge.from), segmentOffset(for: bridge.to))
+    }
+
+    static func pillWidth(bridge: LiquidBridge?) -> CGFloat {
+        guard let bridge else { return segmentWidth }
+        return abs(segmentOffset(for: bridge.to) - segmentOffset(for: bridge.from)) + segmentWidth
+    }
+
+    /// The whole control's size: three segments, two divider slots, the padding all round.
+    static var intrinsicSize: CGSize {
+        let count = CGFloat(EditorDisplayMode.allCases.count)
+        return CGSize(
+            width: count * segmentWidth + (count - 1) * dividerSlotWidth + 2 * controlPadding,
+            height: segmentHeight + 2 * controlPadding
+        )
+    }
+
+    /// A divider shows only between two unselected segments.
+    static func showsDivider(after index: Int, selection: EditorDisplayMode) -> Bool {
+        let modes = EditorDisplayMode.allCases
+        guard index >= 0, index < modes.count - 1 else { return false }
+        return modes[index] != selection && modes[index + 1] != selection
+    }
+
+    static func selectedFillColor(usesDarkChrome: Bool) -> Color {
+        usesDarkChrome
+            ? Color(white: darkSelectedFillComponent, opacity: darkSelectedFillAlpha)
+            : Color(white: selectedFillComponent, opacity: selectedFillAlpha)
+    }
+
+    static func backgroundFillColor(usesDarkChrome: Bool) -> Color {
+        Color(white: usesDarkChrome ? darkBackgroundFillComponent : backgroundFillComponent)
+    }
+
+    static func textFillColor(usesDarkChrome: Bool) -> Color {
+        Color(white: usesDarkChrome ? darkTextFillComponent : textFillComponent)
+    }
+
+    /// White on dark chrome; the light separator colour otherwise (the Mac's `separatorColor`),
+    /// resolved for the theme rather than the system appearance.
+    static func dividerColor(usesDarkChrome: Bool) -> Color {
+        usesDarkChrome
+            ? .white
+            : Color(uiColor: UIColor.separator.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)))
+    }
+}
+
+/// A segment's pressed state: the Mac's hover pill behind an unselected segment while it is held.
+private struct SegmentPressStyle: ButtonStyle {
+    var pressedFill: Color
+    var isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                if configuration.isPressed, !isSelected {
+                    Capsule().fill(pressedFill)
+                }
+            }
+    }
+}
+
+extension UIScrollView {
+    /// Keeps the page's first line clear of the floating mode control: the extra top inset is
+    /// applied as content inset, and a page showing its top stays at the (new) top.
+    func setTopChromeInset(_ inset: CGFloat) {
+        guard abs(contentInset.top - inset) > 0.5 else { return }
+        let wasAtTop = contentOffset.y <= -adjustedContentInset.top + 1
+        contentInset.top = inset
+        if wasAtTop {
+            contentOffset = CGPoint(x: contentOffset.x, y: -adjustedContentInset.top)
+        }
+    }
+}

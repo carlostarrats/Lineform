@@ -36,6 +36,9 @@ final class LineformReadView: UITextView {
     static let copiedFeedbackDuration: TimeInterval = 1.0
     /// A scroll-to-source parks the line this far below the top of the page (the Mac's 8 pt).
     static let scrollTopMargin: CGFloat = 8
+    /// How far below the exact top the position probe reads (the Mac editor's
+    /// `visibleTopProbeInset`); it must exceed `scrollTopMargin`.
+    static let visibleTopProbeInset: CGFloat = 14
     /// The grid's ink: the theme ink at this alpha, through `readableInk` at `tableGridMinimumRatio`.
     static let tableGridAlpha: CGFloat = 0.15
     static let tableGridMinimumRatio: CGFloat = 1.5
@@ -78,6 +81,8 @@ final class LineformReadView: UITextView {
         var copyFeedbackGeneration = 0
         var tableGridView: ReadTableGridView?
         var checkboxTap: UITapGestureRecognizer?
+        /// Become first responder once in a window (Read was chosen before the view was mounted).
+        var wantsFocus = false
         weak var documentUndoManager: UndoManager?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
@@ -365,13 +370,13 @@ final class LineformReadView: UITextView {
     /// The offset that shows the very top of the page.
     private var topContentOffsetY: CGFloat { -adjustedContentInset.top }
 
-    /// The first character on the page, or nil.
-    private func topCharacterIndex() -> Int? {
+    /// The first character on the page, or nil. `probeInset` reads that far below the exact top.
+    private func topCharacterIndex(probeInset: CGFloat = 0) -> Int? {
         guard textStorage.length > 0, bounds.height > 0 else { return nil }
-        let visibleHeight = max(1, bounds.height - adjustedContentInset.top - adjustedContentInset.bottom)
+        let visibleHeight = max(1, bounds.height - adjustedContentInset.top - adjustedContentInset.bottom - probeInset)
         let rect = CGRect(
             x: 0,
-            y: max(0, visibleTopY - textContainerInset.top),
+            y: max(0, visibleTopY + probeInset - textContainerInset.top),
             width: max(1, textContainer.size.width),
             height: visibleHeight
         )
@@ -468,8 +473,26 @@ final class LineformReadView: UITextView {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        if window != nil, state.wantsFocus {
+            state.wantsFocus = false
+            // Next tick: a view just mounted by SwiftUI cannot hold first responder yet.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window != nil else { return }
+                self.becomeFirstResponder()
+            }
+        }
         renderIfNeeded()
         applyPendingScrollIfPossible()
+    }
+
+    /// Takes the keyboard focus (so a shake or ⌘Z reaches the document's undo), now or as soon as
+    /// the view is in a window. Not editable, so no keyboard appears.
+    func takeFocusWhenInWindow() {
+        if window != nil {
+            becomeFirstResponder()
+        } else {
+            state.wantsFocus = true
+        }
     }
 
     func setNeedsOverlayLayout() {
@@ -718,9 +741,12 @@ final class LineformReadView: UITextView {
 
     // MARK: - Position
 
-    /// The source offset of the first character on the page, or nil.
+    /// The source offset of the first line at the top of the page, or nil. Read 14 pt below the
+    /// exact top, the Mac editor's `visibleTopProbeInset`: a line parked 8 pt below the top (a
+    /// scroll to a source location) is the one found, not the sliver of the line above it, so a
+    /// Write → Read → Write round trip never drifts up a line.
     func sourceLocationAtTopOfViewport() -> Int? {
-        guard let index = topCharacterIndex() else { return nil }
+        guard let index = topCharacterIndex(probeInset: Self.visibleTopProbeInset) else { return nil }
         return SourcePosition.sourceLocation(atRenderedIndex: index, in: textStorage)
     }
 

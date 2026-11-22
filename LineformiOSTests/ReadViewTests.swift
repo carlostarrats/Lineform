@@ -448,7 +448,7 @@ final class ReadViewTests: XCTestCase {
         let store = ReadingProfileStore(defaults: defaults)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
-        window.rootViewController = UIHostingController(rootView: DocumentScreen(document: document, profileStore: store, startsInRead: true))
+        window.rootViewController = UIHostingController(rootView: DocumentScreen(document: document, profileStore: store, initialMode: .read))
         window.isHidden = false
         self.window = window
         var readView: LineformReadView?
@@ -459,7 +459,12 @@ final class ReadViewTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(50))
         }
         let view = try XCTUnwrap(readView)
-        XCTAssertNil(Self.find(LineformTextView.self, in: window), "Read replaces the editor")
+        // The editor stays under the Read view (Write keeps its undo history), covered and out of
+        // reach of touch and VoiceOver.
+        let editor = try XCTUnwrap(Self.find(LineformTextView.self, in: window))
+        XCTAssertEqual(view.convert(view.bounds, to: window), editor.convert(editor.bounds, to: window),
+                       "Read covers the whole page")
+        XCTAssertFalse(editor.isFirstResponder)
         XCTAssertEqual(view.renderedSourceText, document.text)
         let range = try XCTUnwrap(checkboxRanges(in: view).first)
         let rect = try XCTUnwrap(view.checkboxGlyphRect(forSourceRange: range))

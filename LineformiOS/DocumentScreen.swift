@@ -6,6 +6,10 @@ import UniformTypeIdentifiers
 /// top of the text, and the page colour runs edge to edge under the status bar and home
 /// indicator. The editor still resizes for the keyboard (only the container safe area is ignored).
 ///
+/// The Write / Read / Preview pill (`ModeSwitch`) floats at the top centre, inside the safe area,
+/// over the page. The mode is kept with the scene; a switch keeps the passage at the top of the
+/// page (`ModePositionKeeper`), and ⌘E toggles Write and Read as on the Mac.
+///
 /// After iOS ends the app, the next launch reopens the document that was open: `@SceneStorage`
 /// keeps a bookmark to its file, and the system discards it when the user force-quits, so a
 /// normal launch is blank. Leaving the foreground (inactive or background) saves at once.
@@ -17,10 +21,16 @@ struct DocumentScreen: View {
     @ObservedObject var profileStore: ReadingProfileStore
     private var profile: ReadingProfile { profileStore.activeProfile }
     @State private var isShowingFiles = false
-    /// Read mode in place of the editor. Temporary until the Write / Read / Preview control
-    /// (roadmap step 5, Task 3): tests start the screen in Read, and Debug builds show a small
-    /// switch; Release always shows Write.
-    @State private var isReading: Bool
+    /// Write, Read or Preview. Kept with the scene, so a Preview restored after iOS ended the app
+    /// opens in Preview; a new scene starts in Write.
+    @SceneStorage("displayMode") private var storedDisplayMode: EditorDisplayMode = .write
+    /// The mode on screen: the stored one, adopted on appear, then every switch (written back to
+    /// the scene). Plain state as well, because a screen hosted outside a SwiftUI scene (a test)
+    /// has no scene storage to write to.
+    @State private var shownDisplayMode: EditorDisplayMode?
+    private var displayMode: EditorDisplayMode { shownDisplayMode ?? storedDisplayMode }
+    /// Records the position at a mode switch and restores it on the new surface.
+    @State private var positionKeeper = ModePositionKeeper()
     /// The image line whose Reconnect pill opened the image picker.
     @State private var reconnectRange: NSRange?
     @State private var isPickingReconnectImage = false
@@ -37,10 +47,24 @@ struct DocumentScreen: View {
         return nil
     }
 
-    init(document: OpenDocument, profileStore: ReadingProfileStore, startsInRead: Bool = false) {
+    /// `initialMode` is the mode of a scene with nothing stored: Write in the app; tests start
+    /// elsewhere.
+    init(document: OpenDocument, profileStore: ReadingProfileStore, initialMode: EditorDisplayMode = .write) {
         self.document = document
         self.profileStore = profileStore
-        _isReading = State(initialValue: startsInRead)
+        _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
+    }
+
+    /// The mode control's binding: every switch goes through the position keeper first.
+    private var modeSelection: Binding<EditorDisplayMode> {
+        Binding(get: { displayMode }, set: { switchMode(to: $0) })
+    }
+
+    private func switchMode(to mode: EditorDisplayMode) {
+        guard mode != displayMode else { return }
+        positionKeeper.switchMode(from: displayMode, to: mode)
+        shownDisplayMode = mode
+        storedDisplayMode = mode
     }
 
     /// The image types Reconnect offers, as on the Mac.
@@ -65,16 +89,22 @@ struct DocumentScreen: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: noticeMessage)
+        .overlay(alignment: .top) {
+            ModeSwitch(mode: modeSelection, usesDarkChrome: Theme.theme(for: profile).usesDarkChrome)
+                .padding(.top, ModeSwitch.topMargin)
+        }
         .overlay(alignment: .bottomTrailing) {
             MenuButton(profile: profile) { isShowingFiles = true }
                 .padding(MarkdownEditor.chromeMargin)
         }
-        #if DEBUG
-        .overlay(alignment: .bottomLeading) {
-            DebugReadSwitch(isReading: $isReading, profile: profile)
-                .padding(MarkdownEditor.chromeMargin)
+        .background {
+            // ⌘E on a hardware keyboard: Write ↔ Read, and Preview to Write, as on the Mac.
+            Button(String(localized: "Toggle Write / Read")) {
+                switchMode(to: displayMode.toggledWriteRead)
+            }
+            .keyboardShortcut(Self.toggleWriteReadShortcut)
+            .hidden()
         }
-        #endif
         .sheet(isPresented: $isShowingFiles) {
             FileListSheet(document: document)
         }
@@ -96,6 +126,10 @@ struct DocumentScreen: View {
         ) {
             Button(String(localized: "OK"), role: .cancel) {}
         }
+        .onAppear {
+            shownDisplayMode = shownDisplayMode ?? storedDisplayMode
+            positionKeeper.adopt(displayMode)
+        }
         .task {
             await document.prepare(
                 restoringBookmark: openDocumentBookmark,
@@ -114,56 +148,64 @@ struct DocumentScreen: View {
 }
 
 extension DocumentScreen {
-    /// Write's editor, or the Read view.
+    /// ⌘E, the Mac's Toggle Write / Read.
+    static let toggleWriteReadShortcut = KeyboardShortcut("e", modifiers: .command)
+
+    /// The editor and the Read view, placed for the mode. The editor stays in the hierarchy in
+    /// every mode (under the Read view in Read), so Write keeps its undo history across a switch;
+    /// the Read view exists only in Read and Preview, so typing in Write renders nothing.
     @ViewBuilder
     private var page: some View {
-        if isReading {
-            ReadViewRepresentable(
-                text: document.text,
-                profile: profile,
-                documentDirectory: document.documentDirectory,
-                onCheckboxToggle: { range, renderedFrom in
-                    document.toggleCheckbox(at: range, renderedFrom: renderedFrom)
-                },
-                onImageReconnect: { range in
-                    reconnectRange = range
-                    isPickingReconnectImage = true
-                },
-                undoManager: document.undoManager
-            )
-        } else {
-            MarkdownEditor(
-                text: Binding(get: { document.text }, set: { document.edit($0) }),
-                profile: profile,
-                imageHost: document
-            )
+        let mode = displayMode
+        GeometryReader { proxy in
+            let height = proxy.size.height
+            let editorHeight = mode == .split ? (height / 2).rounded() : height
+            ZStack(alignment: .top) {
+                editor
+                    .frame(height: editorHeight)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(mode != .read)
+                    .accessibilityHidden(mode == .read)
+                if mode != .write {
+                    reader
+                        .frame(height: mode == .split ? height - editorHeight : height)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                }
+            }
         }
+        // The pill animates; the page itself switches at once, so the restore lands on settled
+        // frames.
+        .transaction { $0.animation = nil }
+    }
+
+    private var editor: some View {
+        MarkdownEditor(
+            text: Binding(get: { document.text }, set: { document.edit($0) }),
+            profile: profile,
+            imageHost: document,
+            positionKeeper: positionKeeper,
+            topChromeInset: ModeSwitch.pageTopClearance
+        )
+    }
+
+    private var reader: some View {
+        ReadViewRepresentable(
+            text: document.text,
+            profile: profile,
+            documentDirectory: document.documentDirectory,
+            onCheckboxToggle: { range, renderedFrom in
+                document.toggleCheckbox(at: range, renderedFrom: renderedFrom)
+            },
+            onImageReconnect: { range in
+                reconnectRange = range
+                isPickingReconnectImage = true
+            },
+            undoManager: document.undoManager,
+            positionKeeper: positionKeeper,
+            topChromeInset: displayMode == .split ? 0 : ModeSwitch.pageTopClearance
+        )
     }
 }
-
-#if DEBUG
-/// Debug builds only: switches between Write and Read until the real mode control arrives.
-private struct DebugReadSwitch: View {
-    @Binding var isReading: Bool
-    var profile: ReadingProfile
-
-    var body: some View {
-        let theme = Theme.theme(for: profile)
-        Button {
-            isReading.toggle()
-        } label: {
-            Image(systemName: isReading ? "pencil" : "book")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color(uiColor: theme.textColor))
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(Color(uiColor: theme.backgroundColor)))
-                .overlay(Circle().strokeBorder(Color(uiColor: theme.textColor).opacity(0.2), lineWidth: 1))
-        }
-        // Debug-only and never shipped: VoiceOver reads the symbol's own name, so no string
-        // goes in the catalog.
-    }
-}
-#endif
 
 /// Shown in place of the text while iCloud downloads the file being opened: quiet, no buttons.
 private struct DownloadingView: View {

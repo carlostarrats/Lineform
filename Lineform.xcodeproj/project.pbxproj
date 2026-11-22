@@ -15,6 +15,10 @@
 		1F0000410000000000000024 /* ReadViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000024 /* ReadViewRepresentable.swift */; };
 		1F0000410000000000000025 /* ReadOverlayButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000025 /* ReadOverlayButtons.swift */; };
 		1F0000410000000000000026 /* ReadViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000026 /* ReadViewTests.swift */; };
+		1F0000410000000000000027 /* MotionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000027 /* MotionPolicy.swift */; };
+		1F0000410000000000000028 /* ModeSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000028 /* ModeSwitch.swift */; };
+		1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000029 /* ModePositionKeeper.swift */; };
+		1F000041000000000000002A /* ModeSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002A /* ModeSwitchTests.swift */; };
 		1F000041000000000000001E /* SpellCheckPass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001E /* SpellCheckPass.swift */; };
 		1F000041000000000000001D /* SpellCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001D /* SpellCheckTests.swift */; };
 		1F000041000000000000001C /* LineformiOSTextView+ReadingAssists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */; };
@@ -215,6 +219,10 @@
 		1F0000400000000000000024 /* ReadViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadViewRepresentable.swift; sourceTree = "<group>"; };
 		1F0000400000000000000025 /* ReadOverlayButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadOverlayButtons.swift; sourceTree = "<group>"; };
 		1F0000400000000000000026 /* ReadViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadViewTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000027 /* MotionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionPolicy.swift; sourceTree = "<group>"; };
+		1F0000400000000000000028 /* ModeSwitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitch.swift; sourceTree = "<group>"; };
+		1F0000400000000000000029 /* ModePositionKeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePositionKeeper.swift; sourceTree = "<group>"; };
+		1F000040000000000000002A /* ModeSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitchTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000001E /* SpellCheckPass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckPass.swift; sourceTree = "<group>"; };
 		1F000040000000000000001D /* SpellCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+ReadingAssists.swift"; sourceTree = "<group>"; };
@@ -689,6 +697,7 @@
 				1F0000400000000000000002 /* DocumentScreen.swift */,
 				1F0000420000000000000003 /* Editor */,
 				1F0000420000000000000004 /* Read */,
+				1F0000420000000000000005 /* Chrome */,
 				1F0000400000000000000008 /* Assets.xcassets */,
 				1F0000400000000000000007 /* Localizable.xcstrings */,
 				1F0000400000000000000004 /* Info.plist */,
@@ -709,6 +718,7 @@
 				1F000040000000000000001D /* SpellCheckTests.swift */,
 				1F0000400000000000000022 /* ImagePasteTests.swift */,
 				1F0000400000000000000026 /* ReadViewTests.swift */,
+				1F000040000000000000002A /* ModeSwitchTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
@@ -740,6 +750,16 @@
 				1F0000400000000000000025 /* ReadOverlayButtons.swift */,
 			);
 			path = Read;
+			sourceTree = "<group>";
+		};
+		1F0000420000000000000005 /* Chrome */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000400000000000000027 /* MotionPolicy.swift */,
+				1F0000400000000000000028 /* ModeSwitch.swift */,
+				1F0000400000000000000029 /* ModePositionKeeper.swift */,
+			);
+			path = Chrome;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1137,6 +1157,9 @@
 				1F0000410000000000000023 /* LineformReadView.swift in Sources */,
 				1F0000410000000000000024 /* ReadViewRepresentable.swift in Sources */,
 				1F0000410000000000000025 /* ReadOverlayButtons.swift in Sources */,
+				1F0000410000000000000027 /* MotionPolicy.swift in Sources */,
+				1F0000410000000000000028 /* ModeSwitch.swift in Sources */,
+				1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */,
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
 				1F0000410000000000000011 /* FileListSheet.swift in Sources */,
 			);
@@ -1152,6 +1175,7 @@
 				1F000041000000000000001D /* SpellCheckTests.swift in Sources */,
 				1F0000410000000000000022 /* ImagePasteTests.swift in Sources */,
 				1F0000410000000000000026 /* ReadViewTests.swift in Sources */,
+				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
 				1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,

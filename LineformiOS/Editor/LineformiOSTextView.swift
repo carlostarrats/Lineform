@@ -65,6 +65,12 @@ final class LineformTextView: UITextView {
         weak var imageInsertionHost: (any ImageInsertionHost)?
         var imagePasteTask: Task<Void, Never>?
         var imageDropInteraction: UIDropInteraction?
+        /// A cross-mode position restore, re-asserted for a few ticks (`scrollCharacterRangeToTopPersistently`).
+        var persistentScrollTarget: NSRange?
+        var persistentScrollReassertsRemaining = 0
+        /// Preview's editor pane: after a size change (the keyboard, the split) the caret is
+        /// scrolled back into view.
+        var keepsCaretVisibleOnResize = false
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -229,6 +235,13 @@ final class LineformTextView: UITextView {
             visibleRangeDidChange()
             refreshReadingAssists()
             needsSpellingUnderlineRedraw = true
+            if state.keepsCaretVisibleOnResize, isFirstResponder {
+                // Deferred: never scroll from inside layout.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.isFirstResponder else { return }
+                    self.scrollRangeToVisible(self.selectedRange)
+                }
+            }
         }
         // After super: the underlines follow this layout pass (an edit, a re-style, a new size).
         redrawSpellingUnderlinesIfNeeded()
@@ -352,5 +365,91 @@ final class LineformTextView: UITextView {
         rect.origin.y -= textContainerInset.top
         let glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
         return layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+    }
+
+    // MARK: - Position (the mode switch)
+
+    /// Space left above a line scrolled to the top, as on the Mac and in Read.
+    static let scrollTopMargin: CGFloat = 8
+    /// How far below the exact top the position probe reads (the Mac's `visibleTopProbeInset`):
+    /// a line parked 8 pt below the top is the one found, not the sliver of the line above.
+    static let visibleTopProbeInset: CGFloat = 14
+    /// How many runloop ticks a cross-mode restore is re-asserted for (the Mac's 5).
+    static let persistentScrollReasserts = 5
+
+    /// The source offset of the first line at the top of the page (the editor's text is the
+    /// source), read `visibleTopProbeInset` below the exact top as on the Mac; nil before the view
+    /// has a size.
+    func topVisibleSourceLocation() -> Int? {
+        let length = textStorage.length
+        guard length > 0, bounds.width > 0, bounds.height > 0 else { return nil }
+        let probe = Self.visibleTopProbeInset
+        let visibleHeight = max(1, bounds.height - adjustedContentInset.top - adjustedContentInset.bottom - probe)
+        let rect = CGRect(
+            x: 0,
+            y: max(0, contentOffset.y + adjustedContentInset.top + probe - textContainerInset.top),
+            width: max(1, textContainer.size.width),
+            height: visibleHeight
+        )
+        let glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
+        let characters = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        return min(max(0, characters.location), length - 1)
+    }
+
+    /// Parks the line holding `range`'s start at the top of the page, 8 pt below it (the Mac's
+    /// `scrollCharacterRangeToTop`), clamped to the laid-out page. Never selects text.
+    func scrollCharacterRangeToTop(_ range: NSRange) {
+        let length = textStorage.length
+        let top = -adjustedContentInset.top
+        guard length > 0, bounds.height > 0 else {
+            setContentOffset(CGPoint(x: contentOffset.x, y: top), animated: false)
+            return
+        }
+        layoutManager.ensureLayout(for: textContainer)
+        let location = min(max(0, range.location), length - 1)
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: location, length: 1),
+            actualCharacterRange: nil
+        )
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let targetTop = max(0, rect.minY + textContainerInset.top - Self.scrollTopMargin)
+        let contentHeight = layoutManager.usedRect(for: textContainer).height
+            + textContainerInset.top + textContainerInset.bottom
+        let maximumY = max(top, contentHeight + adjustedContentInset.bottom - bounds.height)
+        let y = min(max(top, targetTop - adjustedContentInset.top), maximumY)
+        if abs(contentOffset.y - y) > 0.5 {
+            setContentOffset(CGPoint(x: contentOffset.x, y: y), animated: false)
+        }
+    }
+
+    /// Scrolls `range` to the top and keeps it there for the next few runloop ticks (the Mac's
+    /// `scrollCharacterRangeToTopPersistently`): a view just resized by the mode switch, or UIKit
+    /// growing `contentSize` behind it, can put the offset back a tick later. A touch on the page
+    /// ends the re-asserting at once.
+    func scrollCharacterRangeToTopPersistently(_ range: NSRange) {
+        state.persistentScrollTarget = range
+        state.persistentScrollReassertsRemaining = Self.persistentScrollReasserts
+        reassertPersistentScrollIfNeeded()
+    }
+
+    private func reassertPersistentScrollIfNeeded() {
+        guard let range = state.persistentScrollTarget,
+              state.persistentScrollReassertsRemaining > 0,
+              !isTracking, !isDecelerating
+        else {
+            state.persistentScrollTarget = nil
+            return
+        }
+        state.persistentScrollReassertsRemaining -= 1
+        scrollCharacterRangeToTop(range)
+        DispatchQueue.main.async { [weak self] in
+            self?.reassertPersistentScrollIfNeeded()
+        }
+    }
+
+    /// Preview's editor pane keeps the caret in view when its size changes (the keyboard).
+    var keepsCaretVisibleOnResize: Bool {
+        get { state.keepsCaretVisibleOnResize }
+        set { state.keepsCaretVisibleOnResize = newValue }
     }
 }

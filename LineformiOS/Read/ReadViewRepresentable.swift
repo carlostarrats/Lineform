@@ -22,6 +22,10 @@ struct ReadViewRepresentable: UIViewRepresentable {
     var onVisibleTopSourceLocationChanged: ((Int) -> Void)?
     /// The document's undo manager, so undo in Read undoes a toggle or a Reconnect.
     var undoManager: UndoManager?
+    /// Told which view is the Read view, for the mode switch's position restore.
+    var positionKeeper: ModePositionKeeper?
+    /// Extra room above the first line for the floating mode control (Read; not Preview's lower pane).
+    var topChromeInset: CGFloat = 0
 
     func makeUIView(context: Context) -> LineformReadView {
         let view = LineformReadView.make(profile: profile)
@@ -40,6 +44,8 @@ struct ReadViewRepresentable: UIViewRepresentable {
         view.onImageReconnect = onImageReconnect
         view.onVisibleTopSourceLocationChanged = onVisibleTopSourceLocationChanged
         view.documentUndoManager = undoManager
+        view.setTopChromeInset(topChromeInset)
+        positionKeeper?.reader = view
         view.apply(text: text, profile: profile, documentDirectory: documentDirectory)
     }
 }
