@@ -327,29 +327,15 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         }
         layoutManager.ensureLayout(for: textContainer)
 
-        // Find the rendered run whose SOURCE span starts nearest at/below the target.
-        var bestRenderedRange: NSRange?
-        var bestSourceLocation = -1
-        textStorage.enumerateAttribute(
-            .sourceSpan,
-            in: NSRange(location: 0, length: textStorage.length),
-            options: []
-        ) { value, renderedRange, _ in
-            guard let value = value as? NSValue else { return }
-            let location = value.rangeValue.location
-            if location <= target, location > bestSourceLocation {
-                bestSourceLocation = location
-                bestRenderedRange = renderedRange
-            }
-        }
+        // The rendered character for the target: in the run whose SOURCE span starts nearest
+        // at/below it, with sub-line precision (how far into the run the target source offset
+        // sits, not the run start — symmetric with the report side), clamped within the rendered
+        // run so a target inside a multi-line block can't scroll past the block. Shared with the
+        // iPhone Read view (`SourcePosition`).
+        let renderedChar = SourcePosition.renderedIndex(forSourceLocation: target, in: textStorage)
 
         let targetY: CGFloat
-        if let bestRenderedRange {
-            // Sub-line precision: land at how far into the run the target source offset sits, not the
-            // run start (symmetric with the report side). Clamped within the rendered run, so a
-            // target inside a multi-line block can't scroll past the block.
-            let offsetIntoSource = max(0, target - bestSourceLocation)
-            let renderedChar = min(bestRenderedRange.location + offsetIntoSource, NSMaxRange(bestRenderedRange) - 1)
+        if let renderedChar {
             let glyphRange = layoutManager.glyphRange(
                 forCharacterRange: NSRange(location: renderedChar, length: 1),
                 actualCharacterRange: nil
@@ -841,30 +827,14 @@ final class MarkdownPreviewTextView: NSTextView, NSTextViewDelegate {
         let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
         let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
         let topChar = min(max(0, charRange.location), textStorage.length - 1)
-        guard let info = sourceLineInfo(at: topChar, in: textStorage) else { return nil }
-        // Sub-line precision: add how far into the run's RENDERED range the viewport top sits, so a
-        // reader parked mid-paragraph restores to that spot in Write, not the paragraph start. The
-        // offset is CLAMPED to the run's SOURCE span length, so a position deep inside a multi-line
-        // block (blockquote/list/table) stays inside that block instead of overshooting past it
-        // (which would mis-restore and bold the wrong outline heading). Exact for plain prose.
-        let renderedOffset = max(0, topChar - info.renderedRange.location)
-        let clampedOffset = min(renderedOffset, max(0, info.sourceSpan.length - 1))
-        return NSRange(location: info.sourceSpan.location + clampedOffset, length: 1)
-    }
-
-    /// The `.sourceSpan` value at `charIndex` and the rendered run it belongs to — or, if that exact
-    /// run lacks one (rare), the nearest tagged run before it. Walks backward by attribute-run so it
-    /// never scans char by char.
-    private func sourceLineInfo(at charIndex: Int, in textStorage: NSTextStorage) -> (sourceSpan: NSRange, renderedRange: NSRange)? {
-        var index = min(max(0, charIndex), textStorage.length - 1)
-        while index >= 0 {
-            var effectiveRange = NSRange(location: 0, length: 0)
-            if let value = textStorage.attribute(.sourceSpan, at: index, effectiveRange: &effectiveRange) as? NSValue {
-                return (value.rangeValue, effectiveRange)
-            }
-            index = effectiveRange.location - 1
-        }
-        return nil
+        // Sub-line precision: how far into the run's RENDERED range the viewport top sits, so a
+        // reader parked mid-paragraph restores to that spot in Write, not the paragraph start —
+        // CLAMPED to the run's SOURCE span length, so a position deep inside a multi-line block
+        // (blockquote/list/table) stays inside that block instead of overshooting past it (which
+        // would mis-restore and bold the wrong outline heading). Shared with the iPhone Read view
+        // (`SourcePosition`).
+        guard let location = SourcePosition.sourceLocation(atRenderedIndex: topChar, in: textStorage) else { return nil }
+        return NSRange(location: location, length: 1)
     }
 
     private func configure() {

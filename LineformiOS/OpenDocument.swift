@@ -5,6 +5,15 @@ import SwiftUI
 import UIKit
 import os
 
+/// Applies a Read edit (a checkbox toggle, a Reconnect) to the editor that stays mounted under
+/// Read: `newText` is the whole new text, applied as ONE localized ranged edit with the editor's
+/// undo registration, so the document keeps one undo history in every mode. False when it was not
+/// applied (nothing changed, or an input method is composing).
+@MainActor
+protocol ReadEditApplying: AnyObject {
+    func applyReadEdit(_ newText: String) -> Bool
+}
+
 /// The one document the iPhone app has open: its file (nil for a new document that has no text
 /// yet), its text, and the live-reload watcher on that file.
 ///
@@ -95,6 +104,14 @@ final class OpenDocument: ImageInsertionHost {
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     /// The URL whose security scope this document holds (a file from outside the app).
     @ObservationIgnored private var securityScopedURL: URL?
+    /// Images picked with Read's Reconnect whose security scope this document holds while it is
+    /// open, so the next render (and every one after) can load them.
+    @ObservationIgnored private var reconnectedImageURLs: [URL] = []
+    /// Where Read's edits (a checkbox toggle, a Reconnect) are applied: the editor, which stays
+    /// mounted under Read and Preview. It applies each one as a ranged edit in its own text
+    /// storage with its own undo registration, so a document has ONE undo history in every mode.
+    /// Nil (no editor yet) applies the edit with `edit` alone.
+    @ObservationIgnored weak var readEditor: (any ReadEditApplying)?
     @ObservationIgnored private var isPrepared = false
     private var planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
     @ObservationIgnored private var autosaveTask: Task<Void, Never>?
@@ -386,6 +403,57 @@ final class OpenDocument: ImageInsertionHost {
         scheduleAutosave()
     }
 
+    /// The folder relative image links resolve against: the open file's. Nil for a document that
+    /// has no file yet.
+    var documentDirectory: URL? { url?.deletingLastPathComponent() }
+
+    // MARK: - Edits from Read
+
+    /// A rendered task checkbox was tapped: swaps `[ ]` and `[x]` at `range` as a normal edit
+    /// (autosave, one undo step in the editor's history). Nothing happens when `range` no longer
+    /// holds a marker (`CheckboxToggle` returns nil), or when `renderedFrom`, the source the Read
+    /// view rendered the checkbox from, is no longer the text: a render that has not caught up
+    /// with an edit (Preview's 0.12 s debounce) could otherwise aim at another line's marker.
+    @discardableResult
+    func toggleCheckbox(at range: NSRange, renderedFrom: String? = nil) -> Bool {
+        if let renderedFrom, renderedFrom != text { return false }
+        guard let newText = CheckboxToggle.toggledText(in: text, at: range) else { return false }
+        return applyReadEdit(newText)
+    }
+
+    /// Read's Reconnect: points the image at `range` at `pickedURL` (from the image picker),
+    /// relative to the document's folder when the file is inside it, otherwise absolute
+    /// (`ImageLinkRewrite`), as a normal edit with one undo step. The picked file's security scope
+    /// is kept while this document is open, so the next render loads it. A stale range (no longer
+    /// one image), or a text that changed since `renderedFrom` (the source the Read view showed
+    /// when the picker opened), changes nothing and keeps no scope.
+    @discardableResult
+    func reconnectImage(at range: NSRange, with pickedURL: URL, renderedFrom: String? = nil) -> Bool {
+        if let renderedFrom, renderedFrom != text { return false }
+        let didAccess = pickedURL.startAccessingSecurityScopedResource()
+        let newPath = ImageLinkRewrite.linkPath(for: pickedURL, documentDirectory: documentDirectory)
+        guard let newText = ImageLinkRewrite.rewritten(in: text, at: range, newPath: newPath),
+              applyReadEdit(newText)
+        else {
+            if didAccess { pickedURL.stopAccessingSecurityScopedResource() }
+            return false
+        }
+        if didAccess { reconnectedImageURLs.append(pickedURL) }
+        return true
+    }
+
+    /// One Read edit: through the editor (one ranged edit and one undo step in its history, then
+    /// `edit` through its binding), or straight through `edit` when no editor is mounted. False
+    /// when nothing changed, or the editor refused it (an input method is composing).
+    private func applyReadEdit(_ newText: String) -> Bool {
+        guard newText != text else { return false }
+        if let readEditor {
+            return readEditor.applyReadEdit(newText)
+        }
+        edit(newText)
+        return true
+    }
+
     // MARK: - Autosave
 
     /// Saves `autosaveDelay` after the last keystroke.
@@ -572,6 +640,7 @@ final class OpenDocument: ImageInsertionHost {
                 diskText: diskText, currentText: text, lastSyncedText: lastSyncedText
             )
             if outcome == .reload {
+                // The editor treats the new text as an outside replacement and clears its undo.
                 text = diskText
                 setLastSyncedText(diskText)
             }
@@ -668,6 +737,10 @@ final class OpenDocument: ImageInsertionHost {
     private func releaseSecurityScope() {
         securityScopedURL?.stopAccessingSecurityScopedResource()
         securityScopedURL = nil
+        for imageURL in reconnectedImageURLs {
+            imageURL.stopAccessingSecurityScopedResource()
+        }
+        reconnectedImageURLs = []
     }
 
     // MARK: - Disk

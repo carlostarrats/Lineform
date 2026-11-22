@@ -32,6 +32,24 @@ enum MathImageOrientation {
         return UIImage(cgImage: cgImage, scale: image.scale, orientation: .up)
         #endif
     }
+
+    #if !os(macOS)
+    /// iOS: SwiftMath's `UIGraphicsImageRenderer` draws at the main screen's scale, whatever the
+    /// renderer asked for. When `scale` differs, the equation is redrawn at `scale` pixels per
+    /// point (same point size), so its raster matches the display the iPhone Read view is on
+    /// (`RenderDisplayMetrics.scale`, from the view's `displayScale`). An image already at that
+    /// scale, or a non-positive scale, is returned as is.
+    static func rasterized(_ image: UIImage, atScale scale: CGFloat) -> UIImage {
+        guard scale > 0, abs(image.scale - scale) > 0.01 else { return image }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { context in
+            context.cgContext.interpolationQuality = .high
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+    }
+    #endif
 }
 
 // MARK: - Rendering seam (wraps SwiftMath)
@@ -134,7 +152,11 @@ public final class MathImageProvider: MathImageProviding {
         // upside down in exported PDFs. Rewrap it as a CGImage-backed image — orientation-stable
         // across contexts (the technique the mermaid path uses), without a flip since SwiftMath is
         // already upright.
+        #if os(macOS)
         let image = MathImageOrientation.cgImageBacked(rawImage)
+        #else
+        let image = MathImageOrientation.rasterized(MathImageOrientation.cgImageBacked(rawImage), atScale: scale)
+        #endif
         let descent = layout?.descent ?? 0
         cache.setObject(
             CachedMath(image: image, descent: descent),

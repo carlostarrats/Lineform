@@ -12,7 +12,9 @@ import UIKit
 ///   `textViewDidChange`, so `OpenDocument` autosaves. An edit that changes nothing registers no
 ///   undo step and posts nothing. No rule forces a synchronous re-highlight; the debounced
 ///   typing-delay pass picks the edit up.
-extension LineformTextView {
+/// - **Read edits are rule edits.** A checkbox toggle or a Reconnect made in Read or Preview comes
+///   here (`applyReadEdit`), so the document has one undo history in every mode.
+extension LineformTextView: ReadEditApplying {
     // MARK: - Return
 
     /// Decides a change the delegate was asked about. Returns `true` when a rule handled it (the
@@ -185,8 +187,15 @@ extension LineformTextView {
     /// Applies a whole-text `MarkdownEdit` as ONE localized replacement: only the span between
     /// the common prefix and suffix is rewritten, never the whole document.
     func applyMarkdownEdit(_ edit: MarkdownEdit) {
-        let old = textStorage.string as NSString
-        let new = edit.text as NSString
+        let (replaced, insertion) = Self.localizedReplacement(from: textStorage.string, to: edit.text)
+        applyRuleEdit(replacing: replaced, with: insertion, selecting: edit.selectedRange)
+    }
+
+    /// The one span that turns `oldText` into `newText`: the range between their common prefix
+    /// and suffix, and what replaces it. Never splits a surrogate pair.
+    static func localizedReplacement(from oldText: String, to newText: String) -> (range: NSRange, replacement: String) {
+        let old = oldText as NSString
+        let new = newText as NSString
         let oldLength = old.length
         let newLength = new.length
         var prefix = 0
@@ -204,15 +213,41 @@ extension LineformTextView {
         }
         let replaced = NSRange(location: prefix, length: oldLength - prefix - suffix)
         let insertion = new.substring(with: NSRange(location: prefix, length: newLength - prefix - suffix))
-        applyRuleEdit(replacing: replaced, with: insertion, selecting: edit.selectedRange)
+        return (replaced, insertion)
+    }
+
+    /// A Read edit (a checkbox toggle, a Reconnect; `ReadEditApplying`): `newText` as one ranged
+    /// edit through `applyRuleEdit`, so it is one step in THIS editor's undo history, the one the
+    /// document has in every mode. The selection stays on the text it was on, and nothing scrolls:
+    /// the editor may be hidden under Read, or be Preview's other pane.
+    func applyReadEdit(_ newText: String) -> Bool {
+        let (range, replacement) = Self.localizedReplacement(from: textStorage.string, to: newText)
+        let delta = (replacement as NSString).length - range.length
+        let selection = selectedRange
+        let kept: NSRange
+        if NSMaxRange(selection) <= range.location {
+            kept = selection
+        } else if selection.location >= NSMaxRange(range) {
+            kept = NSRange(location: selection.location + delta, length: selection.length)
+        } else {
+            kept = NSRange(location: range.location + (replacement as NSString).length, length: 0)
+        }
+        return applyRuleEdit(replacing: range, with: replacement, selecting: kept, revealsSelection: false)
     }
 
     /// Replaces `range` with `replacement` as one undo step and tells the delegate, so autosave
     /// sees it. The caret goes to `selecting`, or just past the replacement, as on the Mac.
     /// A replacement equal to what is there writes nothing, registers nothing and posts nothing
     /// (it only moves the selection). Refused while there is marked text.
+    /// `revealsSelection` false (a Read edit) leaves the scroll position alone, for the edit and
+    /// for its undo and redo.
     @discardableResult
-    func applyRuleEdit(replacing range: NSRange, with replacement: String, selecting: NSRange? = nil) -> Bool {
+    func applyRuleEdit(
+        replacing range: NSRange,
+        with replacement: String,
+        selecting: NSRange? = nil,
+        revealsSelection: Bool = true
+    ) -> Bool {
         guard markedTextRange == nil else { return false }
         let storage = textStorage
         guard range.location >= 0, NSMaxRange(range) <= storage.length else { return false }
@@ -231,7 +266,10 @@ extension LineformTextView {
             if groups { undoManager.beginUndoGrouping() }
             undoManager.registerUndo(withTarget: self) { textView in
                 MainActor.assumeIsolated {
-                    _ = textView.applyRuleEdit(replacing: inserted, with: replacedText, selecting: previousSelection)
+                    _ = textView.applyRuleEdit(
+                        replacing: inserted, with: replacedText, selecting: previousSelection,
+                        revealsSelection: revealsSelection
+                    )
                 }
             }
             if groups { undoManager.endUndoGrouping() }
@@ -244,7 +282,7 @@ extension LineformTextView {
         )
         inputDelegate?.textDidChange(self)
         selectedRange = caret
-        scrollRangeToVisible(caret)
+        if revealsSelection { scrollRangeToVisible(caret) }
         delegate?.textViewDidChange?(self)
         textDidChangeForHighlighting()
         return true

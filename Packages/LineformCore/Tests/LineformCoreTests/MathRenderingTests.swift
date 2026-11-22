@@ -123,6 +123,25 @@ final class MathRenderingTests: XCTestCase {
         guard case .image(_, let descent) = outcome else { return XCTFail("expected an image") }
         XCTAssertGreaterThan(descent, 0)
     }
+    #if !os(macOS)
+    /// iOS: the equation's raster follows the requested scale (the Read view's `displayScale`),
+    /// not the main screen's: the same point size, more pixels per point at 3 than at 2.
+    func testIOSMathRasterFollowsRequestedScale() throws {
+        let provider = MathImageProvider()
+        func pixels(_ scale: CGFloat) throws -> (size: CGSize, pixelWidth: Int) {
+            let outcome = provider.outcome(latex: "x^2+y^2", style: .display, foreground: .black, pointSize: 18, scale: scale)
+            guard case .image(let image, _) = outcome else {
+                XCTFail("expected an image, got \(outcome)")
+                return (.zero, 0)
+            }
+            return (image.size, try XCTUnwrap(image.cgImage).width)
+        }
+        let two = try pixels(2)
+        let three = try pixels(3)
+        XCTAssertEqual(two.size.width, three.size.width, accuracy: 0.5, "the point size does not change")
+        XCTAssertEqual(CGFloat(three.pixelWidth) / CGFloat(two.pixelWidth), 1.5, accuracy: 0.05)
+    }
+    #endif
     func testLiveProviderFailsOnGarbageLaTeX() {
         let outcome = MathImageProvider().outcome(latex: "\\frac{", style: .inline, foreground: .black, pointSize: 18, scale: 2)
         if case .failed = outcome {} else { XCTFail("malformed LaTeX must fail → fallback") }

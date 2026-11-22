@@ -8,7 +8,12 @@ import UIKit
 extension NSAttributedString.Key {
     /// iOS only: on every run of a rendered table row; value is the row's index (`NSNumber`,
     /// header = 0), so the iPhone Read view can draw the grid behind the tab-aligned rows.
-    static let markdownTableRow = NSAttributedString.Key("lineform.markdownTableRow")
+    public static let markdownTableRow = NSAttributedString.Key("lineform.markdownTableRow")
+    /// iOS only: on every run of a rendered table row; value is each column's share of the column
+    /// width the row's tab stops were placed for (`[NSNumber]`, fractions of 1, from
+    /// `fitColumnPercentages`), so the iPhone Read view draws the grid's column edges from the
+    /// same numbers as the stops.
+    public static let markdownTableColumnFractions = NSAttributedString.Key("lineform.markdownTableColumnFractions")
 }
 
 /// Emits a parsed GFM table as live, selectable, theme-colored text.
@@ -84,12 +89,16 @@ enum MarkdownTableEmitter {
         // A left-aligned first column starts at the line's leading edge; any other first column
         // needs a leading tab to reach its own stop.
         let leading = alignments[0] == .left ? "" : "\t"
+        let fractions = (0..<columns).map { column in
+            NSNumber(value: Double(column < columnPercentages.count ? columnPercentages[column] / 100 : 0))
+        }
 
         for (rowIndex, row) in rows.enumerated() {
             var attributes = baseAttributes
             attributes[.paragraphStyle] = paragraph
             attributes[.font] = row.isHeader ? headerFont : cellFont
             attributes[.markdownTableRow] = NSNumber(value: rowIndex)
+            attributes[.markdownTableColumnFractions] = fractions
 
             let cells = (0..<columns).map { column in column < row.cells.count ? row.cells[column] : "" }
             output.append(NSAttributedString(string: leading + cells.joined(separator: "\t") + "\n", attributes: attributes))

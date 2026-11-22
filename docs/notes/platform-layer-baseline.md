@@ -129,17 +129,36 @@ view can exercise it.
 - **TextKit 2 path for `HorizontalRuleAttachment`.** Only the TextKit 1 overrides exist, and
   `UITextView` defaults to TextKit 2. Either force TextKit 1 in the Read view or add the TextKit 2
   overrides, plus one hosted layout test.
+  **Done (step 5):** the Read view is `UITextView(usingTextLayoutManager: false)`, so the
+  TextKit 1 overrides are the ones used and no TextKit 2 overrides are needed.
+  `ReadViewTests.testHorizontalRuleLaysOutInReadView` renders `a`, `---`, `b` in the hosted Read
+  view, lays it out, and checks `textLayoutManager` is nil and the rule's glyph rect is non-zero at
+  the column width.
 - **`displayMetrics` effectively required on iOS.** The scale 3 / viewport 844 default of
   `RenderDisplayMetrics.current` is a placeholder; the Read view must always pass real metrics.
+  **Done (step 5):** the Read view renders only once in a window and always passes
+  `traitCollection.displayScale` and the window's height (`testRendersWithRealDisplayScale`).
 - **Make `.markdownTableRow` public.** The iPhone Read view needs the row key to style or hit-test
   table rows; today it is internal.
+  **Done (step 5, Task 1):** `.markdownTableRow` is public; the Read view uses it for the stop
+  rescale and the grid.
 - **Math raster scale.** `MathImageProvider` uses `scale` only in its cache key, not for the
   raster's pixels (ruling R11), so iPhone math sharpness is unchecked.
+  **Done on iOS (step 5, Task 2):** the iOS provider redraws the raster at the requested scale
+  (`testIOSMathRasterFollowsRequestedScale`, `testRendersWithRealDisplayScale`). The Mac path is
+  unchanged and R11 still describes it; see `docs/architecture/rendering.md`, platform seam.
 - **Pin iOS tab-stop locations and alignments.** No test asserts the tab stops the iOS table
   emitter sets, so a regression in column layout would pass.
+  **Done (step 5):** `ReadViewTests.testTabStopLocationsMatchColumnPercentages` pins locations and
+  alignments (left, centre, right) after the Read view's rescale, and the leading-tab rule.
 - **Real container for `testLongTableCellDoesNotCrashAtNarrowWidth`.** It checks only the
   attributed string; it must lay the output out in a real text container to prove no crash.
+  **Done (step 5):** `ReadViewTests.testLongTableCellLaysOutAtNarrowWidth` lays the rendered table
+  out in a real TextKit 1 container at 1 pt and 320 pt. The package test is unchanged.
 - **Document the iOS table's leading tab and 1-point nudge.** Neither is written down, and long
   cells wrap and misalign the rows.
+  **Done (step 5):** documented in `docs/architecture/rendering.md`, "iPhone tables".
 - **Purity rule and `MemberImportVisibility`.** When that upcoming feature is turned on, the
   purity rule must allow per-file `#if os` imports outside the seam folders (ruling R8).
+  **Still open, not a step 5 item:** `MemberImportVisibility` is not turned on anywhere, so there
+  is nothing to exercise yet. It stays with whichever change turns the feature on.

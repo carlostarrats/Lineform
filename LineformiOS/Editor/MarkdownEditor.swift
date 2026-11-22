@@ -12,11 +12,27 @@ import UIKit
 /// the edit menu leads with spelling guesses on a misspelling; Writing Tools is told which
 /// Markdown regions to leave alone. A pasted or dropped image is saved beside `imageHost`'s
 /// document (`LineformiOSTextView+ImagePaste.swift`).
+///
+/// A text that changes from outside (a live reload, another file) replaces the editor's text and
+/// clears its undo history, so undo never puts older text over the new. A checkbox or Reconnect
+/// made in Read is not from outside: the document hands it to this editor (`readEditDocument`),
+/// which applies it as a ranged edit with its own undo, so the document has ONE undo history in
+/// Write, Read and Preview.
 struct MarkdownEditor: UIViewRepresentable {
     @Binding var text: String
     var profile: ReadingProfile
     /// The document a pasted or dropped image is saved beside (`OpenDocument`).
     var imageHost: (any ImageInsertionHost)?
+    /// Told which text view is the editor, for the mode switch's position restore.
+    var positionKeeper: ModePositionKeeper?
+    /// Preview's linked scrolling; nil in Write and Read.
+    var linkedScroll: LinkedScroll?
+    /// Preview's editor pane keeps the caret in view when the keyboard resizes it.
+    var keepsCaretVisibleOnResize = false
+    /// Extra room above the first line for the floating mode control.
+    var topChromeInset: CGFloat = 0
+    /// The document whose Read edits this editor applies (`OpenDocument.readEditor`).
+    var readEditDocument: OpenDocument?
 
     /// Padding for the chrome that floats over the page (the menu button, the save notice).
     static let chromeMargin: CGFloat = 20
@@ -26,15 +42,32 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.setDocumentText(text)
         textView.delegate = context.coordinator
         textView.imageInsertionHost = imageHost
+        textView.keepsCaretVisibleOnResize = keepsCaretVisibleOnResize
+        textView.setTopChromeInset(topChromeInset)
+        positionKeeper?.editor = textView
+        linkedScroll?.connect(editor: textView)
+        readEditDocument?.readEditor = textView
         return textView
     }
 
     func updateUIView(_ textView: LineformTextView, context: Context) {
         context.coordinator.parent = self
+        configure(textView)
+    }
+
+    /// Hands `textView` this value's inputs. Internal so tests update an editor the same way.
+    func configure(_ textView: LineformTextView) {
         textView.profile = profile
         textView.imageInsertionHost = imageHost
+        textView.keepsCaretVisibleOnResize = keepsCaretVisibleOnResize
+        textView.setTopChromeInset(topChromeInset)
+        positionKeeper?.editor = textView
+        linkedScroll?.connect(editor: textView)
+        readEditDocument?.readEditor = textView
         if textView.text != text {
+            // An outside replacement: the editor's undo steps describe the old text.
             textView.setDocumentText(text)
+            textView.undoManager?.removeAllActions()
         }
     }
 
@@ -66,6 +99,7 @@ struct MarkdownEditor: UIViewRepresentable {
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             (scrollView as? LineformTextView)?.visibleRangeDidChange()
+            parent.linkedScroll?.editorDidScroll(scrollView)
         }
 
         /// On a misspelling, the spelling group (guesses, Learn, Ignore) leads the system's menu.
