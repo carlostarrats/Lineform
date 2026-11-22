@@ -74,7 +74,7 @@ struct MenuSheet: View {
         let theme = Theme.theme(for: profile)
         VStack(spacing: 0) {
             header(theme: theme)
-            MenuSectionBar(selection: Binding(get: { section }, set: select), theme: theme)
+            MenuSectionBar(selection: Binding(get: { section }, set: { picked in select(picked) }), theme: theme)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
