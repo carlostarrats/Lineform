@@ -346,6 +346,18 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   the save folder: when that folder is not writable, insert nothing and show the short image
   notice (no Application Support fallback). An image lands only in the document that was open
   when its paste or drop started. Image-only lines never name a document (`DocumentNaming`).
+- **Write, Read and Preview.** `ModeSwitch` (the Mac's segmented control, value for value) floats
+  at the top centre with no bar; the mode lives in `@SceneStorage("displayMode")`. A switch keeps
+  the top paragraph (`ModePositionKeeper`, 14 pt top probe). Read is `LineformReadView`, a
+  non-editable TextKit 1 `UITextView` that always renders with real `RenderDisplayMetrics` (the
+  view's `displayScale`, the window's height), never the placeholder default. Read edits the
+  document only through checkboxes and Reconnect, both via `OpenDocument.edit(_:)` (one undo step
+  on the document's own undo manager); a checkbox toggle is refused when the text changed since
+  the render, and Copy never edits. Entering Write after a Read edit clears the editor's undo,
+  as a live reload does. Preview is the editor over Read; linked scrolling copies the
+  inset-normalised distance from the top, clamped, with an echo guard and no block mapping.
+  Images load only from the document's folder or a Reconnect pick. Details:
+  `docs/architecture/iphone-app.md`, "Write, Read and Preview".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog.

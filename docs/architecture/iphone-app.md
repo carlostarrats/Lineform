@@ -6,8 +6,8 @@ links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
 (`TARGETED_DEVICE_FAMILY = 1`); Mac Catalyst, "Designed for iPhone" on the Mac and visionOS are
 all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
-This page covers roadmap step 3 (shell and files) and step 4 (Write mode) as it lands. Read and
-Preview, the Menu sheet and the rest arrive in later steps.
+This page covers roadmap step 3 (shell and files), step 4 (Write mode) and step 5 (Read and
+Preview, with the Write/Read/Preview switch). The Menu sheet and the rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -17,8 +17,11 @@ a fully working state, never an error or a prompt.
 ## Target, scheme and tests
 
 - Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `FileListSheet`,
-  and `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`, named so no file name is shared with the Mac sources), with its own `Info.plist`, `Localizable.xcstrings` (six
-  languages) and entitlements.
+  `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
+  `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
+  `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper` and `MotionPolicy`. Every name
+  differs from the Mac sources' file names), with its own `Info.plist`, `Localizable.xcstrings`
+  (six languages) and entitlements.
 - Tests: `LineformiOSTests/`, hosted in the app, run by the shared `LineformiOS` scheme through
   `LineformiOS.xctestplan`. Never link `LineformCoreTestSupport` into this target.
 - Run them on a simulator:
@@ -155,6 +158,139 @@ for line alike. Do not switch it to TextKit 2.
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
   the caret.
+
+## Write, Read and Preview
+
+Roadmap step 5 (plan `2026-11-21-iphone-read-and-preview.md` in the Lineform-mobile planning
+folder). The three modes are the package's `EditorDisplayMode`, the same values and titles as the
+Mac.
+
+### The mode switch
+
+- `ModeSwitch` (`Chrome/ModeSwitch.swift`) is the Mac's `EditorModeSegmentedControl`, value for
+  value, kept as statics so tests read them: 78×30 segments, 3 pt padding, a 3 pt divider slot with
+  1×18 dividers at 0.45 (only between unselected segments), 14 pt regular labels, an
+  `.ultraThinMaterial` capsule with the Mac's light and dark fills, its 0.5 pt stroke and its shadow
+  (black 0.035, radius 5, y 1). The selected pill moves with the liquid bridge: spring(0.24, 0.78),
+  then after 0.16 s spring(0.30, 0.82). There is no hover on a phone, so the Mac's hover fill
+  (0.48 of the selected fill) is the pressed state, shown while a segment is held. Its accessibility label is the Mac's
+  "Editor mode".
+- It floats at the top centre, 8 pt inside the safe area, over the page. There is no full-width bar.
+  The editor and Read view get an extra 52 pt top `contentInset` (8 + 36 + 8,
+  `ModeSwitch.pageTopClearance`) so the first line is never under the pill.
+- Reduce Motion (`accessibilityReduceMotion`) skips the bridge and the animations, as
+  `EditorMotionPolicy` does on the Mac. `Chrome/MotionPolicy.swift` is a copy of that type, because
+  the package may not import SwiftUI.
+- `DocumentScreen` keeps the mode in `@SceneStorage("displayMode")` (default Write), mirrored into
+  `@State`: a screen hosted outside a scene (the tests) cannot write scene storage. Every switch
+  writes both, so a Preview that iOS ends reopens in Preview. ⌘E on a hardware keyboard toggles
+  Write and Read (the Mac's "Toggle Write / Read").
+
+### Keeping your place across a switch
+
+`ModePositionKeeper` records the source location at the top of the outgoing surface (the editor
+for Write and Preview, the Read view for Read) and restores it on the incoming one a tick later,
+only if no newer switch happened. Write uses `scrollCharacterRangeToTopPersistently` (8 pt margin,
+re-asserted for 5 ticks, a touch stops it); Read uses `scrollSourceLocationToTop`; Preview moves
+the editor through `SplitScrollJumpPlan` and, while linked, Read follows. Several switches in one
+tick keep the first target and restore only the last mode. Both surfaces probe the top 14 pt down
+(the Mac editor's `visibleTopProbeInset`), so a line parked 8 pt below the top reads as itself and
+the position never drifts a line per round trip. The source↔rendered lookups are the package's
+`SourcePosition` (`sourceLocation(atRenderedIndex:in:)`, `renderedIndex(forSourceLocation:in:)`),
+the same code the Mac's split scroll uses.
+
+The editor stays mounted in every mode. In Read it sits under the opaque Read view with no hit
+testing and hidden from accessibility, so Write keeps its undo history across a switch. The Read
+view exists only in Read and Preview, so typing in Write never renders.
+
+### Read
+
+`LineformReadView` (`Read/LineformReadView.swift`) is a non-editable, selectable
+`UITextView(usingTextLayoutManager: false)` showing `MarkdownPreviewRenderer`'s output. TextKit 1
+for the same reasons as the editor, and because `HorizontalRuleAttachment` overrides only the
+TextKit 1 attachment methods. Like the editor, it comes from UIKit's factory path, so all its state
+lives in a lazily made `State` object (`testFactoryPathHasEveryDefault`).
+
+- **Layout.** `EditorReadingLayout` at the sides, 32 pt top and bottom, line-fragment padding 0.
+  The render column is `min(textColumnMaxWidth, the window's longest side)`, so rasters keep room
+  for landscape.
+- **Real display metrics.** It renders only once it is in a window, and every render passes
+  `RenderDisplayMetrics(scale: traitCollection.displayScale, visibleViewportHeight: window.bounds.height)`,
+  never the iOS placeholder default. A display-scale change re-renders. `apply(text:profile:documentDirectory:)`
+  renders only when the text, profile, folder or scale changed.
+- **Rotation and font size.** A width change captures the Mac's `ReflowAnchor` first (a view at
+  the top stays pinned to the top), applies the width, refits block images with
+  `BlockAttachmentRefit` (height capped by `ImageFit.maxHeight` of the visible height), rescales the
+  table tab stops, then restores the anchor, again once in the next `layoutSubviews` because
+  UITextView can pull the offset back while it grows `contentSize`. A profile change keeps the top
+  passage by its source position.
+- **Tables** are the iOS tab-stop rows (`docs/architecture/rendering.md`, platform seam). The view
+  rescales their stops to `blockAttachmentFitWidth` on every render and width change, and draws
+  the hairline grid behind the text.
+- **Checkboxes.** A tap recognizer begins only on a checkbox glyph rect (`checkboxSourceRange(at:)`,
+  the Mac's glyph hit test).
+- **Copy and Reconnect pills** are `UIButton` subviews in content coordinates (so a scroll carries
+  them), placed with the Mac's values: Copy a 26 pt circle 8 pt inside the column's right edge;
+  Reconnect 22 pt high, radius 11, an 11 pt medium label, 8 pt after its run and clamped inside the
+  right margin. They move after a render, refit, width or profile change. Copy slices the rendered
+  source into `UIPasteboard.general`, shows a checkmark for 1.0 s, and never edits the document.
+  Reconnect presents `.fileImporter` with the Mac's image types.
+- **Images are local only.** Remote and `data:` URLs stay placeholders. Files load only from the
+  document's folder or from a URL Reconnect's picker returned.
+- **Accessibility.** `accessibilityCustomActions` mirror every pill and checkbox with the Mac's
+  strings: "Copy code block %lld", "Reconnect image", "Toggle task: %@" and "Toggle task".
+- **Position.** `onVisibleTopSourceLocationChanged` fires 0.08 s after scrolling stops.
+  `scrollSourceLocationToTop` waits until the view is rendered, in a window and sized, parks the
+  line 8 pt below the top and clamps to the laid-out end.
+
+### Read edits go through `OpenDocument`
+
+Read changes the document only through checkboxes and Reconnect; Copy never does.
+
+- `OpenDocument.toggleCheckbox(at:renderedFrom:)` uses `CheckboxToggle.toggledText(in:at:)`. It
+  also carries the source the view rendered, and refuses the toggle when that differs from the
+  document's text: after typing in Write, the 0.12 s preview debounce can leave rendered ranges
+  stale, and a stale range must never toggle another line. A nil result does nothing.
+- `OpenDocument.reconnectImage(at:with:)` uses `ImageLinkRewrite.linkPath(for:documentDirectory:)`
+  and `rewritten(in:at:newPath:)`, relative to `documentDirectory` (the open file's folder). It
+  keeps the picked URL's security scope until the document closes or detaches.
+- Both go through `edit(_:)`, so they autosave like typing, and both keep every `\r\n`. Line offsets
+  come from the renderer's attributes, never recomputed.
+
+### Undo across modes
+
+- A Read edit is one undo step, with redo, on `OpenDocument`'s own `undoManager` (grouped by hand,
+  `groupsByEvent` off). The Read view's `undoManager` returns it, and Read takes first responder
+  when entered, so shake and ⌘Z reach it.
+- Write typing (an ordinary `edit`), a reload and closing the document clear that stack, because
+  undoing an older whole-text step would discard newer text.
+- Entering Write after a Read edit treats the text as an outside replacement: `MarkdownEditor`
+  calls `setDocumentText` and clears the editor's undo, as it does for a live reload. So a Read
+  toggle cannot be undone from Write, and Write's undo never rewinds over it.
+- Without a Read edit, Write's undo history survives a trip through Read or Preview.
+- In Preview, a checkbox in the Read pane clears the editor's undo; its own undo is reachable
+  while the Read pane is first responder.
+
+### Preview
+
+`PreviewSplit` lays out all three modes. Preview is the editor over Read, each half of the height
+above the keyboard, split by a hairline (theme ink at 0.15 through `readableInk`, ratio 1.5, at
+1/displayScale). The editor keeps its caret visible when the keyboard resizes it
+(`keepsCaretVisibleOnResize`). Read renders the text 0.12 s after an edit
+(`LineformReadView.previewTextDelay`); any other change renders at once.
+
+- **Linked scrolling** (`LinkedScroll`) matches the Mac: it copies the vertical distance from the
+  top, clamped to the other pane's scrollable range, with no block mapping
+  (`docs/architecture/editor-behavior.md` explains why), and an `isApplying` guard so a copied
+  offset never echoes back. The distance is inset-normalised (`contentOffset.y +
+  adjustedContentInset.top`) because the top pane sits under the status bar and the bottom one
+  does not. The link is on by default; re-linking aligns Preview to Write; unlinking leaves both
+  panes where they are. Offsets the Read view sets itself (render, refit, width change) are not
+  reported to the link.
+- **The link button** (`PreviewLinkButton`) is a 38 pt circle with the `link` symbol, 12 pt left of
+  the Menu button, in Preview only, with the Menu button's floating-card chrome. Linked it is
+  systemBlue on a blue wash; unlinked it is struck through in the ink at 0.62. Labels are the Mac's
+  "Link split scrolling" and "Unlink split scrolling".
 
 ## Files: reading, writing and live reload
 
