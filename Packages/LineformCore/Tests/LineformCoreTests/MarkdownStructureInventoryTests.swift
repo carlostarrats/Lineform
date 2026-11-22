@@ -1,5 +1,4 @@
 import XCTest
-@testable import Lineform
 @testable import LineformCore
 
 /// The "a new construct without a protection rule fails" gate. `MarkdownStructureMap`'s

@@ -229,11 +229,15 @@ longer links the two products directly). It holds Markdown parsing and HTML rend
 providers (`Markdown/Rendering/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
 profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History, save status, the Markdown file codec, the live-reload file watcher, and the file pieces the iPhone app uses (document naming, the save folder, the folder monitor and the autosave planner) (`Documents/`), the AI model,
 clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in
-`Packages/LineformCore/Tests/LineformCoreTests`. Some pure-looking files stay in the app
-(`MarkdownSyntaxTokens`, `MarkdownSpellCheckRegions`, `MarkdownStructureMap`, `AIActionController`,
-`AISentenceSplitter`, `DocumentHistoryController`) because they depend on an AppKit app type
-(directly or through `MarkdownSyntaxHighlighter`, `LineformTextView` or the History editor types).
-The list and the reasons are in `docs/notes/shared-package-baseline.md`.
+`Packages/LineformCore/Tests/LineformCoreTests`. The editor logic both apps share is in the package too:
+token scoping (`MarkdownTokenScope`), token styling (`MarkdownTokenStyler`, in `Markdown/Rendering/`
+because it writes to `NSTextStorage`), `MarkdownSpellCheckRegions`, `MarkdownStructureMap`,
+`EditorReadingLayout`, `TypewriterScroll` and `ImageFileNaming`. The Mac keeps its old names
+(`MarkdownSyntaxHighlighter.highlight`/`refreshTokens`/`scopedTokenRange`/`tokens(in:scope:)`,
+`LineformTextView.typewriterScrollOrigin`, …) as one-line forwarders, so Mac output is unchanged.
+A few pure-looking files still stay in the app (`AIActionController`, `AISentenceSplitter`,
+`DocumentHistoryController`); the list and the reasons are in
+`docs/notes/shared-package-baseline.md`.
 
 - **Purity.** The package never imports SwiftUI, Cocoa or WebKit, and never uses an app type.
   AppKit and UIKit are allowed only inside an `#if os(macOS)` / `#else` branch, and only in files

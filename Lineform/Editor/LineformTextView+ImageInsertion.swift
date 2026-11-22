@@ -175,64 +175,20 @@ extension LineformTextView {
 
     /// Where to write the image and the link text to insert. Prefers `images/<name>` next to the
     /// document (relative, portable); falls back to the app container with an absolute path when
-    /// there is no document folder or it can't be written to.
+    /// there is no document folder or it can't be written to. Forwards to LineformCore's
+    /// `ImageFileNaming`, shared with the iPhone.
     private func destination(preferredName: String, ext: String) -> (url: URL, link: String)? {
-        let fileManager = FileManager.default
-
-        if let directory = imageInsertionDocumentDirectory {
-            let imagesDirectory = directory.appendingPathComponent("images", isDirectory: true)
-            if (try? fileManager.createDirectory(at: imagesDirectory, withIntermediateDirectories: true)) != nil,
-               fileManager.isWritableFile(atPath: imagesDirectory.path) {
-                let name = uniqueName(in: imagesDirectory, base: preferredName, ext: ext)
-                return (imagesDirectory.appendingPathComponent(name), "images/\(name)")
-            }
-        }
-
-        if let support = try? fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true) {
-            let directory = support.appendingPathComponent("Lineform/InsertedImages", isDirectory: true)
-            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            let name = uniqueName(in: directory, base: preferredName, ext: ext)
-            let url = directory.appendingPathComponent(name)
-            // Escaped like every other destination the app writes: the container path runs
-            // through the user's home directory, which it does not get to assume is free of a
-            // character that would close the `![](…)` early.
-            return (url, ImageLinkRewrite.markdownDestination(for: url.path))
-        }
-        return nil
+        ImageFileNaming.destination(
+            documentDirectory: imageInsertionDocumentDirectory,
+            preferredName: preferredName,
+            ext: ext,
+            fileManager: .default
+        )
     }
 
-    private func uniqueName(in directory: URL, base: String, ext: String) -> String {
-        let fileManager = FileManager.default
-        let safeBase = Self.sanitizedFileBase(base)
-        var candidate = "\(safeBase).\(ext)"
-        var counter = 1
-        while fileManager.fileExists(atPath: directory.appendingPathComponent(candidate).path) {
-            counter += 1
-            candidate = "\(safeBase)-\(counter).\(ext)"
-        }
-        return candidate
-    }
-
-    /// Reduce a filename base to clean ASCII: letters, digits, `.`, `-`, `_` only; every run of any
-    /// other character (spaces, incl. the U+202F narrow no-break space macOS puts in screenshot
-    /// names, punctuation, unicode) collapses to a single `-`. Keeps written image filenames tidy
-    /// and — critically — free of characters that can break the `![](path)` link's resolution after
-    /// a save/reload round-trip through the `.md`.
+    /// Forwards to `ImageFileNaming.sanitizedFileBase`.
     static func sanitizedFileBase(_ base: String) -> String {
-        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
-        var result = ""
-        var lastWasDash = false
-        for character in base {
-            if allowed.contains(character) {
-                result.append(character)
-                lastWasDash = false
-            } else if !lastWasDash {
-                result.append("-")
-                lastWasDash = true
-            }
-        }
-        let trimmed = result.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return trimmed.isEmpty ? "image" : trimmed
+        ImageFileNaming.sanitizedFileBase(base)
     }
 
     /// Insert `![](path)` on its OWN line. For an on-line drop / paste the index is snapped to the

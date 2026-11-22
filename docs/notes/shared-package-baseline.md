@@ -625,3 +625,35 @@ Tests only (no move): `PackagePurityTests` (no UI-framework import in `LineformC
   `Contents/Frameworks`, and `otool -L` lists no LineformCore, so `LineformCore` is linked
   statically. The archive was moved out of the repo after checking.
 
+
+## iPhone Write mode, Task 1: the remaining editor logic moved into LineformCore
+
+The "Stays until the platform-layer plan" items for the editor are closed. New package files:
+`Markdown/MarkdownTokenScope.swift` (pure: `scopedTokenRange(in:around:margin:)`,
+`tokens(in:scope:)`, `range(_:covers:)`), `Markdown/Rendering/MarkdownTokenStyler.swift` (writes
+to `NSTextStorage`, so it is in the seam folder: `apply(to:profile:tokenScope:)`, `applyBase`,
+`applyTokens`, `attributes(for:profile:)`), `ReadingExperience/EditorReadingLayout.swift`,
+`ReadingExperience/TypewriterScroll.swift` and `Editor/ImageFileNaming.swift`.
+`Editor/MarkdownSpellCheckRegions.swift` and `Editor/MarkdownStructureMap.swift` moved whole
+(`git mv`); their only app dependency was `MarkdownSyntaxHighlighter`, now `MarkdownTokenScope`.
+
+Mac forwarders (same names, same output): `MarkdownSyntaxHighlighter.scopedTokenRange`,
+`tokens(in:scope:)`, `range(_:covers:)`, `highlight`, `refreshTokens`; the
+`checkableRanges(in:enclosing:highlighter:)` overload (the package version has no `highlighter:`);
+`LineformTextView.typewriterScrollOrigin` (passes an unbounded content height, so the new end clamp
+never applies); `LineformTextView.sanitizedFileBase` and the private `destination`.
+`ScopedSyntaxHighlightingTests.testHighlightAndRefreshWriteTheSameAttributesAsThePreMoveHighlighter`
+compares the Mac's `highlight`/`refreshTokens` with a frozen copy of the pre-move code for every
+theme, high contrast on and off, and every token kind (it fails when the code font's weight changes).
+
+Tests moved: `MarkdownSpellCheckRegionsTests`, `MarkdownSpellCheckPerformanceTests`,
+`MarkdownStructureMapTests`, `MarkdownStructureInventoryTests`, `MarkdownWritingToolsProtectionTests`
+(87 tests), the pure half of `ScopedSyntaxHighlightingTests` (7, now `MarkdownTokenScopeTests`) and
+the four `EditorReadingLayout` cases of `EditorDisplayModeTests` (now `EditorReadingLayoutTests`).
+New: `MarkdownTokenStylerTests` (4), `ImageFileNamingTests` (4), `TypewriterScrollTests` (4).
+No strings moved (none of the moved code is localized).
+
+**Spell-check ratio gate in the package.** Both sides of the ratio now run package code at
+`-Onone` in Debug. Readings: package macOS 10.8×, package iOS Simulator 10.2×, Mac default plan
+(which runs `LineformCoreTests`) 10.8×, all against the 4× floor; the same 10.7–11.0× the gate read
+in the app since the shared-package Task 4. The gate stays in the package.

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Lineform
+@testable import LineformCore
 
 final class MarkdownSpellCheckRegionsTests: XCTestCase {
     private func checkableText(_ source: String) -> [String] {

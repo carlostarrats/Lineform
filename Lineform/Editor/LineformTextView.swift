@@ -1599,11 +1599,10 @@ final class LineformTextView: NSTextView {
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
+    /// Forwards to LineformCore's `TypewriterScroll.origin` with no end limit, which is the Mac's
+    /// formula unchanged: `max(0, lineRect.midY − visibleBounds.height / 2)`.
     static func typewriterScrollOrigin(for lineRect: NSRect, visibleBounds: NSRect) -> NSPoint {
-        NSPoint(
-            x: visibleBounds.origin.x,
-            y: max(0, lineRect.midY - visibleBounds.height / 2)
-        )
+        TypewriterScroll.origin(for: lineRect, visibleBounds: visibleBounds, contentHeight: .greatestFiniteMagnitude)
     }
 
     private func updateTypewriterScrollState(from previousProfile: ReadingProfile, to profile: ReadingProfile) {

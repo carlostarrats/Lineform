@@ -42,7 +42,7 @@ public struct ReadingProfile: Codable, Equatable, Identifiable, Sendable {
     public var columnWidth: Double
     public var marginWidth: Double
     public var insertionPointWidth: Double
-    var focusMode: FocusMode
+    public var focusMode: FocusMode
     public var typewriterModeEnabled: Bool
     public var readingRulerEnabled: Bool
     var reduceMarkdownNoise: Bool
