@@ -29,10 +29,10 @@ struct ExportRows: View {
     var body: some View {
         Section {
             exportMenu
-            Button(action: printDocument) {
+            Button(action: { printDocument() }) {
                 Label(String(localized: "Print\u{2026}"), systemImage: "printer")
             }
-            Button(action: shareDocument) {
+            Button(action: { shareDocument() }) {
                 Label(String(localized: "Share\u{2026}"), systemImage: "square.and.arrow.up")
             }
             .disabled(Self.isShareDisabled(commands))
