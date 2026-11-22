@@ -10,6 +10,10 @@
 		1F000041000000000000009B /* ExportRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009B /* ExportRowsTests.swift */; };
 		1F000041000000000000009C /* ExportRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009C /* ExportRows.swift */; };
 		1F000041000000000000009D /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009D /* ActivityShareSheet.swift */; };
+		1F000041000000000000009E /* ExportParityRecordHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009E /* ExportParityRecordHostedTests.swift */; };
+		1F000041000000000000009F /* ExportParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009F /* ExportParityTests.swift */; };
+		1F00004100000000000000A0 /* export-parity in Resources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000A0 /* export-parity */; };
+		1F00004100000000000000A1 /* export-parity in Resources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000A0 /* export-parity */; };
 		1F000041000000000000009A /* ExportCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009A /* ExportCommandsTests.swift */; };
 		1F0000410000000000000099 /* ExportCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000099 /* ExportCommands.swift */; };
 		1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000098 /* PhonePrintRendererTests.swift */; };
@@ -262,6 +266,9 @@
 		1F000040000000000000009B /* ExportRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportRowsTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000009C /* ExportRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportRows.swift; sourceTree = "<group>"; };
 		1F000040000000000000009D /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
+		1F000040000000000000009E /* ExportParityRecordHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportParityRecordHostedTests.swift; sourceTree = "<group>"; };
+		1F000040000000000000009F /* ExportParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportParityTests.swift; sourceTree = "<group>"; };
+		1F00004000000000000000A0 /* export-parity */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "export-parity"; path = "Fixtures/export-parity"; sourceTree = "<group>"; };
 		1F000040000000000000009A /* ExportCommandsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCommandsTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000099 /* ExportCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCommands.swift; sourceTree = "<group>"; };
 		1F0000400000000000000098 /* PhonePrintRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePrintRendererTests.swift; sourceTree = "<group>"; };
@@ -758,6 +765,7 @@
 				1F0000340000000000000031 /* CJKFontFallbackTests.swift */,
 				1F0000350000000000000002 /* RenderGoldenTests.swift */,
 				1F0000350000000000000004 /* Fixtures */,
+				1F000040000000000000009E /* ExportParityRecordHostedTests.swift */,
 			);
  			path = LineformTests;
  			sourceTree = "<group>";
@@ -839,6 +847,8 @@
 				1F0000400000000000000092 /* PhonePDFExportTests.swift */,
 				1F000040000000000000009A /* ExportCommandsTests.swift */,
 				1F000040000000000000009B /* ExportRowsTests.swift */,
+				1F000040000000000000009F /* ExportParityTests.swift */,
+				1F00004000000000000000A0 /* export-parity */,
 				1F0000400000000000000098 /* PhonePrintRendererTests.swift */,
 			);
 			path = LineformiOSTests;
@@ -1125,6 +1135,7 @@
  			buildActionMask = 2147483647;
  			files = (
 				1F0000350000000000000003 /* Fixtures in Resources */,
+				1F00004100000000000000A1 /* export-parity in Resources */,
  			);
  			runOnlyForDeploymentPostprocessing = 0;
  		};
@@ -1151,6 +1162,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1F00004100000000000000A0 /* export-parity in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1254,6 +1266,7 @@
 				1F0000010000000000000042 /* BundledFontRegistrationTests.swift in Sources */,
 				1F0000010000000000000043 /* ThemeTests.swift in Sources */,
 				1F0000350000000000000001 /* RenderGoldenTests.swift in Sources */,
+				1F000041000000000000009E /* ExportParityRecordHostedTests.swift in Sources */,
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
@@ -1386,6 +1399,7 @@
 				1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */,
 				1F000041000000000000009A /* ExportCommandsTests.swift in Sources */,
 				1F000041000000000000009B /* ExportRowsTests.swift in Sources */,
+				1F000041000000000000009F /* ExportParityTests.swift in Sources */,
 				1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */,
 				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
 				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,

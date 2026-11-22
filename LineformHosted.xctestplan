@@ -17,6 +17,7 @@
       "selectedTests" : [
         "DocumentExportPDFHostedTests",
         "EditorDrawerMotionHostedTests",
+        "ExportParityRecordHostedTests",
         "LiveReloadScrollTests"
       ],
       "target" : {
