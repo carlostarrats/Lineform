@@ -1,5 +1,4 @@
 import Foundation
-import LineformCore
 
 /// What part of a Markdown document is prose and what is structure, for AI edits.
 ///
@@ -10,7 +9,7 @@ import LineformCore
 ///
 /// 1. `MarkdownWritingToolsProtection.protectedRanges(in:intersecting:)` — front matter, fenced
 ///    code (any language, incl. mermaid), display and inline math in all four spellings.
-/// 2. `MarkdownSyntaxHighlighter.tokens(in:scope:)` — every kind `protection(of:)` calls
+/// 2. `MarkdownTokenScope.tokens(in:scope:)` — every kind `protection(of:)` calls
 ///    `.structure` (markers, code spans, destinations, image text).
 /// 3. `MarkdownInlineSyntax` — images whole; link and emphasis delimiters (group 1 is prose);
 ///    code spans; backslash escapes (`escapedMarker`).
@@ -30,7 +29,7 @@ import LineformCore
 ///
 /// Cost: whole-document (the block grouping and fence state are cross-line). It runs when the
 /// writer chooses an AI action, never per keystroke — it must stay off the spell-check path.
-enum MarkdownStructureMap {
+public enum MarkdownStructureMap {
     enum TokenProtection: Equatable {
         case structure
         case prose
@@ -94,7 +93,7 @@ enum MarkdownStructureMap {
 
     /// The selection minus structure, split at line boundaries, edge-trimmed, empties dropped.
     /// The selection is first widened to composed-character boundaries.
-    static func proseSegments(in text: String, selection: NSRange) -> [ProseSegment] {
+    public static func proseSegments(in text: String, selection: NSRange) -> [ProseSegment] {
         let ns = text as NSString
         let full = NSRange(location: 0, length: ns.length)
         let clamped = NSIntersectionRange(selection, full)
@@ -163,7 +162,7 @@ enum MarkdownStructureMap {
     // MARK: - Shared with the guard
 
     /// Edge whitespace, matched per composed character so a trim never splits a cluster.
-    static func edgeTrimmed(_ range: NSRange, in ns: NSString) -> NSRange {
+    public static func edgeTrimmed(_ range: NSRange, in ns: NSString) -> NSRange {
         let string = ns.substring(with: range)
         var leading = 0
         for character in string {
@@ -205,16 +204,16 @@ enum MarkdownStructureMap {
 
     /// The document split the way every renderer splits it (`markdownSourceLines`), with each
     /// line's RAW extent (BOM and terminator included) alongside its stripped content.
-    struct SourceModel {
+    public struct SourceModel {
         let text: NSString
-        let lines: [String]
+        public let lines: [String]
         /// Where each line's stripped text sits in the original (past a line-0 BOM, before `\r`).
-        let content: [NSRange]
+        public let content: [NSRange]
         /// Each line's full extent: from its first unit (a line-0 BOM included) to the start of
         /// the next line (its `\r\n` / `\n` included).
-        let raw: [NSRange]
+        public let raw: [NSRange]
 
-        init(_ text: NSString) {
+        public init(_ text: NSString) {
             self.text = text
             let source = markdownSourceLines(in: text as String)
             lines = source.lines
@@ -231,12 +230,12 @@ enum MarkdownStructureMap {
             self.raw = raw
         }
 
-        func isBlank(_ index: Int) -> Bool {
+        public func isBlank(_ index: Int) -> Bool {
             lines[index].trimmingCharacters(in: markdownLineTrimCharacters).isEmpty
         }
 
         /// The index of the line holding `location` (the last line for `location == length`).
-        func lineIndex(containing location: Int) -> Int {
+        public func lineIndex(containing location: Int) -> Int {
             var low = 0
             var high = raw.count - 1
             while low < high {
@@ -273,7 +272,7 @@ enum MarkdownStructureMap {
         ranges += MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: full)
 
         // 2. The editor's tokens, minus the one prose kind.
-        ranges += MarkdownSyntaxHighlighter()
+        ranges += MarkdownTokenScope
             .tokens(in: text, scope: full)
             .filter { protection(of: $0.kind) == .structure }
             .map(\.range)
@@ -759,7 +758,7 @@ enum MarkdownStructureMap {
 
 /// Decides which AI revisions may enter the document. The AI is never trusted to "be careful":
 /// every revision is spliced and its block's structure signature re-derived.
-enum MarkdownStructureGuard {
+public enum MarkdownStructureGuard {
     /// One result per segment, in `segments` order: the (edge-trimmed) revision to splice in, or
     /// nil. A revision is refused when it is empty after trimming; contains a line terminator or
     /// any `Cc` character, or a `Cf` character the original did not; carries a different
@@ -767,7 +766,7 @@ enum MarkdownStructureGuard {
     /// signature of its block (the contiguous non-blank lines around it) when spliced in together
     /// with the revisions already admitted on that block. A segment that no longer matches `text`
     /// is refused. Missing revisions are nil; extra revisions are ignored.
-    static func admissibleRevisions(_ revisions: [String], for segments: [ProseSegment], in text: String) -> [String?] {
+    public static func admissibleRevisions(_ revisions: [String], for segments: [ProseSegment], in text: String) -> [String?] {
         let ns = text as NSString
         var result = [String?](repeating: nil, count: segments.count)
         guard ns.length > 0 else { return result }
@@ -804,7 +803,7 @@ enum MarkdownStructureGuard {
     }
 
     /// Whole-document structure equality: the final gate after composition.
-    static func verify(original: String, revised: String) -> Bool {
+    public static func verify(original: String, revised: String) -> Bool {
         let lhs = original as NSString
         let rhs = revised as NSString
         return MarkdownStructureMap.signature(of: lhs, scope: NSRange(location: 0, length: lhs.length))

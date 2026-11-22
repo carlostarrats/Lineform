@@ -5,88 +5,22 @@ import XCTest
 
 final class ScopedSyntaxHighlightingTests: XCTestCase {
 
-    // MARK: - Task 1: scopedTokenRange
+    // MARK: - Forwarders (the pure cases moved to LineformCore's MarkdownTokenScopeTests)
 
-    func testScopedTokenRangeExpandsByMarginAndSnapsToLineBoundaries() {
-        let text = "aaaa\nbbbb\ncccc\ndddd\neeee" as NSString // 5 lines, 4 chars + \n each
-        // Visible = the "cccc" line (location 10, length 4). Margin 1 char each side.
-        let scope = MarkdownSyntaxHighlighter.scopedTokenRange(
-            visibleRange: NSRange(location: 10, length: 4), margin: 1, in: text
+    /// The Mac names forward to `MarkdownTokenScope` unchanged.
+    func testMacNamesForwardToTheSharedTokenScope() {
+        let text = "aaaa\nbbbb\ncccc\ndddd\neeee" as NSString
+        let visible = NSRange(location: 10, length: 4)
+        XCTAssertEqual(
+            MarkdownSyntaxHighlighter.scopedTokenRange(visibleRange: visible, margin: 1, in: text),
+            MarkdownTokenScope.scopedTokenRange(in: text, around: visible, margin: 1)
         )
-        // 10-1=9 (the \n after "bbbb") snaps back to the start of "bbbb" (loc 5); 14+1=15
-        // (the 'd' of "dddd") snaps out to the end of the "dddd" line incl. its \n (loc 20).
-        XCTAssertEqual(scope, NSRange(location: 5, length: 15))
-    }
-
-    func testScopedTokenRangeClampsAtDocumentEdges() {
-        let text = "aaaa\nbbbb\ncccc" as NSString // length 14
-        let scope = MarkdownSyntaxHighlighter.scopedTokenRange(
-            visibleRange: NSRange(location: 0, length: 4), margin: 10_000, in: text
-        )
-        XCTAssertEqual(scope, NSRange(location: 0, length: 14))
-    }
-
-    func testScopedTokenRangeOnEmptyTextIsEmpty() {
-        let scope = MarkdownSyntaxHighlighter.scopedTokenRange(
-            visibleRange: NSRange(location: 0, length: 0), margin: 3000, in: "" as NSString
-        )
-        XCTAssertEqual(scope, NSRange(location: 0, length: 0))
-    }
-
-    // MARK: - Task 2: scoped tokens byte-identical to whole-doc
-
-    func testScopedTokensEqualWholeDocTokensFilteredToWindow() {
-        // Multi-construct doc incl. a fenced block and headings/lists so a naive scope could
-        // diverge if there were cross-line state (there isn't — the analyzer is line-local).
-        let doc = """
-        # Heading one
-        - list item with `code`
-        > a quote
-        ```
-        # not a heading (inside fence)
-        - not a list
-        ```
-        Paragraph with [link](https://example.com) and more.
-        Another `span` here.
-        """
-        let ns = doc as NSString
-        let highlighter = MarkdownSyntaxHighlighter()
-
-        // Window snapped over the middle (covering the fence + surrounding lines).
-        let window = MarkdownSyntaxHighlighter.scopedTokenRange(
-            visibleRange: NSRange(location: ns.length / 3, length: ns.length / 3),
-            margin: 5, in: ns
-        )
-
-        let scoped = highlighter.tokens(in: ns, scope: window)
-        let wholeFiltered = MarkdownRangeAnalyzer().ranges(in: doc).filter {
-            $0.range.location >= window.location && NSMaxRange($0.range) <= NSMaxRange(window)
-        }
-
-        let sort: (MarkdownTokenRange, MarkdownTokenRange) -> Bool = {
-            $0.range.location != $1.range.location
-                ? $0.range.location < $1.range.location
-                : $0.range.length < $1.range.length
-        }
-        XCTAssertEqual(scoped.sorted(by: sort), wholeFiltered.sorted(by: sort))
-        XCTAssertFalse(scoped.isEmpty)
-    }
-
-    func testScopedTokensEmptyScopeIsEmpty() {
-        let highlighter = MarkdownSyntaxHighlighter()
-        XCTAssertTrue(highlighter.tokens(in: "# H" as NSString, scope: NSRange(location: 0, length: 0)).isEmpty)
-    }
-
-    func testLinkTokenizationIsLineLocal() {
-        // A link split across lines must NOT be tokenized (newline-excluded regex) — this is what
-        // keeps the analyzer fully line-local so scoped highlighting is byte-identical.
-        let kinds = MarkdownRangeAnalyzer().ranges(in: "[label\nspill](https://example.com)").map(\.kind)
-        XCTAssertFalse(kinds.contains(.linkText))
-        XCTAssertFalse(kinds.contains(.linkDestination))
-        // A same-line link still tokenizes.
-        let sameLine = MarkdownRangeAnalyzer().ranges(in: "see [label](https://example.com) here").map(\.kind)
-        XCTAssertTrue(sameLine.contains(.linkText))
-        XCTAssertTrue(sameLine.contains(.linkDestination))
+        let doc = "# H\n- item `code`\n[l](d)" as NSString
+        let scope = NSRange(location: 0, length: doc.length)
+        XCTAssertEqual(MarkdownSyntaxHighlighter().tokens(in: doc, scope: scope),
+                       MarkdownTokenScope.tokens(in: doc, scope: scope))
+        XCTAssertTrue(MarkdownSyntaxHighlighter.range(NSRange(location: 0, length: 10), covers: NSRange(location: 2, length: 3)))
+        XCTAssertFalse(MarkdownSyntaxHighlighter.range(NSRange(location: 0, length: 10), covers: NSRange(location: 8, length: 5)))
     }
 
     // MARK: - Task 3: base pass + scoped token pass
@@ -133,9 +67,91 @@ final class ScopedSyntaxHighlightingTests: XCTestCase {
         assertSameRGB(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as! NSColor, base)   // A still base
     }
 
-    func testRangeCovers() {
-        XCTAssertTrue(MarkdownSyntaxHighlighter.range(NSRange(location: 0, length: 10), covers: NSRange(location: 2, length: 3)))
-        XCTAssertFalse(MarkdownSyntaxHighlighter.range(NSRange(location: 0, length: 10), covers: NSRange(location: 8, length: 5)))
+    // MARK: - Parity with the pre-move highlighter
+
+    /// The token styling moved into LineformCore's `MarkdownTokenStyler` (2026-11). The Mac's
+    /// `highlight` / `refreshTokens` must still write byte-identical attributes, so this compares
+    /// them with a frozen copy of the pre-move implementation, for every theme, high contrast on and
+    /// off, and every token kind, on a whole pass, a scoped pass and a refresh.
+    @MainActor
+    func testHighlightAndRefreshWriteTheSameAttributesAsThePreMoveHighlighter() {
+        let doc = """
+        # Heading
+        - item with `code` and [link](https://example.com)
+        1. [ ] task
+        > quote ![alt](images/a.png) and ![](b.png)
+        ```
+        fenced
+        ```
+        tail line
+        """
+        let length = (doc as NSString).length
+        var profiles: [ReadingProfile] = []
+        for theme in ThemeID.allCases {
+            for highContrast in [false, true] {
+                var profile = ReadingProfile.original
+                profile.themeID = theme
+                profile.highContrastEnabled = highContrast
+                profile.fontSize = 19
+                profiles.append(profile)
+            }
+        }
+        let scopes: [NSRange?] = [nil, NSRange(location: 0, length: 10), NSRange(location: 12, length: 40)]
+        for profile in profiles {
+            for scope in scopes {
+                let textView = NSTextView()
+                textView.string = doc
+                MarkdownSyntaxHighlighter().highlight(textView: textView, profile: profile, tokenScope: scope)
+                let expected = NSMutableAttributedString(string: doc)
+                Self.preMoveHighlight(expected, profile: profile, scope: scope ?? NSRange(location: 0, length: length))
+                XCTAssertTrue(textView.textStorage!.isEqual(to: expected), "highlight differs for \(profile.themeID) scope \(String(describing: scope))")
+
+                let refresh = NSRange(location: 15, length: 30)
+                MarkdownSyntaxHighlighter().refreshTokens(textView: textView, profile: profile, scope: refresh)
+                Self.preMoveRefresh(expected, profile: profile, scope: refresh)
+                XCTAssertTrue(textView.textStorage!.isEqual(to: expected), "refreshTokens differs for \(profile.themeID)")
+            }
+        }
+    }
+
+    // The pre-move `MarkdownSyntaxHighlighter` body, frozen. Do not edit to make a change pass.
+    private static func preMoveHighlight(_ storage: NSMutableAttributedString, profile: ReadingProfile, scope: NSRange) {
+        let full = NSRange(location: 0, length: storage.length)
+        storage.setAttributes(MarkdownSyntaxHighlighter.baseAttributes(for: profile), range: full)
+        preMoveTokens(storage, profile: profile, scope: NSIntersectionRange(scope, full))
+    }
+
+    private static func preMoveRefresh(_ storage: NSMutableAttributedString, profile: ReadingProfile, scope: NSRange) {
+        let clamped = NSIntersectionRange(scope, NSRange(location: 0, length: storage.length))
+        guard clamped.length > 0 else { return }
+        storage.setAttributes(MarkdownSyntaxHighlighter.baseAttributes(for: profile), range: clamped)
+        preMoveTokens(storage, profile: profile, scope: clamped)
+    }
+
+    private static func preMoveTokens(_ storage: NSMutableAttributedString, profile: ReadingProfile, scope: NSRange) {
+        guard scope.length > 0 else { return }
+        let text = storage.string as NSString
+        let substring = text.substring(with: scope)
+        for token in MarkdownRangeAnalyzer().ranges(in: substring) {
+            let range = NSRange(location: token.range.location + scope.location, length: token.range.length)
+            guard NSMaxRange(range) <= storage.length else { continue }
+            storage.addAttributes(preMoveAttributes(for: token.kind, profile: profile), range: range)
+        }
+    }
+
+    private static func preMoveAttributes(for kind: MarkdownTokenKind, profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
+        let markerColor = MarkdownSyntaxHighlighter.markdownMarkerColor(for: profile)
+        switch kind {
+        case .headingMarker, .listMarker, .checkbox, .blockquoteMarker, .linkDestination:
+            return [.foregroundColor: markerColor]
+        case .codeSpan, .codeFence:
+            return [
+                .font: NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular),
+                .foregroundColor: MarkdownSyntaxHighlighter.inlineCodeColor(for: profile)
+            ]
+        case .linkText, .imageText, .imageDestination:
+            return [.foregroundColor: Theme.theme(for: profile).readableInk(NSColor.linkColor)]
+        }
     }
 
     // MARK: - Task 4: text-view wiring

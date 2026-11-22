@@ -149,7 +149,7 @@ final class AutosaveTests: XCTestCase {
     /// Our own save does not come back as a reload, and the caret stays where the writer left it.
     func testSaveDoesNotReloadOrMoveTheCursor() async throws {
         let document = await preparedDocument()
-        let textView = try host(DocumentScreen(document: document))
+        let textView = try host(DocumentScreen(document: document, profileStore: Self.profileStore()))
         textView.becomeFirstResponder()
         textView.insertText("Hello world")
         XCTAssertEqual(document.text, "Hello world", "typing reaches the document")
@@ -176,7 +176,7 @@ final class AutosaveTests: XCTestCase {
 
         let document = makeDocument()
         await document.prepare(restoringStoredPath: stored)
-        let textView = try host(DocumentScreen(document: document))
+        let textView = try host(DocumentScreen(document: document, profileStore: Self.profileStore()))
 
         XCTAssertEqual(document.url, folder.appendingPathComponent(stored))
         XCTAssertEqual(textView.text, "Restored after a system termination")
@@ -597,8 +597,13 @@ final class AutosaveTests: XCTestCase {
         try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
     }
 
+    /// A reading-profile store on its own defaults suite, so no test reads or writes the app's.
+    private static func profileStore() -> ReadingProfileStore {
+        ReadingProfileStore(defaults: UserDefaults(suiteName: "AutosaveTests.readingProfile") ?? .standard)
+    }
+
     /// Shows `view` in a window of its own and returns its editor.
-    private func host(_ view: some View) throws -> EditorTextView {
+    private func host(_ view: some View) throws -> LineformTextView {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(rootView: view)
@@ -613,8 +618,8 @@ final class AutosaveTests: XCTestCase {
         throw NoEditor()
     }
 
-    private static func editor(in view: UIView) -> EditorTextView? {
-        if let editor = view as? EditorTextView { return editor }
+    private static func editor(in view: UIView) -> LineformTextView? {
+        if let editor = view as? LineformTextView { return editor }
         for subview in view.subviews {
             if let editor = editor(in: subview) { return editor }
         }

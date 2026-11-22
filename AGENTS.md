@@ -229,11 +229,19 @@ longer links the two products directly). It holds Markdown parsing and HTML rend
 providers (`Markdown/Rendering/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
 profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History, save status, the Markdown file codec, the live-reload file watcher, and the file pieces the iPhone app uses (document naming, the save folder, the folder monitor and the autosave planner) (`Documents/`), the AI model,
 clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in
-`Packages/LineformCore/Tests/LineformCoreTests`. Some pure-looking files stay in the app
-(`MarkdownSyntaxTokens`, `MarkdownSpellCheckRegions`, `MarkdownStructureMap`, `AIActionController`,
-`AISentenceSplitter`, `DocumentHistoryController`) because they depend on an AppKit app type
-(directly or through `MarkdownSyntaxHighlighter`, `LineformTextView` or the History editor types).
-The list and the reasons are in `docs/notes/shared-package-baseline.md`.
+`Packages/LineformCore/Tests/LineformCoreTests`. The editor logic both apps share is in the package too:
+token scoping (`MarkdownTokenScope`), token styling (`MarkdownTokenStyler`, in `Markdown/Rendering/`
+because it writes to `NSTextStorage`), `MarkdownSpellCheckRegions`, `MarkdownStructureMap`,
+`EditorReadingLayout`, `TypewriterScroll` and `ImageFileNaming`. The iPhone editor also calls the
+package editing commands both apps already shared (`MarkdownListContinuation`,
+`MarkdownTableEditing`, `MarkdownHeadingEditing`, `MarkdownFormattingCommand`,
+`MarkdownWritingToolsProtection`, `ImageInsertionText`, `ImageLinkRewrite.markdownDestination`),
+so its edits, protected ranges and image links match the Mac. The Mac keeps its old names
+(`MarkdownSyntaxHighlighter.highlight`/`refreshTokens`/`scopedTokenRange`/`tokens(in:scope:)`,
+`LineformTextView.typewriterScrollOrigin`, …) as one-line forwarders, so Mac output is unchanged.
+A few pure-looking files still stay in the app (`AIActionController`, `AISentenceSplitter`,
+`DocumentHistoryController`); the list and the reasons are in
+`docs/notes/shared-package-baseline.md`.
 
 - **Purity.** The package never imports SwiftUI, Cocoa or WebKit, and never uses an app type.
   AppKit and UIKit are allowed only inside an `#if os(macOS)` / `#else` branch, and only in files
@@ -317,6 +325,27 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   bookmark.
 - **TextKit 1.** The editor is `UITextView(usingTextLayoutManager: false)`, matching the Mac
   editor's TextKit 1 stack. Do not switch it to TextKit 2.
+- **Spell check.** The system checker is off (`spellCheckingType = .no`); `SpellCheckPass` runs
+  `UITextChecker` over `MarkdownSpellCheckRegions.checkableRanges` of the visible window plus
+  2,000 characters, 0.4 s after typing and after a scroll, never during marked text. Underlines
+  are drawn by a shape layer and never stored in the text. Like the Mac's path it must never call
+  `MarkdownWritingToolsProtection.ignoredRanges` or `MarkdownRangeAnalyzer.ranges(in:)`;
+  `SpellCheckTests.testSpellPassIsScopedRatio` guards it. Writing Tools is `.none`, as on the Mac.
+- **No stored property with a default on `LineformTextView`.** UIKit builds it through the
+  `textViewUsingTextLayoutManager:` factory, on which Swift's property initializers never run and
+  memory is zeroed instead (a `let spellCheck = SpellCheckPass()` read as nil and crashed; an
+  optional `CGPoint` read as `(0, 0)`, not nil). Put new state in `LineformTextView.State`, the
+  one object made on first use, behind a computed property. `EditorConstructionTests` reads every
+  value through each init path.
+- **Image paste.** A pasted or dropped image is a PNG (`UIImage.pngData()`) written with a
+  coordinated, never-overwriting write into `images/` beside the document, named by
+  `ImageFileNaming`, with its link on its own line (`ImageInsertionText`). A string on the
+  pasteboard always pastes as text in `paste(_:)`; `paste(itemProviders:)` (paste and drop)
+  decides from its providers only. A document never saved is saved first (`OpenDocument.flush`);
+  if that fails, nothing is inserted. Never write an image outside the document's own folder or
+  the save folder: when that folder is not writable, insert nothing and show the short image
+  notice (no Application Support fallback). An image lands only in the document that was open
+  when its paste or drop started. Image-only lines never name a document (`DocumentNaming`).
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog.

@@ -97,4 +97,19 @@ final class AutosavePlannerTests: XCTestCase {
 
         XCTAssertEqual(planner.textChanged("B", existingNames: ["A.md", "b.md"]), .rename(to: "B 2.md"))
     }
+
+    /// A pasted image in a blank document creates "Untitled.md"; a title typed later renames it
+    /// through the usual first-line rule.
+    func testImageOnlyDocumentIsCreatedUntitledThenRenamedByTitle() {
+        var planner = newDocument()
+        XCTAssertEqual(
+            planner.textChanged("![](images/image.png)\n", existingNames: []),
+            .create(fileName: "\(DocumentNaming.untitledBaseName).md")
+        )
+        XCTAssertEqual(
+            planner.textChanged("![](images/image.png)\nTrip notes\n", existingNames: ["\(DocumentNaming.untitledBaseName).md"]),
+            .rename(to: "Trip notes.md")
+        )
+        XCTAssertEqual(planner.fileName, "Trip notes.md")
+    }
 }

@@ -17,7 +17,7 @@ final class DocumentLaunchTests: XCTestCase {
         XCTAssertEqual(frame.minY, window.bounds.minY, "no bar sits above the document")
     }
 
-    private func waitForEditor(timeout: TimeInterval = 5) -> EditorTextView? {
+    private func waitForEditor(timeout: TimeInterval = 5) -> LineformTextView? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let found = Self.editors().first { return found }
@@ -26,15 +26,15 @@ final class DocumentLaunchTests: XCTestCase {
         return nil
     }
 
-    private static func editors() -> [EditorTextView] {
+    private static func editors() -> [LineformTextView] {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .flatMap { find(in: $0) }
     }
 
-    private static func find(in view: UIView) -> [EditorTextView] {
-        if let editor = view as? EditorTextView { return [editor] }
+    private static func find(in view: UIView) -> [LineformTextView] {
+        if let editor = view as? LineformTextView { return [editor] }
         return view.subviews.flatMap { find(in: $0) }
     }
 }

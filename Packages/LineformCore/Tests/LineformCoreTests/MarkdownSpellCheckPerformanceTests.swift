@@ -1,5 +1,4 @@
 import XCTest
-@testable import Lineform
 @testable import LineformCore
 
 /// Guards the load-bearing performance constraint: the spell-check range computation runs as the
@@ -24,6 +23,9 @@ import XCTest
 /// and still differs from an optimized build (~23×). (The older "~3.6× slower" figure compared
 /// `-Onone` with `-O` for this loop.) Do not "fix" a Debug reading by assuming it is what users
 /// feel; measure with Release optimiser settings (`docs/notes/shared-package-baseline.md` § Task 4).
+///
+/// Moved into `LineformCoreTests` with `MarkdownSpellCheckRegions` (2026-11-21): both sides of the
+/// ratio are now package code, and it read 10.8× (macOS) and 10.2× (iOS Simulator) at `-Onone`.
 ///
 /// See `docs/superpowers/specs/2026-07-26-live-spell-check-design.md` and
 /// `docs/notes/2026-07-26-spell-check-probe-findings.md`.
@@ -89,18 +91,17 @@ final class MarkdownSpellCheckPerformanceTests: XCTestCase {
         // 4x floor was half what the numbers in the commit message claimed.
         let lastLineStart = max(0, text.length - 1)
         let range = text.lineRange(for: NSRange(location: lastLineStart, length: 0))
-        let highlighter = MarkdownSyntaxHighlighter()
 
         // Bridged once, outside the measurement: charging the baseline for an NSString→String
         // bridge on every call would flatter the ratio.
         let bridged = text as String
 
         // Warm up both sides, so one-time costs are not what gets measured.
-        _ = MarkdownSpellCheckRegions.checkableRanges(in: text, enclosing: range, highlighter: highlighter)
+        _ = MarkdownSpellCheckRegions.checkableRanges(in: text, enclosing: range)
         _ = MarkdownWritingToolsProtection.ignoredRanges(in: bridged, enclosingRange: range)
 
         let scoped = bestPerCall(batches: 5, iterations: 20) {
-            _ = MarkdownSpellCheckRegions.checkableRanges(in: text, enclosing: range, highlighter: highlighter)
+            _ = MarkdownSpellCheckRegions.checkableRanges(in: text, enclosing: range)
         }
         let wholeDocument = bestPerCall(batches: 3, iterations: 3) {
             _ = MarkdownWritingToolsProtection.ignoredRanges(in: bridged, enclosingRange: range)

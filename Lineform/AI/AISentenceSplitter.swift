@@ -1,4 +1,5 @@
 import Foundation
+import LineformCore
 
 /// One sentence for Mark, in DOCUMENT UTF-16 coordinates. `prose` is what the model sees: the
 /// sentence's prose segments joined with one space, its Markdown structure left out. `range`

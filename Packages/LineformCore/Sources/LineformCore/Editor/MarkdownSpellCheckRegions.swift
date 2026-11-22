@@ -1,5 +1,4 @@
 import Foundation
-import LineformCore
 
 /// The sub-ranges of a document that should be spell-checked: everything except the Markdown
 /// regions where a "misspelling" is not a misspelling.
@@ -10,7 +9,7 @@ import LineformCore
 /// from this path; use the scoped entry points instead, as below.
 ///
 /// See `docs/superpowers/specs/2026-07-26-live-spell-check-design.md`.
-enum MarkdownSpellCheckRegions {
+public enum MarkdownSpellCheckRegions {
     /// Inline token kinds that are not prose. Link and image TEXT are deliberately absent:
     /// `[teh docs](/path)` should flag `teh` and ignore `/path`.
     static let suppressedInlineKinds: Set<MarkdownTokenKind> = [
@@ -19,11 +18,7 @@ enum MarkdownSpellCheckRegions {
         .imageDestination,
     ]
 
-    static func checkableRanges(
-        in text: NSString,
-        enclosing range: NSRange,
-        highlighter: MarkdownSyntaxHighlighter = MarkdownSyntaxHighlighter()
-    ) -> [NSRange] {
+    public static func checkableRanges(in text: NSString, enclosing range: NSRange) -> [NSRange] {
         let full = NSRange(location: 0, length: text.length)
         let clamped = NSIntersectionRange(range, full)
         guard clamped.length > 0 else { return [] }
@@ -31,10 +26,10 @@ enum MarkdownSpellCheckRegions {
         // Snap out to line boundaries before tokenizing. The range analyzer is line-local, so
         // this is exactly what makes the scoped tokens byte-identical to a whole-document pass;
         // a raw AppKit range would mis-tokenize a construct straddling the edge.
-        let scope = MarkdownSyntaxHighlighter.scopedTokenRange(visibleRange: clamped, margin: 0, in: text)
+        let scope = MarkdownTokenScope.scopedTokenRange(in: text, around: clamped, margin: 0)
 
         var suppressed = MarkdownWritingToolsProtection.protectedRanges(in: text, intersecting: scope)
-        suppressed += highlighter
+        suppressed += MarkdownTokenScope
             .tokens(in: text, scope: scope)
             .filter { suppressedInlineKinds.contains($0.kind) }
             .map(\.range)

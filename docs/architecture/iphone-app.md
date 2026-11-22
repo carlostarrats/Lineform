@@ -6,8 +6,8 @@ links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
 (`TARGETED_DEVICE_FAMILY = 1`); Mac Catalyst, "Designed for iPhone" on the Mac and visionOS are
 all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
-This page covers roadmap step 3 (shell and files). The editor is plain text; highlighting, Read
-and Preview, the Menu sheet and the rest arrive in later steps.
+This page covers roadmap step 3 (shell and files) and step 4 (Write mode) as it lands. Read and
+Preview, the Menu sheet and the rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -16,8 +16,8 @@ a fully working state, never an error or a prompt.
 
 ## Target, scheme and tests
 
-- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `PlainTextEditor`,
-  `OpenDocument`, `FileListSheet`), with its own `Info.plist`, `Localizable.xcstrings` (six
+- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `FileListSheet`,
+  and `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`, named so no file name is shared with the Mac sources), with its own `Info.plist`, `Localizable.xcstrings` (six
   languages) and entitlements.
 - Tests: `LineformiOSTests/`, hosted in the app, run by the shared `LineformiOS` scheme through
   `LineformiOS.xctestplan`. Never link `LineformCoreTestSupport` into this target.
@@ -49,14 +49,108 @@ a fully working state, never an error or a prompt.
 
 ## Editor: TextKit 1
 
-`PlainTextEditor` wraps `EditorTextView`, a `UITextView(usingTextLayoutManager: false)`.
+`MarkdownEditor` (SwiftUI) wraps `LineformTextView`, a `UITextView(usingTextLayoutManager: false)`.
 TextKit 1 is deliberate: the Mac editor and its AI review overlay are TextKit 1, and the later
 Write-mode features port from the Mac's `NSLayoutManager` code. Matching the Mac keeps the two editors laying out line
 for line alike. Do not switch it to TextKit 2.
 
-- Typing attributes come from `MarkdownTextStyle.baseAttributes(for:)`; the page and caret
-  colours from `Theme.theme(for:)`, with the default `ReadingProfile`.
-- The text column is `profile.columnWidth`, centred, with at least 20 pt side margins.
+- **Reading profile.** `LineformTextView.profile` applies the base attributes
+  (`MarkdownTextStyle.baseAttributes(for:)`) over the whole document, the typing attributes, the
+  page colour, the caret and selection (`tintColor`) from `Theme.theme(for:)`, and the column
+  insets from `EditorReadingLayout` (`profile.columnWidth` centred, never under
+  `profile.marginWidth`; 20 pt top and bottom). The profile comes from the per-device
+  `ReadingProfileStore` (`UserDefaults.standard`, never synced), which `DocumentScreen` observes,
+  so a change re-applies without a relaunch.
+- **Fonts.** The app copies `Lineform/Resources/Fonts` by reference (the same folder reference as
+  the Mac, licence files included) and registers it at launch with `BundledFontRegistrar`. Comic
+  Sans is a Mac system font and is unavailable on iPhone.
+- **Highlighting** follows the Mac's rules (`docs/architecture/editor-behavior.md`): base
+  attributes whole-document, token inks (`MarkdownTokenStyler`) only over the visible range plus
+  3,000 characters (`MarkdownTokenScope`). The token pass runs 0.25 s after the last edit, and on
+  scroll only when the window is no longer covered. **Every pass is skipped while there is marked
+  text**, the typing-delay pass included; a skipped full pass runs once composition ends.
+- **Editing rules** (`LineformiOSTextView+Editing.swift`) use the package's pure rules. Return is
+  decided in the delegate's `shouldChangeTextIn` with `"\n"`, never from a raw key event, and
+  only with no marked text: `MarkdownListContinuation` continues or ends a list, task or quote,
+  and otherwise a CRLF document gets CRLF (`MarkdownLineEnding.inForce`); an LF Return is the
+  system's. Tab and Shift-Tab are `UIKeyCommand`s that move between table cells
+  (`MarkdownTableEditing.tabTarget`); outside a table `canPerformAction` declines them, so Tab is
+  an ordinary Tab. The Mac's Format shortcuts (⌘1–⌘6, ⌘0, ⌘B, ⌘I, ⌘`, ⌘⇧X, ⌘⇧8, ⌘⇧7, ⌘L,
+  ⌃⌘T, ⌃⌘R) are key commands with priority over the system's. The public commands for later
+  steps are `insertTable()`, `reformatTable()`, `setHeadingLevel(_:)` and `apply(_:)`.
+- **One edit path.** Every rule edit goes through `applyRuleEdit`: one localized
+  `replaceCharacters` (a whole-text `MarkdownEdit` is reduced to the span between its common
+  prefix and suffix), one undo step, then the delegate's `textViewDidChange` so `OpenDocument`
+  autosaves. An edit that changes nothing registers no undo step and posts nothing.
+- **Reading assists** (`LineformiOSTextView+ReadingAssists.swift`) follow the profile's
+  `readingRulerEnabled` and `typewriterModeEnabled`, with the current line from
+  `ReadingAssistRangeResolver.focusRange(…, mode: .currentLine)`. The **Reading Ruler** is a band
+  of the tint colour at alpha 0.12 over the line's enclosing rects (every visual line of a wrapped
+  line), widened to the column and outset 6 × 2 pt like the Mac's. It is a plain view kept as the
+  text view's lowest subview, behind UIKit's text view, so it never covers a glyph and never
+  touches the text storage. **Typewriter Mode** centres the caret's line fragment with
+  `setContentOffset(TypewriterScroll.origin(…), animated: false)` after each selection change and
+  edit; turning it off scrolls back to where the page was when it came on, and it waits while
+  the keyboard animates. Two UIKit facts shape it: TextKit 1 layout here is non-contiguous, so the
+  prefix up to the caret is laid out first (only past `firstUnlaidGlyphIndex()`), and a scroll
+  past the laid-out content is put back once while UITextView grows `contentSize`, so it is set
+  a second time.
+- **Spell check that skips code** (`SpellCheckPass.swift`, `LineformiOSTextView+SpellCheck.swift`).
+  The system checker, autocorrection and smart quotes, dashes and inserts are off, as in the
+  Mac's `configureForMarkdownEditing`. `SpellCheckPass` runs `UITextChecker` on the main actor
+  over `MarkdownSpellCheckRegions.checkableRanges` of the visible range plus 2,000 characters
+  (snapped to lines), so fenced code, inline code, front matter, math and link or image
+  destinations are never flagged. It runs 0.4 s after the last edit and after a scroll, never
+  per keystroke and never while there is marked text. The language is the keyboard's primary
+  language; when it has no `UITextChecker` dictionary (the emoji keyboard), the first preferred
+  language that has one; with none, nothing is checked. Each misspelling gets a 1.5 pt dotted
+  red line (`systemRed` resolved for the theme's own light or dark, `Theme.usesDarkChrome`, not
+  the system appearance), stroked by a `CAShapeLayer`
+  above the text from TextKit 1 line fragments; nothing is written to the text storage, so copy,
+  paste and the saved file never see it. An edit that touches a misspelling drops its underline
+  at once, and one before it shifts it. On a misspelling the edit menu
+  (`textView(_:editMenuForTextIn:suggestedActions:)`) leads with up to five guesses, then Learn
+  Spelling (the system dictionary) and Ignore Spelling (this document's checker). A guess goes
+  through `applyRuleEdit`: one undo step, and autosave sees it. Never call a whole-document pass
+  from here; `testSpellPassIsScopedRatio` gates it at 4× on the Mac's 730 KB corpus.
+- **Writing Tools** is off (`writingToolsBehavior = .none`, results limited to plain text and
+  lists, as on the Mac), and the delegate's `writingToolsIgnoredRangesIn` returns
+  `MarkdownWritingToolsProtection.ignoredRanges`, so the protection holds if it is turned on.
+- **Image paste and drop** (`LineformiOSTextView+ImagePaste.swift`). The text view sets a
+  `pasteConfiguration` for images and overrides `paste(itemProviders:)` and `paste(_:)` (the edit
+  menu and ⌘V); a `UIDropInteraction` takes drag sessions that carry an image and no text, so a
+  text drag keeps the system's text drop. In `paste(_:)`, while the pasteboard has a string, the
+  ordinary text paste runs: a string never takes the image path (the Mac's rule).
+  `paste(itemProviders:)` decides from its providers alone, never from a pasteboard, because a
+  drop arrives there too and has none. Every provider starts loading at once (a drop session's
+  providers are only good during `performDrop`); only the inserts run one after another. Each
+  image is decoded and
+  re-encoded with `UIImage.pngData()` off the main thread, then written with a coordinated
+  `.withoutOverwriting` write to `<document folder>/images/<name>.png`. The name is
+  `ImageFileNaming`'s (the item's suggested name, else `image`, sanitized and uniqued as
+  `image-2.png` and so on); a name taken at the last moment is uniqued again, never replaced.
+  The link (`ImageLinkRewrite.markdownDestination`) goes in on its own line at the start of the
+  caret's line (`ImageInsertionText.insertingOnLine`, keeping CRLF) through `applyRuleEdit`, so
+  it is one undo step and autosave sees it. The folder comes from `OpenDocument`, the editor's
+  `ImageInsertionHost`: the open file's folder; for a document never saved, `flush` first
+  creates its file through the autosave rules, and if that fails nothing is written or
+  inserted and the save-failed notice shows. A blank document has nothing to be named from, so
+  it gets the save folder, and the save right after the link creates its file there. Nothing is
+  ever written outside the document's own folder or the save folder. When the image cannot be
+  written there (the folder is not writable, as for a file opened from another provider where
+  only the file is in scope), nothing is inserted and a short notice ("Can't save images beside
+  this document.") shows for a few seconds; there is no fallback folder, because a link to an
+  absolute path in the app's container would not travel with the document. An image lands only
+  in the document that was open when its paste or drop started (`imageInsertionDocumentIdentity`,
+  bumped when another document takes this one's place); otherwise its PNG is removed and nothing
+  is inserted.
+- **Stored properties.** `LineformTextView` comes from UIKit's `textViewUsingTextLayoutManager:`
+  factory, on which Swift's property initializers never run: memory is zeroed instead, so a
+  class-typed default reads as nil and an optional struct (`CGPoint?`, `NSRange?`) reads as a
+  zero value, not nil. All editor state with a starting value lives in `LineformTextView.State`,
+  made on first use behind the only stored property (an optional class reference, nil when
+  zeroed). `EditorConstructionTests` reads every value through `init(usingTextLayoutManager:)`,
+  `init(frame:textContainer:)`, `init?(coder:)` and `make(profile:)`.
 - Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
@@ -90,7 +184,10 @@ for line alike. Do not switch it to TextKit 2.
 
 - A new document saves into the save folder as soon as it has text, named from its first line
   (`DocumentNaming`: Markdown markers and unsafe characters removed, 60 characters at a word
-  boundary, a 200-byte cap, a unique name compared case- and normalisation-insensitively).
+  boundary, a 200-byte cap, a unique name compared case- and normalisation-insensitively). A
+  line of nothing but image references is skipped, and a link counts as its text, so a pasted
+  image never names the document; a document of only images is Untitled, and a title typed
+  later renames it.
 - An Untitled document with nothing typed creates no file.
 - While the name still follows the first line, editing the first line renames the file. Once the
   user renames the file, or the document was opened from an existing file, it is never renamed

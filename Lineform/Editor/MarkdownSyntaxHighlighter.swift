@@ -37,18 +37,16 @@ final class MarkdownSyntaxHighlighter {
         MarkdownTextStyle.markdownBlockSpacingLineIndexes(inLines: lines, includeTrailingBlankBoundary: includeTrailingBlankBoundary)
     }
 
-    let analyzer = MarkdownRangeAnalyzer()
-
-    /// `true` when `inner` is fully contained in `outer` — the "already highlighted" guard the
-    /// text view uses to skip re-tokenizing on ordinary in-margin scrolls.
+    /// `true` when `inner` is fully contained in `outer`. Forwards to `MarkdownTokenScope`.
     static func range(_ outer: NSRange, covers inner: NSRange) -> Bool {
-        inner.location >= outer.location && NSMaxRange(inner) <= NSMaxRange(outer)
+        MarkdownTokenScope.range(outer, covers: inner)
     }
 
     /// Full refresh: resets the WHOLE document to base attributes (uniform font / paragraph
     /// style / kern / color → stable layout everywhere) and colorizes tokens only within
     /// `tokenScope`. `tokenScope == nil` colorizes the whole document — the original behavior,
-    /// used by tests and by any text view with no enclosing scroll view.
+    /// used by tests and by any text view with no enclosing scroll view. The styling itself is
+    /// LineformCore's `MarkdownTokenStyler`, shared with the iPhone editor.
     @MainActor
     func highlight(textView: NSTextView, profile: ReadingProfile = .original, tokenScope: NSRange? = nil) {
         guard let storage = textView.textStorage else {
@@ -56,13 +54,7 @@ final class MarkdownSyntaxHighlighter {
         }
 
         let selectedRange = textView.selectedRange()
-        let fullRange = NSRange(location: 0, length: storage.length)
-        let scope = NSIntersectionRange(tokenScope ?? fullRange, fullRange)
-
-        storage.beginEditing()
-        storage.setAttributes(Self.baseAttributes(for: profile), range: fullRange)
-        applyTokenAttributes(in: storage, profile: profile, scope: scope)
-        storage.endEditing()
+        MarkdownTokenStyler.apply(to: storage, profile: profile, tokenScope: tokenScope)
         textView.setSelectedRange(selectedRange)
     }
 
@@ -82,47 +74,7 @@ final class MarkdownSyntaxHighlighter {
         }
 
         let selectedRange = textView.selectedRange()
-
-        storage.beginEditing()
-        storage.setAttributes(Self.baseAttributes(for: profile), range: clamped)
-        applyTokenAttributes(in: storage, profile: profile, scope: clamped)
-        storage.endEditing()
+        MarkdownTokenStyler.applyTokens(to: storage, profile: profile, scope: clamped)
         textView.setSelectedRange(selectedRange)
-    }
-
-    private func applyTokenAttributes(in storage: NSTextStorage, profile: ReadingProfile, scope: NSRange) {
-        guard scope.length > 0 else { return }
-        for token in tokens(in: storage.string as NSString, scope: scope) where NSMaxRange(token.range) <= storage.length {
-            storage.addAttributes(attributes(for: token.kind, profile: profile), range: token.range)
-        }
-    }
-
-    private func attributes(for kind: MarkdownTokenKind, profile: ReadingProfile) -> [NSAttributedString.Key: Any] {
-        let markerColor = Self.markdownMarkerColor(for: profile)
-        let mutedColor = markerColor
-
-        switch kind {
-        case .headingMarker:
-            return [.foregroundColor: markerColor]
-        case .listMarker, .checkbox, .blockquoteMarker:
-            return [.foregroundColor: mutedColor]
-        case .codeSpan, .codeFence:
-            return [
-                .font: NSFont.monospacedSystemFont(ofSize: CGFloat(profile.fontSize), weight: .regular),
-                .foregroundColor: Self.inlineCodeColor(for: profile)
-            ]
-        case .linkText:
-            // Through the theme's contrast floor: `NSColor.linkColor` is the system blue and was
-            // the one reader ink not derived from the theme, so nothing put it under the contrast
-            // gate — it reads 3.70:1 on Quiet, below AA.
-            return [.foregroundColor: Theme.theme(for: profile).readableInk(NSColor.linkColor)]
-        case .linkDestination:
-            return [.foregroundColor: markerColor]
-        case .imageText, .imageDestination:
-            // Image links read in link blue (both alt and path) so they're easy to spot as
-            // references — unlike ordinary links, the path is colored too, since image links
-            // often have an empty alt (`![](path)`) and the path is the only visible content.
-            return [.foregroundColor: Theme.theme(for: profile).readableInk(NSColor.linkColor)]
-        }
     }
 }
