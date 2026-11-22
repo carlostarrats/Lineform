@@ -50,8 +50,8 @@ struct ReadingExperienceInspector: View {
     static let resetButtonHoverFillOpacity = 0.08
     static let headerCloseHoverFillOpacity = 0.08
     static let presetCardHoverFillOpacity = 0.07
-    static let fontSizeRange: ClosedRange<Double> = 12...48
-    static let lineHeightRange: ClosedRange<Double> = 0.5...1.8
+    static let fontSizeRange = ReadingExperienceControls.fontSizeRange
+    static let lineHeightRange = ReadingExperienceControls.lineHeightRange
 
     var body: some View {
         VStack(spacing: 0) {
@@ -103,22 +103,22 @@ struct ReadingExperienceInspector: View {
                     title: String(localized: "Block Spacing"),
                     subtitle: String(localized: "(Read / Preview)"),
                     valueText: Self.valueText(for: \.paragraphSpacing, in: store.activeProfile),
-                    value: numericBinding(\.paragraphSpacing, range: 0...24),
-                    range: 0...24
+                    value: numericBinding(\.paragraphSpacing, range: ReadingExperienceControls.blockSpacingRange),
+                    range: ReadingExperienceControls.blockSpacingRange
                 )
 
                 InspectorSliderRow(
                     title: String(localized: "Letter Spacing"),
                     valueText: Self.valueText(for: \.letterSpacing, in: store.activeProfile),
-                    value: numericBinding(\.letterSpacing, range: 0...1.2),
-                    range: 0...1.2
+                    value: numericBinding(\.letterSpacing, range: ReadingExperienceControls.letterSpacingRange),
+                    range: ReadingExperienceControls.letterSpacingRange
                 )
 
                 InspectorSliderRow(
                     title: String(localized: "Column Width"),
                     valueText: Self.valueText(for: \.columnWidth, in: store.activeProfile),
-                    value: numericBinding(\.columnWidth, range: ReadingProfile.columnWidthMinimum...ReadingProfile.columnWidthMaximum),
-                    range: ReadingProfile.columnWidthMinimum...ReadingProfile.columnWidthMaximum
+                    value: numericBinding(\.columnWidth, range: ReadingExperienceControls.columnWidthRange),
+                    range: ReadingExperienceControls.columnWidthRange
                 )
 
                 InspectorToggleRow(
@@ -243,38 +243,18 @@ struct ReadingExperienceInspector: View {
     }
 
     static func visibleFontID(for profile: ReadingProfile) -> FontID {
-        guard FontOption.option(for: profile.fontID)?.isAvailable == true else {
-            // One definition of "the default", shared with `FontOption.resolved(for:)` — a second
-            // hardcoded `.sfPro` here could drift out of agreement with what actually renders.
-            return FontOption.defaultOption.id
-        }
-        return profile.fontID
+        ReadingExperienceControls.visibleFontID(for: profile)
     }
 
     static func valueText(for keyPath: KeyPath<ReadingProfile, Double>, in profile: ReadingProfile) -> String {
-        let value = profile[keyPath: keyPath]
-
-        switch keyPath {
-        case \ReadingProfile.fontSize:
-            return String(localized: "\(roundedInteger(value)) pt")
-        case \ReadingProfile.lineHeightMultiple:
-            return decimalText(value, maximumFractionDigits: 2)
-        case \ReadingProfile.columnWidth:
-            return ReadingProfile.isFullWidthColumn(value) ? String(localized: "Full") : String(localized: "\(roundedInteger(value)) px")
-        case \ReadingProfile.paragraphSpacing, \ReadingProfile.insertionPointWidth:
-            return String(localized: "\(roundedInteger(value)) px")
-        case \ReadingProfile.letterSpacing:
-            return decimalText(value, maximumFractionDigits: 1)
-        default:
-            return decimalText(value, maximumFractionDigits: 2)
-        }
+        ReadingExperienceControls.valueText(for: keyPath, in: profile)
     }
 
     private func numericBinding(_ keyPath: WritableKeyPath<ReadingProfile, Double>, range: ClosedRange<Double>) -> Binding<Double> {
         Binding(
             get: { store.activeProfile[keyPath: keyPath] },
             set: { value in
-                store.update { $0[keyPath: keyPath] = min(max(value, range.lowerBound), range.upperBound) }
+                store.update { $0[keyPath: keyPath] = ReadingExperienceControls.clamped(value, to: range) }
             }
         )
     }
@@ -288,17 +268,9 @@ struct ReadingExperienceInspector: View {
         )
     }
 
-    private static func roundedInteger(_ value: Double) -> Int {
-        Int(value.rounded())
-    }
-
     static func decimalText(_ value: Double, maximumFractionDigits: Int,
                              locale: Locale = .autoupdatingCurrent) -> String {
-        let formatter = NumberFormatter()
-        formatter.locale = locale
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = maximumFractionDigits
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.\(maximumFractionDigits)f", value)
+        ReadingExperienceControls.decimalText(value, maximumFractionDigits: maximumFractionDigits, locale: locale)
     }
 }
 
