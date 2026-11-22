@@ -44,6 +44,10 @@ struct DocumentScreen: View {
     /// The older form, a path. Read once for a scene stored before bookmarks, then cleared.
     @SceneStorage("openDocumentPath") private var legacyOpenDocumentPath = ""
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// First run (roadmap step 11), while this launch wants it. A restored scene wins
+    /// (`FirstRunGate.shouldPresent`), and finishing it clears this and focuses the editor.
+    @State private var isShowingFirstRun: Bool
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document.
@@ -54,11 +58,34 @@ struct DocumentScreen: View {
     }
 
     /// `initialMode` is the mode of a scene with nothing stored: Write in the app; tests start
-    /// elsewhere.
-    init(document: OpenDocument, profileStore: ReadingProfileStore, initialMode: EditorDisplayMode = .write) {
+    /// elsewhere. `showsFirstRun` is the launch's answer from `FirstRunGate.shouldShowAtLaunch`.
+    init(
+        document: OpenDocument,
+        profileStore: ReadingProfileStore,
+        initialMode: EditorDisplayMode = .write,
+        showsFirstRun: Bool = false
+    ) {
         self.document = document
         self.profileStore = profileStore
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
+        _isShowingFirstRun = State(initialValue: showsFirstRun)
+    }
+
+    private var presentsFirstRun: Bool {
+        FirstRunGate.shouldPresent(
+            launchWantsFirstRun: isShowingFirstRun,
+            restoredBookmark: openDocumentBookmark,
+            restoredPath: legacyOpenDocumentPath
+        )
+    }
+
+    /// First run is over: fade it out (at once under Reduce Motion), then put the caret in the
+    /// blank document.
+    private func finishFirstRun() {
+        withAnimation(EditorMotionPolicy.animation(.easeInOut(duration: 0.32), reduceMotion: reduceMotion)) {
+            isShowingFirstRun = false
+        }
+        positionKeeper.editor?.becomeFirstResponder()
     }
 
     /// The mode control's binding: every switch goes through the position keeper first.
@@ -110,6 +137,13 @@ struct DocumentScreen: View {
                 MenuButton(profile: profile) { isShowingFiles = true }
             }
             .padding(MarkdownEditor.chromeMargin)
+        }
+        .overlay {
+            // Above all the other chrome, so nothing of the document shows through or takes taps.
+            if presentsFirstRun {
+                FirstRunOverlay(onFinish: finishFirstRun)
+                    .transition(.opacity)
+            }
         }
         .background {
             // ⌘E on a hardware keyboard: Write ↔ Read, and Preview to Write, as on the Mac.

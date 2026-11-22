@@ -171,6 +171,40 @@
         }
       }
     },
+    "Continue" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "続ける"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续"
+          }
+        }
+      }
+    },
     "Copied" : {
       "localizations" : {
         "de" : {
@@ -405,6 +439,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文件"
+          }
+        }
+      }
+    },
+    "Free, and everything stays on your device." : {
+      "comment" : "First run point 1. The owner edits this copy in FirstRunCopy.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kostenlos, und alles bleibt auf deinem Gerät."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratis, y todo se queda en tu dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratuit, et tout reste sur votre appareil."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無料で、すべてがお使いのデバイスに保存されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费，所有内容都保留在你的设备上。"
           }
         }
       }
@@ -817,6 +886,41 @@
         }
       }
     },
+    "Markdown, styled PDFs, and AI only if you connect your own." : {
+      "comment" : "First run point 3. The owner edits this copy in FirstRunCopy.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown, gestaltete PDFs und KI nur, wenn du deine eigene verbindest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown, PDF con estilo e IA solo si conectas la tuya."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown, PDF mis en forme, et l’IA seulement si vous connectez la vôtre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown、スタイル付きPDF、そしてAIはご自身で接続した場合のみ。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown、带样式的 PDF，以及仅在你自行连接时才启用的 AI。"
+          }
+        }
+      }
+    },
     "New Document" : {
       "localizations" : {
         "es" : {
@@ -1157,6 +1261,75 @@
         }
       }
     },
+    "Simple markdown editing" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einfaches Markdown-Schreiben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edición sencilla de Markdown"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’édition Markdown en toute simplicité"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンプルなMarkdown編集"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简约的 Markdown 编辑"
+          }
+        }
+      }
+    },
+    "Start Writing" : {
+      "comment" : "First run button that opens the document. The owner edits this copy in FirstRunCopy.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Losschreiben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empezar a escribir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commencer à écrire"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書きはじめる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始写作"
+          }
+        }
+      }
+    },
     "Strikethrough" : {
       "localizations" : {
         "de" : {
@@ -1425,6 +1598,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消拆分视图滚动联动"
+          }
+        }
+      }
+    },
+    "Welcome to Lineform" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Willkommen bei Lineform"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Te damos la bienvenida a Lineform"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bienvenue dans Lineform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineformへようこそ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欢迎使用 Lineform"
+          }
+        }
+      }
+    },
+    "What to expect" : {
+      "comment" : "First run heading. The owner edits this copy in FirstRunCopy.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was dich erwartet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qué esperar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À quoi s’attendre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "はじめる前に"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始之前"
+          }
+        }
+      }
+    },
+    "Your files stay in iCloud, and sync with Lineform on your Mac if you use it there." : {
+      "comment" : "First run point 2. The owner edits this copy in FirstRunCopy.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Dateien bleiben in iCloud und werden mit Lineform auf deinem Mac synchronisiert, falls du es dort verwendest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus archivos se guardan en iCloud y se sincronizan con Lineform en tu Mac, si también lo usas allí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos fichiers restent dans iCloud et se synchronisent avec Lineform sur votre Mac, si vous l’y utilisez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルはiCloudに保存され、MacでもLineformを使っていれば同期されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的文件保存在 iCloud 中；如果你也在 Mac 上使用 Lineform，文件会与其同步。"
           }
         }
       }
