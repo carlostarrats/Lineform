@@ -108,7 +108,14 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
             // The GLYPHS are protected, not the connective between them: "⌘2 to ⌘6" as one
             // token forced an English "to" into all five translations. "bis"/"à"/"a"/"〜"/"至"
             // are prose and belong to the translator.
-            for expected in ["⌘1", "⌘0", "⌘2", "⌘6", "⌃⌘T", "⌃⌘R", "Shift-Tab"] {
+            // On iPhone the table commands live in the Menu's Document section, not on ⌃⌘T/⌃⌘R
+            // (`testIPhoneWordingSpeaksToTouch`); the heading keys still work with a keyboard.
+            #if os(iOS)
+            let glyphs = ["⌘1", "⌘0", "⌘2", "⌘6", "Shift-Tab"]
+            #else
+            let glyphs = ["⌘1", "⌘0", "⌘2", "⌘6", "⌃⌘T", "⌃⌘R", "Shift-Tab"]
+            #endif
+            for expected in glyphs {
                 XCTAssertTrue(explanations.contains(expected), "\(language) lost the shortcut glyph \(expected)")
             }
         }
@@ -117,6 +124,44 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
         let english = MarkdownReference.sections(in: try englishBundle())
             .flatMap(\.rows).map(\.explanation).joined(separator: " ")
         XCTAssertTrue(english.contains("Return starts the next"), "reference no longer describes list continuation")
+    }
+
+    /// The reference is worded for the platform it is read on. The Mac's text stays exactly as it
+    /// was; the iPhone's never says "Click", and names the Menu's Document section and a tap where
+    /// the Mac names a shortcut or the Return key in its search field.
+    func testIPhoneWordingSpeaksToTouch() throws {
+        func row(_ id: String, _ bundle: Bundle) throws -> MarkdownReference.Row {
+            try XCTUnwrap(MarkdownReference.sections(in: bundle).flatMap(\.rows).first { $0.id == id }, id)
+        }
+        let english = try englishBundle()
+        #if os(iOS)
+        let explanations = MarkdownReference.sections(in: english).flatMap(\.rows).map(\.explanation)
+        XCTAssertFalse(explanations.contains { $0.localizedCaseInsensitiveContains("click") }, "no row says Click on iPhone")
+        XCTAssertEqual(try row("- [x] done", english).explanation, "Task, done. Tap it in Read to toggle.")
+        XCTAssertEqual(try row("| a | b |", english).explanation,
+                       "Header row, then |---|---|, then rows. Colons align. Insert and tidy in Document.")
+        XCTAssertEqual(try row("# Title", english).explanation, "Top-level heading. ⌘1 sets it, ⌘0 clears it, with a keyboard.")
+        XCTAssertEqual(try row("## Section", english).explanation, "Smaller heading (more # = smaller). ⌘2 to ⌘6 with a keyboard.")
+        XCTAssertEqual(try row("return", english).syntax, "Tap")
+        XCTAssertEqual(try row("return", english).explanation, "In Search, tap a match to go to it.")
+        // Every language has its own iPhone wording, not the Mac's sentence.
+        for language in Self.languages where language != "en" {
+            let bundle = try bundle(language)
+            let done = try row("- [x] done", bundle).explanation
+            XCTAssertNotEqual(done, String(localized: "Task, done. Click to toggle.", bundle: bundle), "\(language) kept the Mac's Click")
+            XCTAssertNotEqual(done, "Task, done. Tap it in Read to toggle.", "\(language) is untranslated")
+            XCTAssertNotEqual(try row("return", bundle).explanation, "In Search, tap a match to go to it.", "\(language) is untranslated")
+        }
+        #else
+        // The Mac's text, byte for byte.
+        XCTAssertEqual(try row("- [x] done", english).explanation, "Task, done. Click to toggle.")
+        XCTAssertEqual(try row("| a | b |", english).explanation,
+                       "Header row, then |---|---|, then rows. Colons align. ⌃⌘T inserts, ⌃⌘R tidies.")
+        XCTAssertEqual(try row("# Title", english).explanation, "Top-level heading. ⌘1 sets it, ⌘0 clears it.")
+        XCTAssertEqual(try row("## Section", english).explanation, "Smaller heading (more # = smaller). ⌘2 to ⌘6 set the level.")
+        XCTAssertEqual(try row("return", english).syntax, "Return")
+        XCTAssertEqual(try row("return", english).explanation, "While searching, jumps to the next match; wraps around.")
+        #endif
     }
 
     /// East Asian Wide and Fullwidth ranges (UAX #11). A CJK character occupies TWO columns,

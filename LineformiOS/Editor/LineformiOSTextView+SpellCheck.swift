@@ -22,8 +22,27 @@ import UIKit
 extension LineformTextView {
     // MARK: - Scheduling
 
-    /// Schedules a pass `SpellCheckPass.typingDelay` from now, replacing any pending one.
+    /// Settings › Check spelling while typing (`AppSettings.checksSpellingWhileTyping`). Turning
+    /// it off cancels a pending pass and clears the underlines; turning it on schedules a pass.
+    var checksSpellingWhileTyping: Bool {
+        get { state.checksSpellingWhileTyping }
+        set {
+            guard newValue != state.checksSpellingWhileTyping else { return }
+            state.checksSpellingWhileTyping = newValue
+            if newValue {
+                scheduleSpellCheck()
+            } else {
+                NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(spellCheckAfterDelay), object: nil)
+                spellCheck.misspelledRanges = []
+                redrawSpellingUnderlines()
+            }
+        }
+    }
+
+    /// Schedules a pass `SpellCheckPass.typingDelay` from now, replacing any pending one. Nothing
+    /// while Check spelling while typing is off.
     func scheduleSpellCheck() {
+        guard checksSpellingWhileTyping else { return }
         let selector = #selector(spellCheckAfterDelay)
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
         perform(selector, with: nil, afterDelay: SpellCheckPass.typingDelay, inModes: [.common])
@@ -37,7 +56,7 @@ extension LineformTextView {
     /// is composing; the edit that ends the composition schedules the next pass.
     @discardableResult
     func runSpellCheckPass() -> Bool {
-        guard markedTextRange == nil else { return false }
+        guard checksSpellingWhileTyping, markedTextRange == nil else { return false }
         guard let language = spellCheckLanguage else {
             spellCheck.misspelledRanges = []
             redrawSpellingUnderlines()
@@ -50,6 +69,26 @@ extension LineformTextView {
             in: textStorage.string, visible: visible, language: language, checker: spellCheck.checker
         )
         redrawSpellingUnderlines()
+        return true
+    }
+
+    /// The Menu's Check Document Now: one pass over the prose of the WHOLE document, run whether
+    /// or not Check spelling while typing is on, as the Mac's command is. Every misspelling is
+    /// underlined, and the first one after the selection (wrapping to the top) is selected and
+    /// scrolled into view. False, selecting nothing, when there is none, no dictionary, or an
+    /// input method is composing.
+    @discardableResult
+    func checkDocumentNow() -> Bool {
+        guard markedTextRange == nil, let language = spellCheckLanguage else { return false }
+        let found = SpellCheckPass.misspelledRangesInWholeDocument(
+            in: textStorage.string, language: language, checker: spellCheck.checker
+        )
+        spellCheck.misspelledRanges = found
+        redrawSpellingUnderlines()
+        let after = NSMaxRange(selectedRange)
+        guard let target = found.first(where: { $0.location >= after }) ?? found.first else { return false }
+        selectedRange = target
+        scrollRangeToVisible(target)
         return true
     }
 

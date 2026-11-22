@@ -56,6 +56,8 @@ final class LineformTextView: UITextView {
         var scrollOffsetBeforeTypewriterMode: CGPoint?
         var isKeyboardAnimating = false
         var spellCheck: SpellCheckPass?
+        /// Settings › Check spelling while typing. Off, no pass is scheduled or run.
+        var checksSpellingWhileTyping = true
         var spellingUnderlines: CAShapeLayer?
         var needsSpellingUnderlineRedraw = false
         var lastHighlightedTokenRange: NSRange?

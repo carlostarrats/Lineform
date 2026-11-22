@@ -8,12 +8,13 @@ import SwiftUI
 ///
 /// The section is kept with the scene (`@SceneStorage("menuSection")`, raw values never
 /// localized) and opens on Files (`FilesSection`). Outline (`OutlineSection`), Markdown Basics
-/// (`BasicsSection`) and Search (`SearchSection`) follow; Document and Settings are placeholders
-/// until their own roadmap tasks.
+/// (`BasicsSection`), Search (`SearchSection`), Document (`DocumentSection`) and Settings
+/// (`SettingsSection`) follow.
 struct MenuSheet: View {
     var document: OpenDocument
     var editor: any EditorCommands
     var files: FilesStore
+    var settings: AppSettings
     var profile: ReadingProfile
     var onDismiss: () -> Void
 
@@ -31,12 +32,14 @@ struct MenuSheet: View {
         document: OpenDocument,
         editor: any EditorCommands,
         files: FilesStore,
+        settings: AppSettings = .shared,
         profile: ReadingProfile = .original,
         onDismiss: @escaping () -> Void
     ) {
         self.document = document
         self.editor = editor
         self.files = files
+        self.settings = settings
         self.profile = profile
         self.onDismiss = onDismiss
     }
@@ -113,8 +116,10 @@ struct MenuSheet: View {
             BasicsSection()
         case .search:
             SearchSection(document: document, editor: editor, files: files, onDismiss: onDismiss)
-        case .document, .settings:
-            MenuSectionPlaceholder(section: section)
+        case .document:
+            DocumentSection(document: document, editor: editor, files: files, onDismiss: onDismiss)
+        case .settings:
+            SettingsSection(settings: settings)
         }
     }
 }
@@ -148,24 +153,6 @@ struct MenuSectionBar: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 4)
         }
-    }
-}
-
-/// A section whose contents arrive in a later roadmap task: its symbol and name, quietly.
-struct MenuSectionPlaceholder: View {
-    var section: MenuSection
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: section.systemImage)
-                .font(.title2)
-            Text(section.title)
-                .font(.callout)
-        }
-        .opacity(0.45)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 48)
-        .accessibilityElement(children: .combine)
     }
 }
 

@@ -213,6 +213,11 @@
 		1F0000410000000000000033 /* FilesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000033 /* FilesStore.swift */; };
 		1F0000410000000000000037 /* FilesSectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000037 /* FilesSectionTests.swift */; };
 		1F0000410000000000000036 /* FilesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000036 /* FilesStoreTests.swift */; };
+		1F0000410000000000000041 /* DocumentCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000041 /* DocumentCommandsTests.swift */; };
+		1F0000410000000000000042 /* SettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000042 /* SettingsTests.swift */; };
+		1F000041000000000000003E /* DocumentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003E /* DocumentSection.swift */; };
+		1F000041000000000000003F /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003F /* SettingsSection.swift */; };
+		1F0000410000000000000040 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000040 /* AppSettings.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -451,6 +456,11 @@
 		1F0000400000000000000033 /* FilesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesStore.swift; sourceTree = "<group>"; };
 		1F0000400000000000000037 /* FilesSectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesSectionTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000036 /* FilesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesStoreTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000041 /* DocumentCommandsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCommandsTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000042 /* SettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTests.swift; sourceTree = "<group>"; };
+		1F000040000000000000003E /* DocumentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentSection.swift; sourceTree = "<group>"; };
+		1F000040000000000000003F /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
+		1F0000400000000000000040 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -763,6 +773,7 @@
 				1F0000400000000000000005 /* LineformiOS.entitlements */,
 				1F0000400000000000000006 /* LineformiOSDebug.entitlements */,
 				1F0000400000000000000010 /* OpenDocument.swift */,
+				1F0000400000000000000040 /* AppSettings.swift */,
 			);
 			path = LineformiOS;
 			sourceTree = "<group>";
@@ -784,6 +795,8 @@
 				1F0000400000000000000037 /* FilesSectionTests.swift */,
 				1F0000400000000000000036 /* FilesStoreTests.swift */,
 				1F000040000000000000003D /* SearchTests.swift */,
+				1F0000400000000000000042 /* SettingsTests.swift */,
+				1F0000400000000000000041 /* DocumentCommandsTests.swift */,
 				1F000040000000000000003A /* OutlineBasicsTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
@@ -867,6 +880,8 @@
 				1F000040000000000000003B /* SearchSection.swift */,
 				1F0000400000000000000039 /* BasicsSection.swift */,
 				1F0000400000000000000038 /* OutlineSection.swift */,
+				1F000040000000000000003F /* SettingsSection.swift */,
+				1F000040000000000000003E /* DocumentSection.swift */,
 			);
 			path = Menu;
 			sourceTree = "<group>";
@@ -1291,6 +1306,9 @@
 				1F000041000000000000003B /* SearchSection.swift in Sources */,
 				1F0000410000000000000039 /* BasicsSection.swift in Sources */,
 				1F0000410000000000000038 /* OutlineSection.swift in Sources */,
+				1F0000410000000000000040 /* AppSettings.swift in Sources */,
+				1F000041000000000000003F /* SettingsSection.swift in Sources */,
+				1F000041000000000000003E /* DocumentSection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1312,6 +1330,8 @@
 				1F0000410000000000000037 /* FilesSectionTests.swift in Sources */,
 				1F0000410000000000000036 /* FilesStoreTests.swift in Sources */,
 				1F000041000000000000003D /* SearchTests.swift in Sources */,
+				1F0000410000000000000042 /* SettingsTests.swift in Sources */,
+				1F0000410000000000000041 /* DocumentCommandsTests.swift in Sources */,
 				1F000041000000000000003A /* OutlineBasicsTests.swift in Sources */,
 				1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,

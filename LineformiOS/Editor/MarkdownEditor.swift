@@ -33,12 +33,15 @@ struct MarkdownEditor: UIViewRepresentable {
     var topChromeInset: CGFloat = 0
     /// The document whose Read edits this editor applies (`OpenDocument.readEditor`).
     var readEditDocument: OpenDocument?
+    /// Settings › Check spelling while typing.
+    var checksSpelling = true
 
     /// Padding for the chrome that floats over the page (the menu button, the save notice).
     static let chromeMargin: CGFloat = 20
 
     func makeUIView(context: Context) -> LineformTextView {
         let textView = LineformTextView.make(profile: profile)
+        textView.checksSpellingWhileTyping = checksSpelling
         textView.setDocumentText(text)
         textView.delegate = context.coordinator
         textView.imageInsertionHost = imageHost
@@ -58,6 +61,7 @@ struct MarkdownEditor: UIViewRepresentable {
     /// Hands `textView` this value's inputs. Internal so tests update an editor the same way.
     func configure(_ textView: LineformTextView) {
         textView.profile = profile
+        textView.checksSpellingWhileTyping = checksSpelling
         textView.imageInsertionHost = imageHost
         textView.keepsCaretVisibleOnResize = keepsCaretVisibleOnResize
         textView.setTopChromeInset(topChromeInset)

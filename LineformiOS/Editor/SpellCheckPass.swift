@@ -8,9 +8,13 @@ import UIKit
 /// This pass runs instead, on the main actor, over `MarkdownSpellCheckRegions.checkableRanges` of
 /// the visible range plus `margin`, snapped to whole lines.
 ///
-/// - **Scoped.** It never looks past the window, and it never calls a whole-document pass
+/// - **Scoped.** The typing pass never looks past the window, and it never calls a whole-document pass
 ///   (`MarkdownWritingToolsProtection.ignoredRanges`, `MarkdownRangeAnalyzer.ranges(in:)`): the
 ///   regions are scoped by construction. `SpellCheckTests.testSpellPassIsScopedRatio` guards it.
+///   The one whole-document pass is the Menu's Check Document Now (`misspelledRangesInWholeDocument`),
+///   a command the writer runs, never scheduled.
+/// - **Switchable.** Settings › Check spelling while typing off schedules and runs no typing pass
+///   (`LineformTextView.checksSpellingWhileTyping`); Check Document Now still works.
 /// - **Per document.** Each editor owns one pass and one `UITextChecker`, so Ignore Spelling
 ///   (`ignoreWord`) lasts for this document only; Learn Spelling is the system's, for every one.
 /// - The editor schedules it (`LineformiOSTextView+SpellCheck.swift`): `typingDelay` after the
@@ -41,8 +45,23 @@ final class SpellCheckPass {
             around: NSRange(location: clamped.location, length: clamped.length),
             margin: margin
         )
+        return misspellings(in: text, regions: MarkdownSpellCheckRegions.checkableRanges(in: ns, enclosing: window),
+                            language: language, checker: checker)
+    }
+
+    /// Check Document Now: the misspelled words in the prose of the whole document, once, in
+    /// document order. An explicit command, never on the typing path.
+    static func misspelledRangesInWholeDocument(in text: String, language: String, checker: UITextChecker) -> [NSRange] {
+        let ns = text as NSString
+        guard ns.length > 0 else { return [] }
+        let whole = NSRange(location: 0, length: ns.length)
+        return misspellings(in: text, regions: MarkdownSpellCheckRegions.checkableRanges(in: ns, enclosing: whole),
+                            language: language, checker: checker)
+    }
+
+    private static func misspellings(in text: String, regions: [NSRange], language: String, checker: UITextChecker) -> [NSRange] {
         var found: [NSRange] = []
-        for region in MarkdownSpellCheckRegions.checkableRanges(in: ns, enclosing: window) {
+        for region in regions {
             var start = region.location
             while start < NSMaxRange(region) {
                 let word = checker.rangeOfMisspelledWord(

@@ -23,6 +23,13 @@ protocol EditorCommands {
     /// line endings included, is kept byte for byte. False when nothing changed or a range is
     /// invalid.
     @discardableResult func replaceAll(ranges: [NSRange], with replacement: String) -> Bool
+    /// Check Document Now: one spelling pass over the whole document; the first misspelling after
+    /// the selection is selected and brought into view. False when there is none.
+    @discardableResult func checkDocumentNow() -> Bool
+}
+
+extension EditorCommands {
+    @discardableResult func checkDocumentNow() -> Bool { false }
 }
 
 /// The screen's commands over the live editor, which stays mounted in every mode.
@@ -51,6 +58,14 @@ struct LiveEditorCommands: EditorCommands {
     func insertTable() { editor?.insertTable() }
 
     func reformatTable() { editor?.reformatTable() }
+
+    @discardableResult
+    func checkDocumentNow() -> Bool {
+        guard let editor, editor.checkDocumentNow() else { return false }
+        // Into view on the surface on screen (Read and Preview too), as a search match is.
+        positionKeeper.restore(editor.selectedRange.location, in: mode)
+        return true
+    }
 
     @discardableResult
     func replace(range: NSRange, with replacement: String) -> Bool {
