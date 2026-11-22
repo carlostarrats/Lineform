@@ -7,8 +7,8 @@ import SwiftUI
 /// the counts) and the section bar, which scrolls sideways.
 ///
 /// The section is kept with the scene (`@SceneStorage("menuSection")`, raw values never
-/// localized) and opens on Files (`FilesSection`). Each other section is a placeholder until its
-/// own roadmap task.
+/// localized) and opens on Files (`FilesSection`). Outline (`OutlineSection`) and Markdown Basics
+/// (`BasicsSection`) follow; each other section is a placeholder until its own roadmap task.
 struct MenuSheet: View {
     var document: OpenDocument
     var editor: any EditorCommands
@@ -106,7 +106,11 @@ struct MenuSheet: View {
         switch section {
         case .files:
             FilesSection(store: files, document: document, onDismiss: onDismiss)
-        case .outline, .basics, .search, .document, .settings:
+        case .outline:
+            OutlineSection(text: document.text, editor: editor, onDismiss: onDismiss)
+        case .basics:
+            BasicsSection()
+        case .search, .document, .settings:
             MenuSectionPlaceholder(section: section)
         }
     }

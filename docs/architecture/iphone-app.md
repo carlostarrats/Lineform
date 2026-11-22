@@ -18,7 +18,8 @@ a fully working state, never an error or a prompt.
 ## Target, scheme and tests
 
 - Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`; `Menu/`: `MenuSheet`,
-  `MenuSection`, `EditorCommands`, `FilesStore`, `FilesSection`, `FolderView`;
+  `MenuSection`, `EditorCommands`, `FilesStore`, `FilesSection`, `FolderView`, `OutlineSection`,
+  `BasicsSection`;
   `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
   `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
@@ -497,7 +498,7 @@ as against ⌘S, and every iPhone write is an autosave, so it would add nothing.
 
 The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, Document, Settings
 (`MenuSection`; raw values are identity, never localized). The section is kept in
-`@SceneStorage("menuSection")` and starts on Files. The other sections are placeholders until
+`@SceneStorage("menuSection")` and starts on Files. Document and Settings are placeholders until
 their roadmap tasks.
 
 ### Files
@@ -542,6 +543,25 @@ rules (files-sidebar.md) and adds iPhone ones:
 - **iCloud placeholders:** listed under their real names; tapping one opens it through
   `OpenDocument`, which downloads it first. The whole tree is not kept downloaded (unlike the
   Mac's `ensureDownloaded`): phone storage is the writer's.
+
+### Outline and Markdown Basics
+
+- **Outline** (`OutlineSection`, `OutlineModel`): the heading tree of the current text
+  (`MarkdownOutlineParser` and `MarkdownOutlineTree`), one row per heading, indented by its depth
+  in the tree. It is built at once when the section opens and rebuilt 0.3 s after the text
+  changes; each change restarts the wait. Tapping a heading dismisses the sheet first, then calls
+  `EditorCommands.scrollToCharacterRange`, which puts the heading at the top of the surface on
+  screen in the active mode (Write, Read, or both Preview panes) through `ModePositionKeeper`. It
+  does not move the selection. With no headings, the section shows the Mac's "Add # Title or
+  ## Section to build an outline."
+- **Markdown Basics** (`BasicsSection`): the package's `MarkdownReference` sections in a plain
+  `List`, with the Mac view's section headers and row layout (the syntax, monospaced for a code
+  row, over its explanation). Tapping a code row copies its `copyAffordance` text to
+  `UIPasteboard` and shows "Copied" on that row for 1 s. Label rows (Tab, Block Spacing, Spelling,
+  …) have no `copyAffordance`, so they are not buttons and copy nothing. VoiceOver reads one
+  element per row (`Row.accessibilityLabel()`).
+
+### Editor commands
 
 Sections act on the editor only through `EditorCommands`, which the screen implements over the
 live editor (`LiveEditorCommands`): top-aligned scrolling through `ModePositionKeeper` in the

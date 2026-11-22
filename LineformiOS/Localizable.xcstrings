@@ -3279,6 +3279,40 @@
           }
         }
       }
+    },
+    "Add # Title or ## Section to build an outline." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge # Titel oder ## Abschnitt hinzu, um eine Gliederung aufzubauen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade # Título o ## Sección para crear un esquema."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez # Titre ou ## Section pour créer un plan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「# タイトル」や「## セクション」を追加すると、アウトラインが作成されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加 # 标题或 ## 章节以生成大纲。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
